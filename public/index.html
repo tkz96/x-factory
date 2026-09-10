@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="X-Factory — software engineering workbench: ticket → implementation → tests → PR">
+  <title>X-Factory</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header id="header">
+    <h1>X-Factory</h1>
+    <span class="subtitle">ticket → implementation → tests → PR</span>
+  </header>
+
+  <main>
+    <!-- ── Setup View ──────────────────────────────────────────────── -->
+    <section id="view-setup" class="view active">
+      <div class="card">
+        <h2>New Run</h2>
+
+        <label for="select-project">Project</label>
+        <select id="select-project">
+          <option value="" disabled selected>Loading projects…</option>
+        </select>
+
+        <label for="input-ticket-id">Ticket ID</label>
+        <input id="input-ticket-id" type="text" placeholder="e.g. 123">
+
+        <label for="input-ticket-title">Ticket Title</label>
+        <input id="input-ticket-title" type="text" placeholder="e.g. Add password reset flow">
+
+        <label for="input-plan">Implementation Plan</label>
+        <textarea id="input-plan" rows="12" placeholder="Paste the implementation plan here…"></textarea>
+
+        <div class="knowledge-status" id="knowledge-status"></div>
+
+        <button id="btn-start" class="btn-primary" disabled>Start Implementation</button>
+
+        <div id="setup-error" class="error-message" hidden></div>
+      </div>
+    </section>
+
+    <!-- ── Run View ────────────────────────────────────────────────── -->
+    <section id="view-run" class="view">
+      <div class="card">
+        <div class="run-header">
+          <h2 id="run-title">Run</h2>
+          <span id="run-status" class="badge">preparing</span>
+        </div>
+
+        <div id="event-log" class="event-log" aria-live="polite" role="log">
+          <!-- Events appended here -->
+        </div>
+
+        <div class="steer-bar" id="steer-bar">
+          <input id="input-steer" type="text" placeholder="Send instruction to Pi…">
+          <button id="btn-steer" class="btn-secondary">Send</button>
+        </div>
+
+        <div class="run-actions">
+          <button id="btn-stop" class="btn-danger">Stop</button>
+        </div>
+
+        <div id="run-error" class="error-message" hidden></div>
+      </div>
+    </section>
+
+    <!-- ── Result View ─────────────────────────────────────────────── -->
+    <section id="view-result" class="view">
+      <div class="card">
+        <h2>Implementation Complete</h2>
+
+        <div class="result-section">
+          <h3>Tests</h3>
+          <span id="result-tests" class="badge">—</span>
+          <pre id="result-test-output" class="test-output" hidden></pre>
+        </div>
+
+        <div class="result-section">
+          <h3>Branch</h3>
+          <code id="result-branch">—</code>
+        </div>
+
+        <button id="btn-pr" class="btn-primary">Create Pull Request</button>
+
+        <div id="pr-steps" class="pr-steps" hidden></div>
+
+        <div id="pr-result" class="pr-result" hidden>
+          <h3>Pull Request Created</h3>
+          <a id="pr-link" href="#" target="_blank" rel="noopener">Open Pull Request</a>
+        </div>
+
+        <button id="btn-new" class="btn-secondary" style="margin-top: 1rem">New Run</button>
+
+        <div id="result-error" class="error-message" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

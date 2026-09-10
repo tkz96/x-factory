@@ -1,0 +1,19 @@
+{
+  "name": "x-factory",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Software engineering workbench: ticket → Pi → implementation → tests → PR",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.85.1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "private": true
+}

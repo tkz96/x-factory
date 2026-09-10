@@ -1,0 +1,12 @@
+{
+  "projects": [
+    {
+      "id": "example",
+      "name": "Example Project",
+      "repositoryPath": "/path/to/your/project",
+      "knowledgeRepositoryPath": "/path/to/your/project-knowledge",
+      "defaultBranch": "main",
+      "testCommand": "npm test"
+    }
+  ]
+}
