@@ -1,6 +1,8 @@
-// public/app.js — X-Factory frontend logic.
+// fallow-ignore-file coverage-gaps
+// public/app.js — X-Factory frontend logic for the 6-stage software factory runtime.
 
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
@@ -14,34 +16,47 @@ const viewSetup  = $("#view-setup");
 const viewRun    = $("#view-run");
 const viewResult = $("#view-result");
 
-const selectProject  = $("#select-project");
-const inputTicketId  = $("#input-ticket-id");
+const selectProject    = $("#select-project");
+const inputTicketId    = $("#input-ticket-id");
 const inputTicketTitle = $("#input-ticket-title");
-const inputPlan      = $("#input-plan");
-const knowledgeStatus = $("#knowledge-status");
-const btnStart       = $("#btn-start");
-const setupError     = $("#setup-error");
+const inputCriteria    = $("#input-criteria");
+const inputPlan        = $("#input-plan");
+const knowledgeStatus  = $("#knowledge-status");
+const btnStart         = $("#btn-start");
+const setupError       = $("#setup-error");
 
-const runTitle   = $("#run-title");
-const runStatus  = $("#run-status");
-const eventLog   = $("#event-log");
-const inputSteer = $("#input-steer");
-const btnSteer   = $("#btn-steer");
-const steerBar   = $("#steer-bar");
-const btnStop    = $("#btn-stop");
-const runError   = $("#run-error");
+const runTitle         = $("#run-title");
+const runBranch        = $("#run-branch");
+const runStatus        = $("#run-status");
+const eventLog         = $("#event-log");
+const inputSteer       = $("#input-steer");
+const btnSteer         = $("#btn-steer");
+const steerBar         = $("#steer-bar");
+const btnStop          = $("#btn-stop");
+const runError         = $("#run-error");
+const runDiffCard      = $("#run-diff-card");
+const runDiffFiles     = $("#run-diff-files");
+const runDiffContent   = $("#run-diff-content");
 
-const resultTests      = $("#result-tests");
-const resultTestOutput = $("#result-test-output");
-const resultBranch     = $("#result-branch");
-const btnPr            = $("#btn-pr");
-const prSteps          = $("#pr-steps");
-const prResult         = $("#pr-result");
-const prLink           = $("#pr-link");
-const btnNew           = $("#btn-new");
-const resultError      = $("#result-error");
+const resultStatusBadge   = $("#result-status-badge");
+const resultTests         = $("#result-tests");
+const resultRepairCount   = $("#result-repair-count");
+const resultTestOutput    = $("#result-test-output");
+const resultReviewBadge   = $("#result-review-badge");
+const resultReviewSummary = $("#result-review-summary");
+const criteriaChecklist   = $("#criteria-checklist");
+const findingsList        = $("#findings-list");
+const resultDiffCount     = $("#result-diff-count");
+const resultDiff          = $("#result-diff");
+const deliveryCheckpoint  = $("#delivery-checkpoint");
+const btnPr               = $("#btn-pr");
+const prSteps             = $("#pr-steps");
+const prResult            = $("#pr-result");
+const prLink              = $("#pr-link");
+const btnNew              = $("#btn-new");
+const resultError         = $("#result-error");
 
-// ── View switching ─────────────────────────────────────────────────────────────
+// ── View Switching ─────────────────────────────────────────────────────────────
 
 function showView(view) {
   viewSetup.classList.remove("active");
@@ -50,7 +65,7 @@ function showView(view) {
   view.classList.add("active");
 }
 
-// ── API helpers ────────────────────────────────────────────────────────────────
+// ── API Helpers ────────────────────────────────────────────────────────────────
 
 async function api(method, path, body) {
   const opts = { method, headers: {} };
@@ -73,7 +88,7 @@ async function init() {
     for (const p of projects) {
       const opt = document.createElement("option");
       opt.value = p.id;
-      opt.textContent = p.name;
+      opt.textContent = `${p.name} (${p.id})`;
       selectProject.appendChild(opt);
     }
   } catch (err) {
@@ -83,7 +98,7 @@ async function init() {
   updateStartButton();
 }
 
-// ── Setup view ─────────────────────────────────────────────────────────────────
+// ── Setup View ─────────────────────────────────────────────────────────────────
 
 function updateStartButton() {
   btnStart.disabled = !(
@@ -95,12 +110,11 @@ function updateStartButton() {
 
 selectProject.addEventListener("change", () => {
   updateStartButton();
-  // Update knowledge status.
   const project = projects.find((p) => p.id === selectProject.value);
   if (project?.knowledgeRepositoryPath) {
     knowledgeStatus.innerHTML = '<span class="check">✓</span> Knowledge repository configured';
   } else {
-    knowledgeStatus.innerHTML = '<span class="missing">—</span> No knowledge repository';
+    knowledgeStatus.innerHTML = '<span class="missing">—</span> No knowledge repository configured';
   }
 });
 
@@ -111,12 +125,18 @@ btnStart.addEventListener("click", async () => {
   btnStart.disabled = true;
   hideError(setupError);
 
+  const criteria = inputCriteria.value
+    .split("\n")
+    .map((s) => s.replace(/^[-*•\d.]+\s*/, "").trim())
+    .filter(Boolean);
+
   try {
     const run = await api("POST", "/runs", {
       projectId: selectProject.value,
       ticketId: inputTicketId.value.trim(),
       ticketTitle: inputTicketTitle.value.trim() || inputTicketId.value.trim(),
       plan: inputPlan.value,
+      acceptanceCriteria: criteria,
     });
     currentRunId = run.id;
     startRunView(run);
@@ -126,18 +146,64 @@ btnStart.addEventListener("click", async () => {
   }
 });
 
-// ── Run view ───────────────────────────────────────────────────────────────────
+// ── Workflow Stepper ───────────────────────────────────────────────────────────
+
+const STAGE_ORDER = ["prepare", "understand", "implement", "verify", "review", "deliver"];
+
+const STATUS_TO_STAGE = {
+  preparing: "prepare",
+  understanding: "understand",
+  implementing: "implement",
+  verifying: "verify",
+  reviewing: "review",
+  ready_for_pr: "deliver",
+  pr_created: "deliver",
+  failed: null,
+  stopped: null,
+};
+
+function getStepClass(status, idx, currentIdx) {
+  if (status === "failed" && idx === currentIdx) return "failed";
+  if (status === "pr_created" || (currentIdx !== -1 && idx < currentIdx)) return "completed";
+  if (currentIdx !== -1 && idx === currentIdx) return "active";
+  return "";
+}
+
+function updateStepper(status) {
+  const currentStage = STATUS_TO_STAGE[status] || null;
+  const currentIdx = currentStage ? STAGE_ORDER.indexOf(currentStage) : -1;
+
+  $$(".workflow-stepper .step").forEach((el) => {
+    const stage = el.dataset.stage;
+    const idx = STAGE_ORDER.indexOf(stage);
+
+    el.classList.remove("active", "completed", "failed");
+    const cls = getStepClass(status, idx, currentIdx);
+    if (cls) el.classList.add(cls);
+  });
+}
+
+function updateEvidenceText(stage, summary) {
+  const runEl = $(`#evidence-${stage}`);
+  if (runEl) runEl.textContent = summary;
+  const resEl = $(`#res-evidence-${stage}`);
+  if (resEl) resEl.textContent = summary;
+}
+
+// ── Run View ───────────────────────────────────────────────────────────────────
 
 function startRunView(run) {
   showView(viewRun);
-  runTitle.textContent = `Run — #${run.ticket.id}`;
+  runTitle.textContent = `Run #${run.ticket.id} — ${run.ticket.title}`;
+  runBranch.textContent = `Branch: ${run.branch}`;
   setStatus(run.status);
+  updateStepper(run.status);
   eventLog.innerHTML = "";
   hideError(runError);
   steerBar.style.display = "flex";
   btnStop.style.display = "inline-block";
+  runDiffCard.hidden = true;
 
-  // Connect SSE.
   connectSSE(run.id);
 }
 
@@ -150,98 +216,141 @@ function connectSSE(runId) {
     try {
       const event = JSON.parse(e.data);
       handleEvent(event);
-    } catch { /* ignore malformed */ }
+    } catch {
+      // ignore parse error
+    }
   };
 
   eventSource.onerror = () => {
-    // SSE disconnected — poll once to get current state.
     setTimeout(() => pollRunState(runId), 2000);
   };
 }
 
 function handleEvent(event) {
-  // Update status badge.
   if (event.type === "status") {
     setStatus(event.status);
+    updateStepper(event.status);
 
-    // Transition to result view when ready.
     if (event.status === "ready_for_pr" || event.status === "failed" || event.status === "stopped") {
       transitionToResult(event.status);
     }
   }
 
-  // Append to log.
+  if (event.type === "stage_evidence") {
+    updateEvidenceText(event.stage, event.summary);
+  }
+
+  if (event.type === "verification" && event.result) {
+    if (event.result.diff) {
+      runDiffCard.hidden = false;
+      runDiffFiles.textContent = `${event.result.filesChanged.length} files`;
+      runDiffContent.innerHTML = formatDiff(event.result.diff);
+    }
+  }
+
   appendEvent(event);
+}
+
+function renderPiTextEvent(div, event) {
+  const last = eventLog.lastElementChild;
+  const rolePrefix = event.role === "reviewer" ? "[Reviewer] " : "";
+  if (last && last.dataset.type === "pi_text" && last.dataset.role === event.role) {
+    last.textContent += event.text;
+    eventLog.scrollTop = eventLog.scrollHeight;
+    return false;
+  }
+  div.dataset.type = "pi_text";
+  div.dataset.role = event.role;
+  div.textContent = `${rolePrefix}${event.text}`;
+  return true;
+}
+
+function renderStatusEvent(div, event) {
+  div.textContent = `[${event.status.toUpperCase()}] ${event.text}`;
+  div.className += " event-status";
+  return true;
+}
+
+function renderEvidenceEvent(div, event) {
+  div.innerHTML = `<span class="event-prefix">✓</span><strong>${escapeHtml(event.stage.toUpperCase())}:</strong> ${escapeHtml(event.summary)}`;
+  div.className += " event-evidence";
+  return true;
+}
+
+function renderPiToolEvent(div, event) {
+  div.className += " event-tool";
+  div.innerHTML = `<span class="event-prefix">▸</span>${escapeHtml(event.tool)}${event.input ? " " + escapeHtml(event.input) : ""}`;
+  return true;
+}
+
+function renderPiDoneEvent(div, event) {
+  div.textContent = event.role === "reviewer" ? "Reviewer session finished." : "Implementation session finished.";
+  div.className += " event-status";
+  return true;
+}
+
+function renderErrorEvent(div, event) {
+  div.textContent = event.error ? `Pi error: ${event.error}` : event.text;
+  div.className += " event-error";
+  return true;
+}
+
+function renderSteerEvent(div, event) {
+  div.innerHTML = `<span class="event-prefix">→ Steer:</span> ${escapeHtml(event.text)}`;
+  div.className += " event-steer";
+  return true;
+}
+
+function renderCheckResultEvent(div, event) {
+  const prefix = event.type === "verification" ? "Verification" : "Review";
+  div.textContent = `${prefix}: ${event.result.summary}`;
+  div.className += event.result.passed ? " event-status" : " event-error";
+  return true;
+}
+
+const EVENT_RENDERERS = {
+  status: renderStatusEvent,
+  stage_evidence: renderEvidenceEvent,
+  pi_text: renderPiTextEvent,
+  pi_tool: renderPiToolEvent,
+  pi_done: renderPiDoneEvent,
+  pi_error: renderErrorEvent,
+  error: renderErrorEvent,
+  steer: renderSteerEvent,
+  verification: renderCheckResultEvent,
+  review: renderCheckResultEvent,
+};
+
+function populateEventElement(div, event) {
+  const renderer = EVENT_RENDERERS[event.type];
+  if (renderer) {
+    return renderer(div, event);
+  }
+  div.textContent = event.text || JSON.stringify(event);
+  return true;
 }
 
 function appendEvent(event) {
   const div = document.createElement("div");
   div.className = `event event-${event.type}`;
-
-  switch (event.type) {
-    case "status":
-      div.textContent = event.text;
-      break;
-    case "pi_text":
-      // Accumulate text deltas into the last text node if it exists.
-      const last = eventLog.lastElementChild;
-      if (last && last.dataset.type === "pi_text") {
-        last.textContent += event.text;
-        eventLog.scrollTop = eventLog.scrollHeight;
-        return;
-      }
-      div.dataset.type = "pi_text";
-      div.textContent = event.text;
-      break;
-    case "pi_tool":
-      div.className += " event-tool";
-      div.innerHTML = `<span class="event-prefix">▸</span>${escapeHtml(event.tool)}${event.input ? " " + escapeHtml(event.input) : ""}`;
-      break;
-    case "pi_done":
-      div.textContent = "Pi finished.";
-      div.className += " event-status";
-      break;
-    case "pi_error":
-      div.textContent = `Pi error: ${event.error}`;
-      div.className += " event-error";
-      break;
-    case "error":
-      div.textContent = event.text;
-      div.className += " event-error";
-      break;
-    case "info":
-      div.textContent = event.text;
-      break;
-    case "steer":
-      div.innerHTML = `<span class="event-prefix">→</span>${escapeHtml(event.text)}`;
-      break;
-    case "test_result":
-      div.textContent = event.text;
-      div.className += event.passed ? " event-status" : " event-error";
-      break;
-    case "pr_step":
-      div.textContent = event.text;
-      break;
-    default:
-      div.textContent = event.text || JSON.stringify(event);
+  const shouldAppend = populateEventElement(div, event);
+  if (shouldAppend) {
+    eventLog.appendChild(div);
+    eventLog.scrollTop = eventLog.scrollHeight;
   }
-
-  eventLog.appendChild(div);
-  eventLog.scrollTop = eventLog.scrollHeight;
 }
 
 function setStatus(status) {
   runStatus.textContent = status.replace(/_/g, " ");
   runStatus.dataset.status = status;
 
-  // Hide steer/stop when no longer implementing.
-  if (status !== "implementing") {
+  if (status !== "implementing" && status !== "understanding") {
     steerBar.style.display = "none";
     btnStop.style.display = "none";
   }
 }
 
-// Steer.
+// Steer
 btnSteer.addEventListener("click", sendSteer);
 inputSteer.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendSteer();
@@ -259,7 +368,7 @@ async function sendSteer() {
   }
 }
 
-// Stop.
+// Stop
 btnStop.addEventListener("click", async () => {
   if (!currentRunId) return;
   try {
@@ -269,61 +378,112 @@ btnStop.addEventListener("click", async () => {
   }
 });
 
-// ── Result view ────────────────────────────────────────────────────────────────
+// ── Result View (Human Checkpoint) ─────────────────────────────────────────────
+
+function renderVerificationEvidence(verification) {
+  if (!verification) return;
+  resultTests.textContent = verification.passed ? "PASSED" : "FAILED";
+  resultTests.dataset.status = verification.passed ? "passed" : "failed";
+  resultRepairCount.textContent = `Attempt ${verification.repairAttempt} of 3`;
+
+  const out = [
+    verification.tests.stdout,
+    verification.tests.stderr,
+    verification.typecheck?.stdout,
+    verification.typecheck?.stderr,
+    verification.lint?.stdout,
+    verification.lint?.stderr,
+  ].filter(Boolean).join("\n\n");
+
+  if (out) {
+    resultTestOutput.textContent = out;
+    resultTestOutput.hidden = false;
+  } else {
+    resultTestOutput.hidden = true;
+  }
+}
+
+function renderCriteriaRows(container, criteriaChecked) {
+  container.innerHTML = "";
+  for (const item of criteriaChecked || []) {
+    const row = document.createElement("div");
+    row.className = "criteria-row";
+    row.innerHTML = `<span class="criteria-icon ${item.satisfied ? "pass" : "fail"}">${item.satisfied ? "✓" : "✗"}</span><span>${escapeHtml(item.criterion)}</span>`;
+    container.appendChild(row);
+  }
+}
+
+function renderFindingItems(container, findings) {
+  container.innerHTML = "";
+  for (const f of findings || []) {
+    const item = document.createElement("div");
+    item.className = `finding-item finding-${f.severity}`;
+    item.innerHTML = `<span class="badge badge-${f.severity}">${f.severity.toUpperCase()}</span> <span>${escapeHtml(f.message)}</span>`;
+    container.appendChild(item);
+  }
+}
+
+function renderReviewEvidence(review) {
+  if (!review) return;
+  resultReviewBadge.textContent = review.passed ? "APPROVED" : "BLOCKING ISSUES";
+  resultReviewBadge.dataset.status = review.passed ? "passed" : "failed";
+  resultReviewSummary.textContent = review.summary;
+
+  renderCriteriaRows(criteriaChecklist, review.criteriaChecked);
+  renderFindingItems(findingsList, review.findings);
+}
+
+function renderDiffEvidence(diff, verification) {
+  if (diff) {
+    resultDiff.innerHTML = formatDiff(diff);
+    resultDiffCount.textContent = `${verification?.filesChanged?.length || 0} files`;
+  } else {
+    resultDiff.textContent = "No git diff available.";
+    resultDiffCount.textContent = "0 files";
+  }
+}
+
+function renderDeliveryCheckpoint(status, pullRequest) {
+  if (status === "ready_for_pr") {
+    deliveryCheckpoint.hidden = false;
+    btnPr.style.display = "inline-block";
+  } else if (status === "pr_created") {
+    deliveryCheckpoint.hidden = true;
+    if (pullRequest) {
+      showPrResult(pullRequest.url);
+    }
+  } else {
+    deliveryCheckpoint.hidden = true;
+  }
+}
 
 async function transitionToResult(status) {
   if (eventSource) eventSource.close();
 
-  // Fetch final run state.
   let run;
   try {
     run = await api("GET", `/runs/${currentRunId}`);
   } catch {
-    return; // Stay on run view.
+    return;
   }
 
   showView(viewResult);
   hideError(resultError);
   prSteps.hidden = true;
   prResult.hidden = true;
-  btnPr.style.display = "inline-block";
 
-  // Branch.
-  resultBranch.textContent = run.branch;
+  updateStepper(status);
+  resultStatusBadge.textContent = status.replace(/_/g, " ");
+  resultStatusBadge.dataset.status = status;
 
-  // Tests.
-  if (run.tests) {
-    if (run.tests.exitCode === 0) {
-      resultTests.textContent = "passed";
-      resultTests.dataset.status = "passed";
-    } else {
-      resultTests.textContent = "failed";
-      resultTests.dataset.status = "failed";
-    }
-    if (run.tests.stdout || run.tests.stderr) {
-      resultTestOutput.textContent = run.tests.stdout || run.tests.stderr;
-      resultTestOutput.hidden = false;
-    }
-  } else {
-    resultTests.textContent = "—";
-    resultTests.dataset.status = "";
-    resultTestOutput.hidden = true;
-  }
-
-  // Show/hide PR button based on status.
-  if (status === "ready_for_pr") {
-    btnPr.style.display = "inline-block";
-  } else {
-    btnPr.style.display = "none";
-  }
-
-  // If PR already created.
-  if (run.pullRequest) {
-    showPrResult(run.pullRequest.url);
-  }
+  renderVerificationEvidence(run.verification);
+  renderReviewEvidence(run.review);
+  renderDiffEvidence(run.diff, run.verification);
+  renderDeliveryCheckpoint(status, run.pullRequest);
 }
 
-// Create PR.
+// ── PR Creation ────────────────────────────────────────────────────────────────
+
 btnPr.addEventListener("click", async () => {
   if (!currentRunId) return;
   btnPr.disabled = true;
@@ -331,20 +491,21 @@ btnPr.addEventListener("click", async () => {
   prSteps.hidden = false;
   prSteps.innerHTML = "";
 
-  // Connect SSE for PR steps.
   const prEventSource = new EventSource(`/api/runs/${currentRunId}/events`);
   prEventSource.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data);
       if (event.type === "pr_step") {
         const line = document.createElement("div");
-        line.textContent = event.text;
+        line.textContent = `▸ ${event.text}`;
         prSteps.appendChild(line);
       }
       if (event.type === "status" && event.status === "pr_created") {
         prEventSource.close();
       }
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
   };
 
   try {
@@ -359,44 +520,64 @@ btnPr.addEventListener("click", async () => {
 });
 
 function showPrResult(url) {
-  btnPr.style.display = "none";
+  deliveryCheckpoint.hidden = true;
   prResult.hidden = false;
   prLink.href = url;
   prLink.textContent = url;
 }
 
-// New run.
+// New Run
 btnNew.addEventListener("click", () => {
   currentRunId = null;
   if (eventSource) eventSource.close();
   inputTicketId.value = "";
   inputTicketTitle.value = "";
+  inputCriteria.value = "";
   inputPlan.value = "";
   updateStartButton();
   showView(viewSetup);
 });
 
-// ── Fallback polling ───────────────────────────────────────────────────────────
-
+// Fallback Polling
 async function pollRunState(runId) {
   if (runId !== currentRunId) return;
   try {
     const run = await api("GET", `/runs/${runId}`);
     setStatus(run.status);
+    updateStepper(run.status);
     if (["ready_for_pr", "failed", "stopped", "pr_created"].includes(run.status)) {
       transitionToResult(run.status);
     } else {
-      // Reconnect SSE.
       connectSSE(runId);
     }
-  } catch { /* ignore */ }
+  } catch {
+    // ignore
+  }
 }
 
-// ── Utilities ──────────────────────────────────────────────────────────────────
+// ── Syntax / Diff Utilities ────────────────────────────────────────────────────
+
+function formatDiff(diffText) {
+  if (!diffText) return "";
+  const lines = diffText.split("\n");
+  return lines
+    .map((line) => {
+      const esc = escapeHtml(line);
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        return `<span class="diff-line diff-add">${esc}</span>`;
+      } else if (line.startsWith("-") && !line.startsWith("---")) {
+        return `<span class="diff-line diff-del">${esc}</span>`;
+      } else if (line.startsWith("@@")) {
+        return `<span class="diff-line diff-hunk">${esc}</span>`;
+      }
+      return `<span class="diff-line">${esc}</span>`;
+    })
+    .join("\n");
+}
 
 function escapeHtml(str) {
   const div = document.createElement("div");
-  div.textContent = str;
+  div.textContent = str || "";
   return div.innerHTML;
 }
 
@@ -410,6 +591,6 @@ function hideError(el) {
   el.textContent = "";
 }
 
-// ── Go ─────────────────────────────────────────────────────────────────────────
+// ── Startup ────────────────────────────────────────────────────────────────────
 
 init();

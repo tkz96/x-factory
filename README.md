@@ -1,22 +1,23 @@
 # X-Factory
 
-Software engineering workbench: **ticket → implementation → tests → PR**.
+Software engineering workbench: **ticket → understand → implement → verify → review → deliver**.
 
-X-Factory takes an approved ticket and an implementation plan, hands them to [Pi](https://pi.dev) (a coding agent), and walks the result through testing and pull request creation — with a human in the loop at every step.
+X-Factory is a deterministic workflow runtime powered by Bun and TypeScript. It takes an approved ticket, acceptance criteria, and implementation plan, executes changes using [Pi](https://pi.dev) in isolated external Git worktrees, runs multi-stage deterministic verification with bounded repair, conducts an independent read-only code review, and presents a human checkpoint before pull request creation.
 
 ## Prerequisites
 
-- **Node.js** ≥ 22
+- **Bun** ≥ 1.2.3
+- **Git CLI**
 - **GitHub CLI** (`gh`) — authenticated (`gh auth login`)
-- **Pi SDK credentials** — the Pi agent needs access to its model provider (see [Pi docs](https://pi.dev))
+- **Pi SDK credentials** — model provider access (see [Pi docs](https://pi.dev))
 
 ## Setup
 
 ```bash
-npm install
+bun install
 ```
 
-Edit `config/projects.json` to point at your repositories:
+Edit `config/projects.json` to configure target repositories:
 
 ```json
 {
@@ -27,7 +28,9 @@ Edit `config/projects.json` to point at your repositories:
       "repositoryPath": "/path/to/my-app",
       "knowledgeRepositoryPath": "/path/to/my-app-knowledge",
       "defaultBranch": "main",
-      "testCommand": "npm test"
+      "testCommand": "bun test",
+      "typecheckCommand": "bun run typecheck",
+      "lintCommand": "bun run lint"
     }
   ]
 }
@@ -36,43 +39,79 @@ Edit `config/projects.json` to point at your repositories:
 ## Usage
 
 ```bash
-npm start
+bun start
 ```
 
 Open [http://localhost:3777](http://localhost:3777).
 
-1. Select a project.
-2. Enter a ticket ID and title.
+1. Select a target project.
+2. Enter Ticket ID, Title, and Acceptance Criteria.
 3. Paste the implementation plan.
-4. Click **Start Implementation**.
-5. Watch Pi work. Send steering instructions if needed.
-6. When tests pass, click **Create Pull Request**.
+4. Click **Start Factory Run**.
+5. Watch the 6-stage workflow execute:
+   - **Prepare**: creates branch `xfactory/<ticket>-<id>` and external dedicated worktree.
+   - **Understand**: synthesizes `ImplementationContext` artifact from codebase and knowledge repo.
+   - **Implement**: Pi Session A works in the worktree (steering and stopping supported).
+   - **Verify**: runs deterministic checks (`testCommand`, `typecheckCommand`, `lintCommand`, pollution check, diff check) with automated bounded repair up to 3 attempts.
+   - **Review**: fresh, read-only Pi Session B evaluates diff against acceptance criteria.
+   - **Deliver**: human review checkpoint displaying evidence, test outputs, review findings, and git diff. Click **Create Pull Request** to commit, push, and open PR.
 
 ## Development
 
 ```bash
-npm run dev     # auto-restart on changes
-npm test        # run tests
+bun run dev        # start server with watch mode
+bun test           # run all automated tests
+bun run typecheck  # verify strict TypeScript types
 ```
 
 ## Architecture
 
 ```
-server/server.js   — HTTP server, static files, API router
-server/runs.js     — run lifecycle, state machine, in-memory store
-server/pi.js       — thin Pi SDK wrapper
-server/git.js      — git + GitHub CLI operations
-public/            — single-page UI (HTML + CSS + JS)
-prompts/           — Pi implementation prompt template
+src/
+  types.ts         — explicit domain models (WorkflowStage, RunStatus, Ticket, Artifact, etc.)
+  paths.ts         — external runtime state paths (~/.x-factory/)
+  proc.ts          — subprocess runner with timeouts and buffer capping
+  config.ts        — configuration loader & validator
+  git.ts           — worktree lifecycle, baseline tracking, pollution checks, commit/push
+  agents/pi.ts     — Pi SDK adapter for implementation and read-only review sessions
+  understand.ts    — context synthesis & implementation prompt building
+  verification.ts  — deterministic test/lint/typecheck runner and bounded repair builder
+  review.ts        — read-only review engine with acceptance criteria checklist
+  runs.ts          — finite state machine, in-memory store, artifact persistence, SSE bus
+  server.ts        — native Bun.serve() HTTP server and SSE streaming
+public/            — vanilla HTML/CSS/JS single-page workbench UI
+prompts/           — Pi prompt templates
 config/            — project configuration
+test/              — test suites executed with bun test
 ```
 
-The run state machine:
+### External Runtime State
+
+X-Factory stores all runtime artifacts and dedicated worktrees **outside** the target application repository:
 
 ```
-preparing → implementing → testing → ready_for_pr → pr_created
-                ↓               ↓            ↓
-             stopped         failed       failed
+~/.x-factory/
+  projects/
+    <project-id>/
+      runs/
+        <run-id>/
+          .xfactory-run
+          ticket.md
+          plan.md
+          implementation-context.json
+          verification.json
+          review.json
+          diff.patch
+      worktrees/
+        <run-id>/   (100% clean Git worktree)
 ```
 
-All state is in-memory. Restarting the server clears run history.
+### The 6-Stage Workflow State Machine
+
+```
+preparing → understanding → implementing ───→ verifying ───→ reviewing ───→ ready_for_pr ───→ pr_created
+                ↓                ↓                │             ↓
+             stopped          stopped      (repair attempt)   failed (human decision)
+                                                  │
+                                                  └── fail (max 3) ──→ failed
+```

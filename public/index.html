@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="X-Factory — software engineering workbench: ticket → implementation → tests → PR">
+  <meta name="description" content="X-Factory — software engineering factory runtime: ticket → Pi → verify → review → PR">
   <title>X-Factory</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,32 +13,35 @@
 <body>
   <header id="header">
     <h1>X-Factory</h1>
-    <span class="subtitle">ticket → implementation → tests → PR</span>
+    <span class="subtitle">ticket → understand → implement → verify → review → deliver</span>
   </header>
 
   <main>
     <!-- ── Setup View ──────────────────────────────────────────────── -->
     <section id="view-setup" class="view active">
       <div class="card">
-        <h2>New Run</h2>
+        <h2>New Factory Run</h2>
 
-        <label for="select-project">Project</label>
+        <label for="select-project">Target Project</label>
         <select id="select-project">
           <option value="" disabled selected>Loading projects…</option>
         </select>
 
         <label for="input-ticket-id">Ticket ID</label>
-        <input id="input-ticket-id" type="text" placeholder="e.g. 123">
+        <input id="input-ticket-id" type="text" placeholder="e.g. PROJ-101">
 
         <label for="input-ticket-title">Ticket Title</label>
-        <input id="input-ticket-title" type="text" placeholder="e.g. Add password reset flow">
+        <input id="input-ticket-title" type="text" placeholder="e.g. Implement password reset rate limiting">
+
+        <label for="input-criteria">Acceptance Criteria (one per line)</label>
+        <textarea id="input-criteria" rows="4" placeholder="- Return 429 after 5 failed attempts&#10;- Reset counter after 15 minutes&#10;- Add unit tests for window expiration"></textarea>
 
         <label for="input-plan">Implementation Plan</label>
-        <textarea id="input-plan" rows="12" placeholder="Paste the implementation plan here…"></textarea>
+        <textarea id="input-plan" rows="8" placeholder="Paste the step-by-step implementation plan here…"></textarea>
 
         <div class="knowledge-status" id="knowledge-status"></div>
 
-        <button id="btn-start" class="btn-primary" disabled>Start Implementation</button>
+        <button id="btn-start" class="btn-primary" disabled>Start Factory Run</button>
 
         <div id="setup-error" class="error-message" hidden></div>
       </div>
@@ -46,46 +49,162 @@
 
     <!-- ── Run View ────────────────────────────────────────────────── -->
     <section id="view-run" class="view">
-      <div class="card">
+      <!-- 6-Stage Workflow Stepper -->
+      <div class="workflow-stepper card" id="workflow-stepper">
+        <div class="stepper-track">
+          <div class="step" data-stage="prepare">
+            <div class="step-dot">1</div>
+            <div class="step-label">Prepare</div>
+            <div class="step-evidence" id="evidence-prepare">Workspace & Worktree</div>
+          </div>
+          <div class="step" data-stage="understand">
+            <div class="step-dot">2</div>
+            <div class="step-label">Understand</div>
+            <div class="step-evidence" id="evidence-understand">Context Synthesis</div>
+          </div>
+          <div class="step" data-stage="implement">
+            <div class="step-dot">3</div>
+            <div class="step-label">Implement</div>
+            <div class="step-evidence" id="evidence-implement">Pi Session A</div>
+          </div>
+          <div class="step" data-stage="verify">
+            <div class="step-dot">4</div>
+            <div class="step-label">Verify</div>
+            <div class="step-evidence" id="evidence-verify">Deterministic Checks</div>
+          </div>
+          <div class="step" data-stage="review">
+            <div class="step-dot">5</div>
+            <div class="step-label">Review</div>
+            <div class="step-evidence" id="evidence-review">Read-Only Session B</div>
+          </div>
+          <div class="step" data-stage="deliver">
+            <div class="step-dot">6</div>
+            <div class="step-label">Deliver</div>
+            <div class="step-evidence" id="evidence-deliver">PR Checkpoint</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 1.2rem;">
         <div class="run-header">
-          <h2 id="run-title">Run</h2>
+          <div>
+            <h2 id="run-title">Run</h2>
+            <span id="run-branch" class="code-sub"></span>
+          </div>
           <span id="run-status" class="badge">preparing</span>
         </div>
 
+        <!-- Live Activity Log -->
+        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Live Activity</h3>
         <div id="event-log" class="event-log" aria-live="polite" role="log">
           <!-- Events appended here -->
         </div>
 
         <div class="steer-bar" id="steer-bar">
-          <input id="input-steer" type="text" placeholder="Send instruction to Pi…">
-          <button id="btn-steer" class="btn-secondary">Send</button>
+          <input id="input-steer" type="text" placeholder="Send steering instruction to active Pi session…">
+          <button id="btn-steer" class="btn-secondary">Steer</button>
         </div>
 
         <div class="run-actions">
-          <button id="btn-stop" class="btn-danger">Stop</button>
+          <button id="btn-stop" class="btn-danger">Stop Run</button>
         </div>
 
         <div id="run-error" class="error-message" hidden></div>
       </div>
+
+      <!-- Live Diff Preview if available during run -->
+      <div class="card" id="run-diff-card" style="margin-top: 1.2rem;" hidden>
+        <div class="section-header">
+          <h3>Worktree Git Diff</h3>
+          <span id="run-diff-files" class="badge">0 files</span>
+        </div>
+        <pre id="run-diff-content" class="diff-viewer"></pre>
+      </div>
     </section>
 
-    <!-- ── Result View ─────────────────────────────────────────────── -->
+    <!-- ── Result View (Human Checkpoint & Delivery) ────────────────── -->
     <section id="view-result" class="view">
-      <div class="card">
-        <h2>Implementation Complete</h2>
+      <!-- 6-Stage Workflow Stepper for Result View -->
+      <div class="workflow-stepper card" id="result-stepper">
+        <div class="stepper-track">
+          <div class="step" data-stage="prepare">
+            <div class="step-dot">1</div>
+            <div class="step-label">Prepare</div>
+            <div class="step-evidence" id="res-evidence-prepare">Complete</div>
+          </div>
+          <div class="step" data-stage="understand">
+            <div class="step-dot">2</div>
+            <div class="step-label">Understand</div>
+            <div class="step-evidence" id="res-evidence-understand">Complete</div>
+          </div>
+          <div class="step" data-stage="implement">
+            <div class="step-dot">3</div>
+            <div class="step-label">Implement</div>
+            <div class="step-evidence" id="res-evidence-implement">Complete</div>
+          </div>
+          <div class="step" data-stage="verify">
+            <div class="step-dot">4</div>
+            <div class="step-label">Verify</div>
+            <div class="step-evidence" id="res-evidence-verify">Complete</div>
+          </div>
+          <div class="step" data-stage="review">
+            <div class="step-dot">5</div>
+            <div class="step-label">Review</div>
+            <div class="step-evidence" id="res-evidence-review">Complete</div>
+          </div>
+          <div class="step" data-stage="deliver">
+            <div class="step-dot">6</div>
+            <div class="step-label">Deliver</div>
+            <div class="step-evidence" id="res-evidence-deliver">Ready</div>
+          </div>
+        </div>
+      </div>
 
+      <div class="card" style="margin-top: 1.2rem;">
+        <div class="run-header">
+          <h2 id="result-heading">Human Checkpoint & Evidence</h2>
+          <span id="result-status-badge" class="badge">ready_for_pr</span>
+        </div>
+
+        <!-- Verification Evidence -->
         <div class="result-section">
-          <h3>Tests</h3>
-          <span id="result-tests" class="badge">—</span>
+          <h3>1. Deterministic Verification</h3>
+          <div class="evidence-row">
+            <span id="result-tests" class="badge">—</span>
+            <span id="result-repair-count" class="badge badge-neutral">Attempt 1</span>
+          </div>
           <pre id="result-test-output" class="test-output" hidden></pre>
         </div>
 
-        <div class="result-section">
-          <h3>Branch</h3>
-          <code id="result-branch">—</code>
+        <!-- Read-Only Review Evidence -->
+        <div class="result-section" id="review-section">
+          <h3>2. Independent Review (Read-Only Session B)</h3>
+          <div class="evidence-row">
+            <span id="result-review-badge" class="badge">—</span>
+            <span id="result-review-summary" class="evidence-text"></span>
+          </div>
+          <div id="criteria-checklist" class="criteria-list"></div>
+          <div id="findings-list" class="findings-list"></div>
         </div>
 
-        <button id="btn-pr" class="btn-primary">Create Pull Request</button>
+        <!-- Git Diff Evidence -->
+        <div class="result-section">
+          <div class="section-header">
+            <h3>3. Implementation Git Diff</h3>
+            <span id="result-diff-count" class="badge">0 files</span>
+          </div>
+          <pre id="result-diff" class="diff-viewer"></pre>
+        </div>
+
+        <!-- Human Delivery Checkpoint -->
+        <div class="delivery-checkpoint" id="delivery-checkpoint">
+          <h3>4. Delivery Checkpoint</h3>
+          <p class="checkpoint-text">
+            All automated verification tests passed and the read-only reviewer confirmed acceptance criteria.
+            Confirm below to commit, push, and open the Pull Request.
+          </p>
+          <button id="btn-pr" class="btn-primary">Create Pull Request</button>
+        </div>
 
         <div id="pr-steps" class="pr-steps" hidden></div>
 
@@ -94,7 +213,7 @@
           <a id="pr-link" href="#" target="_blank" rel="noopener">Open Pull Request</a>
         </div>
 
-        <button id="btn-new" class="btn-secondary" style="margin-top: 1rem">New Run</button>
+        <button id="btn-new" class="btn-secondary" style="margin-top: 1.5rem">Start New Run</button>
 
         <div id="result-error" class="error-message" hidden></div>
       </div>
