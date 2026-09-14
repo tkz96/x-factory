@@ -1,14 +1,44 @@
-// src/config.ts — Configuration loading and validation for X-Factory projects.
+// src/config.ts — Configuration loading, migration, and validation for X-Factory projects.
 
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Project } from "./types.js";
+import type {
+  KnowledgeRepository,
+  Project,
+  ProjectIssueTracker,
+  ProjectRepository,
+  RepositoryCommands,
+  RepositoryRole,
+} from "./types.js";
 import { validateRepo } from "./git.js";
 
 const DEFAULT_CONFIG_PATH = path.join(process.cwd(), "config", "projects.json");
 
+const VALID_ROLES = new Set<RepositoryRole>([
+  "frontend",
+  "backend",
+  "service",
+  "worker",
+  "mobile",
+  "infrastructure",
+  "documentation",
+  "knowledge",
+  "other",
+]);
+
+/**
+ * Return the primary repository of a project (first application repository).
+ */
+export function getPrimaryRepository(project: Project): ProjectRepository {
+  if (!project.repositories || project.repositories.length === 0) {
+    throw new Error(`Project "${project.id}" has no configured repositories.`);
+  }
+  return project.repositories[0];
+}
+
 /**
  * Load and validate projects from projects.json.
+ * Automatically migrates legacy single-repository entries.
  */
 export async function loadProjects(configPath: string = DEFAULT_CONFIG_PATH): Promise<Project[]> {
   let raw: string;
@@ -53,9 +83,90 @@ export async function getProject(
   const projects = await loadProjects(configPath);
   const project = projects.find((p) => p.id === projectId) || null;
   if (project && validateOnDisk) {
-    await validateRepo(project.repositoryPath);
+    const primary = getPrimaryRepository(project);
+    await validateRepo(primary.path);
   }
   return project;
+}
+
+/**
+ * Save all projects to the configuration file with standard formatting.
+ */
+async function saveProjects(
+  projects: Project[],
+  configPath: string = DEFAULT_CONFIG_PATH
+): Promise<void> {
+  const cleanProjects = projects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    workspacePath: p.workspacePath,
+    issueTracker: p.issueTracker,
+    repositories: p.repositories.map((r) => ({
+      id: r.id,
+      name: r.name,
+      remote: r.remote,
+      path: r.path,
+      defaultBranch: r.defaultBranch,
+      role: r.role,
+      commands: r.commands,
+    })),
+    knowledgeRepository: p.knowledgeRepository
+      ? {
+          repositoryId: p.knowledgeRepository.repositoryId,
+          path: p.knowledgeRepository.path,
+          type: p.knowledgeRepository.type,
+        }
+      : undefined,
+    commandTimeoutMs: p.commandTimeoutMs,
+  }));
+
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(
+    configPath,
+    JSON.stringify({ projects: cleanProjects }, null, 2),
+    "utf-8"
+  );
+}
+
+/**
+ * Save or update an individual project in projects.json.
+ */
+export async function saveProject(
+  projectInput: unknown,
+  configPath: string = DEFAULT_CONFIG_PATH
+): Promise<Project> {
+  const validated = validateProject(projectInput);
+  let projects: Project[] = [];
+  try {
+    projects = await loadProjects(configPath);
+  } catch {
+    projects = [];
+  }
+
+  const existingIndex = projects.findIndex((p) => p.id === validated.id);
+  if (existingIndex >= 0) {
+    projects[existingIndex] = validated;
+  } else {
+    projects.push(validated);
+  }
+
+  await saveProjects(projects, configPath);
+  return validated;
+}
+
+/**
+ * Delete a project by ID from projects.json.
+ */
+export async function deleteProject(
+  projectId: string,
+  configPath: string = DEFAULT_CONFIG_PATH
+): Promise<void> {
+  const projects = await loadProjects(configPath);
+  const filtered = projects.filter((p) => p.id !== projectId);
+  if (filtered.length === projects.length) {
+    throw new Error(`Project "${projectId}" not found.`);
+  }
+  await saveProjects(filtered, configPath);
 }
 
 function requireString(obj: Record<string, unknown>, field: string, projectId?: string): string {
@@ -71,7 +182,80 @@ function optionalString(val: unknown): string | undefined {
   return typeof val === "string" && val.trim() ? val.trim() : undefined;
 }
 
-function validateProject(item: unknown): Project {
+function validateCommands(raw: unknown): RepositoryCommands | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as Record<string, unknown>;
+  const commands: RepositoryCommands = {};
+  for (const k of ["test", "typecheck", "lint", "build"] as const) {
+    const val = optionalString(c[k]);
+    if (val) commands[k] = val;
+  }
+  return Object.keys(commands).length > 0 ? commands : undefined;
+}
+
+function validateRepository(raw: unknown, projectId: string, index: number): ProjectRepository {
+  if (!raw || typeof raw !== "object") {
+    throw new Error(`Project "${projectId}" repository at index ${index} must be an object.`);
+  }
+  const r = raw as Record<string, unknown>;
+  const id = requireString(r, "id", projectId);
+  const name = requireString(r, "name", projectId);
+  const rawPath = requireString(r, "path", projectId);
+  const resolvedPath = path.resolve(rawPath);
+  const defaultBranch = optionalString(r.defaultBranch) || "main";
+  const remote = optionalString(r.remote);
+
+  let role: RepositoryRole | undefined;
+  if (typeof r.role === "string" && VALID_ROLES.has(r.role as RepositoryRole)) {
+    role = r.role as RepositoryRole;
+  }
+
+  const commands = validateCommands(r.commands);
+
+  return {
+    id,
+    name,
+    path: resolvedPath,
+    defaultBranch,
+    remote,
+    role,
+    commands,
+  };
+}
+
+function validateIssueTracker(raw: unknown): ProjectIssueTracker {
+  if (!raw || typeof raw !== "object") {
+    return { connectionId: "github" };
+  }
+  const t = raw as Record<string, unknown>;
+  const connectionId = optionalString(t.connectionId) || "github";
+  const trackerProjectId = optionalString(t.projectId);
+  return {
+    connectionId,
+    projectId: trackerProjectId,
+  };
+}
+
+function validateKnowledgeRepository(raw: unknown, projectId: string): KnowledgeRepository | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const k = raw as Record<string, unknown>;
+  const rawPath = optionalString(k.path);
+  if (!rawPath) return undefined;
+
+  const repositoryId = optionalString(k.repositoryId) || `${projectId}-knowledge`;
+  return {
+    repositoryId,
+    path: path.resolve(rawPath),
+    type: "graphify",
+  };
+}
+
+/**
+ * Validate and normalize a Project object.
+ * Handles migration from legacy single-repository schema if present.
+ */
+// fallow-ignore-next-line complexity
+export function validateProject(item: unknown): Project {
   if (!item || typeof item !== "object") {
     throw new Error("Project entry must be an object.");
   }
@@ -79,27 +263,96 @@ function validateProject(item: unknown): Project {
 
   const id = requireString(obj, "id");
   const name = requireString(obj, "name", id);
-  const repositoryPath = path.resolve(requireString(obj, "repositoryPath", id));
-  const defaultBranch = requireString(obj, "defaultBranch", id);
-  const testCommand = requireString(obj, "testCommand", id);
+  const workspacePath = optionalString(obj.workspacePath)
+    ? path.resolve(String(obj.workspacePath))
+    : undefined;
 
-  const knowledgePath = optionalString(obj.knowledgeRepositoryPath);
-  const typecheckCommand = optionalString(obj.typecheckCommand);
-  const lintCommand = optionalString(obj.lintCommand);
   const commandTimeoutMs =
     typeof obj.commandTimeoutMs === "number" && obj.commandTimeoutMs > 0
       ? obj.commandTimeoutMs
       : undefined;
 
-  return {
+  let repositories: ProjectRepository[] = [];
+  let knowledgeRepository: KnowledgeRepository | undefined;
+  let issueTracker: ProjectIssueTracker;
+
+  // Check for legacy single-repository schema
+  const isLegacy = typeof obj.repositoryPath === "string" && (!obj.repositories || !Array.isArray(obj.repositories));
+
+  if (isLegacy) {
+    const legacyPath = path.resolve(requireString(obj, "repositoryPath", id));
+    const legacyBranch = optionalString(obj.defaultBranch) || "main";
+    const legacyTest = optionalString(obj.testCommand);
+    const legacyTypecheck = optionalString(obj.typecheckCommand);
+    const legacyLint = optionalString(obj.lintCommand);
+
+    const commands: RepositoryCommands = {};
+    if (legacyTest) commands.test = legacyTest;
+    if (legacyTypecheck) commands.typecheck = legacyTypecheck;
+    if (legacyLint) commands.lint = legacyLint;
+
+    repositories = [
+      {
+        id: `${id}-primary`,
+        name,
+        path: legacyPath,
+        defaultBranch: legacyBranch,
+        role: "other",
+        commands: Object.keys(commands).length > 0 ? commands : undefined,
+      },
+    ];
+
+    issueTracker = validateIssueTracker(obj.issueTracker);
+
+    const legacyKnowledgePath = optionalString(obj.knowledgeRepositoryPath);
+    if (legacyKnowledgePath) {
+      knowledgeRepository = {
+        repositoryId: `${id}-knowledge`,
+        path: path.resolve(legacyKnowledgePath),
+        type: "graphify",
+      };
+    }
+  } else {
+    // Modern multi-repository schema
+    if (!Array.isArray(obj.repositories) || obj.repositories.length === 0) {
+      throw new Error(`Project "${id}" must contain at least one repository.`);
+    }
+
+    repositories = obj.repositories.map((repo, idx) => validateRepository(repo, id, idx));
+    issueTracker = validateIssueTracker(obj.issueTracker);
+    knowledgeRepository = validateKnowledgeRepository(obj.knowledgeRepository, id);
+
+    // Fallback: if knowledgeRepositoryPath was provided as string
+    if (!knowledgeRepository && optionalString(obj.knowledgeRepositoryPath)) {
+      knowledgeRepository = {
+        repositoryId: `${id}-knowledge`,
+        path: path.resolve(String(obj.knowledgeRepositoryPath)),
+        type: "graphify",
+      };
+    }
+  }
+
+  // Ensure primary repository exists
+  const primary = repositories[0];
+
+  const project: Project = {
     id,
     name,
-    repositoryPath,
-    knowledgeRepositoryPath: knowledgePath ? path.resolve(knowledgePath) : undefined,
-    defaultBranch,
-    testCommand,
-    typecheckCommand,
-    lintCommand,
+    workspacePath,
+    issueTracker,
+    repositories,
+    knowledgeRepository,
     commandTimeoutMs,
+
+    // Backwards-compatibility convenience fields
+    repositoryPath: primary.path,
+    defaultBranch: primary.defaultBranch,
+    testCommand: primary.commands?.test || "",
+    typecheckCommand: primary.commands?.typecheck,
+    lintCommand: primary.commands?.lint,
+    knowledgeRepositoryPath: knowledgeRepository?.path,
   };
+
+  return project;
 }
+

@@ -26,18 +26,105 @@ export type RunStatus =
   | "stopped";
 
 /**
- * Project configuration loaded from config/projects.json.
+ * Role metadata for a repository inside a project.
+ */
+export type RepositoryRole =
+  | "frontend"
+  | "backend"
+  | "service"
+  | "worker"
+  | "mobile"
+  | "infrastructure"
+  | "documentation"
+  | "knowledge"
+  | "other";
+
+/**
+ * Repository-specific build and test verification commands.
+ */
+export interface RepositoryCommands {
+  test?: string;
+  typecheck?: string;
+  lint?: string;
+  build?: string;
+}
+
+/**
+ * Individual codebase repository configuration.
+ */
+export interface ProjectRepository {
+  id: string;
+  name: string;
+  remote?: string;
+  path: string;
+  defaultBranch: string;
+  role?: RepositoryRole;
+  commands?: RepositoryCommands;
+}
+
+/**
+ * First-class knowledge repository configuration.
+ */
+export interface KnowledgeRepository {
+  repositoryId: string;
+  path: string;
+  type: "graphify";
+}
+
+/**
+ * Issue tracker association for a project.
+ */
+export interface ProjectIssueTracker {
+  connectionId: "azure" | "jira" | "github" | string;
+  projectId?: string;
+}
+
+/**
+ * Readiness and health status of an individual repository.
+ */
+export interface RepositoryReadiness {
+  repositoryId: string;
+  isGitRepo: boolean;
+  remoteMatches: boolean;
+  branchDetected: boolean;
+  commandsDetected: boolean;
+  existsLocally: boolean;
+  status: "ready" | "pending_setup" | "error";
+  message?: string;
+}
+
+/**
+ * Overall readiness assessment for a project.
+ */
+export interface ProjectReadiness {
+  projectId: string;
+  ready: boolean;
+  readyCount: number;
+  totalCount: number;
+  repositories: RepositoryReadiness[];
+  knowledgeReady?: boolean;
+  issues: string[];
+}
+
+/**
+ * Project configuration representing a software product.
  */
 export interface Project {
   id: string;
   name: string;
+  workspacePath?: string;
+  issueTracker: ProjectIssueTracker;
+  repositories: ProjectRepository[];
+  knowledgeRepository?: KnowledgeRepository;
+  commandTimeoutMs?: number;
+
+  // Backwards-compatibility fields for single-repository operations
   repositoryPath: string;
-  knowledgeRepositoryPath?: string;
   defaultBranch: string;
   testCommand: string;
   typecheckCommand?: string;
   lintCommand?: string;
-  commandTimeoutMs?: number;
+  knowledgeRepositoryPath?: string;
 }
 
 /**

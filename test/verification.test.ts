@@ -10,6 +10,7 @@ import {
   buildRepairPrompt,
 } from "../src/verification.js";
 import type { Project, Ticket, VerificationResult } from "../src/types.js";
+import { validateProject } from "../src/config.js";
 import { execStrict } from "../src/proc.js";
 import { recordBaseline } from "../src/git.js";
 
@@ -36,13 +37,13 @@ afterAll(async () => {
 });
 
 describe("Deterministic Verification Pipeline", () => {
-  const project: Project = {
+  const project = validateProject({
     id: "test-app",
     name: "Test App",
     repositoryPath: "/mock",
     defaultBranch: "main",
     testCommand: "echo 'tests passed'",
-  };
+  });
 
   it("passes when tests succeed and non-empty diff exists without pollution", async () => {
     const baseline = await recordBaseline(fixtureRepo);

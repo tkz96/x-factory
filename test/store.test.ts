@@ -7,7 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { RunStore, type InternalRun } from "../src/store.js";
 import { RunEventBus } from "../src/events.js";
-import type { Project, RunEvent } from "../src/types.js";
+import type { RunEvent } from "../src/types.js";
+import { validateProject } from "../src/config.js";
 
 describe("RunEventBus", () => {
   it("subscribes and receives emitted events", () => {
@@ -49,13 +50,13 @@ describe("RunEventBus", () => {
 describe("RunStore", () => {
   it("stores, retrieves, and summarizes internal runs", () => {
     const store = new RunStore();
-    const mockProject: Project = {
+    const mockProject = validateProject({
       id: "test-proj",
       name: "Test Project",
       repositoryPath: "/tmp/repo",
       defaultBranch: "main",
       testCommand: "bun test",
-    };
+    });
 
     const internalRun: InternalRun = {
       id: "run-test-1",
@@ -100,13 +101,13 @@ describe("RunStore", () => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), "xfactory-store-test-"));
     try {
       const store = new RunStore();
-      const mockProject: Project = {
+      const mockProject = validateProject({
         id: "test-proj",
         name: "Test Project",
         repositoryPath: "/tmp/repo",
         defaultBranch: "main",
         testCommand: "bun test",
-      };
+      });
 
       const internalRun: InternalRun = {
         id: "run-persist-1",
@@ -152,13 +153,13 @@ describe("RunStore", () => {
 
   it("guards and performs valid state transitions with store.transition", async () => {
     const store = new RunStore();
-    const mockProject: Project = {
+    const mockProject = validateProject({
       id: "test-proj",
       name: "Test Project",
       repositoryPath: "/tmp/repo",
       defaultBranch: "main",
       testCommand: "bun test",
-    };
+    });
 
     const internalRun: InternalRun = {
       id: "run-trans-1",

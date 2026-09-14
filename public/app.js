@@ -78,6 +78,37 @@ const resultError         = $("#result-error");
 const historyContainer  = $("#history-runs-container");
 const projectsContainer = $("#projects-container");
 
+// Projects & Onboarding Elements
+const projectsListView      = $("#projects-list-view");
+const projectsDetailView    = $("#projects-detail-view");
+const btnOpenOnboardModal   = $("#btn-open-onboard-modal");
+const btnBackToProjectsList = $("#btn-back-to-projects-list");
+const btnRecheckReadiness   = $("#btn-recheck-readiness");
+const btnDeleteProject      = $("#btn-delete-project");
+const projectDetailName     = $("#project-detail-name");
+const projectDetailMeta     = $("#project-detail-meta");
+const projectDetailBanner   = $("#project-detail-readiness-banner");
+const projectDetailRepoCount= $("#project-detail-repo-count");
+const projectDetailReposTable = $("#project-detail-repos-table");
+
+// Onboarding Modal Elements
+const modalOnboard          = $("#modal-project-onboarding");
+const btnCloseOnboardModal  = $("#btn-close-onboard-modal");
+const btnOnboardCancel      = $("#btn-onboard-cancel");
+const btnOnboardPrev        = $("#btn-onboard-prev");
+const btnOnboardNext        = $("#btn-onboard-next");
+const btnOnboardSave        = $("#btn-onboard-save");
+const onboardErrorBox       = $("#onboard-error-box");
+const btnRunDiscovery       = $("#btn-run-discovery");
+const discoveryStatusText   = $("#discovery-status-text");
+const onboardRepoChecklist  = $("#onboard-repo-checklist");
+const onboardKnowledgeSelect= $("#onboard-knowledge-select");
+const onboardRepoSearch     = $("#onboard-repo-search");
+const btnSelectAllRepos     = $("#btn-select-all-repos");
+const btnDeselectAllRepos   = $("#btn-deselect-all-repos");
+const onboardInspectionList = $("#onboard-inspection-list");
+const reviewJsonPreview     = $("#review-json-preview");
+
 // Settings Elements
 const settingTrackerProvider = $("#setting-tracker-provider");
 const trackerGroupGithub     = $("#tracker-group-github");
@@ -964,27 +995,793 @@ async function loadHistory() {
 }
 
 
+// ── Projects Management & Detail View ──────────────────────────────────────────
+
+let activeDetailProjectId = null;
+
+// fallow-ignore-next-line complexity
 function renderProjectsList() {
   if (!projectsContainer) return;
+  if (projectsListView) projectsListView.hidden = false;
+  if (projectsDetailView) projectsDetailView.hidden = true;
+
   if (!projects || projects.length === 0) {
-    projectsContainer.innerHTML = `<div class="empty-state"><p>No projects configured in config/projects.json.</p></div>`;
+    projectsContainer.innerHTML = `
+      <div class="empty-state">
+        <p>No software products configured yet.</p>
+        <button id="btn-empty-onboard" class="btn-primary btn-sm" style="margin-top: 0.8rem;">Onboard First Project</button>
+      </div>`;
+    const btnEmpty = $("#btn-empty-onboard");
+    if (btnEmpty) btnEmpty.addEventListener("click", openOnboardModal);
     return;
   }
 
   projectsContainer.innerHTML = "";
   for (const p of projects) {
     const card = document.createElement("div");
-    card.className = "project-card";
+    card.className = "project-card card";
+    const repoCount = (p.repositories || []).length;
+    const trackerLabel = p.issueTracker?.connectionId || "None";
+    const displayPath = p.workspacePath || p.repositoryPath || "Configured";
+
     card.innerHTML = `
-      <h3>${escapeHtml(p.name)}</h3>
-      <div class="project-card-meta"><strong>ID:</strong> ${escapeHtml(p.id)}</div>
-      <div class="project-card-meta"><strong>Path:</strong> <code>${escapeHtml(p.repositoryPath)}</code></div>
-      <div class="project-card-meta"><strong>Default Branch:</strong> ${escapeHtml(p.defaultBranch)}</div>
-      <div class="project-card-meta"><strong>Test Command:</strong> <code>${escapeHtml(p.testCommand)}</code></div>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.6rem;">
+        <h3 style="margin: 0; font-size: 1.05rem;">${escapeHtml(p.name)}</h3>
+        <span class="role-badge">${escapeHtml(trackerLabel)}</span>
+      </div>
+      <div class="project-card-meta"><strong>ID:</strong> <code>${escapeHtml(p.id)}</code></div>
+      <div class="project-card-meta"><strong>Workspace:</strong> <code>${escapeHtml(displayPath)}</code></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px solid var(--border-subtle);">
+        <span class="nav-badge" style="display: inline-block;">${repoCount} ${repoCount === 1 ? "repo" : "repos"}</span>
+        <span class="status-pill ready" id="card-readiness-${escapeHtml(p.id)}">View Details →</span>
+      </div>
     `;
+
+    card.addEventListener("click", () => openProjectDetail(p.id));
     projectsContainer.appendChild(card);
   }
 }
+
+async function openProjectDetail(projectId) {
+  activeDetailProjectId = projectId;
+  if (projectsListView) projectsListView.hidden = true;
+  if (projectsDetailView) projectsDetailView.hidden = false;
+
+  if (projectDetailName) projectDetailName.textContent = "Loading project details…";
+  if (projectDetailBanner) {
+    projectDetailBanner.className = "readiness-banner pending";
+    projectDetailBanner.innerHTML = "<span>Checking repository readiness…</span>";
+  }
+
+  try {
+    const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`);
+    if (!res.ok) {
+      throw new Error(`Failed to load project: ${await res.text()}`);
+    }
+    const project = await res.json();
+    renderProjectDetailContent(project);
+  } catch (err) {
+    if (projectDetailName) projectDetailName.textContent = "Error Loading Project";
+    if (projectDetailBanner) {
+      projectDetailBanner.className = "readiness-banner error";
+      projectDetailBanner.textContent = err.message;
+    }
+  }
+}
+
+// fallow-ignore-next-line complexity
+function renderProjectDetailContent(project) {
+  if (projectDetailName) projectDetailName.textContent = project.name;
+
+  if (projectDetailMeta) {
+    const kPath = project.knowledgeRepository?.path || project.knowledgeRepositoryPath || "None configured";
+    projectDetailMeta.innerHTML = `
+      <div><strong>Product ID:</strong> <code>${escapeHtml(project.id)}</code></div>
+      <div><strong>Workspace Root:</strong> <code>${escapeHtml(project.workspacePath || "None")}</code></div>
+      <div><strong>Issue Tracker:</strong> <span class="role-badge">${escapeHtml(project.issueTracker?.connectionId || "github")}${project.issueTracker?.projectId ? ` / ${escapeHtml(project.issueTracker.projectId)}` : ""}</span></div>
+      <div><strong>Knowledge Repo:</strong> <code>${escapeHtml(kPath)}</code></div>
+    `;
+  }
+
+  const readiness = project.readiness || { ready: false, readyCount: 0, totalCount: 0, repositories: [], issues: [] };
+  if (projectDetailRepoCount) {
+    projectDetailRepoCount.textContent = `${readiness.totalCount || (project.repositories || []).length}`;
+  }
+
+  if (projectDetailBanner) {
+    if (readiness.ready) {
+      projectDetailBanner.className = "readiness-banner ready";
+      projectDetailBanner.innerHTML = `
+        <span>✓ <strong>Project Ready</strong> — All ${readiness.totalCount} repositories checked out and verified.</span>
+      `;
+    } else {
+      projectDetailBanner.className = "readiness-banner pending";
+      projectDetailBanner.innerHTML = `
+        <span>⚠ <strong>Setup Required</strong> — ${readiness.readyCount} of ${readiness.totalCount} repositories ready.</span>
+      `;
+    }
+  }
+
+  if (projectDetailReposTable) {
+    const repos = project.repositories || [];
+    if (repos.length === 0) {
+      projectDetailReposTable.innerHTML = `<div class="empty-state"><p>No repositories in this project.</p></div>`;
+      return;
+    }
+
+    const readinessMap = new Map((readiness.repositories || []).map((r) => [r.repositoryId, r]));
+
+    let tableHtml = `
+      <table class="repos-table">
+        <thead>
+          <tr>
+            <th>Repository</th>
+            <th>Role</th>
+            <th>Local Checkout</th>
+            <th>Branch</th>
+            <th>Remote</th>
+            <th>Readiness</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    for (const r of repos) {
+      const rReadiness = readinessMap.get(r.id);
+      const isReady = rReadiness?.status === "ready";
+      const statusClass = isReady ? "ready" : "pending";
+      const statusLabel = isReady ? "✓ Ready" : rReadiness?.message || "Pending Setup";
+
+      tableHtml += `
+        <tr>
+          <td><strong>${escapeHtml(r.name)}</strong></td>
+          <td><span class="role-badge">${escapeHtml(r.role || "other")}</span></td>
+          <td><code>${escapeHtml(r.path)}</code></td>
+          <td><code>${escapeHtml(r.defaultBranch || "main")}</code></td>
+          <td><span class="text-muted" style="font-size: 0.76rem;">${escapeHtml(r.remote || "—")}</span></td>
+          <td><span class="status-pill ${statusClass}" title="${escapeHtml(rReadiness?.message || "")}">${escapeHtml(statusLabel)}</span></td>
+        </tr>
+      `;
+    }
+
+    tableHtml += `</tbody></table>`;
+    projectDetailReposTable.innerHTML = tableHtml;
+  }
+}
+
+if (btnBackToProjectsList) {
+  btnBackToProjectsList.addEventListener("click", () => {
+    if (projectsDetailView) projectsDetailView.hidden = true;
+    if (projectsListView) projectsListView.hidden = false;
+    renderProjectsList();
+  });
+}
+
+if (btnRecheckReadiness) {
+  btnRecheckReadiness.addEventListener("click", () => {
+    if (activeDetailProjectId) openProjectDetail(activeDetailProjectId);
+  });
+}
+
+if (btnDeleteProject) {
+  btnDeleteProject.addEventListener("click", async () => {
+    if (!activeDetailProjectId) return;
+    if (!confirm(`Are you sure you want to remove project "${activeDetailProjectId}" from X-Factory?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(activeDetailProjectId)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      await loadProjectsData();
+      if (projectsDetailView) projectsDetailView.hidden = true;
+      if (projectsListView) projectsListView.hidden = false;
+      renderProjectsList();
+    } catch (err) {
+      alert(`Failed to delete project: ${err.message}`);
+    }
+  });
+}
+
+// ── Multi-Step Onboarding Wizard ───────────────────────────────────────────────
+
+const onboardState = {
+  step: 1,
+  name: "",
+  id: "",
+  workspacePath: "",
+  issueTracker: { connectionId: "azure", projectId: "" },
+  primaryRepo: "",
+  discovered: [],
+  selectedRepos: new Map(), // name -> { ...repo, role, localPath, commands }
+  knowledgeRepoId: "",
+};
+
+// fallow-ignore-next-line complexity
+function openOnboardModal() {
+  onboardState.step = 1;
+  onboardState.name = "";
+  onboardState.id = "";
+  onboardState.workspacePath = "";
+  onboardState.issueTracker = { connectionId: "azure", projectId: "" };
+  onboardState.primaryRepo = "";
+  onboardState.discovered = [];
+  onboardState.selectedRepos.clear();
+  onboardState.knowledgeRepoId = "";
+
+  const nameInput = $("#onboard-proj-name");
+  const idInput = $("#onboard-proj-id");
+  const wsInput = $("#onboard-workspace-path");
+  const trackerSel = $("#onboard-tracker-connection");
+  const trackerProj = $("#onboard-tracker-project");
+  const primInput = $("#onboard-primary-repo");
+  const sourceSel = $("#onboard-discovery-source");
+
+  if (nameInput) nameInput.value = "";
+  if (idInput) idInput.value = "";
+  if (wsInput) wsInput.value = "";
+  if (trackerSel) trackerSel.value = "azure";
+  if (trackerProj) trackerProj.value = "";
+  if (primInput) primInput.value = "";
+  if (sourceSel) sourceSel.value = "local";
+  if (discoveryStatusText) discoveryStatusText.textContent = "";
+  if (onboardErrorBox) { onboardErrorBox.hidden = true; onboardErrorBox.textContent = ""; }
+
+  goToOnboardStep(1);
+  if (modalOnboard) modalOnboard.hidden = false;
+}
+
+function closeOnboardModal() {
+  if (modalOnboard) modalOnboard.hidden = true;
+}
+
+function setOnboardError(msg) {
+  if (!onboardErrorBox) return;
+  if (!msg) {
+    onboardErrorBox.hidden = true;
+    onboardErrorBox.textContent = "";
+  } else {
+    onboardErrorBox.hidden = false;
+    onboardErrorBox.textContent = msg;
+  }
+}
+
+function goToOnboardStep(step) {
+  setOnboardError("");
+  onboardState.step = step;
+
+  // Update indicators
+  $$(".step-indicator").forEach((el) => {
+    const s = parseInt(el.getAttribute("data-step") || "1", 10);
+    el.classList.toggle("active", s === step);
+    el.classList.toggle("completed", s < step);
+  });
+
+  // Toggle panes
+  for (let i = 1; i <= 6; i++) {
+    const pane = $(`#onboard-step-${i}`);
+    if (pane) pane.hidden = i !== step;
+  }
+
+  // Button states
+  if (btnOnboardPrev) btnOnboardPrev.disabled = step === 1;
+  if (btnOnboardNext) btnOnboardNext.hidden = step === 6;
+  if (btnOnboardSave) btnOnboardSave.hidden = step !== 6;
+
+  // Step-specific initializations
+  if (step === 4) {
+    renderDiscoveredRepos();
+  } else if (step === 5) {
+    renderInspectionStep();
+  } else if (step === 6) {
+    renderReviewStep();
+  }
+}
+
+// Auto-slug ID from Name
+const onboardNameInput = $("#onboard-proj-name");
+const onboardIdInput = $("#onboard-proj-id");
+if (onboardNameInput && onboardIdInput) {
+  onboardNameInput.addEventListener("input", (e) => {
+    if (!onboardIdInput.dataset.manual) {
+      onboardIdInput.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+  });
+  onboardIdInput.addEventListener("input", () => {
+    onboardIdInput.dataset.manual = "true";
+  });
+}
+
+// Dynamic Tracker Hints and Defaults for GitHub / Azure / Jira
+const onboardTrackerConn = $("#onboard-tracker-connection");
+const onboardTrackerHint = $("#onboard-tracker-hint");
+const onboardTrackerProj = $("#onboard-tracker-project");
+
+// fallow-ignore-next-line complexity
+function handleTrackerConnChange(e) {
+  const tracker = e.target.value;
+  const sourceSel = $("#onboard-discovery-source");
+  if (tracker === "jira") {
+    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. VEND (Jira Project Key)";
+    if (onboardTrackerHint) onboardTrackerHint.textContent = "Jira Software project key (used with JQL to find tickets).";
+    if (sourceSel) sourceSel.value = "local";
+  } else if (tracker === "github") {
+    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. org/repo or org";
+    if (onboardTrackerHint) onboardTrackerHint.textContent = "GitHub repository owner/repo or organization name.";
+    if (sourceSel) sourceSel.value = "github";
+  } else {
+    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. VendifAI (Azure DevOps Project)";
+    if (onboardTrackerHint) onboardTrackerHint.textContent = "Azure DevOps project name (used with WIQL queries).";
+    if (sourceSel) sourceSel.value = "azure";
+  }
+}
+
+if (onboardTrackerConn) {
+  onboardTrackerConn.addEventListener("change", handleTrackerConnChange);
+}
+
+const ROLE_KEYWORDS = [
+  ["knowledge", "knowledge"],
+  ["graph", "knowledge"],
+  ["front", "frontend"],
+  ["web", "frontend"],
+  ["ui", "frontend"],
+  ["api", "backend"],
+  ["backend", "backend"],
+  ["server", "backend"],
+  ["worker", "worker"],
+  ["infra", "infrastructure"],
+];
+
+function inferRepoRole(name) {
+  const lower = name.toLowerCase();
+  const match = ROLE_KEYWORDS.find(([kw]) => lower.includes(kw));
+  return match ? match[1] : "other";
+}
+
+// Step 3: Run Discovery
+// fallow-ignore-next-line complexity
+async function handleRunDiscovery() {
+  setOnboardError("");
+  const discSource = getVal("onboard-discovery-source", "local");
+  const trackerProj = getVal("onboard-tracker-project", "");
+  const primRepo = getVal("onboard-primary-repo", "");
+  const wsPath = getVal("onboard-workspace-path", "");
+
+  if (discoveryStatusText) discoveryStatusText.textContent = "Discovering repositories…";
+  if (btnRunDiscovery) btnRunDiscovery.disabled = true;
+
+  try {
+    const res = await fetch("/api/projects/discover-repositories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: discSource,
+        project: trackerProj,
+        repoOwner: trackerProj,
+        workspacePath: wsPath,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || "Repository discovery failed.");
+    }
+
+    const data = await res.json();
+    const repos = data.repositories || [];
+    onboardState.discovered = repos;
+    onboardState.primaryRepo = primRepo;
+
+    // Select primary repo or all by default
+    onboardState.selectedRepos.clear();
+    for (const r of repos) {
+      const isPrimary = primRepo && (r.name.toLowerCase() === primRepo.toLowerCase() || r.id === primRepo);
+      const role = inferRepoRole(r.name);
+
+      // Auto-select primary or all application repos (skip knowledge repo from application list)
+      if (role !== "knowledge" || isPrimary) {
+        onboardState.selectedRepos.set(r.name, {
+          ...r,
+          role,
+          isPrimary: Boolean(isPrimary),
+        });
+      }
+    }
+
+    // Check for knowledge repo candidate
+    const kCandidate = repos.find((r) => r.name.toLowerCase().includes("knowledge") || r.name.toLowerCase().includes("graph"));
+    if (kCandidate) {
+      onboardState.knowledgeRepoId = kCandidate.name;
+    }
+
+    if (discoveryStatusText) discoveryStatusText.textContent = `Found ${repos.length} repositories.`;
+    goToOnboardStep(4);
+  } catch (err) {
+    if (discoveryStatusText) discoveryStatusText.textContent = "Discovery failed.";
+    setOnboardError(err.message);
+  } finally {
+    if (btnRunDiscovery) btnRunDiscovery.disabled = false;
+  }
+}
+
+if (btnRunDiscovery) {
+  btnRunDiscovery.addEventListener("click", handleRunDiscovery);
+}
+
+// fallow-ignore-next-line complexity
+function renderDiscoveredRepos() {
+  if (!onboardRepoChecklist) return;
+  const repos = onboardState.discovered || [];
+  const countLabel = $("#discovered-count-label");
+  if (countLabel) countLabel.textContent = `${repos.length} repositories found`;
+
+  // Populate Knowledge Repo selector
+  if (onboardKnowledgeSelect) {
+    onboardKnowledgeSelect.innerHTML = `<option value="">No knowledge repository</option>`;
+    for (const r of repos) {
+      const opt = document.createElement("option");
+      opt.value = r.name;
+      opt.textContent = `${r.name} (${r.remote || "local"})`;
+      if (r.name === onboardState.knowledgeRepoId) opt.selected = true;
+      onboardKnowledgeSelect.appendChild(opt);
+    }
+    onboardKnowledgeSelect.onchange = (e) => {
+      onboardState.knowledgeRepoId = e.target.value;
+      // If selected as knowledge repo, deselect from application repos
+      if (e.target.value) {
+        onboardState.selectedRepos.delete(e.target.value);
+        renderDiscoveredRepos();
+      }
+    };
+  }
+
+  const searchTerm = (onboardRepoSearch?.value || "").toLowerCase().trim();
+  onboardRepoChecklist.innerHTML = "";
+
+  for (const r of repos) {
+    // Skip if chosen as knowledge repo
+    if (r.name === onboardState.knowledgeRepoId) continue;
+    if (searchTerm && !r.name.toLowerCase().includes(searchTerm)) continue;
+
+    const isSelected = onboardState.selectedRepos.has(r.name);
+    const selectedData = onboardState.selectedRepos.get(r.name) || r;
+    const isPrimary = r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase();
+
+    const item = document.createElement("div");
+    item.className = `repo-check-item ${isSelected ? "selected" : ""}`;
+    item.innerHTML = `
+      <div class="repo-check-left">
+        <input type="checkbox" id="chk-${escapeHtml(r.name)}" ${isSelected ? "checked" : ""}>
+        <label for="chk-${escapeHtml(r.name)}" style="cursor: pointer; margin: 0; font-weight: 500;">
+          ${escapeHtml(r.name)}
+          ${isPrimary ? '<span class="primary-badge" style="margin-left: 0.4rem;">Primary</span>' : ""}
+        </label>
+      </div>
+      <div class="repo-check-meta">
+        <select class="form-select form-select-sm repo-role-dropdown" data-repo="${escapeHtml(r.name)}" style="padding: 0.2rem 0.5rem; font-size: 0.78rem;">
+          <option value="frontend" ${selectedData.role === "frontend" ? "selected" : ""}>Frontend</option>
+          <option value="backend" ${selectedData.role === "backend" ? "selected" : ""}>Backend</option>
+          <option value="service" ${selectedData.role === "service" ? "selected" : ""}>Service</option>
+          <option value="worker" ${selectedData.role === "worker" ? "selected" : ""}>Worker</option>
+          <option value="mobile" ${selectedData.role === "mobile" ? "selected" : ""}>Mobile</option>
+          <option value="infrastructure" ${selectedData.role === "infrastructure" ? "selected" : ""}>Infrastructure</option>
+          <option value="documentation" ${selectedData.role === "documentation" ? "selected" : ""}>Documentation</option>
+          <option value="other" ${selectedData.role === "other" || !selectedData.role ? "selected" : ""}>Other</option>
+        </select>
+      </div>
+    `;
+
+    const chk = item.querySelector(`input[type="checkbox"]`);
+    chk.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        onboardState.selectedRepos.set(r.name, {
+          ...r,
+          role: item.querySelector(".repo-role-dropdown")?.value || "other",
+          isPrimary,
+        });
+        item.classList.add("selected");
+      } else {
+        onboardState.selectedRepos.delete(r.name);
+        item.classList.remove("selected");
+      }
+    });
+
+    const roleDropdown = item.querySelector(".repo-role-dropdown");
+    roleDropdown.addEventListener("change", (e) => {
+      if (onboardState.selectedRepos.has(r.name)) {
+        onboardState.selectedRepos.get(r.name).role = e.target.value;
+      }
+    });
+
+    onboardRepoChecklist.appendChild(item);
+  }
+}
+
+if (onboardRepoSearch) {
+  onboardRepoSearch.addEventListener("input", renderDiscoveredRepos);
+}
+
+if (btnSelectAllRepos) {
+  btnSelectAllRepos.addEventListener("click", () => {
+    for (const r of onboardState.discovered) {
+      if (r.name !== onboardState.knowledgeRepoId) {
+        onboardState.selectedRepos.set(r.name, {
+          ...r,
+          role: onboardState.selectedRepos.get(r.name)?.role || "other",
+        });
+      }
+    }
+    renderDiscoveredRepos();
+  });
+}
+
+if (btnDeselectAllRepos) {
+  btnDeselectAllRepos.addEventListener("click", () => {
+    onboardState.selectedRepos.clear();
+    renderDiscoveredRepos();
+  });
+}
+
+// Step 5: Inspection
+// fallow-ignore-next-line complexity
+async function renderInspectionStep() {
+  if (!onboardInspectionList) return;
+  onboardInspectionList.innerHTML = `<div class="text-muted" style="padding: 1rem;">Inspecting local checkouts…</div>`;
+
+  const wsRoot = getVal("onboard-workspace-path", "") || "~";
+  const repos = Array.from(onboardState.selectedRepos.values());
+
+  if (repos.length === 0) {
+    onboardInspectionList.innerHTML = `<div class="empty-state"><p>No repositories selected. Please go back and select at least one.</p></div>`;
+    return;
+  }
+
+  onboardInspectionList.innerHTML = "";
+
+  for (const r of repos) {
+    const localPath = r.path || `${wsRoot.replace(/\/+$/, "")}/${r.name}`;
+    r.localPath = localPath;
+
+    const card = document.createElement("div");
+    card.className = "inspection-card";
+    card.id = `inspect-card-${escapeHtml(r.name)}`;
+    card.innerHTML = `
+      <div class="inspection-header">
+        <div>
+          <strong style="font-size: 0.95rem;">${escapeHtml(r.name)}</strong>
+          <span class="role-badge" style="margin-left: 0.4rem;">${escapeHtml(r.role || "other")}</span>
+        </div>
+        <span class="status-pill pending" id="inspect-pill-${escapeHtml(r.name)}">Inspecting…</span>
+      </div>
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label style="font-size: 0.75rem;">Local Path</label>
+        <input type="text" class="form-input code-input repo-path-input" data-repo="${escapeHtml(r.name)}" value="${escapeHtml(localPath)}">
+      </div>
+      <div class="inspection-commands-grid">
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 600;">Test Command</label>
+          <input type="text" class="form-input code-input cmd-test" data-repo="${escapeHtml(r.name)}" placeholder="e.g. bun test" value="${escapeHtml(r.commands?.test || "")}">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 600;">Typecheck Command</label>
+          <input type="text" class="form-input code-input cmd-typecheck" data-repo="${escapeHtml(r.name)}" placeholder="e.g. bunx tsc --noEmit" value="${escapeHtml(r.commands?.typecheck || "")}">
+        </div>
+        <div>
+          <label style="font-size: 0.75rem; font-weight: 600;">Lint Command</label>
+          <input type="text" class="form-input code-input cmd-lint" data-repo="${escapeHtml(r.name)}" placeholder="e.g. bunx eslint ." value="${escapeHtml(r.commands?.lint || "")}">
+        </div>
+      </div>
+    `;
+
+    onboardInspectionList.appendChild(card);
+
+    // Run inspection
+    inspectRepoAsync(r);
+  }
+}
+
+// fallow-ignore-next-line complexity
+async function inspectRepoAsync(repo) {
+  const pill = $(`#inspect-pill-${repo.name}`);
+  const card = $(`#inspect-card-${repo.name}`);
+  try {
+    const res = await fetch("/api/projects/inspect-repository", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: repo.localPath, expectedRemote: repo.remote }),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    if (pill) {
+      if (data.isGitRepo) {
+        pill.className = "status-pill ready";
+        pill.textContent = "✓ Git Repo Detected";
+      } else if (data.exists) {
+        pill.className = "status-pill pending";
+        pill.textContent = "⚠ Not a Git Repo";
+      } else {
+        pill.className = "status-pill pending";
+        pill.textContent = "⚠ Checkout Missing";
+      }
+    }
+
+    // Populate suggested commands if not already provided
+    if (data.detectedCommands) {
+      const testInput = card?.querySelector(`.cmd-test`);
+      const typecheckInput = card?.querySelector(`.cmd-typecheck`);
+      const lintInput = card?.querySelector(`.cmd-lint`);
+
+      if (testInput && !testInput.value && data.detectedCommands.test) testInput.value = data.detectedCommands.test;
+      if (typecheckInput && !typecheckInput.value && data.detectedCommands.typecheck) typecheckInput.value = data.detectedCommands.typecheck;
+      if (lintInput && !lintInput.value && data.detectedCommands.lint) lintInput.value = data.detectedCommands.lint;
+    }
+  } catch (err) {
+    if (pill) {
+      pill.className = "status-pill pending";
+      pill.textContent = "Pending Local Setup";
+    }
+  }
+}
+
+// Step 6: Review & Final Preview
+function renderReviewStep() {
+  const config = buildProjectConfigFromWizard();
+  if (reviewJsonPreview) {
+    reviewJsonPreview.textContent = JSON.stringify(config, null, 2);
+  }
+}
+
+// fallow-ignore-next-line complexity
+function buildProjectConfigFromWizard() {
+  const id = getVal("onboard-proj-id", "project").trim();
+  const name = getVal("onboard-proj-name", id).trim();
+  const workspacePath = getVal("onboard-workspace-path", "").trim() || undefined;
+  const connectionId = getVal("onboard-tracker-connection", "azure");
+  const trackerProj = getVal("onboard-tracker-project", "").trim() || undefined;
+
+  const repositories = [];
+  const repoCards = onboardInspectionList ? onboardInspectionList.querySelectorAll(".inspection-card") : [];
+
+  for (const card of repoCards) {
+    const pathInput = card.querySelector(".repo-path-input");
+    const testInput = card.querySelector(".cmd-test");
+    const typecheckInput = card.querySelector(".cmd-typecheck");
+    const lintInput = card.querySelector(".cmd-lint");
+
+    const repoName = pathInput?.getAttribute("data-repo") || "";
+    const repoPath = pathInput?.value.trim() || "";
+    const original = onboardState.selectedRepos.get(repoName) || {};
+
+    const commands = {};
+    if (testInput?.value.trim()) commands.test = testInput.value.trim();
+    if (typecheckInput?.value.trim()) commands.typecheck = typecheckInput.value.trim();
+    if (lintInput?.value.trim()) commands.lint = lintInput.value.trim();
+
+    repositories.push({
+      id: original.id || repoName,
+      name: repoName,
+      path: repoPath,
+      remote: original.remote || undefined,
+      defaultBranch: original.defaultBranch || "main",
+      role: original.role || "other",
+      commands: Object.keys(commands).length > 0 ? commands : undefined,
+    });
+  }
+
+  let knowledgeRepository = undefined;
+  if (onboardState.knowledgeRepoId) {
+    const kName = onboardState.knowledgeRepoId;
+    const wsRoot = workspacePath || "~";
+    knowledgeRepository = {
+      repositoryId: kName,
+      path: `${wsRoot.replace(/\/+$/, "")}/${kName}`,
+      type: "graphify",
+    };
+  }
+
+  return {
+    id,
+    name,
+    workspacePath,
+    issueTracker: {
+      connectionId,
+      projectId: trackerProj,
+    },
+    repositories,
+    knowledgeRepository,
+  };
+}
+
+// Wizard Next / Previous / Save handlers
+// fallow-ignore-next-line complexity
+function handleOnboardNext() {
+  setOnboardError("");
+  if (onboardState.step === 1) {
+    const name = getVal("onboard-proj-name", "").trim();
+    const id = getVal("onboard-proj-id", "").trim();
+    if (!name) return setOnboardError("Project Display Name is required.");
+    if (!id) return setOnboardError("Stable Project Identifier is required.");
+    goToOnboardStep(2);
+  } else if (onboardState.step === 2) {
+    goToOnboardStep(3);
+  } else if (onboardState.step === 3) {
+    if (onboardState.discovered.length === 0) {
+      return setOnboardError("Please click 'Discover Repositories' to find repositories before continuing.");
+    }
+    goToOnboardStep(4);
+  } else if (onboardState.step === 4) {
+    if (onboardState.selectedRepos.size === 0) {
+      return setOnboardError("Please select at least one application repository.");
+    }
+    goToOnboardStep(5);
+  } else if (onboardState.step === 5) {
+    goToOnboardStep(6);
+  }
+}
+
+if (btnOnboardNext) {
+  btnOnboardNext.addEventListener("click", handleOnboardNext);
+}
+
+if (btnOnboardPrev) {
+  btnOnboardPrev.addEventListener("click", () => {
+    if (onboardState.step > 1) {
+      goToOnboardStep(onboardState.step - 1);
+    }
+  });
+}
+
+// fallow-ignore-next-line complexity
+async function handleOnboardSave() {
+  setOnboardError("");
+  if (btnOnboardSave) {
+    btnOnboardSave.disabled = true;
+    btnOnboardSave.textContent = "Saving…";
+  }
+
+  try {
+    const config = buildProjectConfigFromWizard();
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || "Failed to save project.");
+    }
+
+    await loadProjectsData();
+    closeOnboardModal();
+    openProjectDetail(config.id);
+  } catch (err) {
+    setOnboardError(err.message);
+  } finally {
+    if (btnOnboardSave) {
+      btnOnboardSave.disabled = false;
+      btnOnboardSave.textContent = "Save Project";
+    }
+  }
+}
+
+if (btnOnboardSave) {
+  btnOnboardSave.addEventListener("click", handleOnboardSave);
+}
+
+if (btnOpenOnboardModal) {
+  btnOpenOnboardModal.addEventListener("click", openOnboardModal);
+}
+if (btnCloseOnboardModal) {
+  btnCloseOnboardModal.addEventListener("click", closeOnboardModal);
+}
+if (btnOnboardCancel) {
+  btnOnboardCancel.addEventListener("click", closeOnboardModal);
+}
+
+// ── Settings Management ────────────────────────────────────────────────────────
 
 // ── Settings Management ────────────────────────────────────────────────────────
 

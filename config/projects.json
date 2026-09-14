@@ -3,10 +3,26 @@
     {
       "id": "example",
       "name": "Example Project",
-      "repositoryPath": "/path/to/your/project",
-      "knowledgeRepositoryPath": "/path/to/your/project-knowledge",
-      "defaultBranch": "main",
-      "testCommand": "npm test"
+      "issueTracker": {
+        "connectionId": "github"
+      },
+      "repositories": [
+        {
+          "id": "example-primary",
+          "name": "Example Project",
+          "path": "/path/to/your/project",
+          "defaultBranch": "main",
+          "role": "other",
+          "commands": {
+            "test": "npm test"
+          }
+        }
+      ],
+      "knowledgeRepository": {
+        "repositoryId": "example-knowledge",
+        "path": "/path/to/your/project-knowledge",
+        "type": "graphify"
+      }
     }
   ]
 }

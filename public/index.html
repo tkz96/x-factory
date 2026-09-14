@@ -354,11 +354,61 @@
 
         <!-- ── Area 4: Projects ───────────────────────────────────── -->
         <section id="area-projects" class="area-view">
-          <div class="card">
-            <h2>Configured Projects</h2>
-            <p class="text-muted" style="margin-bottom: 1.2rem;">Local codebases connected to X-Factory.</p>
+          <!-- Projects List Sub-view -->
+          <div id="projects-list-view" class="card">
+            <div class="section-header-flex">
+              <div>
+                <h2>Configured Projects</h2>
+                <p class="text-muted">Software products and multi-repository workspaces connected to X-Factory.</p>
+              </div>
+              <button id="btn-open-onboard-modal" class="btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>Onboard Project</span>
+              </button>
+            </div>
             <div id="projects-container" class="projects-grid">
               <!-- Projects rendered here -->
+            </div>
+          </div>
+
+          <!-- Project Detail Sub-view (hidden by default) -->
+          <div id="projects-detail-view" class="card" hidden>
+            <div class="section-header-flex">
+              <div style="display: flex; align-items: center; gap: 0.8rem;">
+                <button id="btn-back-to-projects-list" class="btn-secondary btn-sm" title="Back to all projects">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="19" y1="12" x2="5" y2="12"/>
+                    <polyline points="12 19 5 12 12 5"/>
+                  </svg>
+                  <span>All Projects</span>
+                </button>
+                <h2 id="project-detail-name" style="margin: 0;">Project Name</h2>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button id="btn-recheck-readiness" class="btn-secondary btn-sm">Re-check Readiness</button>
+                <button id="btn-delete-project" class="btn-secondary btn-sm btn-danger-hover">Delete Project</button>
+              </div>
+            </div>
+
+            <div id="project-detail-meta" class="project-detail-meta-grid">
+              <!-- Meta properties rendered here -->
+            </div>
+
+            <div id="project-detail-readiness-banner" class="readiness-banner">
+              <!-- Readiness summary -->
+            </div>
+
+            <div class="project-repos-section" style="margin-top: 1.5rem;">
+              <div class="section-header-flex" style="margin-bottom: 0.8rem;">
+                <h3>Repositories</h3>
+                <span id="project-detail-repo-count" class="nav-badge" style="display: inline-block;">0</span>
+              </div>
+              <div id="project-detail-repos-table" class="repos-table-container">
+                <!-- Repositories rendered here -->
+              </div>
             </div>
           </div>
         </section>
@@ -526,6 +576,178 @@
 
           <div id="setup-error" class="error-message" hidden></div>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal Dialog: Project Onboarding Wizard ────────────────── -->
+  <div id="modal-project-onboarding" class="modal-backdrop" hidden>
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div>
+          <h2>Onboard Software Project</h2>
+          <span class="toolbar-subtitle">Connect a multi-repository workspace to X-Factory</span>
+        </div>
+        <button id="btn-close-onboard-modal" class="btn-close" aria-label="Close dialog">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="2" y1="2" x2="12" y2="12"/>
+            <line x1="12" y1="2" x2="2" y2="12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Stepper Indicator -->
+      <div class="stepper-bar">
+        <div class="step-indicator active" data-step="1">
+          <span class="step-num">1</span>
+          <span class="step-title">Basics</span>
+        </div>
+        <div class="step-indicator" data-step="2">
+          <span class="step-num">2</span>
+          <span class="step-title">Tracker</span>
+        </div>
+        <div class="step-indicator" data-step="3">
+          <span class="step-num">3</span>
+          <span class="step-title">Discovery</span>
+        </div>
+        <div class="step-indicator" data-step="4">
+          <span class="step-num">4</span>
+          <span class="step-title">Repositories</span>
+        </div>
+        <div class="step-indicator" data-step="5">
+          <span class="step-num">5</span>
+          <span class="step-title">Inspection</span>
+        </div>
+        <div class="step-indicator" data-step="6">
+          <span class="step-num">6</span>
+          <span class="step-title">Review</span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: Basics -->
+        <div id="onboard-step-1" class="wizard-pane active">
+          <div class="form-group">
+            <label for="onboard-proj-name">Project Display Name <span class="required">*</span></label>
+            <input id="onboard-proj-name" type="text" placeholder="e.g. VendifAI" class="form-input" required>
+            <span class="form-hint">The human-readable name for this software product.</span>
+          </div>
+          <div class="form-group">
+            <label for="onboard-proj-id">Stable Project Identifier <span class="required">*</span></label>
+            <input id="onboard-proj-id" type="text" placeholder="e.g. vendifai" class="form-input code-input" required>
+            <span class="form-hint">Lowercase alphanumeric identifier used across runs and worktrees.</span>
+          </div>
+          <div class="form-group">
+            <label for="onboard-workspace-path">Local Workspace Root Directory</label>
+            <input id="onboard-workspace-path" type="text" placeholder="e.g. ~/workspace/vendifai" class="form-input code-input">
+            <span class="form-hint">Base directory on your machine where this product's repositories live.</span>
+          </div>
+        </div>
+
+        <!-- Step 2: Issue Tracker -->
+        <div id="onboard-step-2" class="wizard-pane" hidden>
+          <div class="form-group">
+            <label for="onboard-tracker-connection">Issue Tracker Connection</label>
+            <select id="onboard-tracker-connection" class="form-select">
+              <option value="azure">Azure DevOps</option>
+              <option value="github">GitHub Issues</option>
+              <option value="jira">Jira Software</option>
+            </select>
+            <span class="form-hint">Credentials are loaded securely from your Factory Settings.</span>
+          </div>
+          <div class="form-group">
+            <label for="onboard-tracker-project">Tracker Project / Board Key</label>
+            <input id="onboard-tracker-project" type="text" placeholder="e.g. VendifAI (or owner/repo for GitHub)" class="form-input">
+            <span class="form-hint">Azure DevOps project name, Jira project key, or GitHub repository owner.</span>
+          </div>
+        </div>
+
+        <!-- Step 3: Discovery Provider & Primary Repo Anchor -->
+        <div id="onboard-step-3" class="wizard-pane" hidden>
+          <div class="form-group">
+            <label for="onboard-discovery-source">Repository Source Provider</label>
+            <select id="onboard-discovery-source" class="form-select">
+              <option value="local">Local Workspace Folder (Scan subdirectories)</option>
+              <option value="github">GitHub Organization / Repositories</option>
+              <option value="azure">Azure DevOps Git Repositories</option>
+              <option value="jira">Jira Project Components</option>
+            </select>
+            <span id="onboard-discovery-hint" class="form-hint">Scan local directory or query GitHub, Azure DevOps, or Jira.</span>
+          </div>
+          <div class="form-group">
+            <label for="onboard-primary-repo">Primary Repository Anchor</label>
+            <input id="onboard-primary-repo" type="text" placeholder="e.g. vendifai-web" class="form-input">
+            <span class="form-hint">Primary repository for this product. X-Factory anchors onboarding and backward-compatible runs to this repo.</span>
+          </div>
+          <div class="discovery-trigger-box">
+            <p class="text-muted" style="margin-bottom: 0.8rem;">Click Discover Repositories to query your provider (or scan local workspace folder).</p>
+            <div style="display: flex; align-items: center; gap: 0.8rem;">
+              <button id="btn-run-discovery" class="btn-primary" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <span>Discover Repositories</span>
+              </button>
+              <span id="discovery-status-text" class="text-muted" style="font-size: 0.88rem;"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Repository Selection & Roles -->
+        <div id="onboard-step-4" class="wizard-pane" hidden>
+          <div class="selection-toolbar">
+            <span id="discovered-count-label" class="bold-text">0 repositories found</span>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input id="onboard-repo-search" type="text" placeholder="Filter repositories…" class="form-input form-input-sm" style="width: 180px;">
+              <button id="btn-select-all-repos" class="btn-secondary btn-sm" type="button">Select All</button>
+              <button id="btn-deselect-all-repos" class="btn-secondary btn-sm" type="button">Deselect All</button>
+            </div>
+          </div>
+          <div id="onboard-repo-checklist" class="onboard-repo-checklist">
+            <!-- Checkbox items rendered here -->
+          </div>
+          <div class="form-group" style="margin-top: 1.2rem;">
+            <label for="onboard-knowledge-select">Knowledge Repository (Optional Graphify Model)</label>
+            <select id="onboard-knowledge-select" class="form-select">
+              <option value="">No knowledge repository</option>
+            </select>
+            <span class="form-hint">Provides architectural graphs and conventions during the Understand stage.</span>
+          </div>
+        </div>
+
+        <!-- Step 5: Inspection & Commands -->
+        <div id="onboard-step-5" class="wizard-pane" hidden>
+          <p class="text-muted" style="margin-bottom: 1rem;">
+            Inspect each local repository to detect Git branch, remote, tooling, and verification commands.
+          </p>
+          <div id="onboard-inspection-list" class="inspection-cards-list">
+            <!-- Inspection items rendered here -->
+          </div>
+        </div>
+
+        <!-- Step 6: Review & Final Save -->
+        <div id="onboard-step-6" class="wizard-pane" hidden>
+          <div class="review-summary-box">
+            <h3 id="review-summary-title">Review Project Configuration</h3>
+            <p class="text-muted">Verify the generated configuration before saving to <code>config/projects.json</code>.</p>
+            <div class="code-preview-container">
+              <pre id="review-json-preview"><code>{}</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <div id="onboard-error-box" class="error-message" hidden></div>
+      </div>
+
+      <!-- Stepper Action Buttons -->
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem; border-top: 1px solid var(--border-subtle);">
+        <button id="btn-onboard-cancel" class="btn-secondary" type="button">Cancel</button>
+        <div style="display: flex; gap: 0.6rem;">
+          <button id="btn-onboard-prev" class="btn-secondary" type="button" disabled>Previous</button>
+          <button id="btn-onboard-next" class="btn-primary" type="button">Next</button>
+          <button id="btn-onboard-save" class="btn-primary" type="button" hidden>Save Project</button>
+        </div>
       </div>
     </div>
   </div>

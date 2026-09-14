@@ -1,6 +1,6 @@
-// src/http/routes.ts — REST API routing and endpoint controllers for X-Factory.
-
-import { loadProjects, getProject } from "../config.js";
+import { loadProjects, getProject, saveProject, deleteProject } from "../config.js";
+import { discoverRepositories, type RepositoryDiscoveryInput } from "../discovery/index.js";
+import { inspectLocalRepository, checkProjectReadiness } from "../inspection/index.js";
 import * as runs from "../runs.js";
 import { fetchProjectTickets } from "../trackers.js";
 import { loadSettings, saveSettings, type FactorySettings } from "../settings.js";
@@ -14,6 +14,103 @@ import {
 async function handleGetProjects(): Promise<Response> {
   const projects = await loadProjects();
   return jsonResponse(projects);
+}
+
+async function handleCreateProject(req: Request): Promise<Response> {
+  const body = await parseJsonBody(req);
+  if (!body || typeof body !== "object") {
+    return errorResponse("Invalid JSON for project creation.");
+  }
+  try {
+    const saved = await saveProject(body);
+    return jsonResponse(saved, 201);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(msg, 400);
+  }
+}
+
+async function handleGetProject(projectId: string): Promise<Response> {
+  const project = await getProject(projectId);
+  if (!project) {
+    return errorResponse(`Project "${projectId}" not found.`, 404);
+  }
+  const readiness = await checkProjectReadiness(project);
+  return jsonResponse({ ...project, readiness });
+}
+
+async function handleUpdateProject(projectId: string, req: Request): Promise<Response> {
+  const project = await getProject(projectId);
+  if (!project) {
+    return errorResponse(`Project "${projectId}" not found.`, 404);
+  }
+  const body = await parseJsonBody(req);
+  if (!body || typeof body !== "object") {
+    return errorResponse("Invalid JSON for project update.");
+  }
+  try {
+    const merged = { ...project, ...(body as Record<string, unknown>), id: projectId };
+    const saved = await saveProject(merged);
+    return jsonResponse(saved);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(msg, 400);
+  }
+}
+
+async function handleDeleteProject(projectId: string): Promise<Response> {
+  try {
+    await deleteProject(projectId);
+    return jsonResponse({ ok: true });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(msg, 404);
+  }
+}
+
+async function handleDiscoverRepositories(req: Request): Promise<Response> {
+  const body = await parseJsonBody(req);
+  if (!body || typeof body !== "object") {
+    return errorResponse("Invalid JSON for discovery request.");
+  }
+  const input = body as unknown as RepositoryDiscoveryInput;
+  if (!input.provider) {
+    return errorResponse("Discovery provider is required ('azure', 'github', 'local').");
+  }
+  try {
+    const repos = await discoverRepositories(input);
+    return jsonResponse({ repositories: repos });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(msg, 400);
+  }
+}
+
+async function handleInspectRepository(req: Request): Promise<Response> {
+  const body = await parseJsonBody(req);
+  if (!body || typeof body !== "object") {
+    return errorResponse("Invalid JSON for repository inspection.");
+  }
+  const { path: repoPath, expectedRemote } = body as { path?: string; expectedRemote?: string };
+  if (!repoPath || typeof repoPath !== "string") {
+    return errorResponse("Repository path is required.");
+  }
+  try {
+    const result = await inspectLocalRepository(repoPath, expectedRemote);
+    return jsonResponse(result);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return errorResponse(msg, 400);
+  }
+}
+
+async function handleGetProjectReadiness(projectId: string): Promise<Response> {
+  const project = await getProject(projectId);
+  if (!project) {
+    return errorResponse(`Project "${projectId}" not found.`, 404);
+  }
+  const readiness = await checkProjectReadiness(project);
+  return jsonResponse(readiness);
 }
 
 async function handleGetProjectTickets(projectId: string): Promise<Response> {
@@ -168,13 +265,44 @@ async function handleRunsRoute(
   return null;
 }
 
-function handleProjectsRoute(
+// fallow-ignore-next-line complexity
+async function handleProjectsRoute(
   method: string,
-  id?: string,
-  action?: string
-): Promise<Response> | null {
-  if (!id && method === "GET") return handleGetProjects();
-  if (id && action === "tickets" && method === "GET") return handleGetProjectTickets(id);
+  id: string | undefined,
+  action: string | undefined,
+  partsCount: number,
+  req: Request
+): Promise<Response | null> {
+  // Discovery and inspection action endpoints (/api/projects/discover-repositories, etc.)
+  if (id === "discover-repositories" && method === "POST") {
+    return handleDiscoverRepositories(req);
+  }
+  if (id === "inspect-repository" && method === "POST") {
+    return handleInspectRepository(req);
+  }
+
+  // Collection endpoints (/api/projects)
+  if (!id) {
+    if (method === "GET") return handleGetProjects();
+    if (method === "POST") return handleCreateProject(req);
+    return null;
+  }
+
+  // Member action endpoints (/api/projects/:id/:action)
+  if (id && action === "tickets" && method === "GET") {
+    return handleGetProjectTickets(id);
+  }
+  if (id && action === "readiness" && method === "GET") {
+    return handleGetProjectReadiness(id);
+  }
+
+  // Member CRUD endpoints (/api/projects/:id)
+  if (id && !action && partsCount === 2) {
+    if (method === "GET") return handleGetProject(id);
+    if (method === "PATCH" || method === "PUT") return handleUpdateProject(id, req);
+    if (method === "DELETE") return handleDeleteProject(id);
+  }
+
   return null;
 }
 
@@ -190,7 +318,7 @@ async function routeApiRequest(
   req: Request
 ): Promise<Response | null> {
   const [resource, id, action] = parts;
-  if (resource === "projects") return handleProjectsRoute(method, id, action);
+  if (resource === "projects") return handleProjectsRoute(method, id, action, parts.length, req);
   if (resource === "runs") return handleRunsRoute(method, id, action, parts.length, req);
   if (resource === "settings") return handleSettingsRoute(method, req);
   return null;
