@@ -10,6 +10,8 @@ const MIME_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
 };
 
 export async function serveStatic(pathname: string, publicDir: string): Promise<Response> {

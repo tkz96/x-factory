@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="X-Factory — developer workbench: ticket → understand → implement → verify → review → deliver">
   <title>X-Factory</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>(function(){const t=localStorage.getItem("xf_theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.setAttribute("data-theme",t);})()</script>
 </head>
 <body>
   <div id="app-shell" class="app-shell">
@@ -16,15 +15,7 @@
     <aside id="app-sidebar" class="sidebar">
       <div class="sidebar-header">
         <div class="brand">
-          <div class="brand-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-          <div class="brand-text">
-            <span class="brand-title">X-Factory</span>
-            <span class="brand-subtitle">Developer Workbench</span>
-          </div>
+          <span class="brand-title">X-Factory</span>
         </div>
 
         <div class="project-selector-wrapper">
@@ -83,6 +74,26 @@
           <span class="status-dot online"></span>
           <span class="status-label">Factory Ready</span>
         </div>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Dark and Light Mode" title="Toggle theme">
+          <span class="theme-icon sun-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+          </span>
+          <span class="theme-icon moon-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </span>
+        </button>
       </div>
     </aside>
 
@@ -482,7 +493,12 @@
     <div class="modal-dialog">
       <div class="modal-header">
         <h2>New Factory Run</h2>
-        <button id="btn-close-modal" class="btn-close" aria-label="Close dialog">&times;</button>
+        <button id="btn-close-modal" class="btn-close" aria-label="Close dialog">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="2" y1="2" x2="12" y2="12"/>
+            <line x1="12" y1="2" x2="2" y2="12"/>
+          </svg>
+        </button>
       </div>
       <div class="modal-body">
         <section id="view-setup" class="view active">

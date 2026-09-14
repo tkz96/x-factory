@@ -34,6 +34,7 @@ export interface ModelConfig {
 
 export interface FactorySettings {
   activeTracker: "github" | "jira" | "azure";
+  theme?: "dark" | "light";
   github?: GitHubConfig;
   jira?: JiraConfig;
   azure?: AzureConfig;
@@ -42,6 +43,7 @@ export interface FactorySettings {
 
 const DEFAULT_SETTINGS: FactorySettings = {
   activeTracker: "github",
+  theme: "dark",
   github: {},
   jira: {},
   azure: {},
@@ -142,6 +144,7 @@ export async function saveSettings(
 
   const updated: FactorySettings = {
     activeTracker: patch.activeTracker || existing.activeTracker || "github",
+    theme: patch.theme || existing.theme || "dark",
     github: {
       ...existing.github,
       ...patch.github,

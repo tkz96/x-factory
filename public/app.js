@@ -202,6 +202,12 @@ if (modalNewRun) {
   });
 }
 
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modalNewRun && !modalNewRun.hidden) {
+    closeNewRunModal();
+  }
+});
+
 // ── Settings Tabs ──────────────────────────────────────────────────────────────
 
 $$(".settings-tab-btn").forEach((btn) => {
@@ -230,9 +236,30 @@ async function api(method, path, body) {
   return data;
 }
 
+// ── Theme (Apple Dark / Light) ───────────────────────────────────────────────
+
+function initTheme() {
+  const saved = localStorage.getItem("xf_theme");
+  const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+  const theme = saved || (prefersLight ? "light" : "dark");
+  document.documentElement.setAttribute("data-theme", theme);
+
+  const toggle = $("#theme-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("xf_theme", next);
+      api("POST", "/settings", { theme: next }).catch(() => {});
+    });
+  }
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 
 async function init() {
+  initTheme();
   try {
     projects = await api("GET", "/projects");
     selectProject.innerHTML = '<option value="" disabled selected>Select a project…</option>';
@@ -1017,6 +1044,10 @@ async function loadSettingsView() {
   try {
     const s = await api("GET", "/settings");
     if (!s) return;
+    if (s.theme && !localStorage.getItem("xf_theme")) {
+      document.documentElement.setAttribute("data-theme", s.theme);
+      localStorage.setItem("xf_theme", s.theme);
+    }
     populateTrackerFields(s);
     populateModelFields(s);
   } catch (err) {
@@ -1026,6 +1057,7 @@ async function loadSettingsView() {
 
 function buildSettingsPayload() {
   return {
+    theme: document.documentElement.getAttribute("data-theme") || "dark",
     activeTracker: getVal("#setting-tracker-provider", "github"),
     github: {
       token: getVal("#setting-github-token"),

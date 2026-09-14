@@ -114,4 +114,13 @@ describe("Settings Storage & Persistence", () => {
     expect(unmasked.github?.token).toBe("ghp_supersecretvalue1234");
     expect(unmasked.github?.repo).toBe("user/app-updated");
   });
+
+  test("saveSettings persists theme preference", async () => {
+    const defaults = await loadSettings();
+    expect(defaults.theme).toBe("dark");
+
+    await saveSettings({ theme: "light" });
+    const updated = await loadSettings();
+    expect(updated.theme).toBe("light");
+  });
 });
