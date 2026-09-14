@@ -1275,7 +1275,9 @@ function goToOnboardStep(step) {
   }
 
   // Step-specific initializations
-  if (step === 4) {
+  if (step === 3) {
+    updateDiscoveryFieldsVisibility();
+  } else if (step === 4) {
     renderDiscoveredRepos();
   } else if (step === 5) {
     renderInspectionStep();
@@ -1304,6 +1306,95 @@ if (onboardNameInput && onboardIdInput) {
 const onboardTrackerConn = $("#onboard-tracker-connection");
 const onboardTrackerHint = $("#onboard-tracker-hint");
 const onboardTrackerProj = $("#onboard-tracker-project");
+const onboardDiscoverySource = $("#onboard-discovery-source");
+const azureDiscoveryFields = $("#azure-discovery-fields");
+const onboardPrimaryRepoInput = $("#onboard-primary-repo");
+const onboardAzureOrgUrlInput = $("#onboard-azure-org-url");
+
+function updateDiscoveryFieldsVisibility() {
+  if (!azureDiscoveryFields) return;
+  const val = onboardDiscoverySource ? onboardDiscoverySource.value : "local";
+  azureDiscoveryFields.style.display = val === "azure" ? "block" : "none";
+}
+
+if (onboardDiscoverySource) {
+  onboardDiscoverySource.addEventListener("change", updateDiscoveryFieldsVisibility);
+}
+
+// Smart Viewport Repositioning for ? Tooltips (Prevents clipping & sibling bleed)
+// fallow-ignore-next-line complexity
+function repositionTooltip(badge) {
+  const popover = badge?.querySelector(".tooltip-popover");
+  if (!popover) return;
+  const badgeRect = badge.getBoundingClientRect();
+  const container = badge.closest(".modal-body") || document.documentElement;
+  const contRect = container.getBoundingClientRect();
+
+  // Check horizontal space
+  const spaceOnRight = contRect.right - badgeRect.left;
+  if (spaceOnRight < 320) {
+    popover.classList.add("popover-align-right");
+  } else {
+    popover.classList.remove("popover-align-right");
+  }
+
+  // Check vertical space
+  const spaceBelow = contRect.bottom - badgeRect.bottom;
+  const popoverHeight = popover.offsetHeight || 160;
+  if (spaceBelow < popoverHeight + 16 && badgeRect.top - contRect.top > popoverHeight) {
+    popover.classList.add("popover-flipped");
+  } else {
+    popover.classList.remove("popover-flipped");
+  }
+}
+
+function handleTooltipOpen(e) {
+  const badge = e.target?.closest?.(".tooltip-badge");
+  if (badge) {
+    repositionTooltip(badge);
+    badge.closest(".form-group")?.classList.add("tooltip-open");
+    badge.closest(".label-with-tooltip")?.classList.add("tooltip-open");
+  }
+}
+
+function handleTooltipClose(e) {
+  const badge = e.target?.closest?.(".tooltip-badge");
+  if (badge) {
+    badge.closest(".form-group")?.classList.remove("tooltip-open");
+    badge.closest(".label-with-tooltip")?.classList.remove("tooltip-open");
+  }
+}
+
+document.addEventListener("pointerenter", handleTooltipOpen, true);
+document.addEventListener("focusin", handleTooltipOpen, true);
+document.addEventListener("pointerleave", handleTooltipClose, true);
+document.addEventListener("focusout", handleTooltipClose, true);
+
+// fallow-ignore-next-line complexity
+function handlePrimaryRepoUrlInput(e) {
+  const val = (e.target.value || "").trim();
+  const azureMatch = val.match(/^https?:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)/i);
+  const vsMatch = val.match(/^https?:\/\/([^.]+)\.visualstudio\.com\/([^/]+)/i);
+  if (!azureMatch && !vsMatch) return;
+
+  const orgUrl = azureMatch ? `https://dev.azure.com/${azureMatch[1]}` : `https://${vsMatch[1]}.visualstudio.com`;
+  const proj = decodeURIComponent(azureMatch ? azureMatch[2] : vsMatch[2]);
+  if (onboardAzureOrgUrlInput && !onboardAzureOrgUrlInput.value) {
+    onboardAzureOrgUrlInput.value = orgUrl;
+  }
+  if (onboardTrackerProj && !onboardTrackerProj.value) {
+    onboardTrackerProj.value = proj;
+  }
+  if (onboardDiscoverySource && onboardDiscoverySource.value !== "azure") {
+    onboardDiscoverySource.value = "azure";
+    updateDiscoveryFieldsVisibility();
+  }
+}
+
+// Auto-parse Azure DevOps / GitHub URL if pasted into Primary Repository Anchor
+if (onboardPrimaryRepoInput) {
+  onboardPrimaryRepoInput.addEventListener("input", handlePrimaryRepoUrlInput);
+}
 
 // fallow-ignore-next-line complexity
 function handleTrackerConnChange(e) {
@@ -1322,6 +1413,7 @@ function handleTrackerConnChange(e) {
     if (onboardTrackerHint) onboardTrackerHint.textContent = "Azure DevOps project name (used with WIQL queries).";
     if (sourceSel) sourceSel.value = "azure";
   }
+  updateDiscoveryFieldsVisibility();
 }
 
 if (onboardTrackerConn) {
@@ -1355,6 +1447,8 @@ async function handleRunDiscovery() {
   const trackerProj = getVal("onboard-tracker-project", "");
   const primRepo = getVal("onboard-primary-repo", "");
   const wsPath = getVal("onboard-workspace-path", "");
+  const azureOrgUrl = getVal("onboard-azure-org-url", "").trim();
+  const azurePat = getVal("onboard-azure-pat", "").trim();
 
   if (discoveryStatusText) discoveryStatusText.textContent = "Discovering repositories…";
   if (btnRunDiscovery) btnRunDiscovery.disabled = true;
@@ -1368,6 +1462,9 @@ async function handleRunDiscovery() {
         project: trackerProj,
         repoOwner: trackerProj,
         workspacePath: wsPath,
+        primaryRepo: primRepo,
+        orgUrl: azureOrgUrl,
+        pat: azurePat,
       }),
     });
 
@@ -1563,20 +1660,52 @@ async function renderInspectionStep() {
         <span class="status-pill pending" id="inspect-pill-${escapeHtml(r.name)}">Inspecting…</span>
       </div>
       <div class="form-group" style="margin-bottom: 0.5rem;">
-        <label style="font-size: 0.75rem;">Local Path</label>
+        <div class="label-with-tooltip">
+          <label style="font-size: 0.75rem; font-weight: 600;">Local Path</label>
+          <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Local Path">?
+            <span class="tooltip-popover">
+              <strong>Local Path</strong>
+              Directory on your local machine where this repository checkout is located. X-Factory uses this folder to spawn isolated Git worktrees for tasks.
+            </span>
+          </span>
+        </div>
         <input type="text" class="form-input code-input repo-path-input" data-repo="${escapeHtml(r.name)}" value="${escapeHtml(localPath)}">
       </div>
       <div class="inspection-commands-grid">
         <div>
-          <label style="font-size: 0.75rem; font-weight: 600;">Test Command</label>
+          <div class="label-with-tooltip">
+            <label style="font-size: 0.75rem; font-weight: 600;">Test Command</label>
+            <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Test Command">?
+              <span class="tooltip-popover">
+                <strong>Test Command</strong>
+                Command to run automated tests (e.g. <code>bun test</code>, <code>npm test</code>, <code>cargo test</code>). Used by Pi to verify solutions.
+              </span>
+            </span>
+          </div>
           <input type="text" class="form-input code-input cmd-test" data-repo="${escapeHtml(r.name)}" placeholder="e.g. bun test" value="${escapeHtml(r.commands?.test || "")}">
         </div>
         <div>
-          <label style="font-size: 0.75rem; font-weight: 600;">Typecheck Command</label>
+          <div class="label-with-tooltip">
+            <label style="font-size: 0.75rem; font-weight: 600;">Typecheck Command</label>
+            <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Typecheck Command">?
+              <span class="tooltip-popover">
+                <strong>Typecheck Command</strong>
+                Command to perform static type verification (e.g. <code>bunx tsc --noEmit</code>).
+              </span>
+            </span>
+          </div>
           <input type="text" class="form-input code-input cmd-typecheck" data-repo="${escapeHtml(r.name)}" placeholder="e.g. bunx tsc --noEmit" value="${escapeHtml(r.commands?.typecheck || "")}">
         </div>
         <div>
-          <label style="font-size: 0.75rem; font-weight: 600;">Lint Command</label>
+          <div class="label-with-tooltip">
+            <label style="font-size: 0.75rem; font-weight: 600;">Lint Command</label>
+            <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Lint Command">?
+              <span class="tooltip-popover">
+                <strong>Lint Command</strong>
+                Command to check code style and lint rules (e.g. <code>bunx eslint .</code>, <code>ruff check .</code>).
+              </span>
+            </span>
+          </div>
           <input type="text" class="form-input code-input cmd-lint" data-repo="${escapeHtml(r.name)}" placeholder="e.g. bunx eslint ." value="${escapeHtml(r.commands?.lint || "")}">
         </div>
       </div>

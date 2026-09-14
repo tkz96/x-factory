@@ -19,6 +19,7 @@ export interface RepositoryDiscoveryInput {
   jiraHost?: string;
   jiraEmail?: string;
   jiraToken?: string;
+  primaryRepo?: string;
 }
 
 export interface RepositoryDiscoveryProvider {

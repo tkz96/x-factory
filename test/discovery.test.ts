@@ -41,6 +41,29 @@ describe("Repository Discovery Providers", () => {
       );
     });
 
+    it("extracts organization and project from Azure DevOps URLs", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = (async (url: string | URL | Request) => {
+          assert.ok(String(url).includes("https://dev.azure.com/xynotech/Converso/_apis/git/repositories"));
+          return new Response(JSON.stringify({ value: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        const repos = await provider.listRepositories({
+          provider: "azure",
+          primaryRepo: "https://dev.azure.com/xynotech/Converso",
+          pat: "test-pat",
+        });
+        assert.equal(repos.length, 0);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it("normalizes Azure DevOps repositories", async () => {
       const originalFetch = globalThis.fetch;
       try {

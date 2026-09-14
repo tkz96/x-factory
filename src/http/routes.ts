@@ -1,5 +1,9 @@
 import { loadProjects, getProject, saveProject, deleteProject } from "../config.js";
-import { discoverRepositories, type RepositoryDiscoveryInput } from "../discovery/index.js";
+import {
+  discoverRepositories,
+  extractAzureDevOpsInfo,
+  type RepositoryDiscoveryInput,
+} from "../discovery/index.js";
 import { inspectLocalRepository, checkProjectReadiness } from "../inspection/index.js";
 import * as runs from "../runs.js";
 import { fetchProjectTickets } from "../trackers.js";
@@ -68,6 +72,7 @@ async function handleDeleteProject(projectId: string): Promise<Response> {
   }
 }
 
+// fallow-ignore-next-line complexity
 async function handleDiscoverRepositories(req: Request): Promise<Response> {
   const body = await parseJsonBody(req);
   if (!body || typeof body !== "object") {
@@ -76,6 +81,11 @@ async function handleDiscoverRepositories(req: Request): Promise<Response> {
   const input = body as unknown as RepositoryDiscoveryInput;
   if (!input.provider) {
     return errorResponse("Discovery provider is required ('azure', 'github', 'local').");
+  }
+  if (input.primaryRepo && (input.provider === "azure" || input.provider === "azure-devops")) {
+    const extracted = extractAzureDevOpsInfo(input.primaryRepo);
+    if (!input.orgUrl && extracted.orgUrl) input.orgUrl = extracted.orgUrl;
+    if (!input.project && extracted.project) input.project = extracted.project;
   }
   try {
     const repos = await discoverRepositories(input);

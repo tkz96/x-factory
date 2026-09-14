@@ -11,7 +11,7 @@ import type {
 } from "./types.js";
 
 export * from "./types.js";
-export { AzureDevOpsRepositoryDiscovery } from "./azure.js";
+export { AzureDevOpsRepositoryDiscovery, extractAzureDevOpsInfo } from "./azure.js";
 export { GitHubRepositoryDiscovery } from "./github.js";
 export { JiraRepositoryDiscovery } from "./jira.js";
 export { LocalWorkspaceRepositoryDiscovery } from "./local.js";

@@ -1762,14 +1762,208 @@ button:active,
 
 .wizard-pane {
   display: block;
+  padding-bottom: 2rem;
 }
 
 .wizard-pane[hidden] {
   display: none !important;
 }
 
+.label-with-tooltip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  position: relative;
+  z-index: 1;
+}
+
+.label-with-tooltip label {
+  margin-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  cursor: help;
+  transition: all 180ms var(--spring);
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.tooltip-badge:hover,
+.tooltip-badge:focus,
+.tooltip-badge:focus-within {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  outline: none;
+  transform: scale(1.12);
+  z-index: 10000;
+}
+
 .form-group {
   margin-bottom: 1.1rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* Elevate active form group and label so active tooltip popover floats on top of all subsequent inputs & badges */
+.form-group.tooltip-open,
+.form-group:has(.tooltip-badge:hover),
+.form-group:has(.tooltip-badge:focus),
+.form-group:has(.tooltip-badge:focus-within),
+.label-with-tooltip.tooltip-open,
+.label-with-tooltip:has(.tooltip-badge:hover),
+.label-with-tooltip:has(.tooltip-badge:focus),
+.label-with-tooltip:has(.tooltip-badge:focus-within) {
+  z-index: 10000;
+}
+
+.tooltip-popover {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -4px;
+  width: 300px;
+  max-width: min(320px, calc(100vw - 48px));
+  padding: 0.85rem 1rem;
+  background: rgba(28, 28, 30, 0.96);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  color: #f5f5f7;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  z-index: 10001;
+  transform: translateY(6px);
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1), visibility 180ms;
+}
+
+/* Caret indicator pointing to ? badge */
+.tooltip-popover::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 10px;
+  width: 8px;
+  height: 8px;
+  background: rgba(28, 28, 30, 0.96);
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  transform: rotate(45deg);
+}
+
+[data-theme="light"] .tooltip-popover::before {
+  background: rgba(255, 255, 255, 0.98);
+  border-left: 1px solid rgba(0, 0, 0, 0.14);
+  border-top: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+/* Flipped state (when tooltip opens upwards) */
+.tooltip-popover.popover-flipped {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateY(-6px);
+}
+
+.tooltip-popover.popover-flipped::before {
+  top: auto;
+  bottom: -5px;
+  border-left: none;
+  border-top: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="light"] .tooltip-popover.popover-flipped::before {
+  border-right: 1px solid rgba(0, 0, 0, 0.14);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+/* Right-aligned state (when badge is on the right side) */
+.tooltip-popover.popover-align-right {
+  left: auto;
+  right: -4px;
+}
+
+.tooltip-popover.popover-align-right::before {
+  left: auto;
+  right: 10px;
+}
+
+.inspection-commands-grid > div:last-child .tooltip-popover {
+  left: auto;
+  right: -4px;
+}
+
+.inspection-commands-grid > div:last-child .tooltip-popover::before {
+  left: auto;
+  right: 10px;
+}
+
+[data-theme="light"] .tooltip-popover {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  color: #1d1d1f;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+}
+
+.tooltip-popover strong {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0.3rem;
+}
+
+.tooltip-popover code {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--accent);
+}
+
+[data-theme="light"] .tooltip-popover code {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tooltip-badge:hover .tooltip-popover,
+.tooltip-badge:focus .tooltip-popover,
+.tooltip-badge:focus-within .tooltip-popover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.tooltip-badge:hover .tooltip-popover.popover-flipped,
+.tooltip-badge:focus .tooltip-popover.popover-flipped,
+.tooltip-badge:focus-within .tooltip-popover.popover-flipped {
+  transform: translateY(0);
 }
 
 .form-group label {
