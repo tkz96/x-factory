@@ -168,6 +168,10 @@
   padding: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   font-size: 15px;
   -webkit-font-smoothing: antialiased;

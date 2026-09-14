@@ -1245,6 +1245,7 @@ function setOnboardError(msg) {
   }
 }
 
+// fallow-ignore-next-line complexity
 function goToOnboardStep(step) {
   setOnboardError("");
   onboardState.step = step;
@@ -1264,8 +1265,14 @@ function goToOnboardStep(step) {
 
   // Button states
   if (btnOnboardPrev) btnOnboardPrev.disabled = step === 1;
-  if (btnOnboardNext) btnOnboardNext.hidden = step === 6;
-  if (btnOnboardSave) btnOnboardSave.hidden = step !== 6;
+  if (btnOnboardNext) {
+    btnOnboardNext.hidden = step === 6;
+    btnOnboardNext.style.display = step === 6 ? "none" : "inline-flex";
+  }
+  if (btnOnboardSave) {
+    btnOnboardSave.hidden = step !== 6;
+    btnOnboardSave.style.display = step === 6 ? "inline-flex" : "none";
+  }
 
   // Step-specific initializations
   if (step === 4) {
@@ -1282,11 +1289,13 @@ const onboardNameInput = $("#onboard-proj-name");
 const onboardIdInput = $("#onboard-proj-id");
 if (onboardNameInput && onboardIdInput) {
   onboardNameInput.addEventListener("input", (e) => {
+    setOnboardError("");
     if (!onboardIdInput.dataset.manual) {
       onboardIdInput.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     }
   });
   onboardIdInput.addEventListener("input", () => {
+    setOnboardError("");
     onboardIdInput.dataset.manual = "true";
   });
 }
@@ -1736,6 +1745,9 @@ if (btnOnboardPrev) {
 // fallow-ignore-next-line complexity
 async function handleOnboardSave() {
   setOnboardError("");
+  if (onboardState.step !== 6) {
+    return setOnboardError("Please complete all wizard steps before saving.");
+  }
   if (btnOnboardSave) {
     btnOnboardSave.disabled = true;
     btnOnboardSave.textContent = "Saving…";
@@ -1783,15 +1795,17 @@ if (btnOnboardCancel) {
 
 // ── Settings Management ────────────────────────────────────────────────────────
 
-// ── Settings Management ────────────────────────────────────────────────────────
-
 function setVal(id, val) {
-  const el = $(id);
+  if (!id) return;
+  const sel = id.startsWith("#") || id.startsWith(".") ? id : `#${id}`;
+  const el = $(sel);
   if (el) el.value = val || "";
 }
 
 function getVal(id, fallback = "") {
-  const el = $(id);
+  if (!id) return fallback;
+  const sel = id.startsWith("#") || id.startsWith(".") ? id : `#${id}`;
+  const el = $(sel);
   return el ? el.value : fallback;
 }
 
