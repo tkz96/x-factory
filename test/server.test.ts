@@ -80,6 +80,17 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
   });
 
   it("GET /api/projects/:id/tickets returns tickets list for valid project", async () => {
+    await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "example",
+        name: "Example Project",
+        repositoryPath: "/path/to/your/project",
+        testCommand: "npm test",
+        issueTracker: { connectionId: "github" },
+      }),
+    });
     const res = await fetch(`${baseUrl}/api/projects/example/tickets`);
     assert.equal(res.status, 200);
     const data = await res.json();

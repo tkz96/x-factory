@@ -1,4 +1,107 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": ["public/index.html"]
+  "entry": [
+    "public/index.html"
+  ],
+  "boundaries": {
+    "zones": [
+      {
+        "name": "domain",
+        "patterns": [
+          "src/types.ts",
+          "src/state-machine.ts"
+        ]
+      },
+      {
+        "name": "infrastructure",
+        "patterns": [
+          "src/proc.ts",
+          "src/paths.ts",
+          "src/git.ts",
+          "src/pollution.ts",
+          "src/settings.ts",
+          "src/config.ts"
+        ]
+      },
+      {
+        "name": "subsystems",
+        "patterns": [
+          "src/trackers/**",
+          "src/trackers.ts",
+          "src/discovery/**",
+          "src/inspection/**",
+          "src/agents/**"
+        ]
+      },
+      {
+        "name": "orchestration",
+        "patterns": [
+          "src/store.ts",
+          "src/pipeline.ts",
+          "src/runs.ts",
+          "src/understand.ts",
+          "src/review.ts",
+          "src/verification.ts"
+        ]
+      },
+      {
+        "name": "presentation",
+        "patterns": [
+          "src/http/**",
+          "src/server.ts"
+        ]
+      },
+      {
+        "name": "frontend",
+        "patterns": [
+          "public/**"
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "from": "domain",
+        "allow": []
+      },
+      {
+        "from": "infrastructure",
+        "allow": [
+          "domain"
+        ]
+      },
+      {
+        "from": "subsystems",
+        "allow": [
+          "domain",
+          "infrastructure"
+        ]
+      },
+      {
+        "from": "orchestration",
+        "allow": [
+          "domain",
+          "infrastructure",
+          "subsystems"
+        ]
+      },
+      {
+        "from": "presentation",
+        "allow": [
+          "domain",
+          "infrastructure",
+          "subsystems",
+          "orchestration"
+        ]
+      },
+      {
+        "from": "frontend",
+        "allow": []
+      }
+    ]
+  },
+  "health": {
+    "ignore": [
+      "public/**"
+    ]
+  }
 }

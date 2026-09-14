@@ -250,11 +250,84 @@ function validateKnowledgeRepository(raw: unknown, projectId: string): Knowledge
   };
 }
 
+function normalizeLegacyProject(
+  obj: Record<string, unknown>,
+  id: string,
+  name: string
+): {
+  repositories: ProjectRepository[];
+  issueTracker: ProjectIssueTracker;
+  knowledgeRepository?: KnowledgeRepository;
+} {
+  const legacyPath = path.resolve(requireString(obj, "repositoryPath", id));
+  const legacyBranch = optionalString(obj.defaultBranch) || "main";
+  const legacyTest = optionalString(obj.testCommand);
+  const legacyTypecheck = optionalString(obj.typecheckCommand);
+  const legacyLint = optionalString(obj.lintCommand);
+
+  const commands: RepositoryCommands = {};
+  if (legacyTest) commands.test = legacyTest;
+  if (legacyTypecheck) commands.typecheck = legacyTypecheck;
+  if (legacyLint) commands.lint = legacyLint;
+
+  const repositories: ProjectRepository[] = [
+    {
+      id: `${id}-primary`,
+      name,
+      path: legacyPath,
+      defaultBranch: legacyBranch,
+      role: "other",
+      commands: Object.keys(commands).length > 0 ? commands : undefined,
+    },
+  ];
+
+  const issueTracker = validateIssueTracker(obj.issueTracker);
+
+  let knowledgeRepository: KnowledgeRepository | undefined;
+  const legacyKnowledgePath = optionalString(obj.knowledgeRepositoryPath);
+  if (legacyKnowledgePath) {
+    knowledgeRepository = {
+      repositoryId: `${id}-knowledge`,
+      path: path.resolve(legacyKnowledgePath),
+      type: "graphify",
+    };
+  }
+
+  return { repositories, issueTracker, knowledgeRepository };
+}
+
+function validateModernProject(
+  obj: Record<string, unknown>,
+  id: string
+): {
+  repositories: ProjectRepository[];
+  issueTracker: ProjectIssueTracker;
+  knowledgeRepository?: KnowledgeRepository;
+} {
+  if (!Array.isArray(obj.repositories) || obj.repositories.length === 0) {
+    throw new Error(`Project "${id}" must contain at least one repository.`);
+  }
+
+  const repositories = obj.repositories.map((repo, idx) => validateRepository(repo, id, idx));
+  const issueTracker = validateIssueTracker(obj.issueTracker);
+  let knowledgeRepository = validateKnowledgeRepository(obj.knowledgeRepository, id);
+
+  // Fallback: if knowledgeRepositoryPath was provided as string
+  if (!knowledgeRepository && optionalString(obj.knowledgeRepositoryPath)) {
+    knowledgeRepository = {
+      repositoryId: `${id}-knowledge`,
+      path: path.resolve(String(obj.knowledgeRepositoryPath)),
+      type: "graphify",
+    };
+  }
+
+  return { repositories, issueTracker, knowledgeRepository };
+}
+
 /**
  * Validate and normalize a Project object.
  * Handles migration from legacy single-repository schema if present.
  */
-// fallow-ignore-next-line complexity
 export function validateProject(item: unknown): Project {
   if (!item || typeof item !== "object") {
     throw new Error("Project entry must be an object.");
@@ -272,70 +345,18 @@ export function validateProject(item: unknown): Project {
       ? obj.commandTimeoutMs
       : undefined;
 
-  let repositories: ProjectRepository[] = [];
-  let knowledgeRepository: KnowledgeRepository | undefined;
-  let issueTracker: ProjectIssueTracker;
+  const isLegacy =
+    typeof obj.repositoryPath === "string" &&
+    (!obj.repositories || !Array.isArray(obj.repositories));
 
-  // Check for legacy single-repository schema
-  const isLegacy = typeof obj.repositoryPath === "string" && (!obj.repositories || !Array.isArray(obj.repositories));
-
-  if (isLegacy) {
-    const legacyPath = path.resolve(requireString(obj, "repositoryPath", id));
-    const legacyBranch = optionalString(obj.defaultBranch) || "main";
-    const legacyTest = optionalString(obj.testCommand);
-    const legacyTypecheck = optionalString(obj.typecheckCommand);
-    const legacyLint = optionalString(obj.lintCommand);
-
-    const commands: RepositoryCommands = {};
-    if (legacyTest) commands.test = legacyTest;
-    if (legacyTypecheck) commands.typecheck = legacyTypecheck;
-    if (legacyLint) commands.lint = legacyLint;
-
-    repositories = [
-      {
-        id: `${id}-primary`,
-        name,
-        path: legacyPath,
-        defaultBranch: legacyBranch,
-        role: "other",
-        commands: Object.keys(commands).length > 0 ? commands : undefined,
-      },
-    ];
-
-    issueTracker = validateIssueTracker(obj.issueTracker);
-
-    const legacyKnowledgePath = optionalString(obj.knowledgeRepositoryPath);
-    if (legacyKnowledgePath) {
-      knowledgeRepository = {
-        repositoryId: `${id}-knowledge`,
-        path: path.resolve(legacyKnowledgePath),
-        type: "graphify",
-      };
-    }
-  } else {
-    // Modern multi-repository schema
-    if (!Array.isArray(obj.repositories) || obj.repositories.length === 0) {
-      throw new Error(`Project "${id}" must contain at least one repository.`);
-    }
-
-    repositories = obj.repositories.map((repo, idx) => validateRepository(repo, id, idx));
-    issueTracker = validateIssueTracker(obj.issueTracker);
-    knowledgeRepository = validateKnowledgeRepository(obj.knowledgeRepository, id);
-
-    // Fallback: if knowledgeRepositoryPath was provided as string
-    if (!knowledgeRepository && optionalString(obj.knowledgeRepositoryPath)) {
-      knowledgeRepository = {
-        repositoryId: `${id}-knowledge`,
-        path: path.resolve(String(obj.knowledgeRepositoryPath)),
-        type: "graphify",
-      };
-    }
-  }
+  const { repositories, issueTracker, knowledgeRepository } = isLegacy
+    ? normalizeLegacyProject(obj, id, name)
+    : validateModernProject(obj, id);
 
   // Ensure primary repository exists
   const primary = repositories[0];
 
-  const project: Project = {
+  return {
     id,
     name,
     workspacePath,
@@ -352,7 +373,5 @@ export function validateProject(item: unknown): Project {
     lintCommand: primary.commands?.lint,
     knowledgeRepositoryPath: knowledgeRepository?.path,
   };
-
-  return project;
 }
 

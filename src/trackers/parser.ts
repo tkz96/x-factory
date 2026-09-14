@@ -1,0 +1,83 @@
+// src/trackers/parser.ts — Text and description parsers for criteria and rich formats.
+
+function isSectionHeader(line: string): boolean {
+  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(line);
+}
+
+function sanitizeLine(line: string): string {
+  return line
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_`]/g, "")
+    .trim();
+}
+
+function parseBulletLine(line: string): string | null {
+  const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
+  return match ? sanitizeLine(match[1]) : null;
+}
+
+/**
+ * Extract structured criteria bullets from description or markdown.
+ */
+export function extractCriteria(text: string): string[] {
+  if (!text || typeof text !== "string") return [];
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const headerIdx = lines.findIndex(isSectionHeader);
+
+  if (headerIdx >= 0) {
+    const sectionLines: string[] = [];
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      if (/^#+\s+/.test(lines[i])) break;
+      const bullet = parseBulletLine(lines[i]);
+      if (bullet) {
+        sectionLines.push(bullet);
+      } else if (lines[i].length > 5) {
+        sectionLines.push(sanitizeLine(lines[i]));
+      }
+    }
+    return sectionLines;
+  }
+
+  return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
+}
+
+/**
+ * Strip HTML tags and convert common HTML formatting to plain text.
+ */
+export function stripHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<li>/gi, "- ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .trim();
+}
+
+/**
+ * Parse Atlassian Document Format (ADF) into readable text.
+ */
+export function parseAdfToText(node: unknown): string {
+  if (!node || typeof node !== "object") return "";
+  const obj = node as Record<string, unknown>;
+  if (obj.type === "text" && typeof obj.text === "string") {
+    return obj.text;
+  }
+  if (Array.isArray(obj.content)) {
+    const pieces = obj.content.map(parseAdfToText);
+    if (obj.type === "bulletList") {
+      return pieces.map((p) => `- ${p.trim()}`).join("\n");
+    }
+    if (obj.type === "paragraph" || obj.type === "heading") {
+      return pieces.join("") + "\n";
+    }
+    return pieces.join(" ");
+  }
+  return "";
+}
