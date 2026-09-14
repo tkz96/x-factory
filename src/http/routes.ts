@@ -2,6 +2,8 @@
 
 import { loadProjects, getProject } from "../config.js";
 import * as runs from "../runs.js";
+import { fetchProjectTickets } from "../trackers.js";
+import { loadSettings, saveSettings, type FactorySettings } from "../settings.js";
 import {
   jsonResponse,
   errorResponse,
@@ -13,6 +15,31 @@ async function handleGetProjects(): Promise<Response> {
   const projects = await loadProjects();
   return jsonResponse(projects);
 }
+
+async function handleGetProjectTickets(projectId: string): Promise<Response> {
+  const project = await getProject(projectId);
+  if (!project) {
+    return errorResponse(`Project "${projectId}" not found.`, 404);
+  }
+  const tickets = await fetchProjectTickets(projectId);
+  return jsonResponse(tickets);
+}
+
+async function handleGetSettings(): Promise<Response> {
+  const settings = await loadSettings(true);
+  return jsonResponse(settings);
+}
+
+async function handleUpdateSettings(req: Request): Promise<Response> {
+  const body = await parseJsonBody(req);
+  if (!body || typeof body !== "object") {
+    return errorResponse("Invalid JSON for settings.");
+  }
+  const updated = await saveSettings(body as Partial<FactorySettings>);
+  return jsonResponse(updated);
+}
+
+
 
 function parseAcceptanceCriteria(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -44,6 +71,7 @@ async function handleCreateRun(req: Request): Promise<Response> {
   const plan = typeof body.plan === "string" ? body.plan : "";
   const acceptanceCriteria = parseAcceptanceCriteria(body.acceptanceCriteria);
   const description = typeof body.description === "string" ? body.description : undefined;
+  const branch = typeof body.branch === "string" ? body.branch : undefined;
 
   const run = await runs.createRun(
     project,
@@ -51,7 +79,8 @@ async function handleCreateRun(req: Request): Promise<Response> {
     ticketTitle,
     plan,
     acceptanceCriteria,
-    description
+    description,
+    branch
   );
   return jsonResponse(run, 201);
 }
@@ -105,6 +134,9 @@ async function handleRunAction(
   runId: string,
   req: Request
 ): Promise<Response | null> {
+  if (method === "GET" && action === "events") {
+    return handleRunEvents(runId);
+  }
   if (method === "POST") {
     switch (action) {
       case "steer": return handleSteerRun(req, runId);
@@ -112,32 +144,44 @@ async function handleRunAction(
       case "pr": return handleCreatePR(runId);
     }
   }
-  if (method === "GET" && action === "events") {
-    return handleRunEvents(runId);
-  }
   return null;
 }
 
 async function handleRunsRoute(
   method: string,
-  parts: string[],
+  id: string | undefined,
+  action: string | undefined,
+  partsCount: number,
   req: Request
 ): Promise<Response | null> {
-  switch (parts.length) {
-    case 1:
-      if (method === "GET") return handleGetRuns();
-      if (method === "POST") return handleCreateRun(req);
-      return null;
-    case 2:
-      if (method === "GET" && parts[1] !== "events") {
-        return handleGetRun(parts[1]);
-      }
-      return null;
-    case 3:
-      return handleRunAction(parts[2], method, parts[1], req);
-    default:
-      return null;
+  if (!id) {
+    if (method === "GET") return handleGetRuns();
+    if (method === "POST") return handleCreateRun(req);
+    return null;
   }
+  if (!action && partsCount === 2) {
+    return method === "GET" ? handleGetRun(id) : null;
+  }
+  if (action && partsCount === 3) {
+    return handleRunAction(action, method, id, req);
+  }
+  return null;
+}
+
+function handleProjectsRoute(
+  method: string,
+  id?: string,
+  action?: string
+): Promise<Response> | null {
+  if (!id && method === "GET") return handleGetProjects();
+  if (id && action === "tickets" && method === "GET") return handleGetProjectTickets(id);
+  return null;
+}
+
+function handleSettingsRoute(method: string, req: Request): Promise<Response> | null {
+  if (method === "GET") return handleGetSettings();
+  if (method === "POST") return handleUpdateSettings(req);
+  return null;
 }
 
 async function routeApiRequest(
@@ -145,15 +189,13 @@ async function routeApiRequest(
   parts: string[],
   req: Request
 ): Promise<Response | null> {
-  const resource = parts[0];
-  if (resource === "projects" && parts.length === 1 && method === "GET") {
-    return handleGetProjects();
-  }
-  if (resource === "runs") {
-    return handleRunsRoute(method, parts, req);
-  }
+  const [resource, id, action] = parts;
+  if (resource === "projects") return handleProjectsRoute(method, id, action);
+  if (resource === "runs") return handleRunsRoute(method, id, action, parts.length, req);
+  if (resource === "settings") return handleSettingsRoute(method, req);
   return null;
 }
+
 
 export async function handleApi(req: Request, url: URL): Promise<Response> {
   const method = req.method;

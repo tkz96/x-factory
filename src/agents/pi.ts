@@ -2,9 +2,16 @@
 
 import {
   createAgentSession,
+  ModelRuntime,
   SessionManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
+
+export interface SessionOptions {
+  provider?: string;
+  model?: string;
+  thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | string;
+}
 
 export interface PiEventListener {
   (event: {
@@ -104,15 +111,35 @@ function wrapSession(session: AgentSession): PiAgentSession {
   };
 }
 
+async function resolveSessionModel(options?: SessionOptions) {
+  if (!options?.provider || !options?.model) {
+    return { model: undefined, thinkingLevel: options?.thinkingLevel, modelRuntime: undefined };
+  }
+  const modelRuntime = await ModelRuntime.create();
+  const model = modelRuntime.getModel(options.provider, options.model);
+  return {
+    model: model || undefined,
+    thinkingLevel: options.thinkingLevel,
+    modelRuntime,
+  };
+}
+
 /**
  * Create Pi Implementation Session A.
  * Full tools enabled: read, bash, edit, write.
  */
-export async function createImplementationSession(worktreePath: string): Promise<PiAgentSession> {
+export async function createImplementationSession(
+  worktreePath: string,
+  options?: SessionOptions
+): Promise<PiAgentSession> {
+  const resolved = await resolveSessionModel(options);
   const { session } = await createAgentSession({
     cwd: worktreePath,
     sessionManager: SessionManager.inMemory(worktreePath),
     tools: ["read", "bash", "edit", "write"],
+    model: resolved.model,
+    thinkingLevel: resolved.thinkingLevel as any,
+    modelRuntime: resolved.modelRuntime,
   });
 
   return wrapSession(session);
@@ -123,11 +150,18 @@ export async function createImplementationSession(worktreePath: string): Promise
  * Genuinely read-only tools enabled: read, grep, find, ls.
  * Review session cannot modify code or run arbitrary bash.
  */
-export async function createReviewSession(worktreePath: string): Promise<PiAgentSession> {
+export async function createReviewSession(
+  worktreePath: string,
+  options?: SessionOptions
+): Promise<PiAgentSession> {
+  const resolved = await resolveSessionModel(options);
   const { session } = await createAgentSession({
     cwd: worktreePath,
     sessionManager: SessionManager.inMemory(worktreePath),
     tools: ["read", "grep", "find", "ls"],
+    model: resolved.model,
+    thinkingLevel: resolved.thinkingLevel as any,
+    modelRuntime: resolved.modelRuntime,
   });
 
   return wrapSession(session);

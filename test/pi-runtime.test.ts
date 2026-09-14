@@ -70,4 +70,28 @@ describe("Pi SDK Compatibility under Bun", () => {
       await rm(tmp, { recursive: true, force: true });
     }
   });
+
+  it("applies provider and model options to sessions", async () => {
+    const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-model-"));
+    try {
+      const piAgent = await createImplementationSession(tmp, {
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+        thinkingLevel: "low",
+      });
+      assert.ok(piAgent);
+      assert.equal(piAgent.session.model?.id, "claude-sonnet-4-5");
+      assert.equal(piAgent.session.model?.provider, "anthropic");
+
+      const revAgent = await createReviewSession(tmp, {
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+      });
+      assert.ok(revAgent);
+      assert.equal(revAgent.session.model?.id, "claude-sonnet-4-5");
+      assert.equal(revAgent.session.model?.provider, "anthropic");
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
 });

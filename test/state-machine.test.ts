@@ -99,4 +99,16 @@ describe("Run Object Shape", () => {
     assert.ok(run.artifactsDir);
     assert.ok(run.worktreePath);
   });
+
+  it("generates clean automated branch names with generateBranchName", async () => {
+    const { generateBranchName } = await import("../src/runs.js");
+    const b1 = generateBranchName("GH-42", "Add login page", "a1b2c3d4");
+    assert.equal(b1, "factory/gh-42-add-login-page-a1b2c3d4");
+
+    const b2 = generateBranchName("JIRA-99", "Fix & Polish CSS layout!", "e5f6g7h8");
+    assert.equal(b2, "factory/jira-99-fix-polish-css-layout-e5f6g7h8");
+
+    const b3 = generateBranchName("TASK-1");
+    assert.equal(b3, "factory/task-1");
+  });
 });

@@ -79,6 +79,50 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.ok(Array.isArray(data));
   });
 
+  it("GET /api/projects/:id/tickets returns tickets list for valid project", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/example/tickets`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(Array.isArray(data));
+  });
+
+  it("GET /api/projects/:id/tickets returns 404 for unknown project", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/unknown-proj-999/tickets`);
+    assert.equal(res.status, 404);
+  });
+
+  it("GET /api/settings returns masked settings", async () => {
+    const res = await fetch(`${baseUrl}/api/settings`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.activeTracker);
+    assert.ok(data.models);
+  });
+
+  it("POST /api/settings updates settings and rejects invalid JSON", async () => {
+    const resBad = await fetch(`${baseUrl}/api/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+    assert.equal(resBad.status, 400);
+
+    const resGood = await fetch(`${baseUrl}/api/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        activeTracker: "github",
+        github: { repo: "test/repo" },
+      }),
+    });
+    assert.equal(resGood.status, 200);
+    const data = await resGood.json();
+    assert.equal(data.activeTracker, "github");
+    assert.equal(data.github?.repo, "test/repo");
+  });
+
+
+
   it("GET /api/runs/:id returns 404 for unknown run", async () => {
     const res = await fetch(`${baseUrl}/api/runs/nonexistent-run-1234`);
     assert.equal(res.status, 404);

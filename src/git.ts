@@ -16,14 +16,12 @@ import {
   recordBaseline,
   checkPollution,
 } from "./pollution.js";
-import { createPullRequest } from "./github.js";
 
 // Re-export for backward compatibility
 export {
   type BaselineState,
   recordBaseline,
   checkPollution,
-  createPullRequest,
 };
 
 export interface DiffResult {

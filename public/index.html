@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="X-Factory — software engineering factory runtime: ticket → Pi → verify → review → PR">
+  <meta name="description" content="X-Factory — developer workbench: ticket → understand → implement → verify → review → deliver">
   <title>X-Factory</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,214 +11,508 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-  <header id="header">
-    <h1>X-Factory</h1>
-    <span class="subtitle">ticket → understand → implement → verify → review → deliver</span>
-  </header>
+  <div id="app-shell" class="app-shell">
+    <!-- ── Sidebar Navigation (Apple HIG) ────────────────────────── -->
+    <aside id="app-sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">X-Factory</span>
+            <span class="brand-subtitle">Developer Workbench</span>
+          </div>
+        </div>
 
-  <main>
-    <!-- ── Setup View ──────────────────────────────────────────────── -->
-    <section id="view-setup" class="view active">
-      <div class="card">
+        <div class="project-selector-wrapper">
+          <label for="select-project" class="sr-only">Target Project</label>
+          <select id="select-project" class="sidebar-select">
+            <option value="" disabled selected>Loading projects…</option>
+          </select>
+        </div>
+      </div>
+
+      <nav id="sidebar-nav" class="sidebar-nav">
+        <div class="nav-section-title">WORKBENCH</div>
+        <a href="#/queue" class="nav-item active" data-area="queue">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>Work Queue</span>
+          <span id="queue-badge" class="nav-badge">0</span>
+        </a>
+        <a href="#/runs" class="nav-item" data-area="runs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span>Active Runs</span>
+          <span id="active-runs-badge" class="nav-badge pulse" hidden>0</span>
+        </a>
+        <a href="#/history" class="nav-item" data-area="history">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>History</span>
+        </a>
+
+        <div class="nav-section-title">CONFIGURATION</div>
+        <a href="#/projects" class="nav-item" data-area="projects">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>Projects</span>
+        </a>
+        <a href="#/settings" class="nav-item" data-area="settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-status">
+          <span class="status-dot online"></span>
+          <span class="status-label">Factory Ready</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── Main Content Viewport ─────────────────────────────────── -->
+    <main id="app-main" class="main-content">
+      <!-- Top Toolbar (Apple HIG) -->
+      <header id="content-toolbar" class="toolbar">
+        <div class="toolbar-left">
+          <h1 id="toolbar-title">Work Queue</h1>
+          <span id="toolbar-subtitle" class="toolbar-subtitle">Tickets ready for agentic implementation</span>
+        </div>
+        <div class="toolbar-actions">
+          <button id="btn-open-new-run" class="btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>New Run</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Viewport Area Container -->
+      <div id="viewport-container" class="viewport-container">
+
+        <!-- ── Area 1: Work Queue ────────────────────────────────── -->
+        <section id="area-queue" class="area-view active">
+          <div class="queue-toolbar">
+            <div class="search-box">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" id="queue-search" placeholder="Filter tickets (label: agentic-workflow)…" disabled>
+            </div>
+            <div class="filter-pill">
+              <span class="pill-dot"></span>
+              <span>agentic-workflow</span>
+            </div>
+          </div>
+
+          <div id="queue-tickets-list" class="tickets-grid">
+            <!-- Empty state until tracker phase -->
+            <div class="empty-state card">
+              <div class="empty-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </div>
+              <h3>No Issue Tracker Connected</h3>
+              <p>Configure GitHub, Jira, or Azure DevOps in Settings to pull tickets with the <code>agentic-workflow</code> label automatically.</p>
+              <button id="btn-queue-manual" class="btn-secondary btn-sm" style="margin-top: 1rem;">Start Manual Run</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Area 2: Active Runs ────────────────────────────────── -->
+        <section id="area-runs" class="area-view">
+          <!-- Standby state when no active run -->
+          <div id="runs-standby" class="empty-state card" hidden>
+            <div class="empty-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            </div>
+            <h3>No Active Factory Run</h3>
+            <p>Start a run from the Work Queue or click New Run to launch a task.</p>
+            <button id="btn-runs-start" class="btn-primary btn-sm" style="margin-top: 1rem;">Launch New Run</button>
+          </div>
+
+          <!-- 6-Stage Workflow Stepper -->
+          <div class="workflow-stepper card" id="workflow-stepper">
+            <div class="stepper-track">
+              <div class="step" data-stage="prepare">
+                <div class="step-dot">1</div>
+                <div class="step-label">Prepare</div>
+                <div class="step-evidence" id="evidence-prepare">Workspace & Worktree</div>
+              </div>
+              <div class="step" data-stage="understand">
+                <div class="step-dot">2</div>
+                <div class="step-label">Understand</div>
+                <div class="step-evidence" id="evidence-understand">Context Synthesis</div>
+              </div>
+              <div class="step" data-stage="implement">
+                <div class="step-dot">3</div>
+                <div class="step-label">Implement</div>
+                <div class="step-evidence" id="evidence-implement">Pi Session A</div>
+              </div>
+              <div class="step" data-stage="verify">
+                <div class="step-dot">4</div>
+                <div class="step-label">Verify</div>
+                <div class="step-evidence" id="evidence-verify">Deterministic Checks</div>
+              </div>
+              <div class="step" data-stage="review">
+                <div class="step-dot">5</div>
+                <div class="step-label">Review</div>
+                <div class="step-evidence" id="evidence-review">Read-Only Session B</div>
+              </div>
+              <div class="step" data-stage="deliver">
+                <div class="step-dot">6</div>
+                <div class="step-label">Deliver</div>
+                <div class="step-evidence" id="evidence-deliver">PR Checkpoint</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Run Execution View (View Run) -->
+          <div id="view-run" class="view">
+            <div class="card" style="margin-top: 1.2rem;">
+              <div class="run-header">
+                <div>
+                  <h2 id="run-title">Run</h2>
+                  <span id="run-branch" class="code-sub"></span>
+                </div>
+                <span id="run-status" class="badge">preparing</span>
+              </div>
+
+              <!-- Live Activity Log -->
+              <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Live Activity</h3>
+              <div id="event-log" class="event-log" aria-live="polite" role="log">
+                <!-- Events appended here -->
+              </div>
+
+              <div class="steer-bar" id="steer-bar">
+                <input id="input-steer" type="text" placeholder="Send steering instruction to active Pi session…">
+                <button id="btn-steer" class="btn-secondary">Steer</button>
+              </div>
+
+              <div class="run-actions">
+                <button id="btn-stop" class="btn-danger">Stop Run</button>
+              </div>
+
+              <div id="run-error" class="error-message" hidden></div>
+            </div>
+
+            <!-- Live Diff Preview -->
+            <div class="card" id="run-diff-card" style="margin-top: 1.2rem;" hidden>
+              <div class="section-header">
+                <h3>Worktree Git Diff</h3>
+                <span id="run-diff-files" class="badge">0 files</span>
+              </div>
+              <pre id="run-diff-content" class="diff-viewer"></pre>
+            </div>
+          </div>
+
+          <!-- Result View (Human Checkpoint & Delivery) -->
+          <div id="view-result" class="view">
+            <div class="workflow-stepper card" id="result-stepper">
+              <div class="stepper-track">
+                <div class="step" data-stage="prepare">
+                  <div class="step-dot">1</div>
+                  <div class="step-label">Prepare</div>
+                  <div class="step-evidence" id="res-evidence-prepare">Complete</div>
+                </div>
+                <div class="step" data-stage="understand">
+                  <div class="step-dot">2</div>
+                  <div class="step-label">Understand</div>
+                  <div class="step-evidence" id="res-evidence-understand">Complete</div>
+                </div>
+                <div class="step" data-stage="implement">
+                  <div class="step-dot">3</div>
+                  <div class="step-label">Implement</div>
+                  <div class="step-evidence" id="res-evidence-implement">Complete</div>
+                </div>
+                <div class="step" data-stage="verify">
+                  <div class="step-dot">4</div>
+                  <div class="step-label">Verify</div>
+                  <div class="step-evidence" id="res-evidence-verify">Complete</div>
+                </div>
+                <div class="step" data-stage="review">
+                  <div class="step-dot">5</div>
+                  <div class="step-label">Review</div>
+                  <div class="step-evidence" id="res-evidence-review">Complete</div>
+                </div>
+                <div class="step" data-stage="deliver">
+                  <div class="step-dot">6</div>
+                  <div class="step-label">Deliver</div>
+                  <div class="step-evidence" id="res-evidence-deliver">Ready</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 1.2rem;">
+              <div class="run-header">
+                <h2 id="result-heading">Human Checkpoint & Evidence</h2>
+                <span id="result-status-badge" class="badge">ready_for_pr</span>
+              </div>
+
+              <!-- Verification Evidence -->
+              <div class="result-section">
+                <h3>1. Deterministic Verification</h3>
+                <div class="evidence-row">
+                  <span id="result-tests" class="badge">—</span>
+                  <span id="result-repair-count" class="badge badge-neutral">Attempt 1</span>
+                </div>
+                <pre id="result-test-output" class="test-output" hidden></pre>
+              </div>
+
+              <!-- Read-Only Review Evidence -->
+              <div class="result-section" id="review-section">
+                <h3>2. Independent Review (Read-Only Session B)</h3>
+                <div class="evidence-row">
+                  <span id="result-review-badge" class="badge">—</span>
+                  <span id="result-review-summary" class="evidence-text"></span>
+                </div>
+                <div id="criteria-checklist" class="criteria-list"></div>
+                <div id="findings-list" class="findings-list"></div>
+              </div>
+
+              <!-- Git Diff Evidence -->
+              <div class="result-section">
+                <div class="section-header">
+                  <h3>3. Implementation Git Diff</h3>
+                  <span id="result-diff-count" class="badge">0 files</span>
+                </div>
+                <pre id="result-diff" class="diff-viewer"></pre>
+              </div>
+
+              <!-- Human Delivery Checkpoint -->
+              <div class="delivery-checkpoint" id="delivery-checkpoint">
+                <h3>4. Delivery Checkpoint</h3>
+                <p class="checkpoint-text">
+                  All automated verification tests passed and the read-only reviewer confirmed acceptance criteria.
+                  Confirm below to commit, push, and open the Pull Request.
+                </p>
+                <button id="btn-pr" class="btn-primary">Create Pull Request</button>
+              </div>
+
+              <div id="pr-steps" class="pr-steps" hidden></div>
+
+              <div id="pr-result" class="pr-result" hidden>
+                <h3>Pull Request Created</h3>
+                <a id="pr-link" href="#" target="_blank" rel="noopener">Open Pull Request</a>
+              </div>
+
+              <button id="btn-new" class="btn-secondary" style="margin-top: 1.5rem">Start New Run</button>
+
+              <div id="result-error" class="error-message" hidden></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Area 3: History ────────────────────────────────────── -->
+        <section id="area-history" class="area-view">
+          <div class="card">
+            <h2>Factory Run History</h2>
+            <p class="text-muted" style="margin-bottom: 1.2rem;">All previous, active, and completed factory runs.</p>
+            <div id="history-runs-container">
+              <div class="empty-state">
+                <p>Loading run history…</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Area 4: Projects ───────────────────────────────────── -->
+        <section id="area-projects" class="area-view">
+          <div class="card">
+            <h2>Configured Projects</h2>
+            <p class="text-muted" style="margin-bottom: 1.2rem;">Local codebases connected to X-Factory.</p>
+            <div id="projects-container" class="projects-grid">
+              <!-- Projects rendered here -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Area 5: Settings ───────────────────────────────────── -->
+        <section id="area-settings" class="area-view">
+          <div class="settings-layout card">
+            <div class="settings-sidebar">
+              <button class="settings-tab-btn active" data-tab="general">General</button>
+              <button class="settings-tab-btn" data-tab="trackers">Issue Trackers</button>
+              <button class="settings-tab-btn" data-tab="models">Pi & Models</button>
+              <button class="settings-tab-btn" data-tab="git">Git & Worktrees</button>
+            </div>
+            <div class="settings-content">
+              <div id="tab-general" class="settings-pane active">
+                <h3>General Settings</h3>
+                <p class="text-muted">Workbench behavior and system defaults.</p>
+                <div class="setting-item">
+                  <label>Data Directory</label>
+                  <input type="text" value="~/.x-factory" readonly class="code-input">
+                </div>
+              </div>
+              <div id="tab-trackers" class="settings-pane">
+                <h3>Issue Tracker Integration</h3>
+                <p class="text-muted">Connect your issue tracker to pull <code>agentic-workflow</code> tickets.</p>
+                <div class="setting-item">
+                  <label for="setting-tracker-provider">Default Provider</label>
+                  <select id="setting-tracker-provider" class="form-select">
+                    <option value="github">GitHub Issues</option>
+                    <option value="jira">Jira Software</option>
+                    <option value="azure">Azure DevOps</option>
+                  </select>
+                </div>
+                <div class="setting-item">
+                  <label>Required Workflow Label</label>
+                  <input type="text" value="agentic-workflow" readonly class="code-input">
+                </div>
+
+                <!-- GitHub Form Group -->
+                <div id="tracker-group-github" class="tracker-form-group">
+                  <div class="setting-item">
+                    <label for="setting-github-token">GitHub Token (Optional for public/CLI repos)</label>
+                    <input type="password" id="setting-github-token" placeholder="ghp_••••••••" class="form-input">
+                  </div>
+                  <div class="setting-item">
+                    <label for="setting-github-repo">Default Repository (e.g. owner/repo)</label>
+                    <input type="text" id="setting-github-repo" placeholder="owner/repo (auto-detected from git if blank)" class="form-input">
+                  </div>
+                </div>
+
+                <!-- Jira Form Group -->
+                <div id="tracker-group-jira" class="tracker-form-group" hidden>
+                  <div class="setting-item">
+                    <label for="setting-jira-host">Jira Host URL</label>
+                    <input type="text" id="setting-jira-host" placeholder="yourcompany.atlassian.net" class="form-input">
+                  </div>
+                  <div class="setting-item">
+                    <label for="setting-jira-email">Jira Email</label>
+                    <input type="email" id="setting-jira-email" placeholder="dev@company.com" class="form-input">
+                  </div>
+                  <div class="setting-item">
+                    <label for="setting-jira-token">Jira API Token</label>
+                    <input type="password" id="setting-jira-token" placeholder="API Token" class="form-input">
+                  </div>
+                  <div class="setting-item">
+                    <label for="setting-jira-project">Jira Project Key (Optional)</label>
+                    <input type="text" id="setting-jira-project" placeholder="e.g. PROJ" class="form-input">
+                  </div>
+                </div>
+
+                <!-- Azure DevOps Form Group -->
+                <div id="tracker-group-azure" class="tracker-form-group" hidden>
+                  <div class="setting-item">
+                    <label for="setting-azure-org">Azure Organization URL</label>
+                    <input type="text" id="setting-azure-org" placeholder="https://dev.azure.com/your-org" class="form-input">
+                  </div>
+                  <div class="setting-item">
+                    <label for="setting-azure-project">Azure Project Name</label>
+                    <input type="text" id="setting-azure-project" placeholder="ProjectName" class="form-input">
+                  </div>
+                  <div class="setting-item">
+                    <label for="setting-azure-pat">Personal Access Token (PAT)</label>
+                    <input type="password" id="setting-azure-pat" placeholder="PAT" class="form-input">
+                  </div>
+                </div>
+              </div>
+              <div id="tab-models" class="settings-pane">
+                <h3>Pi & Models</h3>
+                <p class="text-muted">Configure LLM providers and models for Pi Agent sessions.</p>
+                <div class="setting-item">
+                  <label for="setting-model-a-provider">Implementation Provider (Session A)</label>
+                  <input type="text" id="setting-model-a-provider" placeholder="e.g. anthropic, ollama, openai" class="form-input">
+                </div>
+                <div class="setting-item">
+                  <label for="setting-model-a-model">Implementation Model (Session A)</label>
+                  <input type="text" id="setting-model-a-model" placeholder="e.g. claude-3-7-sonnet or qwen2.5-coder:32b" class="form-input">
+                </div>
+                <div class="setting-item">
+                  <label for="setting-model-b-provider">Review Provider (Session B)</label>
+                  <input type="text" id="setting-model-b-provider" placeholder="e.g. anthropic" class="form-input">
+                </div>
+                <div class="setting-item">
+                  <label for="setting-model-b-model">Review Model (Session B)</label>
+                  <input type="text" id="setting-model-b-model" placeholder="e.g. claude-3-7-sonnet" class="form-input">
+                </div>
+              </div>
+              <div id="tab-git" class="settings-pane">
+                <h3>Git & Worktree Isolation</h3>
+                <p class="text-muted">Worktree storage and baseline pollution rules.</p>
+                <div class="setting-item">
+                  <label>Worktree Path</label>
+                  <input type="text" value="~/.x-factory/projects/:id/worktrees/:runId" readonly class="code-input">
+                </div>
+              </div>
+
+              <!-- Save Actions -->
+              <div class="settings-actions" style="margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+                <button id="btn-save-settings" class="btn-primary">Save Settings</button>
+                <span id="settings-status" class="text-muted" style="font-size: 0.85rem;"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ── Modal Dialog: New Factory Run (Preserves #view-setup) ───── -->
+  <div id="modal-new-run" class="modal-backdrop" hidden>
+    <div class="modal-dialog">
+      <div class="modal-header">
         <h2>New Factory Run</h2>
-
-        <label for="select-project">Target Project</label>
-        <select id="select-project">
-          <option value="" disabled selected>Loading projects…</option>
-        </select>
-
-        <label for="input-ticket-id">Ticket ID</label>
-        <input id="input-ticket-id" type="text" placeholder="e.g. PROJ-101">
-
-        <label for="input-ticket-title">Ticket Title</label>
-        <input id="input-ticket-title" type="text" placeholder="e.g. Implement password reset rate limiting">
-
-        <label for="input-criteria">Acceptance Criteria (one per line)</label>
-        <textarea id="input-criteria" rows="4" placeholder="- Return 429 after 5 failed attempts&#10;- Reset counter after 15 minutes&#10;- Add unit tests for window expiration"></textarea>
-
-        <label for="input-plan">Implementation Plan</label>
-        <textarea id="input-plan" rows="8" placeholder="Paste the step-by-step implementation plan here…"></textarea>
-
-        <div class="knowledge-status" id="knowledge-status"></div>
-
-        <button id="btn-start" class="btn-primary" disabled>Start Factory Run</button>
-
-        <div id="setup-error" class="error-message" hidden></div>
+        <button id="btn-close-modal" class="btn-close" aria-label="Close dialog">&times;</button>
       </div>
-    </section>
+      <div class="modal-body">
+        <section id="view-setup" class="view active">
+          <label for="input-ticket-id">Ticket ID</label>
+          <input id="input-ticket-id" type="text" placeholder="e.g. PROJ-101">
 
-    <!-- ── Run View ────────────────────────────────────────────────── -->
-    <section id="view-run" class="view">
-      <!-- 6-Stage Workflow Stepper -->
-      <div class="workflow-stepper card" id="workflow-stepper">
-        <div class="stepper-track">
-          <div class="step" data-stage="prepare">
-            <div class="step-dot">1</div>
-            <div class="step-label">Prepare</div>
-            <div class="step-evidence" id="evidence-prepare">Workspace & Worktree</div>
+          <label for="input-ticket-title">Ticket Title</label>
+          <input id="input-ticket-title" type="text" placeholder="e.g. Implement password reset rate limiting">
+
+          <label for="input-branch">Custom Branch (Optional — auto-generated if blank)</label>
+          <input id="input-branch" type="text" placeholder="factory/ticket-slug (auto-generated)">
+
+          <label for="input-criteria">Acceptance Criteria (one per line)</label>
+          <textarea id="input-criteria" rows="4" placeholder="- Return 429 after 5 failed attempts&#10;- Reset counter after 15 minutes&#10;- Add unit tests for window expiration"></textarea>
+
+          <label for="input-plan">Implementation Plan</label>
+          <textarea id="input-plan" rows="7" placeholder="Paste the step-by-step implementation plan here…"></textarea>
+
+          <div class="knowledge-status" id="knowledge-status"></div>
+
+          <div class="modal-actions">
+            <button id="btn-cancel-modal" class="btn-secondary">Cancel</button>
+            <button id="btn-start" class="btn-primary" disabled>Start Factory Run</button>
           </div>
-          <div class="step" data-stage="understand">
-            <div class="step-dot">2</div>
-            <div class="step-label">Understand</div>
-            <div class="step-evidence" id="evidence-understand">Context Synthesis</div>
-          </div>
-          <div class="step" data-stage="implement">
-            <div class="step-dot">3</div>
-            <div class="step-label">Implement</div>
-            <div class="step-evidence" id="evidence-implement">Pi Session A</div>
-          </div>
-          <div class="step" data-stage="verify">
-            <div class="step-dot">4</div>
-            <div class="step-label">Verify</div>
-            <div class="step-evidence" id="evidence-verify">Deterministic Checks</div>
-          </div>
-          <div class="step" data-stage="review">
-            <div class="step-dot">5</div>
-            <div class="step-label">Review</div>
-            <div class="step-evidence" id="evidence-review">Read-Only Session B</div>
-          </div>
-          <div class="step" data-stage="deliver">
-            <div class="step-dot">6</div>
-            <div class="step-label">Deliver</div>
-            <div class="step-evidence" id="evidence-deliver">PR Checkpoint</div>
-          </div>
-        </div>
+
+          <div id="setup-error" class="error-message" hidden></div>
+        </section>
       </div>
-
-      <div class="card" style="margin-top: 1.2rem;">
-        <div class="run-header">
-          <div>
-            <h2 id="run-title">Run</h2>
-            <span id="run-branch" class="code-sub"></span>
-          </div>
-          <span id="run-status" class="badge">preparing</span>
-        </div>
-
-        <!-- Live Activity Log -->
-        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Live Activity</h3>
-        <div id="event-log" class="event-log" aria-live="polite" role="log">
-          <!-- Events appended here -->
-        </div>
-
-        <div class="steer-bar" id="steer-bar">
-          <input id="input-steer" type="text" placeholder="Send steering instruction to active Pi session…">
-          <button id="btn-steer" class="btn-secondary">Steer</button>
-        </div>
-
-        <div class="run-actions">
-          <button id="btn-stop" class="btn-danger">Stop Run</button>
-        </div>
-
-        <div id="run-error" class="error-message" hidden></div>
-      </div>
-
-      <!-- Live Diff Preview if available during run -->
-      <div class="card" id="run-diff-card" style="margin-top: 1.2rem;" hidden>
-        <div class="section-header">
-          <h3>Worktree Git Diff</h3>
-          <span id="run-diff-files" class="badge">0 files</span>
-        </div>
-        <pre id="run-diff-content" class="diff-viewer"></pre>
-      </div>
-    </section>
-
-    <!-- ── Result View (Human Checkpoint & Delivery) ────────────────── -->
-    <section id="view-result" class="view">
-      <!-- 6-Stage Workflow Stepper for Result View -->
-      <div class="workflow-stepper card" id="result-stepper">
-        <div class="stepper-track">
-          <div class="step" data-stage="prepare">
-            <div class="step-dot">1</div>
-            <div class="step-label">Prepare</div>
-            <div class="step-evidence" id="res-evidence-prepare">Complete</div>
-          </div>
-          <div class="step" data-stage="understand">
-            <div class="step-dot">2</div>
-            <div class="step-label">Understand</div>
-            <div class="step-evidence" id="res-evidence-understand">Complete</div>
-          </div>
-          <div class="step" data-stage="implement">
-            <div class="step-dot">3</div>
-            <div class="step-label">Implement</div>
-            <div class="step-evidence" id="res-evidence-implement">Complete</div>
-          </div>
-          <div class="step" data-stage="verify">
-            <div class="step-dot">4</div>
-            <div class="step-label">Verify</div>
-            <div class="step-evidence" id="res-evidence-verify">Complete</div>
-          </div>
-          <div class="step" data-stage="review">
-            <div class="step-dot">5</div>
-            <div class="step-label">Review</div>
-            <div class="step-evidence" id="res-evidence-review">Complete</div>
-          </div>
-          <div class="step" data-stage="deliver">
-            <div class="step-dot">6</div>
-            <div class="step-label">Deliver</div>
-            <div class="step-evidence" id="res-evidence-deliver">Ready</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top: 1.2rem;">
-        <div class="run-header">
-          <h2 id="result-heading">Human Checkpoint & Evidence</h2>
-          <span id="result-status-badge" class="badge">ready_for_pr</span>
-        </div>
-
-        <!-- Verification Evidence -->
-        <div class="result-section">
-          <h3>1. Deterministic Verification</h3>
-          <div class="evidence-row">
-            <span id="result-tests" class="badge">—</span>
-            <span id="result-repair-count" class="badge badge-neutral">Attempt 1</span>
-          </div>
-          <pre id="result-test-output" class="test-output" hidden></pre>
-        </div>
-
-        <!-- Read-Only Review Evidence -->
-        <div class="result-section" id="review-section">
-          <h3>2. Independent Review (Read-Only Session B)</h3>
-          <div class="evidence-row">
-            <span id="result-review-badge" class="badge">—</span>
-            <span id="result-review-summary" class="evidence-text"></span>
-          </div>
-          <div id="criteria-checklist" class="criteria-list"></div>
-          <div id="findings-list" class="findings-list"></div>
-        </div>
-
-        <!-- Git Diff Evidence -->
-        <div class="result-section">
-          <div class="section-header">
-            <h3>3. Implementation Git Diff</h3>
-            <span id="result-diff-count" class="badge">0 files</span>
-          </div>
-          <pre id="result-diff" class="diff-viewer"></pre>
-        </div>
-
-        <!-- Human Delivery Checkpoint -->
-        <div class="delivery-checkpoint" id="delivery-checkpoint">
-          <h3>4. Delivery Checkpoint</h3>
-          <p class="checkpoint-text">
-            All automated verification tests passed and the read-only reviewer confirmed acceptance criteria.
-            Confirm below to commit, push, and open the Pull Request.
-          </p>
-          <button id="btn-pr" class="btn-primary">Create Pull Request</button>
-        </div>
-
-        <div id="pr-steps" class="pr-steps" hidden></div>
-
-        <div id="pr-result" class="pr-result" hidden>
-          <h3>Pull Request Created</h3>
-          <a id="pr-link" href="#" target="_blank" rel="noopener">Open Pull Request</a>
-        </div>
-
-        <button id="btn-new" class="btn-secondary" style="margin-top: 1.5rem">Start New Run</button>
-
-        <div id="result-error" class="error-message" hidden></div>
-      </div>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

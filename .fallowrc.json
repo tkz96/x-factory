@@ -1,13 +1,4 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": ["public/index.html"],
-  "health": {
-    "thresholdOverrides": [
-      {
-        "files": ["test/**/*.ts", "**/*.test.ts"],
-        "maxUnitSize": 500,
-        "reason": "Test suites: describe/it blocks are large by design"
-      }
-    ]
-  }
+  "entry": ["public/index.html"]
 }

@@ -2,10 +2,11 @@
 
 import path from "node:path";
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import type { Project, Run } from "./types.js";
+import type { Project, Run, Ticket, RunStatus } from "./types.js";
 import type { PiAgentSession } from "./agents/pi.js";
 import type { BaselineState } from "./git.js";
 import { getProjectRunsDir, ensureDir } from "./paths.js";
+import { canTransition } from "./state-machine.js";
 
 export interface InternalRun extends Run {
   _session: PiAgentSession | null;
@@ -53,6 +54,33 @@ async function scanProjectRuns(
   return loaded;
 }
 
+async function initializeRunArtifacts(
+  artifactsDir: string,
+  ticket: Ticket,
+  plan: string
+): Promise<void> {
+  await ensureDir(artifactsDir);
+  const ticketContent = `# Ticket ${ticket.id}: ${ticket.title}\n\n${ticket.description || ""}\n\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}`;
+  await writeFile(path.join(artifactsDir, "ticket.md"), ticketContent, "utf-8");
+  await writeFile(path.join(artifactsDir, "plan.md"), plan, "utf-8");
+}
+
+function transitionRunState(
+  run: InternalRun,
+  newStatus: RunStatus,
+  store?: RunStore
+): boolean {
+  if (!canTransition(run.status, newStatus)) {
+    console.warn(`Invalid state transition: ${run.status} → ${newStatus} (run ${run.id})`);
+    return false;
+  }
+  run.status = newStatus;
+  if (store) {
+    store.persistRun(run).catch(() => {});
+  }
+  return true;
+}
+
 export class RunStore {
   private runs = new Map<string, InternalRun>();
 
@@ -75,6 +103,14 @@ export class RunStore {
 
   list(): Run[] {
     return [...this.runs.values()].map((r) => this.summarize(r));
+  }
+
+  transition(run: InternalRun, newStatus: RunStatus): boolean {
+    return transitionRunState(run, newStatus, this);
+  }
+
+  async initializeArtifacts(artifactsDir: string, ticket: Ticket, plan: string): Promise<void> {
+    return initializeRunArtifacts(artifactsDir, ticket, plan);
   }
 
   async persistRun(run: InternalRun): Promise<void> {
@@ -104,3 +140,4 @@ export class RunStore {
 }
 
 export const defaultRunStore = new RunStore();
+

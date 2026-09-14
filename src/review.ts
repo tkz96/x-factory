@@ -8,7 +8,7 @@ import type {
   ReviewResult,
   VerificationResult,
 } from "./types.js";
-import { createReviewSession, type PiAgentSession } from "./agents/pi.js";
+import { createReviewSession, type PiAgentSession, type SessionOptions } from "./agents/pi.js";
 import { getRunDir, ensureDir } from "./paths.js";
 
 export interface ReviewContext {
@@ -20,6 +20,7 @@ export interface ReviewContext {
   diff: string;
   verification: VerificationResult;
   onEvent?: (event: { type: string; text?: string; tool?: string; error?: string }) => void;
+  modelConfig?: SessionOptions;
 }
 
 function attachReviewListeners(
@@ -71,7 +72,7 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
 
   let reviewSession: PiAgentSession;
   try {
-    reviewSession = await createReviewSession(worktreePath);
+    reviewSession = await createReviewSession(worktreePath, context.modelConfig);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return createFallbackReview(ticket, `Failed to initialize read-only review session: ${msg}`, false);

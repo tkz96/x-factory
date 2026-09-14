@@ -149,4 +149,77 @@ describe("RunStore", () => {
     await store.hydrate([]);
     assert.equal(store.list().length, 0);
   });
+
+  it("guards and performs valid state transitions with store.transition", async () => {
+    const store = new RunStore();
+    const mockProject: Project = {
+      id: "test-proj",
+      name: "Test Project",
+      repositoryPath: "/tmp/repo",
+      defaultBranch: "main",
+      testCommand: "bun test",
+    };
+
+    const internalRun: InternalRun = {
+      id: "run-trans-1",
+      project: { id: "test-proj", name: "Test Project" },
+      ticket: { id: "T-1", title: "Task 1", acceptanceCriteria: [] },
+      plan: "Plan",
+      branch: "xfactory/T-1",
+      status: "preparing",
+      events: [],
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      implementationContext: null,
+      verification: null,
+      review: null,
+      artifacts: [],
+      diff: null,
+      pullRequest: null,
+      repairAttempts: 0,
+      artifactsDir: "/tmp/artifacts",
+      worktreePath: "/tmp/worktree",
+      _session: null,
+      _baseline: null,
+      _project: mockProject,
+    };
+
+    // Valid forward transition: preparing -> understanding
+    const valid = store.transition(internalRun, "understanding");
+    assert.equal(valid, true);
+    assert.equal(internalRun.status, "understanding");
+
+    // Invalid skipping transition: understanding -> pr_created
+    const invalid = store.transition(internalRun, "pr_created");
+    assert.equal(invalid, false);
+    assert.equal(internalRun.status, "understanding");
+  });
+
+  it("initializes run artifacts on disk with initializeArtifacts", async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "xfactory-artifacts-test-"));
+    try {
+      const store = new RunStore();
+      await store.initializeArtifacts(tmpDir, {
+        id: "T-100",
+        title: "Test Ticket",
+        description: "Test details",
+        acceptanceCriteria: ["Must pass all tests"],
+      }, "# Implementation Plan\nSteps to take");
+
+      const ticketFile = Bun.file(path.join(tmpDir, "ticket.md"));
+      const planFile = Bun.file(path.join(tmpDir, "plan.md"));
+
+      assert.equal(await ticketFile.exists(), true);
+      assert.equal(await planFile.exists(), true);
+
+      const ticketText = await ticketFile.text();
+      assert.ok(ticketText.includes("# Ticket T-100: Test Ticket"));
+      assert.ok(ticketText.includes("Must pass all tests"));
+
+      const planText = await planFile.text();
+      assert.ok(planText.includes("# Implementation Plan"));
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

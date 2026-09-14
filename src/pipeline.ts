@@ -3,47 +3,19 @@
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import type {
-  Ticket,
-  RunStatus,
   ImplementationContext,
   VerificationResult,
   PullRequest,
 } from "./types.js";
 import * as git from "./git.js";
+import { createPullRequest } from "./github.js";
 import { createImplementationSession, type PiAgentSession } from "./agents/pi.js";
 import { buildImplementationContext, buildImplementationPrompt } from "./understand.js";
 import { runVerification, buildRepairPrompt, MAX_REPAIR_ATTEMPTS } from "./verification.js";
 import { reviewRun } from "./review.js";
-import { ensureDir } from "./paths.js";
-import { canTransition } from "./state-machine.js";
+import { loadSettings } from "./settings.js";
 import type { InternalRun, RunStore } from "./store.js";
 import type { RunEventBus } from "./events.js";
-
-export function transitionRunState(
-  run: InternalRun,
-  newStatus: RunStatus,
-  store?: RunStore
-): void {
-  if (!canTransition(run.status, newStatus)) {
-    console.warn(`Invalid state transition: ${run.status} → ${newStatus} (run ${run.id})`);
-    return;
-  }
-  run.status = newStatus;
-  if (store) {
-    store.persistRun(run).catch(() => {});
-  }
-}
-
-export async function initializeRunArtifacts(
-  artifactsDir: string,
-  ticket: Ticket,
-  plan: string
-): Promise<void> {
-  await ensureDir(artifactsDir);
-  const ticketContent = `# Ticket ${ticket.id}: ${ticket.title}\n\n${ticket.description || ""}\n\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}`;
-  await writeFile(path.join(artifactsDir, "ticket.md"), ticketContent, "utf-8");
-  await writeFile(path.join(artifactsDir, "plan.md"), plan, "utf-8");
-}
 
 async function promptSession(
   run: InternalRun,
@@ -59,7 +31,7 @@ async function promptSession(
   } catch (err: unknown) {
     if (run.status === "stopped") return false;
     const msg = err instanceof Error ? err.message : String(err);
-    transitionRunState(run, "failed", store);
+    store.transition(run, "failed");
     eventBus.emit(run.id, { type: "error", text: `${errorPrefix}: ${msg}` });
     return false;
   }
@@ -102,7 +74,7 @@ async function executeUnderstandStage(
   const { id } = run;
   const project = run._project;
 
-  transitionRunState(run, "understanding", store);
+  store.transition(run, "understanding");
   eventBus.emit(id, {
     type: "status",
     status: "understanding",
@@ -154,11 +126,12 @@ async function executeImplementStage(
   const { id } = run;
   const project = run._project;
 
-  transitionRunState(run, "implementing", store);
+  store.transition(run, "implementing");
   eventBus.emit(id, { type: "status", status: "implementing", text: "Pi is implementing ticket…" });
 
+  const settings = await loadSettings(false);
   const prompt = await buildImplementationPrompt(project, run.ticket, run.plan, context);
-  const session = await createImplementationSession(worktreePath);
+  const session = await createImplementationSession(worktreePath, settings.models?.sessionA);
   run._session = session;
 
   attachImplementationListeners(session, id, eventBus);
@@ -193,7 +166,7 @@ async function attemptAutomatedRepair(
   eventBus: RunEventBus,
   store: RunStore
 ): Promise<boolean> {
-  transitionRunState(run, "implementing", store);
+  store.transition(run, "implementing");
   eventBus.emit(run.id, {
     type: "status",
     status: "implementing",
@@ -222,7 +195,7 @@ async function executeVerifyAndRepairStage(
   const baseline = run._baseline!;
 
   while (run.repairAttempts < MAX_REPAIR_ATTEMPTS) {
-    transitionRunState(run, "verifying", store);
+    store.transition(run, "verifying");
     eventBus.emit(id, {
       type: "status",
       status: "verifying",
@@ -250,7 +223,7 @@ async function executeVerifyAndRepairStage(
       const ok = await attemptAutomatedRepair(run, vResult, eventBus, store);
       if (!ok) return false;
     } else {
-      transitionRunState(run, "failed", store);
+      store.transition(run, "failed");
       eventBus.emitStageEvidence(
         id,
         "verify",
@@ -276,13 +249,14 @@ async function executeReviewStage(
   const { id } = run;
   const project = run._project;
 
-  transitionRunState(run, "reviewing", store);
+  store.transition(run, "reviewing");
   eventBus.emit(id, {
     type: "status",
     status: "reviewing",
     text: "Reviewing diff and acceptance criteria in fresh read-only session…",
   });
 
+  const settings = await loadSettings(false);
   const reviewResult = await reviewRun({
     projectId: project.id,
     runId: id,
@@ -291,6 +265,7 @@ async function executeReviewStage(
     plan: run.plan,
     diff: run.diff || "",
     verification: run.verification!,
+    modelConfig: settings.models?.sessionB,
     onEvent: (e) => {
       if (e.type === "pi_text" && e.text) {
         eventBus.emit(id, { type: "pi_text", text: e.text, role: "reviewer" });
@@ -306,7 +281,7 @@ async function executeReviewStage(
   eventBus.emit(id, { type: "review", result: reviewResult });
 
   if (!reviewResult.passed) {
-    transitionRunState(run, "failed", store);
+    store.transition(run, "failed");
     eventBus.emitStageEvidence(id, "review", `Review failed: ${reviewResult.summary}`);
     eventBus.emit(id, {
       type: "error",
@@ -339,7 +314,7 @@ export async function executeDeliverStage(
   await git.push(worktree, run.branch);
 
   eventBus.emit(run.id, { type: "pr_step", text: "Creating pull request…" });
-  const prUrl = await git.createPullRequest(worktree, prTitle, prBody, project.defaultBranch);
+  const prUrl = await createPullRequest(worktree, prTitle, prBody, project.defaultBranch);
 
   const pr: PullRequest = {
     url: prUrl.trim(),
@@ -349,7 +324,7 @@ export async function executeDeliverStage(
   };
 
   run.pullRequest = pr;
-  transitionRunState(run, "pr_created", store);
+  store.transition(run, "pr_created");
   run.finishedAt = new Date().toISOString();
 
   eventBus.emitStageEvidence(run.id, "deliver", `Pull request created: ${pr.url}`);
@@ -379,7 +354,7 @@ export async function runWorkflow(
   const reviewed = await executeReviewStage(run, worktreePath, eventBus, store);
   if (!reviewed) return;
 
-  transitionRunState(run, "ready_for_pr", store);
+  store.transition(run, "ready_for_pr");
   eventBus.emit(run.id, {
     type: "status",
     status: "ready_for_pr",

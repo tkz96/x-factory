@@ -1,5 +1,5 @@
 // fallow-ignore-file coverage-gaps
-// public/app.js — X-Factory frontend logic for the 6-stage software factory runtime.
+// public/app.js — X-Factory frontend logic for the Apple HIG developer workbench.
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -9,16 +9,35 @@ const $$ = (sel) => document.querySelectorAll(sel);
 let currentRunId = null;
 let eventSource = null;
 let projects = [];
+let allRuns = [];
 
 // ── Elements ───────────────────────────────────────────────────────────────────
+
+const toolbarTitle    = $("#toolbar-title");
+const toolbarSubtitle = $("#toolbar-subtitle");
+const btnOpenNewRun   = $("#btn-open-new-run");
+const modalNewRun     = $("#modal-new-run");
+const btnCloseModal   = $("#btn-close-modal");
+const btnCancelModal  = $("#btn-cancel-modal");
+const btnQueueManual  = $("#btn-queue-manual");
+const btnRunsStart    = $("#btn-runs-start");
+const activeRunsBadge = $("#active-runs-badge");
+const queueBadge      = $("#queue-badge");
+const queueTicketsList = $("#queue-tickets-list");
+const queueSearch      = $("#queue-search");
+let cachedTickets      = [];
 
 const viewSetup  = $("#view-setup");
 const viewRun    = $("#view-run");
 const viewResult = $("#view-result");
+const runsStandby = $("#runs-standby");
+const workflowStepper = $("#workflow-stepper");
+
 
 const selectProject    = $("#select-project");
 const inputTicketId    = $("#input-ticket-id");
 const inputTicketTitle = $("#input-ticket-title");
+const inputBranch      = $("#input-branch");
 const inputCriteria    = $("#input-criteria");
 const inputPlan        = $("#input-plan");
 const knowledgeStatus  = $("#knowledge-status");
@@ -56,14 +75,146 @@ const prLink              = $("#pr-link");
 const btnNew              = $("#btn-new");
 const resultError         = $("#result-error");
 
-// ── View Switching ─────────────────────────────────────────────────────────────
+const historyContainer  = $("#history-runs-container");
+const projectsContainer = $("#projects-container");
+
+// Settings Elements
+const settingTrackerProvider = $("#setting-tracker-provider");
+const trackerGroupGithub     = $("#tracker-group-github");
+const trackerGroupJira       = $("#tracker-group-jira");
+const trackerGroupAzure      = $("#tracker-group-azure");
+
+const settingGithubToken     = $("#setting-github-token");
+const settingGithubRepo      = $("#setting-github-repo");
+
+const settingJiraHost        = $("#setting-jira-host");
+const settingJiraEmail       = $("#setting-jira-email");
+const settingJiraToken       = $("#setting-jira-token");
+const settingJiraProject     = $("#setting-jira-project");
+
+const settingAzureOrg        = $("#setting-azure-org");
+const settingAzureProject    = $("#setting-azure-project");
+const settingAzurePat        = $("#setting-azure-pat");
+
+const settingModelAProvider  = $("#setting-model-a-provider");
+const settingModelAModel     = $("#setting-model-a-model");
+const settingModelBProvider  = $("#setting-model-b-provider");
+const settingModelBModel     = $("#setting-model-b-model");
+
+const btnSaveSettings        = $("#btn-save-settings");
+const settingsStatus         = $("#settings-status");
+
+
+// ── Areas & Routing ────────────────────────────────────────────────────────────
+
+const AREA_METADATA = {
+  queue: { title: "Work Queue", subtitle: "Tickets ready for agentic implementation" },
+  runs: { title: "Active Runs", subtitle: "Live execution and verification workbench" },
+  history: { title: "Run History", subtitle: "Previous factory runs and results" },
+  projects: { title: "Projects", subtitle: "Codebases configured for factory automation" },
+  settings: { title: "Settings", subtitle: "Issue trackers, model runtime, and workspace settings" },
+};
+
+function navigate(areaName) {
+  const area = AREA_METADATA[areaName] ? areaName : "queue";
+
+  $$(".sidebar-nav .nav-item").forEach((el) => {
+    el.classList.toggle("active", el.dataset.area === area);
+  });
+
+  $$(".area-view").forEach((el) => {
+    el.classList.toggle("active", el.id === `area-${area}`);
+  });
+
+  if (toolbarTitle && AREA_METADATA[area]) {
+    toolbarTitle.textContent = AREA_METADATA[area].title;
+    toolbarSubtitle.textContent = AREA_METADATA[area].subtitle;
+  }
+
+  if (area === "queue") loadWorkQueue();
+  if (area === "history") loadHistory();
+  if (area === "projects") renderProjectsList();
+  if (area === "runs") syncRunsView();
+  if (area === "settings") loadSettingsView();
+}
+
+
+
+function handleHashChange() {
+  const hash = window.location.hash.replace(/^#\/?/, "") || "queue";
+  navigate(hash);
+}
+
+window.addEventListener("hashchange", handleHashChange);
+
+function syncRunsView() {
+  if (!currentRunId) {
+    if (runsStandby) runsStandby.hidden = false;
+    if (workflowStepper) workflowStepper.style.display = "none";
+    if (viewRun) viewRun.style.display = "none";
+    if (viewResult) viewResult.style.display = "none";
+  } else {
+    if (runsStandby) runsStandby.hidden = true;
+    if (workflowStepper) workflowStepper.style.display = "block";
+  }
+}
+
+// ── Legacy showView for test compatibility ────────────────────────────────────
 
 function showView(view) {
-  viewSetup.classList.remove("active");
-  viewRun.classList.remove("active");
-  viewResult.classList.remove("active");
-  view.classList.add("active");
+  if (view === viewSetup) {
+    openNewRunModal();
+  } else if (view === viewRun) {
+    window.location.hash = "#/runs";
+    if (runsStandby) runsStandby.hidden = true;
+    if (workflowStepper) workflowStepper.style.display = "block";
+    viewRun.style.display = "block";
+    viewResult.style.display = "none";
+  } else if (view === viewResult) {
+    window.location.hash = "#/runs";
+    if (runsStandby) runsStandby.hidden = true;
+    viewRun.style.display = "none";
+    viewResult.style.display = "block";
+  }
 }
+
+// ── Modal Dialog Controls ──────────────────────────────────────────────────────
+
+function openNewRunModal() {
+  if (modalNewRun) modalNewRun.hidden = false;
+  inputTicketId.focus();
+}
+
+function closeNewRunModal() {
+  if (modalNewRun) modalNewRun.hidden = true;
+  hideError(setupError);
+}
+
+if (btnOpenNewRun) btnOpenNewRun.addEventListener("click", openNewRunModal);
+if (btnQueueManual) btnQueueManual.addEventListener("click", openNewRunModal);
+if (btnRunsStart) btnRunsStart.addEventListener("click", openNewRunModal);
+if (btnCloseModal) btnCloseModal.addEventListener("click", closeNewRunModal);
+if (btnCancelModal) btnCancelModal.addEventListener("click", closeNewRunModal);
+
+if (modalNewRun) {
+  modalNewRun.addEventListener("click", (e) => {
+    if (e.target === modalNewRun) closeNewRunModal();
+  });
+}
+
+// ── Settings Tabs ──────────────────────────────────────────────────────────────
+
+$$(".settings-tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tabName = btn.dataset.tab;
+    $$(".settings-tab-btn").forEach((b) => b.classList.remove("active"));
+    $$(".settings-pane").forEach((p) => p.classList.remove("active"));
+
+    btn.classList.add("active");
+    const pane = $(`#tab-${tabName}`);
+    if (pane) pane.classList.add("active");
+  });
+});
 
 // ── API Helpers ────────────────────────────────────────────────────────────────
 
@@ -91,14 +242,20 @@ async function init() {
       opt.textContent = `${p.name} (${p.id})`;
       selectProject.appendChild(opt);
     }
+    if (projects.length > 0 && !selectProject.value) {
+      selectProject.value = projects[0].id;
+    }
   } catch (err) {
     selectProject.innerHTML = '<option value="" disabled selected>Failed to load projects</option>';
     showError(setupError, err.message);
   }
+
   updateStartButton();
+  refreshRunsList();
+  handleHashChange();
 }
 
-// ── Setup View ─────────────────────────────────────────────────────────────────
+// ── Setup / Modal View ─────────────────────────────────────────────────────────
 
 function updateStartButton() {
   btnStart.disabled = !(
@@ -110,7 +267,9 @@ function updateStartButton() {
 
 selectProject.addEventListener("change", () => {
   updateStartButton();
+  loadWorkQueue();
   const project = projects.find((p) => p.id === selectProject.value);
+
   if (project?.knowledgeRepositoryPath) {
     knowledgeStatus.innerHTML = '<span class="check">✓</span> Knowledge repository configured';
   } else {
@@ -131,15 +290,19 @@ btnStart.addEventListener("click", async () => {
     .filter(Boolean);
 
   try {
+    const branchVal = inputBranch && inputBranch.value ? inputBranch.value.trim() : "";
     const run = await api("POST", "/runs", {
       projectId: selectProject.value,
       ticketId: inputTicketId.value.trim(),
       ticketTitle: inputTicketTitle.value.trim() || inputTicketId.value.trim(),
       plan: inputPlan.value,
       acceptanceCriteria: criteria,
+      branch: branchVal || undefined,
     });
     currentRunId = run.id;
+    closeNewRunModal();
     startRunView(run);
+    refreshRunsList();
   } catch (err) {
     showError(setupError, err.message);
     btnStart.disabled = false;
@@ -193,11 +356,17 @@ function updateEvidenceText(stage, summary) {
 // ── Run View ───────────────────────────────────────────────────────────────────
 
 function startRunView(run) {
-  showView(viewRun);
+  window.location.hash = "#/runs";
+  if (runsStandby) runsStandby.hidden = true;
+  if (workflowStepper) workflowStepper.style.display = "block";
+  viewRun.style.display = "block";
+  viewResult.style.display = "none";
+
   runTitle.textContent = `Run #${run.ticket.id} — ${run.ticket.title}`;
   runBranch.textContent = `Branch: ${run.branch}`;
   setStatus(run.status);
   updateStepper(run.status);
+
   eventLog.innerHTML = "";
   hideError(runError);
   steerBar.style.display = "flex";
@@ -230,6 +399,7 @@ function handleEvent(event) {
   if (event.type === "status") {
     setStatus(event.status);
     updateStepper(event.status);
+    refreshRunsList();
 
     if (event.status === "ready_for_pr" || event.status === "failed" || event.status === "stopped") {
       transitionToResult(event.status);
@@ -467,7 +637,11 @@ async function transitionToResult(status) {
     return;
   }
 
-  showView(viewResult);
+  window.location.hash = "#/runs";
+  if (runsStandby) runsStandby.hidden = true;
+  viewRun.style.display = "none";
+  viewResult.style.display = "block";
+
   hideError(resultError);
   prSteps.hidden = true;
   prResult.hidden = true;
@@ -511,6 +685,7 @@ btnPr.addEventListener("click", async () => {
   try {
     const pr = await api("POST", `/runs/${currentRunId}/pr`);
     showPrResult(pr.url);
+    refreshRunsList();
   } catch (err) {
     showError(resultError, err.message);
     btnPr.disabled = false;
@@ -535,10 +710,381 @@ btnNew.addEventListener("click", () => {
   inputCriteria.value = "";
   inputPlan.value = "";
   updateStartButton();
-  showView(viewSetup);
+  openNewRunModal();
 });
 
+// ── History & Active Runs Refresh ──────────────────────────────────────────────
+
+async function refreshRunsList() {
+  try {
+    allRuns = await api("GET", "/runs");
+    const activeRuns = allRuns.filter((r) =>
+      ["preparing", "understanding", "implementing", "verifying", "reviewing"].includes(r.status)
+    );
+
+    if (activeRunsBadge) {
+      if (activeRuns.length > 0) {
+        activeRunsBadge.textContent = activeRuns.length;
+        activeRunsBadge.hidden = false;
+      } else {
+        activeRunsBadge.hidden = true;
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
+// ── Work Queue & Ticket Integration ───────────────────────────────────────────
+
+function handleSelectTicket(ticket) {
+  inputTicketId.value = ticket.id;
+  inputTicketTitle.value = ticket.title;
+  if (inputBranch) inputBranch.value = "";
+  inputCriteria.value = (ticket.acceptanceCriteria || []).join("\n");
+  if (!inputPlan.value) {
+    inputPlan.value = `1. Understand ticket requirements\n2. Implement changes for ${ticket.title}\n3. Verify test suite passes without regressions\n4. Review and deliver`;
+  }
+  updateStartButton();
+  openNewRunModal();
+}
+
+function createTicketCard(t) {
+  const card = document.createElement("div");
+  card.className = "ticket-card";
+
+  const criteriaList = (t.acceptanceCriteria || [])
+    .slice(0, 3)
+    .map((c) => `<li>${escapeHtml(c)}</li>`)
+    .join("");
+
+  const extUrl = t.url
+    ? `<a href="${escapeHtml(t.url)}" target="_blank" rel="noopener" class="text-muted" style="font-size:0.75rem;" onclick="event.stopPropagation()">View on ${escapeHtml(t.provider)} ↗</a>`
+    : "";
+
+  card.innerHTML = `
+    <div class="ticket-card-header">
+      <div class="ticket-badges">
+        <span class="ticket-key">${escapeHtml(t.id)}</span>
+        <span class="ticket-provider">${escapeHtml(t.provider)}</span>
+      </div>
+      <button class="btn-primary btn-sm btn-start-ticket" data-id="${escapeHtml(t.id)}">Start Run</button>
+    </div>
+    <h3 class="ticket-title">${escapeHtml(t.title)}</h3>
+    ${criteriaList ? `<ul class="ticket-criteria">${criteriaList}</ul>` : ""}
+    <div class="ticket-footer">
+      <div class="ticket-tags">
+        <span class="filter-pill" style="font-size:0.7rem; padding:0.2rem 0.5rem;">
+          <span class="pill-dot"></span>agentic-workflow
+        </span>
+      </div>
+      ${extUrl}
+    </div>
+  `;
+
+  card.addEventListener("click", () => handleSelectTicket(t));
+  const btnStartTicket = card.querySelector(".btn-start-ticket");
+  if (btnStartTicket) {
+    btnStartTicket.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleSelectTicket(t);
+    });
+  }
+  return card;
+}
+
+function renderEmptyQueue() {
+  if (!queueTicketsList) return;
+  queueTicketsList.innerHTML = `
+    <div class="empty-state card">
+      <div class="empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </div>
+      <h3>No Work Items in Queue</h3>
+      <p>No open tickets with label <code>agentic-workflow</code> were found.</p>
+      <button id="btn-queue-manual-empty" class="btn-secondary btn-sm" style="margin-top: 1rem;">Start Manual Run</button>
+    </div>
+  `;
+  const btnManual = $("#btn-queue-manual-empty");
+  if (btnManual) btnManual.addEventListener("click", openNewRunModal);
+}
+
+function renderTicketsList(tickets) {
+  if (!queueTicketsList) return;
+  if (!tickets || tickets.length === 0) {
+    renderEmptyQueue();
+    return;
+  }
+
+  queueTicketsList.innerHTML = "";
+  for (const t of tickets) {
+    queueTicketsList.appendChild(createTicketCard(t));
+  }
+}
+
+function renderQueueError(msg) {
+  if (!queueTicketsList) return;
+  queueTicketsList.innerHTML = `
+    <div class="empty-state card">
+      <h3>Unable to load tickets</h3>
+      <p class="error-message" style="display:inline-block; margin-top:0.5rem;">${escapeHtml(msg)}</p>
+      <button id="btn-queue-retry" class="btn-secondary btn-sm" style="margin-top: 1rem;">Retry</button>
+    </div>
+  `;
+  const btnRetry = $("#btn-queue-retry");
+  if (btnRetry) btnRetry.addEventListener("click", loadWorkQueue);
+}
+
+function applyFetchedTickets(tickets) {
+  cachedTickets = Array.isArray(tickets) ? tickets : [];
+  if (queueSearch) {
+    queueSearch.disabled = false;
+    queueSearch.value = "";
+  }
+  renderTicketsList(cachedTickets);
+  if (queueBadge) queueBadge.textContent = cachedTickets.length;
+}
+
+async function loadWorkQueue() {
+  if (!queueTicketsList) return;
+  const projectId = selectProject?.value || projects[0]?.id;
+  if (!projectId) return;
+
+  queueTicketsList.innerHTML = '<div class="empty-state card"><p>Checking for agentic-workflow tickets…</p></div>';
+
+  try {
+    const tickets = await api("GET", `/projects/${projectId}/tickets`);
+    applyFetchedTickets(tickets);
+  } catch (err) {
+    renderQueueError(err.message);
+  }
+}
+
+
+
+if (queueSearch) {
+  queueSearch.addEventListener("input", (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    if (!q) {
+      renderTicketsList(cachedTickets);
+      return;
+    }
+    const filtered = cachedTickets.filter((t) => {
+      const matchTitle = (t.title || "").toLowerCase().includes(q);
+      const matchId = (t.id || "").toLowerCase().includes(q);
+      const matchCriteria = (t.acceptanceCriteria || []).some((c) => c.toLowerCase().includes(q));
+      return matchTitle || matchId || matchCriteria;
+    });
+    renderTicketsList(filtered);
+  });
+}
+
+function handleHistoryItemClick(r) {
+
+  currentRunId = r.id;
+  window.location.hash = "#/runs";
+  if (["ready_for_pr", "failed", "stopped", "pr_created"].includes(r.status)) {
+    transitionToResult(r.status);
+  } else {
+    startRunView(r);
+  }
+}
+
+function createHistoryItem(r) {
+  const item = document.createElement("div");
+  item.className = "history-item";
+  const ticketId = r.ticket?.id || r.id;
+  const ticketTitle = r.ticket?.title || "Run";
+  const projectName = r.project?.name || "";
+  const dateStr = new Date(r.startedAt).toLocaleString();
+  const statusLabel = r.status.replace(/_/g, " ");
+
+  item.innerHTML = `
+    <div class="history-meta">
+      <span class="history-ticket">#${escapeHtml(ticketId)} — ${escapeHtml(ticketTitle)}</span>
+      <span class="history-sub">${escapeHtml(projectName)} · ${escapeHtml(r.branch)} · ${dateStr}</span>
+    </div>
+    <span class="badge" data-status="${r.status}">${escapeHtml(statusLabel)}</span>
+  `;
+  item.addEventListener("click", () => handleHistoryItemClick(r));
+  return item;
+}
+
+async function loadHistory() {
+  if (!historyContainer) return;
+  try {
+    allRuns = await api("GET", "/runs");
+    if (!allRuns || allRuns.length === 0) {
+      historyContainer.innerHTML = `
+        <div class="empty-state">
+          <p>No factory runs found. Launch your first run to populate history.</p>
+        </div>`;
+      return;
+    }
+
+    historyContainer.innerHTML = "";
+    for (const r of allRuns) {
+      historyContainer.appendChild(createHistoryItem(r));
+    }
+  } catch (err) {
+    historyContainer.innerHTML = `<div class="error-message">Failed to load history: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+
+function renderProjectsList() {
+  if (!projectsContainer) return;
+  if (!projects || projects.length === 0) {
+    projectsContainer.innerHTML = `<div class="empty-state"><p>No projects configured in config/projects.json.</p></div>`;
+    return;
+  }
+
+  projectsContainer.innerHTML = "";
+  for (const p of projects) {
+    const card = document.createElement("div");
+    card.className = "project-card";
+    card.innerHTML = `
+      <h3>${escapeHtml(p.name)}</h3>
+      <div class="project-card-meta"><strong>ID:</strong> ${escapeHtml(p.id)}</div>
+      <div class="project-card-meta"><strong>Path:</strong> <code>${escapeHtml(p.repositoryPath)}</code></div>
+      <div class="project-card-meta"><strong>Default Branch:</strong> ${escapeHtml(p.defaultBranch)}</div>
+      <div class="project-card-meta"><strong>Test Command:</strong> <code>${escapeHtml(p.testCommand)}</code></div>
+    `;
+    projectsContainer.appendChild(card);
+  }
+}
+
+// ── Settings Management ────────────────────────────────────────────────────────
+
+function setVal(id, val) {
+  const el = $(id);
+  if (el) el.value = val || "";
+}
+
+function getVal(id, fallback = "") {
+  const el = $(id);
+  return el ? el.value : fallback;
+}
+
+function updateTrackerProviderVisibility(provider) {
+  if (trackerGroupGithub) trackerGroupGithub.hidden = provider !== "github";
+  if (trackerGroupJira) trackerGroupJira.hidden = provider !== "jira";
+  if (trackerGroupAzure) trackerGroupAzure.hidden = provider !== "azure";
+}
+
+if (settingTrackerProvider) {
+  settingTrackerProvider.addEventListener("change", (e) => {
+    updateTrackerProviderVisibility(e.target.value);
+  });
+}
+
+function populateTrackerFields(s) {
+  const gh = s.github || {};
+  const jira = s.jira || {};
+  const az = s.azure || {};
+  const tracker = s.activeTracker || "github";
+
+  setVal("#setting-tracker-provider", tracker);
+  updateTrackerProviderVisibility(tracker);
+
+  const fields = {
+    "#setting-github-token": gh.token,
+    "#setting-github-repo": gh.repo,
+    "#setting-jira-host": jira.host,
+    "#setting-jira-email": jira.email,
+    "#setting-jira-token": jira.token,
+    "#setting-jira-project": jira.project,
+    "#setting-azure-org": az.orgUrl,
+    "#setting-azure-project": az.project,
+    "#setting-azure-pat": az.pat,
+  };
+  Object.entries(fields).forEach(([id, val]) => setVal(id, val));
+}
+
+function populateModelFields(s) {
+  setVal("#setting-model-a-provider", s.models?.sessionA?.provider || "anthropic");
+  setVal("#setting-model-a-model", s.models?.sessionA?.model || "claude-3-7-sonnet");
+  setVal("#setting-model-b-provider", s.models?.sessionB?.provider || "anthropic");
+  setVal("#setting-model-b-model", s.models?.sessionB?.model || "claude-3-7-sonnet");
+}
+
+async function loadSettingsView() {
+  try {
+    const s = await api("GET", "/settings");
+    if (!s) return;
+    populateTrackerFields(s);
+    populateModelFields(s);
+  } catch (err) {
+    if (settingsStatus) settingsStatus.textContent = `Failed to load settings: ${err.message}`;
+  }
+}
+
+function buildSettingsPayload() {
+  return {
+    activeTracker: getVal("#setting-tracker-provider", "github"),
+    github: {
+      token: getVal("#setting-github-token"),
+      repo: getVal("#setting-github-repo"),
+    },
+    jira: {
+      host: getVal("#setting-jira-host"),
+      email: getVal("#setting-jira-email"),
+      token: getVal("#setting-jira-token"),
+      project: getVal("#setting-jira-project"),
+    },
+    azure: {
+      orgUrl: getVal("#setting-azure-org"),
+      project: getVal("#setting-azure-project"),
+      pat: getVal("#setting-azure-pat"),
+    },
+    models: {
+      sessionA: {
+        provider: getVal("#setting-model-a-provider", "anthropic"),
+        model: getVal("#setting-model-a-model", "claude-3-7-sonnet"),
+      },
+      sessionB: {
+        provider: getVal("#setting-model-b-provider", "anthropic"),
+        model: getVal("#setting-model-b-model", "claude-3-7-sonnet"),
+      },
+    },
+  };
+}
+
+
+async function saveSettingsView() {
+  if (!btnSaveSettings) return;
+  btnSaveSettings.disabled = true;
+  if (settingsStatus) settingsStatus.textContent = "Saving…";
+
+  try {
+    const payload = buildSettingsPayload();
+    await api("POST", "/settings", payload);
+    if (settingsStatus) {
+      settingsStatus.textContent = "✓ Settings saved";
+      setTimeout(() => {
+        if (settingsStatus.textContent === "✓ Settings saved") {
+          settingsStatus.textContent = "";
+        }
+      }, 3000);
+    }
+  } catch (err) {
+    if (settingsStatus) settingsStatus.textContent = `Error: ${err.message}`;
+  } finally {
+    btnSaveSettings.disabled = false;
+  }
+}
+
+if (btnSaveSettings) {
+  btnSaveSettings.addEventListener("click", saveSettingsView);
+}
+
 // Fallback Polling
+
 async function pollRunState(runId) {
   if (runId !== currentRunId) return;
   try {

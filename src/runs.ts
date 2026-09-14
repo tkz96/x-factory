@@ -13,12 +13,7 @@ import { getRunDir, getWorktreePath } from "./paths.js";
 import { TRANSITIONS, canTransition } from "./state-machine.js";
 import { defaultRunStore, type InternalRun } from "./store.js";
 import { defaultEventBus } from "./events.js";
-import {
-  initializeRunArtifacts,
-  runWorkflow,
-  transitionRunState,
-  executeDeliverStage,
-} from "./pipeline.js";
+import { runWorkflow, executeDeliverStage } from "./pipeline.js";
 import { loadProjects } from "./config.js";
 
 // Re-export state machine for backward compatibility
@@ -86,13 +81,25 @@ function buildInitialRun(
   };
 }
 
+export function generateBranchName(ticketId: string, ticketTitle?: string, runId?: string): string {
+  const cleanId = ticketId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "-");
+  const slug = (ticketTitle || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30);
+  const suffix = runId ? `-${runId}` : "";
+  return slug ? `factory/${cleanId}-${slug}${suffix}` : `factory/${cleanId}${suffix}`;
+}
+
 export async function createRun(
   project: Project,
   ticketId: string,
   ticketTitle: string,
   plan: string,
   acceptanceCriteria: string[] = [],
-  ticketDescription?: string
+  ticketDescription?: string,
+  customBranch?: string
 ): Promise<Run> {
   if (!project) throw new Error("Project is required.");
   if (!ticketId || !ticketId.trim()) throw new Error("Ticket ID is required.");
@@ -102,7 +109,7 @@ export async function createRun(
 
   const id = randomUUID().slice(0, 8);
   const cleanTicketId = ticketId.trim().replace(/[^a-zA-Z0-9._-]/g, "-");
-  const branchName = `xfactory/${cleanTicketId}-${id}`;
+  const branchName = customBranch?.trim() || generateBranchName(cleanTicketId, ticketTitle, id);
 
   const artifactsDir = getRunDir(project.id, id);
   const worktreePath = getWorktreePath(project.id, id);
@@ -117,14 +124,14 @@ export async function createRun(
   const run = buildInitialRun(id, project, ticket, plan, branchName, artifactsDir, worktreePath);
   runStore.set(id, run);
 
-  await initializeRunArtifacts(artifactsDir, ticket, plan);
+  await runStore.initializeArtifacts(artifactsDir, ticket, plan);
   await runStore.persistRun(run);
 
   eventBus.emit(id, { type: "status", status: "preparing", text: "Preparing run workspace…" });
 
   runWorkflow(run, eventBus, runStore).catch((err: unknown) => {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    transitionRunState(run, "failed", runStore);
+    runStore.transition(run, "failed");
     eventBus.emit(id, { type: "error", text: `Workflow failed: ${errorMsg}` });
   });
 
@@ -153,7 +160,7 @@ export async function stopRun(id: string): Promise<void> {
   if (run._session) {
     await run._session.abort();
   }
-  transitionRunState(run, "stopped", runStore);
+  runStore.transition(run, "stopped");
   run.finishedAt = new Date().toISOString();
   await runStore.persistRun(run);
   eventBus.emit(id, { type: "status", status: "stopped", text: "Run stopped by user." });
