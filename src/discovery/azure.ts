@@ -16,24 +16,73 @@ interface AzureGitRepoItem {
   defaultBranch?: string;
 }
 
-export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; project?: string } {
+export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; project?: string; repo?: string } {
   if (!value) return {};
   const trimmed = value.trim();
-  const devAzureMatch = trimmed.match(/^https?:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)(?:\/_git\/([^/]+))?/i);
+
+  // dev.azure.com/org/project(/_git/repo)?
+  const devAzureMatch = trimmed.match(/^(?:https?:\/\/)?dev\.azure\.com\/([^/]+)\/([^/]+)(?:\/_git\/([^/]+))?/i);
   if (devAzureMatch) {
     return {
       orgUrl: `https://dev.azure.com/${devAzureMatch[1]}`,
       project: decodeURIComponent(devAzureMatch[2]),
+      repo: devAzureMatch[3] ? decodeURIComponent(devAzureMatch[3]) : undefined,
     };
   }
-  const vsMatch = trimmed.match(/^https?:\/\/([^.]+)\.visualstudio\.com\/([^/]+)(?:\/_git\/([^/]+))?/i);
+
+  // ssh.dev.azure.com:v3/org/project/repo
+  const sshAzureMatch = trimmed.match(/^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i);
+  if (sshAzureMatch) {
+    return {
+      orgUrl: `https://dev.azure.com/${sshAzureMatch[1]}`,
+      project: decodeURIComponent(sshAzureMatch[2]),
+      repo: decodeURIComponent(sshAzureMatch[3]),
+    };
+  }
+
+  // org.visualstudio.com/project(/_git/repo)?
+  const vsMatch = trimmed.match(/^(?:https?:\/\/)?([^.]+)\.visualstudio\.com\/([^/]+)(?:\/_git\/([^/]+))?/i);
   if (vsMatch) {
     return {
       orgUrl: `https://${vsMatch[1]}.visualstudio.com`,
       project: decodeURIComponent(vsMatch[2]),
+      repo: vsMatch[3] ? decodeURIComponent(vsMatch[3]) : undefined,
     };
   }
+
+  // org/project format
+  const simpleMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9._-]+)$/);
+  if (simpleMatch && !trimmed.includes("github.com") && !trimmed.includes("gitlab.com")) {
+    return {
+      orgUrl: `https://dev.azure.com/${simpleMatch[1]}`,
+      project: simpleMatch[2],
+    };
+  }
+
   return {};
+}
+
+export async function getAzureCliAuthHeader(): Promise<string> {
+  if (process.env.NODE_ENV === "test") return "";
+  try {
+    const { execCommand } = await import("../proc.js");
+    const res = await execCommand("az", [
+      "account",
+      "get-access-token",
+      "--resource",
+      "499b84ac-1321-427f-aa17-267ca6975798",
+      "--query",
+      "accessToken",
+      "-o",
+      "tsv",
+    ], { timeoutMs: 3500 });
+    if (res.passed && res.stdout.trim()) {
+      return `Bearer ${res.stdout.trim()}`;
+    }
+  } catch {
+    // az CLI not available
+  }
+  return "";
 }
 
 export class AzureDevOpsRepositoryDiscovery implements RepositoryDiscoveryProvider {
@@ -45,7 +94,7 @@ export class AzureDevOpsRepositoryDiscovery implements RepositoryDiscoveryProvid
     const parsed = extractAzureDevOpsInfo(input.primaryRepo || input.project || input.orgUrl);
     const orgUrl = (input.orgUrl || parsed.orgUrl || settings.azure?.orgUrl || "").trim().replace(/\/+$/, "");
     const project = (parsed.project || input.project || settings.azure?.project || "").trim();
-    const pat = (input.pat || settings.azure?.pat || "").trim();
+    const pat = (input.pat !== undefined ? input.pat : settings.azure?.pat || "").trim();
 
     if (!orgUrl) {
       throw new Error(
@@ -57,18 +106,25 @@ export class AzureDevOpsRepositoryDiscovery implements RepositoryDiscoveryProvid
         "Azure DevOps Project name is required (e.g. Converso). Enter it in the Tracker Project field or provide the full repository URL."
       );
     }
-    if (!pat) {
+
+    let authHeader = "";
+    if (pat) {
+      authHeader = pat.startsWith("eyJ") ? `Bearer ${pat}` : `Basic ${Buffer.from(`:${pat}`).toString("base64")}`;
+    } else {
+      authHeader = await getAzureCliAuthHeader();
+    }
+
+    if (!authHeader) {
       throw new Error(
         "Azure DevOps Personal Access Token (PAT) with Code (Read) permission is required to query Azure Repos online. Configure it in Settings (Settings → Trackers) or enter it in the discovery form. Alternatively, choose \"Local Workspace Folder\" to discover local clones without a PAT."
       );
     }
 
     const apiUrl = `${orgUrl}/${encodeURIComponent(project)}/_apis/git/repositories?api-version=7.1`;
-    const auth = Buffer.from(`:${pat}`).toString("base64");
 
     const res = await fetch(apiUrl, {
       headers: {
-        Authorization: `Basic ${auth}`,
+        Authorization: authHeader,
         Accept: "application/json",
       },
     });

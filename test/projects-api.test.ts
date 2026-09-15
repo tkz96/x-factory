@@ -142,4 +142,29 @@ describe("Project Onboarding & Management APIs", () => {
     const check = await fetch(`${baseUrl}/api/projects/${testProjectId}`);
     assert.equal(check.status, 404);
   });
+
+  it("POST /api/projects/check-path verifies local directory and git repos", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/check-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: tempDir }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { exists: boolean; gitRepos: string[] };
+    assert.equal(body.exists, true);
+    assert.ok(Array.isArray(body.gitRepos));
+  });
+
+  it("POST /api/projects/test-connection validates connection parameters", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/test-connection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean };
+    assert.equal(body.ok, false);
+  });
 });

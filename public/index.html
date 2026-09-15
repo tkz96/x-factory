@@ -677,6 +677,15 @@
       <div class="modal-body">
         <!-- Step 1: Basics -->
         <div id="onboard-step-1" class="wizard-pane active">
+          <div class="quick-url-box">
+            <div class="quick-url-header">
+              <span>⚡ Quick Setup from URL</span>
+              <span style="font-size: 0.75rem; color: var(--text-dim); font-weight: normal;">Auto-detects provider, project & repos</span>
+            </div>
+            <input id="onboard-quick-url" type="text" placeholder="Paste URL (e.g. dev.azure.com/xynotech/Converso or github.com/owner/repo)" class="form-input code-input">
+            <div id="quick-url-feedback" class="quick-url-feedback" hidden></div>
+          </div>
+
           <div class="form-group">
             <div class="label-with-tooltip">
               <label for="onboard-proj-name">Project Display Name <span class="required">*</span></label>
@@ -707,11 +716,12 @@
               <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Local Workspace Root Directory">?
                 <span class="tooltip-popover">
                   <strong>Workspace Root Directory</strong>
-                  The directory path on your computer where this product's git checkouts are located (e.g. <code>~/workspace/converso</code> or <code>/Users/name/projects</code>). X-Factory scans this folder during discovery and prepares worktrees here.
+                  The directory path on your computer where this product's git checkouts are located (e.g. <code>/Users/name/projects</code>). X-Factory scans this folder during discovery and prepares isolated worktrees here.
                 </span>
               </span>
             </div>
-            <input id="onboard-workspace-path" type="text" placeholder="e.g. ~/workspace/converso" class="form-input code-input">
+            <input id="onboard-workspace-path" type="text" placeholder="e.g. ~/projects or /Users/talhazuberi/projects" class="form-input code-input">
+            <div id="workspace-path-feedback" class="path-feedback-box"></div>
           </div>
         </div>
 
@@ -732,11 +742,12 @@
               </span>
             </div>
             <select id="onboard-tracker-connection" class="form-select">
-              <option value="azure">Azure DevOps</option>
+              <option value="azure">Azure DevOps (dev.azure.com)</option>
               <option value="github">GitHub Issues</option>
               <option value="jira">Jira Software</option>
             </select>
           </div>
+
           <div class="form-group">
             <div class="label-with-tooltip">
               <label for="onboard-tracker-project">Tracker Project / Board Key</label>
@@ -751,6 +762,57 @@
               </span>
             </div>
             <input id="onboard-tracker-project" type="text" placeholder="e.g. Converso (or owner/repo for GitHub)" class="form-input">
+          </div>
+
+          <!-- Azure Specific Tracker Settings -->
+          <div id="azure-tracker-fields" class="tracker-fields-group">
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <div class="label-with-tooltip">
+                <label for="onboard-azure-org-url-step2">Azure Organization URL</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure Organization URL">?
+                  <span class="tooltip-popover">
+                    <strong>Organization URL</strong>
+                    Azure DevOps web URL (e.g. <code>https://dev.azure.com/xynotech</code>).
+                  </span>
+                </span>
+              </div>
+              <input id="onboard-azure-org-url-step2" type="text" placeholder="https://dev.azure.com/xynotech" class="form-input code-input">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <div class="label-with-tooltip">
+                <label for="onboard-azure-pat-step2">Personal Access Token (PAT) — Optional with Azure CLI</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
+                  <span class="tooltip-popover">
+                    <strong>PAT or Azure CLI</strong>
+                    If logged in via <code>az login</code>, X-Factory authenticates automatically without requiring a PAT.
+                  </span>
+                </span>
+              </div>
+              <input id="onboard-azure-pat-step2" type="password" placeholder="Leave blank to use active Azure CLI session" class="form-input code-input">
+            </div>
+
+            <div id="azure-cli-detected-banner" class="info-banner" style="margin-bottom: 0.8rem;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <div>
+                <strong>Azure DevOps Authentication</strong><br>
+                Auto-authenticates via your active <code>az</code> CLI session (<code>talha.zuberi@xynotech.com</code>) or Personal Access Token.
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.8rem; margin-top: 1rem;">
+            <button id="btn-test-tracker-connection" class="btn-secondary btn-sm" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              <span>Test Connection</span>
+            </button>
+            <span id="tracker-test-status" class="tracker-test-status"></span>
           </div>
         </div>
 
@@ -884,11 +946,36 @@
         <!-- Step 6: Review & Final Save -->
         <div id="onboard-step-6" class="wizard-pane" hidden>
           <div class="review-summary-box">
-            <h3 id="review-summary-title">Review Project Configuration</h3>
-            <p class="text-muted">Verify the generated configuration before saving to <code>config/projects.json</code>.</p>
-            <div class="code-preview-container">
-              <pre id="review-json-preview"><code>{}</code></pre>
+            <h3 id="review-summary-title">Review Project Architecture</h3>
+            <p class="text-muted" style="margin-bottom: 1rem;">Verify the configuration and multi-repository workspace structure before saving.</p>
+
+            <div id="review-architecture-card" class="review-card-grid">
+              <!-- Rendered dynamically -->
             </div>
+
+            <div class="section-header-flex" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+              <h4 style="margin: 0; font-size: 0.9rem;">Configured Repositories (<span id="review-repo-count">0</span>)</h4>
+            </div>
+            <div id="review-repos-table-container" style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem;">
+              <table class="review-repos-table">
+                <thead>
+                  <tr>
+                    <th>Repository</th>
+                    <th>Role</th>
+                    <th>Local Path</th>
+                    <th>Verification</th>
+                  </tr>
+                </thead>
+                <tbody id="review-repos-tbody"></tbody>
+              </table>
+            </div>
+
+            <details style="margin-top: 1rem;">
+              <summary style="font-size: 0.8rem; color: var(--text-dim); cursor: pointer; user-select: none;">Raw JSON Configuration (projects.json)</summary>
+              <div class="code-preview-container">
+                <pre id="review-json-preview"><code>{}</code></pre>
+              </div>
+            </details>
           </div>
         </div>
 

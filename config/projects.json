@@ -17,12 +17,83 @@
             "test": "npm test"
           }
         }
-      ],
-      "knowledgeRepository": {
-        "repositoryId": "example-knowledge",
-        "path": "/path/to/your/project-knowledge",
-        "type": "graphify"
-      }
+      ]
+    },
+    {
+      "id": "converso",
+      "name": "Converso",
+      "workspacePath": "/Users/talhazuberi/projects",
+      "issueTracker": {
+        "connectionId": "azure",
+        "projectId": "Converso"
+      },
+      "repositories": [
+        {
+          "id": "f1c0daa8-127e-4dee-9f3b-48437d25163c",
+          "name": "Converso-Front-End",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Converso-Front-End",
+          "path": "/Users/talhazuberi/projects/Converso-Front-End",
+          "defaultBranch": "main",
+          "role": "frontend",
+          "commands": {
+            "test": "npm run test",
+            "typecheck": "npx tsc --noEmit"
+          }
+        },
+        {
+          "id": "78fa6843-963e-4c9e-aea1-9cf37189541d",
+          "name": "converso-portal",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/converso-portal",
+          "path": "/Users/talhazuberi/projects/converso-portal",
+          "defaultBranch": "main",
+          "role": "frontend"
+        },
+        {
+          "id": "564ae039-1d36-4822-a131-a6628194ed5b",
+          "name": "RBRE",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/RBRE",
+          "path": "/Users/talhazuberi/projects/RBRE",
+          "defaultBranch": "main",
+          "role": "other",
+          "commands": {
+            "test": "pytest",
+            "lint": "ruff check"
+          }
+        },
+        {
+          "id": "63d12798-14e2-412c-a006-b3ebd508c8eb",
+          "name": "Vendifai-pulse",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Vendifai-pulse",
+          "path": "/Users/talhazuberi/projects/Vendifai-pulse",
+          "defaultBranch": "main",
+          "role": "worker",
+          "commands": {
+            "test": "bundle exec rspec",
+            "lint": "bundle exec rubocop"
+          }
+        },
+        {
+          "id": "2ae6e24f-4ad8-4d78-90b6-b9f08048a01c",
+          "name": "Converso",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Converso",
+          "path": "/Users/talhazuberi/projects/Converso",
+          "defaultBranch": "main",
+          "role": "other",
+          "commands": {
+            "test": "pnpm run test",
+            "typecheck": "pnpm exec tsc --noEmit",
+            "lint": "pnpm run lint"
+          }
+        },
+        {
+          "id": "a215eb65-0c4b-4f97-b487-d85b65c623c9",
+          "name": "converso-infra",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/converso-infra",
+          "path": "/Users/talhazuberi/projects/converso-infra",
+          "defaultBranch": "main",
+          "role": "infrastructure"
+        }
+      ]
     }
   ]
 }

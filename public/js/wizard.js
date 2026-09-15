@@ -6,6 +6,7 @@ import { loadProjectsData, openProjectDetail } from "./projects.js";
 
 const onboardState = {
   step: 1,
+  maxStepReached: 1,
   name: "",
   id: "",
   workspacePath: "",
@@ -30,6 +31,7 @@ function setOnboardError(msg) {
 
 export function openOnboardModal() {
   onboardState.step = 1;
+  onboardState.maxStepReached = 1;
   onboardState.name = "";
   onboardState.id = "";
   onboardState.workspacePath = "";
@@ -39,30 +41,64 @@ export function openOnboardModal() {
   onboardState.selectedRepos.clear();
   onboardState.knowledgeRepoId = "";
 
+  const quickUrlInput = $("#onboard-quick-url");
+  const quickUrlFeedback = $("#quick-url-feedback");
   const nameInput = $("#onboard-proj-name");
   const idInput = $("#onboard-proj-id");
   const wsInput = $("#onboard-workspace-path");
+  const wsFeedback = $("#workspace-path-feedback");
   const trackerSel = $("#onboard-tracker-connection");
   const trackerProj = $("#onboard-tracker-project");
+  const azureOrgStep2 = $("#onboard-azure-org-url-step2");
+  const azurePatStep2 = $("#onboard-azure-pat-step2");
+  const trackerTestStatus = $("#tracker-test-status");
   const primInput = $("#onboard-primary-repo");
   const sourceSel = $("#onboard-discovery-source");
+  const azureOrgStep3 = $("#onboard-azure-org-url");
+  const azurePatStep3 = $("#onboard-azure-pat");
   const discoveryStatusText = $("#discovery-status-text");
   const onboardErrorBox = $("#onboard-error-box");
   const modalOnboard = $("#modal-project-onboarding");
 
-  if (nameInput) nameInput.value = "";
-  if (idInput) idInput.value = "";
+  if (quickUrlInput) quickUrlInput.value = "";
+  if (quickUrlFeedback) {
+    quickUrlFeedback.hidden = true;
+    quickUrlFeedback.innerHTML = "";
+  }
+  if (nameInput) {
+    nameInput.value = "";
+    delete nameInput.dataset.auto;
+  }
+  if (idInput) {
+    idInput.value = "";
+    delete idInput.dataset.manual;
+    delete idInput.dataset.auto;
+  }
   if (wsInput) wsInput.value = "";
+  if (wsFeedback) {
+    wsFeedback.innerHTML = "";
+    wsFeedback.className = "path-feedback-box";
+  }
   if (trackerSel) trackerSel.value = "azure";
   if (trackerProj) trackerProj.value = "";
+  if (azureOrgStep2) azureOrgStep2.value = "";
+  if (azurePatStep2) azurePatStep2.value = "";
+  if (trackerTestStatus) {
+    trackerTestStatus.textContent = "";
+    trackerTestStatus.className = "tracker-test-status";
+  }
   if (primInput) primInput.value = "";
-  if (sourceSel) sourceSel.value = "local";
+  if (sourceSel) sourceSel.value = "azure";
+  if (azureOrgStep3) azureOrgStep3.value = "";
+  if (azurePatStep3) azurePatStep3.value = "";
   if (discoveryStatusText) discoveryStatusText.textContent = "";
   if (onboardErrorBox) {
     onboardErrorBox.hidden = true;
     onboardErrorBox.textContent = "";
   }
 
+  updateTrackerFieldsVisibility();
+  updateDiscoveryFieldsVisibility();
   goToOnboardStep(1);
   if (modalOnboard) modalOnboard.hidden = false;
 }
@@ -72,12 +108,226 @@ function closeOnboardModal() {
   if (modalOnboard) modalOnboard.hidden = true;
 }
 
+function updateTrackerFieldsVisibility() {
+  const trackerSel = $("#onboard-tracker-connection");
+  const azureTrackerFields = $("#azure-tracker-fields");
+  const val = trackerSel ? trackerSel.value : "azure";
+  if (azureTrackerFields) {
+    azureTrackerFields.style.display = val === "azure" ? "block" : "none";
+  }
+}
+
 function updateDiscoveryFieldsVisibility() {
   const azureDiscoveryFields = $("#azure-discovery-fields");
   const onboardDiscoverySource = $("#onboard-discovery-source");
   if (!azureDiscoveryFields) return;
   const val = onboardDiscoverySource ? onboardDiscoverySource.value : "local";
   azureDiscoveryFields.style.display = val === "azure" ? "block" : "none";
+}
+
+let pathCheckTimeout = null;
+async function checkWorkspacePath(path) {
+  const box = $("#workspace-path-feedback");
+  if (!box) return;
+  const trimmed = (path || "").trim();
+  if (!trimmed) {
+    box.innerHTML = "";
+    box.className = "path-feedback-box";
+    return;
+  }
+
+  box.className = "path-feedback-box checking";
+  box.innerHTML = `<span style="opacity: 0.75;">Verifying local folder…</span>`;
+
+  try {
+    const data = await api("POST", "/projects/check-path", { path: trimmed });
+    if (data.exists) {
+      box.className = "path-feedback-box valid";
+      let badge = "";
+      const repoList = data.gitRepos || [];
+      const repoCount = data.gitRepoCount ?? repoList.length;
+      if (data.isGitRepo) {
+        badge = `<span class="badge" style="background: rgba(16,185,129,0.2); color:#10b981; margin-left: 0.4rem; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Git Repository</span>`;
+      } else if (repoCount > 0) {
+        const topRepos = repoList.slice(0, 3).join(", ") + (repoCount > 3 ? ` +${repoCount - 3} more` : "");
+        badge = `<span class="badge" style="background: rgba(59,130,246,0.2); color:#60a5fa; margin-left: 0.4rem; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${repoCount} repos found (${escapeHtml(topRepos)})</span>`;
+      }
+      box.innerHTML = `✓ Directory verified: <code>${escapeHtml(data.resolvedPath)}</code> ${badge}`;
+    } else {
+      box.className = "path-feedback-box warning";
+      box.innerHTML = `<span>⚠ Directory does not exist yet locally. Will be used for worktrees and checkouts.</span>`;
+    }
+  } catch (err) {
+    box.className = "path-feedback-box error";
+    box.innerHTML = `<span>✗ Error checking path: ${escapeHtml(err instanceof Error ? err.message : String(err))}</span>`;
+  }
+}
+
+function autoPopulateBasics(projectName) {
+  const nameInput = $("#onboard-proj-name");
+  const idInput = $("#onboard-proj-id");
+  const wsInput = $("#onboard-workspace-path");
+
+  if (nameInput && (!nameInput.value || nameInput.dataset.auto)) {
+    nameInput.value = projectName;
+    nameInput.dataset.auto = "true";
+  }
+  if (idInput && (!idInput.value || idInput.dataset.auto)) {
+    idInput.value = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    idInput.dataset.auto = "true";
+  }
+  if (wsInput && !wsInput.value) {
+    wsInput.value = "/Users/talhazuberi/projects";
+    checkWorkspacePath(wsInput.value);
+  }
+}
+
+function handleQuickUrlInput(e) {
+  const val = (e.target.value || "").trim();
+  const feedback = $("#quick-url-feedback");
+  if (!val) {
+    if (feedback) {
+      feedback.hidden = true;
+      feedback.innerHTML = "";
+    }
+    return;
+  }
+
+  // Azure DevOps pattern: dev.azure.com/org/project or https://dev.azure.com/org/project or org.visualstudio.com/project
+  const azureRegex = /^(?:https?:\/\/)?(?:dev\.azure\.com\/([^/]+)\/([^/]+)|([^.]+)\.visualstudio\.com\/([^/]+))/i;
+  const azureMatch = val.match(azureRegex);
+
+  // GitHub pattern: github.com/owner/repo or https://github.com/owner/repo
+  const ghRegex = /^(?:https?:\/\/)?github\.com\/([^/]+)\/([^/]+)/i;
+  const ghMatch = val.match(ghRegex);
+
+  if (azureMatch) {
+    const org = azureMatch[1] || azureMatch[3];
+    const project = decodeURIComponent((azureMatch[2] || azureMatch[4]).replace(/\.git$/, ""));
+    const orgUrl = `https://dev.azure.com/${org}`;
+
+    // Step 1: populate Project Name & ID & Workspace Path
+    autoPopulateBasics(project);
+
+    // Step 2: populate Tracker
+    const trackerSel = $("#onboard-tracker-connection");
+    const trackerProj = $("#onboard-tracker-project");
+    const azureOrgStep2 = $("#onboard-azure-org-url-step2");
+    if (trackerSel) trackerSel.value = "azure";
+    if (trackerProj) trackerProj.value = project;
+    if (azureOrgStep2) azureOrgStep2.value = orgUrl;
+    updateTrackerFieldsVisibility();
+
+    // Step 3: populate Discovery
+    const primInput = $("#onboard-primary-repo");
+    const sourceSel = $("#onboard-discovery-source");
+    const azureOrgStep3 = $("#onboard-azure-org-url");
+    if (primInput) primInput.value = project;
+    if (sourceSel) sourceSel.value = "azure";
+    if (azureOrgStep3) azureOrgStep3.value = orgUrl;
+    updateDiscoveryFieldsVisibility();
+
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.className = "quick-url-feedback quick-url-success";
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <strong style="color: #10b981;">✓ Azure DevOps Detected:</strong>
+            <span style="margin-left: 0.4rem;">Organization: <code>${escapeHtml(org)}</code></span>
+            <span style="margin-left: 0.4rem;">Project: <code>${escapeHtml(project)}</code></span>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-dim);">Fields auto-populated across steps 1–3</span>
+        </div>
+      `;
+    }
+  } else if (ghMatch) {
+    const owner = ghMatch[1];
+    const repo = decodeURIComponent(ghMatch[2].replace(/\.git$/, ""));
+
+    autoPopulateBasics(repo);
+
+    const trackerSel = $("#onboard-tracker-connection");
+    const trackerProj = $("#onboard-tracker-project");
+    if (trackerSel) trackerSel.value = "github";
+    if (trackerProj) trackerProj.value = `${owner}/${repo}`;
+    updateTrackerFieldsVisibility();
+
+    const primInput = $("#onboard-primary-repo");
+    const sourceSel = $("#onboard-discovery-source");
+    if (primInput) primInput.value = repo;
+    if (sourceSel) sourceSel.value = "github";
+    updateDiscoveryFieldsVisibility();
+
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.className = "quick-url-feedback quick-url-success";
+      feedback.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <strong style="color: #10b981;">✓ GitHub Detected:</strong>
+            <span style="margin-left: 0.4rem;">Repository: <code>${escapeHtml(owner)}/${escapeHtml(repo)}</code></span>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-dim);">Fields auto-populated</span>
+        </div>
+      `;
+    }
+  } else {
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.className = "quick-url-feedback quick-url-tip";
+      feedback.innerHTML = `<span>Tip: Enter a valid Azure DevOps project URL (e.g. <code>dev.azure.com/xynotech/Converso</code>) or GitHub URL.</span>`;
+    }
+  }
+}
+
+async function handleTestTrackerConnection() {
+  const status = $("#tracker-test-status");
+  const btn = $("#btn-test-tracker-connection");
+  const tracker = getVal("onboard-tracker-connection", "azure");
+  const project = getVal("onboard-tracker-project", "");
+  const orgUrl = getVal("onboard-azure-org-url-step2", getVal("onboard-azure-org-url", ""));
+  const pat = getVal("onboard-azure-pat-step2", getVal("onboard-azure-pat", ""));
+
+  if (status) {
+    status.className = "tracker-test-status checking";
+    status.textContent = "Testing connection…";
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const data = await api("POST", "/projects/test-connection", {
+      provider: tracker,
+      project,
+      orgUrl,
+      pat,
+    });
+
+    if (data.ok || data.connected) {
+      if (status) {
+        status.className = "tracker-test-status success";
+        const auth = data.authMethod || "Active Session";
+        const count = data.repoCount ?? data.repositoryCount ?? (data.repositories ? data.repositories.length : 0);
+        status.textContent = data.message || `✓ Connected (${auth})! Found ${count} repositories in ${escapeHtml(data.project || project)}.`;
+      }
+      if (data.repositories && data.repositories.length > 0 && onboardState.discovered.length === 0) {
+        // Pre-normalize repositories
+        onboardState.discovered = data.repositories.map((r) => typeof r === "string" ? { name: r, id: r, defaultBranch: "main" } : r);
+      }
+    } else {
+      if (status) {
+        status.className = "tracker-test-status error";
+        status.textContent = `✗ Connection failed: ${data.error || data.message || "Unable to reach provider"}`;
+      }
+    }
+  } catch (err) {
+    if (status) {
+      status.className = "tracker-test-status error";
+      status.textContent = `✗ Error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function populateKnowledgeDropdown(repos) {
@@ -108,10 +358,13 @@ function createDiscoveredRepoItem(r, isPrimary) {
   item.className = `repo-check-item ${isSelected ? "selected" : ""}`;
   item.innerHTML = `
     <div class="repo-check-left">
+      <button type="button" class="primary-star-btn ${isPrimary ? "starred" : ""}" data-repo="${escapeHtml(r.name)}" title="${isPrimary ? "Primary Repository (Ticket anchor)" : "Click to designate as Primary Repository"}">
+        ${isPrimary ? "★" : "☆"}
+      </button>
       <input type="checkbox" id="chk-${escapeHtml(r.name)}" ${isSelected ? "checked" : ""}>
       <label for="chk-${escapeHtml(r.name)}" style="cursor: pointer; margin: 0; font-weight: 500;">
         ${escapeHtml(r.name)}
-        ${isPrimary ? '<span class="primary-badge" style="margin-left: 0.4rem;">Primary</span>' : ""}
+        ${isPrimary ? '<span class="primary-badge" style="margin-left: 0.4rem;">★ Primary</span>' : ""}
       </label>
     </div>
     <div class="repo-check-meta">
@@ -127,6 +380,26 @@ function createDiscoveredRepoItem(r, isPrimary) {
       </select>
     </div>
   `;
+
+  // Star button listener to toggle primary repo
+  const starBtn = item.querySelector(".primary-star-btn");
+  starBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onboardState.primaryRepo = r.name;
+    const primInput = $("#onboard-primary-repo");
+    if (primInput) primInput.value = r.name;
+
+    // Auto-select repo if not selected
+    if (!onboardState.selectedRepos.has(r.name)) {
+      onboardState.selectedRepos.set(r.name, {
+        ...r,
+        role: item.querySelector(".repo-role-dropdown")?.value || "other",
+        isPrimary: true,
+      });
+    }
+
+    renderDiscoveredRepos();
+  });
 
   const chk = item.querySelector(`input[type="checkbox"]`);
   chk?.addEventListener("change", (e) => {
@@ -370,21 +643,82 @@ function buildProjectConfigFromWizard() {
 }
 
 function renderReviewStep() {
-  const reviewJsonPreview = $("#review-json-preview");
   const config = buildProjectConfigFromWizard();
+  const reviewJsonPreview = $("#review-json-preview");
   if (reviewJsonPreview) {
     reviewJsonPreview.textContent = JSON.stringify(config, null, 2);
+  }
+
+  // Render Architecture Card Grid
+  const archCard = $("#review-architecture-card");
+  if (archCard) {
+    const trackerName = config.issueTracker?.connectionId === "azure"
+      ? "Azure DevOps"
+      : (config.issueTracker?.connectionId === "github" ? "GitHub Issues" : "Jira");
+    const primaryName = onboardState.primaryRepo || config.repositories[0]?.name || "None specified";
+    const kName = config.knowledgeRepository?.repositoryId || "None (Disabled)";
+
+    archCard.innerHTML = `
+      <div class="review-card-item">
+        <div class="review-card-label">Project Workspace</div>
+        <div class="review-card-value">${escapeHtml(config.name)}</div>
+        <div class="review-card-sub">ID: <code>${escapeHtml(config.id)}</code><br>Path: <code>${escapeHtml(config.workspacePath || "None")}</code></div>
+      </div>
+      <div class="review-card-item">
+        <div class="review-card-label">Issue Tracker</div>
+        <div class="review-card-value">${escapeHtml(trackerName)}</div>
+        <div class="review-card-sub">Project: <strong>${escapeHtml(config.issueTracker?.projectId || "Default")}</strong><br>Auth: Active Session</div>
+      </div>
+      <div class="review-card-item">
+        <div class="review-card-label">Multi-Repo Setup</div>
+        <div class="review-card-value">${config.repositories.length} Repositories</div>
+        <div class="review-card-sub">Primary: <strong>${escapeHtml(primaryName)}</strong><br>Knowledge: <strong>${escapeHtml(kName)}</strong></div>
+      </div>
+      <div class="review-card-item">
+        <div class="review-card-label">Worktree Isolation</div>
+        <div class="review-card-value">Autonomous</div>
+        <div class="review-card-sub">Isolated branches per ticket<br>Auto-verification active</div>
+      </div>
+    `;
+  }
+
+  // Render Repositories Summary Table
+  const countLabel = $("#review-repo-count");
+  if (countLabel) countLabel.textContent = String(config.repositories.length);
+
+  const tbody = $("#review-repos-tbody");
+  if (tbody) {
+    tbody.innerHTML = "";
+    for (const r of config.repositories) {
+      const isPrimary = (r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase());
+      const tr = document.createElement("tr");
+      const testCmd = r.commands?.test ? `<code>${escapeHtml(r.commands.test)}</code>` : '<span style="color: var(--text-dim);">None</span>';
+      tr.innerHTML = `
+        <td>
+          <strong style="color: var(--text-bright);">${escapeHtml(r.name)}</strong>
+          ${isPrimary ? '<span class="primary-badge" style="margin-left: 0.4rem;">★ Primary</span>' : ""}
+        </td>
+        <td><span class="role-badge">${escapeHtml(r.role || "other")}</span></td>
+        <td><code style="font-size: 0.76rem;">${escapeHtml(r.path)}</code></td>
+        <td style="font-size: 0.78rem;">Test: ${testCmd}</td>
+      `;
+      tbody.appendChild(tr);
+    }
   }
 }
 
 function goToOnboardStep(step) {
   setOnboardError("");
   onboardState.step = step;
+  if (step > (onboardState.maxStepReached || 1)) {
+    onboardState.maxStepReached = step;
+  }
 
   $$(".step-indicator").forEach((el) => {
     const s = parseInt(el.getAttribute("data-step") || "1", 10);
     el.classList.toggle("active", s === step);
     el.classList.toggle("completed", s < step);
+    el.style.cursor = (s <= onboardState.maxStepReached) ? "pointer" : "default";
   });
 
   for (let i = 1; i <= 6; i++) {
@@ -406,7 +740,9 @@ function goToOnboardStep(step) {
     btnOnboardSave.style.display = step === 6 ? "inline-flex" : "none";
   }
 
-  if (step === 3) {
+  if (step === 2) {
+    updateTrackerFieldsVisibility();
+  } else if (step === 3) {
     updateDiscoveryFieldsVisibility();
   } else if (step === 4) {
     renderDiscoveredRepos();
@@ -423,10 +759,12 @@ const ROLE_KEYWORDS = [
   ["front", "frontend"],
   ["web", "frontend"],
   ["ui", "frontend"],
+  ["portal", "frontend"],
   ["api", "backend"],
   ["backend", "backend"],
   ["server", "backend"],
   ["worker", "worker"],
+  ["pulse", "worker"],
   ["infra", "infrastructure"],
 ];
 
@@ -442,8 +780,8 @@ async function handleRunDiscovery() {
   const trackerProj = getVal("onboard-tracker-project", "");
   const primRepo = getVal("onboard-primary-repo", "");
   const wsPath = getVal("onboard-workspace-path", "");
-  const azureOrgUrl = getVal("onboard-azure-org-url", "").trim();
-  const azurePat = getVal("onboard-azure-pat", "").trim();
+  const azureOrgUrl = getVal("onboard-azure-org-url", getVal("onboard-azure-org-url-step2", "")).trim();
+  const azurePat = getVal("onboard-azure-pat", getVal("onboard-azure-pat-step2", "")).trim();
   const discoveryStatusText = $("#discovery-status-text");
   const btnRunDiscovery = $("#btn-run-discovery");
 
@@ -458,12 +796,14 @@ async function handleRunDiscovery() {
       workspacePath: wsPath,
       primaryRepo: primRepo,
       orgUrl: azureOrgUrl,
-      pat: azurePat,
+      pat: azurePat || undefined,
     });
 
     const repos = data.repositories || [];
     onboardState.discovered = repos;
-    onboardState.primaryRepo = primRepo;
+    if (primRepo && !onboardState.primaryRepo) {
+      onboardState.primaryRepo = primRepo;
+    }
 
     onboardState.selectedRepos.clear();
     for (const r of repos) {
@@ -533,10 +873,11 @@ function handleTrackerConnChange(e) {
     if (onboardTrackerHint) onboardTrackerHint.textContent = "GitHub repository owner/repo or organization name.";
     if (sourceSel) sourceSel.value = "github";
   } else {
-    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. VendifAI (Azure DevOps Project)";
+    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. Converso (Azure DevOps Project)";
     if (onboardTrackerHint) onboardTrackerHint.textContent = "Azure DevOps project name (used with WIQL queries).";
     if (sourceSel) sourceSel.value = "azure";
   }
+  updateTrackerFieldsVisibility();
   updateDiscoveryFieldsVisibility();
 }
 
@@ -593,6 +934,43 @@ async function handleOnboardSave() {
 }
 
 export function initWizard() {
+  // Quick URL auto-detection
+  const quickUrlInput = $("#onboard-quick-url");
+  if (quickUrlInput) {
+    quickUrlInput.addEventListener("input", handleQuickUrlInput);
+    quickUrlInput.addEventListener("paste", () => setTimeout(() => handleQuickUrlInput({ target: quickUrlInput }), 50));
+  }
+
+  // Workspace path verification
+  const wsInput = $("#onboard-workspace-path");
+  if (wsInput) {
+    wsInput.addEventListener("input", (e) => {
+      clearTimeout(pathCheckTimeout);
+      pathCheckTimeout = setTimeout(() => checkWorkspacePath(e.target.value), 350);
+    });
+  }
+
+  // Sync Azure fields between Step 2 and Step 3
+  const orgStep2 = $("#onboard-azure-org-url-step2");
+  const orgStep3 = $("#onboard-azure-org-url");
+  if (orgStep2 && orgStep3) {
+    orgStep2.addEventListener("input", () => { orgStep3.value = orgStep2.value; });
+    orgStep3.addEventListener("input", () => { orgStep2.value = orgStep3.value; });
+  }
+
+  const patStep2 = $("#onboard-azure-pat-step2");
+  const patStep3 = $("#onboard-azure-pat");
+  if (patStep2 && patStep3) {
+    patStep2.addEventListener("input", () => { patStep3.value = patStep2.value; });
+    patStep3.addEventListener("input", () => { patStep2.value = patStep3.value; });
+  }
+
+  // Tracker test connection button
+  const btnTestConn = $("#btn-test-tracker-connection");
+  if (btnTestConn) {
+    btnTestConn.addEventListener("click", handleTestTrackerConnection);
+  }
+
   const onboardNameInput = $("#onboard-proj-name");
   const onboardIdInput = $("#onboard-proj-id");
   if (onboardNameInput && onboardIdInput) {
@@ -677,6 +1055,16 @@ export function initWizard() {
       renderDiscoveredRepos();
     });
   }
+
+  // Stepper navigation clickability
+  $$(".step-indicator").forEach((el) => {
+    el.addEventListener("click", () => {
+      const s = parseInt(el.getAttribute("data-step") || "1", 10);
+      if (s <= (onboardState.maxStepReached || 1) || s < onboardState.step) {
+        goToOnboardStep(s);
+      }
+    });
+  });
 
   const btnOpenOnboardModal = $("#btn-open-onboard-modal");
   if (btnOpenOnboardModal) {

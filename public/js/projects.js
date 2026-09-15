@@ -93,6 +93,13 @@ export function renderProjectsList() {
 
 export async function openProjectDetail(projectId) {
   state.activeDetailProjectId = projectId;
+  window.location.hash = "#/projects";
+  const selectProject = $("#select-project");
+  if (selectProject) {
+    selectProject.value = projectId;
+    updateKnowledgeStatus(projectId);
+  }
+
   const projectsListView = $("#projects-list-view");
   const projectsDetailView = $("#projects-detail-view");
   const projectDetailName = $("#project-detail-name");
