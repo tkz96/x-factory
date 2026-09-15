@@ -6,12 +6,8 @@ import { defaultEventBus } from "./events.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { executeDeliverStage, runWorkflow } from "./pipeline.js";
-import { canTransition, TRANSITIONS } from "./state-machine.js";
 import { defaultRunStore, type InternalRun } from "./store.js";
 import type { Project, PullRequest, Run, RunEvent, Ticket } from "./types.js";
-
-// Re-export state machine for backward compatibility
-export { canTransition, TRANSITIONS };
 
 const runStore = defaultRunStore;
 const eventBus = defaultEventBus;

@@ -247,8 +247,8 @@ describe("Azure DevOps Connection Testing (src/azure/connection.ts)", () => {
 
     it("successfully connects and lists repositories with valid credentials", async () => {
       globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
-        const headers = init?.headers as Record<string, string>;
-        assert.ok(headers.Authorization.startsWith("Basic "));
+        const headers = init?.headers as Record<string, string> | undefined;
+        assert.ok(headers?.Authorization?.startsWith("Basic "));
         return new Response(
           JSON.stringify({
             value: [

@@ -5,40 +5,40 @@ import os from "node:os";
 import path from "node:path";
 
 export interface GitHubConfig {
-  token?: string;
-  repo?: string;
+  token?: string | undefined;
+  repo?: string | undefined;
 }
 
 export interface JiraConfig {
-  host?: string;
-  email?: string;
-  token?: string;
-  project?: string;
+  host?: string | undefined;
+  email?: string | undefined;
+  token?: string | undefined;
+  project?: string | undefined;
 }
 
 export interface AzureConfig {
-  orgUrl?: string;
-  project?: string;
-  pat?: string;
+  orgUrl?: string | undefined;
+  project?: string | undefined;
+  pat?: string | undefined;
 }
 
 export interface ModelStageConfig {
-  provider?: string;
-  model?: string;
+  provider?: string | undefined;
+  model?: string | undefined;
 }
 
 export interface ModelConfig {
-  sessionA?: ModelStageConfig;
-  sessionB?: ModelStageConfig;
+  sessionA?: ModelStageConfig | undefined;
+  sessionB?: ModelStageConfig | undefined;
 }
 
 export interface FactorySettings {
   activeTracker: "github" | "jira" | "azure";
-  theme?: "dark" | "light";
-  github?: GitHubConfig;
-  jira?: JiraConfig;
-  azure?: AzureConfig;
-  models?: ModelConfig;
+  theme?: ("dark" | "light") | undefined;
+  github?: GitHubConfig | undefined;
+  jira?: JiraConfig | undefined;
+  azure?: AzureConfig | undefined;
+  models?: ModelConfig | undefined;
 }
 
 const DEFAULT_SETTINGS: FactorySettings = {

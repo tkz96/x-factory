@@ -57,8 +57,8 @@ describe("Project Configuration & Migration", () => {
     const p = validateProject(raw);
     assert.equal(p.id, "vendifai");
     assert.equal(p.repositories.length, 2);
-    assert.equal(p.repositories[0].role, "frontend");
-    assert.equal(p.repositories[1].role, "backend");
+    assert.equal(p.repositories[0]?.role, "frontend");
+    assert.equal(p.repositories[1]?.role, "backend");
     assert.equal(p.knowledgeRepository?.type, "graphify");
 
     // Backwards-compatibility fields match primary repository
@@ -83,6 +83,7 @@ describe("Project Configuration & Migration", () => {
     assert.equal(p.id, "legacy-app");
     assert.equal(p.repositories.length, 1);
     const repo = p.repositories[0];
+    assert.ok(repo);
     assert.equal(repo.id, "legacy-app-primary");
     assert.equal(repo.path, path.resolve("/code/legacy"));
     assert.equal(repo.defaultBranch, "master");
@@ -145,7 +146,7 @@ describe("Project Configuration & Migration", () => {
 
       const loaded = await loadProjects(configPath);
       assert.equal(loaded.length, 1);
-      assert.equal(loaded[0].id, "existing-proj");
+      assert.equal(loaded[0]?.id, "existing-proj");
 
       // Save a second project
       await saveProject(
@@ -172,7 +173,7 @@ describe("Project Configuration & Migration", () => {
       await deleteProject("existing-proj", configPath);
       const afterDelete = await loadProjects(configPath);
       assert.equal(afterDelete.length, 1);
-      assert.equal(afterDelete[0].id, "second-proj");
+      assert.equal(afterDelete[0]?.id, "second-proj");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

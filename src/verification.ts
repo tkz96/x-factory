@@ -14,7 +14,7 @@ export const MAX_REPAIR_ATTEMPTS = 3;
 async function runOptionalCommand(
   cmd: string | undefined,
   cwd: string,
-  timeoutMs?: number,
+  timeoutMs?: number | undefined,
 ): Promise<CommandResult | undefined> {
   if (!cmd) return undefined;
   return execCommand("sh", ["-c", cmd], { cwd, timeoutMs });

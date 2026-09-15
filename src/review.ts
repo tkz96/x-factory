@@ -25,20 +25,20 @@ export interface ReviewContext {
   verification: VerificationResult;
   onEvent?: (event: {
     type: string;
-    text?: string;
-    tool?: string;
-    error?: string;
+    text?: string | undefined;
+    tool?: string | undefined;
+    error?: string | undefined;
   }) => void;
-  modelConfig?: SessionOptions;
+  modelConfig?: SessionOptions | undefined;
 }
 
 function attachReviewListeners(
   session: PiAgentSession,
   onEvent?: (event: {
     type: string;
-    text?: string;
-    tool?: string;
-    error?: string;
+    text?: string | undefined;
+    tool?: string | undefined;
+    error?: string | undefined;
   }) => void,
 ): () => string {
   let fullOutput = "";
@@ -167,6 +167,7 @@ ${diff.slice(0, 30_000)}
 4. Report your assessment.
 
 Format your response clearly:
+
 CRITERIA_CHECK:
 - [PASS|FAIL] <criterion description>
 
@@ -179,7 +180,7 @@ VERDICT:
 
 export function parseFindingLine(trimmed: string): Finding | null {
   const match = trimmed.match(/^-\s*\[(ERROR|WARNING|INFO)\]\s*(.+)/i);
-  if (!match) return null;
+  if (!match?.[1] || !match[2]) return null;
   return {
     severity: match[1].toLowerCase() as "info" | "warning" | "error",
     message: match[2].trim(),
@@ -190,7 +191,7 @@ export function parseCriteriaLine(
   trimmed: string,
 ): { criterion: string; satisfied: boolean } | null {
   const match = trimmed.match(/^-\s*\[(PASS|FAIL)\]\s*(.+)/i);
-  if (!match) return null;
+  if (!match?.[1] || !match[2]) return null;
   return {
     satisfied: match[1].toUpperCase() === "PASS",
     criterion: match[2].trim(),
@@ -202,14 +203,14 @@ export function extractReviewItems(output: string): {
   criteriaChecked: Array<{
     criterion: string;
     satisfied: boolean;
-    notes?: string;
+    notes?: string | undefined;
   }>;
 } {
   const findings: Finding[] = [];
   const criteriaChecked: Array<{
     criterion: string;
     satisfied: boolean;
-    notes?: string;
+    notes?: string | undefined;
   }> = [];
 
   for (const line of output.split("\n")) {
@@ -233,7 +234,7 @@ export function evaluateReviewVerdict(
   criteriaChecked: Array<{
     criterion: string;
     satisfied: boolean;
-    notes?: string;
+    notes?: string | undefined;
   }>,
   output: string,
 ): { passed: boolean; summary: string } {

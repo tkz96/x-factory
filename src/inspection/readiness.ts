@@ -21,16 +21,18 @@ interface RepositoryInspectionResult {
   path: string;
   exists: boolean;
   isGitRepo: boolean;
-  remote?: string;
-  defaultBranch?: string;
-  role?: RepositoryRole;
+  remote?: string | undefined;
+  defaultBranch?: string | undefined;
+  role?: RepositoryRole | undefined;
   detectedCommands: RepositoryCommands;
   detectedTooling: string[];
 }
 
-async function resolveGitInfo(
-  dir: string,
-): Promise<{ isGit: boolean; remote?: string; defaultBranch?: string }> {
+async function resolveGitInfo(dir: string): Promise<{
+  isGit: boolean;
+  remote?: string | undefined;
+  defaultBranch?: string | undefined;
+}> {
   const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], {
     cwd: dir,
   });

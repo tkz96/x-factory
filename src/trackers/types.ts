@@ -14,20 +14,20 @@ export interface TrackerTicket extends Ticket {
 }
 
 export interface TrackerOptions {
-  provider?: TrackerProvider;
-  requiredLabel?: string;
+  provider?: TrackerProvider | undefined;
+  requiredLabel?: string | undefined;
   // GitHub
-  githubRepo?: string;
-  githubToken?: string;
+  githubRepo?: string | undefined;
+  githubToken?: string | undefined;
   // Jira
-  jiraHost?: string;
-  jiraEmail?: string;
-  jiraToken?: string;
-  jiraProject?: string;
+  jiraHost?: string | undefined;
+  jiraEmail?: string | undefined;
+  jiraToken?: string | undefined;
+  jiraProject?: string | undefined;
   // Azure DevOps
-  azureOrgUrl?: string;
-  azureProject?: string;
-  azurePat?: string;
+  azureOrgUrl?: string | undefined;
+  azureProject?: string | undefined;
+  azurePat?: string | undefined;
 }
 
 export function hasRequiredLabel(

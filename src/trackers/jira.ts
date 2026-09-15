@@ -16,8 +16,8 @@ export async function fetchJiraTickets(options: {
   host: string;
   email: string;
   token: string;
-  project?: string;
-  requiredLabel?: string;
+  project?: string | undefined;
+  requiredLabel?: string | undefined;
 }): Promise<TrackerTicket[]> {
   const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
   const cleanHost = options.host

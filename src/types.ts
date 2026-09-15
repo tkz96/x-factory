@@ -43,10 +43,10 @@ export type RepositoryRole =
  * Repository-specific build and test verification commands.
  */
 export interface RepositoryCommands {
-  test?: string;
-  typecheck?: string;
-  lint?: string;
-  build?: string;
+  test?: string | undefined;
+  typecheck?: string | undefined;
+  lint?: string | undefined;
+  build?: string | undefined;
 }
 
 /**
@@ -55,11 +55,11 @@ export interface RepositoryCommands {
 export interface ProjectRepository {
   id: string;
   name: string;
-  remote?: string;
+  remote?: string | undefined;
   path: string;
   defaultBranch: string;
-  role?: RepositoryRole;
-  commands?: RepositoryCommands;
+  role?: RepositoryRole | undefined;
+  commands?: RepositoryCommands | undefined;
 }
 
 /**
@@ -76,7 +76,7 @@ export interface KnowledgeRepository {
  */
 export interface ProjectIssueTracker {
   connectionId: "azure" | "jira" | "github" | string;
-  projectId?: string;
+  projectId?: string | undefined;
 }
 
 /**
@@ -102,7 +102,7 @@ export interface ProjectReadiness {
   readyCount: number;
   totalCount: number;
   repositories: RepositoryReadiness[];
-  knowledgeReady?: boolean;
+  knowledgeReady?: boolean | undefined;
   issues: string[];
 }
 
@@ -112,19 +112,19 @@ export interface ProjectReadiness {
 export interface Project {
   id: string;
   name: string;
-  workspacePath?: string;
+  workspacePath?: string | undefined;
   issueTracker: ProjectIssueTracker;
   repositories: ProjectRepository[];
-  knowledgeRepository?: KnowledgeRepository;
-  commandTimeoutMs?: number;
+  knowledgeRepository?: KnowledgeRepository | undefined;
+  commandTimeoutMs?: number | undefined;
 
   // Backwards-compatibility fields for single-repository operations
   repositoryPath: string;
   defaultBranch: string;
   testCommand: string;
-  typecheckCommand?: string;
-  lintCommand?: string;
-  knowledgeRepositoryPath?: string;
+  typecheckCommand?: string | undefined;
+  lintCommand?: string | undefined;
+  knowledgeRepositoryPath?: string | undefined;
 }
 
 /**
@@ -133,7 +133,7 @@ export interface Project {
 export interface Ticket {
   id: string;
   title: string;
-  description?: string;
+  description?: string | undefined;
   acceptanceCriteria: string[];
 }
 
@@ -167,12 +167,12 @@ export interface VerificationResult {
   passed: boolean;
   repairAttempt: number;
   tests: CommandResult;
-  typecheck?: CommandResult;
-  lint?: CommandResult;
+  typecheck?: CommandResult | undefined;
+  lint?: CommandResult | undefined;
   diff: string;
   filesChanged: string[];
   hasPollution: boolean;
-  pollutionDetails?: string[];
+  pollutionDetails?: string[] | undefined;
   summary: string;
 }
 
@@ -182,8 +182,8 @@ export interface VerificationResult {
 export interface Finding {
   severity: "info" | "warning" | "error";
   message: string;
-  file?: string;
-  line?: number;
+  file?: string | undefined;
+  line?: number | undefined;
 }
 
 /**
@@ -195,7 +195,7 @@ export interface ReviewResult {
   criteriaChecked: Array<{
     criterion: string;
     satisfied: boolean;
-    notes?: string;
+    notes?: string | undefined;
   }>;
   summary: string;
 }
@@ -240,7 +240,7 @@ export type RunEventPayload =
   | {
       type: "pi_tool";
       tool: string;
-      input?: string;
+      input?: string | undefined;
       role: "implementer" | "reviewer";
     }
   | { type: "pi_done"; role: "implementer" | "reviewer" }

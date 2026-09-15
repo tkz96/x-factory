@@ -10,7 +10,7 @@ import {
   parseAdfToText,
   REQUIRED_WORKFLOW_LABEL,
   stripHtml,
-} from "../src/trackers.js";
+} from "../src/trackers/index.js";
 
 describe("Acceptance Criteria Extraction", () => {
   test("extracts criteria under dedicated header", () => {
@@ -158,14 +158,17 @@ describe("GitHub Tracker (REST API)", () => {
       });
 
       expect(tickets.length).toBe(1);
-      expect(tickets[0].id).toBe("GH-42");
-      expect(tickets[0].title).toBe("Add rate limiting");
-      expect(tickets[0].provider).toBe("github");
-      expect(tickets[0].acceptanceCriteria).toEqual([
+      const ticket = tickets[0];
+      expect(ticket).toBeDefined();
+      if (!ticket) return;
+      expect(ticket.id).toBe("GH-42");
+      expect(ticket.title).toBe("Add rate limiting");
+      expect(ticket.provider).toBe("github");
+      expect(ticket.acceptanceCriteria).toEqual([
         "Max 10 requests per minute",
         "Return Retry-After header",
       ]);
-      expect(tickets[0].labels).toContain("agentic-workflow");
+      expect(ticket.labels).toContain("agentic-workflow");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -203,10 +206,13 @@ describe("Jira Tracker (REST v3)", () => {
       });
 
       expect(tickets.length).toBe(1);
-      expect(tickets[0].id).toBe("PROJ-101");
-      expect(tickets[0].title).toBe("Add webhook retry mechanism");
-      expect(tickets[0].provider).toBe("jira");
-      expect(tickets[0].acceptanceCriteria).toEqual([
+      const ticket = tickets[0];
+      expect(ticket).toBeDefined();
+      if (!ticket) return;
+      expect(ticket.id).toBe("PROJ-101");
+      expect(ticket.title).toBe("Add webhook retry mechanism");
+      expect(ticket.provider).toBe("jira");
+      expect(ticket.acceptanceCriteria).toEqual([
         "Exponential backoff up to 5 attempts",
         "Store dead letters in SQS",
       ]);
@@ -265,14 +271,17 @@ describe("Azure DevOps Tracker (WIQL)", () => {
       });
 
       expect(tickets.length).toBe(1);
-      expect(tickets[0].id).toBe("AZ-501");
-      expect(tickets[0].title).toBe("Migrate auth to OAuth2");
-      expect(tickets[0].provider).toBe("azure");
-      expect(tickets[0].acceptanceCriteria).toEqual([
+      const ticket = tickets[0];
+      expect(ticket).toBeDefined();
+      if (!ticket) return;
+      expect(ticket.id).toBe("AZ-501");
+      expect(ticket.title).toBe("Migrate auth to OAuth2");
+      expect(ticket.provider).toBe("azure");
+      expect(ticket.acceptanceCriteria).toEqual([
         "Support PKCE flow",
         "Rotate refresh tokens",
       ]);
-      expect(tickets[0].labels).toContain("agentic-workflow");
+      expect(ticket.labels).toContain("agentic-workflow");
     } finally {
       globalThis.fetch = originalFetch;
     }

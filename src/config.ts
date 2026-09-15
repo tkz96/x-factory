@@ -30,10 +30,11 @@ const VALID_ROLES = new Set<RepositoryRole>([
  * Return the primary repository of a project (first application repository).
  */
 export function getPrimaryRepository(project: Project): ProjectRepository {
-  if (!project.repositories || project.repositories.length === 0) {
+  const primary = project.repositories[0];
+  if (!primary) {
     throw new Error(`Project "${project.id}" has no configured repositories.`);
   }
-  return project.repositories[0];
+  return primary;
 }
 
 /**
@@ -281,7 +282,7 @@ function normalizeLegacyProject(
 ): {
   repositories: ProjectRepository[];
   issueTracker: ProjectIssueTracker;
-  knowledgeRepository?: KnowledgeRepository;
+  knowledgeRepository?: KnowledgeRepository | undefined;
 } {
   const legacyPath = path.resolve(requireString(obj, "repositoryPath", id));
   const legacyBranch = optionalString(obj.defaultBranch) || "main";
@@ -326,7 +327,7 @@ function validateModernProject(
 ): {
   repositories: ProjectRepository[];
   issueTracker: ProjectIssueTracker;
-  knowledgeRepository?: KnowledgeRepository;
+  knowledgeRepository?: KnowledgeRepository | undefined;
 } {
   if (!Array.isArray(obj.repositories) || obj.repositories.length === 0) {
     throw new Error(`Project "${id}" must contain at least one repository.`);
@@ -384,6 +385,9 @@ export function validateProject(item: unknown): Project {
 
   // Ensure primary repository exists
   const primary = repositories[0];
+  if (!primary) {
+    throw new Error(`Project "${id}" must define at least one repository.`);
+  }
 
   return {
     id,

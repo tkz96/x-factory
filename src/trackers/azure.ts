@@ -67,8 +67,8 @@ function parseAzureWorkItem(item: {
 export async function fetchAzureTickets(options: {
   orgUrl: string;
   project: string;
-  pat?: string;
-  requiredLabel?: string;
+  pat?: string | undefined;
+  requiredLabel?: string | undefined;
 }): Promise<TrackerTicket[]> {
   const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
   const authHeader = await resolveAzureAuthHeader(options.pat);

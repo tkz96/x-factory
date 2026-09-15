@@ -22,7 +22,6 @@
         "name": "subsystems",
         "patterns": [
           "src/trackers/**",
-          "src/trackers.ts",
           "src/discovery/**",
           "src/inspection/**",
           "src/agents/**"

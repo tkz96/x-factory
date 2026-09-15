@@ -44,10 +44,10 @@ function toGitHubTicket(item: {
  * Fetch GitHub issues with label filter.
  */
 export async function fetchGitHubTickets(options: {
-  repo?: string;
-  token?: string;
-  cwd?: string;
-  requiredLabel?: string;
+  repo?: string | undefined;
+  token?: string | undefined;
+  cwd?: string | undefined;
+  requiredLabel?: string | undefined;
 }): Promise<TrackerTicket[]> {
   const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
 

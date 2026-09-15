@@ -11,16 +11,16 @@ import type {
 interface AzureGitRepoItem {
   id: string;
   name: string;
-  url?: string;
-  remoteUrl?: string;
-  webUrl?: string;
-  defaultBranch?: string;
+  url?: string | undefined;
+  remoteUrl?: string | undefined;
+  webUrl?: string | undefined;
+  defaultBranch?: string | undefined;
 }
 
-export function extractAzureDevOpsInfo(value?: string): {
-  orgUrl?: string;
-  project?: string;
-  repo?: string;
+export function extractAzureDevOpsInfo(value?: string | undefined): {
+  orgUrl?: string | undefined;
+  project?: string | undefined;
+  repo?: string | undefined;
 } {
   if (!value) return {};
   const trimmed = value.trim();
@@ -29,7 +29,7 @@ export function extractAzureDevOpsInfo(value?: string): {
   const devAzureMatch = trimmed.match(
     /^(?:https?:\/\/)?dev\.azure\.com\/([^/]+)\/([^/]+)(?:\/_git\/([^/]+))?/i,
   );
-  if (devAzureMatch) {
+  if (devAzureMatch?.[1] && devAzureMatch[2]) {
     return {
       orgUrl: `https://dev.azure.com/${devAzureMatch[1]}`,
       project: decodeURIComponent(devAzureMatch[2]),
@@ -41,7 +41,7 @@ export function extractAzureDevOpsInfo(value?: string): {
   const sshAzureMatch = trimmed.match(
     /^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i,
   );
-  if (sshAzureMatch) {
+  if (sshAzureMatch?.[1] && sshAzureMatch[2] && sshAzureMatch[3]) {
     return {
       orgUrl: `https://dev.azure.com/${sshAzureMatch[1]}`,
       project: decodeURIComponent(sshAzureMatch[2]),
@@ -53,7 +53,7 @@ export function extractAzureDevOpsInfo(value?: string): {
   const vsMatch = trimmed.match(
     /^(?:https?:\/\/)?([^.]+)\.visualstudio\.com\/([^/]+)(?:\/_git\/([^/]+))?/i,
   );
-  if (vsMatch) {
+  if (vsMatch?.[1] && vsMatch[2]) {
     return {
       orgUrl: `https://${vsMatch[1]}.visualstudio.com`,
       project: decodeURIComponent(vsMatch[2]),
@@ -64,7 +64,8 @@ export function extractAzureDevOpsInfo(value?: string): {
   // org/project format
   const simpleMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9._-]+)$/);
   if (
-    simpleMatch &&
+    simpleMatch?.[1] &&
+    simpleMatch[2] &&
     !trimmed.includes("github.com") &&
     !trimmed.includes("gitlab.com")
   ) {

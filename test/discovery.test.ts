@@ -131,13 +131,13 @@ describe("Repository Discovery Providers", () => {
         });
 
         assert.equal(repos.length, 2);
-        assert.equal(repos[0].name, "vendifai-web");
-        assert.equal(repos[0].defaultBranch, "main");
+        assert.equal(repos[0]?.name, "vendifai-web");
+        assert.equal(repos[0]?.defaultBranch, "main");
         assert.equal(
-          repos[0].remote,
+          repos[0]?.remote,
           "https://dev.azure.com/org/proj/_git/vendifai-web",
         );
-        assert.equal(repos[1].defaultBranch, "master");
+        assert.equal(repos[1]?.defaultBranch, "master");
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -193,10 +193,10 @@ describe("Repository Discovery Providers", () => {
         });
 
         assert.equal(repos.length, 1);
-        assert.equal(repos[0].id, "12345");
-        assert.equal(repos[0].name, "vendifai-frontend");
+        assert.equal(repos[0]?.id, "12345");
+        assert.equal(repos[0]?.name, "vendifai-frontend");
         assert.equal(
-          repos[0].remote,
+          repos[0]?.remote,
           "https://github.com/vendifai/frontend.git",
         );
       } finally {
@@ -239,8 +239,8 @@ describe("Repository Discovery Providers", () => {
         });
 
         assert.equal(repos.length, 2);
-        assert.equal(repos[0].name, "vendifai-frontend");
-        assert.equal(repos[1].name, "vendifai-backend");
+        assert.equal(repos[0]?.name, "vendifai-frontend");
+        assert.equal(repos[1]?.name, "vendifai-backend");
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -263,7 +263,7 @@ describe("Repository Discovery Providers", () => {
         });
 
         assert.equal(repos.length, 1);
-        assert.equal(repos[0].name, "repo-jira-a");
+        assert.equal(repos[0]?.name, "repo-jira-a");
       } finally {
         await rm(root, { recursive: true, force: true });
       }

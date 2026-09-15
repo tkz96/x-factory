@@ -23,8 +23,8 @@ describe("RunEventBus", () => {
     bus.emit("run-2", { type: "info", text: "Ignore me" });
 
     assert.equal(received.length, 1);
-    assert.equal(received[0].type, "info");
-    assert.equal((received[0] as { text: string }).text, "Hello");
+    assert.equal(received[0]?.type, "info");
+    assert.equal((received[0] as { text: string } | undefined)?.text, "Hello");
 
     unsubscribe();
     bus.emit("run-1", { type: "info", text: "Should not receive" });
@@ -103,7 +103,7 @@ describe("RunStore", () => {
 
     const list = store.list();
     assert.equal(list.length, 1);
-    assert.equal(list[0].id, "run-test-1");
+    assert.equal(list[0]?.id, "run-test-1");
   });
 
   it("persists run.json to artifacts directory", async () => {

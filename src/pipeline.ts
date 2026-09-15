@@ -275,10 +275,14 @@ async function attemptAutomatedRepair(
     vResult,
     run.repairAttempts,
   );
+  if (!run._session) {
+    throw new Error(
+      "Cannot attempt automated repair: Pi session is not active",
+    );
+  }
   return promptSession(
     run,
-    // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
-    run._session!,
+    run._session,
     repairPrompt,
     "Repair failed",
     eventBus,
@@ -295,8 +299,10 @@ async function executeVerifyAndRepairStage(
 ): Promise<boolean> {
   const { id } = run;
   const project = run._project;
-  // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
-  const baseline = run._baseline!;
+  const baseline = run._baseline;
+  if (!baseline) {
+    throw new Error("Cannot verify worktree: baseline snapshot not found");
+  }
 
   while (run.repairAttempts < MAX_REPAIR_ATTEMPTS) {
     store.transition(run, "verifying");
@@ -367,6 +373,11 @@ async function executeReviewStage(
   });
 
   const settings = await loadSettings(false);
+  if (!run.verification) {
+    throw new Error(
+      "Cannot execute review stage: verification result not found",
+    );
+  }
   const reviewResult = await deps.reviewRun({
     projectId: project.id,
     runId: id,
@@ -374,8 +385,7 @@ async function executeReviewStage(
     ticket: run.ticket,
     plan: run.plan,
     diff: run.diff || "",
-    // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
-    verification: run.verification!,
+    verification: run.verification,
     modelConfig: settings.models?.sessionB,
     onEvent: (e) => {
       if (e.type === "pi_text" && e.text) {

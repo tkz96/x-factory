@@ -2,31 +2,28 @@
 
 import {
   type AgentSession,
+  type CreateAgentSessionOptions,
   createAgentSession,
   ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
+export type ThinkingLevel = NonNullable<
+  CreateAgentSessionOptions["thinkingLevel"]
+>;
+
 export interface SessionOptions {
-  provider?: string;
-  model?: string;
-  thinkingLevel?:
-    | "off"
-    | "minimal"
-    | "low"
-    | "medium"
-    | "high"
-    | "xhigh"
-    | "max"
-    | string;
+  provider?: string | undefined;
+  model?: string | undefined;
+  thinkingLevel?: ThinkingLevel | undefined;
 }
 
 export type PiEventListener = (event: {
   type: "text" | "tool" | "done" | "error";
-  text?: string;
-  tool?: string;
-  input?: string;
-  error?: string;
+  text?: string | undefined;
+  tool?: string | undefined;
+  input?: string | undefined;
+  error?: string | undefined;
 }) => void;
 
 export interface PiAgentSession {
@@ -150,15 +147,17 @@ export async function createImplementationSession(
   options?: SessionOptions,
 ): Promise<PiAgentSession> {
   const resolved = await resolveSessionModel(options);
-  const { session } = await createAgentSession({
+  const sessionConfig: CreateAgentSessionOptions = {
     cwd: worktreePath,
     sessionManager: SessionManager.inMemory(worktreePath),
     tools: ["read", "bash", "edit", "write"],
-    model: resolved.model,
-    // biome-ignore lint/suspicious/noExplicitAny: TODO(XF-010) narrow thinkingLevel type and remove as any cast
-    thinkingLevel: resolved.thinkingLevel as any,
-    modelRuntime: resolved.modelRuntime,
-  });
+    ...(resolved.model ? { model: resolved.model } : {}),
+    ...(resolved.thinkingLevel
+      ? { thinkingLevel: resolved.thinkingLevel }
+      : {}),
+    ...(resolved.modelRuntime ? { modelRuntime: resolved.modelRuntime } : {}),
+  };
+  const { session } = await createAgentSession(sessionConfig);
 
   return wrapSession(session);
 }
@@ -173,15 +172,17 @@ export async function createReviewSession(
   options?: SessionOptions,
 ): Promise<PiAgentSession> {
   const resolved = await resolveSessionModel(options);
-  const { session } = await createAgentSession({
+  const sessionConfig: CreateAgentSessionOptions = {
     cwd: worktreePath,
     sessionManager: SessionManager.inMemory(worktreePath),
     tools: ["read", "grep", "find", "ls"],
-    model: resolved.model,
-    // biome-ignore lint/suspicious/noExplicitAny: TODO(XF-010) narrow thinkingLevel type and remove as any cast
-    thinkingLevel: resolved.thinkingLevel as any,
-    modelRuntime: resolved.modelRuntime,
-  });
+    ...(resolved.model ? { model: resolved.model } : {}),
+    ...(resolved.thinkingLevel
+      ? { thinkingLevel: resolved.thinkingLevel }
+      : {}),
+    ...(resolved.modelRuntime ? { modelRuntime: resolved.modelRuntime } : {}),
+  };
+  const { session } = await createAgentSession(sessionConfig);
 
   return wrapSession(session);
 }

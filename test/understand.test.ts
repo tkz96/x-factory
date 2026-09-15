@@ -163,9 +163,9 @@ describe("Understand Stage (src/understand.ts)", () => {
 
       assert.equal(notes.length, 1);
       assert.ok(
-        notes[0].includes("Knowledge repository configured and verified at:"),
+        notes[0]?.includes("Knowledge repository configured and verified at:"),
       );
-      assert.ok(notes[0].includes(tempDir));
+      assert.ok(notes[0]?.includes(tempDir));
 
       await rm(tempDir, { recursive: true, force: true });
     });
@@ -175,7 +175,7 @@ describe("Understand Stage (src/understand.ts)", () => {
       const notes = await checkKnowledgeNotes(invalidPath);
 
       assert.equal(notes.length, 1);
-      assert.ok(notes[0].includes("is currently inaccessible"));
+      assert.ok(notes[0]?.includes("is currently inaccessible"));
     });
   });
 

@@ -168,7 +168,7 @@ describe("recordBaseline and checkPollution", () => {
     await writeFile(path.join(wtPath, "debug.log"), "error log\n");
     pollution = await git.checkPollution(wtPath, baseline);
     assert.equal(pollution.hasPollution, true);
-    assert.ok(pollution.details[0].includes("debug.log"));
+    assert.ok(pollution.details[0]?.includes("debug.log"));
 
     // Remove forbidden file
     await rm(path.join(wtPath, "debug.log"));
@@ -267,8 +267,11 @@ describe("Git Metadata and External Directory Safety", () => {
     }
 
     // 4. External X-Factory directory is NOT a git repository
-    // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
-    const xfactoryDataDir = process.env.X_FACTORY_DATA_DIR!;
+    const xfactoryDataDir = process.env.X_FACTORY_DATA_DIR;
+    assert.ok(
+      xfactoryDataDir,
+      "X_FACTORY_DATA_DIR must be set in test environment",
+    );
     await assert.rejects(
       () => git.validateRepo(xfactoryDataDir),
       /Not a git repository/,

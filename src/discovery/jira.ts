@@ -57,7 +57,14 @@ function pickString(...vals: (string | undefined)[]): string {
 function resolveJiraParams(
   input: RepositoryDiscoveryInput,
   settings: {
-    jira?: { host?: string; email?: string; token?: string; project?: string };
+    jira?:
+      | {
+          host?: string | undefined;
+          email?: string | undefined;
+          token?: string | undefined;
+          project?: string | undefined;
+        }
+      | undefined;
   },
 ) {
   const host = pickString(input.jiraHost, settings.jira?.host)

@@ -20,9 +20,9 @@ let mockSessionHandler:
       subscribe: (
         cb: (e: {
           type: string;
-          text?: string;
-          tool?: string;
-          error?: string;
+          text?: string | undefined;
+          tool?: string | undefined;
+          error?: string | undefined;
         }) => void,
       ) => () => void;
     })
@@ -167,10 +167,10 @@ PASSED - All criteria met and code is clean.
 
       assert.equal(result.passed, true);
       assert.equal(result.criteriaChecked.length, 2);
-      assert.equal(result.criteriaChecked[0].satisfied, true);
-      assert.equal(result.criteriaChecked[1].satisfied, true);
+      assert.equal(result.criteriaChecked[0]?.satisfied, true);
+      assert.equal(result.criteriaChecked[1]?.satisfied, true);
       assert.equal(result.findings.length, 1);
-      assert.equal(result.findings[0].severity, "info");
+      assert.equal(result.findings[0]?.severity, "info");
       assert.ok(result.summary.includes("Review passed"));
       assert.ok(result.summary.includes("0 blocking errors"));
     });
@@ -221,7 +221,7 @@ FAILED - Critical bug introduced.
 
       assert.equal(result.passed, false);
       assert.equal(result.findings.length, 1);
-      assert.equal(result.findings[0].severity, "error");
+      assert.equal(result.findings[0]?.severity, "error");
       assert.ok(result.summary.includes("Review failed: 1 blocking errors"));
     });
 
@@ -264,7 +264,7 @@ VERDICT: FAILED - Missing secondary requirements.
         ticket.acceptanceCriteria.length,
       );
       assert.equal(
-        result.criteriaChecked[0].criterion,
+        result.criteriaChecked[0]?.criterion,
         ticket.acceptanceCriteria[0],
       );
     });
@@ -290,10 +290,10 @@ FAILED
 
       const result = parseReviewOutput(bracketTicket, output);
       assert.equal(result.passed, false);
-      assert.equal(result.criteriaChecked[0].satisfied, true);
-      assert.equal(result.criteriaChecked[0].criterion, "[feat] Add OAuth");
-      assert.equal(result.criteriaChecked[1].satisfied, false);
-      assert.equal(result.criteriaChecked[1].criterion, "[api] Return JSON");
+      assert.equal(result.criteriaChecked[0]?.satisfied, true);
+      assert.equal(result.criteriaChecked[0]?.criterion, "[feat] Add OAuth");
+      assert.equal(result.criteriaChecked[1]?.satisfied, false);
+      assert.equal(result.criteriaChecked[1]?.criterion, "[api] Return JSON");
     });
   });
 
@@ -352,28 +352,33 @@ FAILED
       assert.equal(fallback.passed, false);
       assert.equal(fallback.summary, "Agent process killed due to timeout");
       assert.equal(fallback.findings.length, 1);
-      assert.equal(fallback.findings[0].severity, "error");
+      assert.equal(fallback.findings[0]?.severity, "error");
       assert.equal(fallback.criteriaChecked.length, 2);
-      assert.equal(fallback.criteriaChecked[0].satisfied, false);
+      assert.equal(fallback.criteriaChecked[0]?.satisfied, false);
     });
 
     it("creates a passed fallback review without findings", () => {
       const fallback = createFallbackReview(ticket, "Default approval", true);
       assert.equal(fallback.passed, true);
       assert.equal(fallback.findings.length, 0);
-      assert.equal(fallback.criteriaChecked[0].satisfied, true);
+      assert.equal(fallback.criteriaChecked[0]?.satisfied, true);
     });
   });
 
   describe("reviewRun with mock session", () => {
     it("executes reviewRun with simulated session events and parses output", async () => {
-      const mockEvents: Array<{ type: string; text?: string }> = [];
+      const mockEvents: Array<{
+        type: string;
+        text?: string | undefined;
+        tool?: string | undefined;
+        error?: string | undefined;
+      }> = [];
       let subscribedCb:
         | ((e: {
             type: string;
-            text?: string;
-            tool?: string;
-            error?: string;
+            text?: string | undefined;
+            tool?: string | undefined;
+            error?: string | undefined;
           }) => void)
         | null = null;
 
@@ -408,7 +413,12 @@ FAILED
         plan: "Step 1",
         diff: "diff",
         verification: sampleVerification,
-        onEvent: (event: { type: string; text?: string }) => {
+        onEvent: (event: {
+          type: string;
+          text?: string | undefined;
+          tool?: string | undefined;
+          error?: string | undefined;
+        }) => {
           mockEvents.push(event);
         },
       };

@@ -28,7 +28,7 @@ export class RunEventBus {
 
   emit(
     runId: string,
-    payload: RunEventPayload & { timestamp?: number },
+    payload: RunEventPayload & { timestamp?: number | undefined },
   ): RunEvent {
     const fullEvent: RunEvent = {
       ...payload,

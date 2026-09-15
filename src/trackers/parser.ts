@@ -15,7 +15,7 @@ function sanitizeLine(line: string): string {
 
 function parseBulletLine(line: string): string | null {
   const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
-  return match ? sanitizeLine(match[1]) : null;
+  return match?.[1] ? sanitizeLine(match[1]) : null;
 }
 
 /**
@@ -32,12 +32,14 @@ export function extractCriteria(text: string): string[] {
   if (headerIdx >= 0) {
     const sectionLines: string[] = [];
     for (let i = headerIdx + 1; i < lines.length; i++) {
-      if (/^#+\s+/.test(lines[i])) break;
-      const bullet = parseBulletLine(lines[i]);
+      const currentLine = lines[i];
+      if (!currentLine) continue;
+      if (/^#+\s+/.test(currentLine)) break;
+      const bullet = parseBulletLine(currentLine);
       if (bullet) {
         sectionLines.push(bullet);
-      } else if (lines[i].length > 5) {
-        sectionLines.push(sanitizeLine(lines[i]));
+      } else if (currentLine.length > 5) {
+        sectionLines.push(sanitizeLine(currentLine));
       }
     }
     return sectionLines;

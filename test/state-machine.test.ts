@@ -2,7 +2,7 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { canTransition, TRANSITIONS } from "../src/runs.js";
+import { canTransition, TRANSITIONS } from "../src/state-machine.js";
 import type { Run, RunStatus } from "../src/types.js";
 
 describe("Workflow State Machine", () => {
@@ -55,19 +55,6 @@ describe("Workflow State Machine", () => {
   it("returns false for unknown states", () => {
     assert.ok(!canTransition("unknown_state" as RunStatus, "implementing"));
     assert.ok(!canTransition("preparing", "unknown_state" as RunStatus));
-  });
-
-  it("exports identical state machine from dedicated state-machine module", async () => {
-    const directModule = await import("../src/state-machine.js");
-    assert.deepEqual(directModule.TRANSITIONS, TRANSITIONS);
-    assert.equal(
-      directModule.canTransition("preparing", "understanding"),
-      true,
-    );
-    assert.equal(
-      directModule.canTransition("preparing", "implementing"),
-      false,
-    );
   });
 });
 
