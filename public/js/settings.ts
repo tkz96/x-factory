@@ -1,9 +1,9 @@
-// fallow-ignore-file coverage-gaps
-// public/js/settings.js — Global workbench preferences, tracker credentials, and Apple dark/light theme toggle.
+// public/js/settings.ts — Global workbench preferences, tracker credentials, and Apple dark/light theme toggle.
 
+import type { WorkbenchSettings } from "../../src/shared/types.js";
 import { $, $$, api, getVal, setVal } from "./utils.js";
 
-export function initTheme() {
+export function initTheme(): void {
   const saved = localStorage.getItem("xf_theme");
   const prefersLight = window.matchMedia?.(
     "(prefers-color-scheme: light)",
@@ -11,7 +11,7 @@ export function initTheme() {
   const theme = saved || (prefersLight ? "light" : "dark");
   document.documentElement.setAttribute("data-theme", theme);
 
-  const toggle = $("#theme-toggle");
+  const toggle = $<HTMLElement>("#theme-toggle");
   if (toggle) {
     toggle.addEventListener("click", () => {
       const current =
@@ -24,17 +24,17 @@ export function initTheme() {
   }
 }
 
-function updateTrackerProviderVisibility(provider) {
-  const trackerGroupGithub = $("#tracker-group-github");
-  const trackerGroupJira = $("#tracker-group-jira");
-  const trackerGroupAzure = $("#tracker-group-azure");
+function updateTrackerProviderVisibility(provider: string): void {
+  const trackerGroupGithub = $<HTMLElement>("#tracker-group-github");
+  const trackerGroupJira = $<HTMLElement>("#tracker-group-jira");
+  const trackerGroupAzure = $<HTMLElement>("#tracker-group-azure");
 
   if (trackerGroupGithub) trackerGroupGithub.hidden = provider !== "github";
   if (trackerGroupJira) trackerGroupJira.hidden = provider !== "jira";
   if (trackerGroupAzure) trackerGroupAzure.hidden = provider !== "azure";
 }
 
-function populateTrackerFields(s) {
+function populateTrackerFields(s: WorkbenchSettings): void {
   const gh = s.github || {};
   const jira = s.jira || {};
   const az = s.azure || {};
@@ -43,7 +43,7 @@ function populateTrackerFields(s) {
   setVal("#setting-tracker-provider", tracker);
   updateTrackerProviderVisibility(tracker);
 
-  const fields = {
+  const fields: Record<string, string | undefined> = {
     "#setting-github-token": gh.token,
     "#setting-github-repo": gh.repo,
     "#setting-jira-host": jira.host,
@@ -59,7 +59,7 @@ function populateTrackerFields(s) {
   }
 }
 
-function populateModelFields(s) {
+function populateModelFields(s: WorkbenchSettings): void {
   setVal(
     "#setting-model-a-provider",
     s.models?.sessionA?.provider || "anthropic",
@@ -78,10 +78,10 @@ function populateModelFields(s) {
   );
 }
 
-export async function loadSettingsView() {
-  const settingsStatus = $("#settings-status");
+export async function loadSettingsView(): Promise<void> {
+  const settingsStatus = $<HTMLElement>("#settings-status");
   try {
-    const s = await api("GET", "/settings");
+    const s = await api<WorkbenchSettings>("GET", "/settings");
     if (!s) return;
     if (s.theme && !localStorage.getItem("xf_theme")) {
       document.documentElement.setAttribute("data-theme", s.theme);
@@ -96,7 +96,7 @@ export async function loadSettingsView() {
   }
 }
 
-function buildSettingsPayload() {
+function buildSettingsPayload(): Record<string, unknown> {
   return {
     theme: document.documentElement.getAttribute("data-theme") || "dark",
     activeTracker: getVal("#setting-tracker-provider", "github"),
@@ -128,9 +128,9 @@ function buildSettingsPayload() {
   };
 }
 
-async function saveSettingsView() {
-  const btnSaveSettings = $("#btn-save-settings");
-  const settingsStatus = $("#settings-status");
+async function saveSettingsView(): Promise<void> {
+  const btnSaveSettings = $<HTMLButtonElement>("#btn-save-settings");
+  const settingsStatus = $<HTMLElement>("#settings-status");
   if (!btnSaveSettings) return;
   btnSaveSettings.disabled = true;
   if (settingsStatus) settingsStatus.textContent = "Saving…";
@@ -158,31 +158,39 @@ async function saveSettingsView() {
   }
 }
 
-export function initSettings() {
-  $$(".settings-tab-btn").forEach((btn) => {
+export function initSettings(): void {
+  $$<HTMLElement>(".settings-tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      $$(".settings-tab-btn").forEach((b) => {
+      $$<HTMLElement>(".settings-tab-btn").forEach((b) => {
         b.classList.remove("active");
       });
-      $$(".settings-pane").forEach((p) => {
+      $$<HTMLElement>(".settings-pane").forEach((p) => {
         p.classList.remove("active");
       });
 
       btn.classList.add("active");
-      const pane = $(`#tab-${tabName}`);
-      if (pane) pane.classList.add("active");
+      const tabName = btn.dataset.tab;
+      if (tabName) {
+        const pane = $(`#tab-${tabName}`);
+        if (pane) pane.classList.add("active");
+      }
     });
   });
 
-  const settingTrackerProvider = $("#setting-tracker-provider");
+  const settingTrackerProvider = $<HTMLSelectElement>(
+    "#setting-tracker-provider",
+  );
   if (settingTrackerProvider) {
-    settingTrackerProvider.addEventListener("change", (e) => {
-      updateTrackerProviderVisibility(e.target.value);
+    settingTrackerProvider.addEventListener("change", (e: Event) => {
+      const target = e.target as HTMLSelectElement;
+      updateTrackerProviderVisibility(target.value);
     });
   }
 
-  const btnSaveSettings = $("#btn-save-settings");
+  const btnSaveSettings = $<HTMLButtonElement>("#btn-save-settings");
   if (btnSaveSettings) {
-    btnSaveSettings.addEventListener("click", saveSettingsView);
+    btnSaveSettings.addEventListener("click", () => {
+      void saveSettingsView();
+    });
   }
 }

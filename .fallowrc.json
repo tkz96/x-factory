@@ -4,6 +4,10 @@
   "boundaries": {
     "zones": [
       {
+        "name": "shared",
+        "patterns": ["src/shared/**"]
+      },
+      {
         "name": "domain",
         "patterns": ["src/types.ts", "src/state-machine.ts"]
       },
@@ -49,32 +53,46 @@
     ],
     "rules": [
       {
-        "from": "domain",
+        "from": "shared",
         "allow": []
+      },
+      {
+        "from": "domain",
+        "allow": ["shared"]
       },
       {
         "from": "infrastructure",
-        "allow": ["domain"]
+        "allow": ["domain", "shared"]
       },
       {
         "from": "subsystems",
-        "allow": ["domain", "infrastructure"]
+        "allow": ["domain", "infrastructure", "shared"]
       },
       {
         "from": "orchestration",
-        "allow": ["domain", "infrastructure", "subsystems"]
+        "allow": ["domain", "infrastructure", "subsystems", "shared"]
       },
       {
         "from": "presentation",
-        "allow": ["domain", "infrastructure", "subsystems", "orchestration"]
+        "allow": [
+          "domain",
+          "infrastructure",
+          "subsystems",
+          "orchestration",
+          "shared"
+        ]
       },
       {
         "from": "frontend",
-        "allow": []
+        "allow": ["shared"]
       }
     ]
   },
   "health": {
-    "ignore": ["public/**"]
+    "ignore": ["test/**"],
+    "maxCrap": 1000.0,
+    "maxCognitive": 50,
+    "maxCyclomatic": 50,
+    "maxUnitSize": 100
   }
 }

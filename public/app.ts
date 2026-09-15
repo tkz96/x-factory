@@ -1,4 +1,4 @@
-// public/app.js — Clean application bootstrap orchestrator assembling native ES modules.
+// public/app.ts — Clean application bootstrap orchestrator assembling native ES modules.
 
 import {
   initProjects,
@@ -23,6 +23,12 @@ import { initSettings, initTheme, loadSettingsView } from "./js/settings.js";
 import { initTooltips } from "./js/tooltips.js";
 import { initWizard, openOnboardModal } from "./js/wizard.js";
 
+declare global {
+  interface Window {
+    showView: typeof showView;
+  }
+}
+
 // Legacy test compatibility
 window.showView = showView;
 
@@ -38,7 +44,7 @@ setOnSelectTicket(() => {
   updateStartButton();
 });
 
-async function init() {
+async function init(): Promise<void> {
   initTheme();
   initTooltips();
   initRouter();
@@ -55,7 +61,9 @@ async function init() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => {
+    void init();
+  });
 } else {
-  init();
+  void init();
 }

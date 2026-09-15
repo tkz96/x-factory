@@ -138,6 +138,26 @@ async function resolveSessionModel(options?: SessionOptions) {
   };
 }
 
+async function createConfiguredSession(
+  worktreePath: string,
+  tools: string[],
+  options?: SessionOptions,
+): Promise<PiAgentSession> {
+  const resolved = await resolveSessionModel(options);
+  const sessionConfig: CreateAgentSessionOptions = {
+    cwd: worktreePath,
+    sessionManager: SessionManager.inMemory(worktreePath),
+    tools,
+    ...(resolved.model ? { model: resolved.model } : {}),
+    ...(resolved.thinkingLevel
+      ? { thinkingLevel: resolved.thinkingLevel }
+      : {}),
+    ...(resolved.modelRuntime ? { modelRuntime: resolved.modelRuntime } : {}),
+  };
+  const { session } = await createAgentSession(sessionConfig);
+  return wrapSession(session);
+}
+
 /**
  * Create Pi Implementation Session A.
  * Full tools enabled: read, bash, edit, write.
@@ -146,20 +166,11 @@ export async function createImplementationSession(
   worktreePath: string,
   options?: SessionOptions,
 ): Promise<PiAgentSession> {
-  const resolved = await resolveSessionModel(options);
-  const sessionConfig: CreateAgentSessionOptions = {
-    cwd: worktreePath,
-    sessionManager: SessionManager.inMemory(worktreePath),
-    tools: ["read", "bash", "edit", "write"],
-    ...(resolved.model ? { model: resolved.model } : {}),
-    ...(resolved.thinkingLevel
-      ? { thinkingLevel: resolved.thinkingLevel }
-      : {}),
-    ...(resolved.modelRuntime ? { modelRuntime: resolved.modelRuntime } : {}),
-  };
-  const { session } = await createAgentSession(sessionConfig);
-
-  return wrapSession(session);
+  return createConfiguredSession(
+    worktreePath,
+    ["read", "bash", "edit", "write"],
+    options,
+  );
 }
 
 /**
@@ -171,18 +182,9 @@ export async function createReviewSession(
   worktreePath: string,
   options?: SessionOptions,
 ): Promise<PiAgentSession> {
-  const resolved = await resolveSessionModel(options);
-  const sessionConfig: CreateAgentSessionOptions = {
-    cwd: worktreePath,
-    sessionManager: SessionManager.inMemory(worktreePath),
-    tools: ["read", "grep", "find", "ls"],
-    ...(resolved.model ? { model: resolved.model } : {}),
-    ...(resolved.thinkingLevel
-      ? { thinkingLevel: resolved.thinkingLevel }
-      : {}),
-    ...(resolved.modelRuntime ? { modelRuntime: resolved.modelRuntime } : {}),
-  };
-  const { session } = await createAgentSession(sessionConfig);
-
-  return wrapSession(session);
+  return createConfiguredSession(
+    worktreePath,
+    ["read", "grep", "find", "ls"],
+    options,
+  );
 }

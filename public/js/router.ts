@@ -1,9 +1,15 @@
-// fallow-ignore-file coverage-gaps
-// public/js/router.js — Hash-based navigation, active area management, and view routing.
+// public/js/router.ts — Hash-based navigation, active area management, and view routing.
 
 import { $, $$, hideError } from "./utils.js";
 
-const AREA_METADATA = {
+export type AreaName = "queue" | "runs" | "history" | "projects" | "settings";
+
+interface AreaInfo {
+  title: string;
+  subtitle: string;
+}
+
+const AREA_METADATA: Record<AreaName, AreaInfo> = {
   queue: {
     title: "Work Queue",
     subtitle: "Tickets ready for agentic implementation",
@@ -26,7 +32,9 @@ const AREA_METADATA = {
   },
 };
 
-const routeHandlers = {
+export type RouteHandler = () => void | Promise<void>;
+
+const routeHandlers: Record<AreaName, RouteHandler> = {
   queue: () => {},
   runs: () => {},
   history: () => {},
@@ -34,84 +42,89 @@ const routeHandlers = {
   settings: () => {},
 };
 
-export function setRouteHandlers(handlers) {
+export function setRouteHandlers(
+  handlers: Partial<Record<AreaName, RouteHandler>>,
+): void {
   Object.assign(routeHandlers, handlers);
 }
 
-function navigate(areaName) {
-  const area = AREA_METADATA[areaName] ? areaName : "queue";
+function navigate(areaName: string): void {
+  const isKnownArea = (name: string): name is AreaName => name in AREA_METADATA;
+  const area: AreaName = isKnownArea(areaName) ? areaName : "queue";
 
-  $$(".sidebar-nav .nav-item").forEach((el) => {
+  $$<HTMLElement>(".sidebar-nav .nav-item").forEach((el) => {
     el.classList.toggle("active", el.dataset.area === area);
   });
 
-  $$(".area-view").forEach((el) => {
+  $$<HTMLElement>(".area-view").forEach((el) => {
     el.classList.toggle("active", el.id === `area-${area}`);
   });
 
-  const toolbarTitle = $("#toolbar-title");
-  const toolbarSubtitle = $("#toolbar-subtitle");
-  if (toolbarTitle && AREA_METADATA[area]) {
+  const toolbarTitle = $<HTMLElement>("#toolbar-title");
+  const toolbarSubtitle = $<HTMLElement>("#toolbar-subtitle");
+  if (toolbarTitle && toolbarSubtitle && AREA_METADATA[area]) {
     toolbarTitle.textContent = AREA_METADATA[area].title;
     toolbarSubtitle.textContent = AREA_METADATA[area].subtitle;
   }
 
-  if (routeHandlers[area]) {
-    routeHandlers[area]();
+  const handler = routeHandlers[area];
+  if (handler) {
+    void handler();
   }
 }
 
-export function handleHashChange() {
+export function handleHashChange(): void {
   const hash = window.location.hash.replace(/^#\/?/, "") || "queue";
   navigate(hash);
 }
 
-export function openNewRunModal() {
-  const modalNewRun = $("#modal-new-run");
-  const inputTicketId = $("#input-ticket-id");
+export function openNewRunModal(): void {
+  const modalNewRun = $<HTMLElement>("#modal-new-run");
+  const inputTicketId = $<HTMLInputElement>("#input-ticket-id");
   if (modalNewRun) modalNewRun.hidden = false;
   if (inputTicketId) inputTicketId.focus();
 }
 
-export function closeNewRunModal() {
-  const modalNewRun = $("#modal-new-run");
-  const setupError = $("#setup-error");
+export function closeNewRunModal(): void {
+  const modalNewRun = $<HTMLElement>("#modal-new-run");
+  const setupError = $<HTMLElement>("#setup-error");
   if (modalNewRun) modalNewRun.hidden = true;
   hideError(setupError);
 }
 
-export function showView(view) {
-  const viewSetup = $("#view-setup");
-  const viewRun = $("#view-run");
-  const viewResult = $("#view-result");
-  const runsStandby = $("#runs-standby");
-  const workflowStepper = $("#workflow-stepper");
+export function showView(view: HTMLElement | null | string): void {
+  const viewSetup = $<HTMLElement>("#view-setup");
+  const viewRun = $<HTMLElement>("#view-run");
+  const viewResult = $<HTMLElement>("#view-result");
+  const runsStandby = $<HTMLElement>("#runs-standby");
+  const workflowStepper = $<HTMLElement>("#workflow-stepper");
 
-  if (view === viewSetup) {
+  if (view === viewSetup || view === "setup") {
     openNewRunModal();
-  } else if (view === viewRun) {
+  } else if (view === viewRun || view === "run") {
     window.location.hash = "#/runs";
     if (runsStandby) runsStandby.hidden = true;
     if (workflowStepper) workflowStepper.style.display = "block";
     if (viewRun) viewRun.style.display = "block";
     if (viewResult) viewResult.style.display = "none";
-  } else if (view === viewResult) {
+  } else if (view === viewResult || view === "result") {
     window.location.hash = "#/runs";
     if (runsStandby) runsStandby.hidden = true;
+    if (workflowStepper) workflowStepper.style.display = "block";
     if (viewRun) viewRun.style.display = "none";
     if (viewResult) viewResult.style.display = "block";
   }
 }
 
-export function initRouter() {
+export function initRouter(): void {
   window.addEventListener("hashchange", handleHashChange);
 
-  const btnOpenNewRun = $("#btn-open-new-run");
-  const btnQueueManual = $("#btn-queue-manual");
-  const btnRunsStart = $("#btn-runs-start");
-  const btnCloseModal = $("#btn-close-modal");
-  const btnCancelModal = $("#btn-cancel-modal");
-  const modalNewRun = $("#modal-new-run");
+  const btnOpenNewRun = $<HTMLButtonElement>("#btn-open-new-run");
+  const btnQueueManual = $<HTMLButtonElement>("#btn-queue-manual");
+  const btnRunsStart = $<HTMLButtonElement>("#btn-runs-start");
+  const btnCloseModal = $<HTMLButtonElement>("#btn-close-modal");
+  const btnCancelModal = $<HTMLButtonElement>("#btn-cancel-modal");
+  const modalNewRun = $<HTMLElement>("#modal-new-run");
 
   if (btnOpenNewRun) btnOpenNewRun.addEventListener("click", openNewRunModal);
   if (btnQueueManual) btnQueueManual.addEventListener("click", openNewRunModal);
@@ -131,7 +144,7 @@ export function initRouter() {
       if (modalNewRun && !modalNewRun.hidden) {
         closeNewRunModal();
       }
-      const modalOnboard = document.querySelector("#modal-project-onboarding");
+      const modalOnboard = $<HTMLElement>("#modal-project-onboarding");
       if (modalOnboard && !modalOnboard.hidden) {
         modalOnboard.hidden = true;
       }

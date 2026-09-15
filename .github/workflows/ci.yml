@@ -25,8 +25,14 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Typecheck Frontend
+        run: bun run typecheck:frontend
+
       - name: Lint
         run: bun run lint
+
+      - name: Architecture & Dead Code Gates (Fallow)
+        run: bunx fallow
 
       - name: Test
         run: bun test --coverage

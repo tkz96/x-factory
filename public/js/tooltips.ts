@@ -1,8 +1,8 @@
-// fallow-ignore-file coverage-gaps
-// public/js/tooltips.js — Interactive tooltip collision detection, popover repositioning, and event listeners.
+// public/js/tooltips.ts — Interactive tooltip collision detection, popover repositioning, and event listeners.
 
-function repositionTooltip(badge) {
-  const popover = badge?.querySelector(".tooltip-popover");
+function repositionTooltip(badge: HTMLElement | null): void {
+  if (!badge) return;
+  const popover = badge.querySelector<HTMLElement>(".tooltip-popover");
   if (!popover) return;
   const badgeRect = badge.getBoundingClientRect();
   const container =
@@ -32,8 +32,9 @@ function repositionTooltip(badge) {
   }
 }
 
-function handleTooltipOpen(e) {
-  const badge = e.target?.closest?.(".tooltip-badge");
+function handleTooltipOpen(e: Event): void {
+  const target = e.target as Element | null;
+  const badge = target?.closest<HTMLElement>(".tooltip-badge");
   if (badge) {
     repositionTooltip(badge);
     badge.closest(".form-group")?.classList.add("tooltip-open");
@@ -41,15 +42,16 @@ function handleTooltipOpen(e) {
   }
 }
 
-function handleTooltipClose(e) {
-  const badge = e.target?.closest?.(".tooltip-badge");
+function handleTooltipClose(e: Event): void {
+  const target = e.target as Element | null;
+  const badge = target?.closest<HTMLElement>(".tooltip-badge");
   if (badge) {
     badge.closest(".form-group")?.classList.remove("tooltip-open");
     badge.closest(".label-with-tooltip")?.classList.remove("tooltip-open");
   }
 }
 
-export function initTooltips() {
+export function initTooltips(): void {
   document.addEventListener("pointerenter", handleTooltipOpen, true);
   document.addEventListener("focusin", handleTooltipOpen, true);
   document.addEventListener("pointerleave", handleTooltipClose, true);
@@ -58,8 +60,8 @@ export function initTooltips() {
   // Close or reposition tooltips when scrolling inside scrollable containers
   document.addEventListener(
     "scroll",
-    (_e) => {
-      const activeBadge = document.querySelector(
+    (_e: Event) => {
+      const activeBadge = document.querySelector<HTMLElement>(
         ".tooltip-open .tooltip-badge",
       );
       if (activeBadge) {

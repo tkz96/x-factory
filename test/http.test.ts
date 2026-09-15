@@ -104,4 +104,47 @@ describe("Static Asset Serving", () => {
     assert.equal(res.status, 200);
     assert.equal(res.headers.get("Content-Type"), "image/svg+xml");
   });
+
+  it("bundles app.ts on the fly when /app.js is requested", async () => {
+    const res = await serveStatic("/app.js", PUBLIC_DIR);
+    assert.equal(res.status, 200);
+    assert.ok(
+      res.headers.get("Content-Type")?.includes("application/javascript"),
+    );
+    const content = await res.text();
+    assert.ok(content.includes("initRouter") || content.includes("showView"));
+
+    // Second request should hit the in-memory cache
+    const cachedRes = await serveStatic("/app.js", PUBLIC_DIR);
+    assert.equal(cachedRes.status, 200);
+    const cachedContent = await cachedRes.text();
+    assert.equal(cachedContent, content);
+  });
+
+  it("transpiles TypeScript module when requested as .js", async () => {
+    const res = await serveStatic("/js/state.js", PUBLIC_DIR);
+    assert.equal(res.status, 200);
+    assert.ok(
+      res.headers.get("Content-Type")?.includes("application/javascript"),
+    );
+    const content = await res.text();
+    assert.ok(content.includes("state"));
+  });
+
+  it("serves unknown extensions with application/octet-stream fallback", async () => {
+    // Create a temporary file with custom extension
+    const tempPath = path.join(PUBLIC_DIR, "test-binary.xyz");
+    await Bun.write(tempPath, "custom binary content");
+    try {
+      const res = await serveStatic("/test-binary.xyz", PUBLIC_DIR);
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get("Content-Type"), "application/octet-stream");
+    } finally {
+      const f = Bun.file(tempPath);
+      if (await f.exists()) {
+        const unlink = (await import("node:fs/promises")).unlink;
+        await unlink(tempPath);
+      }
+    }
+  });
 });
