@@ -46,13 +46,23 @@ export async function fetchProjectTickets(
   }
 
   const settings = await loadSettings(false);
-  const provider = options.provider || settings.activeTracker || "github";
+  const provider =
+    options.provider ||
+    project.issueTracker?.connectionId ||
+    settings.activeTracker ||
+    "github";
 
-  const jira = tryFetchJira(provider, options, settings.jira);
+  const resolvedOptions: TrackerOptions = {
+    ...options,
+    azureProject: options.azureProject || project.issueTracker?.projectId,
+    jiraProject: options.jiraProject || project.issueTracker?.projectId,
+  };
+
+  const jira = tryFetchJira(provider, resolvedOptions, settings.jira);
   if (jira) return jira;
 
-  const azure = tryFetchAzure(provider, options, settings.azure);
+  const azure = tryFetchAzure(provider, resolvedOptions, settings.azure);
   if (azure) return azure;
 
-  return fetchDefaultGitHub(project.repositoryPath, options, settings);
+  return fetchDefaultGitHub(project.repositoryPath, resolvedOptions, settings);
 }

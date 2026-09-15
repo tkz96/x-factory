@@ -2,7 +2,38 @@
 
 import { homedir } from "node:os";
 import path from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
+
+/**
+ * Expand a user path starting with ~ into an absolute path, or resolve a relative path.
+ */
+export function expandUserPath(inputPath: string): string {
+  return inputPath.startsWith("~")
+    ? path.join(homedir(), inputPath.slice(1))
+    : path.resolve(inputPath);
+}
+
+/**
+ * Scan immediate subdirectories of a parent directory and return names of directories containing a .git folder or file.
+ */
+export async function scanGitSubdirectories(parentDir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(parentDir, { withFileTypes: true });
+    const repos: string[] = [];
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      try {
+        const dotGit = await stat(path.join(parentDir, ent.name, ".git"));
+        if (dotGit.isDirectory() || dotGit.isFile()) repos.push(ent.name);
+      } catch {
+        // ignore non-git subdirectories
+      }
+    }
+    return repos;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Get the base data directory for X-Factory.
@@ -59,3 +90,4 @@ export async function ensureDir(dirPath: string): Promise<string> {
   await mkdir(dirPath, { recursive: true });
   return dirPath;
 }
+

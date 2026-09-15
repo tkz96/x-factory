@@ -1,7 +1,7 @@
 // src/http/settings-controller.ts — Global workbench settings configuration endpoints.
 
 import { loadSettings, saveSettings, type FactorySettings } from "../settings.js";
-import { jsonResponse, errorResponse, parseJsonBody } from "./responses.js";
+import { jsonResponse, withJsonBody } from "./responses.js";
 
 async function handleGetSettings(): Promise<Response> {
   const settings = await loadSettings(true);
@@ -9,12 +9,14 @@ async function handleGetSettings(): Promise<Response> {
 }
 
 async function handleUpdateSettings(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body || typeof body !== "object") {
-    return errorResponse("Invalid JSON for settings.");
-  }
-  const updated = await saveSettings(body as Partial<FactorySettings>);
-  return jsonResponse(updated);
+  return withJsonBody<Partial<FactorySettings>>(
+    req,
+    async (body) => {
+      const updated = await saveSettings(body);
+      return jsonResponse(updated);
+    },
+    "Invalid JSON for settings."
+  );
 }
 
 export function handleSettingsRoute(method: string, req: Request): Promise<Response> | null {

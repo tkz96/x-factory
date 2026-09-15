@@ -5,8 +5,9 @@ import * as runs from "../runs.js";
 import {
   jsonResponse,
   errorResponse,
-  parseJsonBody,
   createEventStreamResponse,
+  withJsonBody,
+  catchHttpErrors,
 } from "./responses.js";
 
 function parseAcceptanceCriteria(raw: unknown): string[] {
@@ -23,34 +24,31 @@ function parseAcceptanceCriteria(raw: unknown): string[] {
 }
 
 async function handleCreateRun(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body) {
-    return errorResponse("Invalid JSON in request body.");
-  }
+  return withJsonBody(req, (body) => catchHttpErrors(async () => {
+    const projectId = typeof body.projectId === "string" ? body.projectId : "";
+    const project = await getProject(projectId, true);
+    if (!project) {
+      return errorResponse(`Project "${projectId}" not found or inaccessible.`, 404);
+    }
 
-  const projectId = typeof body.projectId === "string" ? body.projectId : "";
-  const project = await getProject(projectId, true);
-  if (!project) {
-    return errorResponse(`Project "${projectId}" not found or inaccessible.`, 404);
-  }
+    const ticketId = typeof body.ticketId === "string" ? body.ticketId : "";
+    const ticketTitle = typeof body.ticketTitle === "string" ? body.ticketTitle : ticketId;
+    const plan = typeof body.plan === "string" ? body.plan : "";
+    const acceptanceCriteria = parseAcceptanceCriteria(body.acceptanceCriteria);
+    const description = typeof body.description === "string" ? body.description : undefined;
+    const branch = typeof body.branch === "string" ? body.branch : undefined;
 
-  const ticketId = typeof body.ticketId === "string" ? body.ticketId : "";
-  const ticketTitle = typeof body.ticketTitle === "string" ? body.ticketTitle : ticketId;
-  const plan = typeof body.plan === "string" ? body.plan : "";
-  const acceptanceCriteria = parseAcceptanceCriteria(body.acceptanceCriteria);
-  const description = typeof body.description === "string" ? body.description : undefined;
-  const branch = typeof body.branch === "string" ? body.branch : undefined;
-
-  const run = await runs.createRun(
-    project,
-    ticketId,
-    ticketTitle,
-    plan,
-    acceptanceCriteria,
-    description,
-    branch
-  );
-  return jsonResponse(run, 201);
+    const run = await runs.createRun(
+      project,
+      ticketId,
+      ticketTitle,
+      plan,
+      acceptanceCriteria,
+      description,
+      branch
+    );
+    return jsonResponse(run, 201);
+  }), "Invalid JSON in request body.");
 }
 
 function handleGetRuns(): Response {
@@ -73,17 +71,13 @@ function handleRunEvents(runId: string): Response {
 }
 
 async function handleSteerRun(req: Request, runId: string): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body) {
-    return errorResponse("Invalid JSON in request body.");
-  }
-
-  if (typeof body.message !== "string" || !body.message.trim()) {
-    return errorResponse("Message is required.");
-  }
-
-  await runs.steerRun(runId, body.message.trim());
-  return jsonResponse({ ok: true });
+  return withJsonBody<{ message?: string }>(req, async (body) => {
+    if (typeof body.message !== "string" || !body.message.trim()) {
+      return errorResponse("Message is required.");
+    }
+    await runs.steerRun(runId, body.message.trim());
+    return jsonResponse({ ok: true });
+  }, "Invalid JSON in request body.");
 }
 
 async function handleStopRun(runId: string): Promise<Response> {
