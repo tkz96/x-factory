@@ -5,21 +5,24 @@ function repositionTooltip(badge) {
   const popover = badge?.querySelector(".tooltip-popover");
   if (!popover) return;
   const badgeRect = badge.getBoundingClientRect();
-  const container = badge.closest(".modal-body") || document.documentElement;
+  const container = badge.closest(".inspection-cards-list") || badge.closest(".modal-body") || document.documentElement;
   const contRect = container.getBoundingClientRect();
 
-  // Check horizontal space
+  // Check horizontal space: only align right if right side is constrained AND left side has room
   const spaceOnRight = contRect.right - badgeRect.left;
-  if (spaceOnRight < 320) {
+  const spaceOnLeft = badgeRect.right - contRect.left;
+  if (spaceOnRight < 310 && spaceOnLeft >= 280) {
     popover.classList.add("popover-align-right");
   } else {
     popover.classList.remove("popover-align-right");
   }
 
-  // Check vertical space
+  // Check vertical space: flip up if bottom is cramped and space above is greater than space below
   const spaceBelow = contRect.bottom - badgeRect.bottom;
-  const popoverHeight = popover.offsetHeight || 160;
-  if (spaceBelow < popoverHeight + 16 && badgeRect.top - contRect.top > popoverHeight) {
+  const spaceAbove = badgeRect.top - contRect.top;
+  const popoverHeight = popover.offsetHeight || 140;
+
+  if (spaceBelow < popoverHeight + 16 && spaceAbove >= spaceBelow) {
     popover.classList.add("popover-flipped");
   } else {
     popover.classList.remove("popover-flipped");
@@ -48,4 +51,12 @@ export function initTooltips() {
   document.addEventListener("focusin", handleTooltipOpen, true);
   document.addEventListener("pointerleave", handleTooltipClose, true);
   document.addEventListener("focusout", handleTooltipClose, true);
+
+  // Close or reposition tooltips when scrolling inside scrollable containers
+  document.addEventListener("scroll", (e) => {
+    const activeBadge = document.querySelector(".tooltip-open .tooltip-badge");
+    if (activeBadge) {
+      repositionTooltip(activeBadge);
+    }
+  }, true);
 }

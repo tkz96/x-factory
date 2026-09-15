@@ -111,8 +111,14 @@ export function initRouter() {
   }
 
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && modalNewRun && !modalNewRun.hidden) {
-      closeNewRunModal();
+    if (e.key === "Escape") {
+      if (modalNewRun && !modalNewRun.hidden) {
+        closeNewRunModal();
+      }
+      const modalOnboard = document.querySelector("#modal-project-onboarding");
+      if (modalOnboard && !modalOnboard.hidden) {
+        modalOnboard.hidden = true;
+      }
     }
   });
 }

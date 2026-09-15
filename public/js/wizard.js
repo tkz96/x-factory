@@ -652,6 +652,32 @@ export function initWizard() {
     btnOnboardSave.addEventListener("click", handleOnboardSave);
   }
 
+  const btnSelectAll = $("#btn-select-all-repos");
+  if (btnSelectAll) {
+    btnSelectAll.addEventListener("click", () => {
+      const repos = onboardState.discovered || [];
+      for (const r of repos) {
+        if (r.name !== onboardState.knowledgeRepoId) {
+          const isPrimary = r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase();
+          onboardState.selectedRepos.set(r.name, {
+            ...r,
+            role: onboardState.selectedRepos.get(r.name)?.role || "other",
+            isPrimary,
+          });
+        }
+      }
+      renderDiscoveredRepos();
+    });
+  }
+
+  const btnDeselectAll = $("#btn-deselect-all-repos");
+  if (btnDeselectAll) {
+    btnDeselectAll.addEventListener("click", () => {
+      onboardState.selectedRepos.clear();
+      renderDiscoveredRepos();
+    });
+  }
+
   const btnOpenOnboardModal = $("#btn-open-onboard-modal");
   if (btnOpenOnboardModal) {
     btnOpenOnboardModal.addEventListener("click", openOnboardModal);
@@ -665,5 +691,14 @@ export function initWizard() {
   const btnOnboardCancel = $("#btn-onboard-cancel");
   if (btnOnboardCancel) {
     btnOnboardCancel.addEventListener("click", closeOnboardModal);
+  }
+
+  const modalOnboard = $("#modal-project-onboarding");
+  if (modalOnboard) {
+    modalOnboard.addEventListener("click", (e) => {
+      if (e.target === modalOnboard) {
+        closeOnboardModal();
+      }
+    });
   }
 }
