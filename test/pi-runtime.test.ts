@@ -48,9 +48,18 @@ describe("Pi SDK Compatibility under Bun", () => {
       assert.ok(activeTools.includes("ls"), "Reviewer should have ls tool");
 
       // Verify bash and mutation tools are NOT available
-      assert.ok(!activeTools.includes("bash"), "Reviewer must NOT have bash tool");
-      assert.ok(!activeTools.includes("edit"), "Reviewer must NOT have edit tool");
-      assert.ok(!activeTools.includes("write"), "Reviewer must NOT have write tool");
+      assert.ok(
+        !activeTools.includes("bash"),
+        "Reviewer must NOT have bash tool",
+      );
+      assert.ok(
+        !activeTools.includes("edit"),
+        "Reviewer must NOT have edit tool",
+      );
+      assert.ok(
+        !activeTools.includes("write"),
+        "Reviewer must NOT have write tool",
+      );
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }

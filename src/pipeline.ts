@@ -1,21 +1,65 @@
 // src/pipeline.ts — Workflow stage orchestration and pipeline runner.
 
-import path from "node:path";
 import { writeFile } from "node:fs/promises";
-import type {
-  ImplementationContext,
-  VerificationResult,
-  PullRequest,
-} from "./types.js";
+import path from "node:path";
+import {
+  createImplementationSession,
+  type PiAgentSession,
+} from "./agents/pi.js";
+import type { RunEventBus } from "./events.js";
 import * as git from "./git.js";
 import { createPullRequest } from "./github.js";
-import { createImplementationSession, type PiAgentSession } from "./agents/pi.js";
-import { buildImplementationContext, buildImplementationPrompt } from "./understand.js";
-import { runVerification, buildRepairPrompt, MAX_REPAIR_ATTEMPTS } from "./verification.js";
 import { reviewRun } from "./review.js";
 import { loadSettings } from "./settings.js";
 import type { InternalRun, RunStore } from "./store.js";
-import type { RunEventBus } from "./events.js";
+import type {
+  ImplementationContext,
+  PullRequest,
+  VerificationResult,
+} from "./types.js";
+import {
+  buildImplementationContext,
+  buildImplementationPrompt,
+} from "./understand.js";
+import {
+  buildRepairPrompt,
+  MAX_REPAIR_ATTEMPTS,
+  runVerification,
+} from "./verification.js";
+
+export interface PipelineDependencies {
+  branchExists: typeof git.branchExists;
+  createBranch: typeof git.createBranch;
+  createWorktree: typeof git.createWorktree;
+  recordBaseline: typeof git.recordBaseline;
+  getDiff: typeof git.getDiff;
+  safeCommitAll: typeof git.safeCommitAll;
+  push: typeof git.push;
+  createPullRequest: typeof createPullRequest;
+  createImplementationSession: typeof createImplementationSession;
+  runVerification: typeof runVerification;
+  reviewRun: typeof reviewRun;
+  buildImplementationContext: typeof buildImplementationContext;
+  buildImplementationPrompt: typeof buildImplementationPrompt;
+}
+
+export const defaultPipelineDeps: PipelineDependencies = {
+  branchExists: git.branchExists,
+  createBranch: git.createBranch,
+  createWorktree: git.createWorktree,
+  recordBaseline: git.recordBaseline,
+  getDiff: git.getDiff,
+  safeCommitAll: git.safeCommitAll,
+  push: git.push,
+  createPullRequest,
+  createImplementationSession,
+  runVerification,
+  reviewRun,
+  buildImplementationContext,
+  buildImplementationPrompt,
+};
+
+export const pipelineDeps: PipelineDependencies = { ...defaultPipelineDeps };
 
 async function promptSession(
   run: InternalRun,
@@ -23,7 +67,7 @@ async function promptSession(
   promptText: string,
   errorPrefix: string,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
 ): Promise<boolean> {
   try {
     await session.prompt(promptText);
@@ -39,28 +83,41 @@ async function promptSession(
 
 async function executePrepareStage(
   run: InternalRun,
-  eventBus: RunEventBus
+  eventBus: RunEventBus,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<string> {
   const { id } = run;
   const project = run._project;
 
   eventBus.emit(id, { type: "info", text: `Preparing branch ${run.branch}…` });
-  const exists = await git.branchExists(project.repositoryPath, run.branch);
+  const exists = await deps.branchExists(project.repositoryPath, run.branch);
   if (!exists) {
-    await git.createBranch(project.repositoryPath, run.branch, project.defaultBranch);
+    await deps.createBranch(
+      project.repositoryPath,
+      run.branch,
+      project.defaultBranch,
+    );
   }
 
-  eventBus.emit(id, { type: "info", text: "Creating dedicated external worktree…" });
-  const worktreePath = await git.createWorktree(project.repositoryPath, run.branch, project.id, id);
+  eventBus.emit(id, {
+    type: "info",
+    text: "Creating dedicated external worktree…",
+  });
+  const worktreePath = await deps.createWorktree(
+    project.repositoryPath,
+    run.branch,
+    project.id,
+    id,
+  );
   run.worktreePath = worktreePath;
 
-  const baseline = await git.recordBaseline(worktreePath);
+  const baseline = await deps.recordBaseline(worktreePath);
   run._baseline = baseline;
 
   eventBus.emitStageEvidence(
     id,
     "prepare",
-    `Worktree created at external path; branch ${run.branch}; baseline recorded.`
+    `Worktree created at external path; branch ${run.branch}; baseline recorded.`,
   );
   return worktreePath;
 }
@@ -69,7 +126,8 @@ async function executeUnderstandStage(
   run: InternalRun,
   worktreePath: string,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<ImplementationContext> {
   const { id } = run;
   const project = run._project;
@@ -81,19 +139,24 @@ async function executeUnderstandStage(
     text: "Analyzing codebase & synthesizing context…",
   });
 
-  const context = await buildImplementationContext(worktreePath, project, run.ticket, run.plan);
+  const context = await deps.buildImplementationContext(
+    worktreePath,
+    project,
+    run.ticket,
+    run.plan,
+  );
   run.implementationContext = context;
 
   await writeFile(
     path.join(run.artifactsDir, "implementation-context.json"),
     JSON.stringify(context, null, 2),
-    "utf-8"
+    "utf-8",
   );
 
   eventBus.emitStageEvidence(
     id,
     "understand",
-    `Identified ${context.relevantFiles.length} relevant files, ${context.constraints.length} constraints.`
+    `Identified ${context.relevantFiles.length} relevant files, ${context.constraints.length} constraints.`,
   );
   return context;
 }
@@ -101,17 +164,30 @@ async function executeUnderstandStage(
 function attachImplementationListeners(
   session: PiAgentSession,
   runId: string,
-  eventBus: RunEventBus
+  eventBus: RunEventBus,
 ): void {
   session.subscribe((e) => {
     if (e.type === "text" && e.text) {
-      eventBus.emit(runId, { type: "pi_text", text: e.text, role: "implementer" });
+      eventBus.emit(runId, {
+        type: "pi_text",
+        text: e.text,
+        role: "implementer",
+      });
     } else if (e.type === "tool" && e.tool) {
-      eventBus.emit(runId, { type: "pi_tool", tool: e.tool, input: e.input, role: "implementer" });
+      eventBus.emit(runId, {
+        type: "pi_tool",
+        tool: e.tool,
+        input: e.input,
+        role: "implementer",
+      });
     } else if (e.type === "done") {
       eventBus.emit(runId, { type: "pi_done", role: "implementer" });
     } else if (e.type === "error" && e.error) {
-      eventBus.emit(runId, { type: "pi_error", error: e.error, role: "implementer" });
+      eventBus.emit(runId, {
+        type: "pi_error",
+        error: e.error,
+        role: "implementer",
+      });
     }
   });
 }
@@ -121,41 +197,61 @@ async function executeImplementStage(
   worktreePath: string,
   context: ImplementationContext,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
   const { id } = run;
   const project = run._project;
 
   store.transition(run, "implementing");
-  eventBus.emit(id, { type: "status", status: "implementing", text: "Pi is implementing ticket…" });
+  eventBus.emit(id, {
+    type: "status",
+    status: "implementing",
+    text: "Pi is implementing ticket…",
+  });
 
   const settings = await loadSettings(false);
-  const prompt = await buildImplementationPrompt(project, run.ticket, run.plan, context);
-  const session = await createImplementationSession(worktreePath, settings.models?.sessionA);
+  const prompt = await deps.buildImplementationPrompt(
+    project,
+    run.ticket,
+    run.plan,
+    context,
+  );
+  const session = await deps.createImplementationSession(
+    worktreePath,
+    settings.models?.sessionA,
+  );
   run._session = session;
 
   attachImplementationListeners(session, id, eventBus);
 
-  const ok = await promptSession(run, session, prompt, "Pi implementation failed", eventBus, store);
+  const ok = await promptSession(
+    run,
+    session,
+    prompt,
+    "Pi implementation failed",
+    eventBus,
+    store,
+  );
   if (!ok) return false;
 
-  const initialDiff = await git.getDiff(worktreePath);
+  const initialDiff = await deps.getDiff(worktreePath);
   eventBus.emitStageEvidence(
     id,
     "implement",
-    `Implementation complete; ${initialDiff.filesChanged.length} files modified.`
+    `Implementation complete; ${initialDiff.filesChanged.length} files modified.`,
   );
   return true;
 }
 
 async function persistVerificationArtifacts(
   artifactsDir: string,
-  vResult: VerificationResult
+  vResult: VerificationResult,
 ): Promise<void> {
   await writeFile(
     path.join(artifactsDir, "verification.json"),
     JSON.stringify(vResult, null, 2),
-    "utf-8"
+    "utf-8",
   );
   await writeFile(path.join(artifactsDir, "diff.patch"), vResult.diff, "utf-8");
 }
@@ -164,7 +260,7 @@ async function attemptAutomatedRepair(
   run: InternalRun,
   vResult: VerificationResult,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
 ): Promise<boolean> {
   store.transition(run, "implementing");
   eventBus.emit(run.id, {
@@ -173,14 +269,20 @@ async function attemptAutomatedRepair(
     text: `Verification checks failed. Triggering automated repair (attempt ${run.repairAttempts + 1}/${MAX_REPAIR_ATTEMPTS})…`,
   });
 
-  const repairPrompt = buildRepairPrompt(run.ticket, run.plan, vResult, run.repairAttempts);
+  const repairPrompt = buildRepairPrompt(
+    run.ticket,
+    run.plan,
+    vResult,
+    run.repairAttempts,
+  );
   return promptSession(
     run,
+    // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
     run._session!,
     repairPrompt,
     "Repair failed",
     eventBus,
-    store
+    store,
   );
 }
 
@@ -188,10 +290,12 @@ async function executeVerifyAndRepairStage(
   run: InternalRun,
   worktreePath: string,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
   const { id } = run;
   const project = run._project;
+  // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
   const baseline = run._baseline!;
 
   while (run.repairAttempts < MAX_REPAIR_ATTEMPTS) {
@@ -202,7 +306,12 @@ async function executeVerifyAndRepairStage(
       text: `Running deterministic checks (attempt ${run.repairAttempts + 1}/${MAX_REPAIR_ATTEMPTS})…`,
     });
 
-    const vResult = await runVerification(worktreePath, project, baseline, run.repairAttempts + 1);
+    const vResult = await deps.runVerification(
+      worktreePath,
+      project,
+      baseline,
+      run.repairAttempts + 1,
+    );
     run.verification = vResult;
     run.diff = vResult.diff;
 
@@ -213,7 +322,7 @@ async function executeVerifyAndRepairStage(
       eventBus.emitStageEvidence(
         id,
         "verify",
-        `Passed deterministic checks: ${vResult.summary} (attempt ${vResult.repairAttempt}/${MAX_REPAIR_ATTEMPTS})`
+        `Passed deterministic checks: ${vResult.summary} (attempt ${vResult.repairAttempt}/${MAX_REPAIR_ATTEMPTS})`,
       );
       return true;
     }
@@ -227,7 +336,7 @@ async function executeVerifyAndRepairStage(
       eventBus.emitStageEvidence(
         id,
         "verify",
-        `Failed after ${MAX_REPAIR_ATTEMPTS} repair attempts. Human intervention required.`
+        `Failed after ${MAX_REPAIR_ATTEMPTS} repair attempts. Human intervention required.`,
       );
       eventBus.emit(id, {
         type: "error",
@@ -244,7 +353,8 @@ async function executeReviewStage(
   run: InternalRun,
   worktreePath: string,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
   const { id } = run;
   const project = run._project;
@@ -257,22 +367,32 @@ async function executeReviewStage(
   });
 
   const settings = await loadSettings(false);
-  const reviewResult = await reviewRun({
+  const reviewResult = await deps.reviewRun({
     projectId: project.id,
     runId: id,
     worktreePath,
     ticket: run.ticket,
     plan: run.plan,
     diff: run.diff || "",
+    // biome-ignore lint/style/noNonNullAssertion: TODO(XF-009) eliminate non-null assertion
     verification: run.verification!,
     modelConfig: settings.models?.sessionB,
     onEvent: (e) => {
       if (e.type === "pi_text" && e.text) {
         eventBus.emit(id, { type: "pi_text", text: e.text, role: "reviewer" });
       } else if (e.type === "pi_tool" && e.tool) {
-        eventBus.emit(id, { type: "pi_tool", tool: e.tool, input: e.text, role: "reviewer" });
+        eventBus.emit(id, {
+          type: "pi_tool",
+          tool: e.tool,
+          input: e.text,
+          role: "reviewer",
+        });
       } else if (e.type === "pi_error" && e.error) {
-        eventBus.emit(id, { type: "pi_error", error: e.error, role: "reviewer" });
+        eventBus.emit(id, {
+          type: "pi_error",
+          error: e.error,
+          role: "reviewer",
+        });
       }
     },
   });
@@ -282,7 +402,11 @@ async function executeReviewStage(
 
   if (!reviewResult.passed) {
     store.transition(run, "failed");
-    eventBus.emitStageEvidence(id, "review", `Review failed: ${reviewResult.summary}`);
+    eventBus.emitStageEvidence(
+      id,
+      "review",
+      `Review failed: ${reviewResult.summary}`,
+    );
     eventBus.emit(id, {
       type: "error",
       text: `Review rejected the changes: ${reviewResult.summary}. Human intervention required.`,
@@ -290,31 +414,47 @@ async function executeReviewStage(
     return false;
   }
 
-  eventBus.emitStageEvidence(id, "review", `Review passed: ${reviewResult.summary}`);
+  eventBus.emitStageEvidence(
+    id,
+    "review",
+    `Review passed: ${reviewResult.summary}`,
+  );
   return true;
 }
 
 export async function executeDeliverStage(
   run: InternalRun,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<PullRequest> {
   const worktree = run.worktreePath;
   const project = run._project;
-  const baseline = run._baseline || { trackedFiles: new Set(), untrackedFiles: new Set() };
+  const baseline = run._baseline || {
+    trackedFiles: new Set(),
+    untrackedFiles: new Set(),
+  };
 
   const commitMsg = `[X-Factory] ${run.ticket.id}: ${run.ticket.title}`;
   const prTitle = commitMsg;
   const prBody = `Implemented by X-Factory.\n\nTicket: ${run.ticket.id} — ${run.ticket.title}\n\nAcceptance Criteria:\n${run.ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n") || "None specified"}`;
 
-  eventBus.emit(run.id, { type: "pr_step", text: "Committing verified changes safely…" });
-  await git.safeCommitAll(worktree, commitMsg, baseline);
+  eventBus.emit(run.id, {
+    type: "pr_step",
+    text: "Committing verified changes safely…",
+  });
+  await deps.safeCommitAll(worktree, commitMsg, baseline);
 
   eventBus.emit(run.id, { type: "pr_step", text: "Pushing branch to remote…" });
-  await git.push(worktree, run.branch);
+  await deps.push(worktree, run.branch);
 
   eventBus.emit(run.id, { type: "pr_step", text: "Creating pull request…" });
-  const prUrl = await createPullRequest(worktree, prTitle, prBody, project.defaultBranch);
+  const prUrl = await deps.createPullRequest(
+    worktree,
+    prTitle,
+    prBody,
+    project.defaultBranch,
+  );
 
   const pr: PullRequest = {
     url: prUrl.trim(),
@@ -327,7 +467,11 @@ export async function executeDeliverStage(
   store.transition(run, "pr_created");
   run.finishedAt = new Date().toISOString();
 
-  eventBus.emitStageEvidence(run.id, "deliver", `Pull request created: ${pr.url}`);
+  eventBus.emitStageEvidence(
+    run.id,
+    "deliver",
+    `Pull request created: ${pr.url}`,
+  );
   eventBus.emit(run.id, {
     type: "status",
     status: "pr_created",
@@ -340,18 +484,44 @@ export async function executeDeliverStage(
 export async function runWorkflow(
   run: InternalRun,
   eventBus: RunEventBus,
-  store: RunStore
+  store: RunStore,
+  deps: PipelineDependencies = pipelineDeps,
 ): Promise<void> {
-  const worktreePath = await executePrepareStage(run, eventBus);
-  const context = await executeUnderstandStage(run, worktreePath, eventBus, store);
+  const worktreePath = await executePrepareStage(run, eventBus, deps);
+  const context = await executeUnderstandStage(
+    run,
+    worktreePath,
+    eventBus,
+    store,
+    deps,
+  );
 
-  const implemented = await executeImplementStage(run, worktreePath, context, eventBus, store);
+  const implemented = await executeImplementStage(
+    run,
+    worktreePath,
+    context,
+    eventBus,
+    store,
+    deps,
+  );
   if (!implemented) return;
 
-  const verified = await executeVerifyAndRepairStage(run, worktreePath, eventBus, store);
+  const verified = await executeVerifyAndRepairStage(
+    run,
+    worktreePath,
+    eventBus,
+    store,
+    deps,
+  );
   if (!verified) return;
 
-  const reviewed = await executeReviewStage(run, worktreePath, eventBus, store);
+  const reviewed = await executeReviewStage(
+    run,
+    worktreePath,
+    eventBus,
+    store,
+    deps,
+  );
   if (!reviewed) return;
 
   store.transition(run, "ready_for_pr");

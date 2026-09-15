@@ -5,7 +5,10 @@ function repositionTooltip(badge) {
   const popover = badge?.querySelector(".tooltip-popover");
   if (!popover) return;
   const badgeRect = badge.getBoundingClientRect();
-  const container = badge.closest(".inspection-cards-list") || badge.closest(".modal-body") || document.documentElement;
+  const container =
+    badge.closest(".inspection-cards-list") ||
+    badge.closest(".modal-body") ||
+    document.documentElement;
   const contRect = container.getBoundingClientRect();
 
   // Check horizontal space: only align right if right side is constrained AND left side has room
@@ -53,10 +56,16 @@ export function initTooltips() {
   document.addEventListener("focusout", handleTooltipClose, true);
 
   // Close or reposition tooltips when scrolling inside scrollable containers
-  document.addEventListener("scroll", (e) => {
-    const activeBadge = document.querySelector(".tooltip-open .tooltip-badge");
-    if (activeBadge) {
-      repositionTooltip(activeBadge);
-    }
-  }, true);
+  document.addEventListener(
+    "scroll",
+    (_e) => {
+      const activeBadge = document.querySelector(
+        ".tooltip-open .tooltip-badge",
+      );
+      if (activeBadge) {
+        repositionTooltip(activeBadge);
+      }
+    },
+    true,
+  );
 }

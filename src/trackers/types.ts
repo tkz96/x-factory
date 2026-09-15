@@ -32,7 +32,7 @@ export interface TrackerOptions {
 
 export function hasRequiredLabel(
   labels: string[],
-  target: string = REQUIRED_WORKFLOW_LABEL
+  target: string = REQUIRED_WORKFLOW_LABEL,
 ): boolean {
   const norm = target.toLowerCase();
   return labels.some((l) => l.toLowerCase() === norm);

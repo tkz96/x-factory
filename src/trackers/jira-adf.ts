@@ -15,7 +15,7 @@ export function parseAdfToText(node: unknown): string {
       return pieces.map((p) => `- ${p.trim()}`).join("\n");
     }
     if (obj.type === "paragraph" || obj.type === "heading") {
-      return pieces.join("") + "\n";
+      return `${pieces.join("")}\n`;
     }
     return pieces.join(" ");
   }

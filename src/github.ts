@@ -9,12 +9,12 @@ export async function createPullRequest(
   worktreePath: string,
   title: string,
   body: string,
-  baseBranch: string
+  baseBranch: string,
 ): Promise<string> {
   const result = await execStrict(
     "gh",
     ["pr", "create", "--title", title, "--body", body, "--base", baseBranch],
-    { cwd: worktreePath }
+    { cwd: worktreePath },
   );
   return result.stdout.trim();
 }

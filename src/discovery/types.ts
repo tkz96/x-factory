@@ -24,5 +24,7 @@ export interface RepositoryDiscoveryInput {
 
 export interface RepositoryDiscoveryProvider {
   readonly provider: string;
-  listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]>;
+  listRepositories(
+    input: RepositoryDiscoveryInput,
+  ): Promise<DiscoveredRepository[]>;
 }

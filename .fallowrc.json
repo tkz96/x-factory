@@ -1,16 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": [
-    "public/index.html"
-  ],
+  "entry": ["public/index.html"],
   "boundaries": {
     "zones": [
       {
         "name": "domain",
-        "patterns": [
-          "src/types.ts",
-          "src/state-machine.ts"
-        ]
+        "patterns": ["src/types.ts", "src/state-machine.ts"]
       },
       {
         "name": "infrastructure",
@@ -46,16 +41,11 @@
       },
       {
         "name": "presentation",
-        "patterns": [
-          "src/http/**",
-          "src/server.ts"
-        ]
+        "patterns": ["src/http/**", "src/server.ts"]
       },
       {
         "name": "frontend",
-        "patterns": [
-          "public/**"
-        ]
+        "patterns": ["public/**"]
       }
     ],
     "rules": [
@@ -65,33 +55,19 @@
       },
       {
         "from": "infrastructure",
-        "allow": [
-          "domain"
-        ]
+        "allow": ["domain"]
       },
       {
         "from": "subsystems",
-        "allow": [
-          "domain",
-          "infrastructure"
-        ]
+        "allow": ["domain", "infrastructure"]
       },
       {
         "from": "orchestration",
-        "allow": [
-          "domain",
-          "infrastructure",
-          "subsystems"
-        ]
+        "allow": ["domain", "infrastructure", "subsystems"]
       },
       {
         "from": "presentation",
-        "allow": [
-          "domain",
-          "infrastructure",
-          "subsystems",
-          "orchestration"
-        ]
+        "allow": ["domain", "infrastructure", "subsystems", "orchestration"]
       },
       {
         "from": "frontend",
@@ -100,8 +76,6 @@
     ]
   },
   "health": {
-    "ignore": [
-      "public/**"
-    ]
+    "ignore": ["public/**"]
   }
 }

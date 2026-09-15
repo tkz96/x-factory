@@ -1,7 +1,7 @@
 // src/azure/connection.ts — Azure DevOps connection testing and repository probing domain service.
 
-import { formatAzureAuthHeader, resolveAzureAuthHeader } from "./auth.js";
 import { extractAzureDevOpsInfo } from "../discovery/azure.js";
+import { formatAzureAuthHeader, resolveAzureAuthHeader } from "./auth.js";
 
 export interface AzureConnectionResult {
   ok: boolean;
@@ -21,49 +21,77 @@ export interface AzureConnectionInput {
   pat?: string;
 }
 
-function parseAzureTarget(data: { orgUrl?: string; project?: string }): { orgUrl: string; project: string } | null {
+export function parseAzureTarget(data: {
+  orgUrl?: string;
+  project?: string;
+}): { orgUrl: string; project: string } | null {
   const parsed = extractAzureDevOpsInfo(data.project || data.orgUrl);
-  const orgUrl = (data.orgUrl || parsed.orgUrl || "").trim().replace(/\/+$/, "");
+  const orgUrl = (data.orgUrl || parsed.orgUrl || "")
+    .trim()
+    .replace(/\/+$/, "");
   const project = (parsed.project || data.project || "").trim();
   return orgUrl && project ? { orgUrl, project } : null;
 }
 
-async function resolveAzureAuthInfo(pat?: string): Promise<{ authHeader: string; authMethod: string }> {
-  if (pat && pat.trim()) {
-    return { authHeader: formatAzureAuthHeader(pat), authMethod: "Personal Access Token" };
+export async function resolveAzureAuthInfo(
+  pat?: string,
+): Promise<{ authHeader: string; authMethod: string }> {
+  if (pat?.trim()) {
+    return {
+      authHeader: formatAzureAuthHeader(pat),
+      authMethod: "Personal Access Token",
+    };
   }
   const cliHeader = await resolveAzureAuthHeader();
-  return { authHeader: cliHeader, authMethod: cliHeader ? "Active Azure CLI Session" : "" };
+  return {
+    authHeader: cliHeader,
+    authMethod: cliHeader ? "Active Azure CLI Session" : "",
+  };
 }
 
-async function fetchAzureRepoNames(apiUrl: string, authHeader: string): Promise<string[]> {
-  const res = await fetch(apiUrl, { headers: { Authorization: authHeader, Accept: "application/json" } });
+export async function fetchAzureRepoNames(
+  apiUrl: string,
+  authHeader: string,
+): Promise<string[]> {
+  const res = await fetch(apiUrl, {
+    headers: { Authorization: authHeader, Accept: "application/json" },
+  });
   if (!res.ok) {
-    throw new Error(`Azure responded with status ${res.status}: ${await res.text()}`);
+    throw new Error(
+      `Azure responded with status ${res.status}: ${await res.text()}`,
+    );
   }
-  const resData = (await res.json()) as { value?: Array<{ id: string; name: string }> };
+  const resData = (await res.json()) as {
+    value?: Array<{ id: string; name: string }>;
+  };
   return (resData.value || []).map((r) => r.name);
 }
 
 /**
  * Validate connectivity against Azure DevOps REST API and discover available repositories.
  */
-export async function testAzureConnection(data: AzureConnectionInput): Promise<AzureConnectionResult> {
+export async function testAzureConnection(
+  data: AzureConnectionInput,
+): Promise<AzureConnectionResult> {
   const target = parseAzureTarget(data);
   if (!target) {
     return {
       ok: false,
       provider: "azure",
-      error: "Both Azure Organization URL and Project Name are required (e.g. dev.azure.com/xynotech/Converso).",
+      error:
+        "Both Azure Organization URL and Project Name are required (e.g. dev.azure.com/xynotech/Converso).",
     };
   }
 
-  const { authHeader, authMethod } = await resolveAzureAuthInfo((data.pat || "").trim());
+  const { authHeader, authMethod } = await resolveAzureAuthInfo(
+    (data.pat || "").trim(),
+  );
   if (!authHeader) {
     return {
       ok: false,
       provider: "azure",
-      error: "Authentication required. Please enter an Azure PAT or log in via Azure CLI ('az login').",
+      error:
+        "Authentication required. Please enter an Azure PAT or log in via Azure CLI ('az login').",
     };
   }
 

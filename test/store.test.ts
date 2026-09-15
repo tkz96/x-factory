@@ -5,10 +5,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { RunStore, type InternalRun } from "../src/store.js";
-import { RunEventBus } from "../src/events.js";
-import type { RunEvent } from "../src/types.js";
 import { validateProject } from "../src/config.js";
+import { RunEventBus } from "../src/events.js";
+import { type InternalRun, RunStore } from "../src/store.js";
+import type { RunEvent } from "../src/types.js";
 
 describe("RunEventBus", () => {
   it("subscribes and receives emitted events", () => {
@@ -88,9 +88,18 @@ describe("RunStore", () => {
 
     const summarized = store.summarize(internalRun);
     assert.equal("id" in summarized, true);
-    assert.equal("_session" in (summarized as unknown as Record<string, unknown>), false);
-    assert.equal("_baseline" in (summarized as unknown as Record<string, unknown>), false);
-    assert.equal("_project" in (summarized as unknown as Record<string, unknown>), false);
+    assert.equal(
+      "_session" in (summarized as unknown as Record<string, unknown>),
+      false,
+    );
+    assert.equal(
+      "_baseline" in (summarized as unknown as Record<string, unknown>),
+      false,
+    );
+    assert.equal(
+      "_project" in (summarized as unknown as Record<string, unknown>),
+      false,
+    );
 
     const list = store.list();
     assert.equal(list.length, 1);
@@ -98,7 +107,9 @@ describe("RunStore", () => {
   });
 
   it("persists run.json to artifacts directory", async () => {
-    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "xfactory-store-test-"));
+    const tmpDir = await mkdtemp(
+      path.join(os.tmpdir(), "xfactory-store-test-"),
+    );
     try {
       const store = new RunStore();
       const mockProject = validateProject({
@@ -197,15 +208,21 @@ describe("RunStore", () => {
   });
 
   it("initializes run artifacts on disk with initializeArtifacts", async () => {
-    const tmpDir = await mkdtemp(path.join(os.tmpdir(), "xfactory-artifacts-test-"));
+    const tmpDir = await mkdtemp(
+      path.join(os.tmpdir(), "xfactory-artifacts-test-"),
+    );
     try {
       const store = new RunStore();
-      await store.initializeArtifacts(tmpDir, {
-        id: "T-100",
-        title: "Test Ticket",
-        description: "Test details",
-        acceptanceCriteria: ["Must pass all tests"],
-      }, "# Implementation Plan\nSteps to take");
+      await store.initializeArtifacts(
+        tmpDir,
+        {
+          id: "T-100",
+          title: "Test Ticket",
+          description: "Test details",
+          acceptanceCriteria: ["Must pass all tests"],
+        },
+        "# Implementation Plan\nSteps to take",
+      );
 
       const ticketFile = Bun.file(path.join(tmpDir, "ticket.md"));
       const planFile = Bun.file(path.join(tmpDir, "plan.md"));

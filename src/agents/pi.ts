@@ -1,27 +1,33 @@
 // src/agents/pi.ts — Decoupled Pi coding agent SDK adapter for implementation and read-only review.
 
 import {
+  type AgentSession,
   createAgentSession,
   ModelRuntime,
   SessionManager,
-  type AgentSession,
 } from "@earendil-works/pi-coding-agent";
 
 export interface SessionOptions {
   provider?: string;
   model?: string;
-  thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | string;
+  thinkingLevel?:
+    | "off"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | string;
 }
 
-export interface PiEventListener {
-  (event: {
-    type: "text" | "tool" | "done" | "error";
-    text?: string;
-    tool?: string;
-    input?: string;
-    error?: string;
-  }): void;
-}
+export type PiEventListener = (event: {
+  type: "text" | "tool" | "done" | "error";
+  text?: string;
+  tool?: string;
+  input?: string;
+  error?: string;
+}) => void;
 
 export interface PiAgentSession {
   readonly session: AgentSession;
@@ -46,16 +52,23 @@ function summarizeToolInput(args: unknown): string {
 
 type PiEventPayload = Parameters<PiEventListener>[0];
 
-function notifyListeners(listeners: Set<PiEventListener>, payload: PiEventPayload): void {
+function notifyListeners(
+  listeners: Set<PiEventListener>,
+  payload: PiEventPayload,
+): void {
   for (const l of listeners) {
     l(payload);
   }
 }
 
-function translateSessionEvent(event: { type?: string; [key: string]: unknown }): PiEventPayload | null {
+function translateSessionEvent(event: {
+  type?: string;
+  [key: string]: unknown;
+}): PiEventPayload | null {
   if (event.type === "message_update") {
-    const msg = (event as { assistantMessageEvent?: { type?: string; delta?: string } })
-      .assistantMessageEvent;
+    const msg = (
+      event as { assistantMessageEvent?: { type?: string; delta?: string } }
+    ).assistantMessageEvent;
     if (msg?.type === "text_delta" && typeof msg.delta === "string") {
       return { type: "text", text: msg.delta };
     }
@@ -113,7 +126,11 @@ function wrapSession(session: AgentSession): PiAgentSession {
 
 async function resolveSessionModel(options?: SessionOptions) {
   if (!options?.provider || !options?.model) {
-    return { model: undefined, thinkingLevel: options?.thinkingLevel, modelRuntime: undefined };
+    return {
+      model: undefined,
+      thinkingLevel: options?.thinkingLevel,
+      modelRuntime: undefined,
+    };
   }
   const modelRuntime = await ModelRuntime.create();
   const model = modelRuntime.getModel(options.provider, options.model);
@@ -130,7 +147,7 @@ async function resolveSessionModel(options?: SessionOptions) {
  */
 export async function createImplementationSession(
   worktreePath: string,
-  options?: SessionOptions
+  options?: SessionOptions,
 ): Promise<PiAgentSession> {
   const resolved = await resolveSessionModel(options);
   const { session } = await createAgentSession({
@@ -138,6 +155,7 @@ export async function createImplementationSession(
     sessionManager: SessionManager.inMemory(worktreePath),
     tools: ["read", "bash", "edit", "write"],
     model: resolved.model,
+    // biome-ignore lint/suspicious/noExplicitAny: TODO(XF-010) narrow thinkingLevel type and remove as any cast
     thinkingLevel: resolved.thinkingLevel as any,
     modelRuntime: resolved.modelRuntime,
   });
@@ -152,7 +170,7 @@ export async function createImplementationSession(
  */
 export async function createReviewSession(
   worktreePath: string,
-  options?: SessionOptions
+  options?: SessionOptions,
 ): Promise<PiAgentSession> {
   const resolved = await resolveSessionModel(options);
   const { session } = await createAgentSession({
@@ -160,6 +178,7 @@ export async function createReviewSession(
     sessionManager: SessionManager.inMemory(worktreePath),
     tools: ["read", "grep", "find", "ls"],
     model: resolved.model,
+    // biome-ignore lint/suspicious/noExplicitAny: TODO(XF-010) narrow thinkingLevel type and remove as any cast
     thinkingLevel: resolved.thinkingLevel as any,
     modelRuntime: resolved.modelRuntime,
   });

@@ -11,15 +11,23 @@ export function formatAzureAuthHeader(pat: string): string {
     : `Basic ${Buffer.from(`:${trimmed}`).toString("base64")}`;
 }
 
+export type CliCommandExecutor = (
+  cmd: string,
+  args: string[],
+  options?: { timeoutMs?: number },
+) => Promise<{ passed: boolean; stdout: string }>;
+
 /**
  * Retrieve an Azure DevOps OAuth Bearer token from an active Azure CLI session.
- * Exits immediately in test environments to avoid blocking test runners.
+ * Exits immediately in test environments unless a custom executor is injected.
  */
-async function getAzureCliAuthHeader(): Promise<string> {
-  if (process.env.NODE_ENV === "test") return "";
+export async function getAzureCliAuthHeader(
+  executor?: CliCommandExecutor,
+): Promise<string> {
+  if (process.env.NODE_ENV === "test" && !executor) return "";
   try {
-    const { execCommand } = await import("../proc.js");
-    const res = await execCommand(
+    const exec = executor || (await import("../proc.js")).execCommand;
+    const res = await exec(
       "az",
       [
         "account",
@@ -31,7 +39,7 @@ async function getAzureCliAuthHeader(): Promise<string> {
         "-o",
         "tsv",
       ],
-      { timeoutMs: 3500 }
+      { timeoutMs: 3500 },
     );
     if (res.passed && res.stdout.trim()) {
       return `Bearer ${res.stdout.trim()}`;
@@ -45,9 +53,12 @@ async function getAzureCliAuthHeader(): Promise<string> {
 /**
  * Resolve an Authorization header from an explicit PAT or the active Azure CLI session.
  */
-export async function resolveAzureAuthHeader(pat?: string): Promise<string> {
-  if (pat && pat.trim()) {
+export async function resolveAzureAuthHeader(
+  pat?: string,
+  executor?: CliCommandExecutor,
+): Promise<string> {
+  if (pat?.trim()) {
     return formatAzureAuthHeader(pat);
   }
-  return getAzureCliAuthHeader();
+  return getAzureCliAuthHeader(executor);
 }

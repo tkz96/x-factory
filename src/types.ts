@@ -237,7 +237,12 @@ export type RunEventPayload =
   | { type: "info"; text: string }
   | { type: "error"; text: string }
   | { type: "pi_text"; text: string; role: "implementer" | "reviewer" }
-  | { type: "pi_tool"; tool: string; input?: string; role: "implementer" | "reviewer" }
+  | {
+      type: "pi_tool";
+      tool: string;
+      input?: string;
+      role: "implementer" | "reviewer";
+    }
   | { type: "pi_done"; role: "implementer" | "reviewer" }
   | { type: "pi_error"; error: string; role: "implementer" | "reviewer" }
   | { type: "steer"; text: string }

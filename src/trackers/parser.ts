@@ -1,7 +1,9 @@
 // src/trackers/parser.ts — Text and description parsers for criteria and rich formats.
 
 function isSectionHeader(line: string): boolean {
-  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(line);
+  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
+    line,
+  );
 }
 
 function sanitizeLine(line: string): string {
@@ -21,7 +23,10 @@ function parseBulletLine(line: string): string | null {
  */
 export function extractCriteria(text: string): string[] {
   if (!text || typeof text !== "string") return [];
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   const headerIdx = lines.findIndex(isSectionHeader);
 
   if (headerIdx >= 0) {
@@ -61,4 +66,3 @@ export function stripHtml(html: string): string {
 }
 
 export { parseAdfToText } from "./jira-adf.js";
-

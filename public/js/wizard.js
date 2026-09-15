@@ -1,8 +1,8 @@
 // fallow-ignore-file coverage-gaps
 // public/js/wizard.js — 6-step project onboarding wizard, repository discovery, and inspection.
 
-import { $, $$, escapeHtml, getVal, api } from "./utils.js";
 import { loadProjectsData, openProjectDetail } from "./projects.js";
+import { $, $$, api, escapeHtml, getVal } from "./utils.js";
 
 const onboardState = {
   step: 1,
@@ -149,7 +149,9 @@ async function checkWorkspacePath(path) {
       if (data.isGitRepo) {
         badge = `<span class="badge" style="background: rgba(16,185,129,0.2); color:#10b981; margin-left: 0.4rem; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Git Repository</span>`;
       } else if (repoCount > 0) {
-        const topRepos = repoList.slice(0, 3).join(", ") + (repoCount > 3 ? ` +${repoCount - 3} more` : "");
+        const topRepos =
+          repoList.slice(0, 3).join(", ") +
+          (repoCount > 3 ? ` +${repoCount - 3} more` : "");
         badge = `<span class="badge" style="background: rgba(59,130,246,0.2); color:#60a5fa; margin-left: 0.4rem; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${repoCount} repos found (${escapeHtml(topRepos)})</span>`;
       }
       box.innerHTML = `✓ Directory verified: <code>${escapeHtml(data.resolvedPath)}</code> ${badge}`;
@@ -173,7 +175,10 @@ function autoPopulateBasics(projectName) {
     nameInput.dataset.auto = "true";
   }
   if (idInput && (!idInput.value || idInput.dataset.auto)) {
-    idInput.value = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    idInput.value = projectName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
     idInput.dataset.auto = "true";
   }
   if (wsInput && !wsInput.value) {
@@ -194,7 +199,8 @@ function handleQuickUrlInput(e) {
   }
 
   // Azure DevOps pattern: dev.azure.com/org/project or https://dev.azure.com/org/project or org.visualstudio.com/project
-  const azureRegex = /^(?:https?:\/\/)?(?:dev\.azure\.com\/([^/]+)\/([^/]+)|([^.]+)\.visualstudio\.com\/([^/]+))/i;
+  const azureRegex =
+    /^(?:https?:\/\/)?(?:dev\.azure\.com\/([^/]+)\/([^/]+)|([^.]+)\.visualstudio\.com\/([^/]+))/i;
   const azureMatch = val.match(azureRegex);
 
   // GitHub pattern: github.com/owner/repo or https://github.com/owner/repo
@@ -203,7 +209,9 @@ function handleQuickUrlInput(e) {
 
   if (azureMatch) {
     const org = azureMatch[1] || azureMatch[3];
-    const project = decodeURIComponent((azureMatch[2] || azureMatch[4]).replace(/\.git$/, ""));
+    const project = decodeURIComponent(
+      (azureMatch[2] || azureMatch[4]).replace(/\.git$/, ""),
+    );
     const orgUrl = `https://dev.azure.com/${org}`;
 
     // Step 1: populate Project Name & ID & Workspace Path
@@ -286,8 +294,14 @@ async function handleTestTrackerConnection() {
   const btn = $("#btn-test-tracker-connection");
   const tracker = getVal("onboard-tracker-connection", "azure");
   const project = getVal("onboard-tracker-project", "");
-  const orgUrl = getVal("onboard-azure-org-url-step2", getVal("onboard-azure-org-url", ""));
-  const pat = getVal("onboard-azure-pat-step2", getVal("onboard-azure-pat", ""));
+  const orgUrl = getVal(
+    "onboard-azure-org-url-step2",
+    getVal("onboard-azure-org-url", ""),
+  );
+  const pat = getVal(
+    "onboard-azure-pat-step2",
+    getVal("onboard-azure-pat", ""),
+  );
 
   if (status) {
     status.className = "tracker-test-status checking";
@@ -307,12 +321,23 @@ async function handleTestTrackerConnection() {
       if (status) {
         status.className = "tracker-test-status success";
         const auth = data.authMethod || "Active Session";
-        const count = data.repoCount ?? data.repositoryCount ?? (data.repositories ? data.repositories.length : 0);
-        status.textContent = data.message || `✓ Connected (${auth})! Found ${count} repositories in ${escapeHtml(data.project || project)}.`;
+        const count =
+          data.repoCount ??
+          data.repositoryCount ??
+          (data.repositories ? data.repositories.length : 0);
+        status.textContent =
+          data.message ||
+          `✓ Connected (${auth})! Found ${count} repositories in ${escapeHtml(data.project || project)}.`;
       }
-      if (data.repositories && data.repositories.length > 0 && onboardState.discovered.length === 0) {
+      if (
+        data.repositories &&
+        data.repositories.length > 0 &&
+        onboardState.discovered.length === 0
+      ) {
         // Pre-normalize repositories
-        onboardState.discovered = data.repositories.map((r) => typeof r === "string" ? { name: r, id: r, defaultBranch: "main" } : r);
+        onboardState.discovered = data.repositories.map((r) =>
+          typeof r === "string" ? { name: r, id: r, defaultBranch: "main" } : r,
+        );
       }
     } else {
       if (status) {
@@ -444,7 +469,8 @@ function renderDiscoveredRepos() {
     if (r.name === onboardState.knowledgeRepoId) continue;
     if (searchTerm && !r.name.toLowerCase().includes(searchTerm)) continue;
 
-    const isPrimary = r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase();
+    const isPrimary =
+      r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase();
     const item = createDiscoveredRepoItem(r, isPrimary);
     onboardRepoChecklist.appendChild(item);
   }
@@ -477,9 +503,16 @@ async function inspectRepoAsync(repo) {
       const typecheckInput = card?.querySelector(`.cmd-typecheck`);
       const lintInput = card?.querySelector(`.cmd-lint`);
 
-      if (testInput && !testInput.value && data.detectedCommands.test) testInput.value = data.detectedCommands.test;
-      if (typecheckInput && !typecheckInput.value && data.detectedCommands.typecheck) typecheckInput.value = data.detectedCommands.typecheck;
-      if (lintInput && !lintInput.value && data.detectedCommands.lint) lintInput.value = data.detectedCommands.lint;
+      if (testInput && !testInput.value && data.detectedCommands.test)
+        testInput.value = data.detectedCommands.test;
+      if (
+        typecheckInput &&
+        !typecheckInput.value &&
+        data.detectedCommands.typecheck
+      )
+        typecheckInput.value = data.detectedCommands.typecheck;
+      if (lintInput && !lintInput.value && data.detectedCommands.lint)
+        lintInput.value = data.detectedCommands.lint;
     }
   } catch {
     if (pill) {
@@ -584,13 +617,16 @@ function renderInspectionStep() {
 function buildProjectConfigFromWizard() {
   const id = getVal("onboard-proj-id", "project").trim();
   const name = getVal("onboard-proj-name", id).trim();
-  const workspacePath = getVal("onboard-workspace-path", "").trim() || undefined;
+  const workspacePath =
+    getVal("onboard-workspace-path", "").trim() || undefined;
   const connectionId = getVal("onboard-tracker-connection", "azure");
   const trackerProj = getVal("onboard-tracker-project", "").trim() || undefined;
   const onboardInspectionList = $("#onboard-inspection-list");
 
   const repositories = [];
-  const repoCards = onboardInspectionList ? onboardInspectionList.querySelectorAll(".inspection-card") : [];
+  const repoCards = onboardInspectionList
+    ? onboardInspectionList.querySelectorAll(".inspection-card")
+    : [];
 
   for (const card of repoCards) {
     const pathInput = card.querySelector(".repo-path-input");
@@ -604,7 +640,8 @@ function buildProjectConfigFromWizard() {
 
     const commands = {};
     if (testInput?.value.trim()) commands.test = testInput.value.trim();
-    if (typecheckInput?.value.trim()) commands.typecheck = typecheckInput.value.trim();
+    if (typecheckInput?.value.trim())
+      commands.typecheck = typecheckInput.value.trim();
     if (lintInput?.value.trim()) commands.lint = lintInput.value.trim();
 
     repositories.push({
@@ -618,7 +655,7 @@ function buildProjectConfigFromWizard() {
     });
   }
 
-  let knowledgeRepository = undefined;
+  let knowledgeRepository;
   if (onboardState.knowledgeRepoId) {
     const kName = onboardState.knowledgeRepoId;
     const wsRoot = workspacePath || "~";
@@ -652,10 +689,16 @@ function renderReviewStep() {
   // Render Architecture Card Grid
   const archCard = $("#review-architecture-card");
   if (archCard) {
-    const trackerName = config.issueTracker?.connectionId === "azure"
-      ? "Azure DevOps"
-      : (config.issueTracker?.connectionId === "github" ? "GitHub Issues" : "Jira");
-    const primaryName = onboardState.primaryRepo || config.repositories[0]?.name || "None specified";
+    const trackerName =
+      config.issueTracker?.connectionId === "azure"
+        ? "Azure DevOps"
+        : config.issueTracker?.connectionId === "github"
+          ? "GitHub Issues"
+          : "Jira";
+    const primaryName =
+      onboardState.primaryRepo ||
+      config.repositories[0]?.name ||
+      "None specified";
     const kName = config.knowledgeRepository?.repositoryId || "None (Disabled)";
 
     archCard.innerHTML = `
@@ -690,9 +733,12 @@ function renderReviewStep() {
   if (tbody) {
     tbody.innerHTML = "";
     for (const r of config.repositories) {
-      const isPrimary = (r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase());
+      const isPrimary =
+        r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase();
       const tr = document.createElement("tr");
-      const testCmd = r.commands?.test ? `<code>${escapeHtml(r.commands.test)}</code>` : '<span style="color: var(--text-dim);">None</span>';
+      const testCmd = r.commands?.test
+        ? `<code>${escapeHtml(r.commands.test)}</code>`
+        : '<span style="color: var(--text-dim);">None</span>';
       tr.innerHTML = `
         <td>
           <strong style="color: var(--text-bright);">${escapeHtml(r.name)}</strong>
@@ -718,7 +764,7 @@ function goToOnboardStep(step) {
     const s = parseInt(el.getAttribute("data-step") || "1", 10);
     el.classList.toggle("active", s === step);
     el.classList.toggle("completed", s < step);
-    el.style.cursor = (s <= onboardState.maxStepReached) ? "pointer" : "default";
+    el.style.cursor = s <= onboardState.maxStepReached ? "pointer" : "default";
   });
 
   for (let i = 1; i <= 6; i++) {
@@ -780,12 +826,19 @@ async function handleRunDiscovery() {
   const trackerProj = getVal("onboard-tracker-project", "");
   const primRepo = getVal("onboard-primary-repo", "");
   const wsPath = getVal("onboard-workspace-path", "");
-  const azureOrgUrl = getVal("onboard-azure-org-url", getVal("onboard-azure-org-url-step2", "")).trim();
-  const azurePat = getVal("onboard-azure-pat", getVal("onboard-azure-pat-step2", "")).trim();
+  const azureOrgUrl = getVal(
+    "onboard-azure-org-url",
+    getVal("onboard-azure-org-url-step2", ""),
+  ).trim();
+  const azurePat = getVal(
+    "onboard-azure-pat",
+    getVal("onboard-azure-pat-step2", ""),
+  ).trim();
   const discoveryStatusText = $("#discovery-status-text");
   const btnRunDiscovery = $("#btn-run-discovery");
 
-  if (discoveryStatusText) discoveryStatusText.textContent = "Discovering repositories…";
+  if (discoveryStatusText)
+    discoveryStatusText.textContent = "Discovering repositories…";
   if (btnRunDiscovery) btnRunDiscovery.disabled = true;
 
   try {
@@ -807,7 +860,9 @@ async function handleRunDiscovery() {
 
     onboardState.selectedRepos.clear();
     for (const r of repos) {
-      const isPrimary = primRepo && (r.name.toLowerCase() === primRepo.toLowerCase() || r.id === primRepo);
+      const isPrimary =
+        primRepo &&
+        (r.name.toLowerCase() === primRepo.toLowerCase() || r.id === primRepo);
       const role = inferRepoRole(r.name);
 
       if (role !== "knowledge" || isPrimary) {
@@ -819,15 +874,21 @@ async function handleRunDiscovery() {
       }
     }
 
-    const kCandidate = repos.find((r) => r.name.toLowerCase().includes("knowledge") || r.name.toLowerCase().includes("graph"));
+    const kCandidate = repos.find(
+      (r) =>
+        r.name.toLowerCase().includes("knowledge") ||
+        r.name.toLowerCase().includes("graph"),
+    );
     if (kCandidate) {
       onboardState.knowledgeRepoId = kCandidate.name;
     }
 
-    if (discoveryStatusText) discoveryStatusText.textContent = `Found ${repos.length} repositories.`;
+    if (discoveryStatusText)
+      discoveryStatusText.textContent = `Found ${repos.length} repositories.`;
     goToOnboardStep(4);
   } catch (err) {
-    if (discoveryStatusText) discoveryStatusText.textContent = "Discovery failed.";
+    if (discoveryStatusText)
+      discoveryStatusText.textContent = "Discovery failed.";
     setOnboardError(err instanceof Error ? err.message : String(err));
   } finally {
     if (btnRunDiscovery) btnRunDiscovery.disabled = false;
@@ -836,11 +897,15 @@ async function handleRunDiscovery() {
 
 function handlePrimaryRepoUrlInput(e) {
   const val = (e.target.value || "").trim();
-  const azureMatch = val.match(/^https?:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)/i);
+  const azureMatch = val.match(
+    /^https?:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)/i,
+  );
   const vsMatch = val.match(/^https?:\/\/([^.]+)\.visualstudio\.com\/([^/]+)/i);
   if (!azureMatch && !vsMatch) return;
 
-  const orgUrl = azureMatch ? `https://dev.azure.com/${azureMatch[1]}` : `https://${vsMatch[1]}.visualstudio.com`;
+  const orgUrl = azureMatch
+    ? `https://dev.azure.com/${azureMatch[1]}`
+    : `https://${vsMatch[1]}.visualstudio.com`;
   const proj = decodeURIComponent(azureMatch ? azureMatch[2] : vsMatch[2]);
   const onboardAzureOrgUrlInput = $("#onboard-azure-org-url");
   const onboardTrackerProj = $("#onboard-tracker-project");
@@ -865,16 +930,25 @@ function handleTrackerConnChange(e) {
   const onboardTrackerHint = $("#onboard-tracker-hint");
 
   if (tracker === "jira") {
-    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. VEND (Jira Project Key)";
-    if (onboardTrackerHint) onboardTrackerHint.textContent = "Jira Software project key (used with JQL to find tickets).";
+    if (onboardTrackerProj)
+      onboardTrackerProj.placeholder = "e.g. VEND (Jira Project Key)";
+    if (onboardTrackerHint)
+      onboardTrackerHint.textContent =
+        "Jira Software project key (used with JQL to find tickets).";
     if (sourceSel) sourceSel.value = "local";
   } else if (tracker === "github") {
-    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. org/repo or org";
-    if (onboardTrackerHint) onboardTrackerHint.textContent = "GitHub repository owner/repo or organization name.";
+    if (onboardTrackerProj)
+      onboardTrackerProj.placeholder = "e.g. org/repo or org";
+    if (onboardTrackerHint)
+      onboardTrackerHint.textContent =
+        "GitHub repository owner/repo or organization name.";
     if (sourceSel) sourceSel.value = "github";
   } else {
-    if (onboardTrackerProj) onboardTrackerProj.placeholder = "e.g. Converso (Azure DevOps Project)";
-    if (onboardTrackerHint) onboardTrackerHint.textContent = "Azure DevOps project name (used with WIQL queries).";
+    if (onboardTrackerProj)
+      onboardTrackerProj.placeholder = "e.g. Converso (Azure DevOps Project)";
+    if (onboardTrackerHint)
+      onboardTrackerHint.textContent =
+        "Azure DevOps project name (used with WIQL queries).";
     if (sourceSel) sourceSel.value = "azure";
   }
   updateTrackerFieldsVisibility();
@@ -893,12 +967,16 @@ function handleOnboardNext() {
     goToOnboardStep(3);
   } else if (onboardState.step === 3) {
     if (onboardState.discovered.length === 0) {
-      return setOnboardError("Please click 'Discover Repositories' to find repositories before continuing.");
+      return setOnboardError(
+        "Please click 'Discover Repositories' to find repositories before continuing.",
+      );
     }
     goToOnboardStep(4);
   } else if (onboardState.step === 4) {
     if (onboardState.selectedRepos.size === 0) {
-      return setOnboardError("Please select at least one application repository.");
+      return setOnboardError(
+        "Please select at least one application repository.",
+      );
     }
     goToOnboardStep(5);
   } else if (onboardState.step === 5) {
@@ -938,7 +1016,9 @@ export function initWizard() {
   const quickUrlInput = $("#onboard-quick-url");
   if (quickUrlInput) {
     quickUrlInput.addEventListener("input", handleQuickUrlInput);
-    quickUrlInput.addEventListener("paste", () => setTimeout(() => handleQuickUrlInput({ target: quickUrlInput }), 50));
+    quickUrlInput.addEventListener("paste", () =>
+      setTimeout(() => handleQuickUrlInput({ target: quickUrlInput }), 50),
+    );
   }
 
   // Workspace path verification
@@ -946,7 +1026,10 @@ export function initWizard() {
   if (wsInput) {
     wsInput.addEventListener("input", (e) => {
       clearTimeout(pathCheckTimeout);
-      pathCheckTimeout = setTimeout(() => checkWorkspacePath(e.target.value), 350);
+      pathCheckTimeout = setTimeout(
+        () => checkWorkspacePath(e.target.value),
+        350,
+      );
     });
   }
 
@@ -954,15 +1037,23 @@ export function initWizard() {
   const orgStep2 = $("#onboard-azure-org-url-step2");
   const orgStep3 = $("#onboard-azure-org-url");
   if (orgStep2 && orgStep3) {
-    orgStep2.addEventListener("input", () => { orgStep3.value = orgStep2.value; });
-    orgStep3.addEventListener("input", () => { orgStep2.value = orgStep3.value; });
+    orgStep2.addEventListener("input", () => {
+      orgStep3.value = orgStep2.value;
+    });
+    orgStep3.addEventListener("input", () => {
+      orgStep2.value = orgStep3.value;
+    });
   }
 
   const patStep2 = $("#onboard-azure-pat-step2");
   const patStep3 = $("#onboard-azure-pat");
   if (patStep2 && patStep3) {
-    patStep2.addEventListener("input", () => { patStep3.value = patStep2.value; });
-    patStep3.addEventListener("input", () => { patStep2.value = patStep3.value; });
+    patStep2.addEventListener("input", () => {
+      patStep3.value = patStep2.value;
+    });
+    patStep3.addEventListener("input", () => {
+      patStep2.value = patStep3.value;
+    });
   }
 
   // Tracker test connection button
@@ -977,7 +1068,10 @@ export function initWizard() {
     onboardNameInput.addEventListener("input", (e) => {
       setOnboardError("");
       if (!onboardIdInput.dataset.manual) {
-        onboardIdInput.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        onboardIdInput.value = e.target.value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
       }
     });
     onboardIdInput.addEventListener("input", () => {
@@ -988,12 +1082,18 @@ export function initWizard() {
 
   const onboardDiscoverySource = $("#onboard-discovery-source");
   if (onboardDiscoverySource) {
-    onboardDiscoverySource.addEventListener("change", updateDiscoveryFieldsVisibility);
+    onboardDiscoverySource.addEventListener(
+      "change",
+      updateDiscoveryFieldsVisibility,
+    );
   }
 
   const onboardPrimaryRepoInput = $("#onboard-primary-repo");
   if (onboardPrimaryRepoInput) {
-    onboardPrimaryRepoInput.addEventListener("input", handlePrimaryRepoUrlInput);
+    onboardPrimaryRepoInput.addEventListener(
+      "input",
+      handlePrimaryRepoUrlInput,
+    );
   }
 
   const onboardTrackerConn = $("#onboard-tracker-connection");
@@ -1036,7 +1136,9 @@ export function initWizard() {
       const repos = onboardState.discovered || [];
       for (const r of repos) {
         if (r.name !== onboardState.knowledgeRepoId) {
-          const isPrimary = r.name.toLowerCase() === (onboardState.primaryRepo || "").toLowerCase();
+          const isPrimary =
+            r.name.toLowerCase() ===
+            (onboardState.primaryRepo || "").toLowerCase();
           onboardState.selectedRepos.set(r.name, {
             ...r,
             role: onboardState.selectedRepos.get(r.name)?.role || "other",

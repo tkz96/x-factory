@@ -1,7 +1,7 @@
 // src/discovery/azure.ts — Read-only repository discovery for Azure DevOps.
 
-import { loadSettings } from "../settings.js";
 import { resolveAzureAuthHeader } from "../azure/auth.js";
+import { loadSettings } from "../settings.js";
 import type {
   DiscoveredRepository,
   RepositoryDiscoveryInput,
@@ -17,12 +17,18 @@ interface AzureGitRepoItem {
   defaultBranch?: string;
 }
 
-export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; project?: string; repo?: string } {
+export function extractAzureDevOpsInfo(value?: string): {
+  orgUrl?: string;
+  project?: string;
+  repo?: string;
+} {
   if (!value) return {};
   const trimmed = value.trim();
 
   // dev.azure.com/org/project(/_git/repo)?
-  const devAzureMatch = trimmed.match(/^(?:https?:\/\/)?dev\.azure\.com\/([^/]+)\/([^/]+)(?:\/_git\/([^/]+))?/i);
+  const devAzureMatch = trimmed.match(
+    /^(?:https?:\/\/)?dev\.azure\.com\/([^/]+)\/([^/]+)(?:\/_git\/([^/]+))?/i,
+  );
   if (devAzureMatch) {
     return {
       orgUrl: `https://dev.azure.com/${devAzureMatch[1]}`,
@@ -32,7 +38,9 @@ export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; proje
   }
 
   // ssh.dev.azure.com:v3/org/project/repo
-  const sshAzureMatch = trimmed.match(/^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i);
+  const sshAzureMatch = trimmed.match(
+    /^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i,
+  );
   if (sshAzureMatch) {
     return {
       orgUrl: `https://dev.azure.com/${sshAzureMatch[1]}`,
@@ -42,7 +50,9 @@ export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; proje
   }
 
   // org.visualstudio.com/project(/_git/repo)?
-  const vsMatch = trimmed.match(/^(?:https?:\/\/)?([^.]+)\.visualstudio\.com\/([^/]+)(?:\/_git\/([^/]+))?/i);
+  const vsMatch = trimmed.match(
+    /^(?:https?:\/\/)?([^.]+)\.visualstudio\.com\/([^/]+)(?:\/_git\/([^/]+))?/i,
+  );
   if (vsMatch) {
     return {
       orgUrl: `https://${vsMatch[1]}.visualstudio.com`,
@@ -53,7 +63,11 @@ export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; proje
 
   // org/project format
   const simpleMatch = trimmed.match(/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9._-]+)$/);
-  if (simpleMatch && !trimmed.includes("github.com") && !trimmed.includes("gitlab.com")) {
+  if (
+    simpleMatch &&
+    !trimmed.includes("github.com") &&
+    !trimmed.includes("gitlab.com")
+  ) {
     return {
       orgUrl: `https://dev.azure.com/${simpleMatch[1]}`,
       project: simpleMatch[2],
@@ -65,7 +79,7 @@ export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; proje
 
 function pickFirst(...items: (string | undefined)[]): string {
   for (const item of items) {
-    if (item && item.trim()) return item.trim();
+    if (item?.trim()) return item.trim();
   }
   return "";
 }
@@ -86,28 +100,38 @@ function resolvePat(inputPat?: string, savedPat?: string): string {
   return savedPat ? savedPat.trim() : "";
 }
 
-async function resolveAzureParams(input: RepositoryDiscoveryInput): Promise<ResolvedAzureParams> {
+async function resolveAzureParams(
+  input: RepositoryDiscoveryInput,
+): Promise<ResolvedAzureParams> {
   const settings = await loadSettings(false);
   const parsed = extractTarget(input);
-  const orgUrl = pickFirst(input.orgUrl, parsed.orgUrl, settings.azure?.orgUrl).replace(/\/+$/, "");
-  const project = pickFirst(input.project, parsed.project, settings.azure?.project);
+  const orgUrl = pickFirst(
+    input.orgUrl,
+    parsed.orgUrl,
+    settings.azure?.orgUrl,
+  ).replace(/\/+$/, "");
+  const project = pickFirst(
+    input.project,
+    parsed.project,
+    settings.azure?.project,
+  );
   const pat = resolvePat(input.pat, settings.azure?.pat);
 
   if (!orgUrl) {
     throw new Error(
-      "Azure DevOps Organization URL is required (e.g. https://dev.azure.com/xynotech). Configure it in Settings or enter it in the discovery form."
+      "Azure DevOps Organization URL is required (e.g. https://dev.azure.com/xynotech). Configure it in Settings or enter it in the discovery form.",
     );
   }
   if (!project) {
     throw new Error(
-      "Azure DevOps Project name is required (e.g. Converso). Enter it in the Tracker Project field or provide the full repository URL."
+      "Azure DevOps Project name is required (e.g. Converso). Enter it in the Tracker Project field or provide the full repository URL.",
     );
   }
 
   const authHeader = await resolveAzureAuthHeader(pat);
   if (!authHeader) {
     throw new Error(
-      "Azure DevOps Personal Access Token (PAT) with Code (Read) permission is required to query Azure Repos online. Configure it in Settings (Settings → Trackers) or enter it in the discovery form. Alternatively, choose \"Local Workspace Folder\" to discover local clones without a PAT."
+      'Azure DevOps Personal Access Token (PAT) with Code (Read) permission is required to query Azure Repos online. Configure it in Settings (Settings → Trackers) or enter it in the discovery form. Alternatively, choose "Local Workspace Folder" to discover local clones without a PAT.',
     );
   }
 
@@ -128,7 +152,11 @@ function mapAzureRepoItem(repo: AzureGitRepoItem): DiscoveredRepository {
   };
 }
 
-async function fetchAzureApiRepos(orgUrl: string, project: string, authHeader: string): Promise<AzureGitRepoItem[]> {
+async function fetchAzureApiRepos(
+  orgUrl: string,
+  project: string,
+  authHeader: string,
+): Promise<AzureGitRepoItem[]> {
   const apiUrl = `${orgUrl}/${encodeURIComponent(project)}/_apis/git/repositories?api-version=7.1`;
   const res = await fetch(apiUrl, {
     headers: {
@@ -138,23 +166,33 @@ async function fetchAzureApiRepos(orgUrl: string, project: string, authHeader: s
   });
 
   if (res.status === 401 || res.status === 403) {
-    throw new Error("Azure DevOps authentication failed. Verify your Personal Access Token (PAT).");
+    throw new Error(
+      "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+    );
   }
   if (res.status === 404) {
-    throw new Error(`Azure DevOps project "${project}" was not found at ${orgUrl}.`);
+    throw new Error(
+      `Azure DevOps project "${project}" was not found at ${orgUrl}.`,
+    );
   }
   if (!res.ok) {
-    throw new Error(`Azure DevOps API error (${res.status}): ${await res.text()}`);
+    throw new Error(
+      `Azure DevOps API error (${res.status}): ${await res.text()}`,
+    );
   }
 
   const data = (await res.json()) as { value?: AzureGitRepoItem[] };
   return data.value || [];
 }
 
-export class AzureDevOpsRepositoryDiscovery implements RepositoryDiscoveryProvider {
+export class AzureDevOpsRepositoryDiscovery
+  implements RepositoryDiscoveryProvider
+{
   public readonly provider = "azure";
 
-  async listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]> {
+  async listRepositories(
+    input: RepositoryDiscoveryInput,
+  ): Promise<DiscoveredRepository[]> {
     const { orgUrl, project, authHeader } = await resolveAzureParams(input);
     const items = await fetchAzureApiRepos(orgUrl, project, authHeader);
     return items.map(mapAzureRepoItem);

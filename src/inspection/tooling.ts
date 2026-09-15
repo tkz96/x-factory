@@ -24,13 +24,23 @@ const ROLE_KEYWORDS: Array<[string[], RepositoryRole]> = [
   [["service"], "service"],
 ];
 
-const FRONTEND_DEPS = new Set(["react", "vue", "svelte", "next", "nuxt", "vite"]);
+const FRONTEND_DEPS = new Set([
+  "react",
+  "vue",
+  "svelte",
+  "next",
+  "nuxt",
+  "vite",
+]);
 const BACKEND_DEPS = new Set(["express", "fastify", "koa", "hono", "nest"]);
 
 /**
  * Deterministically detect the role of a repository based on name and directory contents.
  */
-export function detectRepositoryRole(repoName: string, packageJsonContent?: string): RepositoryRole {
+export function detectRepositoryRole(
+  repoName: string,
+  packageJsonContent?: string,
+): RepositoryRole {
   const lower = repoName.toLowerCase();
 
   for (const [keywords, role] of ROLE_KEYWORDS) {
@@ -45,7 +55,10 @@ export function detectRepositoryRole(repoName: string, packageJsonContent?: stri
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
       };
-      const deps = Object.keys({ ...parsed.dependencies, ...parsed.devDependencies });
+      const deps = Object.keys({
+        ...parsed.dependencies,
+        ...parsed.devDependencies,
+      });
       if (deps.some((d) => FRONTEND_DEPS.has(d))) return "frontend";
       if (deps.some((d) => BACKEND_DEPS.has(d))) return "backend";
     } catch {
@@ -58,22 +71,30 @@ export function detectRepositoryRole(repoName: string, packageJsonContent?: stri
 
 type PackageManager = "bun" | "pnpm" | "yarn" | "npm";
 
-async function resolvePackageManager(repoPath: string): Promise<{ pm: PackageManager; label: string }> {
+async function resolvePackageManager(
+  repoPath: string,
+): Promise<{ pm: PackageManager; label: string }> {
   if (
     (await fileExists(path.join(repoPath, "bun.lockb"))) ||
     (await fileExists(path.join(repoPath, "bun.lock")))
   ) {
     return { pm: "bun", label: "Bun" };
   }
-  if (await fileExists(path.join(repoPath, "pnpm-lock.yaml"))) return { pm: "pnpm", label: "pnpm" };
-  if (await fileExists(path.join(repoPath, "yarn.lock"))) return { pm: "yarn", label: "Yarn" };
+  if (await fileExists(path.join(repoPath, "pnpm-lock.yaml")))
+    return { pm: "pnpm", label: "pnpm" };
+  if (await fileExists(path.join(repoPath, "yarn.lock")))
+    return { pm: "yarn", label: "Yarn" };
   return { pm: "npm", label: "npm" };
 }
 
-async function readPackageScripts(pkgPath: string): Promise<Record<string, string>> {
+async function readPackageScripts(
+  pkgPath: string,
+): Promise<Record<string, string>> {
   try {
     const raw = await readFile(pkgPath, "utf-8");
-    return (JSON.parse(raw) as { scripts?: Record<string, string> }).scripts || {};
+    return (
+      (JSON.parse(raw) as { scripts?: Record<string, string> }).scripts || {}
+    );
   } catch {
     return {};
   }
@@ -92,7 +113,11 @@ function resolveNodeTestCmd(pm: PackageManager, testScript?: string): string {
   return `${pm} test`;
 }
 
-function resolveNodeTypecheckCmd(pm: PackageManager, tcScript?: string, hasTsConfig = false): string | undefined {
+function resolveNodeTypecheckCmd(
+  pm: PackageManager,
+  tcScript?: string,
+  hasTsConfig = false,
+): string | undefined {
   if (tcScript) return pm === "yarn" ? "yarn typecheck" : `${pm} run typecheck`;
   if (hasTsConfig) return `${EXEC_PREFIX[pm]} tsc --noEmit`;
   return undefined;
@@ -101,13 +126,17 @@ function resolveNodeTypecheckCmd(pm: PackageManager, tcScript?: string, hasTsCon
 function buildNodeCommands(
   pm: PackageManager,
   scripts: Record<string, string>,
-  hasTsConfig: boolean
+  hasTsConfig: boolean,
 ): RepositoryCommands {
   const runPrefix = pm === "yarn" ? "yarn" : `${pm} run`;
   return {
     test: resolveNodeTestCmd(pm, scripts.test),
     typecheck: resolveNodeTypecheckCmd(pm, scripts.typecheck, hasTsConfig),
-    lint: scripts.lint ? `${runPrefix} lint` : pm === "bun" ? "bunx eslint ." : undefined,
+    lint: scripts.lint
+      ? `${runPrefix} lint`
+      : pm === "bun"
+        ? "bunx eslint ."
+        : undefined,
     build: scripts.build ? `${runPrefix} build` : undefined,
   };
 }
@@ -142,7 +171,11 @@ const TOOLING_RULES: ToolingRule[] = [
   {
     files: ["Cargo.toml"],
     tooling: "Rust / Cargo",
-    defaults: { test: "cargo test", lint: "cargo clippy", build: "cargo build" },
+    defaults: {
+      test: "cargo test",
+      lint: "cargo clippy",
+      build: "cargo build",
+    },
   },
   {
     files: ["pyproject.toml", "requirements.txt"],
@@ -156,14 +189,20 @@ const TOOLING_RULES: ToolingRule[] = [
   },
 ];
 
-async function checkRuleMatch(repoPath: string, files: string[]): Promise<boolean> {
+async function checkRuleMatch(
+  repoPath: string,
+  files: string[],
+): Promise<boolean> {
   for (const f of files) {
     if (await fileExists(path.join(repoPath, f))) return true;
   }
   return false;
 }
 
-function mergeDefaults(commands: RepositoryCommands, defaults: RepositoryCommands): void {
+function mergeDefaults(
+  commands: RepositoryCommands,
+  defaults: RepositoryCommands,
+): void {
   for (const [cmdKey, cmdVal] of Object.entries(defaults)) {
     const k = cmdKey as keyof RepositoryCommands;
     if (!commands[k]) commands[k] = cmdVal;

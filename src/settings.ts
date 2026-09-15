@@ -60,7 +60,6 @@ function getSettingsFilePath(): string {
   );
 }
 
-
 export function maskSecret(val?: string): string {
   if (!val || typeof val !== "string") return "";
   const trimmed = val.trim();
@@ -70,7 +69,9 @@ export function maskSecret(val?: string): string {
 }
 
 export function isMasked(val?: string): boolean {
-  return typeof val === "string" && (val.includes("••••") || val.includes("****"));
+  return (
+    typeof val === "string" && (val.includes("••••") || val.includes("****"))
+  );
 }
 
 export function maskSettings(settings: FactorySettings): FactorySettings {
@@ -108,8 +109,14 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
       jira: { ...DEFAULT_SETTINGS.jira, ...parsed.jira },
       azure: { ...DEFAULT_SETTINGS.azure, ...parsed.azure },
       models: {
-        sessionA: { ...DEFAULT_SETTINGS.models?.sessionA, ...parsed.models?.sessionA },
-        sessionB: { ...DEFAULT_SETTINGS.models?.sessionB, ...parsed.models?.sessionB },
+        sessionA: {
+          ...DEFAULT_SETTINGS.models?.sessionA,
+          ...parsed.models?.sessionA,
+        },
+        sessionB: {
+          ...DEFAULT_SETTINGS.models?.sessionB,
+          ...parsed.models?.sessionB,
+        },
       },
     };
   } catch {
@@ -124,7 +131,7 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
  * Preserves unmasked tokens if incoming values contain mask characters.
  */
 export async function saveSettings(
-  patch: Partial<FactorySettings>
+  patch: Partial<FactorySettings>,
 ): Promise<FactorySettings> {
   const filePath = getSettingsFilePath();
   const existing = await loadSettings(false);

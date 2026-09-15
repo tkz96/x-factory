@@ -1,0 +1,15 @@
+# bunfig.toml — Bun configuration for X-Factory
+# Baseline line coverage threshold set to 80% on 2026-09-15 (measured aggregate: 80.43%).
+# Files targeted for characterization & unit tests in Phase 1 (XF-004 to XF-008)
+# are temporarily excluded and will be un-ignored as their test suites land.
+
+[test]
+coverage = true
+coverageThreshold = 0.80
+coveragePathIgnorePatterns = [
+  "src/agents/pi.ts",
+  "src/runs.ts",
+  "src/trackers/azure.ts",
+  "src/trackers/github.ts",
+  "src/trackers/jira.ts"
+]

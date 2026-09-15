@@ -1,12 +1,12 @@
 // src/store.ts — Run repository, in-memory store, disk serialization, and recovery.
 
-import path from "node:path";
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import type { Project, Run, Ticket, RunStatus } from "./types.js";
+import path from "node:path";
 import type { PiAgentSession } from "./agents/pi.js";
 import type { BaselineState } from "./git.js";
-import { getProjectRunsDir, ensureDir } from "./paths.js";
+import { ensureDir, getProjectRunsDir } from "./paths.js";
 import { canTransition } from "./state-machine.js";
+import type { Project, Run, RunStatus, Ticket } from "./types.js";
 
 export interface InternalRun extends Run {
   _session: PiAgentSession | null;
@@ -16,12 +16,12 @@ export interface InternalRun extends Run {
 
 async function loadRunManifest(
   manifestPath: string,
-  project: Project
+  project: Project,
 ): Promise<InternalRun | null> {
   try {
     const content = await readFile(manifestPath, "utf-8");
     const parsed = JSON.parse(content) as Run;
-    if (!parsed || !parsed.id) return null;
+    if (!parsed?.id) return null;
     return {
       ...parsed,
       _session: null,
@@ -35,7 +35,7 @@ async function loadRunManifest(
 
 async function scanProjectRuns(
   project: Project,
-  existingIds: Set<string>
+  existingIds: Set<string>,
 ): Promise<InternalRun[]> {
   const loaded: InternalRun[] = [];
   try {
@@ -57,7 +57,7 @@ async function scanProjectRuns(
 async function initializeRunArtifacts(
   artifactsDir: string,
   ticket: Ticket,
-  plan: string
+  plan: string,
 ): Promise<void> {
   await ensureDir(artifactsDir);
   const ticketContent = `# Ticket ${ticket.id}: ${ticket.title}\n\n${ticket.description || ""}\n\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}`;
@@ -68,10 +68,12 @@ async function initializeRunArtifacts(
 function transitionRunState(
   run: InternalRun,
   newStatus: RunStatus,
-  store?: RunStore
+  store?: RunStore,
 ): boolean {
   if (!canTransition(run.status, newStatus)) {
-    console.warn(`Invalid state transition: ${run.status} → ${newStatus} (run ${run.id})`);
+    console.warn(
+      `Invalid state transition: ${run.status} → ${newStatus} (run ${run.id})`,
+    );
     return false;
   }
   run.status = newStatus;
@@ -109,7 +111,11 @@ export class RunStore {
     return transitionRunState(run, newStatus, this);
   }
 
-  async initializeArtifacts(artifactsDir: string, ticket: Ticket, plan: string): Promise<void> {
+  async initializeArtifacts(
+    artifactsDir: string,
+    ticket: Ticket,
+    plan: string,
+  ): Promise<void> {
     return initializeRunArtifacts(artifactsDir, ticket, plan);
   }
 
@@ -120,7 +126,7 @@ export class RunStore {
       await writeFile(
         path.join(run.artifactsDir, "run.json"),
         JSON.stringify(manifest, null, 2),
-        "utf-8"
+        "utf-8",
       );
     } catch {
       // Non-fatal if disk write fails
@@ -140,4 +146,3 @@ export class RunStore {
 }
 
 export const defaultRunStore = new RunStore();
-

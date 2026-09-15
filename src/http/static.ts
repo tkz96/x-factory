@@ -14,7 +14,10 @@ const MIME_TYPES: Record<string, string> = {
   ".woff": "font/woff",
 };
 
-export async function serveStatic(pathname: string, publicDir: string): Promise<Response> {
+export async function serveStatic(
+  pathname: string,
+  publicDir: string,
+): Promise<Response> {
   let relPath = pathname === "/" ? "index.html" : pathname;
   if (relPath.startsWith("/")) relPath = relPath.slice(1);
 

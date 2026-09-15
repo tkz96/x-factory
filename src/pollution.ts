@@ -35,19 +35,21 @@ export function isPollutionPath(relPath: string): boolean {
  * Record baseline working tree state before implementation starts.
  * Excludes .git metadata.
  */
-export async function recordBaseline(worktreePath: string): Promise<BaselineState> {
+export async function recordBaseline(
+  worktreePath: string,
+): Promise<BaselineState> {
   const lsResult = await execStrict("git", ["ls-files"], { cwd: worktreePath });
   const trackedFiles = new Set(
     lsResult.stdout
       .split("\n")
       .map((f) => f.trim())
-      .filter((f) => f.length > 0 && !f.startsWith(".git"))
+      .filter((f) => f.length > 0 && !f.startsWith(".git")),
   );
 
   const statusResult = await execStrict(
     "git",
     ["status", "--porcelain", "-uall"],
-    { cwd: worktreePath }
+    { cwd: worktreePath },
   );
   const untrackedFiles = new Set<string>();
 
@@ -73,12 +75,12 @@ export async function recordBaseline(worktreePath: string): Promise<BaselineStat
  */
 export async function checkPollution(
   worktreePath: string,
-  baseline: BaselineState
+  baseline: BaselineState,
 ): Promise<PollutionCheckResult> {
   const statusResult = await execStrict(
     "git",
     ["status", "--porcelain", "-uall"],
-    { cwd: worktreePath }
+    { cwd: worktreePath },
   );
   const details: string[] = [];
 
@@ -92,13 +94,15 @@ export async function checkPollution(
     if (relPath.startsWith(".git")) continue;
 
     if (isPollutionPath(relPath)) {
-      details.push(`Pollution file detected: "${relPath}" matches forbidden generated pattern.`);
+      details.push(
+        `Pollution file detected: "${relPath}" matches forbidden generated pattern.`,
+      );
       continue;
     }
 
     if (baseline.untrackedFiles.has(relPath) && status !== "??") {
       details.push(
-        `Pre-existing untracked file was modified: "${relPath}". Baseline untracked files must not be altered.`
+        `Pre-existing untracked file was modified: "${relPath}". Baseline untracked files must not be altered.`,
       );
     }
   }

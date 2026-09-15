@@ -1,9 +1,9 @@
 // fallow-ignore-file coverage-gaps
 // public/js/queue.js — Work item queue, ticket cards, instant search, and run pre-fill.
 
-import { $, escapeHtml, api } from "./utils.js";
-import { state } from "./state.js";
 import { openNewRunModal } from "./router.js";
+import { state } from "./state.js";
+import { $, api, escapeHtml } from "./utils.js";
 
 let onSelectTicketCallback = null;
 
@@ -21,7 +21,8 @@ function handleSelectTicket(ticket) {
   if (inputTicketId) inputTicketId.value = ticket.id;
   if (inputTicketTitle) inputTicketTitle.value = ticket.title;
   if (inputBranch) inputBranch.value = "";
-  if (inputCriteria) inputCriteria.value = (ticket.acceptanceCriteria || []).join("\n");
+  if (inputCriteria)
+    inputCriteria.value = (ticket.acceptanceCriteria || []).join("\n");
   if (inputPlan && !inputPlan.value) {
     inputPlan.value = `1. Understand ticket requirements\n2. Implement changes for ${ticket.title}\n3. Verify test suite passes without regressions\n4. Review and deliver`;
   }
@@ -146,7 +147,8 @@ export async function loadWorkQueue() {
   const projectId = selectProject?.value || state.projects[0]?.id;
   if (!projectId) return;
 
-  queueTicketsList.innerHTML = '<div class="empty-state card"><p>Checking for agentic-workflow tickets…</p></div>';
+  queueTicketsList.innerHTML =
+    '<div class="empty-state card"><p>Checking for agentic-workflow tickets…</p></div>';
 
   try {
     const tickets = await api("GET", `/projects/${projectId}/tickets`);
@@ -169,7 +171,9 @@ export function initQueue() {
       const filtered = state.cachedTickets.filter((t) => {
         const matchTitle = (t.title || "").toLowerCase().includes(q);
         const matchId = (t.id || "").toLowerCase().includes(q);
-        const matchCriteria = (t.acceptanceCriteria || []).some((c) => c.toLowerCase().includes(q));
+        const matchCriteria = (t.acceptanceCriteria || []).some((c) =>
+          c.toLowerCase().includes(q),
+        );
         return matchTitle || matchId || matchCriteria;
       });
       renderTicketsList(filtered);

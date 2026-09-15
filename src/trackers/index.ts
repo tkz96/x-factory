@@ -7,16 +7,16 @@ import { detectGitHubRepo, fetchGitHubTickets } from "./github.js";
 import { tryFetchJira } from "./jira.js";
 import type { TrackerOptions, TrackerTicket } from "./types.js";
 
-export * from "./types.js";
-export * from "./parser.js";
+export { fetchAzureTickets } from "./azure.js";
 export { fetchGitHubTickets } from "./github.js";
 export { fetchJiraTickets } from "./jira.js";
-export { fetchAzureTickets } from "./azure.js";
+export * from "./parser.js";
+export * from "./types.js";
 
 async function fetchDefaultGitHub(
   repoPath: string,
   options: TrackerOptions,
-  settings: Awaited<ReturnType<typeof loadSettings>>
+  settings: Awaited<ReturnType<typeof loadSettings>>,
 ): Promise<TrackerTicket[]> {
   const token = options.githubToken || settings.github?.token;
   const repo =
@@ -38,7 +38,7 @@ async function fetchDefaultGitHub(
  */
 export async function fetchProjectTickets(
   projectId: string,
-  options: TrackerOptions = {}
+  options: TrackerOptions = {},
 ): Promise<TrackerTicket[]> {
   const project = await getProject(projectId);
   if (!project) {

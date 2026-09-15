@@ -1,8 +1,8 @@
 // fallow-ignore-file coverage-gaps
 // public/js/projects.js — Project catalog, cards, repository table, and detail view.
 
-import { $, escapeHtml, api, showError } from "./utils.js";
 import { state } from "./state.js";
+import { $, api, escapeHtml, showError } from "./utils.js";
 
 let onOpenWizardCallback = () => {};
 
@@ -13,7 +13,8 @@ export async function loadProjectsData() {
   try {
     state.projects = await api("GET", "/projects");
     if (selectProject) {
-      selectProject.innerHTML = '<option value="" disabled selected>Select a project…</option>';
+      selectProject.innerHTML =
+        '<option value="" disabled selected>Select a project…</option>';
       for (const p of state.projects) {
         const opt = document.createElement("option");
         opt.value = p.id;
@@ -27,7 +28,8 @@ export async function loadProjectsData() {
     updateKnowledgeStatus(selectProject?.value);
   } catch (err) {
     if (selectProject) {
-      selectProject.innerHTML = '<option value="" disabled selected>Failed to load projects</option>';
+      selectProject.innerHTML =
+        '<option value="" disabled selected>Failed to load projects</option>';
     }
     showError(setupError, err instanceof Error ? err.message : String(err));
   }
@@ -39,9 +41,11 @@ export function updateKnowledgeStatus(projectId) {
   const project = state.projects.find((p) => p.id === projectId);
 
   if (project?.knowledgeRepositoryPath || project?.knowledgeRepository?.path) {
-    knowledgeStatus.innerHTML = '<span class="check">✓</span> Knowledge repository configured';
+    knowledgeStatus.innerHTML =
+      '<span class="check">✓</span> Knowledge repository configured';
   } else {
-    knowledgeStatus.innerHTML = '<span class="missing">—</span> No knowledge repository configured';
+    knowledgeStatus.innerHTML =
+      '<span class="missing">—</span> No knowledge repository configured';
   }
 }
 
@@ -108,20 +112,27 @@ export async function openProjectDetail(projectId) {
   if (projectsListView) projectsListView.hidden = true;
   if (projectsDetailView) projectsDetailView.hidden = false;
 
-  if (projectDetailName) projectDetailName.textContent = "Loading project details…";
+  if (projectDetailName)
+    projectDetailName.textContent = "Loading project details…";
   if (projectDetailBanner) {
     projectDetailBanner.className = "readiness-banner pending";
-    projectDetailBanner.innerHTML = "<span>Checking repository readiness…</span>";
+    projectDetailBanner.innerHTML =
+      "<span>Checking repository readiness…</span>";
   }
 
   try {
-    const project = await api("GET", `/projects/${encodeURIComponent(projectId)}`);
+    const project = await api(
+      "GET",
+      `/projects/${encodeURIComponent(projectId)}`,
+    );
     renderProjectDetailContent(project);
   } catch (err) {
-    if (projectDetailName) projectDetailName.textContent = "Error Loading Project";
+    if (projectDetailName)
+      projectDetailName.textContent = "Error Loading Project";
     if (projectDetailBanner) {
       projectDetailBanner.className = "readiness-banner error";
-      projectDetailBanner.textContent = err instanceof Error ? err.message : String(err);
+      projectDetailBanner.textContent =
+        err instanceof Error ? err.message : String(err);
     }
   }
 }
@@ -135,7 +146,10 @@ function renderProjectDetailHeader(project, readiness) {
   if (projectDetailName) projectDetailName.textContent = project.name;
 
   if (projectDetailMeta) {
-    const kPath = project.knowledgeRepository?.path || project.knowledgeRepositoryPath || "None configured";
+    const kPath =
+      project.knowledgeRepository?.path ||
+      project.knowledgeRepositoryPath ||
+      "None configured";
     projectDetailMeta.innerHTML = `
       <div><strong>Product ID:</strong> <code>${escapeHtml(project.id)}</code></div>
       <div><strong>Workspace Root:</strong> <code>${escapeHtml(project.workspacePath || "None")}</code></div>
@@ -172,7 +186,9 @@ function renderProjectDetailReposTable(repos, readiness) {
     return;
   }
 
-  const readinessMap = new Map((readiness.repositories || []).map((r) => [r.repositoryId, r]));
+  const readinessMap = new Map(
+    (readiness.repositories || []).map((r) => [r.repositoryId, r]),
+  );
 
   let tableHtml = `
     <table class="repos-table">
@@ -193,7 +209,9 @@ function renderProjectDetailReposTable(repos, readiness) {
     const rReadiness = readinessMap.get(r.id);
     const isReady = rReadiness?.status === "ready";
     const statusClass = isReady ? "ready" : "pending";
-    const statusLabel = isReady ? "✓ Ready" : rReadiness?.message || "Pending Setup";
+    const statusLabel = isReady
+      ? "✓ Ready"
+      : rReadiness?.message || "Pending Setup";
 
     tableHtml += `
       <tr>
@@ -242,24 +260,34 @@ export function initProjects(openWizardFn) {
 
   if (btnRecheckReadiness) {
     btnRecheckReadiness.addEventListener("click", () => {
-      if (state.activeDetailProjectId) openProjectDetail(state.activeDetailProjectId);
+      if (state.activeDetailProjectId)
+        openProjectDetail(state.activeDetailProjectId);
     });
   }
 
   if (btnDeleteProject) {
     btnDeleteProject.addEventListener("click", async () => {
       if (!state.activeDetailProjectId) return;
-      if (!confirm(`Are you sure you want to remove project "${state.activeDetailProjectId}" from X-Factory?`)) {
+      if (
+        !confirm(
+          `Are you sure you want to remove project "${state.activeDetailProjectId}" from X-Factory?`,
+        )
+      ) {
         return;
       }
       try {
-        await api("DELETE", `/projects/${encodeURIComponent(state.activeDetailProjectId)}`);
+        await api(
+          "DELETE",
+          `/projects/${encodeURIComponent(state.activeDetailProjectId)}`,
+        );
         await loadProjectsData();
         if (projectsDetailView) projectsDetailView.hidden = true;
         if (projectsListView) projectsListView.hidden = false;
         renderProjectsList();
       } catch (err) {
-        alert(`Failed to delete project: ${err instanceof Error ? err.message : String(err)}`);
+        alert(
+          `Failed to delete project: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     });
   }

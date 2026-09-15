@@ -1,28 +1,23 @@
 // src/git.ts — Git CLI and GitHub CLI operations with worktrees, baseline tracking, and pollution guardrails.
 
-import path from "node:path";
 import { access, readdir, writeFile } from "node:fs/promises";
-import { execCommand, execStrict } from "./proc.js";
+import path from "node:path";
 import {
-  getWorktreePath,
+  ensureDir,
   getProjectWorktreesDir,
   getRunDir,
   getRunMarkerPath,
-  ensureDir,
+  getWorktreePath,
 } from "./paths.js";
-
 import {
   type BaselineState,
-  recordBaseline,
   checkPollution,
+  recordBaseline,
 } from "./pollution.js";
+import { execCommand, execStrict } from "./proc.js";
 
 // Re-export for backward compatibility
-export {
-  type BaselineState,
-  recordBaseline,
-  checkPollution,
-};
+export { type BaselineState, checkPollution, recordBaseline };
 
 export interface DiffResult {
   diff: string;
@@ -32,11 +27,14 @@ export interface DiffResult {
 /**
  * Check whether a local branch exists.
  */
-export async function branchExists(repoPath: string, branchName: string): Promise<boolean> {
+export async function branchExists(
+  repoPath: string,
+  branchName: string,
+): Promise<boolean> {
   const result = await execCommand(
     "git",
     ["rev-parse", "--verify", `refs/heads/${branchName}`],
-    { cwd: repoPath }
+    { cwd: repoPath },
   );
   return result.exitCode === 0;
 }
@@ -47,12 +45,14 @@ export async function branchExists(repoPath: string, branchName: string): Promis
 export async function createBranch(
   repoPath: string,
   branchName: string,
-  baseBranch: string
+  baseBranch: string,
 ): Promise<void> {
   if (await branchExists(repoPath, branchName)) {
     throw new Error(`Branch "${branchName}" already exists in ${repoPath}`);
   }
-  await execStrict("git", ["branch", branchName, baseBranch], { cwd: repoPath });
+  await execStrict("git", ["branch", branchName, baseBranch], {
+    cwd: repoPath,
+  });
 }
 
 /**
@@ -67,7 +67,7 @@ export async function createWorktree(
   repoPath: string,
   branchName: string,
   projectId: string,
-  runId: string
+  runId: string,
 ): Promise<string> {
   const worktreePath = getWorktreePath(projectId, runId);
   await ensureDir(getProjectWorktreesDir(projectId));
@@ -99,7 +99,7 @@ export async function createWorktree(
 export async function removeWorktree(
   repoPath: string,
   worktreePath: string,
-  force = true
+  force = true,
 ): Promise<void> {
   const args = ["worktree", "remove", worktreePath];
   if (force) args.push("--force");
@@ -110,7 +110,9 @@ export async function removeWorktree(
  * Non-destructively inspect and report any stale worktrees on server startup.
  * Never deletes anything automatically to prevent accidental data loss.
  */
-export async function reportStaleWorktrees(projectId: string): Promise<string[]> {
+export async function reportStaleWorktrees(
+  projectId: string,
+): Promise<string[]> {
   const worktreesDir = getProjectWorktreesDir(projectId);
   try {
     await access(worktreesDir);
@@ -137,23 +139,35 @@ export async function reportStaleWorktrees(projectId: string): Promise<string[]>
   return staleWorktrees;
 }
 
-
-
 /**
  * Extract full git diff and list of changed files compared to target.
  */
-export async function getDiff(worktreePath: string, baseBranch?: string): Promise<DiffResult> {
+export async function getDiff(
+  worktreePath: string,
+  baseBranch?: string,
+): Promise<DiffResult> {
   const target = baseBranch ? `origin/${baseBranch}...HEAD` : "HEAD";
 
   // Diff text (staged and unstaged against target)
-  const diffResult = await execCommand("git", ["diff", target], { cwd: worktreePath });
-  const stagedDiffResult = await execCommand("git", ["diff", "--cached"], { cwd: worktreePath });
-  const fullDiff = [stagedDiffResult.stdout, diffResult.stdout].filter(Boolean).join("\n").trim();
-
-  // Changed files
-  const nameResult = await execCommand("git", ["status", "--porcelain", "-uall"], {
+  const diffResult = await execCommand("git", ["diff", target], {
     cwd: worktreePath,
   });
+  const stagedDiffResult = await execCommand("git", ["diff", "--cached"], {
+    cwd: worktreePath,
+  });
+  const fullDiff = [stagedDiffResult.stdout, diffResult.stdout]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  // Changed files
+  const nameResult = await execCommand(
+    "git",
+    ["status", "--porcelain", "-uall"],
+    {
+      cwd: worktreePath,
+    },
+  );
   const filesChanged: string[] = [];
 
   for (const line of nameResult.stdout.split("\n")) {
@@ -179,11 +193,13 @@ export async function getDiff(worktreePath: string, baseBranch?: string): Promis
 export async function safeCommitAll(
   worktreePath: string,
   message: string,
-  baseline: BaselineState
+  baseline: BaselineState,
 ): Promise<void> {
   const pollution = await checkPollution(worktreePath, baseline);
   if (pollution.hasPollution) {
-    throw new Error(`Cannot commit changes due to pollution:\n${pollution.details.join("\n")}`);
+    throw new Error(
+      `Cannot commit changes due to pollution:\n${pollution.details.join("\n")}`,
+    );
   }
 
   const { diff, filesChanged } = await getDiff(worktreePath);
@@ -193,7 +209,9 @@ export async function safeCommitAll(
 
   await execStrict("git", ["add", "-A"], { cwd: worktreePath });
 
-  const statusCheck = await execStrict("git", ["status", "--porcelain"], { cwd: worktreePath });
+  const statusCheck = await execStrict("git", ["status", "--porcelain"], {
+    cwd: worktreePath,
+  });
   if (statusCheck.stdout.length === 0) {
     throw new Error("Nothing to commit — working tree is clean after staging.");
   }
@@ -204,11 +222,14 @@ export async function safeCommitAll(
 /**
  * Push branch to origin.
  */
-export async function push(worktreePath: string, branchName: string): Promise<void> {
-  await execStrict("git", ["push", "-u", "origin", branchName], { cwd: worktreePath });
+export async function push(
+  worktreePath: string,
+  branchName: string,
+): Promise<void> {
+  await execStrict("git", ["push", "-u", "origin", branchName], {
+    cwd: worktreePath,
+  });
 }
-
-
 
 /**
  * Verify a directory exists, is a git repository, and is not already an active worktree.
@@ -220,7 +241,9 @@ export async function validateRepo(repoPath: string): Promise<void> {
     throw new Error(`Repository path does not exist: ${repoPath}`);
   }
 
-  const gitDirResult = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: repoPath });
+  const gitDirResult = await execCommand("git", ["rev-parse", "--git-dir"], {
+    cwd: repoPath,
+  });
   if (gitDirResult.exitCode !== 0) {
     throw new Error(`Not a git repository: ${repoPath}`);
   }

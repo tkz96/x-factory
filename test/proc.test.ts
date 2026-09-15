@@ -14,7 +14,10 @@ describe("Subprocess Runner (proc.ts)", () => {
   });
 
   it("captures non-zero exit code and stderr without throwing in execCommand", async () => {
-    const res = await execCommand("sh", ["-c", "echo 'failed output' >&2; exit 42"]);
+    const res = await execCommand("sh", [
+      "-c",
+      "echo 'failed output' >&2; exit 42",
+    ]);
     assert.equal(res.exitCode, 42);
     assert.equal(res.passed, false);
     assert.equal(res.stderr, "failed output");
@@ -29,9 +32,16 @@ describe("Subprocess Runner (proc.ts)", () => {
 
   it("truncates excessive stdout buffer", async () => {
     // Generate 1000 characters
-    const res = await execCommand("sh", ["-c", "python3 -c 'print(\"A\" * 500)' 2>/dev/null || node -e 'console.log(\"A\".repeat(500))'"], {
-      maxBufferChars: 50,
-    });
+    const res = await execCommand(
+      "sh",
+      [
+        "-c",
+        "python3 -c 'print(\"A\" * 500)' 2>/dev/null || node -e 'console.log(\"A\".repeat(500))'",
+      ],
+      {
+        maxBufferChars: 50,
+      },
+    );
     assert.ok(res.stdout.length <= 100);
     assert.ok(res.stdout.includes("[output truncated]"));
   });
@@ -42,7 +52,7 @@ describe("Subprocess Runner (proc.ts)", () => {
 
     await assert.rejects(
       () => execStrict("sh", ["-c", "exit 1"]),
-      /failed \(exit 1\)/
+      /failed \(exit 1\)/,
     );
   });
 });

@@ -1,8 +1,12 @@
 // test/server.test.ts — Comprehensive behavioral testing of native Bun HTTP server and API endpoints.
 
-import { describe, it, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { startServer } from "../src/server.js";
+import {
+  checkOrphanedWorktrees,
+  formatOrphanedWorktree,
+  startServer,
+} from "../src/server.js";
 
 let server: ReturnType<typeof Bun.serve>;
 let baseUrl: string;
@@ -132,8 +136,6 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.equal(data.github?.repo, "test/repo");
   });
 
-
-
   it("GET /api/runs/:id returns 404 for unknown run", async () => {
     const res = await fetch(`${baseUrl}/api/runs/nonexistent-run-1234`);
     assert.equal(res.status, 404);
@@ -185,5 +187,13 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
   it("prevents directory traversal attacks", async () => {
     const res = await fetch(`${baseUrl}/../../package.json`);
     assert.ok(res.status === 403 || res.status === 404);
+  });
+
+  it("formatOrphanedWorktree formats worktree path prefix", () => {
+    assert.equal(formatOrphanedWorktree("/mock/wt"), "  - /mock/wt");
+  });
+
+  it("checkOrphanedWorktrees runs without throwing", async () => {
+    await checkOrphanedWorktrees();
   });
 });

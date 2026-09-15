@@ -1,13 +1,13 @@
 // src/understand.ts — Understand stage: context synthesis and typed ImplementationContext artifact generation.
 
-import { readFile, access, readdir } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type { Project, Ticket, ImplementationContext } from "./types.js";
+import type { ImplementationContext, Project, Ticket } from "./types.js";
 
 /**
  * Synthesize an ImplementationContext artifact for a run.
  */
-async function inspectRootFiles(worktreePath: string): Promise<{
+export async function inspectRootFiles(worktreePath: string): Promise<{
   rootFiles: string[];
   notes: string[];
 }> {
@@ -17,12 +17,21 @@ async function inspectRootFiles(worktreePath: string): Promise<{
   try {
     const rootEntries = await readdir(worktreePath);
     for (const entry of rootEntries) {
-      if (entry === "package.json" || entry === "tsconfig.json" || entry.endsWith(".md")) {
+      if (
+        entry === "package.json" ||
+        entry === "tsconfig.json" ||
+        entry.endsWith(".md")
+      ) {
         rootFiles.push(entry);
       }
     }
 
-    const guidelineFiles = ["AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", "README.md"];
+    const guidelineFiles = [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "CONTRIBUTING.md",
+      "README.md",
+    ];
     for (const gf of guidelineFiles) {
       if (rootEntries.includes(gf)) {
         notes.push(`Repository instructions available in ${gf}`);
@@ -35,13 +44,21 @@ async function inspectRootFiles(worktreePath: string): Promise<{
   return { rootFiles, notes };
 }
 
-function extractMentionedFiles(ticket: Ticket, plan: string, existing: string[]): string[] {
+export function extractMentionedFiles(
+  ticket: Ticket,
+  plan: string,
+  existing: string[],
+): string[] {
   const relevant = [...existing];
   const text = `${ticket.title} ${ticket.description || ""} ${plan}`;
   const words = text.match(/[\w\-./]+\.[a-zA-Z0-9]+/g) || [];
 
   for (const word of words) {
-    if ((word.includes("/") || word.includes(".")) && !relevant.includes(word) && !word.startsWith("http")) {
+    if (
+      (word.includes("/") || word.includes(".")) &&
+      !relevant.includes(word) &&
+      !word.startsWith("http")
+    ) {
       relevant.push(word);
     }
   }
@@ -49,21 +66,32 @@ function extractMentionedFiles(ticket: Ticket, plan: string, existing: string[])
   return relevant.slice(0, 20);
 }
 
-async function checkKnowledgeNotes(knowledgePath?: string): Promise<string[]> {
+export async function checkKnowledgeNotes(
+  knowledgePath?: string,
+): Promise<string[]> {
   if (!knowledgePath) return [];
   try {
     await access(knowledgePath);
-    return [`Knowledge repository configured and verified at: ${knowledgePath}`];
+    return [
+      `Knowledge repository configured and verified at: ${knowledgePath}`,
+    ];
   } catch {
-    return [`Configured knowledge repository at ${knowledgePath} is currently inaccessible.`];
+    return [
+      `Configured knowledge repository at ${knowledgePath} is currently inaccessible.`,
+    ];
   }
 }
 
-function buildProjectConstraints(project: Project, ticket: Ticket): string[] {
+export function buildProjectConstraints(
+  project: Project,
+  ticket: Ticket,
+): string[] {
   const constraints = ticket.acceptanceCriteria.map((ac) => `Criterion: ${ac}`);
   constraints.push(`Test command must pass: "${project.testCommand}"`);
   if (project.typecheckCommand) {
-    constraints.push(`Typecheck command must pass: "${project.typecheckCommand}"`);
+    constraints.push(
+      `Typecheck command must pass: "${project.typecheckCommand}"`,
+    );
   }
   if (project.lintCommand) {
     constraints.push(`Lint command must pass: "${project.lintCommand}"`);
@@ -78,13 +106,16 @@ export async function buildImplementationContext(
   worktreePath: string,
   project: Project,
   ticket: Ticket,
-  plan: string
+  plan: string,
 ): Promise<ImplementationContext> {
   const { rootFiles, notes: rootNotes } = await inspectRootFiles(worktreePath);
   const relevantFiles = extractMentionedFiles(ticket, plan, rootFiles);
-  const knowledgeNotes = await checkKnowledgeNotes(project.knowledgeRepositoryPath);
+  const knowledgeNotes = await checkKnowledgeNotes(
+    project.knowledgeRepositoryPath,
+  );
   const architecturalNotes =
-    [...rootNotes, ...knowledgeNotes].join("; ") || "Standard software project structure.";
+    [...rootNotes, ...knowledgeNotes].join("; ") ||
+    "Standard software project structure.";
 
   const constraints = buildProjectConstraints(project, ticket);
   const risks = [
@@ -96,7 +127,8 @@ export async function buildImplementationContext(
   return {
     relevantFiles,
     architecturalNotes,
-    existingBehavior: "Refer to worktree repository files and test suite for existing behavior.",
+    existingBehavior:
+      "Refer to worktree repository files and test suite for existing behavior.",
     constraints,
     risks,
   };
@@ -109,7 +141,7 @@ export async function buildImplementationPrompt(
   project: Project,
   ticket: Ticket,
   plan: string,
-  context: ImplementationContext
+  context: ImplementationContext,
 ): Promise<string> {
   const templatePath = path.join(process.cwd(), "prompts", "implementation.md");
   let template = "";
@@ -139,7 +171,8 @@ export async function buildImplementationPrompt(
       await access(project.knowledgeRepositoryPath);
       knowledgeNote = `Knowledge repository is available at: ${project.knowledgeRepositoryPath}\nConsult it for patterns, architecture, and standards.`;
     } catch {
-      knowledgeNote = "Knowledge repository configured but directory is currently inaccessible.";
+      knowledgeNote =
+        "Knowledge repository configured but directory is currently inaccessible.";
     }
   }
   template = template.replace("{{KNOWLEDGE_NOTE}}", knowledgeNote);

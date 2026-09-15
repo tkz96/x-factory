@@ -5,10 +5,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  jsonResponse,
-  errorResponse,
-  parseJsonBody,
   createEventStreamResponse,
+  errorResponse,
+  jsonResponse,
+  parseJsonBody,
 } from "../src/http/responses.js";
 import { serveStatic } from "../src/http/static.js";
 import type { RunEvent } from "../src/types.js";
@@ -20,7 +20,10 @@ describe("HTTP Response Helpers", () => {
   it("jsonResponse formats JSON body and sets Content-Type header", async () => {
     const res = jsonResponse({ hello: "world" }, 201);
     assert.equal(res.status, 201);
-    assert.equal(res.headers.get("Content-Type"), "application/json; charset=utf-8");
+    assert.equal(
+      res.headers.get("Content-Type"),
+      "application/json; charset=utf-8",
+    );
     const data = await res.json();
     assert.deepEqual(data, { hello: "world" });
   });

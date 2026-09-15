@@ -9,7 +9,9 @@ import {
 } from "./types.js";
 
 export async function detectGitHubRepo(cwd: string): Promise<string | null> {
-  const res = await execCommand("git", ["remote", "get-url", "origin"], { cwd });
+  const res = await execCommand("git", ["remote", "get-url", "origin"], {
+    cwd,
+  });
   if (res.exitCode !== 0) return null;
   const url = res.stdout.trim();
   const match = url.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?/i);
@@ -24,7 +26,9 @@ function toGitHubTicket(item: {
   url?: string;
   html_url?: string;
 }): TrackerTicket {
-  const labels = (item.labels || []).map((l) => (typeof l === "string" ? l : l.name));
+  const labels = (item.labels || []).map((l) =>
+    typeof l === "string" ? l : l.name,
+  );
   return {
     id: `GH-${item.number}`,
     title: item.title,

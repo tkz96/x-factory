@@ -60,8 +60,14 @@ describe("Workflow State Machine", () => {
   it("exports identical state machine from dedicated state-machine module", async () => {
     const directModule = await import("../src/state-machine.js");
     assert.deepEqual(directModule.TRANSITIONS, TRANSITIONS);
-    assert.equal(directModule.canTransition("preparing", "understanding"), true);
-    assert.equal(directModule.canTransition("preparing", "implementing"), false);
+    assert.equal(
+      directModule.canTransition("preparing", "understanding"),
+      true,
+    );
+    assert.equal(
+      directModule.canTransition("preparing", "implementing"),
+      false,
+    );
   });
 });
 
@@ -105,7 +111,11 @@ describe("Run Object Shape", () => {
     const b1 = generateBranchName("GH-42", "Add login page", "a1b2c3d4");
     assert.equal(b1, "factory/gh-42-add-login-page-a1b2c3d4");
 
-    const b2 = generateBranchName("JIRA-99", "Fix & Polish CSS layout!", "e5f6g7h8");
+    const b2 = generateBranchName(
+      "JIRA-99",
+      "Fix & Polish CSS layout!",
+      "e5f6g7h8",
+    );
     assert.equal(b2, "factory/jira-99-fix-polish-css-layout-e5f6g7h8");
 
     const b3 = generateBranchName("TASK-1");

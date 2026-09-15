@@ -1,12 +1,12 @@
 // test/projects-api.test.ts — Integration tests for project management and onboarding APIs.
 
-import { describe, it, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, it } from "bun:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { startServer } from "../src/server.js";
 import { execStrict } from "../src/proc.js";
+import { startServer } from "../src/server.js";
 
 let server: ReturnType<typeof startServer>;
 let baseUrl: string;
@@ -59,7 +59,11 @@ describe("Project Onboarding & Management APIs", () => {
     });
 
     assert.equal(res.status, 201);
-    const body = (await res.json()) as { id: string; name: string; repositories: unknown[] };
+    const body = (await res.json()) as {
+      id: string;
+      name: string;
+      repositories: unknown[];
+    };
     assert.equal(body.id, testProjectId);
     assert.equal(body.name, "Test Product");
     assert.equal(body.repositories.length, 1);
@@ -92,7 +96,9 @@ describe("Project Onboarding & Management APIs", () => {
   it("POST /api/projects/inspect-repository inspects a directory", async () => {
     const repoDir = path.join(tempDir, "sample-repo");
     await execStrict("git", ["init", repoDir]);
-    await execStrict("git", ["config", "user.email", "dev@test.com"], { cwd: repoDir });
+    await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      cwd: repoDir,
+    });
     await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
 
     const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
@@ -127,7 +133,9 @@ describe("Project Onboarding & Management APIs", () => {
     });
 
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { repositories: Array<{ name: string }> };
+    const body = (await res.json()) as {
+      repositories: Array<{ name: string }>;
+    };
     assert.ok(Array.isArray(body.repositories));
     assert.ok(body.repositories.some((r) => r.name === "sample-repo"));
   });

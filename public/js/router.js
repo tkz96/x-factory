@@ -4,11 +4,26 @@
 import { $, $$, hideError } from "./utils.js";
 
 const AREA_METADATA = {
-  queue: { title: "Work Queue", subtitle: "Tickets ready for agentic implementation" },
-  runs: { title: "Active Runs", subtitle: "Live execution and verification workbench" },
-  history: { title: "Run History", subtitle: "Previous factory runs and results" },
-  projects: { title: "Projects", subtitle: "Codebases configured for factory automation" },
-  settings: { title: "Settings", subtitle: "Issue trackers, model runtime, and workspace settings" },
+  queue: {
+    title: "Work Queue",
+    subtitle: "Tickets ready for agentic implementation",
+  },
+  runs: {
+    title: "Active Runs",
+    subtitle: "Live execution and verification workbench",
+  },
+  history: {
+    title: "Run History",
+    subtitle: "Previous factory runs and results",
+  },
+  projects: {
+    title: "Projects",
+    subtitle: "Codebases configured for factory automation",
+  },
+  settings: {
+    title: "Settings",
+    subtitle: "Issue trackers, model runtime, and workspace settings",
+  },
 };
 
 const routeHandlers = {
@@ -102,7 +117,8 @@ export function initRouter() {
   if (btnQueueManual) btnQueueManual.addEventListener("click", openNewRunModal);
   if (btnRunsStart) btnRunsStart.addEventListener("click", openNewRunModal);
   if (btnCloseModal) btnCloseModal.addEventListener("click", closeNewRunModal);
-  if (btnCancelModal) btnCancelModal.addEventListener("click", closeNewRunModal);
+  if (btnCancelModal)
+    btnCancelModal.addEventListener("click", closeNewRunModal);
 
   if (modalNewRun) {
     modalNewRun.addEventListener("click", (e) => {

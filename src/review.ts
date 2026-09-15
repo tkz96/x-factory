@@ -2,14 +2,18 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  createReviewSession,
+  type PiAgentSession,
+  type SessionOptions,
+} from "./agents/pi.js";
+import { ensureDir, getRunDir } from "./paths.js";
 import type {
-  Ticket,
   Finding,
   ReviewResult,
+  Ticket,
   VerificationResult,
 } from "./types.js";
-import { createReviewSession, type PiAgentSession, type SessionOptions } from "./agents/pi.js";
-import { getRunDir, ensureDir } from "./paths.js";
 
 export interface ReviewContext {
   projectId: string;
@@ -19,13 +23,23 @@ export interface ReviewContext {
   plan: string;
   diff: string;
   verification: VerificationResult;
-  onEvent?: (event: { type: string; text?: string; tool?: string; error?: string }) => void;
+  onEvent?: (event: {
+    type: string;
+    text?: string;
+    tool?: string;
+    error?: string;
+  }) => void;
   modelConfig?: SessionOptions;
 }
 
 function attachReviewListeners(
   session: PiAgentSession,
-  onEvent?: (event: { type: string; text?: string; tool?: string; error?: string }) => void
+  onEvent?: (event: {
+    type: string;
+    text?: string;
+    tool?: string;
+    error?: string;
+  }) => void,
 ): () => string {
   let fullOutput = "";
   if (onEvent) {
@@ -46,7 +60,7 @@ function attachReviewListeners(
 async function persistReviewArtifact(
   projectId: string,
   runId: string,
-  result: ReviewResult
+  result: ReviewResult,
 ): Promise<void> {
   try {
     const runDir = getRunDir(projectId, runId);
@@ -54,7 +68,7 @@ async function persistReviewArtifact(
     await writeFile(
       path.join(runDir, "review.json"),
       JSON.stringify(result, null, 2),
-      "utf-8"
+      "utf-8",
     );
   } catch {
     // Non-fatal if disk write fails
@@ -66,16 +80,32 @@ async function persistReviewArtifact(
  * Writes durable review.json to ~/.x-factory/projects/<projectId>/runs/<runId>/review.json.
  */
 export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
-  const { projectId, runId, worktreePath, ticket, plan, diff, verification, onEvent } = context;
+  const {
+    projectId,
+    runId,
+    worktreePath,
+    ticket,
+    plan,
+    diff,
+    verification,
+    onEvent,
+  } = context;
 
   const reviewPrompt = buildReviewPrompt(ticket, plan, diff, verification);
 
   let reviewSession: PiAgentSession;
   try {
-    reviewSession = await createReviewSession(worktreePath, context.modelConfig);
+    reviewSession = await createReviewSession(
+      worktreePath,
+      context.modelConfig,
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return createFallbackReview(ticket, `Failed to initialize read-only review session: ${msg}`, false);
+    return createFallbackReview(
+      ticket,
+      `Failed to initialize read-only review session: ${msg}`,
+      false,
+    );
   }
 
   const getOutput = attachReviewListeners(reviewSession, onEvent);
@@ -85,7 +115,11 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     if (!getOutput()) {
-      return createFallbackReview(ticket, `Review session error: ${errorMsg}`, false);
+      return createFallbackReview(
+        ticket,
+        `Review session error: ${errorMsg}`,
+        false,
+      );
     }
   }
 
@@ -94,11 +128,11 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
   return reviewResult;
 }
 
-function buildReviewPrompt(
+export function buildReviewPrompt(
   ticket: Ticket,
   plan: string,
   diff: string,
-  verification: VerificationResult
+  verification: VerificationResult,
 ): string {
   const criteriaList =
     ticket.acceptanceCriteria.length > 0
@@ -143,7 +177,7 @@ VERDICT:
 [PASSED|FAILED] - <concise summary>`;
 }
 
-function parseFindingLine(trimmed: string): Finding | null {
+export function parseFindingLine(trimmed: string): Finding | null {
   const match = trimmed.match(/^-\s*\[(ERROR|WARNING|INFO)\]\s*(.+)/i);
   if (!match) return null;
   return {
@@ -152,7 +186,9 @@ function parseFindingLine(trimmed: string): Finding | null {
   };
 }
 
-function parseCriteriaLine(trimmed: string): { criterion: string; satisfied: boolean } | null {
+export function parseCriteriaLine(
+  trimmed: string,
+): { criterion: string; satisfied: boolean } | null {
   const match = trimmed.match(/^-\s*\[(PASS|FAIL)\]\s*(.+)/i);
   if (!match) return null;
   return {
@@ -161,12 +197,20 @@ function parseCriteriaLine(trimmed: string): { criterion: string; satisfied: boo
   };
 }
 
-function extractReviewItems(output: string): {
+export function extractReviewItems(output: string): {
   findings: Finding[];
-  criteriaChecked: Array<{ criterion: string; satisfied: boolean; notes?: string }>;
+  criteriaChecked: Array<{
+    criterion: string;
+    satisfied: boolean;
+    notes?: string;
+  }>;
 } {
   const findings: Finding[] = [];
-  const criteriaChecked: Array<{ criterion: string; satisfied: boolean; notes?: string }> = [];
+  const criteriaChecked: Array<{
+    criterion: string;
+    satisfied: boolean;
+    notes?: string;
+  }> = [];
 
   for (const line of output.split("\n")) {
     const trimmed = line.trim();
@@ -184,17 +228,22 @@ function extractReviewItems(output: string): {
   return { findings, criteriaChecked };
 }
 
-function evaluateReviewVerdict(
+export function evaluateReviewVerdict(
   findings: Finding[],
-  criteriaChecked: Array<{ criterion: string; satisfied: boolean; notes?: string }>,
-  output: string
+  criteriaChecked: Array<{
+    criterion: string;
+    satisfied: boolean;
+    notes?: string;
+  }>,
+  output: string,
 ): { passed: boolean; summary: string } {
   const hasBlockingError = findings.some((f) => f.severity === "error");
   const hasFailedCriteria = criteriaChecked.some((c) => !c.satisfied);
   const explicitFailedVerdict =
     output.includes("VERDICT:\nFAILED") || output.includes("VERDICT: FAILED");
 
-  const passed = !hasBlockingError && !hasFailedCriteria && !explicitFailedVerdict;
+  const passed =
+    !hasBlockingError && !hasFailedCriteria && !explicitFailedVerdict;
 
   const summary = passed
     ? `Review passed: all ${criteriaChecked.length} criteria satisfied with 0 blocking errors.`
@@ -203,7 +252,10 @@ function evaluateReviewVerdict(
   return { passed, summary };
 }
 
-function parseReviewOutput(ticket: Ticket, output: string): ReviewResult {
+export function parseReviewOutput(
+  ticket: Ticket,
+  output: string,
+): ReviewResult {
   const { findings, criteriaChecked } = extractReviewItems(output);
 
   if (criteriaChecked.length === 0) {
@@ -212,7 +264,11 @@ function parseReviewOutput(ticket: Ticket, output: string): ReviewResult {
     }
   }
 
-  const { passed, summary } = evaluateReviewVerdict(findings, criteriaChecked, output);
+  const { passed, summary } = evaluateReviewVerdict(
+    findings,
+    criteriaChecked,
+    output,
+  );
 
   return {
     passed,
@@ -222,7 +278,11 @@ function parseReviewOutput(ticket: Ticket, output: string): ReviewResult {
   };
 }
 
-function createFallbackReview(ticket: Ticket, message: string, passed: boolean): ReviewResult {
+export function createFallbackReview(
+  ticket: Ticket,
+  message: string,
+  passed: boolean,
+): ReviewResult {
   return {
     passed,
     findings: passed ? [] : [{ severity: "error", message }],

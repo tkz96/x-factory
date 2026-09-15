@@ -5,14 +5,17 @@ import { $, $$, api, getVal, setVal } from "./utils.js";
 
 export function initTheme() {
   const saved = localStorage.getItem("xf_theme");
-  const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+  const prefersLight = window.matchMedia?.(
+    "(prefers-color-scheme: light)",
+  ).matches;
   const theme = saved || (prefersLight ? "light" : "dark");
   document.documentElement.setAttribute("data-theme", theme);
 
   const toggle = $("#theme-toggle");
   if (toggle) {
     toggle.addEventListener("click", () => {
-      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const current =
+        document.documentElement.getAttribute("data-theme") || "dark";
       const next = current === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", next);
       localStorage.setItem("xf_theme", next);
@@ -51,14 +54,28 @@ function populateTrackerFields(s) {
     "#setting-azure-project": az.project,
     "#setting-azure-pat": az.pat,
   };
-  Object.entries(fields).forEach(([id, val]) => setVal(id, val));
+  for (const [id, val] of Object.entries(fields)) {
+    setVal(id, val);
+  }
 }
 
 function populateModelFields(s) {
-  setVal("#setting-model-a-provider", s.models?.sessionA?.provider || "anthropic");
-  setVal("#setting-model-a-model", s.models?.sessionA?.model || "claude-3-7-sonnet");
-  setVal("#setting-model-b-provider", s.models?.sessionB?.provider || "anthropic");
-  setVal("#setting-model-b-model", s.models?.sessionB?.model || "claude-3-7-sonnet");
+  setVal(
+    "#setting-model-a-provider",
+    s.models?.sessionA?.provider || "anthropic",
+  );
+  setVal(
+    "#setting-model-a-model",
+    s.models?.sessionA?.model || "claude-3-7-sonnet",
+  );
+  setVal(
+    "#setting-model-b-provider",
+    s.models?.sessionB?.provider || "anthropic",
+  );
+  setVal(
+    "#setting-model-b-model",
+    s.models?.sessionB?.model || "claude-3-7-sonnet",
+  );
 }
 
 export async function loadSettingsView() {
@@ -124,7 +141,10 @@ async function saveSettingsView() {
     if (settingsStatus) {
       settingsStatus.textContent = "✓ Settings saved";
       setTimeout(() => {
-        if (settingsStatus && settingsStatus.textContent === "✓ Settings saved") {
+        if (
+          settingsStatus &&
+          settingsStatus.textContent === "✓ Settings saved"
+        ) {
           settingsStatus.textContent = "";
         }
       }, 3000);
@@ -141,9 +161,12 @@ async function saveSettingsView() {
 export function initSettings() {
   $$(".settings-tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const tabName = btn.dataset.tab;
-      $$(".settings-tab-btn").forEach((b) => b.classList.remove("active"));
-      $$(".settings-pane").forEach((p) => p.classList.remove("active"));
+      $$(".settings-tab-btn").forEach((b) => {
+        b.classList.remove("active");
+      });
+      $$(".settings-pane").forEach((p) => {
+        p.classList.remove("active");
+      });
 
       btn.classList.add("active");
       const pane = $(`#tab-${tabName}`);

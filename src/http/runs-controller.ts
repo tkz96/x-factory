@@ -3,14 +3,14 @@
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
 import {
-  jsonResponse,
-  errorResponse,
-  createEventStreamResponse,
-  withJsonBody,
   catchHttpErrors,
+  createEventStreamResponse,
+  errorResponse,
+  jsonResponse,
+  withJsonBody,
 } from "./responses.js";
 
-function parseAcceptanceCriteria(raw: unknown): string[] {
+export function parseAcceptanceCriteria(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw as string[];
   }
@@ -24,31 +24,45 @@ function parseAcceptanceCriteria(raw: unknown): string[] {
 }
 
 async function handleCreateRun(req: Request): Promise<Response> {
-  return withJsonBody(req, (body) => catchHttpErrors(async () => {
-    const projectId = typeof body.projectId === "string" ? body.projectId : "";
-    const project = await getProject(projectId, true);
-    if (!project) {
-      return errorResponse(`Project "${projectId}" not found or inaccessible.`, 404);
-    }
+  return withJsonBody(
+    req,
+    (body) =>
+      catchHttpErrors(async () => {
+        const projectId =
+          typeof body.projectId === "string" ? body.projectId : "";
+        const project = await getProject(projectId, true);
+        if (!project) {
+          return errorResponse(
+            `Project "${projectId}" not found or inaccessible.`,
+            404,
+          );
+        }
 
-    const ticketId = typeof body.ticketId === "string" ? body.ticketId : "";
-    const ticketTitle = typeof body.ticketTitle === "string" ? body.ticketTitle : ticketId;
-    const plan = typeof body.plan === "string" ? body.plan : "";
-    const acceptanceCriteria = parseAcceptanceCriteria(body.acceptanceCriteria);
-    const description = typeof body.description === "string" ? body.description : undefined;
-    const branch = typeof body.branch === "string" ? body.branch : undefined;
+        const ticketId = typeof body.ticketId === "string" ? body.ticketId : "";
+        const ticketTitle =
+          typeof body.ticketTitle === "string" ? body.ticketTitle : ticketId;
+        const plan = typeof body.plan === "string" ? body.plan : "";
+        const acceptanceCriteria = parseAcceptanceCriteria(
+          body.acceptanceCriteria,
+        );
+        const description =
+          typeof body.description === "string" ? body.description : undefined;
+        const branch =
+          typeof body.branch === "string" ? body.branch : undefined;
 
-    const run = await runs.createRun(
-      project,
-      ticketId,
-      ticketTitle,
-      plan,
-      acceptanceCriteria,
-      description,
-      branch
-    );
-    return jsonResponse(run, 201);
-  }), "Invalid JSON in request body.");
+        const run = await runs.createRun(
+          project,
+          ticketId,
+          ticketTitle,
+          plan,
+          acceptanceCriteria,
+          description,
+          branch,
+        );
+        return jsonResponse(run, 201);
+      }),
+    "Invalid JSON in request body.",
+  );
 }
 
 function handleGetRuns(): Response {
@@ -66,18 +80,22 @@ function handleRunEvents(runId: string): Response {
   if (!run) return errorResponse("Run not found.", 404);
 
   return createEventStreamResponse(run.events, (listener) =>
-    runs.subscribe(runId, listener)
+    runs.subscribe(runId, listener),
   );
 }
 
 async function handleSteerRun(req: Request, runId: string): Promise<Response> {
-  return withJsonBody<{ message?: string }>(req, async (body) => {
-    if (typeof body.message !== "string" || !body.message.trim()) {
-      return errorResponse("Message is required.");
-    }
-    await runs.steerRun(runId, body.message.trim());
-    return jsonResponse({ ok: true });
-  }, "Invalid JSON in request body.");
+  return withJsonBody<{ message?: string }>(
+    req,
+    async (body) => {
+      if (typeof body.message !== "string" || !body.message.trim()) {
+        return errorResponse("Message is required.");
+      }
+      await runs.steerRun(runId, body.message.trim());
+      return jsonResponse({ ok: true });
+    },
+    "Invalid JSON in request body.",
+  );
 }
 
 async function handleStopRun(runId: string): Promise<Response> {
@@ -94,16 +112,19 @@ async function handleRunAction(
   action: string,
   method: string,
   runId: string,
-  req: Request
+  req: Request,
 ): Promise<Response | null> {
   if (method === "GET" && action === "events") {
     return handleRunEvents(runId);
   }
   if (method === "POST") {
     switch (action) {
-      case "steer": return handleSteerRun(req, runId);
-      case "stop": return handleStopRun(runId);
-      case "pr": return handleCreatePR(runId);
+      case "steer":
+        return handleSteerRun(req, runId);
+      case "stop":
+        return handleStopRun(runId);
+      case "pr":
+        return handleCreatePR(runId);
     }
   }
   return null;
@@ -114,7 +135,7 @@ export async function handleRunsRoute(
   id: string | undefined,
   action: string | undefined,
   partsCount: number,
-  req: Request
+  req: Request,
 ): Promise<Response | null> {
   if (!id) {
     if (method === "GET") return handleGetRuns();

@@ -5,13 +5,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import {
-  detectRepositoryRole,
-  detectRepositoryCommands,
-  inspectLocalRepository,
-  checkProjectReadiness,
-} from "../src/inspection/index.js";
 import { validateProject } from "../src/config.js";
+import {
+  checkProjectReadiness,
+  detectRepositoryCommands,
+  detectRepositoryRole,
+  inspectLocalRepository,
+} from "../src/inspection/index.js";
 import { execStrict } from "../src/proc.js";
 
 describe("Deterministic Inspection", () => {
@@ -32,7 +32,9 @@ describe("Deterministic Inspection", () => {
       const reactPkg = JSON.stringify({ dependencies: { react: "^18.0.0" } });
       assert.equal(detectRepositoryRole("my-client", reactPkg), "frontend");
 
-      const expressPkg = JSON.stringify({ dependencies: { express: "^4.18.0" } });
+      const expressPkg = JSON.stringify({
+        dependencies: { express: "^4.18.0" },
+      });
       assert.equal(detectRepositoryRole("my-server", expressPkg), "backend");
     });
   });
@@ -41,7 +43,10 @@ describe("Deterministic Inspection", () => {
     it("detects Bun commands when bun.lockb exists", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-detect-bun-"));
       try {
-        await writeFile(path.join(dir, "package.json"), JSON.stringify({ scripts: { test: "bun test" } }));
+        await writeFile(
+          path.join(dir, "package.json"),
+          JSON.stringify({ scripts: { test: "bun test" } }),
+        );
         await writeFile(path.join(dir, "bun.lockb"), "");
         await writeFile(path.join(dir, "tsconfig.json"), "{}");
 
@@ -58,7 +63,10 @@ describe("Deterministic Inspection", () => {
     it("detects Ruby and Rails when Gemfile exists", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-detect-ruby-"));
       try {
-        await writeFile(path.join(dir, "Gemfile"), "source 'https://rubygems.org'\n");
+        await writeFile(
+          path.join(dir, "Gemfile"),
+          "source 'https://rubygems.org'\n",
+        );
 
         const { commands, tooling } = await detectRepositoryCommands(dir);
         assert.ok(tooling.includes("Ruby / Bundler"));
@@ -72,7 +80,10 @@ describe("Deterministic Inspection", () => {
     it("detects Cargo and Rust when Cargo.toml exists", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-detect-rust-"));
       try {
-        await writeFile(path.join(dir, "Cargo.toml"), "[package]\nname = \"demo\"\n");
+        await writeFile(
+          path.join(dir, "Cargo.toml"),
+          '[package]\nname = "demo"\n',
+        );
 
         const { commands, tooling } = await detectRepositoryCommands(dir);
         assert.ok(tooling.includes("Rust / Cargo"));
@@ -89,10 +100,22 @@ describe("Deterministic Inspection", () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-inspect-git-"));
       try {
         await execStrict("git", ["init", dir]);
-        await execStrict("git", ["config", "user.email", "test@test.com"], { cwd: dir });
+        await execStrict("git", ["config", "user.email", "test@test.com"], {
+          cwd: dir,
+        });
         await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
-        await execStrict("git", ["remote", "add", "origin", "https://github.com/vendifai/web.git"], { cwd: dir });
-        await writeFile(path.join(dir, "package.json"), JSON.stringify({ name: "vendifai-web", scripts: { test: "bun test" } }));
+        await execStrict(
+          "git",
+          ["remote", "add", "origin", "https://github.com/vendifai/web.git"],
+          { cwd: dir },
+        );
+        await writeFile(
+          path.join(dir, "package.json"),
+          JSON.stringify({
+            name: "vendifai-web",
+            scripts: { test: "bun test" },
+          }),
+        );
         await writeFile(path.join(dir, "bun.lockb"), "");
         await execStrict("git", ["add", "-A"], { cwd: dir });
         await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
@@ -120,7 +143,9 @@ describe("Deterministic Inspection", () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-"));
       try {
         await execStrict("git", ["init", dir]);
-        await execStrict("git", ["config", "user.email", "test@test.com"], { cwd: dir });
+        await execStrict("git", ["config", "user.email", "test@test.com"], {
+          cwd: dir,
+        });
         await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
         await writeFile(path.join(dir, "README.md"), "# Ready");
         await execStrict("git", ["add", "-A"], { cwd: dir });

@@ -11,23 +11,33 @@ import type {
 
 async function inspectSubdirectoryRepo(
   subPath: string,
-  entry: string
+  entry: string,
 ): Promise<DiscoveredRepository | null> {
   try {
     const s = await stat(subPath);
     if (!s.isDirectory()) return null;
 
-    const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: subPath });
+    const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], {
+      cwd: subPath,
+    });
     if (gitCheck.exitCode !== 0) return null;
 
-    const remoteCheck = await execCommand("git", ["config", "--get", "remote.origin.url"], {
-      cwd: subPath,
-    });
+    const remoteCheck = await execCommand(
+      "git",
+      ["config", "--get", "remote.origin.url"],
+      {
+        cwd: subPath,
+      },
+    );
     const remote = remoteCheck.exitCode === 0 ? remoteCheck.stdout.trim() : "";
 
-    const branchCheck = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-      cwd: subPath,
-    });
+    const branchCheck = await execCommand(
+      "git",
+      ["rev-parse", "--abbrev-ref", "HEAD"],
+      {
+        cwd: subPath,
+      },
+    );
     const defaultBranch =
       branchCheck.exitCode === 0 && branchCheck.stdout.trim() !== "HEAD"
         ? branchCheck.stdout.trim()
@@ -39,13 +49,19 @@ async function inspectSubdirectoryRepo(
   }
 }
 
-export class LocalWorkspaceRepositoryDiscovery implements RepositoryDiscoveryProvider {
+export class LocalWorkspaceRepositoryDiscovery
+  implements RepositoryDiscoveryProvider
+{
   public readonly provider = "local";
 
-  async listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]> {
+  async listRepositories(
+    input: RepositoryDiscoveryInput,
+  ): Promise<DiscoveredRepository[]> {
     const rootPath = (input.workspacePath || "").trim();
     if (!rootPath) {
-      throw new Error("Local workspace path is required for local repository discovery.");
+      throw new Error(
+        "Local workspace path is required for local repository discovery.",
+      );
     }
 
     const resolvedRoot = path.resolve(rootPath);
@@ -54,13 +70,18 @@ export class LocalWorkspaceRepositoryDiscovery implements RepositoryDiscoveryPro
       entries = await readdir(resolvedRoot);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Unable to read workspace directory at ${resolvedRoot}: ${msg}`);
+      throw new Error(
+        `Unable to read workspace directory at ${resolvedRoot}: ${msg}`,
+      );
     }
 
     const discovered: DiscoveredRepository[] = [];
     for (const entry of entries) {
       if (entry.startsWith(".")) continue;
-      const repo = await inspectSubdirectoryRepo(path.join(resolvedRoot, entry), entry);
+      const repo = await inspectSubdirectoryRepo(
+        path.join(resolvedRoot, entry),
+        entry,
+      );
       if (repo) discovered.push(repo);
     }
 

@@ -62,6 +62,8 @@ Open [http://localhost:3777](http://localhost:3777).
 bun run dev        # start server with watch mode
 bun test           # run all automated tests
 bun run typecheck  # verify strict TypeScript types
+bun run lint       # check formatting, import order, and lint rules
+bun run lint:fix   # autofix formatting, imports, and safe lint rules
 ```
 
 ## Architecture

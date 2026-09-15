@@ -1,21 +1,20 @@
 // test/settings.test.ts — Unit tests for settings engine, secret masking, and API routes.
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { stat, unlink, readFile } from "node:fs/promises";
-import path from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { readFile, stat, unlink } from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import {
-  loadSettings,
-  saveSettings,
-  maskSecret,
   isMasked,
+  loadSettings,
+  maskSecret,
   maskSettings,
+  saveSettings,
 } from "../src/settings.js";
-
 
 const TEST_SETTINGS_PATH = path.join(
   os.tmpdir(),
-  `xf-test-settings-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+  `xf-test-settings-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
 );
 
 describe("Settings Secret Masking", () => {
@@ -36,7 +35,11 @@ describe("Settings Secret Masking", () => {
     const masked = maskSettings({
       activeTracker: "github",
       github: { token: "ghp_1234567890abcdef", repo: "org/repo" },
-      jira: { host: "jira.com", email: "user@jira.com", token: "secret-token-1234" },
+      jira: {
+        host: "jira.com",
+        email: "user@jira.com",
+        token: "secret-token-1234",
+      },
       azure: { orgUrl: "https://dev.azure.com", pat: "azure-pat-987654321" },
     });
 

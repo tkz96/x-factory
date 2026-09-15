@@ -2,6 +2,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { validateRepo } from "./git.js";
 import type {
   KnowledgeRepository,
   Project,
@@ -10,7 +11,6 @@ import type {
   RepositoryCommands,
   RepositoryRole,
 } from "./types.js";
-import { validateRepo } from "./git.js";
 
 const DEFAULT_CONFIG_PATH = path.join(process.cwd(), "config", "projects.json");
 
@@ -40,13 +40,17 @@ export function getPrimaryRepository(project: Project): ProjectRepository {
  * Load and validate projects from projects.json.
  * Automatically migrates legacy single-repository entries.
  */
-export async function loadProjects(configPath: string = DEFAULT_CONFIG_PATH): Promise<Project[]> {
+export async function loadProjects(
+  configPath: string = DEFAULT_CONFIG_PATH,
+): Promise<Project[]> {
   let raw: string;
   try {
     raw = await readFile(configPath, "utf-8");
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to read configuration file at ${configPath}: ${message}`);
+    throw new Error(
+      `Failed to read configuration file at ${configPath}: ${message}`,
+    );
   }
 
   let data: unknown;
@@ -54,10 +58,16 @@ export async function loadProjects(configPath: string = DEFAULT_CONFIG_PATH): Pr
     data = JSON.parse(raw);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Invalid JSON in configuration file at ${configPath}: ${message}`);
+    throw new Error(
+      `Invalid JSON in configuration file at ${configPath}: ${message}`,
+    );
   }
 
-  if (!data || typeof data !== "object" || !Array.isArray((data as { projects: unknown }).projects)) {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    !Array.isArray((data as { projects: unknown }).projects)
+  ) {
     throw new Error(`Configuration file must contain a "projects" array.`);
   }
 
@@ -78,7 +88,7 @@ export async function loadProjects(configPath: string = DEFAULT_CONFIG_PATH): Pr
 export async function getProject(
   projectId: string,
   validateOnDisk = false,
-  configPath?: string
+  configPath?: string,
 ): Promise<Project | null> {
   const projects = await loadProjects(configPath);
   const project = projects.find((p) => p.id === projectId) || null;
@@ -94,7 +104,7 @@ export async function getProject(
  */
 async function saveProjects(
   projects: Project[],
-  configPath: string = DEFAULT_CONFIG_PATH
+  configPath: string = DEFAULT_CONFIG_PATH,
 ): Promise<void> {
   const cleanProjects = projects.map((p) => ({
     id: p.id,
@@ -124,7 +134,7 @@ async function saveProjects(
   await writeFile(
     configPath,
     JSON.stringify({ projects: cleanProjects }, null, 2),
-    "utf-8"
+    "utf-8",
   );
 }
 
@@ -133,7 +143,7 @@ async function saveProjects(
  */
 export async function saveProject(
   projectInput: unknown,
-  configPath: string = DEFAULT_CONFIG_PATH
+  configPath: string = DEFAULT_CONFIG_PATH,
 ): Promise<Project> {
   const validated = validateProject(projectInput);
   let projects: Project[] = [];
@@ -159,7 +169,7 @@ export async function saveProject(
  */
 export async function deleteProject(
   projectId: string,
-  configPath: string = DEFAULT_CONFIG_PATH
+  configPath: string = DEFAULT_CONFIG_PATH,
 ): Promise<void> {
   const projects = await loadProjects(configPath);
   const filtered = projects.filter((p) => p.id !== projectId);
@@ -169,7 +179,11 @@ export async function deleteProject(
   await saveProjects(filtered, configPath);
 }
 
-function requireString(obj: Record<string, unknown>, field: string, projectId?: string): string {
+function requireString(
+  obj: Record<string, unknown>,
+  field: string,
+  projectId?: string,
+): string {
   const val = obj[field];
   if (typeof val !== "string" || !val.trim()) {
     const prefix = projectId ? `Project "${projectId}"` : "Project";
@@ -193,9 +207,15 @@ function validateCommands(raw: unknown): RepositoryCommands | undefined {
   return Object.keys(commands).length > 0 ? commands : undefined;
 }
 
-function validateRepository(raw: unknown, projectId: string, index: number): ProjectRepository {
+function validateRepository(
+  raw: unknown,
+  projectId: string,
+  index: number,
+): ProjectRepository {
   if (!raw || typeof raw !== "object") {
-    throw new Error(`Project "${projectId}" repository at index ${index} must be an object.`);
+    throw new Error(
+      `Project "${projectId}" repository at index ${index} must be an object.`,
+    );
   }
   const r = raw as Record<string, unknown>;
   const id = requireString(r, "id", projectId);
@@ -236,13 +256,17 @@ function validateIssueTracker(raw: unknown): ProjectIssueTracker {
   };
 }
 
-function validateKnowledgeRepository(raw: unknown, projectId: string): KnowledgeRepository | undefined {
+function validateKnowledgeRepository(
+  raw: unknown,
+  projectId: string,
+): KnowledgeRepository | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const k = raw as Record<string, unknown>;
   const rawPath = optionalString(k.path);
   if (!rawPath) return undefined;
 
-  const repositoryId = optionalString(k.repositoryId) || `${projectId}-knowledge`;
+  const repositoryId =
+    optionalString(k.repositoryId) || `${projectId}-knowledge`;
   return {
     repositoryId,
     path: path.resolve(rawPath),
@@ -253,7 +277,7 @@ function validateKnowledgeRepository(raw: unknown, projectId: string): Knowledge
 function normalizeLegacyProject(
   obj: Record<string, unknown>,
   id: string,
-  name: string
+  name: string,
 ): {
   repositories: ProjectRepository[];
   issueTracker: ProjectIssueTracker;
@@ -298,7 +322,7 @@ function normalizeLegacyProject(
 
 function validateModernProject(
   obj: Record<string, unknown>,
-  id: string
+  id: string,
 ): {
   repositories: ProjectRepository[];
   issueTracker: ProjectIssueTracker;
@@ -308,9 +332,14 @@ function validateModernProject(
     throw new Error(`Project "${id}" must contain at least one repository.`);
   }
 
-  const repositories = obj.repositories.map((repo, idx) => validateRepository(repo, id, idx));
+  const repositories = obj.repositories.map((repo, idx) =>
+    validateRepository(repo, id, idx),
+  );
   const issueTracker = validateIssueTracker(obj.issueTracker);
-  let knowledgeRepository = validateKnowledgeRepository(obj.knowledgeRepository, id);
+  let knowledgeRepository = validateKnowledgeRepository(
+    obj.knowledgeRepository,
+    id,
+  );
 
   // Fallback: if knowledgeRepositoryPath was provided as string
   if (!knowledgeRepository && optionalString(obj.knowledgeRepositoryPath)) {
@@ -374,4 +403,3 @@ export function validateProject(item: unknown): Project {
     knowledgeRepositoryPath: knowledgeRepository?.path,
   };
 }
-

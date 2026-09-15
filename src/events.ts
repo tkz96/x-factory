@@ -26,7 +26,10 @@ export class RunEventBus {
     };
   }
 
-  emit(runId: string, payload: RunEventPayload & { timestamp?: number }): RunEvent {
+  emit(
+    runId: string,
+    payload: RunEventPayload & { timestamp?: number },
+  ): RunEvent {
     const fullEvent: RunEvent = {
       ...payload,
       timestamp: payload.timestamp || Date.now(),
@@ -46,7 +49,11 @@ export class RunEventBus {
     return fullEvent;
   }
 
-  emitStageEvidence(runId: string, stage: WorkflowStage, summary: string): RunEvent {
+  emitStageEvidence(
+    runId: string,
+    stage: WorkflowStage,
+    summary: string,
+  ): RunEvent {
     return this.emit(runId, {
       type: "stage_evidence",
       stage,

@@ -37,7 +37,10 @@ function mapGitHubRepoItem(repo: GitHubRepoItem): DiscoveredRepository {
   };
 }
 
-async function fetchGitHubRepos(owner: string, headers: Record<string, string>): Promise<GitHubRepoItem[]> {
+async function fetchGitHubRepos(
+  owner: string,
+  headers: Record<string, string>,
+): Promise<GitHubRepoItem[]> {
   const url = owner
     ? `https://api.github.com/orgs/${encodeURIComponent(owner)}/repos?per_page=100&type=all`
     : "https://api.github.com/user/repos?per_page=100&affiliation=owner,collaborator,organization_member";
@@ -51,7 +54,9 @@ async function fetchGitHubRepos(owner: string, headers: Record<string, string>):
   }
 
   if (res.status === 401 || res.status === 403) {
-    throw new Error("GitHub authentication failed. Check your GitHub Personal Access Token.");
+    throw new Error(
+      "GitHub authentication failed. Check your GitHub Personal Access Token.",
+    );
   }
   if (res.status === 404) {
     throw new Error(`GitHub account or organization "${owner}" was not found.`);
@@ -67,10 +72,16 @@ async function fetchGitHubRepos(owner: string, headers: Record<string, string>):
 export class GitHubRepositoryDiscovery implements RepositoryDiscoveryProvider {
   public readonly provider = "github";
 
-  async listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]> {
+  async listRepositories(
+    input: RepositoryDiscoveryInput,
+  ): Promise<DiscoveredRepository[]> {
     const settings = await loadSettings(false);
     const token = (input.token || settings.github?.token || "").trim();
-    const owner = (input.repoOwner || settings.github?.repo?.split("/")[0] || "").trim();
+    const owner = (
+      input.repoOwner ||
+      settings.github?.repo?.split("/")[0] ||
+      ""
+    ).trim();
     const headers = resolveGitHubHeaders(token);
 
     const items = await fetchGitHubRepos(owner, headers);

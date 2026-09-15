@@ -15,7 +15,9 @@ export function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
-export async function parseJsonBody(req: Request): Promise<Record<string, unknown> | null> {
+export async function parseJsonBody(
+  req: Request,
+): Promise<Record<string, unknown> | null> {
   try {
     return (await req.json()) as Record<string, unknown>;
   } catch {
@@ -29,7 +31,7 @@ export async function parseJsonBody(req: Request): Promise<Record<string, unknow
 export async function withJsonBody<T = Record<string, unknown>>(
   req: Request,
   action: (body: T) => Promise<Response>,
-  invalidMsg = "Invalid JSON body."
+  invalidMsg = "Invalid JSON body.",
 ): Promise<Response> {
   const body = await parseJsonBody(req);
   if (!body || typeof body !== "object") {
@@ -43,7 +45,7 @@ export async function withJsonBody<T = Record<string, unknown>>(
  */
 export async function catchHttpErrors(
   action: () => Promise<Response>,
-  defaultStatus = 400
+  defaultStatus = 400,
 ): Promise<Response> {
   try {
     return await action();
@@ -56,7 +58,7 @@ export async function catchHttpErrors(
 
 export function createEventStreamResponse(
   initialEvents: RunEvent[],
-  subscribe: (listener: (event: RunEvent) => void) => () => void
+  subscribe: (listener: (event: RunEvent) => void) => () => void,
 ): Response {
   let unsubscribe: (() => void) | null = null;
 
@@ -64,12 +66,16 @@ export function createEventStreamResponse(
     start(controller) {
       const encoder = new TextEncoder();
       for (const event of initialEvents) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+        );
       }
 
       unsubscribe = subscribe((event) => {
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+          );
         } catch {
           // Client disconnected
         }

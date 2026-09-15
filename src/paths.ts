@@ -1,8 +1,8 @@
 // src/paths.ts — External runtime state path management for X-Factory.
 
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { mkdir, readdir, stat } from "node:fs/promises";
 
 /**
  * Expand a user path starting with ~ into an absolute path, or resolve a relative path.
@@ -16,7 +16,9 @@ export function expandUserPath(inputPath: string): string {
 /**
  * Scan immediate subdirectories of a parent directory and return names of directories containing a .git folder or file.
  */
-export async function scanGitSubdirectories(parentDir: string): Promise<string[]> {
+export async function scanGitSubdirectories(
+  parentDir: string,
+): Promise<string[]> {
   try {
     const entries = await readdir(parentDir, { withFileTypes: true });
     const repos: string[] = [];
@@ -90,4 +92,3 @@ export async function ensureDir(dirPath: string): Promise<string> {
   await mkdir(dirPath, { recursive: true });
   return dirPath;
 }
-

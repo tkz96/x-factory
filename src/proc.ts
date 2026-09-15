@@ -20,7 +20,7 @@ function createBufferAccumulator(maxBufferChars: number) {
       if (buffer.length < maxBufferChars) {
         buffer += chunk.toString("utf-8");
         if (buffer.length > maxBufferChars) {
-          buffer = buffer.slice(0, maxBufferChars) + "\n... [output truncated]";
+          buffer = `${buffer.slice(0, maxBufferChars)}\n... [output truncated]`;
         }
       }
     },
@@ -33,7 +33,7 @@ function createBufferAccumulator(maxBufferChars: number) {
 function setupProcessTimeout(
   child: ReturnType<typeof spawn>,
   timeoutMs: number,
-  onTimeout: () => void
+  onTimeout: () => void,
 ): NodeJS.Timeout {
   return setTimeout(() => {
     onTimeout();
@@ -59,7 +59,7 @@ function buildCloseResult(
   timeoutMs: number,
   stdout: string,
   stderr: string,
-  durationMs: number
+  durationMs: number,
 ): CommandResult {
   const code = timedOut ? 124 : (exitCode ?? 1);
   const stderrOutput = timedOut
@@ -83,7 +83,7 @@ function buildCloseResult(
 export function execCommand(
   cmd: string,
   args: string[],
-  options: ExecOptions = {}
+  options: ExecOptions = {},
 ): Promise<CommandResult> {
   const {
     cwd,
@@ -122,7 +122,8 @@ export function execCommand(
         command: fullCommand,
         exitCode: 1,
         stdout: stdout.value().trim(),
-        stderr: `${stderr.value()}\nFailed to spawn command: ${err.message}`.trim(),
+        stderr:
+          `${stderr.value()}\nFailed to spawn command: ${err.message}`.trim(),
         passed: false,
         durationMs: Date.now() - startTime,
       });
@@ -140,8 +141,8 @@ export function execCommand(
           timeoutMs,
           stdout.value(),
           stderr.value(),
-          Date.now() - startTime
-        )
+          Date.now() - startTime,
+        ),
       );
     });
   });
@@ -153,7 +154,7 @@ export function execCommand(
 export async function execStrict(
   cmd: string,
   args: string[],
-  options: ExecOptions = {}
+  options: ExecOptions = {},
 ): Promise<{ stdout: string; stderr: string; durationMs: number }> {
   const result = await execCommand(cmd, args, options);
   if (result.exitCode !== 0) {

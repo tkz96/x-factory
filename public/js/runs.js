@@ -1,13 +1,28 @@
 // fallow-ignore-file coverage-gaps
 // public/js/runs.js — Execution workbench, SSE streaming, workflow stepper, steering, and PR delivery.
 
-import { $, $$, escapeHtml, formatDiff, showError, hideError, api } from "./utils.js";
-import { state } from "./state.js";
-import { closeNewRunModal, openNewRunModal } from "./router.js";
 import { updateKnowledgeStatus } from "./projects.js";
 import { loadWorkQueue } from "./queue.js";
+import { closeNewRunModal, openNewRunModal } from "./router.js";
+import { state } from "./state.js";
+import {
+  $,
+  $$,
+  api,
+  escapeHtml,
+  formatDiff,
+  hideError,
+  showError,
+} from "./utils.js";
 
-const STAGE_ORDER = ["prepare", "understand", "implement", "verify", "review", "deliver"];
+const STAGE_ORDER = [
+  "prepare",
+  "understand",
+  "implement",
+  "verify",
+  "review",
+  "deliver",
+];
 
 const STATUS_TO_STAGE = {
   preparing: "prepare",
@@ -23,7 +38,8 @@ const STATUS_TO_STAGE = {
 
 function getStepClass(status, idx, currentIdx) {
   if (status === "failed" && idx === currentIdx) return "failed";
-  if (status === "pr_created" || (currentIdx !== -1 && idx < currentIdx)) return "completed";
+  if (status === "pr_created" || (currentIdx !== -1 && idx < currentIdx))
+    return "completed";
   if (currentIdx !== -1 && idx === currentIdx) return "active";
   return "";
 }
@@ -86,7 +102,11 @@ function renderPiTextEvent(div, event) {
   const eventLog = $("#event-log");
   const last = eventLog?.lastElementChild;
   const rolePrefix = event.role === "reviewer" ? "[Reviewer] " : "";
-  if (last && last.dataset.type === "pi_text" && last.dataset.role === event.role) {
+  if (
+    last &&
+    last.dataset.type === "pi_text" &&
+    last.dataset.role === event.role
+  ) {
     last.textContent += event.text;
     if (eventLog) eventLog.scrollTop = eventLog.scrollHeight;
     return false;
@@ -111,12 +131,15 @@ function renderEvidenceEvent(div, event) {
 
 function renderPiToolEvent(div, event) {
   div.className += " event-tool";
-  div.innerHTML = `<span class="event-prefix">▸</span>${escapeHtml(event.tool)}${event.input ? " " + escapeHtml(event.input) : ""}`;
+  div.innerHTML = `<span class="event-prefix">▸</span>${escapeHtml(event.tool)}${event.input ? ` ${escapeHtml(event.input)}` : ""}`;
   return true;
 }
 
 function renderPiDoneEvent(div, event) {
-  div.textContent = event.role === "reviewer" ? "Reviewer session finished." : "Implementation session finished.";
+  div.textContent =
+    event.role === "reviewer"
+      ? "Reviewer session finished."
+      : "Implementation session finished.";
   div.className += " event-status";
   return true;
 }
@@ -159,7 +182,12 @@ function appendEvent(event) {
   const div = document.createElement("div");
   div.className = `event event-${event.type}`;
   const renderer = EVENT_RENDERERS[event.type];
-  const shouldAppend = renderer ? renderer(div, event) : (div.textContent = event.text || JSON.stringify(event), true);
+  let shouldAppend = true;
+  if (renderer) {
+    shouldAppend = renderer(div, event);
+  } else {
+    div.textContent = event.text || JSON.stringify(event);
+  }
   if (shouldAppend) {
     eventLog.appendChild(div);
     eventLog.scrollTop = eventLog.scrollHeight;
@@ -176,7 +204,11 @@ function handleEvent(event) {
     updateStepper(event.status);
     refreshRunsList();
 
-    if (event.status === "ready_for_pr" || event.status === "failed" || event.status === "stopped") {
+    if (
+      event.status === "ready_for_pr" ||
+      event.status === "failed" ||
+      event.status === "stopped"
+    ) {
       transitionToResult(event.status);
     }
   }
@@ -242,7 +274,8 @@ function startRunView(run) {
   if (viewRun) viewRun.style.display = "block";
   if (viewResult) viewResult.style.display = "none";
 
-  if (runTitle) runTitle.textContent = `Run #${run.ticket.id} — ${run.ticket.title}`;
+  if (runTitle)
+    runTitle.textContent = `Run #${run.ticket.id} — ${run.ticket.title}`;
   if (runBranch) runBranch.textContent = `Branch: ${run.branch}`;
   setStatus(run.status);
   updateStepper(run.status);
@@ -264,7 +297,8 @@ function renderVerificationEvidence(verification) {
 
   resultTests.textContent = verification.passed ? "PASSED" : "FAILED";
   resultTests.dataset.status = verification.passed ? "passed" : "failed";
-  if (resultRepairCount) resultRepairCount.textContent = `Attempt ${verification.repairAttempt} of 3`;
+  if (resultRepairCount)
+    resultRepairCount.textContent = `Attempt ${verification.repairAttempt} of 3`;
 
   const out = [
     verification.tests.stdout,
@@ -273,7 +307,9 @@ function renderVerificationEvidence(verification) {
     verification.typecheck?.stderr,
     verification.lint?.stdout,
     verification.lint?.stderr,
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   if (resultTestOutput) {
     if (out) {
@@ -315,7 +351,9 @@ function renderReviewEvidence(review) {
   if (!review) return;
 
   if (resultReviewBadge) {
-    resultReviewBadge.textContent = review.passed ? "APPROVED" : "BLOCKING ISSUES";
+    resultReviewBadge.textContent = review.passed
+      ? "APPROVED"
+      : "BLOCKING ISSUES";
     resultReviewBadge.dataset.status = review.passed ? "passed" : "failed";
   }
   if (resultReviewSummary) resultReviewSummary.textContent = review.summary;
@@ -331,7 +369,8 @@ function renderDiffEvidence(diff, verification) {
 
   if (diff) {
     resultDiff.innerHTML = formatDiff(diff);
-    if (resultDiffCount) resultDiffCount.textContent = `${verification?.filesChanged?.length || 0} files`;
+    if (resultDiffCount)
+      resultDiffCount.textContent = `${verification?.filesChanged?.length || 0} files`;
   } else {
     resultDiff.textContent = "No git diff available.";
     if (resultDiffCount) resultDiffCount.textContent = "0 files";
@@ -413,7 +452,13 @@ export async function refreshRunsList() {
   try {
     state.allRuns = await api("GET", "/runs");
     const activeRuns = state.allRuns.filter((r) =>
-      ["preparing", "understanding", "implementing", "verifying", "reviewing"].includes(r.status)
+      [
+        "preparing",
+        "understanding",
+        "implementing",
+        "verifying",
+        "reviewing",
+      ].includes(r.status),
     );
 
     if (activeRunsBadge) {
@@ -535,11 +580,12 @@ export function initRuns() {
         .filter(Boolean);
 
       try {
-        const branchVal = inputBranch && inputBranch.value ? inputBranch.value.trim() : "";
+        const branchVal = inputBranch?.value ? inputBranch.value.trim() : "";
         const run = await api("POST", "/runs", {
           projectId: selectProject?.value,
           ticketId: inputTicketId?.value.trim(),
-          ticketTitle: inputTicketTitle?.value.trim() || inputTicketId?.value.trim(),
+          ticketTitle:
+            inputTicketTitle?.value.trim() || inputTicketId?.value.trim(),
           plan: inputPlan?.value,
           acceptanceCriteria: criteria,
           branch: branchVal || undefined,
@@ -595,7 +641,9 @@ export function initRuns() {
         prSteps.innerHTML = "";
       }
 
-      const prEventSource = new EventSource(`/api/runs/${state.currentRunId}/events`);
+      const prEventSource = new EventSource(
+        `/api/runs/${state.currentRunId}/events`,
+      );
       prEventSource.onmessage = (e) => {
         try {
           const event = JSON.parse(e.data);
@@ -617,7 +665,10 @@ export function initRuns() {
         showPrResult(pr.url);
         refreshRunsList();
       } catch (err) {
-        showError(resultError, err instanceof Error ? err.message : String(err));
+        showError(
+          resultError,
+          err instanceof Error ? err.message : String(err),
+        );
         btnPr.disabled = false;
       } finally {
         prEventSource.close();

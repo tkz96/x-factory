@@ -7,12 +7,15 @@
     "start": "bun src/server.ts",
     "dev": "bun --watch src/server.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.85.1"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.13",
     "@types/bun": "latest",
     "typescript": "^5.8.2"
   },

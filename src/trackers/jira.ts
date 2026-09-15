@@ -1,8 +1,8 @@
 // src/trackers/jira.ts — Jira Software REST API v3 integration with JQL.
 
 import type { FactorySettings } from "../settings.js";
-import { extractCriteria } from "./parser.js";
 import { parseAdfToText } from "./jira-adf.js";
+import { extractCriteria } from "./parser.js";
 import {
   REQUIRED_WORKFLOW_LABEL,
   type TrackerOptions,
@@ -20,11 +20,15 @@ export async function fetchJiraTickets(options: {
   requiredLabel?: string;
 }): Promise<TrackerTicket[]> {
   const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
-  const cleanHost = options.host.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const cleanHost = options.host
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "");
   const jql = `labels = "${label}"${options.project ? ` AND project = "${options.project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
   const url = `https://${cleanHost}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=50`;
 
-  const auth = Buffer.from(`${options.email}:${options.token}`).toString("base64");
+  const auth = Buffer.from(`${options.email}:${options.token}`).toString(
+    "base64",
+  );
   const res = await fetch(url, {
     headers: {
       Authorization: `Basic ${auth}`,
@@ -68,7 +72,10 @@ export async function fetchJiraTickets(options: {
   });
 }
 
-function getJiraConfig(options: TrackerOptions, saved?: FactorySettings["jira"]) {
+function getJiraConfig(
+  options: TrackerOptions,
+  saved?: FactorySettings["jira"],
+) {
   const cfg = saved || {};
   return {
     host: options.jiraHost || cfg.host,
@@ -81,7 +88,7 @@ function getJiraConfig(options: TrackerOptions, saved?: FactorySettings["jira"])
 export function tryFetchJira(
   provider: string,
   options: TrackerOptions,
-  savedJira?: FactorySettings["jira"]
+  savedJira?: FactorySettings["jira"],
 ): Promise<TrackerTicket[]> | null {
   if (provider !== "jira") return null;
   const { host, email, token, project } = getJiraConfig(options, savedJira);

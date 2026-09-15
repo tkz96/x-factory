@@ -6,11 +6,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  deleteProject,
+  getPrimaryRepository,
   loadProjects,
   saveProject,
-  deleteProject,
   validateProject,
-  getPrimaryRepository,
 } from "../src/config.js";
 
 describe("Project Configuration & Migration", () => {
@@ -89,17 +89,23 @@ describe("Project Configuration & Migration", () => {
     assert.equal(repo.commands?.test, "npm test");
     assert.equal(repo.commands?.typecheck, "tsc --noEmit");
     assert.equal(repo.commands?.lint, "eslint .");
-    assert.equal(p.knowledgeRepository?.path, path.resolve("/code/legacy-knowledge"));
+    assert.equal(
+      p.knowledgeRepository?.path,
+      path.resolve("/code/legacy-knowledge"),
+    );
     assert.equal(p.issueTracker.connectionId, "github");
   });
 
   it("throws on invalid project shapes", () => {
     assert.throws(() => validateProject(null), /must be an object/);
     assert.throws(() => validateProject({}), /missing required string "id"/);
-    assert.throws(() => validateProject({ id: "x" }), /missing required string "name"/);
+    assert.throws(
+      () => validateProject({ id: "x" }),
+      /missing required string "name"/,
+    );
     assert.throws(
       () => validateProject({ id: "x", name: "X", repositories: [] }),
-      /must contain at least one repository/
+      /must contain at least one repository/,
     );
   });
 
@@ -134,7 +140,7 @@ describe("Project Configuration & Migration", () => {
               testCommand: "bun test",
             },
           ],
-        })
+        }),
       );
 
       const loaded = await loadProjects(configPath);
@@ -148,10 +154,15 @@ describe("Project Configuration & Migration", () => {
           name: "Second Project",
           issueTracker: { connectionId: "azure" },
           repositories: [
-            { id: "r1", name: "Repo 1", path: "/tmp/r1", defaultBranch: "main" },
+            {
+              id: "r1",
+              name: "Repo 1",
+              path: "/tmp/r1",
+              defaultBranch: "main",
+            },
           ],
         },
-        configPath
+        configPath,
       );
 
       const updated = await loadProjects(configPath);

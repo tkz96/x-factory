@@ -1,25 +1,30 @@
 // src/http/routes.ts — Thin HTTP routing dispatcher delegating to specialized controllers.
 
-import { errorResponse } from "./responses.js";
 import { handleProjectsRoute } from "./projects-controller.js";
+import { errorResponse } from "./responses.js";
 import { handleRunsRoute } from "./runs-controller.js";
 import { handleSettingsRoute } from "./settings-controller.js";
 
 async function routeApiRequest(
   method: string,
   parts: string[],
-  req: Request
+  req: Request,
 ): Promise<Response | null> {
   const [resource, id, action] = parts;
-  if (resource === "projects") return handleProjectsRoute(method, id, action, parts.length, req);
-  if (resource === "runs") return handleRunsRoute(method, id, action, parts.length, req);
+  if (resource === "projects")
+    return handleProjectsRoute(method, id, action, parts.length, req);
+  if (resource === "runs")
+    return handleRunsRoute(method, id, action, parts.length, req);
   if (resource === "settings") return handleSettingsRoute(method, req);
   return null;
 }
 
 export async function handleApi(req: Request, url: URL): Promise<Response> {
   const method = req.method;
-  const parts = url.pathname.replace(/^\/api\/?/, "").split("/").filter(Boolean);
+  const parts = url.pathname
+    .replace(/^\/api\/?/, "")
+    .split("/")
+    .filter(Boolean);
 
   try {
     const response = await routeApiRequest(method, parts, req);

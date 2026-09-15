@@ -1,11 +1,26 @@
 // public/app.js — Clean application bootstrap orchestrator assembling native ES modules.
 
-import { initTheme, initSettings, loadSettingsView } from "./js/settings.js";
-import { initTooltips } from "./js/tooltips.js";
-import { initRouter, setRouteHandlers, showView, handleHashChange } from "./js/router.js";
-import { initProjects, loadProjectsData, renderProjectsList } from "./js/projects.js";
+import {
+  initProjects,
+  loadProjectsData,
+  renderProjectsList,
+} from "./js/projects.js";
 import { initQueue, loadWorkQueue, setOnSelectTicket } from "./js/queue.js";
-import { initRuns, syncRunsView, refreshRunsList, loadHistory, updateStartButton } from "./js/runs.js";
+import {
+  handleHashChange,
+  initRouter,
+  setRouteHandlers,
+  showView,
+} from "./js/router.js";
+import {
+  initRuns,
+  loadHistory,
+  refreshRunsList,
+  syncRunsView,
+  updateStartButton,
+} from "./js/runs.js";
+import { initSettings, initTheme, loadSettingsView } from "./js/settings.js";
+import { initTooltips } from "./js/tooltips.js";
 import { initWizard, openOnboardModal } from "./js/wizard.js";
 
 // Legacy test compatibility

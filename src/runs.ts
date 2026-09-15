@@ -1,23 +1,17 @@
 // src/runs.ts — Run lifecycle management, public service facade, and backward-compatible exports.
 
 import { randomUUID } from "node:crypto";
-import type {
-  Project,
-  Ticket,
-  Run,
-  RunEvent,
-  PullRequest,
-} from "./types.js";
+import { loadProjects } from "./config.js";
+import { defaultEventBus } from "./events.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
-import { TRANSITIONS, canTransition } from "./state-machine.js";
+import { executeDeliverStage, runWorkflow } from "./pipeline.js";
+import { canTransition, TRANSITIONS } from "./state-machine.js";
 import { defaultRunStore, type InternalRun } from "./store.js";
-import { defaultEventBus } from "./events.js";
-import { runWorkflow, executeDeliverStage } from "./pipeline.js";
-import { loadProjects } from "./config.js";
+import type { Project, PullRequest, Run, RunEvent, Ticket } from "./types.js";
 
 // Re-export state machine for backward compatibility
-export { TRANSITIONS, canTransition };
+export { canTransition, TRANSITIONS };
 
 const runStore = defaultRunStore;
 const eventBus = defaultEventBus;
@@ -54,7 +48,7 @@ function buildInitialRun(
   plan: string,
   branchName: string,
   artifactsDir: string,
-  worktreePath: string
+  worktreePath: string,
 ): InternalRun {
   return {
     id,
@@ -81,15 +75,24 @@ function buildInitialRun(
   };
 }
 
-export function generateBranchName(ticketId: string, ticketTitle?: string, runId?: string): string {
-  const cleanId = ticketId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "-");
+export function generateBranchName(
+  ticketId: string,
+  ticketTitle?: string,
+  runId?: string,
+): string {
+  const cleanId = ticketId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-");
   const slug = (ticketTitle || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 30);
   const suffix = runId ? `-${runId}` : "";
-  return slug ? `factory/${cleanId}-${slug}${suffix}` : `factory/${cleanId}${suffix}`;
+  return slug
+    ? `factory/${cleanId}-${slug}${suffix}`
+    : `factory/${cleanId}${suffix}`;
 }
 
 export async function createRun(
@@ -99,17 +102,18 @@ export async function createRun(
   plan: string,
   acceptanceCriteria: string[] = [],
   ticketDescription?: string,
-  customBranch?: string
+  customBranch?: string,
 ): Promise<Run> {
   if (!project) throw new Error("Project is required.");
-  if (!ticketId || !ticketId.trim()) throw new Error("Ticket ID is required.");
-  if (!plan || !plan.trim()) throw new Error("Implementation plan is required.");
+  if (!ticketId?.trim()) throw new Error("Ticket ID is required.");
+  if (!plan?.trim()) throw new Error("Implementation plan is required.");
 
   await git.validateRepo(project.repositoryPath);
 
   const id = randomUUID().slice(0, 8);
   const cleanTicketId = ticketId.trim().replace(/[^a-zA-Z0-9._-]/g, "-");
-  const branchName = customBranch?.trim() || generateBranchName(cleanTicketId, ticketTitle, id);
+  const branchName =
+    customBranch?.trim() || generateBranchName(cleanTicketId, ticketTitle, id);
 
   const artifactsDir = getRunDir(project.id, id);
   const worktreePath = getWorktreePath(project.id, id);
@@ -121,13 +125,25 @@ export async function createRun(
     acceptanceCriteria: acceptanceCriteria.map((c) => c.trim()).filter(Boolean),
   };
 
-  const run = buildInitialRun(id, project, ticket, plan, branchName, artifactsDir, worktreePath);
+  const run = buildInitialRun(
+    id,
+    project,
+    ticket,
+    plan,
+    branchName,
+    artifactsDir,
+    worktreePath,
+  );
   runStore.set(id, run);
 
   await runStore.initializeArtifacts(artifactsDir, ticket, plan);
   await runStore.persistRun(run);
 
-  eventBus.emit(id, { type: "status", status: "preparing", text: "Preparing run workspace…" });
+  eventBus.emit(id, {
+    type: "status",
+    status: "preparing",
+    text: "Preparing run workspace…",
+  });
 
   runWorkflow(run, eventBus, runStore).catch((err: unknown) => {
     const errorMsg = err instanceof Error ? err.message : String(err);
@@ -163,22 +179,33 @@ export async function stopRun(id: string): Promise<void> {
   runStore.transition(run, "stopped");
   run.finishedAt = new Date().toISOString();
   await runStore.persistRun(run);
-  eventBus.emit(id, { type: "status", status: "stopped", text: "Run stopped by user." });
+  eventBus.emit(id, {
+    type: "status",
+    status: "stopped",
+    text: "Run stopped by user.",
+  });
 }
 
 export async function createPR(id: string): Promise<PullRequest> {
   const run = runStore.get(id);
   if (!run) throw new Error(`Run ${id} not found.`);
   if (run.status !== "ready_for_pr") {
-    throw new Error(`Cannot create PR in status "${run.status}". Status must be "ready_for_pr".`);
+    throw new Error(
+      `Cannot create PR in status "${run.status}". Status must be "ready_for_pr".`,
+    );
   }
   if (run.pullRequest) {
-    throw new Error(`Pull request already created for run ${id}: ${run.pullRequest.url}`);
+    throw new Error(
+      `Pull request already created for run ${id}: ${run.pullRequest.url}`,
+    );
   }
 
   return executeDeliverStage(run, eventBus, runStore);
 }
 
-export function subscribe(id: string, listener: (event: RunEvent) => void): () => void {
+export function subscribe(
+  id: string,
+  listener: (event: RunEvent) => void,
+): () => void {
   return eventBus.subscribe(id, listener);
 }

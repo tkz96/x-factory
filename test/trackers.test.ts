@@ -1,15 +1,15 @@
 // test/trackers.test.ts — Unit tests for issue tracker integration and criteria extraction.
 
-import { describe, test, expect, mock } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import {
   extractCriteria,
-  stripHtml,
-  parseAdfToText,
-  hasRequiredLabel,
+  fetchAzureTickets,
   fetchGitHubTickets,
   fetchJiraTickets,
-  fetchAzureTickets,
+  hasRequiredLabel,
+  parseAdfToText,
   REQUIRED_WORKFLOW_LABEL,
+  stripHtml,
 } from "../src/trackers.js";
 
 describe("Acceptance Criteria Extraction", () => {
@@ -66,7 +66,8 @@ Fix checkout race condition.
 
 describe("Helper Utilities", () => {
   test("stripHtml cleans HTML markup and entities", () => {
-    const html = "<p>First line<br/>Second line &amp; &lt;tag&gt;</p><ul><li>Item 1</li><li>Item 2</li></ul>";
+    const html =
+      "<p>First line<br/>Second line &amp; &lt;tag&gt;</p><ul><li>Item 1</li><li>Item 2</li></ul>";
     const text = stripHtml(html);
     expect(text).toContain("First line\nSecond line & <tag>");
     expect(text).toContain("- Item 1");
@@ -79,7 +80,9 @@ describe("Helper Utilities", () => {
       content: [
         {
           type: "paragraph",
-          content: [{ type: "text", text: "Implement token bucket rate limiter." }],
+          content: [
+            { type: "text", text: "Implement token bucket rate limiter." },
+          ],
         },
         {
           type: "bulletList",
@@ -143,7 +146,7 @@ describe("GitHub Tracker (REST API)", () => {
             pull_request: {},
           },
         ]),
-        { status: 200, headers: { "Content-Type": "application/json" } }
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     });
 
@@ -180,13 +183,14 @@ describe("Jira Tracker (REST v3)", () => {
               key: "PROJ-101",
               fields: {
                 summary: "Add webhook retry mechanism",
-                description: "Requirements:\n* Exponential backoff up to 5 attempts\n* Store dead letters in SQS",
+                description:
+                  "Requirements:\n* Exponential backoff up to 5 attempts\n* Store dead letters in SQS",
                 labels: ["agentic-workflow", "core"],
               },
             },
           ],
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     });
 
@@ -224,7 +228,7 @@ describe("Azure DevOps Tracker (WIQL)", () => {
           JSON.stringify({
             workItems: [{ id: 501 }],
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       } else {
         // Work item batch details
@@ -236,21 +240,22 @@ describe("Azure DevOps Tracker (WIQL)", () => {
                 fields: {
                   "System.Title": "Migrate auth to OAuth2",
                   "System.Description": "<p>Update authentication flow.</p>",
-                  "Microsoft.VSTS.Common.AcceptanceCriteria": "<ul><li>Support PKCE flow</li><li>Rotate refresh tokens</li></ul>",
+                  "Microsoft.VSTS.Common.AcceptanceCriteria":
+                    "<ul><li>Support PKCE flow</li><li>Rotate refresh tokens</li></ul>",
                   "System.Tags": "agentic-workflow; security",
                 },
                 _links: {
-                  html: { href: "https://dev.azure.com/org/proj/_workitems/edit/501" },
+                  html: {
+                    href: "https://dev.azure.com/org/proj/_workitems/edit/501",
+                  },
                 },
               },
             ],
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
     });
-
-
 
     try {
       const tickets = await fetchAzureTickets({

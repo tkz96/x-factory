@@ -3,23 +3,27 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProjects } from "./config.js";
-import * as runs from "./runs.js";
 import { reportStaleWorktrees } from "./git.js";
-import { serveStatic } from "./http/static.js";
 import { handleApi } from "./http/routes.js";
+import { serveStatic } from "./http/static.js";
+import * as runs from "./runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, "..", "public");
 const PORT = parseInt(process.env.PORT || "3777", 10);
 
-async function checkOrphanedWorktrees(): Promise<void> {
+export function formatOrphanedWorktree(stalePath: string): string {
+  return `  - ${stalePath}`;
+}
+
+export async function checkOrphanedWorktrees(): Promise<void> {
   try {
     const projects = await loadProjects();
     for (const p of projects) {
       const stale = await reportStaleWorktrees(p.id);
       if (stale.length > 0) {
         console.warn(
-          `[X-Factory] Found ${stale.length} orphaned worktree(s) for project "${p.id}". Stored externally, not deleted:\n${stale.map((s) => `  - ${s}`).join("\n")}`
+          `[X-Factory] Found ${stale.length} orphaned worktree(s) for project "${p.id}". Stored externally, not deleted:\n${stale.map(formatOrphanedWorktree).join("\n")}`,
         );
       }
     }

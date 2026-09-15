@@ -10,11 +10,14 @@ import type {
   RepositoryDiscoveryProvider,
 } from "./types.js";
 
-export * from "./types.js";
-export { AzureDevOpsRepositoryDiscovery, extractAzureDevOpsInfo } from "./azure.js";
+export {
+  AzureDevOpsRepositoryDiscovery,
+  extractAzureDevOpsInfo,
+} from "./azure.js";
 export { GitHubRepositoryDiscovery } from "./github.js";
 export { JiraRepositoryDiscovery } from "./jira.js";
 export { LocalWorkspaceRepositoryDiscovery } from "./local.js";
+export * from "./types.js";
 
 const PROVIDERS: Record<string, RepositoryDiscoveryProvider> = {
   azure: new AzureDevOpsRepositoryDiscovery(),
@@ -27,12 +30,14 @@ const PROVIDERS: Record<string, RepositoryDiscoveryProvider> = {
 /**
  * Resolve a repository discovery provider by identifier.
  */
-export function getDiscoveryProvider(providerName: string): RepositoryDiscoveryProvider {
+export function getDiscoveryProvider(
+  providerName: string,
+): RepositoryDiscoveryProvider {
   const normalized = providerName.toLowerCase().trim();
   const provider = PROVIDERS[normalized];
   if (!provider) {
     throw new Error(
-      `Unsupported discovery provider "${providerName}". Supported providers: ${Object.keys(PROVIDERS).join(", ")}`
+      `Unsupported discovery provider "${providerName}". Supported providers: ${Object.keys(PROVIDERS).join(", ")}`,
     );
   }
   return provider;
@@ -42,7 +47,7 @@ export function getDiscoveryProvider(providerName: string): RepositoryDiscoveryP
  * Execute repository discovery against the chosen provider.
  */
 export async function discoverRepositories(
-  input: RepositoryDiscoveryInput
+  input: RepositoryDiscoveryInput,
 ): Promise<DiscoveredRepository[]> {
   const provider = getDiscoveryProvider(input.provider);
   return provider.listRepositories(input);

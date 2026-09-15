@@ -1,20 +1,20 @@
 // src/verification.ts — Deterministic verification pipeline and structured bounded repair.
 
+import { type BaselineState, checkPollution, getDiff } from "./git.js";
+import { execCommand } from "./proc.js";
 import type {
+  CommandResult,
   Project,
   Ticket,
-  CommandResult,
   VerificationResult,
 } from "./types.js";
-import { execCommand } from "./proc.js";
-import { checkPollution, getDiff, type BaselineState } from "./git.js";
 
 export const MAX_REPAIR_ATTEMPTS = 3;
 
 async function runOptionalCommand(
   cmd: string | undefined,
   cwd: string,
-  timeoutMs?: number
+  timeoutMs?: number,
 ): Promise<CommandResult | undefined> {
   if (!cmd) return undefined;
   return execCommand("sh", ["-c", cmd], { cwd, timeoutMs });
@@ -26,16 +26,22 @@ function buildVerificationSummary(
   lint: CommandResult | undefined,
   hasPollution: boolean,
   pollutionDetails: string[],
-  hasDiff: boolean
+  hasDiff: boolean,
 ): string {
   const parts: string[] = [
     tests.passed ? "Tests passed" : `Tests failed (exit ${tests.exitCode})`,
   ];
   if (typecheck) {
-    parts.push(typecheck.passed ? "Typecheck passed" : `Typecheck failed (exit ${typecheck.exitCode})`);
+    parts.push(
+      typecheck.passed
+        ? "Typecheck passed"
+        : `Typecheck failed (exit ${typecheck.exitCode})`,
+    );
   }
   if (lint) {
-    parts.push(lint.passed ? "Lint passed" : `Lint failed (exit ${lint.exitCode})`);
+    parts.push(
+      lint.passed ? "Lint passed" : `Lint failed (exit ${lint.exitCode})`,
+    );
   }
   if (hasPollution) {
     parts.push(`Pollution detected: ${pollutionDetails.join("; ")}`);
@@ -58,16 +64,28 @@ export async function runVerification(
   worktreePath: string,
   project: Project,
   baseline: BaselineState,
-  attempt: number
+  attempt: number,
 ): Promise<VerificationResult> {
   const timeoutMs = project.commandTimeoutMs;
 
-  const tests: CommandResult = await execCommand("sh", ["-c", project.testCommand], {
-    cwd: worktreePath,
+  const tests: CommandResult = await execCommand(
+    "sh",
+    ["-c", project.testCommand],
+    {
+      cwd: worktreePath,
+      timeoutMs,
+    },
+  );
+  const typecheck = await runOptionalCommand(
+    project.typecheckCommand,
+    worktreePath,
     timeoutMs,
-  });
-  const typecheck = await runOptionalCommand(project.typecheckCommand, worktreePath, timeoutMs);
-  const lint = await runOptionalCommand(project.lintCommand, worktreePath, timeoutMs);
+  );
+  const lint = await runOptionalCommand(
+    project.lintCommand,
+    worktreePath,
+    timeoutMs,
+  );
   const pollution = await checkPollution(worktreePath, baseline);
   const { diff, filesChanged } = await getDiff(worktreePath);
   const hasDiff = diff.length > 0 || filesChanged.length > 0;
@@ -85,7 +103,7 @@ export async function runVerification(
     lint,
     pollution.hasPollution,
     pollution.details,
-    hasDiff
+    hasDiff,
   );
 
   return {
@@ -109,24 +127,34 @@ export function buildRepairPrompt(
   ticket: Ticket,
   plan: string,
   verification: VerificationResult,
-  attempt: number
+  attempt: number,
 ): string {
   const failedParts: string[] = [];
 
   if (!verification.tests.passed) {
-    failedParts.push(`### Test Failure (${verification.tests.command}):\n\`\`\`\n${verification.tests.stderr || verification.tests.stdout}\n\`\`\``);
+    failedParts.push(
+      `### Test Failure (${verification.tests.command}):\n\`\`\`\n${verification.tests.stderr || verification.tests.stdout}\n\`\`\``,
+    );
   }
   if (verification.typecheck && !verification.typecheck.passed) {
-    failedParts.push(`### Typecheck Failure (${verification.typecheck.command}):\n\`\`\`\n${verification.typecheck.stderr || verification.typecheck.stdout}\n\`\`\``);
+    failedParts.push(
+      `### Typecheck Failure (${verification.typecheck.command}):\n\`\`\`\n${verification.typecheck.stderr || verification.typecheck.stdout}\n\`\`\``,
+    );
   }
   if (verification.lint && !verification.lint.passed) {
-    failedParts.push(`### Lint Failure (${verification.lint.command}):\n\`\`\`\n${verification.lint.stderr || verification.lint.stdout}\n\`\`\``);
+    failedParts.push(
+      `### Lint Failure (${verification.lint.command}):\n\`\`\`\n${verification.lint.stderr || verification.lint.stdout}\n\`\`\``,
+    );
   }
   if (verification.hasPollution && verification.pollutionDetails) {
-    failedParts.push(`### Pollution Detected:\n${verification.pollutionDetails.join("\n")}`);
+    failedParts.push(
+      `### Pollution Detected:\n${verification.pollutionDetails.join("\n")}`,
+    );
   }
   if (verification.filesChanged.length === 0) {
-    failedParts.push(`### No Changes:\nNo code changes were made to address the ticket.`);
+    failedParts.push(
+      `### No Changes:\nNo code changes were made to address the ticket.`,
+    );
   }
 
   const criteriaBlock =

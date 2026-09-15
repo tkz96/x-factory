@@ -2,9 +2,9 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
 import { createPullRequest } from "../src/github.js";
 
 describe("GitHub CLI Integration (github.ts)", () => {
@@ -13,7 +13,7 @@ describe("GitHub CLI Integration (github.ts)", () => {
     try {
       await assert.rejects(
         () => createPullRequest(tmpDir, "Test PR", "Test body", "main"),
-        /gh.*failed/i
+        /gh.*failed/i,
       );
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
