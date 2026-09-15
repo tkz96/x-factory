@@ -1,25 +1,6 @@
 {
   "projects": [
     {
-      "id": "example",
-      "name": "Example Project",
-      "issueTracker": {
-        "connectionId": "github"
-      },
-      "repositories": [
-        {
-          "id": "example-primary",
-          "name": "Example Project",
-          "path": "/path/to/your/project",
-          "defaultBranch": "main",
-          "role": "other",
-          "commands": {
-            "test": "npm test"
-          }
-        }
-      ]
-    },
-    {
       "id": "converso",
       "name": "Converso",
       "workspacePath": "/Users/talhazuberi/projects",
@@ -92,6 +73,25 @@
           "path": "/Users/talhazuberi/projects/converso-infra",
           "defaultBranch": "main",
           "role": "infrastructure"
+        }
+      ]
+    },
+    {
+      "id": "example",
+      "name": "Example Project",
+      "issueTracker": {
+        "connectionId": "github"
+      },
+      "repositories": [
+        {
+          "id": "example-primary",
+          "name": "Example Project",
+          "path": "/path/to/your/project",
+          "defaultBranch": "main",
+          "role": "other",
+          "commands": {
+            "test": "npm test"
+          }
         }
       ]
     }
