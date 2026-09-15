@@ -89,36 +89,104 @@ async function resolvePackageManager(repoPath: string): Promise<{ pm: PackageMan
   return { pm: "npm", label: "npm" };
 }
 
-// fallow-ignore-next-line complexity
+async function readPackageScripts(pkgPath: string): Promise<Record<string, string>> {
+  try {
+    const raw = await readFile(pkgPath, "utf-8");
+    return (JSON.parse(raw) as { scripts?: Record<string, string> }).scripts || {};
+  } catch {
+    return {};
+  }
+}
+
+const EXEC_PREFIX: Record<PackageManager, string> = {
+  bun: "bunx",
+  pnpm: "pnpm exec",
+  yarn: "yarn",
+  npm: "npx",
+};
+
+function resolveNodeTestCmd(pm: PackageManager, testScript?: string): string {
+  if (pm === "bun") return "bun test";
+  if (testScript) return pm === "yarn" ? "yarn test" : `${pm} run test`;
+  return `${pm} test`;
+}
+
+function resolveNodeTypecheckCmd(pm: PackageManager, tcScript?: string, hasTsConfig = false): string | undefined {
+  if (tcScript) return pm === "yarn" ? "yarn typecheck" : `${pm} run typecheck`;
+  if (hasTsConfig) return `${EXEC_PREFIX[pm]} tsc --noEmit`;
+  return undefined;
+}
+
+function buildNodeCommands(
+  pm: PackageManager,
+  scripts: Record<string, string>,
+  hasTsConfig: boolean
+): RepositoryCommands {
+  const runPrefix = pm === "yarn" ? "yarn" : `${pm} run`;
+  return {
+    test: resolveNodeTestCmd(pm, scripts.test),
+    typecheck: resolveNodeTypecheckCmd(pm, scripts.typecheck, hasTsConfig),
+    lint: scripts.lint ? `${runPrefix} lint` : pm === "bun" ? "bunx eslint ." : undefined,
+    build: scripts.build ? `${runPrefix} build` : undefined,
+  };
+}
+
 async function detectNodeCommands(repoPath: string): Promise<{
   commands: RepositoryCommands;
   tooling: string[];
 } | null> {
-  const hasPkgJson = await fileExists(path.join(repoPath, "package.json"));
-  if (!hasPkgJson) return null;
+  const pkgPath = path.join(repoPath, "package.json");
+  if (!(await fileExists(pkgPath))) return null;
 
   const { pm, label } = await resolvePackageManager(repoPath);
   const hasTsConfig = await fileExists(path.join(repoPath, "tsconfig.json"));
-
-  let scripts: Record<string, string> = {};
-  try {
-    const raw = await readFile(path.join(repoPath, "package.json"), "utf-8");
-    scripts = (JSON.parse(raw) as { scripts?: Record<string, string> }).scripts || {};
-  } catch {
-    scripts = {};
-  }
-
-  const runPrefix = pm === "yarn" ? "yarn" : `${pm} run`;
-  const execPrefix = pm === "bun" ? "bunx" : pm === "pnpm" ? "pnpm exec" : pm === "yarn" ? "yarn" : "npx";
-
-  const commands: RepositoryCommands = {
-    test: pm === "bun" ? "bun test" : scripts.test ? `${runPrefix} test` : `${pm} test`,
-    typecheck: scripts.typecheck ? `${runPrefix} typecheck` : hasTsConfig ? `${execPrefix} tsc --noEmit` : undefined,
-    lint: scripts.lint ? `${runPrefix} lint` : pm === "bun" ? "bunx eslint ." : undefined,
-    build: scripts.build ? `${runPrefix} build` : undefined,
-  };
+  const scripts = await readPackageScripts(pkgPath);
+  const commands = buildNodeCommands(pm, scripts, hasTsConfig);
 
   return { commands, tooling: [label, "Node.js"] };
+}
+
+interface ToolingRule {
+  files: string[];
+  tooling: string;
+  defaults: RepositoryCommands;
+}
+
+const TOOLING_RULES: ToolingRule[] = [
+  {
+    files: ["Gemfile"],
+    tooling: "Ruby / Bundler",
+    defaults: { test: "bundle exec rspec", lint: "bundle exec rubocop" },
+  },
+  {
+    files: ["Cargo.toml"],
+    tooling: "Rust / Cargo",
+    defaults: { test: "cargo test", lint: "cargo clippy", build: "cargo build" },
+  },
+  {
+    files: ["pyproject.toml", "requirements.txt"],
+    tooling: "Python",
+    defaults: { test: "pytest", lint: "ruff check" },
+  },
+  {
+    files: ["go.mod"],
+    tooling: "Go",
+    defaults: { test: "go test ./...", build: "go build ./..." },
+  },
+];
+
+async function checkRuleMatch(repoPath: string, files: string[]): Promise<boolean> {
+  for (const f of files) {
+    if (await fileExists(path.join(repoPath, f))) return true;
+  }
+  return false;
+}
+
+function mergeDefaults(commands: RepositoryCommands, defaults: RepositoryCommands): void {
+  for (const [cmdKey, cmdVal] of Object.entries(defaults)) {
+    const k = cmdKey as keyof RepositoryCommands;
+    if (!commands[k]) commands[k] = cmdVal;
+  }
 }
 
 /**
@@ -137,47 +205,56 @@ export async function detectRepositoryCommands(repoPath: string): Promise<{
     tooling.push(...nodeResult.tooling);
   }
 
-  if (await fileExists(path.join(repoPath, "Gemfile"))) {
-    tooling.push("Ruby / Bundler");
-    commands.test = commands.test || "bundle exec rspec";
-    commands.lint = commands.lint || "bundle exec rubocop";
-  }
-
-  if (await fileExists(path.join(repoPath, "Cargo.toml"))) {
-    tooling.push("Rust / Cargo");
-    commands.test = commands.test || "cargo test";
-    commands.lint = commands.lint || "cargo clippy";
-    commands.build = commands.build || "cargo build";
-  }
-
-  const hasPy = (await fileExists(path.join(repoPath, "pyproject.toml"))) || (await fileExists(path.join(repoPath, "requirements.txt")));
-  if (hasPy) {
-    tooling.push("Python");
-    commands.test = commands.test || "pytest";
-    commands.lint = commands.lint || "ruff check";
-  }
-
-  if (await fileExists(path.join(repoPath, "go.mod"))) {
-    tooling.push("Go");
-    commands.test = commands.test || "go test ./...";
-    commands.build = commands.build || "go build ./...";
+  for (const rule of TOOLING_RULES) {
+    if (await checkRuleMatch(repoPath, rule.files)) {
+      tooling.push(rule.tooling);
+      mergeDefaults(commands, rule.defaults);
+    }
   }
 
   return { commands, tooling };
 }
 
+async function resolveGitInfo(dir: string): Promise<{ isGit: boolean; remote?: string; defaultBranch?: string }> {
+  const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: dir });
+  if (gitCheck.exitCode !== 0) {
+    return { isGit: false };
+  }
+
+  const remoteResult = await execCommand("git", ["config", "--get", "remote.origin.url"], { cwd: dir });
+  const remote = remoteResult.exitCode === 0 && remoteResult.stdout.trim() ? remoteResult.stdout.trim() : undefined;
+
+  const branchResult = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: dir });
+  const defaultBranch =
+    branchResult.exitCode === 0 && branchResult.stdout.trim() !== "HEAD"
+      ? branchResult.stdout.trim()
+      : undefined;
+
+  return { isGit: true, remote, defaultBranch };
+}
+
+async function resolveRepoPackageName(repoPath: string, fallbackName: string): Promise<{ name: string; content?: string }> {
+  try {
+    const pkgContent = await readFile(path.join(repoPath, "package.json"), "utf-8");
+    const parsed = JSON.parse(pkgContent) as { name?: string };
+    if (parsed.name && typeof parsed.name === "string") {
+      return { name: parsed.name, content: pkgContent };
+    }
+    return { name: fallbackName, content: pkgContent };
+  } catch {
+    return { name: fallbackName };
+  }
+}
+
 /**
  * Inspect an existing local checkout for git status, branch, remote, and tooling.
  */
-// fallow-ignore-next-line complexity
 export async function inspectLocalRepository(
   repoPath: string,
   expectedRemote?: string
 ): Promise<RepositoryInspectionResult> {
   const resolved = path.resolve(repoPath);
-  const exists = await fileExists(resolved);
-
-  if (!exists) {
+  if (!(await fileExists(resolved))) {
     return {
       path: resolved,
       exists: false,
@@ -187,53 +264,22 @@ export async function inspectLocalRepository(
     };
   }
 
-  const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: resolved });
-  const isGitRepo = gitCheck.exitCode === 0;
+  const { isGit, remote, defaultBranch } = await resolveGitInfo(resolved);
 
-  let remote: string | undefined;
-  let defaultBranch: string | undefined;
-
-  if (isGitRepo) {
-    const remoteResult = await execCommand("git", ["config", "--get", "remote.origin.url"], {
-      cwd: resolved,
-    });
-    if (remoteResult.exitCode === 0 && remoteResult.stdout.trim()) {
-      remote = remoteResult.stdout.trim();
-    }
-
-    const branchResult = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-      cwd: resolved,
-    });
-    if (branchResult.exitCode === 0 && branchResult.stdout.trim() !== "HEAD") {
-      defaultBranch = branchResult.stdout.trim();
-    }
-  }
-
-  let pkgContent: string | undefined;
-  let repoName = path.basename(resolved);
-
-  try {
-    pkgContent = await readFile(path.join(resolved, "package.json"), "utf-8");
-    const parsed = JSON.parse(pkgContent) as { name?: string };
-    if (parsed.name && typeof parsed.name === "string") {
-      repoName = parsed.name;
-    }
-  } catch {
-    // optional
-  }
-
-  if (remote && (!repoName || repoName.startsWith("xf-") || repoName === "repo")) {
+  let initialName = path.basename(resolved);
+  if (remote && (!initialName || initialName.startsWith("xf-") || initialName === "repo")) {
     const remoteBase = path.basename(remote, ".git");
-    if (remoteBase) repoName = remoteBase;
+    if (remoteBase) initialName = remoteBase;
   }
 
+  const { name: repoName, content: pkgContent } = await resolveRepoPackageName(resolved, initialName);
   const role = detectRepositoryRole(repoName, pkgContent);
   const { commands, tooling } = await detectRepositoryCommands(resolved);
 
   return {
     path: resolved,
     exists: true,
-    isGitRepo,
+    isGitRepo: isGit,
     remote: remote || expectedRemote,
     defaultBranch: defaultBranch || "main",
     role,
@@ -242,15 +288,31 @@ export async function inspectLocalRepository(
   };
 }
 
+async function checkGitRemoteMatch(repoPath: string, expectedRemote?: string): Promise<boolean> {
+  if (!expectedRemote) return true;
+  const res = await execCommand("git", ["config", "--get", "remote.origin.url"], { cwd: repoPath });
+  if (res.exitCode !== 0) return true;
+  const actual = res.stdout.trim();
+  const normalize = (r: string) => r.replace(/\.git$/, "").replace(/\/+$/, "").toLowerCase();
+  return !actual || normalize(actual) === normalize(expectedRemote);
+}
+
+function getReadinessOutcome(
+  ready: boolean,
+  remoteMatches: boolean
+): { status: "ready" | "pending_setup"; message: string } {
+  if (ready) return { status: "ready", message: "Repository checkout is ready." };
+  if (!remoteMatches) {
+    return { status: "pending_setup", message: "Local Git remote URL does not match configured remote." };
+  }
+  return { status: "pending_setup", message: "Repository requires local setup." };
+}
+
 /**
  * Evaluate the readiness of an individual repository inside a project.
  */
-// fallow-ignore-next-line complexity
-async function evaluateRepositoryReadiness(
-  repo: ProjectRepository
-): Promise<RepositoryReadiness> {
-  const exists = await fileExists(repo.path);
-  if (!exists) {
+async function evaluateRepositoryReadiness(repo: ProjectRepository): Promise<RepositoryReadiness> {
+  if (!(await fileExists(repo.path))) {
     return {
       repositoryId: repo.id,
       isGitRepo: false,
@@ -264,8 +326,7 @@ async function evaluateRepositoryReadiness(
   }
 
   const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: repo.path });
-  const isGitRepo = gitCheck.exitCode === 0;
-  if (!isGitRepo) {
+  if (gitCheck.exitCode !== 0) {
     return {
       repositoryId: repo.id,
       isGitRepo: false,
@@ -278,62 +339,40 @@ async function evaluateRepositoryReadiness(
     };
   }
 
-  let remoteMatches = true;
-  if (repo.remote) {
-    const remoteResult = await execCommand("git", ["config", "--get", "remote.origin.url"], {
-      cwd: repo.path,
-    });
-    if (remoteResult.exitCode === 0) {
-      const actualRemote = remoteResult.stdout.trim();
-      const normalize = (r: string) => r.replace(/\.git$/, "").replace(/\/+$/, "").toLowerCase();
-      remoteMatches = !actualRemote || normalize(actualRemote) === normalize(repo.remote);
-    }
-  }
-
-  const branchResult = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-    cwd: repo.path,
-  });
+  const remoteMatches = await checkGitRemoteMatch(repo.path, repo.remote);
+  const branchResult = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repo.path });
   const branchDetected = branchResult.exitCode === 0 && Boolean(branchResult.stdout.trim());
-  const commandsDetected = Boolean(repo.commands?.test);
-
-  const ready = isGitRepo && remoteMatches && branchDetected;
+  const ready = remoteMatches && branchDetected;
+  const outcome = getReadinessOutcome(ready, remoteMatches);
 
   return {
     repositoryId: repo.id,
-    isGitRepo,
+    isGitRepo: true,
     remoteMatches,
     branchDetected,
-    commandsDetected,
+    commandsDetected: Boolean(repo.commands?.test),
     existsLocally: true,
-    status: ready ? "ready" : "pending_setup",
-    message: ready
-      ? "Repository checkout is ready."
-      : !remoteMatches
-      ? "Local Git remote URL does not match configured remote."
-      : "Repository requires local setup.",
+    status: outcome.status,
+    message: outcome.message,
   };
+}
+
+function validateProjectStructure(project: Project): string[] {
+  const issues: string[] = [];
+  if (!project.id?.trim()) issues.push("Project is missing a valid identifier.");
+  if (!project.name?.trim()) issues.push("Project is missing a display name.");
+  if (!project.issueTracker?.connectionId) issues.push("Project requires an issue tracker connection.");
+  if (!project.repositories || project.repositories.length === 0) {
+    issues.push("Project must contain at least one application repository.");
+  }
+  return issues;
 }
 
 /**
  * Check overall project readiness and validate all configured repositories.
  */
-// fallow-ignore-next-line complexity
 export async function checkProjectReadiness(project: Project): Promise<ProjectReadiness> {
-  const issues: string[] = [];
-
-  if (!project.id || !project.id.trim()) {
-    issues.push("Project is missing a valid identifier.");
-  }
-  if (!project.name || !project.name.trim()) {
-    issues.push("Project is missing a display name.");
-  }
-  if (!project.issueTracker || !project.issueTracker.connectionId) {
-    issues.push("Project requires an issue tracker connection.");
-  }
-  if (!project.repositories || project.repositories.length === 0) {
-    issues.push("Project must contain at least one application repository.");
-  }
-
+  const issues = validateProjectStructure(project);
   const repoReadinessList: RepositoryReadiness[] = [];
   let readyCount = 0;
 
@@ -352,9 +391,7 @@ export async function checkProjectReadiness(project: Project): Promise<ProjectRe
     const kExists = await fileExists(project.knowledgeRepository.path);
     knowledgeReady = kExists;
     if (!kExists) {
-      issues.push(
-        `Knowledge repository directory not found at ${project.knowledgeRepository.path}.`
-      );
+      issues.push(`Knowledge repository directory not found at ${project.knowledgeRepository.path}.`);
     }
   }
 

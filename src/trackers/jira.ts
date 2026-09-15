@@ -1,7 +1,8 @@
 // src/trackers/jira.ts — Jira Software REST API v3 integration with JQL.
 
 import type { FactorySettings } from "../settings.js";
-import { extractCriteria, parseAdfToText } from "./parser.js";
+import { extractCriteria } from "./parser.js";
+import { parseAdfToText } from "./jira-adf.js";
 import {
   REQUIRED_WORKFLOW_LABEL,
   type TrackerOptions,

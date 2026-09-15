@@ -1,26 +1,13 @@
 // src/trackers/azure.ts — Azure DevOps work items integration with WIQL.
 
 import type { FactorySettings } from "../settings.js";
+import { resolveAzureAuthHeader } from "../azure/auth.js";
 import { extractCriteria, stripHtml } from "./parser.js";
 import {
   REQUIRED_WORKFLOW_LABEL,
   type TrackerOptions,
   type TrackerTicket,
 } from "./types.js";
-
-async function resolveAzureAuthHeader(pat?: string): Promise<string> {
-  if (pat) {
-    return pat.startsWith("eyJ")
-      ? `Bearer ${pat}`
-      : `Basic ${Buffer.from(`:${pat}`).toString("base64")}`;
-  }
-  const { getAzureCliAuthHeader } = await import("../discovery/azure.js");
-  const cliHeader = await getAzureCliAuthHeader();
-  if (!cliHeader) {
-    throw new Error("Azure DevOps authentication required. Configure a PAT or log in with Azure CLI ('az login').");
-  }
-  return cliHeader;
-}
 
 async function queryAzureWorkItemIds(orgUrl: string, project: string, auth: string, label: string): Promise<number[]> {
   const base = orgUrl.replace(/\/+$/, "");
@@ -72,6 +59,9 @@ export async function fetchAzureTickets(options: {
 }): Promise<TrackerTicket[]> {
   const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
   const authHeader = await resolveAzureAuthHeader(options.pat);
+  if (!authHeader) {
+    throw new Error("Azure DevOps authentication required. Configure a PAT or log in with Azure CLI ('az login').");
+  }
   const ids = await queryAzureWorkItemIds(options.orgUrl, options.project, authHeader, label);
   if (ids.length === 0) return [];
 

@@ -14,67 +14,88 @@ interface JiraComponentItem {
   description?: string;
 }
 
+async function tryFetchJiraComponents(
+  host: string,
+  email: string,
+  token: string,
+  project: string
+): Promise<DiscoveredRepository[] | null> {
+  try {
+    const auth = Buffer.from(`${email}:${token}`).toString("base64");
+    const apiUrl = `https://${host}/rest/api/3/project/${encodeURIComponent(project)}/components`;
+
+    const res = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) return null;
+    const components = (await res.json()) as JiraComponentItem[];
+    if (!Array.isArray(components) || components.length === 0) return null;
+
+    return components.map((c) => ({
+      id: c.id,
+      name: c.name,
+      remote: "",
+      defaultBranch: "main",
+      webUrl: `https://${host}/jira/software/projects/${encodeURIComponent(project)}/components/${c.id}`,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+function pickString(...vals: (string | undefined)[]): string {
+  for (const v of vals) {
+    if (v && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+function resolveJiraParams(input: RepositoryDiscoveryInput, settings: { jira?: { host?: string; email?: string; token?: string; project?: string } }) {
+  const host = pickString(input.jiraHost, settings.jira?.host).replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const email = pickString(input.jiraEmail, settings.jira?.email);
+  const token = pickString(input.jiraToken, settings.jira?.token);
+  const project = pickString(input.project, settings.jira?.project);
+  const workspacePath = (input.workspacePath || "").trim();
+
+  return { host, email, token, project, workspacePath };
+}
+
+function hasJiraCredentials(host: string, email: string, token: string, project: string): boolean {
+  return Boolean(host && email && token && project);
+}
+
+function validateRequiredJira(host: string, token: string, project: string): void {
+  if (!host || !token) {
+    throw new Error(
+      "Jira repository discovery requires Jira credentials in Settings or a Local Workspace Root directory."
+    );
+  }
+  if (!project) {
+    throw new Error("Jira project key is required for component discovery.");
+  }
+}
+
 export class JiraRepositoryDiscovery implements RepositoryDiscoveryProvider {
   public readonly provider = "jira";
 
-  // fallow-ignore-next-line complexity
   async listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]> {
     const settings = await loadSettings(false);
-    const host = (input.jiraHost || settings.jira?.host || "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    const email = (input.jiraEmail || settings.jira?.email || "").trim();
-    const token = (input.jiraToken || settings.jira?.token || "").trim();
-    const project = (input.project || settings.jira?.project || "").trim();
-    const workspacePath = (input.workspacePath || "").trim();
+    const { host, email, token, project, workspacePath } = resolveJiraParams(input, settings);
 
-    // If local workspace path is specified and accessible, try local discovery as well
-    const localProvider = new LocalWorkspaceRepositoryDiscovery();
-
-    // If Jira credentials and project key are configured, attempt component discovery
-    if (host && email && token && project) {
-      try {
-        const auth = Buffer.from(`${email}:${token}`).toString("base64");
-        const apiUrl = `https://${host}/rest/api/3/project/${encodeURIComponent(project)}/components`;
-
-        const res = await fetch(apiUrl, {
-          headers: {
-            Authorization: `Basic ${auth}`,
-            Accept: "application/json",
-          },
-        });
-
-        if (res.ok) {
-          const components = (await res.json()) as JiraComponentItem[];
-          if (Array.isArray(components) && components.length > 0) {
-            return components.map((c) => ({
-              id: c.id,
-              name: c.name,
-              remote: "",
-              defaultBranch: "main",
-              webUrl: `https://${host}/jira/software/projects/${encodeURIComponent(project)}/components/${c.id}`,
-            }));
-          }
-        }
-      } catch {
-        // Fall back to workspace directory discovery if available
-      }
+    if (hasJiraCredentials(host, email, token, project)) {
+      const components = await tryFetchJiraComponents(host, email, token, project);
+      if (components && components.length > 0) return components;
     }
 
-    // Fallback: If workspace path is provided, discover local repositories
     if (workspacePath) {
-      return localProvider.listRepositories(input);
+      return new LocalWorkspaceRepositoryDiscovery().listRepositories(input);
     }
 
-    // If neither Jira credentials nor workspace path were available
-    if (!host || !token) {
-      throw new Error(
-        "Jira repository discovery requires Jira credentials in Settings or a Local Workspace Root directory."
-      );
-    }
-
-    if (!project) {
-      throw new Error("Jira project key is required for component discovery.");
-    }
-
+    validateRequiredJira(host, token, project);
     return [];
   }
 }

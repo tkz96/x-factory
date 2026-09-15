@@ -9,10 +9,39 @@ import type {
   RepositoryDiscoveryProvider,
 } from "./types.js";
 
+async function inspectSubdirectoryRepo(
+  subPath: string,
+  entry: string
+): Promise<DiscoveredRepository | null> {
+  try {
+    const s = await stat(subPath);
+    if (!s.isDirectory()) return null;
+
+    const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: subPath });
+    if (gitCheck.exitCode !== 0) return null;
+
+    const remoteCheck = await execCommand("git", ["config", "--get", "remote.origin.url"], {
+      cwd: subPath,
+    });
+    const remote = remoteCheck.exitCode === 0 ? remoteCheck.stdout.trim() : "";
+
+    const branchCheck = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: subPath,
+    });
+    const defaultBranch =
+      branchCheck.exitCode === 0 && branchCheck.stdout.trim() !== "HEAD"
+        ? branchCheck.stdout.trim()
+        : "main";
+
+    return { id: entry, name: entry, remote, defaultBranch };
+  } catch {
+    return null;
+  }
+}
+
 export class LocalWorkspaceRepositoryDiscovery implements RepositoryDiscoveryProvider {
   public readonly provider = "local";
 
-  // fallow-ignore-next-line complexity
   async listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]> {
     const rootPath = (input.workspacePath || "").trim();
     if (!rootPath) {
@@ -29,41 +58,10 @@ export class LocalWorkspaceRepositoryDiscovery implements RepositoryDiscoveryPro
     }
 
     const discovered: DiscoveredRepository[] = [];
-
     for (const entry of entries) {
       if (entry.startsWith(".")) continue;
-      const subPath = path.join(resolvedRoot, entry);
-      try {
-        const s = await stat(subPath);
-        if (!s.isDirectory()) continue;
-
-        // Check if git repo
-        const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], { cwd: subPath });
-        if (gitCheck.exitCode !== 0) continue;
-
-        // Query remote URL
-        const remoteCheck = await execCommand("git", ["config", "--get", "remote.origin.url"], {
-          cwd: subPath,
-        });
-        const remote = remoteCheck.exitCode === 0 ? remoteCheck.stdout.trim() : "";
-
-        // Query branch
-        const branchCheck = await execCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-          cwd: subPath,
-        });
-        const defaultBranch = branchCheck.exitCode === 0 && branchCheck.stdout.trim() !== "HEAD"
-          ? branchCheck.stdout.trim()
-          : "main";
-
-        discovered.push({
-          id: entry,
-          name: entry,
-          remote,
-          defaultBranch,
-        });
-      } catch {
-        // Skip unreadable directories
-      }
+      const repo = await inspectSubdirectoryRepo(path.join(resolvedRoot, entry), entry);
+      if (repo) discovered.push(repo);
     }
 
     return discovered;

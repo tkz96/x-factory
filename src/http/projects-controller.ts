@@ -7,147 +7,99 @@ import {
   extractAzureDevOpsInfo,
   type RepositoryDiscoveryInput,
 } from "../discovery/index.js";
-import { getAzureCliAuthHeader } from "../discovery/azure.js";
+import { formatAzureAuthHeader, resolveAzureAuthHeader } from "../azure/auth.js";
 import { inspectLocalRepository, checkProjectReadiness } from "../inspection/index.js";
 import { fetchProjectTickets } from "../trackers/index.js";
-import { jsonResponse, errorResponse, parseJsonBody } from "./responses.js";
+import { jsonResponse, errorResponse, withJsonBody, catchHttpErrors } from "./responses.js";
 
 async function handleGetProjects(): Promise<Response> {
-  const projects = await loadProjects();
-  return jsonResponse(projects);
+  return jsonResponse(await loadProjects());
 }
 
 async function handleCreateProject(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body || typeof body !== "object") {
-    return errorResponse("Invalid JSON for project creation.");
-  }
-  try {
+  return withJsonBody(req, (body) => catchHttpErrors(async () => {
     const saved = await saveProject(body);
     return jsonResponse(saved, 201);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return errorResponse(msg, 400);
-  }
+  }), "Invalid JSON for project creation.");
 }
 
 async function handleGetProject(projectId: string): Promise<Response> {
   const project = await getProject(projectId);
-  if (!project) {
-    return errorResponse(`Project "${projectId}" not found.`, 404);
-  }
+  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const readiness = await checkProjectReadiness(project);
   return jsonResponse({ ...project, readiness });
 }
 
 async function handleUpdateProject(projectId: string, req: Request): Promise<Response> {
   const project = await getProject(projectId);
-  if (!project) {
-    return errorResponse(`Project "${projectId}" not found.`, 404);
-  }
-  const body = await parseJsonBody(req);
-  if (!body || typeof body !== "object") {
-    return errorResponse("Invalid JSON for project update.");
-  }
-  try {
+  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
+
+  return withJsonBody(req, (body) => catchHttpErrors(async () => {
     const merged = { ...project, ...(body as Record<string, unknown>), id: projectId };
     const saved = await saveProject(merged);
     return jsonResponse(saved);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return errorResponse(msg, 400);
-  }
+  }), "Invalid JSON for project update.");
 }
 
 async function handleDeleteProject(projectId: string): Promise<Response> {
-  try {
+  return catchHttpErrors(async () => {
     await deleteProject(projectId);
     return jsonResponse({ ok: true });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return errorResponse(msg, 404);
-  }
-}
-
-function cleanPat(input: RepositoryDiscoveryInput): void {
-  if (typeof input.pat === "string" && !input.pat.trim()) {
-    input.pat = undefined;
-  }
-}
-
-function fillAzureDefaults(input: RepositoryDiscoveryInput): void {
-  const isAzure = input.provider === "azure" || input.provider === "azure-devops";
-  if (!isAzure || !input.primaryRepo) return;
-  const extracted = extractAzureDevOpsInfo(input.primaryRepo);
-  input.orgUrl = input.orgUrl || extracted.orgUrl;
-  input.project = input.project || extracted.project;
+  }, 404);
 }
 
 function normalizeDiscoveryInput(input: RepositoryDiscoveryInput): void {
-  cleanPat(input);
-  fillAzureDefaults(input);
+  if (typeof input.pat === "string" && !input.pat.trim()) {
+    input.pat = undefined;
+  }
+  const isAzure = input.provider === "azure" || input.provider === "azure-devops";
+  if (isAzure && input.primaryRepo) {
+    const extracted = extractAzureDevOpsInfo(input.primaryRepo);
+    input.orgUrl = input.orgUrl || extracted.orgUrl;
+    input.project = input.project || extracted.project;
+  }
 }
 
 async function handleDiscoverRepositories(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body || typeof body !== "object") {
-    return errorResponse("Invalid JSON for discovery request.");
-  }
-  const input = body as unknown as RepositoryDiscoveryInput;
-  if (!input.provider) {
-    return errorResponse("Discovery provider is required ('azure', 'github', 'local').");
-  }
-  normalizeDiscoveryInput(input);
-  try {
-    const repos = await discoverRepositories(input);
-    return jsonResponse({ repositories: repos });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return errorResponse(msg, 400);
-  }
+  return withJsonBody<RepositoryDiscoveryInput>(req, (input) => {
+    if (!input.provider) {
+      return Promise.resolve(errorResponse("Discovery provider is required ('azure', 'github', 'local')."));
+    }
+    normalizeDiscoveryInput(input);
+    return catchHttpErrors(async () => {
+      const repos = await discoverRepositories(input);
+      return jsonResponse({ repositories: repos });
+    });
+  }, "Invalid JSON for discovery request.");
 }
 
 async function handleInspectRepository(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body || typeof body !== "object") {
-    return errorResponse("Invalid JSON for repository inspection.");
-  }
-  const { path: repoPath, expectedRemote } = body as { path?: string; expectedRemote?: string };
-  if (!repoPath || typeof repoPath !== "string") {
-    return errorResponse("Repository path is required.");
-  }
-  try {
-    const result = await inspectLocalRepository(repoPath, expectedRemote);
-    return jsonResponse(result);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return errorResponse(msg, 400);
-  }
+  return withJsonBody<{ path?: string; expectedRemote?: string }>(req, ({ path: repoPath, expectedRemote }) => {
+    if (!repoPath || typeof repoPath !== "string") {
+      return Promise.resolve(errorResponse("Repository path is required."));
+    }
+    return catchHttpErrors(async () => {
+      const result = await inspectLocalRepository(repoPath, expectedRemote);
+      return jsonResponse(result);
+    });
+  }, "Invalid JSON for repository inspection.");
 }
 
 async function handleGetProjectReadiness(projectId: string): Promise<Response> {
   const project = await getProject(projectId);
-  if (!project) {
-    return errorResponse(`Project "${projectId}" not found.`, 404);
-  }
+  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const readiness = await checkProjectReadiness(project);
   return jsonResponse(readiness);
 }
 
 async function handleGetProjectTickets(projectId: string): Promise<Response> {
   const project = await getProject(projectId);
-  if (!project) {
-    return errorResponse(`Project "${projectId}" not found.`, 404);
-  }
+  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const tickets = await fetchProjectTickets(projectId);
   return jsonResponse(tickets);
 }
 
-async function handleProjectMemberCrud(
-  method: string,
-  id: string,
-  req: Request
-): Promise<Response | null> {
+async function handleProjectMemberCrud(method: string, id: string, req: Request): Promise<Response | null> {
   switch (method) {
     case "GET": return handleGetProject(id);
     case "PATCH":
@@ -164,15 +116,9 @@ async function handleProjectMemberRoute(
   partsCount: number,
   req: Request
 ): Promise<Response | null> {
-  if (action === "tickets") {
-    return method === "GET" ? handleGetProjectTickets(id) : null;
-  }
-  if (action === "readiness") {
-    return method === "GET" ? handleGetProjectReadiness(id) : null;
-  }
-  if (!action && partsCount === 2) {
-    return handleProjectMemberCrud(method, id, req);
-  }
+  if (action === "tickets") return method === "GET" ? handleGetProjectTickets(id) : null;
+  if (action === "readiness") return method === "GET" ? handleGetProjectReadiness(id) : null;
+  if (!action && partsCount === 2) return handleProjectMemberCrud(method, id, req);
   return null;
 }
 
@@ -202,29 +148,29 @@ async function scanGitSubdirs(parentDir: string): Promise<string[]> {
 }
 
 async function handleCheckPath(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  const inputPath = typeof body === "object" && body ? String((body as { path?: string }).path || "").trim() : "";
-  if (!inputPath) return errorResponse("Path is required.");
+  return withJsonBody<{ path?: string }>(req, async ({ path: rawPath }) => {
+    const inputPath = typeof rawPath === "string" ? rawPath.trim() : "";
+    if (!inputPath) return errorResponse("Path is required.");
 
-  const expanded = expandUserPath(inputPath);
-  try {
-    const s = await stat(expanded);
-    if (!s.isDirectory()) {
-      return jsonResponse({ exists: false, resolvedPath: expanded, isDirectory: false, error: "Path is not a directory." });
+    const expanded = expandUserPath(inputPath);
+    try {
+      const s = await stat(expanded);
+      if (!s.isDirectory()) {
+        return jsonResponse({ exists: false, resolvedPath: expanded, isDirectory: false, error: "Path is not a directory." });
+      }
+      const gitRepos = await scanGitSubdirs(expanded);
+      return jsonResponse({ exists: true, resolvedPath: expanded, isDirectory: true, gitRepos, gitRepoCount: gitRepos.length });
+    } catch {
+      return jsonResponse({ exists: false, resolvedPath: expanded, error: "Directory does not exist." });
     }
-    const gitRepos = await scanGitSubdirs(expanded);
-    return jsonResponse({ exists: true, resolvedPath: expanded, isDirectory: true, gitRepos, gitRepoCount: gitRepos.length });
-  } catch {
-    return jsonResponse({ exists: false, resolvedPath: expanded, error: "Directory does not exist." });
-  }
+  }, "Invalid JSON for path check.");
 }
 
-async function resolveAzureAuth(pat?: string): Promise<{ authHeader: string; authMethod: string }> {
-  if (pat) {
-    const header = pat.startsWith("eyJ") ? `Bearer ${pat}` : `Basic ${Buffer.from(`:${pat}`).toString("base64")}`;
-    return { authHeader: header, authMethod: "Personal Access Token" };
+async function resolveAzureAuthInfo(pat?: string): Promise<{ authHeader: string; authMethod: string }> {
+  if (pat && pat.trim()) {
+    return { authHeader: formatAzureAuthHeader(pat), authMethod: "Personal Access Token" };
   }
-  const cliHeader = await getAzureCliAuthHeader();
+  const cliHeader = await resolveAzureAuthHeader();
   return { authHeader: cliHeader, authMethod: cliHeader ? "Active Azure CLI Session" : "" };
 }
 
@@ -254,7 +200,7 @@ async function testAzureConnection(data: { orgUrl?: string; project?: string; pa
     });
   }
 
-  const { authHeader, authMethod } = await resolveAzureAuth((data.pat || "").trim());
+  const { authHeader, authMethod } = await resolveAzureAuthInfo((data.pat || "").trim());
   if (!authHeader) {
     return jsonResponse({
       ok: false,
@@ -282,13 +228,16 @@ async function testAzureConnection(data: { orgUrl?: string; project?: string; pa
 }
 
 async function handleTestConnection(req: Request): Promise<Response> {
-  const body = await parseJsonBody(req);
-  if (!body || typeof body !== "object") return errorResponse("Invalid JSON for connection test.");
-  const data = body as { provider?: string; orgUrl?: string; project?: string; pat?: string };
-  if ((data.provider || "azure") === "azure") {
-    return testAzureConnection(data);
-  }
-  return jsonResponse({ ok: true, provider: data.provider, message: "Connection parameters accepted." });
+  return withJsonBody<{ provider?: string; orgUrl?: string; project?: string; pat?: string }>(
+    req,
+    (data) => {
+      if ((data.provider || "azure") === "azure") {
+        return testAzureConnection(data);
+      }
+      return Promise.resolve(jsonResponse({ ok: true, provider: data.provider, message: "Connection parameters accepted." }));
+    },
+    "Invalid JSON for connection test."
+  );
 }
 
 export async function handleProjectsRoute(
@@ -298,27 +247,16 @@ export async function handleProjectsRoute(
   partsCount: number,
   req: Request
 ): Promise<Response | null> {
-  // Discovery and inspection action endpoints (/api/projects/discover-repositories, etc.)
-  if (id === "discover-repositories" && method === "POST") {
-    return handleDiscoverRepositories(req);
-  }
-  if (id === "inspect-repository" && method === "POST") {
-    return handleInspectRepository(req);
-  }
-  if (id === "test-connection" && method === "POST") {
-    return handleTestConnection(req);
-  }
-  if (id === "check-path" && method === "POST") {
-    return handleCheckPath(req);
-  }
+  if (id === "discover-repositories" && method === "POST") return handleDiscoverRepositories(req);
+  if (id === "inspect-repository" && method === "POST") return handleInspectRepository(req);
+  if (id === "test-connection" && method === "POST") return handleTestConnection(req);
+  if (id === "check-path" && method === "POST") return handleCheckPath(req);
 
-  // Collection endpoints (/api/projects)
   if (!id) {
     if (method === "GET") return handleGetProjects();
     if (method === "POST") return handleCreateProject(req);
     return null;
   }
 
-  // Member endpoints (/api/projects/:id or /api/projects/:id/:action)
   return handleProjectMemberRoute(method, id, action, partsCount, req);
 }

@@ -1,6 +1,7 @@
 // src/discovery/azure.ts — Read-only repository discovery for Azure DevOps.
 
 import { loadSettings } from "../settings.js";
+import { resolveAzureAuthHeader } from "../azure/auth.js";
 import type {
   DiscoveredRepository,
   RepositoryDiscoveryInput,
@@ -62,98 +63,100 @@ export function extractAzureDevOpsInfo(value?: string): { orgUrl?: string; proje
   return {};
 }
 
-export async function getAzureCliAuthHeader(): Promise<string> {
-  if (process.env.NODE_ENV === "test") return "";
-  try {
-    const { execCommand } = await import("../proc.js");
-    const res = await execCommand("az", [
-      "account",
-      "get-access-token",
-      "--resource",
-      "499b84ac-1321-427f-aa17-267ca6975798",
-      "--query",
-      "accessToken",
-      "-o",
-      "tsv",
-    ], { timeoutMs: 3500 });
-    if (res.passed && res.stdout.trim()) {
-      return `Bearer ${res.stdout.trim()}`;
-    }
-  } catch {
-    // az CLI not available
+function pickFirst(...items: (string | undefined)[]): string {
+  for (const item of items) {
+    if (item && item.trim()) return item.trim();
   }
   return "";
+}
+
+interface ResolvedAzureParams {
+  orgUrl: string;
+  project: string;
+  authHeader: string;
+}
+
+function extractTarget(input: RepositoryDiscoveryInput) {
+  const candidate = input.primaryRepo || input.project || input.orgUrl;
+  return extractAzureDevOpsInfo(candidate);
+}
+
+function resolvePat(inputPat?: string, savedPat?: string): string {
+  if (typeof inputPat === "string") return inputPat.trim();
+  return savedPat ? savedPat.trim() : "";
+}
+
+async function resolveAzureParams(input: RepositoryDiscoveryInput): Promise<ResolvedAzureParams> {
+  const settings = await loadSettings(false);
+  const parsed = extractTarget(input);
+  const orgUrl = pickFirst(input.orgUrl, parsed.orgUrl, settings.azure?.orgUrl).replace(/\/+$/, "");
+  const project = pickFirst(input.project, parsed.project, settings.azure?.project);
+  const pat = resolvePat(input.pat, settings.azure?.pat);
+
+  if (!orgUrl) {
+    throw new Error(
+      "Azure DevOps Organization URL is required (e.g. https://dev.azure.com/xynotech). Configure it in Settings or enter it in the discovery form."
+    );
+  }
+  if (!project) {
+    throw new Error(
+      "Azure DevOps Project name is required (e.g. Converso). Enter it in the Tracker Project field or provide the full repository URL."
+    );
+  }
+
+  const authHeader = await resolveAzureAuthHeader(pat);
+  if (!authHeader) {
+    throw new Error(
+      "Azure DevOps Personal Access Token (PAT) with Code (Read) permission is required to query Azure Repos online. Configure it in Settings (Settings → Trackers) or enter it in the discovery form. Alternatively, choose \"Local Workspace Folder\" to discover local clones without a PAT."
+    );
+  }
+
+  return { orgUrl, project, authHeader };
+}
+
+function mapAzureRepoItem(repo: AzureGitRepoItem): DiscoveredRepository {
+  const cleanBranch = repo.defaultBranch
+    ? repo.defaultBranch.replace(/^refs\/heads\//, "")
+    : "main";
+
+  return {
+    id: repo.id,
+    name: repo.name,
+    remote: repo.remoteUrl || repo.url || "",
+    defaultBranch: cleanBranch,
+    webUrl: repo.webUrl,
+  };
+}
+
+async function fetchAzureApiRepos(orgUrl: string, project: string, authHeader: string): Promise<AzureGitRepoItem[]> {
+  const apiUrl = `${orgUrl}/${encodeURIComponent(project)}/_apis/git/repositories?api-version=7.1`;
+  const res = await fetch(apiUrl, {
+    headers: {
+      Authorization: authHeader,
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Azure DevOps authentication failed. Verify your Personal Access Token (PAT).");
+  }
+  if (res.status === 404) {
+    throw new Error(`Azure DevOps project "${project}" was not found at ${orgUrl}.`);
+  }
+  if (!res.ok) {
+    throw new Error(`Azure DevOps API error (${res.status}): ${await res.text()}`);
+  }
+
+  const data = (await res.json()) as { value?: AzureGitRepoItem[] };
+  return data.value || [];
 }
 
 export class AzureDevOpsRepositoryDiscovery implements RepositoryDiscoveryProvider {
   public readonly provider = "azure";
 
-  // fallow-ignore-next-line complexity
   async listRepositories(input: RepositoryDiscoveryInput): Promise<DiscoveredRepository[]> {
-    const settings = await loadSettings(false);
-    const parsed = extractAzureDevOpsInfo(input.primaryRepo || input.project || input.orgUrl);
-    const orgUrl = (input.orgUrl || parsed.orgUrl || settings.azure?.orgUrl || "").trim().replace(/\/+$/, "");
-    const project = (parsed.project || input.project || settings.azure?.project || "").trim();
-    const pat = (input.pat !== undefined ? input.pat : settings.azure?.pat || "").trim();
-
-    if (!orgUrl) {
-      throw new Error(
-        "Azure DevOps Organization URL is required (e.g. https://dev.azure.com/xynotech). Configure it in Settings or enter it in the discovery form."
-      );
-    }
-    if (!project) {
-      throw new Error(
-        "Azure DevOps Project name is required (e.g. Converso). Enter it in the Tracker Project field or provide the full repository URL."
-      );
-    }
-
-    let authHeader = "";
-    if (pat) {
-      authHeader = pat.startsWith("eyJ") ? `Bearer ${pat}` : `Basic ${Buffer.from(`:${pat}`).toString("base64")}`;
-    } else {
-      authHeader = await getAzureCliAuthHeader();
-    }
-
-    if (!authHeader) {
-      throw new Error(
-        "Azure DevOps Personal Access Token (PAT) with Code (Read) permission is required to query Azure Repos online. Configure it in Settings (Settings → Trackers) or enter it in the discovery form. Alternatively, choose \"Local Workspace Folder\" to discover local clones without a PAT."
-      );
-    }
-
-    const apiUrl = `${orgUrl}/${encodeURIComponent(project)}/_apis/git/repositories?api-version=7.1`;
-
-    const res = await fetch(apiUrl, {
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/json",
-      },
-    });
-
-    if (res.status === 401 || res.status === 403) {
-      throw new Error("Azure DevOps authentication failed. Verify your Personal Access Token (PAT).");
-    }
-    if (res.status === 404) {
-      throw new Error(`Azure DevOps project "${project}" was not found at ${orgUrl}.`);
-    }
-    if (!res.ok) {
-      throw new Error(`Azure DevOps API error (${res.status}): ${await res.text()}`);
-    }
-
-    const data = (await res.json()) as { value?: AzureGitRepoItem[] };
-    const items = data.value || [];
-
-    return items.map((repo) => {
-      const cleanBranch = repo.defaultBranch
-        ? repo.defaultBranch.replace(/^refs\/heads\//, "")
-        : "main";
-
-      return {
-        id: repo.id,
-        name: repo.name,
-        remote: repo.remoteUrl || repo.url || "",
-        defaultBranch: cleanBranch,
-        webUrl: repo.webUrl,
-      };
-    });
+    const { orgUrl, project, authHeader } = await resolveAzureParams(input);
+    const items = await fetchAzureApiRepos(orgUrl, project, authHeader);
+    return items.map(mapAzureRepoItem);
   }
 }
