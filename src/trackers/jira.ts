@@ -3,6 +3,7 @@
 import type { FactorySettings } from "../settings.js";
 import { parseAdfToText } from "./jira-adf.js";
 import { extractCriteria } from "./parser.js";
+import { JiraSearchResponseSchema } from "./schemas.js";
 import {
   REQUIRED_WORKFLOW_LABEL,
   type TrackerOptions,
@@ -40,18 +41,15 @@ export async function fetchJiraTickets(options: {
     throw new Error(`Jira API error ${res.status}: ${await res.text()}`);
   }
 
-  const data = (await res.json()) as {
-    issues: Array<{
-      key: string;
-      fields: {
-        summary: string;
-        description?: unknown;
-        labels?: string[];
-      };
-    }>;
-  };
+  const raw = await res.json();
+  const parsed = JiraSearchResponseSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Jira search API response validation failed: ${parsed.error.message}`,
+    );
+  }
 
-  return (data.issues || []).map((issue) => {
+  return (parsed.data.issues ?? []).map((issue) => {
     let desc = "";
     if (typeof issue.fields.description === "string") {
       desc = issue.fields.description;

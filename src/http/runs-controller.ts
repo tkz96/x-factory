@@ -7,8 +7,9 @@ import {
   createEventStreamResponse,
   errorResponse,
   jsonResponse,
-  withJsonBody,
+  withValidatedBody,
 } from "./responses.js";
+import { CreateRunBodySchema, SteerRunBodySchema } from "./schemas.js";
 
 export function parseAcceptanceCriteria(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -24,12 +25,12 @@ export function parseAcceptanceCriteria(raw: unknown): string[] {
 }
 
 async function handleCreateRun(req: Request): Promise<Response> {
-  return withJsonBody(
+  return withValidatedBody(
     req,
+    CreateRunBodySchema,
     (body) =>
       catchHttpErrors(async () => {
-        const projectId =
-          typeof body.projectId === "string" ? body.projectId : "";
+        const projectId = body.projectId;
         const project = await getProject(projectId, true);
         if (!project) {
           return errorResponse(
@@ -38,17 +39,14 @@ async function handleCreateRun(req: Request): Promise<Response> {
           );
         }
 
-        const ticketId = typeof body.ticketId === "string" ? body.ticketId : "";
-        const ticketTitle =
-          typeof body.ticketTitle === "string" ? body.ticketTitle : ticketId;
-        const plan = typeof body.plan === "string" ? body.plan : "";
+        const ticketId = body.ticketId || "";
+        const ticketTitle = body.ticketTitle || ticketId;
+        const plan = body.plan || "";
         const acceptanceCriteria = parseAcceptanceCriteria(
           body.acceptanceCriteria,
         );
-        const description =
-          typeof body.description === "string" ? body.description : undefined;
-        const branch =
-          typeof body.branch === "string" ? body.branch : undefined;
+        const description = body.description;
+        const branch = body.branch;
 
         const run = await runs.createRun(
           project,
@@ -85,13 +83,11 @@ function handleRunEvents(runId: string): Response {
 }
 
 async function handleSteerRun(req: Request, runId: string): Promise<Response> {
-  return withJsonBody<{ message?: string }>(
+  return withValidatedBody(
     req,
+    SteerRunBodySchema,
     async (body) => {
-      if (typeof body.message !== "string" || !body.message.trim()) {
-        return errorResponse("Message is required.");
-      }
-      await runs.steerRun(runId, body.message.trim());
+      await runs.steerRun(runId, body.message);
       return jsonResponse({ ok: true });
     },
     "Invalid JSON in request body.",

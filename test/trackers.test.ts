@@ -173,6 +173,27 @@ describe("GitHub Tracker (REST API)", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test("throws descriptive validation error on malformed GitHub API response", async () => {
+    const originalFetch = globalThis.fetch;
+    (globalThis as Record<string, unknown>).fetch = mock(async () => {
+      return new Response(JSON.stringify({ notAnArray: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    try {
+      await expect(
+        fetchGitHubTickets({
+          repo: "example/repo",
+          token: "fake-token",
+        }),
+      ).rejects.toThrow("GitHub Issues API response validation failed");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("Jira Tracker (REST v3)", () => {
@@ -216,6 +237,28 @@ describe("Jira Tracker (REST v3)", () => {
         "Exponential backoff up to 5 attempts",
         "Store dead letters in SQS",
       ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("throws descriptive validation error on malformed Jira API response", async () => {
+    const originalFetch = globalThis.fetch;
+    (globalThis as Record<string, unknown>).fetch = mock(async () => {
+      return new Response(
+        JSON.stringify({ issues: [{ noKeyOrSummary: 123 }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    try {
+      await expect(
+        fetchJiraTickets({
+          host: "jira.example.com",
+          email: "user@example.com",
+          token: "jira-token",
+        }),
+      ).rejects.toThrow("Jira search API response validation failed");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -282,6 +325,36 @@ describe("Azure DevOps Tracker (WIQL)", () => {
         "Rotate refresh tokens",
       ]);
       expect(ticket.labels).toContain("agentic-workflow");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("throws descriptive validation error on malformed Azure work items response", async () => {
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+    (globalThis as Record<string, unknown>).fetch = mock(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(JSON.stringify({ workItems: [{ id: 501 }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ value: [{ id: "not-a-number" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    try {
+      await expect(
+        fetchAzureTickets({
+          orgUrl: "https://dev.azure.com/example-org",
+          project: "example-proj",
+          pat: "fake-pat",
+        }),
+      ).rejects.toThrow("Azure DevOps WorkItems response validation failed");
     } finally {
       globalThis.fetch = originalFetch;
     }

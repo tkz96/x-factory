@@ -2,17 +2,12 @@
 
 import { loadSettings } from "../settings.js";
 import { LocalWorkspaceRepositoryDiscovery } from "./local.js";
+import { JiraComponentListSchema } from "./schemas.js";
 import type {
   DiscoveredRepository,
   RepositoryDiscoveryInput,
   RepositoryDiscoveryProvider,
 } from "./types.js";
-
-interface JiraComponentItem {
-  id: string;
-  name: string;
-  description?: string;
-}
 
 async function tryFetchJiraComponents(
   host: string,
@@ -32,10 +27,11 @@ async function tryFetchJiraComponents(
     });
 
     if (!res.ok) return null;
-    const components = (await res.json()) as JiraComponentItem[];
-    if (!Array.isArray(components) || components.length === 0) return null;
+    const raw = await res.json();
+    const parsed = JiraComponentListSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.length === 0) return null;
 
-    return components.map((c) => ({
+    return parsed.data.map((c) => ({
       id: c.id,
       name: c.name,
       remote: "",

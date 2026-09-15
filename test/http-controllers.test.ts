@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { saveProject, validateProject } from "../src/config.js";
+import { deleteProject, saveProject, validateProject } from "../src/config.js";
 import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import { handleApi } from "../src/http/routes.js";
 import {
@@ -124,7 +124,21 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.ok(data.error.includes("Invalid JSON"));
     });
 
-    it("POST /api/runs rejects missing or unknown projectId with 404", async () => {
+    it("POST /api/runs rejects missing projectId with 400 and validation details", async () => {
+      const req = new Request("http://localhost/api/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: "RUN-1" }),
+      });
+      const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+      assert.ok(res);
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.ok(data.error.includes("Project ID is required."));
+      assert.ok(Array.isArray(data.details));
+    });
+
+    it("POST /api/runs rejects unknown projectId with 404", async () => {
       const req = new Request("http://localhost/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -161,31 +175,34 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         defaultBranch: "main",
         testCommand: "bun test",
       });
-      await saveProject(validProject);
+      try {
+        await saveProject(validProject);
 
-      const req = new Request("http://localhost/api/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: validProject.id,
-          ticketId: "RUN-1",
-          ticketTitle: "Feature Run",
-          plan: "Test execution plan",
-          acceptanceCriteria: "Crit 1\nCrit 2",
-          description: "Details",
-          branch: "xfactory/run-1",
-        }),
-      });
+        const req = new Request("http://localhost/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: validProject.id,
+            ticketId: "RUN-1",
+            ticketTitle: "Feature Run",
+            plan: "Test execution plan",
+            acceptanceCriteria: "Crit 1\nCrit 2",
+            description: "Details",
+            branch: "xfactory/run-1",
+          }),
+        });
 
-      const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
-      assert.ok(res);
-      assert.equal(res.status, 201);
-      const data = await res.json();
-      assert.equal(data.ticket.id, "RUN-1");
-      assert.equal(data.ticket.title, "Feature Run");
-      assert.equal(data.ticket.acceptanceCriteria.length, 2);
-
-      await rm(gitDir, { recursive: true, force: true });
+        const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+        assert.ok(res);
+        assert.equal(res.status, 201);
+        const data = await res.json();
+        assert.equal(data.ticket.id, "RUN-1");
+        assert.equal(data.ticket.title, "Feature Run");
+        assert.equal(data.ticket.acceptanceCriteria.length, 2);
+      } finally {
+        await deleteProject(validProject.id);
+        await rm(gitDir, { recursive: true, force: true });
+      }
     });
 
     it("GET /api/runs/:id returns 404 for unknown run", async () => {
@@ -388,6 +405,45 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       );
       assert.ok(res);
       assert.equal(res.status, 404);
+    });
+
+    it("POST /api/projects rejects malformed JSON with 400", async () => {
+      const req = new Request("http://localhost/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "bad json",
+      });
+      const res = await handleProjectsRoute(
+        "POST",
+        undefined,
+        undefined,
+        1,
+        req,
+      );
+      assert.ok(res);
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.ok(data.error.includes("Invalid JSON"));
+    });
+
+    it("POST /api/projects rejects missing required fields with 400 and details", async () => {
+      const req = new Request("http://localhost/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const res = await handleProjectsRoute(
+        "POST",
+        undefined,
+        undefined,
+        1,
+        req,
+      );
+      assert.ok(res);
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.ok(data.error);
+      assert.ok(Array.isArray(data.details));
     });
   });
 

@@ -1,5 +1,4 @@
-// src/http/responses.ts — HTTP response formatting, error envelopes, and SSE streaming.
-
+import { z } from "zod/v4";
 import type { RunEvent } from "../types.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
@@ -38,6 +37,40 @@ export async function withJsonBody<T = Record<string, unknown>>(
     return errorResponse(invalidMsg, 400);
   }
   return action(body as unknown as T);
+}
+
+/**
+ * Higher-order controller helper: validates JSON body against a Zod schema and invokes handler.
+ * Returns 400 with structured field-level errors on failure.
+ */
+export async function withValidatedBody<T>(
+  req: Request,
+  schema: z.ZodType<T>,
+  action: (data: T) => Promise<Response>,
+  invalidJsonMsg = "Invalid JSON in request body.",
+): Promise<Response> {
+  const body = await parseJsonBody(req);
+  if (!body || typeof body !== "object") {
+    return errorResponse(invalidJsonMsg, 400);
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0];
+    const message =
+      firstIssue &&
+      firstIssue.message !== "Required" &&
+      firstIssue.message !== "Invalid input"
+        ? firstIssue.message
+        : `Request validation failed:\n${z.prettifyError(parsed.error)}`;
+    return jsonResponse(
+      {
+        error: message,
+        details: parsed.error.issues,
+      },
+      400,
+    );
+  }
+  return action(parsed.data);
 }
 
 /**

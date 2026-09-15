@@ -165,6 +165,54 @@ describe("Repository Discovery Providers", () => {
         globalThis.fetch = originalFetch;
       }
     });
+
+    it("handles Azure DevOps project not found cleanly", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = (async () =>
+          new Response("Not Found", {
+            status: 404,
+          })) as unknown as typeof fetch;
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        await assert.rejects(
+          () =>
+            provider.listRepositories({
+              provider: "azure",
+              orgUrl: "https://dev.azure.com/org",
+              project: "p",
+              pat: "p",
+            }),
+          /Azure DevOps project "p" was not found/,
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("throws descriptive error on malformed Azure DevOps repository response", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(JSON.stringify({ value: [{ id: 123, name: null }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        await assert.rejects(
+          () =>
+            provider.listRepositories({
+              provider: "azure",
+              orgUrl: "https://dev.azure.com/org",
+              project: "proj",
+              pat: "secret-pat",
+            }),
+          /Azure DevOps Repositories API response validation failed/,
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
   });
 
   describe("GitHubRepositoryDiscovery", () => {
@@ -198,6 +246,30 @@ describe("Repository Discovery Providers", () => {
         assert.equal(
           repos[0]?.remote,
           "https://github.com/vendifai/frontend.git",
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("throws descriptive error on malformed GitHub repository response", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(JSON.stringify({ notAnArray: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })) as unknown as typeof fetch;
+
+        const provider = new GitHubRepositoryDiscovery();
+        await assert.rejects(
+          () =>
+            provider.listRepositories({
+              provider: "github",
+              token: "gh-token",
+              repoOwner: "test-owner",
+            }),
+          /GitHub Repositories API response validation failed/,
         );
       } finally {
         globalThis.fetch = originalFetch;
@@ -266,6 +338,28 @@ describe("Repository Discovery Providers", () => {
         assert.equal(repos[0]?.name, "repo-jira-a");
       } finally {
         await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    it("safely falls back when Jira components response is malformed", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(JSON.stringify({ notAnArray: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })) as unknown as typeof fetch;
+
+        const repos = await discoverRepositories({
+          provider: "jira",
+          project: "PROJ",
+          jiraHost: "company.atlassian.net",
+          jiraEmail: "dev@company.com",
+          jiraToken: "api-token",
+        });
+        assert.deepEqual(repos, []);
+      } finally {
+        globalThis.fetch = originalFetch;
       }
     });
   });

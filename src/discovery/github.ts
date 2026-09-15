@@ -1,20 +1,12 @@
 // src/discovery/github.ts — Read-only repository discovery for GitHub.
 
 import { loadSettings } from "../settings.js";
+import { type GitHubRepoItem, GitHubRepoListSchema } from "./schemas.js";
 import type {
   DiscoveredRepository,
   RepositoryDiscoveryInput,
   RepositoryDiscoveryProvider,
 } from "./types.js";
-
-interface GitHubRepoItem {
-  id: number;
-  name: string;
-  full_name: string;
-  clone_url: string;
-  html_url: string;
-  default_branch?: string;
-}
 
 function resolveGitHubHeaders(token?: string): Record<string, string> {
   const headers: Record<string, string> = {
@@ -65,8 +57,14 @@ async function fetchGitHubRepos(
     throw new Error(`GitHub API error (${res.status}): ${await res.text()}`);
   }
 
-  const data = (await res.json()) as GitHubRepoItem[];
-  return Array.isArray(data) ? data : [];
+  const raw = await res.json();
+  const parsed = GitHubRepoListSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `GitHub Repositories API response validation failed: ${parsed.error.message}`,
+    );
+  }
+  return parsed.data;
 }
 
 export class GitHubRepositoryDiscovery implements RepositoryDiscoveryProvider {

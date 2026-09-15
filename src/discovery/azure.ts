@@ -2,6 +2,7 @@
 
 import { resolveAzureAuthHeader } from "../azure/auth.js";
 import { loadSettings } from "../settings.js";
+import { AzureRepoListSchema } from "./schemas.js";
 import type {
   DiscoveredRepository,
   RepositoryDiscoveryInput,
@@ -182,8 +183,14 @@ async function fetchAzureApiRepos(
     );
   }
 
-  const data = (await res.json()) as { value?: AzureGitRepoItem[] };
-  return data.value || [];
+  const raw = await res.json();
+  const parsed = AzureRepoListSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Azure DevOps Repositories API response validation failed: ${parsed.error.message}`,
+    );
+  }
+  return parsed.data.value ?? [];
 }
 
 export class AzureDevOpsRepositoryDiscovery

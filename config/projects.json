@@ -94,25 +94,6 @@
           }
         }
       ]
-    },
-    {
-      "id": "proj-http-create",
-      "name": "Create Run Project",
-      "issueTracker": {
-        "connectionId": "github"
-      },
-      "repositories": [
-        {
-          "id": "proj-http-create-primary",
-          "name": "Create Run Project",
-          "path": "/var/folders/p0/jpglygmj38j8rv72_pjrmprr0000gn/T/xf-repo-run-MnjHp0",
-          "defaultBranch": "main",
-          "role": "other",
-          "commands": {
-            "test": "bun test"
-          }
-        }
-      ]
     }
   ]
 }

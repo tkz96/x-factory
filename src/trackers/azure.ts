@@ -4,6 +4,11 @@ import { resolveAzureAuthHeader } from "../azure/auth.js";
 import type { FactorySettings } from "../settings.js";
 import { extractCriteria, stripHtml } from "./parser.js";
 import {
+  AzureWiqlResponseSchema,
+  type AzureWorkItem,
+  AzureWorkItemBatchSchema,
+} from "./schemas.js";
+import {
   REQUIRED_WORKFLOW_LABEL,
   type TrackerOptions,
   type TrackerTicket,
@@ -15,9 +20,9 @@ async function queryAzureWorkItemIds(
   auth: string,
   label: string,
 ): Promise<number[]> {
-  const base = orgUrl.replace(/\/+$/, "");
-  const wiqlUrl = `${base}/${encodeURIComponent(project)}/_apis/wit/wiql?api-version=7.1`;
-  const query = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${project}' AND [System.Tags] CONTAINS '${label}' AND [System.State] <> 'Closed' AND [System.State] <> 'Done' ORDER BY [System.ChangedDate] DESC`;
+  const wiqlUrl = `${orgUrl}/${encodeURIComponent(project)}/_apis/wit/wiql?api-version=7.1`;
+  const escapedLabel = label.replace(/'/g, "''");
+  const query = `SELECT [System.Id] FROM WorkItems WHERE [System.Tags] CONTAINS '${escapedLabel}' AND [System.State] <> 'Closed' AND [System.State] <> 'Done' ORDER BY [System.ChangedDate] DESC`;
 
   const res = await fetch(wiqlUrl, {
     method: "POST",
@@ -29,15 +34,17 @@ async function queryAzureWorkItemIds(
       `Azure DevOps WIQL error ${res.status}: ${await res.text()}`,
     );
   }
-  const data = (await res.json()) as { workItems?: Array<{ id: number }> };
-  return (data.workItems || []).map((w) => w.id).slice(0, 50);
+  const raw = await res.json();
+  const parsed = AzureWiqlResponseSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Azure DevOps WIQL response validation failed: ${parsed.error.message}`,
+    );
+  }
+  return (parsed.data.workItems ?? []).map((w) => w.id).slice(0, 50);
 }
 
-function parseAzureWorkItem(item: {
-  id: number;
-  fields: Record<string, unknown>;
-  _links?: { html?: { href?: string } };
-}): TrackerTicket {
+function parseAzureWorkItem(item: AzureWorkItem): TrackerTicket {
   const title = String(item.fields["System.Title"] || "");
   const rawDesc = String(item.fields["System.Description"] || "");
   const rawCriteria = String(
@@ -97,15 +104,15 @@ export async function fetchAzureTickets(options: {
     );
   }
 
-  const itemsData = (await itemsRes.json()) as {
-    value: Array<{
-      id: number;
-      fields: Record<string, unknown>;
-      _links?: { html?: { href?: string } };
-    }>;
-  };
+  const itemsRaw = await itemsRes.json();
+  const itemsParsed = AzureWorkItemBatchSchema.safeParse(itemsRaw);
+  if (!itemsParsed.success) {
+    throw new Error(
+      `Azure DevOps WorkItems response validation failed: ${itemsParsed.error.message}`,
+    );
+  }
 
-  return itemsData.value.map(parseAzureWorkItem);
+  return itemsParsed.data.value.map(parseAzureWorkItem);
 }
 
 function getAzureConfig(

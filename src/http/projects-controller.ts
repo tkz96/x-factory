@@ -24,15 +24,18 @@ import {
   errorResponse,
   jsonResponse,
   withJsonBody,
+  withValidatedBody,
 } from "./responses.js";
+import { SaveProjectBodySchema, UpdateProjectBodySchema } from "./schemas.js";
 
 async function handleGetProjects(): Promise<Response> {
   return jsonResponse(await loadProjects());
 }
 
 async function handleCreateProject(req: Request): Promise<Response> {
-  return withJsonBody(
+  return withValidatedBody(
     req,
+    SaveProjectBodySchema,
     (body) =>
       catchHttpErrors(async () => {
         const saved = await saveProject(body);
@@ -56,13 +59,14 @@ async function handleUpdateProject(
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
-  return withJsonBody(
+  return withValidatedBody(
     req,
+    UpdateProjectBodySchema,
     (body) =>
       catchHttpErrors(async () => {
         const merged = {
           ...project,
-          ...(body as Record<string, unknown>),
+          ...body,
           id: projectId,
         };
         const saved = await saveProject(merged);

@@ -2,6 +2,7 @@
 
 import { execCommand } from "../proc.js";
 import { extractCriteria } from "./parser.js";
+import { GitHubCliIssueListSchema, GitHubIssueListSchema } from "./schemas.js";
 import {
   hasRequiredLabel,
   REQUIRED_WORKFLOW_LABEL,
@@ -21,10 +22,10 @@ export async function detectGitHubRepo(cwd: string): Promise<string | null> {
 function toGitHubTicket(item: {
   number: number;
   title: string;
-  body?: string;
-  labels?: Array<{ name: string } | string>;
-  url?: string;
-  html_url?: string;
+  body?: string | null | undefined;
+  labels?: Array<{ name: string } | string> | undefined;
+  url?: string | undefined;
+  html_url?: string | undefined;
 }): TrackerTicket {
   const labels = (item.labels || []).map((l) =>
     typeof l === "string" ? l : l.name,
@@ -63,16 +64,15 @@ export async function fetchGitHubTickets(options: {
     if (!res.ok) {
       throw new Error(`GitHub API error ${res.status}: ${await res.text()}`);
     }
-    const data = (await res.json()) as Array<{
-      number: number;
-      title: string;
-      body?: string;
-      labels: Array<{ name: string } | string>;
-      html_url: string;
-      pull_request?: unknown;
-    }>;
+    const raw = await res.json();
+    const parsed = GitHubIssueListSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error(
+        `GitHub Issues API response validation failed: ${parsed.error.message}`,
+      );
+    }
 
-    return data
+    return parsed.data
       .filter((item) => !item.pull_request)
       .map(toGitHubTicket)
       .filter((t) => hasRequiredLabel(t.labels, label));
@@ -99,15 +99,12 @@ export async function fetchGitHubTickets(options: {
   }
 
   try {
-    const items = JSON.parse(result.stdout) as Array<{
-      number: number;
-      title: string;
-      body?: string;
-      labels: Array<{ name: string } | string>;
-      url: string;
-    }>;
-
-    return items
+    const raw = JSON.parse(result.stdout);
+    const parsed = GitHubCliIssueListSchema.safeParse(raw);
+    if (!parsed.success) {
+      return [];
+    }
+    return parsed.data
       .map(toGitHubTicket)
       .filter((t) => hasRequiredLabel(t.labels, label));
   } catch {
