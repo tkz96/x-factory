@@ -92,30 +92,6 @@ export function closeNewRunModal(): void {
   hideError(setupError);
 }
 
-export function showView(view: HTMLElement | null | string): void {
-  const viewSetup = $<HTMLElement>("#view-setup");
-  const viewRun = $<HTMLElement>("#view-run");
-  const viewResult = $<HTMLElement>("#view-result");
-  const runsStandby = $<HTMLElement>("#runs-standby");
-  const workflowStepper = $<HTMLElement>("#workflow-stepper");
-
-  if (view === viewSetup || view === "setup") {
-    openNewRunModal();
-  } else if (view === viewRun || view === "run") {
-    window.location.hash = "#/runs";
-    if (runsStandby) runsStandby.hidden = true;
-    if (workflowStepper) workflowStepper.style.display = "block";
-    if (viewRun) viewRun.style.display = "block";
-    if (viewResult) viewResult.style.display = "none";
-  } else if (view === viewResult || view === "result") {
-    window.location.hash = "#/runs";
-    if (runsStandby) runsStandby.hidden = true;
-    if (workflowStepper) workflowStepper.style.display = "block";
-    if (viewRun) viewRun.style.display = "none";
-    if (viewResult) viewResult.style.display = "block";
-  }
-}
-
 export function initRouter(): void {
   window.addEventListener("hashchange", handleHashChange);
 

@@ -1,0 +1,14 @@
+# lefthook.yml — Git hooks configuration for X-Factory
+
+pre-commit:
+  parallel: true
+  commands:
+    lint-format:
+      glob: "*.{js,ts,json,css}"
+      run: bunx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    typecheck:
+      run: bun run typecheck && bun run typecheck:frontend

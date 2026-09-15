@@ -44,7 +44,7 @@ export const GitHubRepoListSchema = z.array(
     .passthrough(),
 );
 
-export type GitHubRepoList = z.infer<typeof GitHubRepoListSchema>;
+type GitHubRepoList = z.infer<typeof GitHubRepoListSchema>;
 export type GitHubRepoItem = GitHubRepoList[number];
 
 // ---------------------------------------------------------------------------

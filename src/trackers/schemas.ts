@@ -36,7 +36,7 @@ export const AzureWorkItemBatchSchema = z
   })
   .passthrough();
 
-export type AzureWorkItemBatch = z.infer<typeof AzureWorkItemBatchSchema>;
+type AzureWorkItemBatch = z.infer<typeof AzureWorkItemBatchSchema>;
 export type AzureWorkItem = AzureWorkItemBatch["value"][number];
 
 // ---------------------------------------------------------------------------

@@ -34,5 +34,11 @@ jobs:
       - name: Architecture & Dead Code Gates (Fallow)
         run: bunx fallow
 
+      - name: Unused Code & Dependencies (Knip)
+        run: bun run knip
+
+      - name: Circular Dependency Check (dpdm)
+        run: bun run check:cycles
+
       - name: Test
         run: bun test --coverage

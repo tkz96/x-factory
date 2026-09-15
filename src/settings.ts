@@ -4,30 +4,30 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export interface GitHubConfig {
+interface GitHubConfig {
   token?: string | undefined;
   repo?: string | undefined;
 }
 
-export interface JiraConfig {
+interface JiraConfig {
   host?: string | undefined;
   email?: string | undefined;
   token?: string | undefined;
   project?: string | undefined;
 }
 
-export interface AzureConfig {
+interface AzureConfig {
   orgUrl?: string | undefined;
   project?: string | undefined;
   pat?: string | undefined;
 }
 
-export interface ModelStageConfig {
+interface ModelStageConfig {
   provider?: string | undefined;
   model?: string | undefined;
 }
 
-export interface ModelConfig {
+interface ModelConfig {
   sessionA?: ModelStageConfig | undefined;
   sessionB?: ModelStageConfig | undefined;
 }

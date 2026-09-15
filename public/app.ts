@@ -6,12 +6,7 @@ import {
   renderProjectsList,
 } from "./js/projects.js";
 import { initQueue, loadWorkQueue, setOnSelectTicket } from "./js/queue.js";
-import {
-  handleHashChange,
-  initRouter,
-  setRouteHandlers,
-  showView,
-} from "./js/router.js";
+import { handleHashChange, initRouter, setRouteHandlers } from "./js/router.js";
 import {
   initRuns,
   loadHistory,
@@ -21,16 +16,8 @@ import {
 } from "./js/runs.js";
 import { initSettings, initTheme, loadSettingsView } from "./js/settings.js";
 import { initTooltips } from "./js/tooltips.js";
+import { mountViews } from "./js/views/index.js";
 import { initWizard, openOnboardModal } from "./js/wizard.js";
-
-declare global {
-  interface Window {
-    showView: typeof showView;
-  }
-}
-
-// Legacy test compatibility
-window.showView = showView;
 
 setRouteHandlers({
   queue: loadWorkQueue,
@@ -45,6 +32,9 @@ setOnSelectTicket(() => {
 });
 
 async function init(): Promise<void> {
+  // Mount modular view templates into shell mount points
+  mountViews();
+
   initTheme();
   initTooltips();
   initRouter();

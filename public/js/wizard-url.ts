@@ -2,14 +2,14 @@
 
 import type { RepositoryRole } from "../../src/shared/types.js";
 
-export interface ParsedAzureUrl {
+interface ParsedAzureUrl {
   provider: "azure";
   org: string;
   project: string;
   orgUrl: string;
 }
 
-export interface ParsedGitHubUrl {
+interface ParsedGitHubUrl {
   provider: "github";
   owner: string;
   repo: string;

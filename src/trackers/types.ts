@@ -4,7 +4,7 @@ import type { Ticket } from "../types.js";
 
 export const REQUIRED_WORKFLOW_LABEL = "agentic-workflow";
 
-export type TrackerProvider = "github" | "jira" | "azure";
+type TrackerProvider = "github" | "jira" | "azure";
 
 export interface TrackerTicket extends Ticket {
   labels: string[];

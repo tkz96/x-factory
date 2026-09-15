@@ -205,7 +205,7 @@ export interface ReviewResult {
 /**
  * Generic artifact descriptor.
  */
-export interface Artifact {
+interface Artifact {
   id: string;
   type:
     | "implementation_context"

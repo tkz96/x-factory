@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "typecheck:frontend": "tsc --project tsconfig.frontend.json --noEmit",
     "lint": "biome check .",
-    "lint:fix": "biome check --write ."
+    "lint:fix": "biome check --write .",
+    "knip": "knip",
+    "check:cycles": "dpdm --exit-code circular:1 --circular --warning=false --tree=false src/server.ts public/app.ts",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.85.1",
@@ -19,6 +22,9 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
     "@types/bun": "latest",
+    "dpdm": "^4.3.0",
+    "knip": "^6.35.1",
+    "lefthook": "^2.1.14",
     "typescript": "^5.8.2"
   },
   "engines": {

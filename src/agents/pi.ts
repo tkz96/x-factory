@@ -8,9 +8,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
-export type ThinkingLevel = NonNullable<
-  CreateAgentSessionOptions["thinkingLevel"]
->;
+type ThinkingLevel = NonNullable<CreateAgentSessionOptions["thinkingLevel"]>;
 
 export interface SessionOptions {
   provider?: string | undefined;
@@ -18,7 +16,7 @@ export interface SessionOptions {
   thinkingLevel?: ThinkingLevel | undefined;
 }
 
-export type PiEventListener = (event: {
+type PiEventListener = (event: {
   type: "text" | "tool" | "done" | "error";
   text?: string | undefined;
   tool?: string | undefined;
