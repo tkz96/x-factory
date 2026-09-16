@@ -7,7 +7,7 @@ const SETTINGS_TEMPLATE = `
   <div class="settings-layout card">
     <div class="settings-sidebar">
       <button class="settings-tab-btn active" data-tab="general">General</button>
-      <button class="settings-tab-btn" data-tab="trackers">Issue Trackers</button>
+      <button class="settings-tab-btn" data-tab="trackers">Connections</button>
       <button class="settings-tab-btn" data-tab="models">Pi & Models</button>
       <button class="settings-tab-btn" data-tab="git">Git & Worktrees</button>
     </div>
@@ -16,72 +16,66 @@ const SETTINGS_TEMPLATE = `
         <h3>General Settings</h3>
         <p class="text-muted">Workbench behavior and system defaults.</p>
         <div class="setting-item">
-          <label>Data Directory</label>
-          <input type="text" value="~/.x-factory" readonly class="code-input">
+          <label>Appearance</label>
+          <div class="theme-segmented-control" role="radiogroup" aria-label="Appearance Theme">
+            <button type="button" class="theme-segment-btn" id="btn-theme-light" data-theme-val="light" aria-label="Light Theme">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+              <span>Light</span>
+            </button>
+            <button type="button" class="theme-segment-btn" id="btn-theme-dark" data-theme-val="dark" aria-label="Dark Theme">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span>Dark</span>
+            </button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label for="setting-data-dir">Data Directory</label>
+          <input id="setting-data-dir" type="text" value="~/.x-factory" readonly class="code-input">
         </div>
       </div>
       <div id="tab-trackers" class="settings-pane">
-        <h3>Issue Tracker Integration</h3>
-        <p class="text-muted">Connect your issue tracker to pull <code>agentic-workflow</code> tickets.</p>
-        <div class="setting-item">
-          <label for="setting-tracker-provider">Default Provider</label>
-          <select id="setting-tracker-provider" class="form-select">
-            <option value="github">GitHub Issues</option>
-            <option value="jira">Jira Software</option>
-            <option value="azure">Azure DevOps</option>
-          </select>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+          <div>
+            <h3>Tracker Connections</h3>
+            <p class="text-muted">Read-only registry of projects and their configured issue tracker connections.</p>
+          </div>
+          <button id="btn-settings-onboard-project" class="btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>Onboard Project</span>
+          </button>
         </div>
-        <div class="setting-item">
-          <label>Required Workflow Label</label>
-          <input type="text" value="agentic-workflow" readonly class="code-input">
-        </div>
-
-        <!-- GitHub Form Group -->
-        <div id="tracker-group-github" class="tracker-form-group">
-          <div class="setting-item">
-            <label for="setting-github-token">GitHub Token (Optional for public/CLI repos)</label>
-            <input type="password" id="setting-github-token" placeholder="ghp_••••••••" class="form-input">
-          </div>
-          <div class="setting-item">
-            <label for="setting-github-repo">Default Repository (e.g. owner/repo)</label>
-            <input type="text" id="setting-github-repo" placeholder="owner/repo (auto-detected from git if blank)" class="form-input">
-          </div>
-        </div>
-
-        <!-- Jira Form Group -->
-        <div id="tracker-group-jira" class="tracker-form-group" hidden>
-          <div class="setting-item">
-            <label for="setting-jira-host">Jira Host URL</label>
-            <input type="text" id="setting-jira-host" placeholder="yourcompany.atlassian.net" class="form-input">
-          </div>
-          <div class="setting-item">
-            <label for="setting-jira-email">Jira Email</label>
-            <input type="email" id="setting-jira-email" placeholder="dev@company.com" class="form-input">
-          </div>
-          <div class="setting-item">
-            <label for="setting-jira-token">Jira API Token</label>
-            <input type="password" id="setting-jira-token" placeholder="API Token" class="form-input">
-          </div>
-          <div class="setting-item">
-            <label for="setting-jira-project">Jira Project Key (Optional)</label>
-            <input type="text" id="setting-jira-project" placeholder="e.g. PROJ" class="form-input">
-          </div>
-        </div>
-
-        <!-- Azure DevOps Form Group -->
-        <div id="tracker-group-azure" class="tracker-form-group" hidden>
-          <div class="setting-item">
-            <label for="setting-azure-org">Azure Organization URL</label>
-            <input type="text" id="setting-azure-org" placeholder="https://dev.azure.com/your-org" class="form-input">
-          </div>
-          <div class="setting-item">
-            <label for="setting-azure-project">Azure Project Name</label>
-            <input type="text" id="setting-azure-project" placeholder="ProjectName" class="form-input">
-          </div>
-          <div class="setting-item">
-            <label for="setting-azure-pat">Personal Access Token (PAT)</label>
-            <input type="password" id="setting-azure-pat" placeholder="PAT" class="form-input">
-          </div>
+        <div class="connections-registry-container" style="margin-top: 1rem; overflow-x: auto;">
+          <table class="table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="text-align: left; border-bottom: 1px solid var(--border);">
+                <th style="padding: 0.5rem;">Project</th>
+                <th style="padding: 0.5rem;">Tracker Provider</th>
+                <th style="padding: 0.5rem;">Target</th>
+                <th style="padding: 0.5rem;">Status</th>
+                <th style="padding: 0.5rem; text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="connections-registry-tbody">
+              <tr>
+                <td colspan="5" style="padding: 1rem; text-align: center;" class="text-muted">Loading connections...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
       <div id="tab-models" class="settings-pane">
@@ -103,20 +97,20 @@ const SETTINGS_TEMPLATE = `
           <label for="setting-model-b-model">Review Model (Session B)</label>
           <input type="text" id="setting-model-b-model" placeholder="e.g. claude-3-7-sonnet" class="form-input">
         </div>
+
+        <!-- Save Actions for Models -->
+        <div class="settings-actions" style="margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+          <button id="btn-save-settings" class="btn-primary">Save Model Settings</button>
+          <span id="settings-status" class="text-muted" style="font-size: 0.85rem;"></span>
+        </div>
       </div>
       <div id="tab-git" class="settings-pane">
         <h3>Git & Worktree Isolation</h3>
         <p class="text-muted">Worktree storage and baseline pollution rules.</p>
         <div class="setting-item">
-          <label>Worktree Path</label>
-          <input type="text" value="~/.x-factory/projects/:id/worktrees/:runId" readonly class="code-input">
+          <label for="setting-worktree-path">Worktree Path</label>
+          <input id="setting-worktree-path" type="text" value="~/.x-factory/projects/:id/worktrees/:runId" readonly class="code-input">
         </div>
-      </div>
-
-      <!-- Save Actions -->
-      <div class="settings-actions" style="margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem;">
-        <button id="btn-save-settings" class="btn-primary">Save Settings</button>
-        <span id="settings-status" class="text-muted" style="font-size: 0.85rem;"></span>
       </div>
     </div>
   </div>

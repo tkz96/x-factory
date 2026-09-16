@@ -1,6 +1,5 @@
 // src/discovery/github.ts — Read-only repository discovery for GitHub.
 
-import { loadSettings } from "../settings.js";
 import { type GitHubRepoItem, GitHubRepoListSchema } from "./schemas.js";
 import type {
   DiscoveredRepository,
@@ -73,13 +72,8 @@ export class GitHubRepositoryDiscovery implements RepositoryDiscoveryProvider {
   async listRepositories(
     input: RepositoryDiscoveryInput,
   ): Promise<DiscoveredRepository[]> {
-    const settings = await loadSettings(false);
-    const token = (input.token || settings.github?.token || "").trim();
-    const owner = (
-      input.repoOwner ||
-      settings.github?.repo?.split("/")[0] ||
-      ""
-    ).trim();
+    const token = (input.token || process.env.GITHUB_TOKEN || "").trim();
+    const owner = (input.repoOwner || process.env.GITHUB_OWNER || "").trim();
     const headers = resolveGitHubHeaders(token);
 
     const items = await fetchGitHubRepos(owner, headers);

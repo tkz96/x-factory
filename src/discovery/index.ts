@@ -10,10 +10,7 @@ import type {
   RepositoryDiscoveryProvider,
 } from "./types.js";
 
-export {
-  AzureDevOpsRepositoryDiscovery,
-  extractAzureDevOpsInfo,
-} from "./azure.js";
+export { AzureDevOpsRepositoryDiscovery } from "./azure.js";
 export { GitHubRepositoryDiscovery } from "./github.js";
 export { JiraRepositoryDiscovery } from "./jira.js";
 export { LocalWorkspaceRepositoryDiscovery } from "./local.js";

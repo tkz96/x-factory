@@ -6,6 +6,7 @@ export interface ClientState {
   currentRunId: string | null;
   eventSource: EventSource | null;
   projects: Project[];
+  archivedProjects: Project[];
   allRuns: Run[];
   cachedTickets: Ticket[];
   activeDetailProjectId: string | null;
@@ -15,6 +16,7 @@ export const state: ClientState = {
   currentRunId: null,
   eventSource: null,
   projects: [],
+  archivedProjects: [],
   allRuns: [],
   cachedTickets: [],
   activeDetailProjectId: null,

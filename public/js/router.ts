@@ -32,7 +32,7 @@ const AREA_METADATA: Record<AreaName, AreaInfo> = {
   },
 };
 
-export type RouteHandler = () => void | Promise<void>;
+export type RouteHandler = (subPath?: string) => void | Promise<void>;
 
 const routeHandlers: Record<AreaName, RouteHandler> = {
   queue: () => {},
@@ -48,13 +48,18 @@ export function setRouteHandlers(
   Object.assign(routeHandlers, handlers);
 }
 
-function navigate(areaName: string): void {
+function navigate(rawRoute: string): void {
+  const parts = rawRoute.split("/");
+  const primary = parts[0] || "queue";
   const isKnownArea = (name: string): name is AreaName => name in AREA_METADATA;
-  const area: AreaName = isKnownArea(areaName) ? areaName : "queue";
+  const area: AreaName = isKnownArea(primary) ? primary : "queue";
+  const subPath = parts.slice(1).join("/");
 
-  $$<HTMLElement>(".sidebar-nav .nav-item").forEach((el) => {
-    el.classList.toggle("active", el.dataset.area === area);
-  });
+  $$<HTMLElement>(".sidebar-nav .nav-item, .mobile-tab-bar .tab-item").forEach(
+    (el) => {
+      el.classList.toggle("active", el.dataset.area === area);
+    },
+  );
 
   $$<HTMLElement>(".area-view").forEach((el) => {
     el.classList.toggle("active", el.id === `area-${area}`);
@@ -69,7 +74,7 @@ function navigate(areaName: string): void {
 
   const handler = routeHandlers[area];
   if (handler) {
-    void handler();
+    void handler(subPath);
   }
 }
 
@@ -96,13 +101,17 @@ export function initRouter(): void {
   window.addEventListener("hashchange", handleHashChange);
 
   const btnOpenNewRun = $<HTMLButtonElement>("#btn-open-new-run");
+  const btnHistoryNewRun = $<HTMLButtonElement>("#btn-history-new-run");
   const btnQueueManual = $<HTMLButtonElement>("#btn-queue-manual");
   const btnRunsStart = $<HTMLButtonElement>("#btn-runs-start");
   const btnCloseModal = $<HTMLButtonElement>("#btn-close-modal");
   const btnCancelModal = $<HTMLButtonElement>("#btn-cancel-modal");
   const modalNewRun = $<HTMLElement>("#modal-new-run");
+  const modalOnboard = $<HTMLElement>("#modal-project-onboarding");
 
   if (btnOpenNewRun) btnOpenNewRun.addEventListener("click", openNewRunModal);
+  if (btnHistoryNewRun)
+    btnHistoryNewRun.addEventListener("click", openNewRunModal);
   if (btnQueueManual) btnQueueManual.addEventListener("click", openNewRunModal);
   if (btnRunsStart) btnRunsStart.addEventListener("click", openNewRunModal);
   if (btnCloseModal) btnCloseModal.addEventListener("click", closeNewRunModal);
@@ -112,6 +121,12 @@ export function initRouter(): void {
   if (modalNewRun) {
     modalNewRun.addEventListener("click", (e) => {
       if (e.target === modalNewRun) closeNewRunModal();
+    });
+  }
+
+  if (modalOnboard) {
+    modalOnboard.addEventListener("click", (e) => {
+      if (e.target === modalOnboard) modalOnboard.hidden = true;
     });
   }
 

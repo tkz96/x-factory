@@ -1,18 +1,13 @@
 // src/trackers/azure.ts — Azure DevOps work items integration with WIQL.
 
 import { resolveAzureAuthHeader } from "../azure/auth.js";
-import type { FactorySettings } from "../settings.js";
 import { extractCriteria, stripHtml } from "./parser.js";
 import {
   AzureWiqlResponseSchema,
   type AzureWorkItem,
   AzureWorkItemBatchSchema,
 } from "./schemas.js";
-import {
-  REQUIRED_WORKFLOW_LABEL,
-  type TrackerOptions,
-  type TrackerTicket,
-} from "./types.js";
+import { REQUIRED_WORKFLOW_LABEL, type TrackerTicket } from "./types.js";
 
 async function queryAzureWorkItemIds(
   orgUrl: string,
@@ -113,33 +108,4 @@ export async function fetchAzureTickets(options: {
   }
 
   return itemsParsed.data.value.map(parseAzureWorkItem);
-}
-
-function getAzureConfig(
-  options: TrackerOptions,
-  saved?: FactorySettings["azure"],
-) {
-  const cfg = saved || {};
-  return {
-    orgUrl: options.azureOrgUrl || cfg.orgUrl,
-    project: options.azureProject || cfg.project,
-    pat: options.azurePat || cfg.pat,
-  };
-}
-
-export function tryFetchAzure(
-  provider: string,
-  options: TrackerOptions,
-  savedAzure?: FactorySettings["azure"],
-): Promise<TrackerTicket[]> | null {
-  if (provider !== "azure") return null;
-  const { orgUrl, project, pat } = getAzureConfig(options, savedAzure);
-  if (!orgUrl || !project) return null;
-
-  return fetchAzureTickets({
-    orgUrl,
-    project,
-    pat: pat || undefined,
-    requiredLabel: options.requiredLabel,
-  });
 }

@@ -110,7 +110,7 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     const res = await fetch(`${baseUrl}/api/settings`);
     assert.equal(res.status, 200);
     const data = await res.json();
-    assert.ok(data.activeTracker);
+    assert.ok(data.theme);
     assert.ok(data.models);
   });
 
@@ -126,14 +126,12 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        activeTracker: "github",
-        github: { repo: "test/repo" },
+        theme: "light",
       }),
     });
     assert.equal(resGood.status, 200);
     const data = await resGood.json();
-    assert.equal(data.activeTracker, "github");
-    assert.equal(data.github?.repo, "test/repo");
+    assert.equal(data.theme, "light");
   });
 
   it("GET /api/runs/:id returns 404 for unknown run", async () => {

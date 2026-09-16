@@ -3,6 +3,7 @@
 import {
   initProjects,
   loadProjectsData,
+  openProjectDetail,
   renderProjectsList,
 } from "./js/projects.js";
 import { initQueue, loadWorkQueue, setOnSelectTicket } from "./js/queue.js";
@@ -23,7 +24,13 @@ setRouteHandlers({
   queue: loadWorkQueue,
   runs: syncRunsView,
   history: loadHistory,
-  projects: renderProjectsList,
+  projects: (subPath?: string) => {
+    if (subPath) {
+      void openProjectDetail(decodeURIComponent(subPath));
+    } else {
+      void renderProjectsList();
+    }
+  },
   settings: loadSettingsView,
 });
 

@@ -1,61 +1,110 @@
-// public/js/settings.ts — Global workbench preferences, tracker credentials, and Apple dark/light theme toggle.
+// public/js/settings.ts — Global workbench preferences, connections registry, and Apple dark/light theme toggle.
 
-import type { WorkbenchSettings } from "../../src/shared/types.js";
+import type { Project, WorkbenchSettings } from "../../src/shared/types.js";
 import { $, $$, api, getVal, setVal } from "./utils.js";
+import { openOnboardModal } from "./wizard.js";
+
+function updateThemeSegmentButtons(): void {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  const btnLight = $<HTMLElement>("#btn-theme-light");
+  const btnDark = $<HTMLElement>("#btn-theme-dark");
+  if (btnLight) btnLight.classList.toggle("active", current === "light");
+  if (btnDark) btnDark.classList.toggle("active", current === "dark");
+}
+
+export function applyTheme(next: "light" | "dark"): void {
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("xf_theme", next);
+  updateThemeSegmentButtons();
+  api("POST", "/settings", { theme: next }).catch(() => {});
+}
 
 export function initTheme(): void {
   const saved = localStorage.getItem("xf_theme");
   const prefersLight = window.matchMedia?.(
     "(prefers-color-scheme: light)",
   ).matches;
-  const theme = saved || (prefersLight ? "light" : "dark");
+  const theme = (saved || (prefersLight ? "light" : "dark")) as
+    | "light"
+    | "dark";
   document.documentElement.setAttribute("data-theme", theme);
+  updateThemeSegmentButtons();
 
-  const toggle = $<HTMLElement>("#theme-toggle");
-  if (toggle) {
+  const toggles = $$<HTMLElement>("#theme-toggle, #theme-toggle-mobile");
+  toggles.forEach((toggle) => {
     toggle.addEventListener("click", () => {
       const current =
         document.documentElement.getAttribute("data-theme") || "dark";
       const next = current === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem("xf_theme", next);
-      api("POST", "/settings", { theme: next }).catch(() => {});
+      applyTheme(next);
     });
+  });
+
+  const btnLight = $<HTMLElement>("#btn-theme-light");
+  const btnDark = $<HTMLElement>("#btn-theme-dark");
+  if (btnLight) {
+    btnLight.addEventListener("click", () => applyTheme("light"));
+  }
+  if (btnDark) {
+    btnDark.addEventListener("click", () => applyTheme("dark"));
   }
 }
 
-function updateTrackerProviderVisibility(provider: string): void {
-  const trackerGroupGithub = $<HTMLElement>("#tracker-group-github");
-  const trackerGroupJira = $<HTMLElement>("#tracker-group-jira");
-  const trackerGroupAzure = $<HTMLElement>("#tracker-group-azure");
+async function renderConnectionsRegistry(): Promise<void> {
+  const tbody = $<HTMLTableSectionElement>("#connections-registry-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="5" style="padding: 1rem; text-align: center;" class="text-muted">Loading connections...</td></tr>`;
 
-  if (trackerGroupGithub) trackerGroupGithub.hidden = provider !== "github";
-  if (trackerGroupJira) trackerGroupJira.hidden = provider !== "jira";
-  if (trackerGroupAzure) trackerGroupAzure.hidden = provider !== "azure";
-}
+  try {
+    const projects = await api<Project[]>(
+      "GET",
+      "/projects?includeArchived=true",
+    );
+    if (!projects || projects.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="padding: 1rem; text-align: center;" class="text-muted">No projects configured.</td></tr>`;
+      return;
+    }
 
-function populateTrackerFields(s: WorkbenchSettings): void {
-  const gh = s.github || {};
-  const jira = s.jira || {};
-  const az = s.azure || {};
-  const tracker = s.activeTracker || "github";
+    tbody.innerHTML = "";
+    for (const p of projects) {
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--border)";
 
-  setVal("#setting-tracker-provider", tracker);
-  updateTrackerProviderVisibility(tracker);
+      const provider =
+        p.issueTracker?.provider || p.issueTracker?.connectionId || "github";
+      let target = "";
+      if (provider === "azure") {
+        target = `${p.issueTracker?.azure?.orgUrl || ""} / ${p.issueTracker?.azure?.project || p.issueTracker?.projectId || ""}`;
+      } else if (provider === "jira") {
+        target = `${p.issueTracker?.jira?.host || ""} (${p.issueTracker?.jira?.project || ""})`;
+      } else {
+        target = p.issueTracker?.github?.repo || p.repositoryPath || "";
+      }
 
-  const fields: Record<string, string | undefined> = {
-    "#setting-github-token": gh.token,
-    "#setting-github-repo": gh.repo,
-    "#setting-jira-host": jira.host,
-    "#setting-jira-email": jira.email,
-    "#setting-jira-token": jira.token,
-    "#setting-jira-project": jira.project,
-    "#setting-azure-org": az.orgUrl,
-    "#setting-azure-project": az.project,
-    "#setting-azure-pat": az.pat,
-  };
-  for (const [id, val] of Object.entries(fields)) {
-    setVal(id, val);
+      const isArchived = Boolean(p.archived);
+      const statusBadge = isArchived
+        ? `<span class="badge" style="padding: 2px 6px; font-size: var(--text-caption-2); border-radius: var(--radius-sm); font-family: var(--font-mono); background: var(--bg-tertiary); color: var(--text-muted);">Archived</span>`
+        : `<span class="badge" style="padding: 2px 6px; font-size: var(--text-caption-2); border-radius: var(--radius-sm); font-family: var(--font-mono); background: var(--green-dim); color: var(--green);">Active</span>`;
+
+      const providerBadge = `<span class="badge" style="padding: 2px 6px; font-size: var(--text-caption-2); border-radius: var(--radius-sm); font-family: var(--font-mono); text-transform: uppercase; background: var(--bg-tertiary); font-weight: 600;">${provider}</span>`;
+
+      tr.innerHTML = `
+        <td style="padding: 0.75rem 0.5rem; font-weight: 500;">
+          ${p.name}
+          ${p.predecessorId ? `<span class="text-muted" style="font-size: var(--text-caption-2); display: block;">from ${p.predecessorId}</span>` : ""}
+        </td>
+        <td style="padding: 0.75rem 0.5rem;">${providerBadge}</td>
+        <td style="padding: 0.75rem 0.5rem; font-family: var(--font-mono); font-size: var(--text-callout);" class="text-muted">${target}</td>
+        <td style="padding: 0.75rem 0.5rem;">${statusBadge}</td>
+        <td style="padding: 0.75rem 0.5rem; text-align: right;">
+          <a href="#/projects/${encodeURIComponent(p.id)}" class="btn-link" style="color: var(--accent); text-decoration: none; font-size: var(--text-callout); font-weight: 500;">View Project →</a>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="padding: 1rem; text-align: center; color: var(--red);">Failed to load connections: ${err instanceof Error ? err.message : String(err)}</td></tr>`;
   }
 }
 
@@ -87,8 +136,9 @@ export async function loadSettingsView(): Promise<void> {
       document.documentElement.setAttribute("data-theme", s.theme);
       localStorage.setItem("xf_theme", s.theme);
     }
-    populateTrackerFields(s);
+    updateThemeSegmentButtons();
     populateModelFields(s);
+    void renderConnectionsRegistry();
   } catch (err) {
     if (settingsStatus) {
       settingsStatus.textContent = `Failed to load settings: ${err instanceof Error ? err.message : String(err)}`;
@@ -99,22 +149,6 @@ export async function loadSettingsView(): Promise<void> {
 function buildSettingsPayload(): Record<string, unknown> {
   return {
     theme: document.documentElement.getAttribute("data-theme") || "dark",
-    activeTracker: getVal("#setting-tracker-provider", "github"),
-    github: {
-      token: getVal("#setting-github-token"),
-      repo: getVal("#setting-github-repo"),
-    },
-    jira: {
-      host: getVal("#setting-jira-host"),
-      email: getVal("#setting-jira-email"),
-      token: getVal("#setting-jira-token"),
-      project: getVal("#setting-jira-project"),
-    },
-    azure: {
-      orgUrl: getVal("#setting-azure-org"),
-      project: getVal("#setting-azure-project"),
-      pat: getVal("#setting-azure-pat"),
-    },
     models: {
       sessionA: {
         provider: getVal("#setting-model-a-provider", "anthropic"),
@@ -173,24 +207,26 @@ export function initSettings(): void {
       if (tabName) {
         const pane = $(`#tab-${tabName}`);
         if (pane) pane.classList.add("active");
+        if (tabName === "trackers") {
+          void renderConnectionsRegistry();
+        }
       }
     });
   });
-
-  const settingTrackerProvider = $<HTMLSelectElement>(
-    "#setting-tracker-provider",
-  );
-  if (settingTrackerProvider) {
-    settingTrackerProvider.addEventListener("change", (e: Event) => {
-      const target = e.target as HTMLSelectElement;
-      updateTrackerProviderVisibility(target.value);
-    });
-  }
 
   const btnSaveSettings = $<HTMLButtonElement>("#btn-save-settings");
   if (btnSaveSettings) {
     btnSaveSettings.addEventListener("click", () => {
       void saveSettingsView();
+    });
+  }
+
+  const btnSettingsOnboard = $<HTMLButtonElement>(
+    "#btn-settings-onboard-project",
+  );
+  if (btnSettingsOnboard) {
+    btnSettingsOnboard.addEventListener("click", () => {
+      openOnboardModal();
     });
   }
 }

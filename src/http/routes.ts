@@ -10,9 +10,20 @@ async function routeApiRequest(
   parts: string[],
   req: Request,
 ): Promise<Response | null> {
-  const [resource, id, action] = parts;
-  if (resource === "projects")
-    return handleProjectsRoute(method, id, action, parts.length, req);
+  const [resource, id, action, subaction] = parts;
+  if (
+    resource === "projects" ||
+    resource === "discovery" ||
+    resource === "inspection"
+  )
+    return handleProjectsRoute(
+      method,
+      id,
+      action,
+      subaction,
+      parts.length,
+      req,
+    );
   if (resource === "runs")
     return handleRunsRoute(method, id, action, parts.length, req);
   if (resource === "settings") return handleSettingsRoute(method, req);

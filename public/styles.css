@@ -1,106 +1,92 @@
-/* ── Offline Apple Fonts (Zero External Requests) ───────────────────── */
+/* ── Locally Served Open-Source Fonts (Inter & IBM Plex Mono) ────────── */
 
 @font-face {
-  font-family: "New York";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/fonts/NewYork-Regular.woff2") format("woff2");
+  src: url("/fonts/Inter-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "New York";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/NewYork-Semibold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "New York";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/NewYork-Bold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "SF Pro";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/SFPro-Regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "SF Pro";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("/fonts/SFPro-Medium.woff2") format("woff2");
+  src: url("/fonts/Inter-Medium.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "SF Pro";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("/fonts/SFPro-Semibold.woff2") format("woff2");
+  src: url("/fonts/Inter-Semibold.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "SF Pro";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/fonts/SFPro-Bold.woff2") format("woff2");
+  src: url("/fonts/Inter-Bold.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "SF Mono";
+  font-family: "IBM Plex Mono";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/fonts/SFMono-Regular.woff2") format("woff2");
+  src: url("/fonts/IBMPlexMono-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "SF Mono";
+  font-family: "IBM Plex Mono";
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("/fonts/SFMono-Medium.woff2") format("woff2");
+  src: url("/fonts/IBMPlexMono-Medium.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "SF Mono";
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/IBMPlexMono-Semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/fonts/SFMono-Bold.woff2") format("woff2");
+  src: url("/fonts/IBMPlexMono-Bold.woff2") format("woff2");
 }
 
-/* ── Apple iPhone Design Tokens (Dark & Light) ───────────────────────── */
+/* ── Apple HIG Design Tokens (Dark & Light) ───────────────────────── */
 
 :root,
 [data-theme="dark"] {
   --bg: #000000;
   --bg-sidebar: #0b0b0c;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-card-hover: rgba(255, 255, 255, 0.08);
-  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-card: #1c1c1e;
+  --bg-card-hover: #2c2c2e;
+  --bg-input: rgba(255, 255, 255, 0.08);
   --bg-glass: rgba(14, 14, 16, 0.78);
-  --border: rgba(255, 255, 255, 0.09);
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-hover: rgba(255, 255, 255, 0.16);
-  --border-focus: #2997ff;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-color: var(--border);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.22);
+  --border-focus: #0a84ff;
   --text: #f5f5f7;
-  --text-muted: #86868b;
-  --text-dim: #48484a;
-  --accent: #2997ff;
-  --accent-hover: #4da6ff;
-  --accent-pressed: #0077ed;
-  --accent-dim: rgba(41, 151, 255, 0.16);
+  --text-muted: #98989d;
+  --text-dim: #636366;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-pressed: #0071e3;
+  --accent-dim: rgba(10, 132, 255, 0.16);
+  --color-primary: var(--accent);
   --green: #30d158;
   --green-dim: rgba(48, 209, 88, 0.15);
   --red: #ff453a;
@@ -110,56 +96,82 @@
   --purple: #bf5af2;
   --purple-dim: rgba(191, 90, 242, 0.15);
   --radius-pill: 980px;
-  --radius-card: 18px;
-  --radius-md: 14px;
-  --radius-input: 12px;
+  --radius-card: 16px;
+  --radius-md: 12px;
+  --radius-input: 10px;
   --radius-sm: 8px;
-  --radius: 18px;
+  --radius: 16px;
   --bg-circle-btn: rgba(255, 255, 255, 0.08);
   --bg-circle-btn-hover: rgba(255, 255, 255, 0.16);
   --bg-circle-btn-active: rgba(255, 255, 255, 0.24);
   --bg-code: rgba(0, 0, 0, 0.45);
-  --bg-modal: #18181b;
+  --bg-surface-2: #242426;
+  --bg-modal: #1c1c1e;
   --text-main: #f5f5f7;
   --text-on-accent: #ffffff;
   --text-on-dot: #0e1117;
   --font-display:
-    "SF Pro", -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    -apple-system-headline, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
+    sans-serif;
   --font-sans:
-    "SF Pro", -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "SF Pro Display", sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter",
+    system-ui, sans-serif;
   --font-serif:
-    "SF Pro", -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    -apple-system-headline, sans-serif;
-  --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.75);
+    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65);
   --spring: cubic-bezier(0.16, 1, 0.3, 1);
   --transition: 220ms cubic-bezier(0.16, 1, 0.3, 1);
   --transition-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Spacing — 8pt grid, 4pt sub-grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Apple HIG Type Scale */
+  --text-large-title: 2.125rem; /* 34px */
+  --text-title-1: 1.75rem; /* 28px */
+  --text-title-2: 1.375rem; /* 22px */
+  --text-title-3: 1.25rem; /* 20px */
+  --text-headline: 1.0625rem; /* 17px semibold */
+  --text-body: 1.0625rem; /* 17px regular */
+  --text-callout: 1rem; /* 16px */
+  --text-subhead: 0.9375rem; /* 15px */
+  --text-footnote: 0.8125rem; /* 13px */
+  --text-caption-1: 0.75rem; /* 12px */
+  --text-caption-2: 0.6875rem; /* 11px */
 }
 
 [data-theme="light"] {
-  --bg: #f5f5f7;
-  --bg-sidebar: #ebebf0;
-  --bg-card: rgba(255, 255, 255, 0.88);
-  --bg-card-hover: #ffffff;
+  --bg: #f2f2f7;
+  --bg-sidebar: #e5e5ea;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9f9fb;
   --bg-input: #ffffff;
-  --bg-glass: rgba(245, 245, 247, 0.82);
-  --border: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-hover: rgba(0, 0, 0, 0.15);
-  --border-focus: #0071e3;
-  --text: #1d1d1f;
-  --text-muted: #6e6e73;
-  --text-dim: #86868b;
-  --text-main: #1d1d1f;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --border: rgba(60, 60, 67, 0.16);
+  --border-color: var(--border);
+  --border-subtle: rgba(60, 60, 67, 0.08);
+  --border-hover: rgba(60, 60, 67, 0.28);
+  --border-focus: #007aff;
+  --text: #000000;
+  --text-muted: #525257;
+  --text-dim: #707075;
+  --text-main: #000000;
   --bg-code: rgba(0, 0, 0, 0.05);
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-pressed: #0062c4;
-  --accent-dim: rgba(0, 113, 227, 0.14);
+  --bg-surface-2: #f2f2f7;
+  --accent: #007aff;
+  --accent-hover: #0066d6;
+  --accent-pressed: #0051b3;
+  --accent-dim: rgba(0, 122, 255, 0.12);
+  --color-primary: var(--accent);
   --green: #34c759;
   --green-dim: rgba(52, 199, 89, 0.14);
   --red: #ff3b30;
@@ -174,8 +186,8 @@
   --bg-modal: #ffffff;
   --text-on-accent: #ffffff;
   --text-on-dot: #ffffff;
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.12);
 }
 
 *,
@@ -192,12 +204,27 @@
 }
 
 html {
-  font-size: 15px;
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition:
     background-color 280ms var(--spring),
     color 280ms var(--spring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.001ms;
+    scroll-behavior: auto;
+  }
 }
 
 body {
@@ -246,8 +273,8 @@ body {
 
 .brand-title {
   font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 650;
+  font-size: var(--text-title-3);
+  font-weight: 700;
   letter-spacing: -0.024em;
   color: var(--text);
   display: block;
@@ -259,14 +286,16 @@ body {
 
 .sidebar-select {
   width: 100%;
-  padding: 0.45rem 0.6rem;
+  min-height: 44px;
+  padding: 0.6rem 0.8rem;
   background: var(--bg-card);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: var(--text-subhead);
   font-family: var(--font-sans);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
 
 .sidebar-select:focus {
@@ -281,34 +310,36 @@ body {
 }
 
 .nav-section-title {
-  font-size: 0.65rem;
+  font-size: var(--text-caption-2);
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--text-dim);
   padding: 0.7rem 0.6rem 0.35rem;
+  text-transform: uppercase;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.5rem 0.65rem;
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
   color: var(--text-muted);
   text-decoration: none;
   border-radius: var(--radius-sm);
-  font-size: 0.84rem;
-  font-weight: 450;
+  font-size: var(--text-subhead);
+  font-weight: 500;
   transition: all var(--transition);
   position: relative;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text);
 }
 
 .nav-item.active {
-  background: rgba(88, 166, 255, 0.1);
+  background: rgba(10, 132, 255, 0.12);
   color: var(--accent);
   font-weight: 600;
 }
@@ -324,12 +355,17 @@ body {
 
 .nav-badge {
   margin-left: auto;
-  font-size: 0.7rem;
-  padding: 0.1rem 0.45rem;
+  font-size: var(--text-caption-2);
+  padding: 0.15rem 0.5rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+[data-theme="light"] .nav-badge {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .nav-badge.pulse {
@@ -341,7 +377,7 @@ body {
 .sidebar-footer {
   padding: 0.85rem 1rem;
   border-top: 1px solid var(--border-subtle);
-  font-size: 0.75rem;
+  font-size: var(--text-footnote);
   color: var(--text-dim);
   display: flex;
   align-items: center;
@@ -352,8 +388,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: var(--bg-circle-btn);
   border: 1px solid var(--border-subtle);
@@ -367,7 +405,7 @@ body {
   background: var(--bg-circle-btn-hover);
   color: var(--text);
   border-color: var(--border-hover);
-  transform: scale(1.06);
+  transform: scale(1.05);
 }
 
 .theme-toggle:active {
@@ -439,14 +477,14 @@ body {
 
 .toolbar-left h1 {
   font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 650;
+  font-size: var(--text-title-2);
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -0.024em;
 }
 
 .toolbar-subtitle {
-  font-size: 0.75rem;
+  font-size: var(--text-caption-1);
   color: var(--text-muted);
   display: block;
 }
@@ -458,8 +496,10 @@ body {
 }
 
 .btn-circle {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   padding: 0;
   display: inline-flex;
@@ -486,16 +526,19 @@ body {
 }
 
 .btn-circle svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .btn-sm {
-  padding: 0.38rem 0.75rem;
-  font-size: 0.78rem;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  font-size: var(--text-subhead);
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
+  border-radius: var(--radius-pill);
 }
 
 .viewport-container {
@@ -535,6 +578,12 @@ body {
   display: none;
 }
 
+.view-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 /* ── Card ────────────────────────────────────────────────────────────── */
 
 .card {
@@ -543,13 +592,11 @@ body {
   border-radius: var(--radius-card);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 .card h2 {
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: var(--text-title-3);
   font-weight: 600;
   margin-bottom: 1.2rem;
   color: var(--text);
@@ -557,7 +604,7 @@ body {
 }
 
 .card h3 {
-  font-size: 0.88rem;
+  font-size: var(--text-subhead);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1294,8 +1341,7 @@ button:active,
     background-color var(--transition);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+
   animation: appleCardFadeIn 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
@@ -1447,8 +1493,7 @@ button:active,
   margin-bottom: 0.65rem;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+
   transition: all var(--transition);
 }
 
@@ -1482,12 +1527,77 @@ button:active,
   font-family: var(--font-mono);
 }
 
-/* ── Projects Grid ───────────────────────────────────────────────────── */
+/* ── Projects Grid & Tabs (Apple HIG) ────────────────────────────────── */
+
+.projects-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.85rem;
+}
+
+.projects-segmented-control {
+  display: inline-flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+}
+
+.projects-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: calc(var(--radius-md) - 3px);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.projects-tab-btn:hover {
+  color: var(--text);
+}
+
+.projects-tab-btn.active {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+}
+
+.projects-tab-badge {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-2);
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+
+.projects-tab-btn.active .projects-tab-badge {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
 
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .projects-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .project-card {
@@ -1496,9 +1606,16 @@ button:active,
   border-radius: var(--radius-card);
   padding: 1.35rem;
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  transition: all var(--transition);
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .project-card:hover {
@@ -1508,21 +1625,67 @@ button:active,
   box-shadow: var(--shadow-lg);
 }
 
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.6rem;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.project-card-header h3,
 .project-card h3 {
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 0.4rem;
+  margin: 0;
   text-transform: none;
   letter-spacing: -0.015em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.project-card-header .role-badge {
+  flex-shrink: 0;
 }
 
 .project-card-meta {
   font-size: 0.78rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.45rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-card-meta strong {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.project-card-meta code,
+.project-card-meta .meta-val {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  display: inline-block;
+  color: var(--text-main);
 }
 
 /* ── Settings Paned Layout (Apple HIG) ───────────────────────────────── */
@@ -1588,6 +1751,48 @@ button:active,
   font-weight: 500;
   color: var(--text-muted);
   margin-bottom: 0.35rem;
+}
+
+.theme-segmented-control {
+  display: inline-flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+}
+
+.theme-segment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  min-height: 44px;
+  font-size: var(--text-callout);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.theme-segment-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.theme-segment-btn.active {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+}
+
+.theme-segment-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .code-input,
@@ -1684,7 +1889,7 @@ button:active,
     0 0 0 1px rgba(255, 255, 255, 0.1);
   width: 100%;
   max-width: 680px;
-  max-height: 90vh;
+  max-height: min(90vh, 760px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1705,19 +1910,22 @@ button:active,
   justify-content: space-between;
   padding: 1.1rem 1.4rem;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: var(--text-title-3);
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.022em;
 }
 
 .btn-close {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: var(--bg-circle-btn);
   border: 1px solid var(--border-subtle);
@@ -1743,8 +1951,11 @@ button:active,
 }
 
 .modal-body {
-  padding: 1.4rem 1.4rem 2.5rem;
+  padding: 1.4rem 1.4rem 1.2rem;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-actions {
@@ -1753,40 +1964,124 @@ button:active,
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 1.5rem;
-  padding-top: 1rem;
+  padding: 1rem 0 0.5rem;
   border-top: 1px solid var(--border-subtle);
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-modal);
+  z-index: 10;
+  flex-shrink: 0;
 }
 
-.modal-actions .btn-primary {
+.modal-actions .btn-primary,
+.modal-actions .btn-secondary {
+  min-height: 44px;
+  padding: 0.55rem 1.25rem;
+  font-size: var(--text-subhead);
+  font-weight: 550;
   width: auto;
   margin-top: 0;
 }
 
-/* ── Responsive ──────────────────────────────────────────────────────── */
+/* ── Mobile Navigation & Responsive (Apple HIG) ───────────────────────── */
+
+.mobile-tab-bar {
+  display: none;
+}
+
+.mobile-only {
+  display: none;
+}
 
 @media (max-width: 768px) {
-  .app-shell {
-    flex-direction: column;
+  aside.sidebar {
+    display: none;
   }
-  .sidebar {
-    width: 100%;
+
+  button.mobile-only {
+    display: inline-flex;
+  }
+
+  .main-content {
     height: auto;
-    position: relative;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    min-height: 100vh;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
+
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(54px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    z-index: 1000;
+    justify-content: space-around;
+    align-items: center;
+    user-select: none;
+  }
+
+  .tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    flex: 1;
+    height: 100%;
+    min-height: 44px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: var(--text-caption-2);
+    font-weight: 500;
+    transition: color var(--transition-fast);
+  }
+
+  .tab-item svg {
+    opacity: 0.8;
+  }
+
+  .tab-item:hover,
+  .tab-item.active {
+    color: var(--accent);
+  }
+
+  .tab-item.active svg {
+    opacity: 1;
+  }
+
   .settings-layout {
     grid-template-columns: 1fr;
   }
+
   .settings-sidebar {
     flex-direction: row;
     border-right: none;
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.5rem;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    gap: 0.5rem;
   }
+
+  .settings-tab-btn {
+    flex-shrink: 0;
+  }
+
   .viewport-container {
-    padding: 1rem;
+    padding: 1rem 1rem 2rem;
+  }
+
+  .modal-dialog {
+    max-height: 95vh;
+    width: 96%;
+    border-radius: var(--radius-md);
   }
 }
 
@@ -2258,19 +2553,7 @@ button:active,
   color: var(--text-main);
 }
 
-.project-card {
-  cursor: pointer;
-  transition:
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
-}
-
-.project-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-}
+/* project-card styles consolidated in lines 1600+ */
 
 .project-detail-meta-grid {
   display: grid;

@@ -231,7 +231,7 @@ function validateProjectStructure(project: Project): string[] {
   if (!project.id?.trim())
     issues.push("Project is missing a valid identifier.");
   if (!project.name?.trim()) issues.push("Project is missing a display name.");
-  if (!project.issueTracker?.connectionId)
+  if (!project.issueTracker?.provider && !project.issueTracker?.connectionId)
     issues.push("Project requires an issue tracker connection.");
   if (!project.repositories || project.repositories.length === 0) {
     issues.push("Project must contain at least one application repository.");

@@ -89,6 +89,10 @@ async function saveProjects(
     name: p.name,
     workspacePath: p.workspacePath,
     issueTracker: p.issueTracker,
+    archived: p.archived,
+    archivedAt: p.archivedAt,
+    successorId: p.successorId,
+    predecessorId: p.predecessorId,
     repositories: p.repositories.map((r) => ({
       id: r.id,
       name: r.name,
@@ -111,7 +115,7 @@ async function saveProjects(
   await mkdir(path.dirname(configPath), { recursive: true });
   await writeFile(
     configPath,
-    JSON.stringify({ projects: cleanProjects }, null, 2),
+    `${JSON.stringify({ projects: cleanProjects }, null, 2)}\n`,
     "utf-8",
   );
 }

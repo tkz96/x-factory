@@ -280,11 +280,58 @@ function handleOnboardNext(): void {
     sm.update({ projectName: name, projectId: id, workspacePath: ws });
     goToOnboardStep(2);
   } else if (s.step === 2) {
+    const tracker = getVal("onboard-tracker-connection", "azure");
+    const trackerProject = getVal("onboard-tracker-project").trim();
+    const trackerOrgUrl = getVal("onboard-azure-org-url-step2").trim();
+    const trackerPat = getVal("onboard-azure-pat-step2").trim();
+    const trackerHost = getVal("onboard-jira-host").trim();
+    const trackerEmail = getVal("onboard-jira-email").trim();
+    const trackerToken =
+      tracker === "jira"
+        ? getVal("onboard-jira-token").trim()
+        : getVal("onboard-github-token").trim();
+
+    if (tracker === "azure") {
+      if (!trackerOrgUrl) {
+        setOnboardError("Azure Organization URL is required.");
+        return;
+      }
+      if (!trackerProject) {
+        setOnboardError("Azure Project Name is required.");
+        return;
+      }
+    } else if (tracker === "jira") {
+      if (!trackerHost) {
+        setOnboardError("Jira Host URL is required.");
+        return;
+      }
+      if (!trackerEmail) {
+        setOnboardError("Jira Email is required.");
+        return;
+      }
+      if (!trackerProject) {
+        setOnboardError("Jira Project Key is required.");
+        return;
+      }
+      if (!trackerToken) {
+        setOnboardError("Jira API Token is required.");
+        return;
+      }
+    } else if (tracker === "github") {
+      if (!trackerProject) {
+        setOnboardError("GitHub Repository (owner/repo) is required.");
+        return;
+      }
+    }
+
     sm.update({
-      tracker: getVal("onboard-tracker-connection", "azure"),
-      trackerProject: getVal("onboard-tracker-project").trim(),
-      trackerOrgUrl: getVal("onboard-azure-org-url-step2").trim(),
-      trackerPat: getVal("onboard-azure-pat-step2").trim(),
+      tracker,
+      trackerProject,
+      trackerOrgUrl,
+      trackerPat,
+      trackerHost,
+      trackerEmail,
+      trackerToken,
     });
     goToOnboardStep(3);
   } else if (s.step === 3) {
@@ -309,6 +356,24 @@ function handleOnboardNext(): void {
 function bindWizardInputs(): void {
   const quickUrl = $<HTMLInputElement>("#onboard-quick-url");
   if (quickUrl) quickUrl.addEventListener("input", handleQuickUrlInput);
+
+  const trackerConn = $<HTMLSelectElement>("#onboard-tracker-connection");
+  if (trackerConn) {
+    trackerConn.addEventListener("change", (e: Event) => {
+      const val = (e.target as HTMLSelectElement).value;
+      sm.update({ tracker: val });
+      updateTrackerFieldsVisibility(val);
+    });
+  }
+
+  const discoverySource = $<HTMLSelectElement>("#onboard-discovery-source");
+  if (discoverySource) {
+    discoverySource.addEventListener("change", (e: Event) => {
+      const val = (e.target as HTMLSelectElement).value;
+      sm.update({ discoverySource: val });
+      updateDiscoveryFieldsVisibility(val);
+    });
+  }
 
   const wsInput = $<HTMLInputElement>("#onboard-workspace-path");
   if (wsInput) {
@@ -365,6 +430,13 @@ function bindWizardNavButtons(): void {
 
   const btnCancel = $<HTMLButtonElement>("#btn-onboard-cancel");
   if (btnCancel) btnCancel.addEventListener("click", closeOnboardModal);
+
+  const modalOnboard = $<HTMLElement>("#modal-project-onboarding");
+  if (modalOnboard) {
+    modalOnboard.addEventListener("click", (e) => {
+      if (e.target === modalOnboard) closeOnboardModal();
+    });
+  }
 }
 
 export function initWizard(): void {

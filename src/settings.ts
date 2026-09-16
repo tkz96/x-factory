@@ -1,26 +1,8 @@
-// src/settings.ts — Local configuration engine for issue trackers and models using YAGNI & DRY.
+// src/settings.ts — Local configuration engine for models and theme using YAGNI & DRY.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-
-interface GitHubConfig {
-  token?: string | undefined;
-  repo?: string | undefined;
-}
-
-interface JiraConfig {
-  host?: string | undefined;
-  email?: string | undefined;
-  token?: string | undefined;
-  project?: string | undefined;
-}
-
-interface AzureConfig {
-  orgUrl?: string | undefined;
-  project?: string | undefined;
-  pat?: string | undefined;
-}
 
 interface ModelStageConfig {
   provider?: string | undefined;
@@ -33,20 +15,12 @@ interface ModelConfig {
 }
 
 export interface FactorySettings {
-  activeTracker: "github" | "jira" | "azure";
   theme?: ("dark" | "light") | undefined;
-  github?: GitHubConfig | undefined;
-  jira?: JiraConfig | undefined;
-  azure?: AzureConfig | undefined;
   models?: ModelConfig | undefined;
 }
 
 const DEFAULT_SETTINGS: FactorySettings = {
-  activeTracker: "github",
   theme: "dark",
-  github: {},
-  jira: {},
-  azure: {},
   models: {
     sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
     sessionB: { provider: "anthropic", model: "claude-3-7-sonnet" },
@@ -75,21 +49,7 @@ export function isMasked(val?: string): boolean {
 }
 
 export function maskSettings(settings: FactorySettings): FactorySettings {
-  return {
-    ...settings,
-    github: {
-      ...settings.github,
-      token: maskSecret(settings.github?.token),
-    },
-    jira: {
-      ...settings.jira,
-      token: maskSecret(settings.jira?.token),
-    },
-    azure: {
-      ...settings.azure,
-      pat: maskSecret(settings.azure?.pat),
-    },
-  };
+  return { ...settings };
 }
 
 /**
@@ -105,9 +65,6 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
     current = {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      github: { ...DEFAULT_SETTINGS.github, ...parsed.github },
-      jira: { ...DEFAULT_SETTINGS.jira, ...parsed.jira },
-      azure: { ...DEFAULT_SETTINGS.azure, ...parsed.azure },
       models: {
         sessionA: {
           ...DEFAULT_SETTINGS.models?.sessionA,
@@ -128,7 +85,6 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
 
 /**
  * Save settings to disk with safe file permissions (0600).
- * Preserves unmasked tokens if incoming values contain mask characters.
  */
 export async function saveSettings(
   patch: Partial<FactorySettings>,
@@ -136,37 +92,8 @@ export async function saveSettings(
   const filePath = getSettingsFilePath();
   const existing = await loadSettings(false);
 
-  // Preserve existing secrets if masked in incoming patch
-  const githubToken = isMasked(patch.github?.token)
-    ? existing.github?.token
-    : patch.github?.token?.trim();
-
-  const jiraToken = isMasked(patch.jira?.token)
-    ? existing.jira?.token
-    : patch.jira?.token?.trim();
-
-  const azurePat = isMasked(patch.azure?.pat)
-    ? existing.azure?.pat
-    : patch.azure?.pat?.trim();
-
   const updated: FactorySettings = {
-    activeTracker: patch.activeTracker || existing.activeTracker || "github",
     theme: patch.theme || existing.theme || "dark",
-    github: {
-      ...existing.github,
-      ...patch.github,
-      token: githubToken,
-    },
-    jira: {
-      ...existing.jira,
-      ...patch.jira,
-      token: jiraToken,
-    },
-    azure: {
-      ...existing.azure,
-      ...patch.azure,
-      pat: azurePat,
-    },
     models: {
       sessionA: {
         ...existing.models?.sessionA,

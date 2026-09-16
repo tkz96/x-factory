@@ -1,9 +1,13 @@
 // src/types.ts — Core domain models and workflow types for X-Factory.
 
 export type {
+  AzureTrackerConfig,
   CommandResult,
   Finding,
+  GitHubTrackerConfig,
   ImplementationContext,
+  IssueTrackerProvider,
+  JiraTrackerConfig,
   KnowledgeRepository,
   Project,
   ProjectIssueTracker,

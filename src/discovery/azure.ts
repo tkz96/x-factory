@@ -1,7 +1,6 @@
 // src/discovery/azure.ts — Read-only repository discovery for Azure DevOps.
 
 import { resolveAzureAuthHeader } from "../azure/auth.js";
-import { loadSettings } from "../settings.js";
 import { AzureRepoListSchema } from "./schemas.js";
 import type {
   DiscoveredRepository,
@@ -105,23 +104,22 @@ function resolvePat(inputPat?: string, savedPat?: string): string {
 async function resolveAzureParams(
   input: RepositoryDiscoveryInput,
 ): Promise<ResolvedAzureParams> {
-  const settings = await loadSettings(false);
   const parsed = extractTarget(input);
   const orgUrl = pickFirst(
     input.orgUrl,
     parsed.orgUrl,
-    settings.azure?.orgUrl,
+    process.env.AZURE_DEVOPS_ORG_URL,
   ).replace(/\/+$/, "");
   const project = pickFirst(
     input.project,
     parsed.project,
-    settings.azure?.project,
+    process.env.AZURE_DEVOPS_PROJECT,
   );
-  const pat = resolvePat(input.pat, settings.azure?.pat);
+  const pat = resolvePat(input.pat, process.env.AZURE_DEVOPS_PAT);
 
   if (!orgUrl) {
     throw new Error(
-      "Azure DevOps Organization URL is required (e.g. https://dev.azure.com/xynotech). Configure it in Settings or enter it in the discovery form.",
+      "Azure DevOps Organization URL is required (e.g. https://dev.azure.com/xynotech). Enter it in the discovery form.",
     );
   }
   if (!project) {

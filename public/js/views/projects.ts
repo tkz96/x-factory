@@ -5,7 +5,7 @@ import { createViewFromTemplate } from "./template-helper.js";
 const PROJECTS_TEMPLATE = `
 <section id="area-projects" class="area-view">
   <!-- Projects List Sub-view -->
-  <div id="projects-list-view" class="card">
+  <div id="projects-list-view" class="view-panel">
     <div class="section-header-flex">
       <div>
         <h2>Configured Projects</h2>
@@ -19,16 +19,38 @@ const PROJECTS_TEMPLATE = `
         <span>Onboard Project</span>
       </button>
     </div>
+    <!-- Switchable Tabs: Active / Archived -->
+    <div class="projects-tab-bar">
+      <div class="projects-segmented-control" role="tablist" aria-label="Projects Views">
+        <button type="button" class="projects-tab-btn active" id="btn-tab-active-projects" role="tab" aria-selected="true">
+          <span>Active Projects</span>
+          <span id="active-projects-count" class="projects-tab-badge">0</span>
+        </button>
+        <button type="button" class="projects-tab-btn" id="btn-toggle-archived" role="tab" aria-selected="false">
+          <span>Archived Projects</span>
+          <span id="archived-projects-count" class="projects-tab-badge">0</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Projects Tab Content -->
     <div id="projects-container" class="projects-grid">
       <!-- Projects rendered here -->
+    </div>
+
+    <!-- Switchable Archived Projects Section -->
+    <div id="archived-projects-section" hidden>
+      <div id="archived-projects-container" class="projects-grid">
+        <!-- Archived projects rendered here -->
+      </div>
     </div>
   </div>
 
   <!-- Project Detail Sub-view (hidden by default) -->
-  <div id="projects-detail-view" class="card" hidden>
+  <div id="projects-detail-view" class="view-panel" hidden>
     <div class="section-header-flex">
       <div style="display: flex; align-items: center; gap: 0.8rem;">
-        <button id="btn-back-to-projects-list" class="btn-secondary btn-sm" title="Back to all projects">
+        <button id="btn-back-to-projects-list" class="btn-secondary btn-sm" title="Back to all projects" aria-label="Back to all projects">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="19" y1="12" x2="5" y2="12"/>
             <polyline points="12 19 5 12 12 5"/>
@@ -51,10 +73,14 @@ const PROJECTS_TEMPLATE = `
       <!-- Readiness summary -->
     </div>
 
+    <div id="project-tracker-section" class="project-tracker-card card" style="margin-top: 1.5rem;">
+      <!-- Dedicated Tracker Card rendered here -->
+    </div>
+
     <div class="project-repos-section" style="margin-top: 1.5rem;">
       <div class="section-header-flex" style="margin-bottom: 0.8rem;">
         <h3>Repositories</h3>
-        <span id="project-detail-repo-count" class="nav-badge" style="display: inline-block;">0</span>
+        <span id="project-detail-repo-count" class="nav-badge" style="display: inline-block; font-family: var(--font-mono);">0</span>
       </div>
       <div id="project-detail-repos-table" class="repos-table-container">
         <!-- Repositories rendered here -->

@@ -46,11 +46,27 @@ function getDataDir(): string {
 }
 
 /**
+ * Directory for a project's data:
+ * ~/.x-factory/projects/<projectId>/
+ */
+export function getProjectDir(projectId: string): string {
+  return path.join(getDataDir(), "projects", projectId);
+}
+
+/**
+ * Path to project-level .env secrets file:
+ * ~/.x-factory/projects/<projectId>/.env
+ */
+export function getProjectEnvPath(projectId: string): string {
+  return path.join(getProjectDir(projectId), ".env");
+}
+
+/**
  * Directory where dedicated worktrees for a project live:
  * ~/.x-factory/projects/<projectId>/worktrees/
  */
 export function getProjectWorktreesDir(projectId: string): string {
-  return path.join(getDataDir(), "projects", projectId, "worktrees");
+  return path.join(getProjectDir(projectId), "worktrees");
 }
 
 /**

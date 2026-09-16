@@ -3,6 +3,7 @@
 import path from "node:path";
 import { z } from "zod/v4";
 import type {
+  IssueTrackerProvider,
   KnowledgeRepository,
   Project,
   ProjectIssueTracker,
@@ -10,6 +11,40 @@ import type {
   RepositoryCommands,
   RepositoryRole,
 } from "./types.js";
+
+const IssueTrackerInputSchema = z
+  .union([
+    z.object({
+      provider: z.enum(["azure", "jira", "github"]).optional(),
+      connectionId: z.string().optional(),
+      projectId: z.string().optional(),
+      orgUrl: z.string().optional(),
+      azure: z
+        .object({
+          orgUrl: z.string(),
+          project: z.string(),
+          requiredLabel: z.string().optional(),
+        })
+        .optional(),
+      jira: z
+        .object({
+          host: z.string(),
+          email: z.string(),
+          project: z.string(),
+          requiredLabel: z.string().optional(),
+        })
+        .optional(),
+      github: z
+        .object({
+          repo: z.string(),
+          requiredLabel: z.string().optional(),
+        })
+        .optional(),
+    }),
+    z.null(),
+    z.undefined(),
+  ])
+  .optional();
 
 // ---------------------------------------------------------------------------
 // Primitive helpers
@@ -112,16 +147,11 @@ const ModernProjectInputSchema = z
     name: NonEmptyString,
     workspacePath: OptionalTrimmedString,
     commandTimeoutMs: z.number().positive().optional(),
-    issueTracker: z
-      .union([
-        z.object({
-          connectionId: z.string(),
-          projectId: z.string().optional(),
-        }),
-        z.null(),
-        z.undefined(),
-      ])
-      .optional(),
+    issueTracker: IssueTrackerInputSchema,
+    archived: z.boolean().optional(),
+    archivedAt: z.string().optional(),
+    successorId: z.string().optional(),
+    predecessorId: z.string().optional(),
     repositories: z
       .array(
         z.object({
@@ -165,16 +195,11 @@ const LegacyProjectInputSchema = z
     repositoryPath: NonEmptyString,
     workspacePath: OptionalTrimmedString,
     commandTimeoutMs: z.number().positive().optional(),
-    issueTracker: z
-      .union([
-        z.object({
-          connectionId: z.string(),
-          projectId: z.string().optional(),
-        }),
-        z.null(),
-        z.undefined(),
-      ])
-      .optional(),
+    issueTracker: IssueTrackerInputSchema,
+    archived: z.boolean().optional(),
+    archivedAt: z.string().optional(),
+    successorId: z.string().optional(),
+    predecessorId: z.string().optional(),
     defaultBranch: z.string().optional(),
     testCommand: z.string().optional(),
     typecheckCommand: z.string().optional(),
@@ -332,6 +357,22 @@ function _parseModern(obj: Record<string, unknown>): Project {
     workspacePath: d.workspacePath,
     commandTimeoutMs: d.commandTimeoutMs,
     issueTracker,
+    archived:
+      typeof (d as Record<string, unknown>).archived === "boolean"
+        ? ((d as Record<string, unknown>).archived as boolean)
+        : undefined,
+    archivedAt:
+      typeof (d as Record<string, unknown>).archivedAt === "string"
+        ? ((d as Record<string, unknown>).archivedAt as string)
+        : undefined,
+    successorId:
+      typeof (d as Record<string, unknown>).successorId === "string"
+        ? ((d as Record<string, unknown>).successorId as string)
+        : undefined,
+    predecessorId:
+      typeof (d as Record<string, unknown>).predecessorId === "string"
+        ? ((d as Record<string, unknown>).predecessorId as string)
+        : undefined,
     repositories,
     knowledgeRepository,
     repositoryPath: primary.path,
@@ -347,17 +388,73 @@ function _parseIssueTracker(
   raw: unknown,
   _projectId: string,
 ): ProjectIssueTracker {
-  if (!raw || typeof raw !== "object") return { connectionId: "github" };
+  if (!raw || typeof raw !== "object") {
+    return { provider: "github", connectionId: "github" };
+  }
   const t = raw as Record<string, unknown>;
-  const connectionId =
-    typeof t.connectionId === "string" && t.connectionId.trim()
+  const provider = ((typeof t.provider === "string" && t.provider.trim()
+    ? t.provider.trim()
+    : "") ||
+    (typeof t.connectionId === "string" && t.connectionId.trim()
       ? t.connectionId.trim()
-      : "github";
-  const projectId =
-    typeof t.projectId === "string" && t.projectId.trim()
-      ? t.projectId.trim()
-      : undefined;
-  return { connectionId, projectId };
+      : "") ||
+    "github") as IssueTrackerProvider;
+
+  const result: ProjectIssueTracker = {
+    provider,
+    connectionId: provider,
+    projectId:
+      typeof t.projectId === "string" && t.projectId.trim()
+        ? t.projectId.trim()
+        : undefined,
+  };
+
+  if (t.azure && typeof t.azure === "object") {
+    const a = t.azure as Record<string, unknown>;
+    result.azure = {
+      orgUrl: typeof a.orgUrl === "string" ? a.orgUrl.trim() : "",
+      project: typeof a.project === "string" ? a.project.trim() : "",
+      requiredLabel:
+        typeof a.requiredLabel === "string" && a.requiredLabel.trim()
+          ? a.requiredLabel.trim()
+          : undefined,
+    };
+  } else if (
+    provider === "azure" &&
+    typeof t.projectId === "string" &&
+    t.projectId.trim()
+  ) {
+    result.azure = {
+      orgUrl: typeof t.orgUrl === "string" ? (t.orgUrl as string).trim() : "",
+      project: t.projectId.trim(),
+    };
+  }
+
+  if (t.jira && typeof t.jira === "object") {
+    const j = t.jira as Record<string, unknown>;
+    result.jira = {
+      host: typeof j.host === "string" ? j.host.trim() : "",
+      email: typeof j.email === "string" ? j.email.trim() : "",
+      project: typeof j.project === "string" ? j.project.trim() : "",
+      requiredLabel:
+        typeof j.requiredLabel === "string" && j.requiredLabel.trim()
+          ? j.requiredLabel.trim()
+          : undefined,
+    };
+  }
+
+  if (t.github && typeof t.github === "object") {
+    const g = t.github as Record<string, unknown>;
+    result.github = {
+      repo: typeof g.repo === "string" ? g.repo.trim() : "",
+      requiredLabel:
+        typeof g.requiredLabel === "string" && g.requiredLabel.trim()
+          ? g.requiredLabel.trim()
+          : undefined,
+    };
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

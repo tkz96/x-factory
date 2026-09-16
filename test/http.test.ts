@@ -94,7 +94,7 @@ describe("Static Asset Serving", () => {
   });
 
   it("serves woff2 font with font/woff2 content type", async () => {
-    const res = await serveStatic("/fonts/SFPro-Regular.woff2", PUBLIC_DIR);
+    const res = await serveStatic("/fonts/Inter-Regular.woff2", PUBLIC_DIR);
     assert.equal(res.status, 200);
     assert.equal(res.headers.get("Content-Type"), "font/woff2");
   });

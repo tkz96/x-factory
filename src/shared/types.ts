@@ -71,11 +71,37 @@ export interface KnowledgeRepository {
   type: "graphify";
 }
 
+export type IssueTrackerProvider = "azure" | "jira" | "github";
+
+export interface AzureTrackerConfig {
+  orgUrl: string;
+  project: string;
+  requiredLabel?: string | undefined;
+}
+
+export interface JiraTrackerConfig {
+  host: string;
+  email: string;
+  project: string;
+  requiredLabel?: string | undefined;
+}
+
+export interface GitHubTrackerConfig {
+  repo: string;
+  requiredLabel?: string | undefined;
+}
+
 /**
  * Issue tracker association for a project.
  */
 export interface ProjectIssueTracker {
-  connectionId: "azure" | "jira" | "github" | string;
+  provider: IssueTrackerProvider;
+  azure?: AzureTrackerConfig | undefined;
+  jira?: JiraTrackerConfig | undefined;
+  github?: GitHubTrackerConfig | undefined;
+  /** @deprecated For backwards compatibility during migration */
+  connectionId?: string | undefined;
+  /** @deprecated For backwards compatibility during migration */
   projectId?: string | undefined;
 }
 
@@ -117,6 +143,11 @@ export interface Project {
   repositories: ProjectRepository[];
   knowledgeRepository?: KnowledgeRepository | undefined;
   commandTimeoutMs?: number | undefined;
+
+  archived?: boolean | undefined;
+  archivedAt?: string | undefined;
+  successorId?: string | undefined; // ID of the migrated project
+  predecessorId?: string | undefined; // ID of the project this was migrated from
 
   // Backwards-compatibility fields for single-repository operations
   repositoryPath: string;
@@ -308,26 +339,7 @@ export interface AzureConnectionResult {
  * Workbench settings shape.
  */
 export interface WorkbenchSettings {
-  activeTracker?: string | undefined;
   theme?: string | undefined;
-  github?:
-    | { token?: string | undefined; repo?: string | undefined }
-    | undefined;
-  jira?:
-    | {
-        host?: string | undefined;
-        email?: string | undefined;
-        token?: string | undefined;
-        project?: string | undefined;
-      }
-    | undefined;
-  azure?:
-    | {
-        orgUrl?: string | undefined;
-        project?: string | undefined;
-        pat?: string | undefined;
-      }
-    | undefined;
   models?:
     | {
         sessionA?:

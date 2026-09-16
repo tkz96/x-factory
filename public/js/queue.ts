@@ -170,11 +170,44 @@ function renderEmptyQueue(): void {
   );
 }
 
-function renderTicketsList(tickets: Ticket[]): void {
+function renderSearchEmptyQueue(query: string): void {
+  const queueTicketsList = $<HTMLElement>("#queue-tickets-list");
+  if (!queueTicketsList) return;
+
+  const btnClear = el("button", {
+    className: "btn-secondary btn-sm",
+    style: { "margin-top": "1rem" },
+    textContent: "Clear Filter",
+    onClick: () => {
+      const queueSearch = $<HTMLInputElement>("#queue-search");
+      if (queueSearch) queueSearch.value = "";
+      renderTicketsList(state.cachedTickets);
+    },
+  });
+
+  clearElement(queueTicketsList);
+  queueTicketsList.appendChild(
+    el("div", { className: "empty-state card" }, [
+      el("h3", { textContent: "No Matching Tickets" }),
+      el("p", { className: "text-muted" }, [
+        `No tickets found matching "`,
+        el("strong", { textContent: query }),
+        `".`,
+      ]),
+      btnClear,
+    ]),
+  );
+}
+
+export function renderTicketsList(tickets: Ticket[], query?: string): void {
   const queueTicketsList = $<HTMLElement>("#queue-tickets-list");
   if (!queueTicketsList) return;
   if (!tickets || tickets.length === 0) {
-    renderEmptyQueue();
+    if (query) {
+      renderSearchEmptyQueue(query);
+    } else {
+      renderEmptyQueue();
+    }
     return;
   }
 
@@ -188,6 +221,31 @@ function renderQueueError(msg: string): void {
   const queueTicketsList = $<HTMLElement>("#queue-tickets-list");
   if (!queueTicketsList) return;
 
+  const selectProject = $<HTMLSelectElement>("#select-project");
+  const projectId = selectProject?.value || state.projects[0]?.id;
+
+  const buttons: HTMLElement[] = [
+    el("button", {
+      id: "btn-queue-retry",
+      className: "btn-secondary btn-sm",
+      textContent: "Retry",
+      onClick: () => {
+        void loadWorkQueue();
+      },
+    }),
+  ];
+
+  if (projectId) {
+    buttons.push(
+      el("a", {
+        className: "btn-primary btn-sm",
+        href: `#/projects/${encodeURIComponent(projectId)}`,
+        style: { "text-decoration": "none" },
+        textContent: "Configure Issue Tracker →",
+      }),
+    );
+  }
+
   clearElement(queueTicketsList);
   queueTicketsList.appendChild(
     el("div", { className: "empty-state card" }, [
@@ -197,15 +255,19 @@ function renderQueueError(msg: string): void {
         style: { display: "inline-block", "margin-top": "0.5rem" },
         textContent: msg,
       }),
-      el("button", {
-        id: "btn-queue-retry",
-        className: "btn-secondary btn-sm",
-        style: { "margin-top": "1rem" },
-        textContent: "Retry",
-        onClick: () => {
-          void loadWorkQueue();
+      el(
+        "div",
+        {
+          style: {
+            display: "flex",
+            gap: "0.75rem",
+            "justify-content": "center",
+            "margin-top": "1rem",
+            "flex-wrap": "wrap",
+          },
         },
-      }),
+        buttons,
+      ),
     ]),
   );
 }
@@ -226,10 +288,12 @@ function applyFetchedTickets(tickets: unknown): void {
 export async function loadWorkQueue(): Promise<void> {
   const queueTicketsList = $<HTMLElement>("#queue-tickets-list");
   const selectProject = $<HTMLSelectElement>("#select-project");
+  const btnQueueRefresh = $<HTMLButtonElement>("#btn-queue-refresh");
   if (!queueTicketsList) return;
   const projectId = selectProject?.value || state.projects[0]?.id;
   if (!projectId) return;
 
+  if (btnQueueRefresh) btnQueueRefresh.disabled = true;
   clearElement(queueTicketsList);
   queueTicketsList.appendChild(
     el("div", { className: "empty-state card" }, [
@@ -246,10 +310,19 @@ export async function loadWorkQueue(): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     renderQueueError(msg);
+  } finally {
+    if (btnQueueRefresh) btnQueueRefresh.disabled = false;
   }
 }
 
 export function initQueue(): void {
+  const btnQueueRefresh = $<HTMLButtonElement>("#btn-queue-refresh");
+  if (btnQueueRefresh) {
+    btnQueueRefresh.addEventListener("click", () => {
+      void loadWorkQueue();
+    });
+  }
+
   const queueSearch = $<HTMLInputElement>("#queue-search");
   if (queueSearch) {
     queueSearch.addEventListener("input", (e: Event) => {
@@ -266,7 +339,7 @@ export function initQueue(): void {
         );
         return matchTitle || matchId || matchCriteria;
       });
-      renderTicketsList(filtered);
+      renderTicketsList(filtered, q);
     });
   }
 }

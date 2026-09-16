@@ -6,11 +6,18 @@ import {
   fetchAzureTickets,
   fetchGitHubTickets,
   fetchJiraTickets,
+  fetchProjectTickets,
   hasRequiredLabel,
   parseAdfToText,
   REQUIRED_WORKFLOW_LABEL,
   stripHtml,
 } from "../src/trackers/index.js";
+import type {
+  AzureTrackerConfig,
+  GitHubTrackerConfig,
+  IssueTrackerProvider,
+  JiraTrackerConfig,
+} from "../src/types.js";
 
 describe("Acceptance Criteria Extraction", () => {
   test("extracts criteria under dedicated header", () => {
@@ -358,5 +365,241 @@ describe("Azure DevOps Tracker (WIQL)", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  describe("fetchProjectTickets", () => {
+    test("throws error when project is not found", async () => {
+      await expect(
+        fetchProjectTickets("non-existent-project-id-999"),
+      ).rejects.toThrow('Project "non-existent-project-id-999" not found');
+    });
+
+    test("throws error when project is archived", async () => {
+      const { saveProject } = await import("../src/config.js");
+      const archivedId = `archived-tracker-test-${Date.now()}`;
+      await saveProject({
+        id: archivedId,
+        name: "Archived Project",
+        archived: true,
+        issueTracker: {
+          provider: "azure",
+          azure: {
+            orgUrl: "https://dev.azure.com/org",
+            project: "proj",
+          },
+        },
+        repositories: [
+          {
+            id: `${archivedId}-r`,
+            name: "r",
+            path: "/tmp/r",
+            defaultBranch: "main",
+          },
+        ],
+      });
+
+      await expect(fetchProjectTickets(archivedId)).rejects.toThrow(
+        "is archived",
+      );
+    });
+
+    test("throws error when Azure tracker configuration is incomplete", async () => {
+      const { saveProject } = await import("../src/config.js");
+      const incompleteId = `incomplete-tracker-test-${Date.now()}`;
+      const azure: AzureTrackerConfig = {
+        orgUrl: "",
+        project: "",
+      };
+      await saveProject({
+        id: incompleteId,
+        name: "Incomplete Tracker Project",
+        issueTracker: {
+          provider: "azure",
+          azure,
+        },
+        repositories: [
+          {
+            id: `${incompleteId}-r`,
+            name: "r",
+            path: "/tmp/r",
+            defaultBranch: "main",
+          },
+        ],
+      });
+
+      await expect(fetchProjectTickets(incompleteId)).rejects.toThrow(
+        "incomplete",
+      );
+    });
+
+    test("throws error when Jira tracker configuration is incomplete", async () => {
+      const { saveProject } = await import("../src/config.js");
+      const jiraIncompleteId = `jira-incomplete-test-${Date.now()}`;
+      await saveProject({
+        id: jiraIncompleteId,
+        name: "Jira Incomplete Project",
+        issueTracker: {
+          provider: "jira",
+          jira: {
+            host: "",
+            email: "",
+            project: "",
+          },
+        },
+        repositories: [
+          {
+            id: `${jiraIncompleteId}-r`,
+            name: "r",
+            path: "/tmp/r",
+            defaultBranch: "main",
+          },
+        ],
+      });
+
+      await expect(fetchProjectTickets(jiraIncompleteId)).rejects.toThrow(
+        "Jira issue tracker configuration is incomplete",
+      );
+    });
+
+    test("throws error when provider is unsupported", async () => {
+      const { saveProject } = await import("../src/config.js");
+      const unsupportedId = `unsupported-test-${Date.now()}`;
+      await saveProject({
+        id: unsupportedId,
+        name: "Unsupported Tracker Project",
+        issueTracker: {
+          provider: "github",
+        },
+        repositories: [
+          {
+            id: `${unsupportedId}-r`,
+            name: "r",
+            path: "/tmp/r",
+            defaultBranch: "main",
+          },
+        ],
+      });
+
+      await expect(
+        fetchProjectTickets(unsupportedId, {
+          provider: "unsupported-tracker" as unknown as IssueTrackerProvider,
+        }),
+      ).rejects.toThrow("Unsupported issue tracker provider");
+    });
+
+    test("fetches Jira tickets when configuration and credentials are provided", async () => {
+      const { saveProject } = await import("../src/config.js");
+      const { saveProjectEnv, PROJECT_ENV_KEYS } = await import(
+        "../src/project-env.js"
+      );
+      const jiraId = `jira-valid-test-${Date.now()}`;
+      const jira: JiraTrackerConfig = {
+        host: "https://example.atlassian.net",
+        email: "user@example.com",
+        project: "PROJ",
+      };
+      await saveProject({
+        id: jiraId,
+        name: "Jira Valid Project",
+        issueTracker: {
+          provider: "jira",
+          jira,
+        },
+        repositories: [
+          {
+            id: `${jiraId}-r`,
+            name: "r",
+            path: "/tmp/r",
+            defaultBranch: "main",
+          },
+        ],
+      });
+      await saveProjectEnv(jiraId, {
+        [PROJECT_ENV_KEYS.JIRA_TOKEN]: "valid-token",
+      });
+
+      const originalFetch = globalThis.fetch;
+      (globalThis as Record<string, unknown>).fetch = mock(async () => {
+        return new Response(
+          JSON.stringify({
+            issues: [
+              {
+                id: "101",
+                key: "PROJ-101",
+                fields: {
+                  summary: "Valid Jira Ticket",
+                  description: "Acceptance criteria:\n- Test Jira",
+                  labels: ["agentic-workflow"],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      try {
+        const tickets = await fetchProjectTickets(jiraId);
+        expect(tickets.length).toBe(1);
+        expect(tickets[0]?.title).toBe("Valid Jira Ticket");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("fetches GitHub tickets for project with github tracker", async () => {
+      const { saveProject } = await import("../src/config.js");
+      const { saveProjectEnv, PROJECT_ENV_KEYS } = await import(
+        "../src/project-env.js"
+      );
+      const ghId = `gh-valid-test-${Date.now()}`;
+      const github: GitHubTrackerConfig = {
+        repo: "org/my-test-repo",
+      };
+      await saveProject({
+        id: ghId,
+        name: "GitHub Valid Project",
+        issueTracker: {
+          provider: "github",
+          github,
+        },
+        repositories: [
+          {
+            id: `${ghId}-r`,
+            name: "r",
+            path: "/tmp/r",
+            defaultBranch: "main",
+          },
+        ],
+      });
+      await saveProjectEnv(ghId, {
+        [PROJECT_ENV_KEYS.GITHUB_TOKEN]: "ghp_valid",
+      });
+
+      const originalFetch = globalThis.fetch;
+      (globalThis as Record<string, unknown>).fetch = mock(async () => {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 999,
+              number: 42,
+              title: "Valid GitHub Issue",
+              body: "Criteria:\n- Test GH",
+              html_url: "https://github.com/org/my-test-repo/issues/42",
+              labels: [{ name: "agentic-workflow" }],
+            },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      try {
+        const tickets = await fetchProjectTickets(ghId);
+        expect(tickets.length).toBe(1);
+        expect(tickets[0]?.title).toBe("Valid GitHub Issue");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
   });
 });

@@ -1,6 +1,5 @@
 // src/discovery/jira.ts — Read-only repository & component discovery for Jira.
 
-import { loadSettings } from "../settings.js";
 import { LocalWorkspaceRepositoryDiscovery } from "./local.js";
 import { JiraComponentListSchema } from "./schemas.js";
 import type {
@@ -50,25 +49,13 @@ function pickString(...vals: (string | undefined)[]): string {
   return "";
 }
 
-function resolveJiraParams(
-  input: RepositoryDiscoveryInput,
-  settings: {
-    jira?:
-      | {
-          host?: string | undefined;
-          email?: string | undefined;
-          token?: string | undefined;
-          project?: string | undefined;
-        }
-      | undefined;
-  },
-) {
-  const host = pickString(input.jiraHost, settings.jira?.host)
+function resolveJiraParams(input: RepositoryDiscoveryInput) {
+  const host = pickString(input.jiraHost, process.env.JIRA_HOST)
     .replace(/^https?:\/\//, "")
     .replace(/\/+$/, "");
-  const email = pickString(input.jiraEmail, settings.jira?.email);
-  const token = pickString(input.jiraToken, settings.jira?.token);
-  const project = pickString(input.project, settings.jira?.project);
+  const email = pickString(input.jiraEmail, process.env.JIRA_EMAIL);
+  const token = pickString(input.jiraToken, process.env.JIRA_API_TOKEN);
+  const project = pickString(input.project, process.env.JIRA_PROJECT);
   const workspacePath = (input.workspacePath || "").trim();
 
   return { host, email, token, project, workspacePath };
@@ -90,7 +77,7 @@ function validateRequiredJira(
 ): void {
   if (!host || !token) {
     throw new Error(
-      "Jira repository discovery requires Jira credentials in Settings or a Local Workspace Root directory.",
+      "Jira repository discovery requires Jira credentials in the discovery form or a Local Workspace Root directory.",
     );
   }
   if (!project) {
@@ -104,11 +91,8 @@ export class JiraRepositoryDiscovery implements RepositoryDiscoveryProvider {
   async listRepositories(
     input: RepositoryDiscoveryInput,
   ): Promise<DiscoveredRepository[]> {
-    const settings = await loadSettings(false);
-    const { host, email, token, project, workspacePath } = resolveJiraParams(
-      input,
-      settings,
-    );
+    const { host, email, token, project, workspacePath } =
+      resolveJiraParams(input);
 
     if (hasJiraCredentials(host, email, token, project)) {
       const components = await tryFetchJiraComponents(

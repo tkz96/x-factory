@@ -2,7 +2,9 @@
 
 import type {
   DiscoveredRepo,
+  IssueTrackerProvider,
   Project,
+  ProjectIssueTracker,
   ProjectRepository,
   RepositoryReadiness,
   RepositoryRole,
@@ -147,14 +149,35 @@ export function buildProjectConfig(s: WizardState): Project {
       (r) => r.name.toLowerCase() === (s.primaryRepo || "").toLowerCase(),
     ) || repos[0];
 
+  const provider = (s.tracker || "azure") as IssueTrackerProvider;
+  const issueTracker: ProjectIssueTracker = {
+    provider,
+    connectionId: provider,
+    projectId: s.trackerProject || undefined,
+  };
+
+  if (provider === "azure") {
+    issueTracker.azure = {
+      orgUrl: s.trackerOrgUrl || "",
+      project: s.trackerProject || "",
+    };
+  } else if (provider === "jira") {
+    issueTracker.jira = {
+      host: s.trackerHost || "",
+      email: s.trackerEmail || "",
+      project: s.trackerProject || "",
+    };
+  } else if (provider === "github") {
+    issueTracker.github = {
+      repo: s.trackerProject || "",
+    };
+  }
+
   return {
     id: s.projectId,
     name: s.projectName,
     workspacePath: s.workspacePath,
-    issueTracker: {
-      connectionId: s.tracker,
-      projectId: s.trackerProject || undefined,
-    },
+    issueTracker,
     repositories: repos,
     knowledgeRepository: s.knowledgeRepoId
       ? {

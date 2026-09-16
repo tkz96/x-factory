@@ -1,14 +1,7 @@
-// src/trackers/jira.ts — Jira Software REST API v3 integration with JQL.
-
-import type { FactorySettings } from "../settings.js";
 import { parseAdfToText } from "./jira-adf.js";
 import { extractCriteria } from "./parser.js";
 import { JiraSearchResponseSchema } from "./schemas.js";
-import {
-  REQUIRED_WORKFLOW_LABEL,
-  type TrackerOptions,
-  type TrackerTicket,
-} from "./types.js";
+import { REQUIRED_WORKFLOW_LABEL, type TrackerTicket } from "./types.js";
 
 /**
  * Fetch Jira tickets via REST API v3 with JQL.
@@ -67,36 +60,5 @@ export async function fetchJiraTickets(options: {
       url: `https://${cleanHost}/browse/${issue.key}`,
       provider: "jira" as const,
     };
-  });
-}
-
-function getJiraConfig(
-  options: TrackerOptions,
-  saved?: FactorySettings["jira"],
-) {
-  const cfg = saved || {};
-  return {
-    host: options.jiraHost || cfg.host,
-    email: options.jiraEmail || cfg.email,
-    token: options.jiraToken || cfg.token,
-    project: options.jiraProject || cfg.project,
-  };
-}
-
-export function tryFetchJira(
-  provider: string,
-  options: TrackerOptions,
-  savedJira?: FactorySettings["jira"],
-): Promise<TrackerTicket[]> | null {
-  if (provider !== "jira") return null;
-  const { host, email, token, project } = getJiraConfig(options, savedJira);
-  if (!host || !email || !token) return null;
-
-  return fetchJiraTickets({
-    host,
-    email,
-    token,
-    project,
-    requiredLabel: options.requiredLabel,
   });
 }

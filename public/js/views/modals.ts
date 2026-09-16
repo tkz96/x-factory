@@ -3,10 +3,10 @@
 import { createViewFromTemplate } from "./template-helper.js";
 
 const NEW_RUN_MODAL_TEMPLATE = `
-<div id="modal-new-run" class="modal-backdrop" hidden>
+<div id="modal-new-run" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-new-run-title" hidden>
   <div class="modal-dialog">
     <div class="modal-header">
-      <h2>New Factory Run</h2>
+      <h2 id="modal-new-run-title">New Factory Run</h2>
       <button id="btn-close-modal" class="btn-close" aria-label="Close dialog">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="2" y1="2" x2="12" y2="12"/>
@@ -96,11 +96,11 @@ const NEW_RUN_MODAL_TEMPLATE = `
 `;
 
 const WIZARD_MODAL_TEMPLATE = `
-<div id="modal-project-onboarding" class="modal-backdrop" hidden>
+<div id="modal-project-onboarding" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-onboard-title" hidden>
   <div class="modal-dialog modal-dialog-lg">
     <div class="modal-header">
       <div>
-        <h2>Onboard Software Project</h2>
+        <h2 id="modal-onboard-title">Onboard Software Project</h2>
         <span class="toolbar-subtitle">Connect a multi-repository workspace to X-Factory</span>
       </div>
       <button id="btn-close-onboard-modal" class="btn-close" aria-label="Close dialog">
@@ -227,46 +227,105 @@ const WIZARD_MODAL_TEMPLATE = `
             </span>
           </div>
           <input id="onboard-tracker-project" type="text" placeholder="e.g. Converso (or owner/repo for GitHub)" class="form-input">
+          <span id="onboard-tracker-project-hint" class="text-secondary text-xs" style="display:block; margin-top: 0.35rem; color: var(--text-dim);"></span>
         </div>
 
         <!-- Azure Specific Tracker Settings -->
-        <div id="azure-tracker-fields" class="tracker-fields-group">
+        <div id="onboard-tracker-azure-fields-step2" class="tracker-fields-group">
+          <div id="azure-tracker-fields">
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <div class="label-with-tooltip">
+                <label for="onboard-azure-org-url-step2">Azure Organization URL</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure Organization URL">?
+                  <span class="tooltip-popover">
+                    <strong>Organization URL</strong>
+                    Azure DevOps web URL (e.g. <code>https://dev.azure.com/xynotech</code>).
+                  </span>
+                </span>
+              </div>
+              <input id="onboard-azure-org-url-step2" type="text" placeholder="https://dev.azure.com/xynotech" class="form-input code-input">
+            </div>
+
+            <div id="onboard-azure-pat-group" class="form-group" style="margin-bottom: 0.75rem;">
+              <div class="label-with-tooltip">
+                <label for="onboard-azure-pat-step2">Personal Access Token (PAT) — Optional with Azure CLI</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
+                  <span class="tooltip-popover">
+                    <strong>PAT or Azure CLI</strong>
+                    If logged in via <code>az login</code>, X-Factory authenticates automatically without requiring a PAT.
+                  </span>
+                </span>
+              </div>
+              <input id="onboard-azure-pat-step2" type="password" placeholder="Leave blank to use active Azure CLI session" class="form-input code-input">
+            </div>
+
+            <div id="azure-cli-detected-banner" class="info-banner" style="margin-bottom: 0.8rem;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <div>
+                <strong>Azure DevOps Authentication</strong><br>
+                Auto-authenticates via your active <code>az</code> CLI session (<code>talha.zuberi@xynotech.com</code>) or Personal Access Token.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub Specific Tracker Settings -->
+        <div id="onboard-github-token-group" class="tracker-fields-group" hidden>
           <div class="form-group" style="margin-bottom: 0.75rem;">
             <div class="label-with-tooltip">
-              <label for="onboard-azure-org-url-step2">Azure Organization URL</label>
-              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure Organization URL">?
+              <label for="onboard-github-token">GitHub Personal Access Token (Optional for public/CLI repos)</label>
+              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: GitHub Token">?
                 <span class="tooltip-popover">
-                  <strong>Organization URL</strong>
-                  Azure DevOps web URL (e.g. <code>https://dev.azure.com/xynotech</code>).
+                  <strong>GitHub Token</strong>
+                  A personal access token with <code>repo</code> scope to access private repositories or raise rate limits.
                 </span>
               </span>
             </div>
-            <input id="onboard-azure-org-url-step2" type="text" placeholder="https://dev.azure.com/xynotech" class="form-input code-input">
+            <input id="onboard-github-token" type="password" placeholder="ghp_••••••••" class="form-input code-input">
           </div>
+        </div>
 
+        <!-- Jira Specific Tracker Settings -->
+        <div id="onboard-jira-fields" class="tracker-fields-group" hidden>
           <div class="form-group" style="margin-bottom: 0.75rem;">
             <div class="label-with-tooltip">
-              <label for="onboard-azure-pat-step2">Personal Access Token (PAT) — Optional with Azure CLI</label>
-              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
+              <label for="onboard-jira-host">Jira Host URL <span class="required">*</span></label>
+              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Jira Host">?
                 <span class="tooltip-popover">
-                  <strong>PAT or Azure CLI</strong>
-                  If logged in via <code>az login</code>, X-Factory authenticates automatically without requiring a PAT.
+                  <strong>Jira Host</strong>
+                  Host domain (e.g. <code>yourcompany.atlassian.net</code>).
                 </span>
               </span>
             </div>
-            <input id="onboard-azure-pat-step2" type="password" placeholder="Leave blank to use active Azure CLI session" class="form-input code-input">
+            <input id="onboard-jira-host" type="text" placeholder="yourcompany.atlassian.net" class="form-input code-input">
           </div>
-
-          <div id="azure-cli-detected-banner" class="info-banner" style="margin-bottom: 0.8rem;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-            <div>
-              <strong>Azure DevOps Authentication</strong><br>
-              Auto-authenticates via your active <code>az</code> CLI session (<code>talha.zuberi@xynotech.com</code>) or Personal Access Token.
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <div class="label-with-tooltip">
+              <label for="onboard-jira-email">Jira Email <span class="required">*</span></label>
+              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Jira Email">?
+                <span class="tooltip-popover">
+                  <strong>Jira User Email</strong>
+                  Email associated with your Atlassian account.
+                </span>
+              </span>
             </div>
+            <input id="onboard-jira-email" type="email" placeholder="dev@company.com" class="form-input">
+          </div>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <div class="label-with-tooltip">
+              <label for="onboard-jira-token">Jira API Token <span class="required">*</span></label>
+              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Jira Token">?
+                <span class="tooltip-popover">
+                  <strong>API Token</strong>
+                  Atlassian API token created at id.atlassian.com.
+                </span>
+              </span>
+            </div>
+            <input id="onboard-jira-token" type="password" placeholder="API Token" class="form-input code-input">
           </div>
         </div>
 
@@ -277,7 +336,7 @@ const WIZARD_MODAL_TEMPLATE = `
             </svg>
             <span>Test Connection</span>
           </button>
-          <span id="tracker-test-status" class="tracker-test-status"></span>
+          <span id="tracker-test-status" class="tracker-test-status"><span id="tracker-test-result"></span></span>
         </div>
       </div>
 
@@ -319,31 +378,41 @@ const WIZARD_MODAL_TEMPLATE = `
         </div>
 
         <!-- Optional Azure DevOps credentials fields when Azure is selected -->
-        <div id="azure-discovery-fields" style="display: none; padding: 0.9rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; margin-bottom: 1rem;">
-          <div class="form-group" style="margin-bottom: 0.75rem;">
-            <div class="label-with-tooltip">
-              <label for="onboard-azure-org-url">Azure Organization URL</label>
-              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure Organization URL">?
-                <span class="tooltip-popover">
-                  <strong>Azure DevOps Organization URL</strong>
-                  The web URL of your organization (e.g. <code>https://dev.azure.com/xynotech</code> or <code>https://xynotech.visualstudio.com</code>). Automatically extracted if you paste a full repository URL into the anchor input above.
+        <div id="discovery-azure-group" style="display: none;">
+          <div id="azure-discovery-fields" style="padding: 0.9rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; margin-bottom: 1rem;">
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <div class="label-with-tooltip">
+                <label for="onboard-azure-org-url">Azure Organization URL</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure Organization URL">?
+                  <span class="tooltip-popover">
+                    <strong>Azure DevOps Organization URL</strong>
+                    The web URL of your organization (e.g. <code>https://dev.azure.com/xynotech</code> or <code>https://xynotech.visualstudio.com</code>). Automatically extracted if you paste a full repository URL into the anchor input above.
+                  </span>
                 </span>
-              </span>
+              </div>
+              <input id="onboard-azure-org-url" type="text" placeholder="e.g. https://dev.azure.com/xynotech" class="form-input code-input">
             </div>
-            <input id="onboard-azure-org-url" type="text" placeholder="e.g. https://dev.azure.com/xynotech" class="form-input code-input">
-          </div>
-          <div class="form-group" style="margin-bottom: 0;">
-            <div class="label-with-tooltip">
-              <label for="onboard-azure-pat">Personal Access Token (PAT)</label>
-              <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
-                <span class="tooltip-popover">
-                  <strong>Personal Access Token (PAT)</strong>
-                  Azure DevOps PAT with <code>Code (Read)</code> scope required to list project repositories online. If you already configured this in Factory Settings (Settings → Trackers), leave this field blank.
+            <div class="form-group" style="margin-bottom: 0;">
+              <div class="label-with-tooltip">
+                <label for="onboard-azure-pat">Personal Access Token (PAT)</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
+                  <span class="tooltip-popover">
+                    <strong>Personal Access Token (PAT)</strong>
+                    Azure DevOps PAT with <code>Code (Read)</code> scope required to list project repositories online. If you already configured this in Factory Settings (Settings → Trackers), leave this field blank.
+                  </span>
                 </span>
-              </span>
+              </div>
+              <input id="onboard-azure-pat" type="password" placeholder="Leave blank if configured in Factory Settings" class="form-input code-input">
             </div>
-            <input id="onboard-azure-pat" type="password" placeholder="Leave blank if configured in Factory Settings" class="form-input code-input">
           </div>
+        </div>
+
+        <div id="discovery-github-group" style="display: none; padding: 0.9rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; margin-bottom: 1rem;">
+          <p class="text-muted" style="margin: 0; font-size: 0.88rem;">Queries GitHub repository list for the specified organization or user account.</p>
+        </div>
+
+        <div id="discovery-local-hint" style="margin-bottom: 1rem;">
+          <p class="text-muted" style="margin: 0; font-size: 0.88rem;">Scans subdirectories of your local workspace path for existing Git repositories.</p>
         </div>
 
         <div class="discovery-trigger-box">
@@ -356,7 +425,7 @@ const WIZARD_MODAL_TEMPLATE = `
               </svg>
               <span>Discover Repositories</span>
             </button>
-            <span id="discovery-status-text" class="text-muted" style="font-size: 0.88rem;"></span>
+            <span id="discovery-status-text" class="text-muted" style="font-size: 0.88rem;"><span id="discovery-status"></span></span>
           </div>
         </div>
       </div>
@@ -365,7 +434,7 @@ const WIZARD_MODAL_TEMPLATE = `
       <div id="onboard-step-4" class="wizard-pane" hidden>
         <div class="selection-toolbar">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span id="discovered-count-label" class="bold-text">0 repositories found</span>
+            <span id="discovered-count-label" class="bold-text"><span id="onboard-discovered-count">0</span> repositories found</span>
             <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Repository Roles">?
               <span class="tooltip-popover">
                 <strong>Assigning Repository Roles</strong>

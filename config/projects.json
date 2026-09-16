@@ -5,8 +5,13 @@
       "name": "Converso",
       "workspacePath": "/Users/talhazuberi/projects",
       "issueTracker": {
+        "provider": "azure",
         "connectionId": "azure",
-        "projectId": "Converso"
+        "projectId": "Converso",
+        "azure": {
+          "orgUrl": "",
+          "project": "Converso"
+        }
       },
       "repositories": [
         {
@@ -80,6 +85,7 @@
       "id": "example",
       "name": "Example Project",
       "issueTracker": {
+        "provider": "github",
         "connectionId": "github"
       },
       "repositories": [

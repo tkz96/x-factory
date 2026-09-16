@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execStrict } from "../src/proc.js";
 import { startServer } from "../src/server.js";
+import type { InternalRun } from "../src/store.js";
 
 let server: ReturnType<typeof startServer>;
 let baseUrl: string;
@@ -174,5 +175,353 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(res.status, 200);
     const body = (await res.json()) as { ok: boolean };
     assert.equal(body.ok, false);
+  });
+
+  it("POST /api/projects/validate-path routes to path checking and returns existsLocally", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/validate-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: tempDir }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      exists: boolean;
+      existsLocally: boolean;
+      resolvedPath: string;
+    };
+    assert.equal(body.exists, true);
+    assert.equal(body.existsLocally, true);
+    assert.ok(body.resolvedPath.length > 0);
+  });
+
+  it("POST /api/projects/test-tracker routes to connection test", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/test-tracker`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean };
+    assert.equal(body.ok, false);
+  });
+
+  it("POST /api/projects/discover routes to repository discovery", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "local", workspacePath: tempDir }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      repositories: Array<{ name: string }>;
+    };
+    assert.ok(Array.isArray(body.repositories));
+  });
+
+  it("POST /api/projects/inspect-repository includes readiness status", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: tempDir }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      exists: boolean;
+      readiness: { status: string; message: string };
+    };
+    assert.equal(body.exists, true);
+    assert.ok(
+      ["ready", "pending_setup", "error"].includes(body.readiness.status),
+    );
+  });
+
+  it("POST /api/discovery/validate-path routes through discovery namespace", async () => {
+    const res = await fetch(`${baseUrl}/api/discovery/validate-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: tempDir }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { exists: boolean };
+    assert.equal(body.exists, true);
+  });
+
+  const trackerProjId = `proj-tracker-${Date.now()}`;
+
+  it("sets up a fresh project for tracker & migration tests", async () => {
+    const res = await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: trackerProjId,
+        name: "Tracker Test Product",
+        workspacePath: tempDir,
+        issueTracker: {
+          provider: "azure",
+          connectionId: "azure",
+          azure: {
+            orgUrl: "https://dev.azure.com/testorg",
+            project: "TestProject",
+          },
+        },
+        repositories: [
+          {
+            id: `${trackerProjId}-repo`,
+            name: "repo",
+            path: path.join(tempDir, "repo"),
+            defaultBranch: "main",
+            role: "frontend",
+          },
+        ],
+      }),
+    });
+    assert.equal(res.status, 201);
+  });
+
+  it("GET /api/projects/:id/tracker returns tracker config and secret status", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/${trackerProjId}/tracker`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      provider: string;
+      hasSecret: boolean;
+      secretMask: string;
+      secretKey: string;
+    };
+    assert.equal(body.provider, "azure");
+    assert.equal(typeof body.hasSecret, "boolean");
+    assert.equal(body.secretKey, "AZURE_DEVOPS_PAT");
+  });
+
+  it("PUT /api/projects/:id/tracker/credentials updates credentials in per-project .env", async () => {
+    const res = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/tracker/credentials`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pat: "test-azure-pat-9999" }),
+      },
+    );
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean; message: string };
+    assert.equal(body.ok, true);
+
+    // Verify GET /tracker now shows hasSecret = true
+    const checkRes = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/tracker`,
+    );
+    const checkBody = (await checkRes.json()) as {
+      hasSecret: boolean;
+      secretMask: string;
+    };
+    assert.equal(checkBody.hasSecret, true);
+    assert.ok(checkBody.secretMask.includes("9999"));
+  });
+
+  it("POST /api/projects/:id/tracker/test tests tracker connection", async () => {
+    const res = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/tracker/test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+    );
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean };
+    assert.equal(typeof body.ok, "boolean");
+  });
+
+  it("POST /api/projects/:id/migrate blocks migration with 409 if project has active run", async () => {
+    const { defaultRunStore } = await import("../src/store.js");
+    const activeRunId = `run-active-${Date.now()}`;
+    defaultRunStore.set(activeRunId, {
+      id: activeRunId,
+      project: { id: trackerProjId, name: "Tracker Test Product" },
+      _project: { id: trackerProjId, name: "Tracker Test Product" },
+      status: "implementing",
+      prompt: "test",
+      branch: "test",
+      events: [],
+      artifactsDir: tempDir,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as unknown as InternalRun);
+
+    const res = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/migrate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetProvider: "github",
+          github: { repo: "org/repo" },
+        }),
+      },
+    );
+    assert.equal(res.status, 409);
+    const errBody = (await res.json()) as { error: string };
+    assert.ok(errBody.error.includes("active runs"));
+
+    // Finish the run
+    const existingRun = defaultRunStore.get(activeRunId);
+    if (existingRun) {
+      existingRun.status = "stopped";
+    }
+  });
+
+  it("POST /api/projects/:id/migrate archives predecessor and creates successor", async () => {
+    const successorId = `${trackerProjId}-github`;
+    const res = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/migrate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetProvider: "github",
+          newProjectId: successorId,
+          name: "Test Product GitHub",
+          github: { repo: "my-org/my-repo" },
+          secrets: { token: "ghp_migration_secret_token" },
+        }),
+      },
+    );
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as {
+      ok: boolean;
+      predecessorId: string;
+      newProjectId: string;
+      project: { id: string; archived: boolean; predecessorId?: string };
+    };
+    assert.equal(body.ok, true);
+    assert.equal(body.predecessorId, trackerProjId);
+    assert.equal(body.newProjectId, successorId);
+    assert.equal(body.project.id, successorId);
+    assert.equal(body.project.predecessorId, trackerProjId);
+    assert.equal(body.project.archived, false);
+
+    // Verify predecessor is archived
+    const predRes = await fetch(`${baseUrl}/api/projects/${trackerProjId}`);
+    assert.equal(predRes.status, 200);
+    const predBody = (await predRes.json()) as {
+      archived: boolean;
+      successorId: string;
+    };
+    assert.equal(predBody.archived, true);
+    assert.equal(predBody.successorId, successorId);
+
+    // Verify GET /tickets returns 400 for archived project
+    const ticketRes = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/tickets`,
+    );
+    assert.equal(ticketRes.status, 400);
+
+    // Verify GET /api/projects excludes archived project by default
+    const listRes = await fetch(`${baseUrl}/api/projects`);
+    const list = (await listRes.json()) as Array<{ id: string }>;
+    assert.ok(!list.some((p) => p.id === trackerProjId));
+    assert.ok(list.some((p) => p.id === successorId));
+
+    // Verify GET /api/projects?includeArchived=true includes both
+    const allRes = await fetch(`${baseUrl}/api/projects?includeArchived=true`);
+    const allList = (await allRes.json()) as Array<{ id: string }>;
+    assert.ok(allList.some((p) => p.id === trackerProjId));
+    assert.ok(allList.some((p) => p.id === successorId));
+  });
+
+  it("tests GitHub tracker endpoints on successor project", async () => {
+    const successorId = `${trackerProjId}-github`;
+    const trackerRes = await fetch(
+      `${baseUrl}/api/projects/${successorId}/tracker`,
+    );
+    assert.equal(trackerRes.status, 200);
+    const trackerBody = (await trackerRes.json()) as {
+      provider: string;
+      hasSecret: boolean;
+    };
+    assert.equal(trackerBody.provider, "github");
+    assert.equal(trackerBody.hasSecret, true);
+
+    const updateRes = await fetch(
+      `${baseUrl}/api/projects/${successorId}/tracker/credentials`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: "ghp_updated_token" }),
+      },
+    );
+    assert.equal(updateRes.status, 200);
+
+    const testRes = await fetch(
+      `${baseUrl}/api/projects/${successorId}/tracker/test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo: "my-org/my-repo" }),
+      },
+    );
+    assert.equal(testRes.status, 200);
+  });
+
+  it("tests Jira tracker endpoints", async () => {
+    const jiraProjId = `proj-jira-${Date.now()}`;
+    const createRes = await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: jiraProjId,
+        name: "Jira Product",
+        workspacePath: tempDir,
+        issueTracker: {
+          provider: "jira",
+          jira: {
+            host: "https://example.atlassian.net",
+            email: "dev@example.com",
+            project: "JIRA",
+          },
+        },
+        repositories: [
+          {
+            id: `${jiraProjId}-repo`,
+            name: "repo",
+            path: path.join(tempDir, "repo"),
+            defaultBranch: "main",
+            role: "backend",
+          },
+        ],
+      }),
+    });
+    assert.equal(createRes.status, 201);
+
+    const trackerRes = await fetch(
+      `${baseUrl}/api/projects/${jiraProjId}/tracker`,
+    );
+    assert.equal(trackerRes.status, 200);
+    const trackerBody = (await trackerRes.json()) as { provider: string };
+    assert.equal(trackerBody.provider, "jira");
+
+    const updateRes = await fetch(
+      `${baseUrl}/api/projects/${jiraProjId}/tracker/credentials`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: "jira_token_xyz" }),
+      },
+    );
+    assert.equal(updateRes.status, 200);
+
+    const testRes = await fetch(
+      `${baseUrl}/api/projects/${jiraProjId}/tracker/test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+    );
+    assert.equal(testRes.status, 200);
   });
 });

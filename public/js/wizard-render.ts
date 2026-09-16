@@ -23,16 +23,30 @@ const VALID_ROLES: RepositoryRole[] = [
 ];
 
 export function updateTrackerFieldsVisibility(tracker: string): void {
-  const azStep2 = $<HTMLElement>("#onboard-tracker-azure-fields-step2");
+  const azStep2 =
+    $<HTMLElement>("#onboard-tracker-azure-fields-step2") ||
+    $<HTMLElement>("#azure-tracker-fields");
   const azPat = $<HTMLElement>("#onboard-azure-pat-group");
   const ghGroup = $<HTMLElement>("#onboard-github-token-group");
   const jiraFields = $<HTMLElement>("#onboard-jira-fields");
   const hint = $<HTMLElement>("#onboard-tracker-project-hint");
 
-  if (azStep2) azStep2.hidden = tracker !== "azure";
-  if (azPat) azPat.hidden = tracker !== "azure";
-  if (ghGroup) ghGroup.hidden = tracker !== "github";
-  if (jiraFields) jiraFields.hidden = tracker !== "jira";
+  if (azStep2) {
+    azStep2.hidden = tracker !== "azure";
+    azStep2.style.display = tracker === "azure" ? "block" : "none";
+  }
+  if (azPat) {
+    azPat.hidden = tracker !== "azure";
+    azPat.style.display = tracker === "azure" ? "block" : "none";
+  }
+  if (ghGroup) {
+    ghGroup.hidden = tracker !== "github";
+    ghGroup.style.display = tracker === "github" ? "block" : "none";
+  }
+  if (jiraFields) {
+    jiraFields.hidden = tracker !== "jira";
+    jiraFields.style.display = tracker === "jira" ? "block" : "none";
+  }
 
   if (hint) {
     hint.textContent =
@@ -45,13 +59,24 @@ export function updateTrackerFieldsVisibility(tracker: string): void {
 }
 
 export function updateDiscoveryFieldsVisibility(source: string): void {
-  const azGroup = $<HTMLElement>("#discovery-azure-group");
+  const azGroup =
+    $<HTMLElement>("#discovery-azure-group") ||
+    $<HTMLElement>("#azure-discovery-fields");
   const ghGroup = $<HTMLElement>("#discovery-github-group");
   const localHint = $<HTMLElement>("#discovery-local-hint");
 
-  if (azGroup) azGroup.hidden = source !== "azure";
-  if (ghGroup) ghGroup.hidden = source !== "github";
-  if (localHint) localHint.hidden = source !== "local";
+  if (azGroup) {
+    azGroup.hidden = source !== "azure";
+    azGroup.style.display = source === "azure" ? "block" : "none";
+  }
+  if (ghGroup) {
+    ghGroup.hidden = source !== "github";
+    ghGroup.style.display = source === "github" ? "block" : "none";
+  }
+  if (localHint) {
+    localHint.hidden = source !== "local";
+    localHint.style.display = source === "local" ? "block" : "none";
+  }
 }
 
 function createRepoRoleDropdown(
@@ -342,7 +367,9 @@ function createArchitectureCardItems(
   primaryRepo: string,
   knowledgeRepoId: string | null,
 ): HTMLElement[] {
-  const trackerName = getTrackerDisplayName(config.issueTracker?.connectionId);
+  const trackerName = getTrackerDisplayName(
+    config.issueTracker?.provider || config.issueTracker?.connectionId,
+  );
   const primaryName =
     primaryRepo || config.repositories[0]?.name || "None specified";
   const kName =
@@ -478,12 +505,16 @@ export function renderDiscoveredReposList(
 ): void {
   const list = $<HTMLElement>("#onboard-repo-checklist");
   const countBadge = $<HTMLElement>("#onboard-discovered-count");
+  const countLabel = $<HTMLElement>("#discovered-count-label");
   if (!list) return;
 
   const repos = s.discovered.filter(
     (r) => !q || r.name.toLowerCase().includes(q),
   );
   if (countBadge) countBadge.textContent = String(s.discovered.length);
+  if (countLabel) {
+    countLabel.textContent = `${s.discovered.length} repositories found`;
+  }
   clearElement(list);
 
   for (const r of repos) {

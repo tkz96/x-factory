@@ -627,12 +627,20 @@ export async function loadHistory(): Promise<void> {
     state.allRuns = await api<Run[]>("GET", "/runs");
     clearElement(historyContainer);
     if (!state.allRuns || state.allRuns.length === 0) {
+      const btnStartRun = el("button", {
+        className: "btn-primary btn-sm",
+        style: { "margin-top": "1rem" },
+        textContent: "Launch New Run",
+        onClick: openNewRunModal,
+      });
+
       historyContainer.appendChild(
-        el("div", { className: "empty-state" }, [
+        el("div", { className: "empty-state card" }, [
           el("p", {
             textContent:
               "No factory runs found. Launch your first run to populate history.",
           }),
+          btnStartRun,
         ]),
       );
       return;

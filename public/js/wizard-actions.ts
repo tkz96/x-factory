@@ -38,7 +38,10 @@ export async function checkWorkspacePath(targetPath: string): Promise<void> {
   try {
     const res = await checkWorkspacePathApi(trimmed);
     clearElement(box);
-    if (res.existsLocally) {
+    const exists = Boolean(
+      res.existsLocally ?? (res as { exists?: boolean }).exists,
+    );
+    if (exists) {
       box.appendChild(document.createTextNode("✓ Directory verified: "));
       box.appendChild(el("code", { textContent: res.resolvedPath }));
     } else {
@@ -58,7 +61,9 @@ export async function checkWorkspacePath(targetPath: string): Promise<void> {
 
 export async function handleTestTrackerConnection(): Promise<void> {
   const btn = $<HTMLButtonElement>("#btn-test-tracker-connection");
-  const resultBox = $<HTMLElement>("#tracker-test-result");
+  const resultBox =
+    $<HTMLElement>("#tracker-test-result") ||
+    $<HTMLElement>("#tracker-test-status");
   if (!resultBox) return;
 
   resultBox.hidden = false;
@@ -67,17 +72,39 @@ export async function handleTestTrackerConnection(): Promise<void> {
   if (btn) btn.disabled = true;
 
   try {
-    const res = await testTrackerConnectionApi({
-      provider: getVal("onboard-tracker-connection", "azure"),
-      orgUrl: getVal("onboard-azure-org-url-step2"),
-      project: getVal("onboard-tracker-project"),
-      pat: getVal("onboard-azure-pat-step2"),
-    });
+    const provider = getVal("onboard-tracker-connection", "azure");
+    const payload: {
+      provider: string;
+      orgUrl?: string;
+      project?: string;
+      pat?: string;
+      host?: string;
+      email?: string;
+      token?: string;
+      repo?: string;
+    } = { provider };
+    if (provider === "azure") {
+      payload.orgUrl = getVal("onboard-azure-org-url-step2");
+      payload.project = getVal("onboard-tracker-project");
+      payload.pat = getVal("onboard-azure-pat-step2");
+    } else if (provider === "jira") {
+      payload.host = getVal("onboard-jira-host");
+      payload.email = getVal("onboard-jira-email");
+      payload.token = getVal("onboard-jira-token");
+      payload.project = getVal("onboard-tracker-project");
+    } else if (provider === "github") {
+      payload.project = getVal("onboard-tracker-project");
+      payload.repo = getVal("onboard-tracker-project");
+      payload.token = getVal("onboard-github-token");
+    }
+
+    const res = await testTrackerConnectionApi(payload);
     resultBox.className = res.ok
       ? "connection-result success"
       : "connection-result error";
     resultBox.textContent = res.ok
-      ? `✓ Connected successfully. Found ${(res.repositories || []).length} repositories.`
+      ? res.message ||
+        `✓ Connected successfully. Found ${(res.repositories || []).length} repositories.`
       : `✗ Connection failed: ${res.error || "Unknown error"}`;
   } catch (err) {
     resultBox.className = "connection-result error";
@@ -92,7 +119,9 @@ export async function handleRunDiscovery(
   onDone?: () => void,
 ): Promise<void> {
   const btn = $<HTMLButtonElement>("#btn-run-discovery");
-  const statusEl = $<HTMLElement>("#discovery-status");
+  const statusEl =
+    $<HTMLElement>("#discovery-status-text") ||
+    $<HTMLElement>("#discovery-status");
   if (btn) btn.disabled = true;
   if (statusEl) statusEl.textContent = "Discovering repositories…";
 
@@ -171,8 +200,30 @@ export async function handleOnboardSave(
   }
 
   try {
-    const config = buildProjectConfig(sm.getState());
+    const state = sm.getState();
+    const config = buildProjectConfig(state);
     await api("POST", "/projects", config);
+
+    const provider = state.tracker || "azure";
+    let secret = "";
+    if (provider === "azure") {
+      secret = getVal("onboard-azure-pat-step2") || getVal("onboard-azure-pat");
+    } else if (provider === "jira") {
+      secret = getVal("onboard-jira-token");
+    } else if (provider === "github") {
+      secret = getVal("onboard-github-token");
+    }
+
+    if (secret?.trim()) {
+      try {
+        await api("PUT", `/projects/${config.id}/tracker/credentials`, {
+          secret: secret.trim(),
+        });
+      } catch (e) {
+        console.warn("Could not save tracker credentials to project env:", e);
+      }
+    }
+
     await loadProjectsData();
     onSuccess();
     void openProjectDetail(config.id);

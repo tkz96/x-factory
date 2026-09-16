@@ -21,7 +21,11 @@ async function bundleFrontend(entryPath: string): Promise<string> {
   const stat = await tsFile.stat();
   const mtime = stat.mtimeMs;
 
-  if (appBundleCache && appBundleCache.mtime === mtime) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    appBundleCache &&
+    appBundleCache.mtime === mtime
+  ) {
     return appBundleCache.content;
   }
 

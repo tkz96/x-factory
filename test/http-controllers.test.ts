@@ -456,7 +456,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.ok(res);
       assert.equal(res.status, 200);
       const data = await res.json();
-      assert.ok(data.activeTracker);
+      assert.ok(data.theme);
     });
 
     it("returns 400 for invalid JSON in POST /api/settings", async () => {

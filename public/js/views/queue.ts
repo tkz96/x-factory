@@ -10,12 +10,20 @@ const QUEUE_TEMPLATE = `
         <circle cx="11" cy="11" r="8"/>
         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      <input type="text" id="queue-search" placeholder="Filter tickets (label: agentic-workflow)…" disabled>
+      <input type="text" id="queue-search" placeholder="Filter tickets (label: agentic-workflow)…">
     </div>
     <div class="filter-pill">
       <span class="pill-dot"></span>
       <span>agentic-workflow</span>
     </div>
+    <button id="btn-queue-refresh" class="btn-secondary btn-sm" title="Refresh work queue" aria-label="Refresh work queue">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+      <span>Refresh</span>
+    </button>
   </div>
 
   <div id="queue-tickets-list" class="tickets-grid">

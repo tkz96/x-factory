@@ -1,4 +1,4 @@
-// test/settings.test.ts — Unit tests for settings engine, secret masking, and API routes.
+// test/settings.test.ts — Unit tests for global settings (theme, models) and secret masking.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFile, stat, unlink } from "node:fs/promises";
@@ -31,22 +31,16 @@ describe("Settings Secret Masking", () => {
     expect(isMasked("")).toBe(false);
   });
 
-  test("maskSettings masks all provider credentials", () => {
-    const masked = maskSettings({
-      activeTracker: "github",
-      github: { token: "ghp_1234567890abcdef", repo: "org/repo" },
-      jira: {
-        host: "jira.com",
-        email: "user@jira.com",
-        token: "secret-token-1234",
+  test("maskSettings returns settings cleanly", () => {
+    const settings = {
+      theme: "dark" as const,
+      models: {
+        sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
       },
-      azure: { orgUrl: "https://dev.azure.com", pat: "azure-pat-987654321" },
-    });
-
-    expect(masked.github?.token).toContain("••••");
-    expect(masked.jira?.token).toContain("••••");
-    expect(masked.azure?.pat).toContain("••••");
-    expect(masked.github?.repo).toBe("org/repo");
+    };
+    const masked = maskSettings(settings);
+    expect(masked.theme).toBe("dark");
+    expect(masked.models?.sessionA?.model).toBe("claude-3-7-sonnet");
   });
 });
 
@@ -66,19 +60,13 @@ describe("Settings Storage & Persistence", () => {
 
   test("loadSettings returns defaults when file does not exist", async () => {
     const settings = await loadSettings();
-    expect(settings.activeTracker).toBe("github");
+    expect(settings.theme).toBe("dark");
     expect(settings.models?.sessionA?.model).toBe("claude-3-7-sonnet");
   });
 
   test("saveSettings persists settings to disk with 0600 mode", async () => {
     await saveSettings({
-      activeTracker: "jira",
-      jira: {
-        host: "test.atlassian.net",
-        email: "test@example.com",
-        token: "real-jira-token-1234",
-        project: "TEST",
-      },
+      theme: "light",
       models: {
         sessionA: { provider: "ollama", model: "qwen2.5-coder:32b" },
       },
@@ -92,30 +80,8 @@ describe("Settings Storage & Persistence", () => {
 
     const raw = await readFile(TEST_SETTINGS_PATH, "utf-8");
     const onDisk = JSON.parse(raw);
-    expect(onDisk.activeTracker).toBe("jira");
-    expect(onDisk.jira?.token).toBe("real-jira-token-1234");
+    expect(onDisk.theme).toBe("light");
     expect(onDisk.models?.sessionA?.model).toBe("qwen2.5-coder:32b");
-  });
-
-  test("saveSettings preserves existing secret when masked token is submitted", async () => {
-    // Step 1: Save initial secret
-    await saveSettings({
-      github: { token: "ghp_supersecretvalue1234", repo: "user/app" },
-    });
-
-    // Step 2: User UI loads masked settings and saves back with mask
-    const masked = await loadSettings(true);
-    expect(isMasked(masked.github?.token)).toBe(true);
-
-    // Save update with the masked token (e.g. user only changed repo)
-    await saveSettings({
-      github: { token: masked.github?.token, repo: "user/app-updated" },
-    });
-
-    // Step 3: Verify unmasked token on disk is preserved intact
-    const unmasked = await loadSettings(false);
-    expect(unmasked.github?.token).toBe("ghp_supersecretvalue1234");
-    expect(unmasked.github?.repo).toBe("user/app-updated");
   });
 
   test("saveSettings persists theme preference", async () => {
