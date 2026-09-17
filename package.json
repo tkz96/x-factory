@@ -6,12 +6,18 @@
   "scripts": {
     "start": "bun src/server.ts",
     "dev": "bun --watch src/server.ts",
+    "build": "bun build ./public/app.ts --target browser --outdir dist/public --minify",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "test:integration": "bun --config=bunfig.selective.toml test test/integration.test.ts",
+    "test:frontend-smoke": "bun --config=bunfig.selective.toml test test/frontend-smoke.test.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:frontend": "tsc --project tsconfig.frontend.json --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "knip": "knip",
+    "check:knip": "knip",
+    "check:fallow": "bunx fallow",
     "check:cycles": "dpdm --exit-code circular:1 --circular --warning=false --tree=false src/server.ts public/app.ts",
     "prepare": "lefthook install"
   },

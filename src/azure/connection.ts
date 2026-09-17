@@ -55,6 +55,7 @@ export async function fetchAzureRepoNames(
 ): Promise<string[]> {
   const res = await fetch(apiUrl, {
     headers: { Authorization: authHeader, Accept: "application/json" },
+    signal: AbortSignal.timeout(4000),
   });
   if (!res.ok) {
     throw new Error(

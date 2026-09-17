@@ -59,12 +59,47 @@ Open [http://localhost:3777](http://localhost:3777).
 ## Development
 
 ```bash
-bun run dev        # start server with watch mode
-bun test           # run all automated tests
-bun run typecheck  # verify strict TypeScript types
-bun run lint       # check formatting, import order, and lint rules
-bun run lint:fix   # autofix formatting, imports, and safe lint rules
+bun run dev                # start server with watch mode
+bun test                   # run all automated tests
+bun run test:coverage      # run all tests enforcing 80% coverage ratchet
+bun run test:integration   # run server lifecycle and API contract tests
+bun run test:frontend-smoke# run UI shell, navigation, and modal smoke tests
+bun run build              # bundle production browser assets
+bun run typecheck          # verify backend and test TypeScript types
+bun run typecheck:frontend # verify frontend browser TypeScript types
+bun run lint               # check formatting, import order, and lint rules
+bun run lint:fix           # autofix formatting, imports, and safe lint rules
+bun run check:fallow       # verify architectural boundaries and dead code
+bun run check:knip         # detect unused exports, files, and dependencies
+bun run check:cycles       # verify zero circular import dependencies
 ```
+
+## Continuous Integration
+
+The repository runs a fast, deterministic, dependency-aware GitHub Actions CI pipeline (`.github/workflows/ci.yml`) featuring concurrency cancellation and merge queue support (`merge_group`):
+
+```
+PR / Push / Merge Queue
+ ├── Track 1: Quality Gates (Parallel)
+ │    ├── Typecheck (Backend + Frontend tsc)
+ │    ├── Lint (Biome check)
+ │    ├── Architecture (Fallow boundaries & dead code)
+ │    ├── Dependencies (Knip unused code)
+ │    ├── Cycles (dpdm circular dependency check)
+ │    └── Tests (Bun test with 80% coverage ratchet)
+ │
+ ├── Track 2: Assembly & Operational (Sequential)
+ │    └── Build (Frontend browser asset bundle)
+ │         └── Integration (Server boot, /api/health, API contracts)
+ │              └── Frontend Smoke (DOM shell, navigation, modals)
+ │
+ └── Final Gate
+      └── Required CI (Single stable branch-protection check)
+```
+
+- **Required Check**: For GitHub branch protection, configure **`Required CI`** as the sole required status check.
+- **Frontend Architecture Evolution**: During the planned React + TSX migration, update `.fallowrc.json` boundaries (`src/web/**` or `src/frontend/**`) and replace `build` with the React bundler invocation without requiring CI structural rewrites.
+
 
 ## Architecture
 

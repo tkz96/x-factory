@@ -334,7 +334,7 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(res.status, 200);
     const body = (await res.json()) as { ok: boolean };
     assert.equal(typeof body.ok, "boolean");
-  });
+  }, 15000);
 
   it("POST /api/projects/:id/migrate blocks migration with 409 if project has active run", async () => {
     const { defaultRunStore } = await import("../src/store.js");
@@ -465,7 +465,7 @@ describe("Project Onboarding & Management APIs", () => {
       },
     );
     assert.equal(testRes.status, 200);
-  });
+  }, 15000);
 
   it("tests Jira tracker endpoints", async () => {
     const jiraProjId = `proj-jira-${Date.now()}`;
@@ -523,5 +523,5 @@ describe("Project Onboarding & Management APIs", () => {
       },
     );
     assert.equal(testRes.status, 200);
-  });
+  }, 15000);
 });

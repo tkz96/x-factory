@@ -1,0 +1,5 @@
+# bunfig.selective.toml — Bun test configuration for selective integration and smoke test runs.
+# Disables global coverage enforcement so individual test files do not falsely fail the 80% whole-codebase ratchet.
+
+[test]
+coverage = false

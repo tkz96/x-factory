@@ -1,7 +1,7 @@
 // src/http/routes.ts — Thin HTTP routing dispatcher delegating to specialized controllers.
 
 import { handleProjectsRoute } from "./projects-controller.js";
-import { errorResponse } from "./responses.js";
+import { errorResponse, jsonResponse } from "./responses.js";
 import { handleRunsRoute } from "./runs-controller.js";
 import { handleSettingsRoute } from "./settings-controller.js";
 
@@ -11,6 +11,13 @@ async function routeApiRequest(
   req: Request,
 ): Promise<Response | null> {
   const [resource, id, action, subaction] = parts;
+  if (resource === "health") {
+    return jsonResponse({
+      status: "ok",
+      uptime: Math.floor(process.uptime()),
+      version: "0.1.0",
+    });
+  }
   if (
     resource === "projects" ||
     resource === "discovery" ||
