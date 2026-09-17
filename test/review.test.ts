@@ -1,7 +1,7 @@
-// test/review.test.ts — Read-only review parser, criteria evaluation, prompt builder, and fallback tests.
-
-import { describe, it, mock } from "bun:test";
+import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { PiAgentSession } from "../src/agents/pi.js";
 import {
   buildReviewPrompt,
   createFallbackReview,
@@ -13,34 +13,6 @@ import {
   reviewRun,
 } from "../src/review.js";
 import type { Ticket, VerificationResult } from "../src/types.js";
-
-let mockSessionHandler:
-  | (() => {
-      prompt: (text: string) => Promise<void>;
-      subscribe: (
-        cb: (e: {
-          type: string;
-          text?: string | undefined;
-          tool?: string | undefined;
-          error?: string | undefined;
-        }) => void,
-      ) => () => void;
-    })
-  | null = null;
-
-mock.module("../src/agents/pi.js", () => ({
-  createReviewSession: async () => {
-    if (!mockSessionHandler) {
-      throw new Error(
-        "Failed to initialize read-only review session: Mock failure",
-      );
-    }
-    return mockSessionHandler();
-  },
-  createImplementationSession: async () => {
-    throw new Error("Not used in review tests");
-  },
-}));
 
 describe("Review Parser & Engine (src/review.ts)", () => {
   const ticket: Ticket = {
@@ -375,14 +347,16 @@ FAILED
       }> = [];
       let subscribedCb:
         | ((e: {
-            type: string;
+            type: "text" | "tool" | "done" | "error";
             text?: string | undefined;
             tool?: string | undefined;
+            input?: string | undefined;
             error?: string | undefined;
           }) => void)
         | null = null;
 
-      mockSessionHandler = () => ({
+      const mockSession: PiAgentSession = {
+        session: {} as unknown as AgentSession,
         prompt: async (_text: string) => {
           if (subscribedCb) {
             subscribedCb({
@@ -399,11 +373,13 @@ FAILED
             });
           }
         },
-        subscribe: (cb) => {
+        steer: async () => {},
+        abort: async () => {},
+        subscribe: (cb: Parameters<PiAgentSession["subscribe"]>[0]) => {
           subscribedCb = cb;
           return () => {};
         },
-      });
+      };
 
       const reviewContext = {
         projectId: "test-proj",
@@ -413,6 +389,7 @@ FAILED
         plan: "Step 1",
         diff: "diff",
         verification: sampleVerification,
+        sessionFactory: async () => mockSession,
         onEvent: (event: {
           type: string;
           text?: string | undefined;
@@ -432,7 +409,6 @@ FAILED
     });
 
     it("returns fallback review when session initialization fails", async () => {
-      mockSessionHandler = null;
       const reviewContext = {
         projectId: "test-proj",
         runId: "test-run-fail",
@@ -441,6 +417,9 @@ FAILED
         plan: "Step 1",
         diff: "diff",
         verification: sampleVerification,
+        sessionFactory: async () => {
+          throw new Error("Mock failure");
+        },
       };
 
       const result = await reviewRun(reviewContext);
@@ -449,12 +428,15 @@ FAILED
     });
 
     it("returns fallback review when prompt throws with empty output", async () => {
-      mockSessionHandler = () => ({
+      const mockSession: PiAgentSession = {
+        session: {} as unknown as AgentSession,
         prompt: async () => {
           throw new Error("Prompt crashed immediately");
         },
+        steer: async () => {},
+        abort: async () => {},
         subscribe: () => () => {},
-      });
+      };
 
       const reviewContext = {
         projectId: "test-proj",
@@ -464,6 +446,7 @@ FAILED
         plan: "Step 1",
         diff: "diff",
         verification: sampleVerification,
+        sessionFactory: async () => mockSession,
       };
 
       const result = await reviewRun(reviewContext);

@@ -22,16 +22,22 @@ beforeAll(async () => {
   fixtureRepo = path.join(baseTempDir, "repo");
 
   // Create bare repo and clone it
-  await execStrict("git", ["init", "--bare", bareRepo]);
+  await execStrict("git", [
+    "init",
+    "--bare",
+    "--initial-branch=main",
+    bareRepo,
+  ]);
   await execStrict("git", ["clone", bareRepo, fixtureRepo]);
 
-  // Configure git user
+  // Configure git user and branch
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
     cwd: fixtureRepo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
     cwd: fixtureRepo,
   });
+  await execStrict("git", ["checkout", "-B", "main"], { cwd: fixtureRepo });
 
   // Create initial commit
   await writeFile(path.join(fixtureRepo, "README.md"), "# Fixture Repo\n");
@@ -39,7 +45,9 @@ beforeAll(async () => {
   await execStrict("git", ["commit", "-m", "Initial commit"], {
     cwd: fixtureRepo,
   });
-  await execStrict("git", ["push", "origin", "main"], { cwd: fixtureRepo });
+  await execStrict("git", ["push", "-u", "origin", "main"], {
+    cwd: fixtureRepo,
+  });
 });
 
 afterAll(async () => {

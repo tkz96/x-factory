@@ -30,6 +30,10 @@ export interface ReviewContext {
     error?: string | undefined;
   }) => void;
   modelConfig?: SessionOptions | undefined;
+  sessionFactory?: (
+    worktreePath: string,
+    options?: SessionOptions,
+  ) => Promise<PiAgentSession>;
 }
 
 function attachReviewListeners(
@@ -95,10 +99,8 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
 
   let reviewSession: PiAgentSession;
   try {
-    reviewSession = await createReviewSession(
-      worktreePath,
-      context.modelConfig,
-    );
+    const makeSession = context.sessionFactory ?? createReviewSession;
+    reviewSession = await makeSession(worktreePath, context.modelConfig);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return createFallbackReview(
