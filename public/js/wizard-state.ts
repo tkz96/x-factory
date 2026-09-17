@@ -12,7 +12,6 @@ import type {
 
 export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
-// fallow-ignore-next-line unused-export
 const WIZARD_TRANSITIONS: Record<WizardStep, WizardStep[]> = {
   1: [2],
   2: [1, 3],

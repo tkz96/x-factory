@@ -199,7 +199,7 @@ function renderSearchEmptyQueue(query: string): void {
   );
 }
 
-export function renderTicketsList(tickets: Ticket[], query?: string): void {
+function renderTicketsList(tickets: Ticket[], query?: string): void {
   const queueTicketsList = $<HTMLElement>("#queue-tickets-list");
   if (!queueTicketsList) return;
   if (!tickets || tickets.length === 0) {

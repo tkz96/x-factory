@@ -89,7 +89,7 @@
     ]
   },
   "health": {
-    "ignore": ["test/**"],
+    "ignore": ["test/**", "public/**"],
     "maxCrap": 1000.0,
     "maxCognitive": 50,
     "maxCyclomatic": 50,

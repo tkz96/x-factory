@@ -12,7 +12,7 @@ function updateThemeSegmentButtons(): void {
   if (btnDark) btnDark.classList.toggle("active", current === "dark");
 }
 
-export function applyTheme(next: "light" | "dark"): void {
+function applyTheme(next: "light" | "dark"): void {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("xf_theme", next);
   updateThemeSegmentButtons();

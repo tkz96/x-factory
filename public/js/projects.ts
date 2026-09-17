@@ -95,7 +95,7 @@ export function updateKnowledgeStatus(projectId: string | undefined): void {
 
 let activeProjectsTab: "active" | "archived" = "active";
 
-export function setProjectsTab(tab: "active" | "archived"): void {
+function setProjectsTab(tab: "active" | "archived"): void {
   activeProjectsTab = tab;
   const btnTabActive = $<HTMLButtonElement>("#btn-tab-active-projects");
   const btnToggleArchived = $<HTMLButtonElement>("#btn-toggle-archived");
@@ -177,11 +177,17 @@ function createProjectCardFooter(p: Project, repoCount: number): HTMLElement {
   );
 }
 
+function getProjectCardMeta(p: Project) {
+  return {
+    repoCount: (p.repositories || []).length,
+    trackerLabel:
+      p.issueTracker?.provider || p.issueTracker?.connectionId || "None",
+    displayPath: p.workspacePath || p.repositoryPath || "Configured",
+  };
+}
+
 function createProjectCard(p: Project): HTMLElement {
-  const repoCount = (p.repositories || []).length;
-  const trackerLabel =
-    p.issueTracker?.provider || p.issueTracker?.connectionId || "None";
-  const displayPath = p.workspacePath || p.repositoryPath || "Configured";
+  const { repoCount, trackerLabel, displayPath } = getProjectCardMeta(p);
 
   return el(
     "div",
@@ -207,10 +213,7 @@ function createProjectCard(p: Project): HTMLElement {
 }
 
 function createArchivedProjectCard(p: Project): HTMLElement {
-  const repoCount = (p.repositories || []).length;
-  const trackerLabel =
-    p.issueTracker?.provider || p.issueTracker?.connectionId || "None";
-  const displayPath = p.workspacePath || p.repositoryPath || "Configured";
+  const { repoCount, trackerLabel, displayPath } = getProjectCardMeta(p);
 
   return el(
     "div",
