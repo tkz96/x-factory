@@ -98,6 +98,10 @@ export class RunStore {
     return this.runs.has(id);
   }
 
+  delete(id: string): boolean {
+    return this.runs.delete(id);
+  }
+
   summarize(run: InternalRun): Run {
     const { _session, _baseline, _project, ...rest } = run;
     return rest;

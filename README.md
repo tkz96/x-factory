@@ -59,19 +59,21 @@ Open [http://localhost:3777](http://localhost:3777).
 ## Development
 
 ```bash
-bun run dev                # start server with watch mode
-bun test                   # run all automated tests
-bun run test:coverage      # run all tests enforcing 80% coverage ratchet
-bun run test:integration   # run server lifecycle and API contract tests
-bun run test:frontend-smoke# run UI shell, navigation, and modal smoke tests
-bun run build              # bundle production browser assets
-bun run typecheck          # verify backend and test TypeScript types
-bun run typecheck:frontend # verify frontend browser TypeScript types
-bun run lint               # check formatting, import order, and lint rules
-bun run lint:fix           # autofix formatting, imports, and safe lint rules
-bun run check:fallow       # verify architectural boundaries and dead code
-bun run check:knip         # detect unused exports, files, and dependencies
-bun run check:cycles       # verify zero circular import dependencies
+bun run dev                         # start server with watch mode (development on-the-fly bundling)
+bun run start:production            # start server in production mode serving pre-built dist/public
+bun test                            # run all automated tests
+bun run test:coverage               # run all tests enforcing 80% coverage ratchet
+bun run test:integration            # run server lifecycle, API contracts, and SSE tests (dev mode)
+bun run test:integration:production # run integration tests against production artifact (dist/public)
+bun run test:frontend-smoke         # run UI shell, navigation, and modal structural smoke tests
+bun run build                       # bundle and assemble complete production assets into dist/public
+bun run typecheck                   # verify backend and test TypeScript types
+bun run typecheck:frontend          # verify frontend browser TypeScript types
+bun run lint                        # check formatting, import order, and lint rules
+bun run lint:fix                    # autofix formatting, imports, and safe lint rules
+bun run check:fallow                # verify architectural boundaries and dead code
+bun run check:knip                  # detect unused exports, files, and dependencies
+bun run check:cycles                # verify zero circular import dependencies
 ```
 
 ## Continuous Integration
@@ -86,18 +88,20 @@ PR / Push / Merge Queue
  │    ├── Architecture (Fallow boundaries & dead code)
  │    ├── Dependencies (Knip unused code)
  │    ├── Cycles (dpdm circular dependency check)
- │    └── Tests (Bun test with 80% coverage ratchet)
+ │    └── Tests (Bun test with 80% coverage ratchet & artifact upload)
  │
- ├── Track 2: Assembly & Operational (Sequential)
- │    └── Build (Frontend browser asset bundle)
- │         └── Integration (Server boot, /api/health, API contracts)
- │              └── Frontend Smoke (DOM shell, navigation, modals)
+ ├── Track 2: Assembly & Operational (Sequential Artifact Testing)
+ │    └── Build (Bundles & copies production assets to dist/, uploads artifact)
+ │         └── Integration (Downloads dist/ artifact, runs test:integration:production)
+ │              └── Frontend Structural Smoke (DOM shell, navigation, modals)
  │
  └── Final Gate
-      └── Required CI (Single stable branch-protection check)
+      └── Required CI (Strict success-only check across all required stages)
 ```
 
-- **Required Check**: For GitHub branch protection, configure **`Required CI`** as the sole required status check.
+- **Production Mode Separation**: In `NODE_ENV=production`, `src/server.ts` routes static requests to `dist/public`, and `src/http/static.ts` refuses runtime TypeScript bundling (returning 404 for missing `.js` files). This ensures CI validates the actual production build artifact rather than dynamically falling back to the source tree.
+- **Required Check**: For GitHub branch protection, configure **`Required CI`** as the sole required status check. The gate strictly validates that every upstream stage completed with `success`.
+- **Selective Coverage & Test Isolation**: CI integration and smoke jobs run with `--config=bunfig.selective.toml` to avoid global coverage overhead and rate-limit friction while preserving coverage ratchets in the dedicated `test` job.
 - **Frontend Architecture Evolution**: During the planned React + TSX migration, update `.fallowrc.json` boundaries (`src/web/**` or `src/frontend/**`) and replace `build` with the React bundler invocation without requiring CI structural rewrites.
 
 

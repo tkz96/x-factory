@@ -21,11 +21,7 @@ async function bundleFrontend(entryPath: string): Promise<string> {
   const stat = await tsFile.stat();
   const mtime = stat.mtimeMs;
 
-  if (
-    process.env.NODE_ENV === "production" &&
-    appBundleCache &&
-    appBundleCache.mtime === mtime
-  ) {
+  if (appBundleCache && appBundleCache.mtime === mtime) {
     return appBundleCache.content;
   }
 
@@ -63,8 +59,9 @@ export async function serveStatic(
   const exists = await file.exists();
 
   if (!exists) {
-    // If a .js file is requested but a .ts file exists, transpile or bundle on the fly
-    if (filePath.endsWith(".js")) {
+    // In development, if a .js file is requested but a .ts file exists, transpile or bundle on the fly
+    const isDev = process.env.NODE_ENV !== "production";
+    if (isDev && filePath.endsWith(".js")) {
       const tsPath = `${filePath.slice(0, -3)}.ts`;
       const tsFile = Bun.file(tsPath);
       if (await tsFile.exists()) {

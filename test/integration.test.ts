@@ -1,7 +1,9 @@
 // test/integration.test.ts — Lightweight integration tests validating server startup, static asset delivery, health check, and core API contracts.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { defaultEventBus } from "../src/events.js";
 import { startServer } from "../src/server.js";
+import { defaultRunStore } from "../src/store.js";
 
 let server: ReturnType<typeof Bun.serve>;
 let baseUrl: string;
@@ -91,6 +93,11 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       const res = await fetch(`${baseUrl}/non-existent-asset.xyz`);
       expect(res.status).toBe(404);
     });
+
+    it("returns 404 for missing .js files without falling back to source in production", async () => {
+      const res = await fetch(`${baseUrl}/missing-script.js`);
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("Core API Contracts", () => {
@@ -139,6 +146,99 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
 
     it("GET /api/runs/:id returns 404 for non-existent run", async () => {
       const res = await fetch(`${baseUrl}/api/runs/non-existent-run-999`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("SSE Event Streaming", () => {
+    const runId = "test-integration-sse-run";
+
+    beforeAll(() => {
+      defaultRunStore.set(runId, {
+        id: runId,
+        project: { id: "p1", name: "Test Project" },
+        ticket: { id: "T-1", title: "Test Ticket", acceptanceCriteria: [] },
+        plan: "Test Plan",
+        branch: "factory/t-1",
+        status: "implementing",
+        events: [
+          { type: "info", text: "Initial run event", timestamp: Date.now() },
+        ],
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        implementationContext: null,
+        verification: null,
+        review: null,
+        artifacts: [],
+        diff: null,
+        pullRequest: null,
+        repairAttempts: 0,
+        artifactsDir: "/tmp",
+        worktreePath: "/tmp",
+        _session: null,
+        _baseline: null,
+        _project: {
+          id: "p1",
+          name: "Test Project",
+          repositoryPath: "/tmp",
+          defaultBranch: "main",
+          testCommand: "bun test",
+          issueTracker: { provider: "github", github: { repo: "test/repo" } },
+          repositories: [],
+        },
+      });
+    });
+
+    afterAll(() => {
+      defaultRunStore.delete(runId);
+    });
+
+    it("GET /api/runs/:id/events returns 200 text/event-stream with initial events", async () => {
+      const res = await fetch(`${baseUrl}/api/runs/${runId}/events`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toContain("text/event-stream");
+      expect(res.headers.get("Cache-Control")).toContain("no-cache");
+
+      const reader = res.body?.getReader();
+      expect(reader).toBeDefined();
+      if (!reader) throw new Error("Expected reader to be defined");
+
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+
+      const text = new TextDecoder().decode(value);
+      expect(text).toContain("data: {");
+      expect(text).toContain("Initial run event");
+
+      await reader.cancel();
+    });
+
+    it("streams newly emitted events dynamically to active subscriber", async () => {
+      const res = await fetch(`${baseUrl}/api/runs/${runId}/events`);
+      const reader = res.body?.getReader();
+      expect(reader).toBeDefined();
+      if (!reader) throw new Error("Expected reader to be defined");
+
+      // Read initial queued event
+      await reader.read();
+
+      // Broadcast an event over defaultEventBus
+      defaultEventBus.emit(runId, {
+        type: "info",
+        text: "Live streamed test event",
+      });
+
+      const { value, done } = await reader.read();
+      expect(done).toBe(false);
+
+      const text = new TextDecoder().decode(value);
+      expect(text).toContain("Live streamed test event");
+
+      await reader.cancel();
+    });
+
+    it("GET /api/runs/:id/events returns 404 for non-existent run", async () => {
+      const res = await fetch(`${baseUrl}/api/runs/non-existent-sse/events`);
       expect(res.status).toBe(404);
     });
   });

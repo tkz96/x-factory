@@ -121,7 +121,7 @@ describe("Static Asset Serving", () => {
     assert.equal(cachedContent, content);
   });
 
-  it("transpiles TypeScript module when requested as .js", async () => {
+  it("transpiles TypeScript module when requested as .js in development", async () => {
     const res = await serveStatic("/js/state.js", PUBLIC_DIR);
     assert.equal(res.status, 200);
     assert.ok(
@@ -129,6 +129,22 @@ describe("Static Asset Serving", () => {
     );
     const content = await res.text();
     assert.ok(content.includes("state"));
+  });
+
+  it("does not bundle on the fly in production mode", async () => {
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      // In production, requesting a non-existent .js file returns 404 even if .ts exists
+      const res = await serveStatic("/app.js", "/non/existent/public/dir");
+      assert.equal(res.status, 404);
+    } finally {
+      if (origEnv !== undefined) {
+        process.env.NODE_ENV = origEnv;
+      } else {
+        delete process.env.NODE_ENV;
+      }
+    }
   });
 
   it("serves unknown extensions with application/octet-stream fallback", async () => {

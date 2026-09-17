@@ -9,7 +9,11 @@ import { serveStatic } from "./http/static.js";
 import * as runs from "./runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.resolve(__dirname, "..", "public");
+export function getPublicDir(): string {
+  return process.env.NODE_ENV === "production"
+    ? path.resolve(__dirname, "..", "dist", "public")
+    : path.resolve(__dirname, "..", "public");
+}
 const PORT = parseInt(process.env.PORT || "3777", 10);
 
 export function formatOrphanedWorktree(stalePath: string): string {
@@ -32,7 +36,9 @@ export async function checkOrphanedWorktrees(): Promise<void> {
   }
 }
 
-export function startServer(port = PORT) {
+export function startServer(port = PORT, customPublicDir?: string) {
+  const publicDir = customPublicDir ?? getPublicDir();
+
   // Hydrate historical runs from disk
   runs.initRuns().catch(() => {});
 
@@ -46,7 +52,7 @@ export function startServer(port = PORT) {
       if (url.pathname.startsWith("/api/")) {
         return handleApi(req, url);
       }
-      return serveStatic(url.pathname, PUBLIC_DIR);
+      return serveStatic(url.pathname, publicDir);
     },
   });
 
