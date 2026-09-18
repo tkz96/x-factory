@@ -1,7 +1,13 @@
 // test/dom-security.test.ts — Unit tests and DOM security assertions for typed DOM helpers (XF-018).
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { clearElement, el, renderDiffElements } from "../public/js/dom.js";
+import {
+  clearElement,
+  createIconSvg,
+  el,
+  renderDiffElements,
+  renderIcon,
+} from "../public/js/dom.js";
 
 // Minimal DOM mock for Bun testing environment
 class MockNode {
@@ -64,6 +70,20 @@ class MockElement extends MockNode {
     this.attributes[k] = v;
   }
 
+  getAttribute(k: string): string | undefined {
+    return this.attributes[k];
+  }
+
+  querySelector(selector: string): MockElement | null {
+    const sel = selector.toUpperCase();
+    for (const child of this.childNodes) {
+      if (child instanceof MockElement && child.tagName === sel) {
+        return child;
+      }
+    }
+    return null;
+  }
+
   addEventListener(event: string, listener: EventListener): void {
     if (!this.listeners[event]) this.listeners[event] = [];
     this.listeners[event].push(listener);
@@ -78,6 +98,7 @@ describe("Typed DOM Helpers & XSS Protection (public/js/dom.ts)", () => {
     (globalThis as unknown as { Node: unknown }).Node = MockNode;
     (globalThis as unknown as { document: unknown }).document = {
       createElement: (tag: string) => new MockElement(tag),
+      createElementNS: (_ns: string, tag: string) => new MockElement(tag),
       createTextNode: (text: string) => new MockTextNode(text),
     };
   });
@@ -216,5 +237,24 @@ describe("Typed DOM Helpers & XSS Protection (public/js/dom.ts)", () => {
 
     // Empty diff returns empty array
     expect(renderDiffElements("")).toEqual([]);
+  });
+
+  it("creates accessible SVG icons referencing the centralized sprite sheet", () => {
+    const svg = createIconSvg("calendar", "xl", "custom-class");
+    expect((svg as unknown as MockElement).getAttribute("class")).toBe(
+      "icon icon-xl custom-class",
+    );
+    expect((svg as unknown as MockElement).getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    const use = (svg as unknown as MockElement).querySelector("use");
+    expect(use).toBeDefined();
+    expect(use?.getAttribute("href")).toBe(
+      "/assets/icons/sprite.svg#icon-calendar",
+    );
+
+    const html = renderIcon("search", "sm");
+    expect(html).toContain('class="icon icon-sm"');
+    expect(html).toContain('href="/assets/icons/sprite.svg#icon-search"');
   });
 });

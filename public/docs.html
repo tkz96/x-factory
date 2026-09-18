@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="X-Factory Documentation — Setup guides, credentials, and token permissions reference">
+  <title>Documentation — X-Factory</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script>(()=> {const t=localStorage.getItem("xf_theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.setAttribute("data-theme",t);})()</script>
+  <style>
+    .docs-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 60px);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .docs-navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      padding: 0 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .docs-sidebar {
+      padding: 2rem 1.5rem;
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+    .docs-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.85rem;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+      transition: all 0.15s ease;
+    }
+    .docs-nav-link:hover {
+      color: var(--text);
+      background: var(--bg-card-hover);
+    }
+    .docs-nav-link.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      font-weight: 600;
+    }
+    .docs-content {
+      padding: 2.5rem 3.5rem 6rem;
+      max-width: 900px;
+      overflow-y: auto;
+    }
+    .docs-section {
+      margin-bottom: 4rem;
+      scroll-margin-top: 80px;
+    }
+    .docs-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .docs-table th, .docs-table td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .docs-table th {
+      background: var(--bg-card);
+      font-weight: 600;
+      color: var(--text);
+    }
+    .docs-table tr:last-child td {
+      border-bottom: none;
+    }
+    .scope-pill {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: var(--radius-pill);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .scope-required {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(48, 209, 88, 0.3);
+    }
+    .scope-optional {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid rgba(10, 132, 255, 0.3);
+    }
+    .scope-forbidden {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid rgba(255, 69, 58, 0.3);
+    }
+    .step-list {
+      margin: 1.5rem 0;
+      padding-left: 1.5rem;
+    }
+    .step-list li {
+      margin-bottom: 0.75rem;
+      line-height: 1.6;
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+    .back-btn:hover {
+      color: var(--accent);
+    }
+    @media (max-width: 860px) {
+      .docs-layout {
+        grid-template-columns: 1fr;
+      }
+      .docs-sidebar {
+        display: none;
+      }
+      .docs-content {
+        padding: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="docs-navbar">
+    <div style="display: flex; align-items: center; gap: 1.5rem;">
+      <a href="/" class="back-btn" title="Return to workbench">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-arrow-left"></use></svg>
+        <span>Back to Workbench</span>
+      </a>
+      <span style="color: var(--border);">|</span>
+      <div class="brand" style="display: flex; align-items: center; gap: 0.5rem;">
+        <span class="brand-title" style="font-weight: 700; font-size: 1.1rem;">X-Factory</span>
+        <span style="background: var(--bg-card); color: var(--text-muted); font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: var(--radius-pill); font-weight: 600;">DOCS</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <button id="docs-theme-toggle" type="button" class="theme-toggle" aria-label="Toggle Theme" title="Toggle dark/light mode">
+        <span class="theme-icon sun-icon">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-sun"></use></svg>
+        </span>
+        <span class="theme-icon moon-icon">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-moon"></use></svg>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-sidebar">
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.8rem;">
+        CREDENTIALS & TOKENS
+      </div>
+      <nav>
+        <a href="#azure-pat" class="docs-nav-link active" id="link-azure-pat">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-azure"></use></svg>
+          <span>Azure DevOps PAT</span>
+        </a>
+        <a href="#github" class="docs-nav-link" id="link-github">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-github"></use></svg>
+          <span>GitHub Tokens</span>
+        </a>
+        <a href="#gitlab" class="docs-nav-link" id="link-gitlab">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-gitlab"></use></svg>
+          <span>GitLab Tokens</span>
+        </a>
+        <a href="#jira" class="docs-nav-link" id="link-jira">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-jira"></use></svg>
+          <span>Jira API Tokens</span>
+        </a>
+        <a href="#git-hosts" class="docs-nav-link" id="link-git-hosts">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-git-branch"></use></svg>
+          <span>Git Hosting Providers</span>
+        </a>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin: 1.5rem 0 0.8rem;">
+          WORKBENCH & QUEUE
+        </div>
+        <a href="#ticket-workflow" class="docs-nav-link" id="link-ticket-workflow">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-calendar"></use></svg>
+          <span>Ticket Workflow (Tags vs. Labels)</span>
+        </a>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin: 1.5rem 0 0.8rem;">
+          SECURITY & SAFETY
+        </div>
+        <a href="#least-privilege" class="docs-nav-link" id="link-least-privilege">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-shield-check"></use></svg>
+          <span>Least Privilege & Safety</span>
+        </a>
+        <a href="#design-system" class="docs-nav-link" id="link-design-system">
+          <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-layers"></use></svg>
+          <span>Design System & Icons</span>
+        </a>
+      </nav>
+    </aside>
+
+    <main class="docs-content">
+      <!-- ── Azure DevOps Guide ────────────────────────────────────── -->
+      <section id="azure-pat" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-required">Azure DevOps</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Authentication & Permissions</span>
+        </div>
+        <h1 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 1rem;">Personal Access Token (PAT) Setup & Scopes</h1>
+        <p class="text-muted" style="font-size: 1.05rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          Azure DevOps offers over 30 distinct permission scopes. For security and least-privilege adherence, X-Factory only requests the minimal permissions necessary to read work items, discover repositories, and publish status checkmarks.
+        </p>
+
+        <div class="info-banner" style="margin-bottom: 2rem;">
+          <svg class="icon icon-md" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px;"><use href="/assets/icons/sprite.svg#icon-info"></use></svg>
+          <div>
+            <strong>Zero-PAT Alternative Available:</strong> If you are logged into Azure CLI on your local machine (<code>az login</code>), X-Factory automatically uses your active session token. You do not need to create or store a static PAT!
+          </div>
+        </div>
+
+        <h2 style="font-size: 1.4rem; font-weight: 700; margin: 2rem 0 1rem;">1. Required & Recommended Scope Matrix</h2>
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th>Scope Group</th>
+              <th>Permission Level</th>
+              <th>Status</th>
+              <th>Why X-Factory Needs It</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Work Items</strong></td>
+              <td><code>Read</code></td>
+              <td><span class="scope-pill scope-required">Required</span></td>
+              <td>Executes WIQL queries to read ticket backlogs and acceptance criteria.</td>
+            </tr>
+            <tr id="azure-code">
+              <td><strong>Code</strong></td>
+              <td><code>Read</code></td>
+              <td><span class="scope-required scope-pill">Required</span></td>
+              <td>Allows online repository discovery and connectivity validation via Azure Repos REST API.</td>
+            </tr>
+            <tr>
+              <td><strong>Code</strong></td>
+              <td><code>Status</code></td>
+              <td><span class="scope-optional scope-pill">Recommended</span></td>
+              <td>Enables publishing automated verification and review status checkmarks to Azure commits and PRs.</td>
+            </tr>
+            <tr>
+              <td><strong>Code</strong></td>
+              <td><code>Read & write</code></td>
+              <td><span class="scope-optional scope-pill">Optional</span></td>
+              <td>Only needed if pushing branches or creating PRs directly over HTTPS with the PAT.</td>
+            </tr>
+            <tr>
+              <td><strong>All Other Scopes (25+)</strong></td>
+              <td><em>None</em></td>
+              <td><span class="scope-forbidden scope-pill">Do Not Select</span></td>
+              <td>Build, Release, Pipelines, User Profile, Tokens, Security, and Graph scopes are never needed.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="card" style="margin: 2rem 0; padding: 1.5rem; border-left: 4px solid var(--yellow); background: var(--bg-card);">
+          <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--yellow);">⚠️ Principle of Least Privilege: Avoid "Work Items: Read & write"</h3>
+          <p style="margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-muted);">
+            X-Factory never modifies, closes, or deletes work items in Azure DevOps. To protect your backlog from accidental state mutation or token compromise, select <strong>Work Items (Read)</strong> only. X-Factory's connection probe will flag tokens containing <code>Work Items: Write</code> as over-privileged.
+          </p>
+        </div>
+
+        <h2 style="font-size: 1.4rem; font-weight: 700; margin: 2rem 0 1rem;">2. Step-by-Step PAT Creation in Azure DevOps</h2>
+        <ol class="step-list">
+          <li>Log in to your Azure DevOps organization (e.g. <code>https://dev.azure.com/your-org</code>).</li>
+          <li>In the upper-right corner of the portal, click the <strong>User settings</strong> icon (gear with person) and select <strong>Personal access tokens</strong>.</li>
+          <li>Click <strong>+ New Token</strong>.</li>
+          <li>Enter a descriptive name (e.g. <code>X-Factory Workbench</code>).</li>
+          <li>In the <strong>Organization</strong> dropdown, select your specific organization rather than <em>All accessible organizations</em>.</li>
+          <li>Set an <strong>Expiration</strong> date according to your security policy (e.g. 60 or 90 days).</li>
+          <li>Under <strong>Scopes</strong>, select <strong>Custom defined</strong>, click <strong>Show all scopes</strong>, and check:
+            <ul>
+              <li><strong>Work Items:</strong> Check <code>Read</code>.</li>
+              <li><strong>Code:</strong> Check <code>Read</code> and <code>Status</code>.</li>
+            </ul>
+          </li>
+          <li>Click <strong>Create</strong> and immediately copy your token. Paste it into the X-Factory Onboarding Wizard or Project Settings.</li>
+        </ol>
+
+        <h2 style="font-size: 1.4rem; font-weight: 700; margin: 2rem 0 1rem;">3. Troubleshooting Azure Token Errors</h2>
+        <div style="display: grid; gap: 1rem;">
+          <div class="card" style="padding: 1.25rem;">
+            <div style="font-weight: 600; color: var(--red); margin-bottom: 0.4rem;">HTTP 401 Unauthorized</div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">
+              The PAT is expired, revoked, or missing the exact scope required for the requested resource (e.g. attempting WIQL without <code>Work Items: Read</code>). Generate a fresh PAT with the required scopes.
+            </p>
+          </div>
+          <div class="card" style="padding: 1.25rem;">
+            <div style="font-weight: 600; color: var(--yellow); margin-bottom: 0.4rem;">HTTP 403 Forbidden</div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">
+              The token is authenticated, but your user account lacks permission in the project (e.g. Stakeholder license attempting to view code, or repository-level ACL restriction). Confirm project reader permissions with your Azure administrator.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── GitHub Guide ─────────────────────────────────────────── -->
+      <section id="github" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-optional">GitHub</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Authentication & Permissions</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">GitHub Integration & Tokens</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          When hosting Git repositories or tracking issues on GitHub, X-Factory uses the official <code>gh</code> CLI or GitHub REST API.
+        </p>
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th>Scope / Permission</th>
+              <th>Token Type</th>
+              <th>Status</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>repo</code></td>
+              <td>Classic PAT</td>
+              <td><span class="scope-pill scope-required">Required</span></td>
+              <td>Full control of private repositories, commit push, and pull request creation.</td>
+            </tr>
+            <tr>
+              <td><code>repo:status</code></td>
+              <td>Classic PAT</td>
+              <td><span class="scope-pill scope-optional">Recommended</span></td>
+              <td>Allows publishing commit check statuses (e.g. <code>X-Factory/verification</code>).</td>
+            </tr>
+            <tr>
+              <td><code>Pull requests: Read & write</code></td>
+              <td>Fine-Grained PAT</td>
+              <td><span class="scope-pill scope-required">Required</span></td>
+              <td>Enables creating pull requests on target repositories.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ── GitLab Guide ─────────────────────────────────────────── -->
+      <section id="gitlab" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-optional">GitLab</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Authentication & Permissions</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">GitLab Integration & Tokens</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          For projects with repositories hosted on GitLab, configure a Project Access Token or Personal Access Token under <em>Settings → Access Tokens</em>.
+        </p>
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th>Scope</th>
+              <th>Status</th>
+              <th>Role in X-Factory</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>read_api</code></td>
+              <td><span class="scope-pill scope-required">Required</span></td>
+              <td>Probes project status, branches, and lists repository structure.</td>
+            </tr>
+            <tr>
+              <td><code>write_repository</code></td>
+              <td><span class="scope-pill scope-required">Required</span></td>
+              <td>Allows pushing verified factory branches.</td>
+            </tr>
+            <tr>
+              <td><code>api</code></td>
+              <td><span class="scope-pill scope-optional">Optional</span></td>
+              <td>Enables publishing pipeline commit status and opening Merge Requests.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ── Jira Guide ───────────────────────────────────────────── -->
+      <section id="jira" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-optional">Jira</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Authentication & Permissions</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">Jira API Tokens</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          For Jira Cloud integration, generate an API token from your Atlassian account (<em>id.atlassian.com → Security → API tokens</em>).
+        </p>
+        <ul class="step-list">
+          <li><strong>Atlassian Host:</strong> Your cloud instance URL (e.g. <code>https://your-domain.atlassian.net</code>).</li>
+          <li><strong>Email:</strong> The account email associated with the API token.</li>
+          <li><strong>Project Key:</strong> The Jira project key (e.g. <code>PROJ</code>).</li>
+          <li><strong>Permissions:</strong> The account requires read access to issues and JQL search across the project.</li>
+        </ul>
+      </section>
+
+      <!-- ── Git Hosts Guide ─────────────────────────────────────── -->
+      <section id="git-hosts" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-optional">Git Providers</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Source Repository Hosting</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">Git Hosting Providers & Mixing Stacks</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          Teams frequently split their development tools — for instance, managing sprint tickets in Jira Software while hosting source code and pull requests in GitHub or Azure Repos. X-Factory natively separates your issue tracker configuration from your Git repository host.
+        </p>
+
+        <div style="display: grid; gap: 1rem;">
+          <div class="card" style="padding: 1.25rem;">
+            <div style="font-weight: 600; margin-bottom: 0.4rem;">Jira + GitHub / GitLab</div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">
+              Queries Jira boards with JQL for backlog work items. When delivering verified code, pushes to GitHub/GitLab and creates a Pull Request referencing the Jira ticket key (e.g. <code>[X-Factory] PROJ-101: Summary</code>).
+            </p>
+          </div>
+          <div class="card" style="padding: 1.25rem;">
+            <div style="font-weight: 600; margin-bottom: 0.4rem;">Azure DevOps + Azure Repos</div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">
+              Unified setup: queries Azure DevOps Boards with WIQL, verifies against local clones or remote branches, publishes status badges to commits using <code>Code: Status</code>, and creates Azure Repos PRs.
+            </p>
+          </div>
+          <div class="card" style="padding: 1.25rem;">
+            <div style="font-weight: 600; margin-bottom: 0.4rem;">Local Only / Self-Hosted Git</div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">
+              Scans your local workspace folder directly. Requires zero online repository tokens or remote credentials. Isolated worktrees are created and verified entirely offline.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Ticket Workflow & Taxonomy Guide ────────────────────────── -->
+      <section id="ticket-workflow" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-required">Work Queue</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Issue Tracker Taxonomy & Standards</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">Ticket Workflow: Tags vs. Labels</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          X-Factory continuously scans your configured issue tracker to pull active, actionable work items into the Work Queue. To trigger automatic ingestion, tickets must be marked with the keyword <code>agentic-workflow</code>.
+        </p>
+
+        <div class="info-banner" style="margin-bottom: 2rem;">
+          <svg class="icon icon-md" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px;"><use href="/assets/icons/sprite.svg#icon-info"></use></svg>
+          <div>
+            <strong>Provider Best Practice:</strong> Always use the native taxonomy term for each platform. In <strong>Azure DevOps</strong>, use native <strong>Tags</strong>. In <strong>GitHub</strong> and <strong>Jira</strong>, use native <strong>Labels</strong>.
+          </div>
+        </div>
+
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th style="width: 22%;">Issue Tracker</th>
+              <th style="width: 20%;">Recommended Taxonomy</th>
+              <th style="width: 30%;">Where to Apply in Tracker</th>
+              <th style="width: 28%;">Ingestion Mechanism</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-azure"></use></svg>
+                  <strong>Azure DevOps</strong>
+                </div>
+              </td>
+              <td><span class="scope-pill scope-required">Tag</span></td>
+              <td>Click <code>+ Add Tag</code> directly beneath the work item title and type <code>agentic-workflow</code>.</td>
+              <td>WIQL strictly queries <code>[System.Tags] CONTAINS 'agentic-workflow'</code>.</td>
+            </tr>
+            <tr>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-github"></use></svg>
+                  <strong>GitHub Issues</strong>
+                </div>
+              </td>
+              <td><span class="scope-pill scope-optional">Label</span></td>
+              <td>Assign <code>agentic-workflow</code> from the <em>Labels</em> selector on the right sidebar of the issue.</td>
+              <td>REST API query for open issues with <code>label:agentic-workflow</code>.</td>
+            </tr>
+            <tr>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <svg class="icon icon-md" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-jira"></use></svg>
+                  <strong>Jira Software</strong>
+                </div>
+              </td>
+              <td><span class="scope-pill scope-optional">Label</span></td>
+              <td>Add <code>agentic-workflow</code> to the standard <em>Labels</em> input field on the Jira issue.</td>
+              <td>JQL search: <code>labels = 'agentic-workflow' AND statusCategory != Done</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2 style="font-size: 1.3rem; font-weight: 700; margin: 2rem 0 1rem;">Why Azure DevOps Uses Tags Instead of Labels</h2>
+        <p class="text-muted" style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 1rem;">
+          In GitHub and Jira, "Label" is the native first-class classification construct. In contrast, Azure DevOps does not have a native "Label" field — its built-in, first-class taxonomy is <strong>Tags</strong> (<code>System.Tags</code>). Standardizing on native Tags provides key benefits:
+        </p>
+        <ul class="step-list" style="margin-bottom: 2rem;">
+          <li><strong>Universal Support:</strong> Built-in across every work item type (User Story, Bug, Task, Feature, Epic) without needing custom XML/process template modifications.</li>
+          <li><strong>First-Class Board Filtering:</strong> Azure Boards includes a native "Filter by tag" widget at the top right of Kanban and sprint boards.</li>
+          <li><strong>Visual Card Styling:</strong> You can define card style rules in Azure Boards (<em>Board Settings → Styles</em>) to automatically tint or highlight cards tagged with <code>agentic-workflow</code>.</li>
+          <li><strong>Autocomplete:</strong> Typing <code>ag</code> into <code>+ Add Tag</code> automatically autocompletes <code>agentic-workflow</code> for team members.</li>
+        </ul>
+
+        <div class="card" style="padding: 1.25rem; border-left: 4px solid var(--accent);">
+          <div style="font-weight: 600; margin-bottom: 0.35rem; color: var(--text);">Strict Tag Enforcement</div>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0; line-height: 1.5;">
+            To guarantee consistent UX across your team and prevent unintended tickets from entering the queue, X-Factory strictly enforces the native <strong>Tag</strong> on Azure DevOps work items. Custom form fields (such as a custom field named <code>Label</code>) are ignored.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── Least Privilege & Safety ─────────────────────────────── -->
+      <section id="least-privilege" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-required">Safety Standard</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Architectural Guarantees</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">Principle of Least Privilege & PR Safety</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          X-Factory is engineered around non-destructive, audited automation. To ensure team confidence and prevent rogue actions, the system operates under strict architectural guardrails:
+        </p>
+
+        <div style="display: grid; gap: 1.5rem;">
+          <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--green);">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--green); display: flex; align-items: center; gap: 0.5rem;">
+              <svg class="icon icon-md" aria-hidden="true" style="color: var(--green);"><use href="/assets/icons/sprite.svg#icon-lock"></use></svg>
+              <span>Creation-Only PR Contract</span>
+            </h3>
+            <p style="margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-muted);">
+              X-Factory only ever commits code to isolated factory branches (<code>factory/*</code>), pushes the branch, and creates a Pull Request for human inspection. <strong>X-Factory strictly contains zero endpoints, CLI invocations, or permissions to close or merge pull requests.</strong> Merging remains 100% under human control.
+            </p>
+          </div>
+
+          <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--accent);">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent); display: flex; align-items: center; gap: 0.5rem;">
+              <svg class="icon icon-md" aria-hidden="true" style="color: var(--accent);"><use href="/assets/icons/sprite.svg#icon-shield-check"></use></svg>
+              <span>Isolated Worktrees & Pollution Prevention</span>
+            </h3>
+            <p style="margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-muted);">
+              All agent execution occurs in isolated git worktrees stored outside your repository in <code>~/.x-factory/projects/&lt;id&gt;/worktrees/</code>. Before any branch is committed, a strict baseline diff and pollution checker guarantees that unexpected temporary files, IDE artifacts, or credentials are never leaked into the repository.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Design System & Icons Specification ───────────────────── -->
+      <section id="design-system" class="docs-section">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <span class="scope-pill scope-required">Design Standard</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Icon & UI Guidelines</span>
+        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">Icon Design System & Anti-Drift Architecture</h1>
+        <p class="text-muted" style="font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">
+          To ensure consistent branding, zero markup bloat, and unified dark/light theming, all icons in X-Factory follow a strict centralized SVG Sprite Sheet architecture. Inline SVGs and raw status emojis are strictly prohibited across the application.
+        </p>
+
+        <div style="display: grid; gap: 1.5rem;">
+          <div class="card" style="padding: 1.5rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.6rem;">1. Core Design System Rules</h3>
+            <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.7; color: var(--text-muted);">
+              <li><strong>Zero Inline SVGs:</strong> Never write inline <code>&lt;svg&gt;&lt;path.../&gt;&lt;/svg&gt;</code> in HTML or TypeScript templates.</li>
+              <li><strong>Centralized Sprite Sheet:</strong> All icons are referenced from <code>/assets/icons/sprite.svg#icon-{name}</code> via <code>&lt;use href="..."&gt;</code>.</li>
+              <li><strong>Lucide 24×24 Standard:</strong> All icons use a 24×24 viewBox, 2px stroke width, rounded line caps and line joins (<code>stroke-linecap="round" stroke-linejoin="round"</code>), and <code>fill="none"</code>.</li>
+              <li><strong>Zero Raw Emojis:</strong> Status indicators must use standardized Lucide icons (e.g., <code>check-circle-2</code>, <code>x-circle</code>, <code>loader-2</code> with <code>.icon-spin</code>).</li>
+              <li><strong>Dynamic Theming:</strong> Icons automatically inherit their stroke color from CSS <code>currentColor</code>, guaranteeing flawless rendering across light and dark modes.</li>
+            </ul>
+          </div>
+
+          <div class="card" style="padding: 1.5rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.6rem;">2. Usage in TypeScript Views & HTML</h3>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+              Use the typed helper functions exported from <code>public/js/dom.ts</code>:
+            </p>
+            <pre style="background: var(--bg-card); padding: 1rem; border-radius: 6px; font-size: 0.82rem; overflow-x: auto; color: var(--text);"><code>// HTML String Template
+import { renderIcon } from "./dom";
+const html = renderIcon("search", "sm"); // &lt;svg class="icon icon-sm" aria-hidden="true"&gt;&lt;use href="/assets/icons/sprite.svg#icon-search"&gt;&lt;/use&gt;&lt;/svg&gt;
+
+// DOM Element Construction
+import { createIconSvg } from "./dom";
+const svgNode = createIconSvg("check-circle-2", "md", "icon-status-passed");</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Theme toggle handling
+    const themeBtn = document.getElementById("docs-theme-toggle");
+    themeBtn?.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("xf_theme", next);
+    });
+
+    // Sidebar active link highlighting on scroll
+    const sections = document.querySelectorAll(".docs-section");
+    const navLinks = document.querySelectorAll(".docs-nav-link");
+
+    window.addEventListener("scroll", () => {
+      let currentSection = "";
+      sections.forEach((section) => {
+        const top = section.offsetTop - 100;
+        if (window.scrollY >= top) {
+          currentSection = section.getAttribute("id") || "";
+        }
+      });
+
+      navLinks.forEach((link) => {
+        link.classList.toggle("active", link.getAttribute("href") === `#${currentSection}`);
+      });
+    });
+  </script>
+</body>
+</html>

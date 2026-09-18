@@ -753,7 +753,7 @@ async function renderProjectTrackerCard(project: Project): Promise<void> {
         }),
       ]),
       el("div", {}, [
-        el("strong", { textContent: "Required Label: " }),
+        el("strong", { textContent: "Required Tag: " }),
         el("code", {
           textContent: tracker?.azure?.requiredLabel || "agentic-workflow",
         }),

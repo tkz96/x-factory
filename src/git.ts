@@ -248,3 +248,13 @@ export async function validateRepo(repoPath: string): Promise<void> {
     throw new Error(`Not a git repository: ${repoPath}`);
   }
 }
+
+/**
+ * Get current commit SHA at HEAD.
+ */
+export async function getHeadSha(repoPath: string): Promise<string> {
+  const result = await execStrict("git", ["rev-parse", "HEAD"], {
+    cwd: repoPath,
+  });
+  return result.stdout.trim();
+}

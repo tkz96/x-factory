@@ -108,9 +108,41 @@ Glass/blur is for chrome, never for primary content surfaces (cards, list rows, 
 HIG: `/design/human-interface-guidelines/motion`
 Apple's system animations are spring-based, not linear. Motion should be purposeful — it should *explain* a change (where did this view come from, where did it go), never decorate for its own sake. On the web, approximate the spring feel with an overshoot easing curve, and **always** respect `prefers-reduced-motion` — treat it as a hard requirement, not a nice-to-have.
 
-### Icons
+### Icons & Anti-Drift Architecture
 HIG: `/design/human-interface-guidelines/icons` + SF Symbols site
-SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's weight axis, and align to text baselines automatically. Whatever icon set you use (native SF Symbols or a substitute per Section 3), hold it to the same discipline: one weight per context, consistent stroke width, baseline-aligned next to text, never mixed with a second icon style.
+SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's weight axis, and align to text baselines automatically. In this web app, we standardize on **Lucide 24×24 geometry** with strict anti-drift governance:
+
+1. **Centralized SVG Sprite Sheet**:
+   - All icons are served from a single, centralized sprite sheet at `/assets/icons/sprite.svg` via `<svg class="icon icon-{size}"><use href="/assets/icons/sprite.svg#icon-{name}"></use></svg>`.
+   - Individual standalone SVGs live cleanly in `public/assets/icons/ui/` and `public/assets/icons/brands/` for documentation, asset inspection, and maintenance.
+   - **Zero Inline SVGs**: Views, HTML files, and TypeScript UI generators MUST NOT inline raw SVG `<path>` or `<polygon>` tags. All icons MUST reference the sprite sheet or use the TypeScript helper functions.
+
+2. **Strict Geometry & Geometry Spec**:
+   - ViewBox: `0 0 24 24`.
+   - Stroke width: `2px` (`stroke-width="2"`), `fill="none"`, `stroke="currentColor"`.
+   - Line cap and join: `stroke-linecap="round"` and `stroke-linejoin="round"`.
+   - Brand icons (GitHub, Azure DevOps, GitLab, Jira, Bitbucket) strictly conform to the same 24×24 bounding box, line aesthetics, and `currentColor` responsiveness.
+
+3. **Standardized Sizing Tokens**:
+   - `.icon-xs` — `12px × 12px` (micro badges, inline tags)
+   - `.icon-sm` — `14px × 14px` (button icons, table cells, secondary UI)
+   - `.icon-md` — `16px × 16px` (navigation items, primary headers, inputs)
+   - `.icon-lg` — `20px × 20px` (modal headers, hero icons)
+   - `.icon-xl` — `32px × 32px` (empty states, banners)
+   - `.icon-spin` — standard 1s linear infinite rotation (for `loader-2` / loading spinners).
+
+4. **Status Diagnostics vs. Emojis**:
+   - **Zero Raw Emojis**: Raw emojis (e.g. `✅`, `❌`, `⏳`, `⚠️`) MUST NOT be used for status indicators, badges, or connection diagnostics.
+   - Use semantic status classes: `.icon-status-passed` (`var(--green)`), `.icon-status-failed` (`var(--red)`), `.icon-status-warning` (`var(--orange)`), `.icon-status-pending` (`var(--text-muted)`).
+
+5. **TypeScript Helpers**:
+   - In HTML string templates: `renderIcon(name: IconName, size?: IconSize, extraClass?: string): string`
+   - In DOM building code: `createIconSvg(name: IconName, size?: IconSize, extraClass?: string): SVGSVGElement`
+   - All icon names are strictly type-checked against `IconName`.
+
+6. **Anti-Drift Automated CI Gates**:
+   - `test/frontend-smoke.test.ts` enforces zero inline SVGs in HTML files, valid sprite `#icon-*` symbol IDs, zero raw emojis in UI code, and presence of all size modifier classes.
+
 
 ### Accessibility
 HIG: `/design/human-interface-guidelines/accessibility`
@@ -200,6 +232,9 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 - MUST use the defined type scale (Section 5, Typography) — no arbitrary font sizes.
 - MUST give every icon-only control an accessible label.
 - MUST follow the licensing path from Section 3 — no shipping literal SF Symbols/SF Pro assets in a non-Apple-platform build.
+- MUST use the centralized SVG sprite sheet (`/assets/icons/sprite.svg`) or TypeScript icon helpers (`renderIcon` / `createIconSvg`).
+- MUST NOT write inline SVG shapes (`<path>`, `<polygon>`, `<polyline>`) in HTML, templates, or view modules.
+- MUST NOT use raw emojis (e.g. `✅`, `❌`, `⏳`) for status badges, test results, or diagnostic states.
 
 ## 9. Definition of done
 
@@ -212,8 +247,12 @@ Before calling any UI work finished, confirm:
 - [ ] Tap targets ≥ 44×44pt
 - [ ] Motion respects `prefers-reduced-motion`
 - [ ] Icons are one consistent weight/style, baseline-aligned with text
+- [ ] Icons use `/assets/icons/sprite.svg` or `renderIcon` / `createIconSvg` (zero inline SVGs)
+- [ ] Zero raw emojis used for status or diagnostics
+- [ ] Anti-drift tests pass (`bun test test/frontend-smoke.test.ts`)
 - [ ] Contrast checked — 4.5:1 minimum for body text
 - [ ] Every icon-only control has an accessible label
+
 
 ## 10. Quick reference
 

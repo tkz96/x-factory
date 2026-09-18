@@ -2,6 +2,7 @@
 
 import { stat } from "node:fs/promises";
 import { testAzureConnection } from "../azure/connection.js";
+import { testAzurePatScopes } from "../azure/scopes.js";
 import {
   deleteProject,
   getProject,
@@ -574,11 +575,33 @@ async function handleTestConnection(req: Request): Promise<Response> {
     orgUrl?: string;
     project?: string;
     pat?: string;
+    validateScopes?: boolean;
   }>(
     req,
     async (data) => {
       if ((data.provider || "azure") === "azure") {
         const result = await testAzureConnection(data);
+        if (data.validateScopes || data.pat?.trim()) {
+          const scopeResult = await testAzurePatScopes({
+            orgUrl: data.orgUrl,
+            project: data.project,
+            pat: data.pat,
+          });
+          return jsonResponse({
+            ...result,
+            ok: result.ok && scopeResult.ok,
+            scopes: scopeResult.scopes,
+            overPrivileged: scopeResult.overPrivileged,
+            scopeErrors: scopeResult.errors,
+            scopeWarnings: scopeResult.warnings,
+            warnings: scopeResult.warnings,
+            error: !result.ok
+              ? result.error
+              : !scopeResult.ok
+                ? `Scope verification failed: ${scopeResult.errors.join(" ")}`
+                : undefined,
+          });
+        }
         return jsonResponse(result);
       }
       return jsonResponse({
@@ -588,6 +611,25 @@ async function handleTestConnection(req: Request): Promise<Response> {
       });
     },
     "Invalid JSON for connection test.",
+  );
+}
+
+async function handleTestAzureScopes(req: Request): Promise<Response> {
+  return withJsonBody<{
+    orgUrl?: string;
+    project?: string;
+    pat?: string;
+  }>(
+    req,
+    async (data) => {
+      const scopeResult = await testAzurePatScopes({
+        orgUrl: data.orgUrl,
+        project: data.project,
+        pat: data.pat,
+      });
+      return jsonResponse(scopeResult);
+    },
+    "Invalid JSON for scope verification.",
   );
 }
 
@@ -625,6 +667,9 @@ export async function handleProjectsRoute(
 
   const isTest = id === "test-connection" || id === "test-tracker";
   if (isTest && method === "POST") return handleTestConnection(req);
+
+  const isTestScopes = id === "test-azure-scopes";
+  if (isTestScopes && method === "POST") return handleTestAzureScopes(req);
 
   const isCheckPath = id === "check-path" || id === "validate-path";
   if (isCheckPath && method === "POST") return handleCheckPath(req);

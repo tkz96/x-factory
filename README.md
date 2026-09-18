@@ -56,6 +56,18 @@ Open [http://localhost:3777](http://localhost:3777).
    - **Review**: fresh, read-only Pi Session B evaluates diff against acceptance criteria.
    - **Deliver**: human review checkpoint displaying evidence, test outputs, review findings, and git diff. Click **Create Pull Request** to commit, push, and open PR.
 
+### Work Queue & Issue Tracker Taxonomy
+
+X-Factory automatically polls the configured issue tracker for active tickets ready for implementation. To route a ticket into the Work Queue, apply the keyword `agentic-workflow` using the native taxonomy standard for each platform:
+
+| Tracker | Native Taxonomy | How to Apply | Search / Query Filter |
+| :--- | :--- | :--- | :--- |
+| **Azure DevOps** | **Tag** (`System.Tags`) | Click **`+ Add Tag`** below title → `agentic-workflow` | `[System.Tags] CONTAINS 'agentic-workflow'` |
+| **GitHub Issues** | **Label** | Select **Labels** in sidebar → `agentic-workflow` | `is:open label:agentic-workflow` |
+| **Jira Software** | **Label** | Add `agentic-workflow` to **Labels** field | `labels = 'agentic-workflow' AND statusCategory != Done` |
+
+> **Strict Enforcement for Azure DevOps:** X-Factory strictly requires the native **Tag** (`+ Add Tag`) on Azure DevOps. Custom form fields (such as a field named `Label`) are ignored to ensure work items are visible on boards and accessible across all work item types.
+
 ## Development
 
 ```bash

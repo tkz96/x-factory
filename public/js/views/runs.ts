@@ -7,9 +7,7 @@ const RUNS_TEMPLATE = `
   <!-- Standby state when no active run -->
   <div id="runs-standby" class="empty-state card" hidden>
     <div class="empty-icon">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <polygon points="5 3 19 12 5 21 5 3"/>
-      </svg>
+      <svg class="icon icon-xl" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-play"></use></svg>
     </div>
     <h3>No Active Factory Run</h3>
     <p>Start a run from the Work Queue or click New Run to launch a task.</p>

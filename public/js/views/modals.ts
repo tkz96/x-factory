@@ -8,10 +8,7 @@ const NEW_RUN_MODAL_TEMPLATE = `
     <div class="modal-header">
       <h2 id="modal-new-run-title">New Factory Run</h2>
       <button id="btn-close-modal" class="btn-close" aria-label="Close dialog">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="2" y1="2" x2="12" y2="12"/>
-          <line x1="12" y1="2" x2="2" y2="12"/>
-        </svg>
+        <svg class="icon icon-xs" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-x"></use></svg>
       </button>
     </div>
     <div class="modal-body">
@@ -104,10 +101,7 @@ const WIZARD_MODAL_TEMPLATE = `
         <span class="toolbar-subtitle">Connect a multi-repository workspace to X-Factory</span>
       </div>
       <button id="btn-close-onboard-modal" class="btn-close" aria-label="Close dialog">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="2" y1="2" x2="12" y2="12"/>
-          <line x1="12" y1="2" x2="2" y2="12"/>
-        </svg>
+        <svg class="icon icon-xs" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-x"></use></svg>
       </button>
     </div>
 
@@ -207,9 +201,29 @@ const WIZARD_MODAL_TEMPLATE = `
             </span>
           </div>
           <select id="onboard-tracker-connection" class="form-select">
-            <option value="azure">Azure DevOps (dev.azure.com)</option>
+            <option value="azure">Azure DevOps Boards (dev.azure.com)</option>
             <option value="github">GitHub Issues</option>
             <option value="jira">Jira Software</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="label-with-tooltip">
+            <label for="onboard-git-host">Git Hosting Provider</label>
+            <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Git Hosting Provider">?
+              <span class="tooltip-popover">
+                <strong>Git Repository Host</strong>
+                Select where your source repositories are hosted (e.g. GitHub, Azure Repos, GitLab, Bitbucket). This controls commit checks, status badges, and pull request delivery.<br>
+                <a href="/docs#git-hosts" target="_blank" class="docs-link" style="color: var(--accent-primary); text-decoration: underline; margin-top: 4px; display: inline-block;">Learn more about Git hosts ↗</a>
+              </span>
+            </span>
+          </div>
+          <select id="onboard-git-host" class="form-select">
+            <option value="azure">Azure Repos (dev.azure.com)</option>
+            <option value="github">GitHub (github.com)</option>
+            <option value="gitlab">GitLab (gitlab.com / self-hosted)</option>
+            <option value="bitbucket">Bitbucket</option>
+            <option value="local">Local Only / Other Git Server</option>
           </select>
         </div>
 
@@ -248,23 +262,24 @@ const WIZARD_MODAL_TEMPLATE = `
 
             <div id="onboard-azure-pat-group" class="form-group" style="margin-bottom: 0.75rem;">
               <div class="label-with-tooltip">
-                <label for="onboard-azure-pat-step2">Personal Access Token (PAT) — Optional with Azure CLI</label>
-                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
+                <label for="onboard-azure-pat-step2">Personal Access Token (PAT) — Required for Automated Scopes</label>
+                <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT Scopes">?
                   <span class="tooltip-popover">
-                    <strong>PAT or Azure CLI</strong>
-                    If logged in via <code>az login</code>, X-Factory authenticates automatically without requiring a PAT.
+                    <strong>Minimum Required Scopes (Least Privilege)</strong><br>
+                    For security, create a custom PAT scoped strictly to:<br>
+                    • <code>Work Items: Read</code> — query backlog & tickets<br>
+                    • <code>Code: Read</code> — clone and discover repositories<br>
+                    • <code>Code: Status</code> — publish verification badges & checks<br><br>
+                    ⚠️ <em>Never grant Write, Manage, or Full Access!</em><br>
+                    <a href="/docs#azure-pat" target="_blank" class="docs-link" style="color: var(--accent-primary); text-decoration: underline; margin-top: 4px; display: inline-block;">Open Full PAT Setup Guide ↗</a>
                   </span>
                 </span>
               </div>
-              <input id="onboard-azure-pat-step2" type="password" placeholder="Leave blank to use active Azure CLI session" class="form-input code-input">
+              <input id="onboard-azure-pat-step2" type="password" placeholder="Paste your Azure DevOps PAT token" class="form-input code-input">
             </div>
 
             <div id="azure-cli-detected-banner" class="info-banner" style="margin-bottom: 0.8rem;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="16" x2="12" y2="12"/>
-                <line x1="12" y1="8" x2="12.01" y2="8"/>
-              </svg>
+              <svg class="icon icon-sm" aria-hidden="true" style="flex-shrink:0; margin-top:2px;"><use href="/assets/icons/sprite.svg#icon-info"></use></svg>
               <div>
                 <strong>Azure DevOps Authentication</strong><br>
                 Auto-authenticates via your active <code>az</code> CLI session (<code>talha.zuberi@xynotech.com</code>) or Personal Access Token.
@@ -331,12 +346,69 @@ const WIZARD_MODAL_TEMPLATE = `
 
         <div style="display: flex; align-items: center; gap: 0.8rem; margin-top: 1rem;">
           <button id="btn-test-tracker-connection" class="btn-secondary btn-sm" type="button">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
+            <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-check"></use></svg>
             <span>Test Connection</span>
           </button>
           <span id="tracker-test-status" class="tracker-test-status"><span id="tracker-test-result"></span></span>
+        </div>
+
+        <div id="azure-scope-diagnostic-card" class="scope-diagnostic-box" hidden>
+          <div class="scope-box-header">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span class="scope-box-title" style="font-weight:600; font-size:0.88rem;">PAT Verification & Privileges</span>
+              <span id="scope-status-pill" class="badge" style="font-size:0.75rem; padding: 2px 8px; border-radius: 9999px;">Pending</span>
+            </div>
+            <a href="/docs#azure-pat" target="_blank" style="font-size:0.78rem; color:var(--accent); text-decoration:none;">Scopes Docs ↗</a>
+          </div>
+          <div class="scope-items-grid" style="display:grid; grid-template-columns: 1fr; gap: 0.4rem; margin-top: 0.6rem;">
+            <div class="scope-item-row" id="scope-row-wit-read">
+              <span class="scope-icon"><svg class="icon icon-sm icon-status-pending" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-clock"></use></svg></span>
+              <span class="scope-label" style="font-weight:500;">Work Items: Read</span>
+              <span class="scope-desc text-muted" style="font-size:0.78rem; margin-left:auto;">Query backlog work items</span>
+            </div>
+            <div class="scope-item-row" id="scope-row-code-read">
+              <span class="scope-icon"><svg class="icon icon-sm icon-status-pending" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-clock"></use></svg></span>
+              <span class="scope-label" style="font-weight:500;">Code: Read</span>
+              <span class="scope-desc text-muted" style="font-size:0.78rem; margin-left:auto;">List and clone repositories</span>
+            </div>
+            <div class="scope-item-row" id="scope-row-code-status">
+              <span class="scope-icon"><svg class="icon icon-sm icon-status-pending" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-clock"></use></svg></span>
+              <span class="scope-label" style="font-weight:500;">Code: Status</span>
+              <span class="scope-desc text-muted" style="font-size:0.78rem; margin-left:auto;">Commit status badges</span>
+            </div>
+            <div class="scope-item-row" id="scope-row-wit-write">
+              <span class="scope-icon"><svg class="icon icon-sm icon-status-pending" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-clock"></use></svg></span>
+              <span class="scope-label" style="font-weight:500;">Work Items: Write (Prohibited)</span>
+              <span class="scope-desc text-muted" style="font-size:0.78rem; margin-left:auto;">Must NOT be granted</span>
+            </div>
+            <div class="scope-item-row" id="scope-row-code-full">
+              <span class="scope-icon"><svg class="icon icon-sm icon-status-pending" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-clock"></use></svg></span>
+              <span class="scope-label" style="font-weight:500;">Code: Full (Prohibited)</span>
+              <span class="scope-desc text-muted" style="font-size:0.78rem; margin-left:auto;">Must NOT be granted</span>
+            </div>
+          </div>
+          <div id="scope-diagnostic-alerts" style="margin-top:0.6rem; font-size:0.8rem; color:var(--red);" hidden></div>
+        </div>
+
+        <div id="scope-responsibility-notice" class="info-banner" style="margin-top: 0.8rem; font-size: 0.82rem; line-height: 1.5;">
+          <svg class="icon icon-sm" aria-hidden="true" style="flex-shrink:0; margin-top:2px;"><use href="/assets/icons/sprite.svg#icon-info"></use></svg>
+          <div>
+            <strong>Scope Responsibility Notice:</strong> X-Factory only needs <code>Work Items: Read</code>, <code>Code: Read & write</code>, and <code>Code: Status</code>. It is your responsibility to ensure no additional scopes (such as Full, Build, Release, or Security) are granted to this token.
+          </div>
+        </div>
+
+        <div id="scope-overprivileged-warning" class="warning-box" style="margin-top: 0.6rem; padding: 0.75rem; background: var(--bg-card); border-left: 3px solid var(--orange); border-radius: 4px;" hidden>
+          <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
+            <svg class="icon icon-sm" aria-hidden="true" style="color: var(--orange); flex-shrink:0; margin-top:2px;"><use href="/assets/icons/sprite.svg#icon-alert-triangle"></use></svg>
+            <div>
+              <strong style="color: var(--orange); font-size: 0.88rem;">Token Scope Notice</strong>
+              <p id="scope-overprivileged-text" style="margin: 0.25rem 0 0.5rem 0; font-size: 0.8rem; color: var(--text-muted);"></p>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text);">
+                <input type="checkbox" id="chk-pat-least-privilege-ack">
+                <span>I understand that X-Factory only needs minimal permissions and accept responsibility for this token's scopes.</span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -398,7 +470,8 @@ const WIZARD_MODAL_TEMPLATE = `
                 <span class="tooltip-badge" tabindex="0" role="tooltip" aria-label="Help: Azure PAT">?
                   <span class="tooltip-popover">
                     <strong>Personal Access Token (PAT)</strong>
-                    Azure DevOps PAT with <code>Code (Read)</code> scope required to list project repositories online. If you already configured this in Factory Settings (Settings → Trackers), leave this field blank.
+                    Azure DevOps PAT with <code>Code (Read)</code> and <code>Code (Status)</code> scopes required to list project repositories and publish check statuses online.<br>
+                    <a href="/docs#azure-code" target="_blank" class="docs-link" style="color: var(--accent); text-decoration: underline; margin-top: 4px; display: inline-block;">Open Repository Scopes Guide ↗</a>
                   </span>
                 </span>
               </div>
@@ -419,10 +492,7 @@ const WIZARD_MODAL_TEMPLATE = `
           <p class="text-muted" style="margin-bottom: 0.8rem;">Click Discover Repositories to query your provider (or scan local workspace folder).</p>
           <div style="display: flex; align-items: center; gap: 0.8rem;">
             <button id="btn-run-discovery" class="btn-primary" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
+              <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-search"></use></svg>
               <span>Discover Repositories</span>
             </button>
             <span id="discovery-status-text" class="text-muted" style="font-size: 0.88rem;"><span id="discovery-status"></span></span>

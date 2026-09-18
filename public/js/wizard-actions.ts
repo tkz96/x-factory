@@ -10,6 +10,7 @@ import {
   runDiscoveryApi,
   testTrackerConnectionApi,
 } from "./wizard-api.js";
+import { renderScopeDiagnostics } from "./wizard-render.js";
 import {
   buildProjectConfig,
   type SelectedWizardRepo,
@@ -59,7 +60,9 @@ export async function checkWorkspacePath(targetPath: string): Promise<void> {
   }
 }
 
-export async function handleTestTrackerConnection(): Promise<void> {
+export async function handleTestTrackerConnection(
+  sm?: WizardStateMachine,
+): Promise<void> {
   const btn = $<HTMLButtonElement>("#btn-test-tracker-connection");
   const resultBox =
     $<HTMLElement>("#tracker-test-result") ||
@@ -68,7 +71,7 @@ export async function handleTestTrackerConnection(): Promise<void> {
 
   resultBox.hidden = false;
   resultBox.className = "connection-result testing";
-  resultBox.textContent = "Testing connection…";
+  resultBox.textContent = "Testing connection & least-privilege scopes…";
   if (btn) btn.disabled = true;
 
   try {
@@ -82,7 +85,8 @@ export async function handleTestTrackerConnection(): Promise<void> {
       email?: string;
       token?: string;
       repo?: string;
-    } = { provider };
+      validateScopes?: boolean;
+    } = { provider, validateScopes: true };
     if (provider === "azure") {
       payload.orgUrl = getVal("onboard-azure-org-url-step2");
       payload.project = getVal("onboard-tracker-project");
@@ -98,7 +102,23 @@ export async function handleTestTrackerConnection(): Promise<void> {
       payload.token = getVal("onboard-github-token");
     }
 
-    const res = await testTrackerConnectionApi(payload);
+    const res = (await testTrackerConnectionApi(
+      payload,
+    )) as import("../../src/shared/types.js").AzureConnectionResult & {
+      message?: string;
+      scopes?: {
+        workItemsRead: boolean;
+        codeRead: boolean;
+        codeStatus: boolean;
+        workItemsWriteDetected: boolean;
+        codeFullDetected?: boolean;
+      };
+      overPrivileged?: boolean;
+      scopeErrors?: string[];
+      scopeWarnings?: string[];
+      warnings?: string[];
+    };
+
     resultBox.className = res.ok
       ? "connection-result success"
       : "connection-result error";
@@ -106,6 +126,21 @@ export async function handleTestTrackerConnection(): Promise<void> {
       ? res.message ||
         `✓ Connected successfully. Found ${(res.repositories || []).length} repositories.`
       : `✗ Connection failed: ${res.error || "Unknown error"}`;
+
+    if (provider === "azure") {
+      renderScopeDiagnostics(res);
+      if (sm) {
+        sm.update({
+          patScopeResult: {
+            ok: res.ok,
+            overPrivileged: res.overPrivileged,
+            scopes: res.scopes,
+            errors: res.scopeErrors || (res.error ? [res.error] : []),
+            warnings: res.warnings || res.scopeWarnings,
+          },
+        });
+      }
+    }
   } catch (err) {
     resultBox.className = "connection-result error";
     resultBox.textContent = `✗ Connection error: ${err instanceof Error ? err.message : String(err)}`;

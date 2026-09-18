@@ -6,6 +6,8 @@ import {
   createImplementationSession,
   type PiAgentSession,
 } from "./agents/pi.js";
+import { createAzurePullRequest } from "./azure/pr.js";
+import { publishAzureCommitStatus } from "./azure/status.js";
 import type { RunEventBus } from "./events.js";
 import * as git from "./git.js";
 import { createPullRequest } from "./github.js";
@@ -36,6 +38,8 @@ export interface PipelineDependencies {
   safeCommitAll: typeof git.safeCommitAll;
   push: typeof git.push;
   createPullRequest: typeof createPullRequest;
+  createAzurePullRequest: typeof createAzurePullRequest;
+  publishStatus: typeof publishAzureCommitStatus;
   createImplementationSession: typeof createImplementationSession;
   runVerification: typeof runVerification;
   reviewRun: typeof reviewRun;
@@ -52,6 +56,8 @@ export const defaultPipelineDeps: PipelineDependencies = {
   safeCommitAll: git.safeCommitAll,
   push: git.push,
   createPullRequest,
+  createAzurePullRequest,
+  publishStatus: publishAzureCommitStatus,
   createImplementationSession,
   runVerification,
   reviewRun,
@@ -324,6 +330,27 @@ async function executeVerifyAndRepairStage(
     await persistVerificationArtifacts(run.artifactsDir, vResult);
     eventBus.emit(id, { type: "verification", result: vResult });
 
+    if (
+      project.issueTracker?.provider === "azure" &&
+      project.issueTracker?.azure
+    ) {
+      try {
+        const headSha = await git.getHeadSha(worktreePath);
+        const { orgUrl, project: azureProject } = project.issueTracker.azure;
+        const repoName = project.name || project.id;
+        await deps.publishStatus({
+          orgUrl,
+          project: azureProject,
+          repoIdOrName: repoName,
+          commitSha: headSha,
+          state: vResult.passed ? "succeeded" : "failed",
+          description: `Verification ${vResult.passed ? "passed" : "failed"}: ${vResult.summary.slice(0, 100)}`,
+        });
+      } catch {
+        // Non-blocking status reporting
+      }
+    }
+
     if (vResult.passed) {
       eventBus.emitStageEvidence(
         id,
@@ -459,12 +486,40 @@ export async function executeDeliverStage(
   await deps.push(worktree, run.branch);
 
   eventBus.emit(run.id, { type: "pr_step", text: "Creating pull request…" });
-  const prUrl = await deps.createPullRequest(
-    worktree,
-    prTitle,
-    prBody,
-    project.defaultBranch,
-  );
+  let prUrl = "";
+  if (
+    project.issueTracker?.provider === "azure" &&
+    project.issueTracker?.azure
+  ) {
+    const { orgUrl, project: azureProject } = project.issueTracker.azure;
+    const repoName = project.name || project.id;
+    const azPrResult = await deps.createAzurePullRequest({
+      orgUrl,
+      project: azureProject,
+      repoIdOrName: repoName,
+      sourceBranch: run.branch,
+      targetBranch: project.defaultBranch,
+      title: prTitle,
+      description: prBody,
+    });
+    if (azPrResult.ok && azPrResult.url) {
+      prUrl = azPrResult.url;
+    } else {
+      prUrl = await deps.createPullRequest(
+        worktree,
+        prTitle,
+        prBody,
+        project.defaultBranch,
+      );
+    }
+  } else {
+    prUrl = await deps.createPullRequest(
+      worktree,
+      prTitle,
+      prBody,
+      project.defaultBranch,
+    );
+  }
 
   const pr: PullRequest = {
     url: prUrl.trim(),

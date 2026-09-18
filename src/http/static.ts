@@ -45,7 +45,12 @@ export async function serveStatic(
   pathname: string,
   publicDir: string,
 ): Promise<Response> {
-  let relPath = pathname === "/" ? "index.html" : pathname;
+  let relPath =
+    pathname === "/"
+      ? "index.html"
+      : pathname === "/docs" || pathname === "/docs/"
+        ? "docs.html"
+        : pathname;
   if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
   const filePath = path.normalize(path.join(publicDir, relPath));

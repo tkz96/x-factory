@@ -24,6 +24,7 @@ async function queryAzureWorkItemIds(
     headers: { Authorization: auth, "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
   });
+
   if (!res.ok) {
     throw new Error(
       `Azure DevOps WIQL error ${res.status}: ${await res.text()}`,
@@ -39,7 +40,11 @@ async function queryAzureWorkItemIds(
   return (parsed.data.workItems ?? []).map((w) => w.id).slice(0, 50);
 }
 
-function parseAzureWorkItem(item: AzureWorkItem): TrackerTicket {
+function parseAzureWorkItem(
+  item: AzureWorkItem,
+  orgUrl?: string,
+  project?: string,
+): TrackerTicket {
   const title = String(item.fields["System.Title"] || "");
   const rawDesc = String(item.fields["System.Description"] || "");
   const rawCriteria = String(
@@ -47,18 +52,34 @@ function parseAzureWorkItem(item: AzureWorkItem): TrackerTicket {
   );
   const desc = stripHtml(rawDesc);
   const criteriaText = rawCriteria ? stripHtml(rawCriteria) : desc;
+  let criteria = extractCriteria(criteriaText);
+  if (criteria.length === 0 && rawCriteria) {
+    const stripped = stripHtml(rawCriteria).trim();
+    if (stripped) {
+      criteria = stripped
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+
   const tags = String(item.fields["System.Tags"] || "")
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);
 
+  const fallbackUrl =
+    orgUrl && project
+      ? `${orgUrl.replace(/\/+$/, "")}/${encodeURIComponent(project)}/_workitems/edit/${item.id}`
+      : "";
+
   return {
     id: `AZ-${item.id}`,
     title,
     description: desc,
-    acceptanceCriteria: extractCriteria(criteriaText),
+    acceptanceCriteria: criteria,
     labels: tags,
-    url: item._links?.html?.href || "",
+    url: item._links?.html?.href || fallbackUrl,
     provider: "azure" as const,
   };
 }
@@ -107,5 +128,7 @@ export async function fetchAzureTickets(options: {
     );
   }
 
-  return itemsParsed.data.value.map(parseAzureWorkItem);
+  return itemsParsed.data.value.map((item) =>
+    parseAzureWorkItem(item, options.orgUrl, options.project),
+  );
 }

@@ -281,6 +281,7 @@ function handleOnboardNext(): void {
     goToOnboardStep(2);
   } else if (s.step === 2) {
     const tracker = getVal("onboard-tracker-connection", "azure");
+    const gitHost = getVal("onboard-git-host", "azure");
     const trackerProject = getVal("onboard-tracker-project").trim();
     const trackerOrgUrl = getVal("onboard-azure-org-url-step2").trim();
     const trackerPat = getVal("onboard-azure-pat-step2").trim();
@@ -299,6 +300,29 @@ function handleOnboardNext(): void {
       if (!trackerProject) {
         setOnboardError("Azure Project Name is required.");
         return;
+      }
+      if (trackerPat) {
+        if (!s.patScopeResult) {
+          setOnboardError(
+            "Please click 'Test Connection' to verify required least-privilege scopes for your Azure PAT before proceeding.",
+          );
+          return;
+        }
+        if (!s.patScopeResult.ok) {
+          setOnboardError(
+            `Missing required scopes: ${s.patScopeResult.errors?.join(" ") || "Invalid scopes detected"}. Please update your PAT in Azure DevOps before continuing.`,
+          );
+          return;
+        }
+        if (s.patScopeResult.overPrivileged) {
+          const ack = $<HTMLInputElement>("#chk-pat-least-privilege-ack");
+          if (ack && !ack.checked) {
+            setOnboardError(
+              "Please check 'I understand' to acknowledge this token's permissions before continuing.",
+            );
+            return;
+          }
+        }
       }
     } else if (tracker === "jira") {
       if (!trackerHost) {
@@ -326,6 +350,7 @@ function handleOnboardNext(): void {
 
     sm.update({
       tracker,
+      gitHost,
       trackerProject,
       trackerOrgUrl,
       trackerPat,
@@ -366,6 +391,30 @@ function bindWizardInputs(): void {
     });
   }
 
+  const gitHostSelect = $<HTMLSelectElement>("#onboard-git-host");
+  if (gitHostSelect) {
+    gitHostSelect.addEventListener("change", (e: Event) => {
+      const val = (e.target as HTMLSelectElement).value;
+      sm.update({ gitHost: val });
+    });
+  }
+
+  const patInput = $<HTMLInputElement>("#onboard-azure-pat-step2");
+  if (patInput) {
+    patInput.addEventListener("input", () => {
+      sm.update({ patScopeResult: undefined });
+      const card = $<HTMLElement>("#azure-scope-diagnostic-card");
+      if (card) card.hidden = true;
+      const resultBox =
+        $<HTMLElement>("#tracker-test-result") ||
+        $<HTMLElement>("#tracker-test-status");
+      if (resultBox) {
+        resultBox.textContent = "";
+        resultBox.className = "tracker-test-status";
+      }
+    });
+  }
+
   const discoverySource = $<HTMLSelectElement>("#onboard-discovery-source");
   if (discoverySource) {
     discoverySource.addEventListener("change", (e: Event) => {
@@ -386,7 +435,11 @@ function bindWizardInputs(): void {
   }
 
   const btnTest = $<HTMLButtonElement>("#btn-test-tracker-connection");
-  if (btnTest) btnTest.addEventListener("click", handleTestTrackerConnection);
+  if (btnTest) {
+    btnTest.addEventListener("click", () => {
+      void handleTestTrackerConnection(sm);
+    });
+  }
 
   const btnDiscover = $<HTMLButtonElement>("#btn-run-discovery");
   if (btnDiscover) {

@@ -141,3 +141,62 @@ export function renderDiffElements(diffText: string): HTMLElement[] {
     return span;
   });
 }
+
+export type IconName =
+  | "layers"
+  | "play"
+  | "clock"
+  | "folder"
+  | "settings"
+  | "book-open"
+  | "plus"
+  | "search"
+  | "refresh-cw"
+  | "arrow-left"
+  | "x"
+  | "check"
+  | "sun"
+  | "moon"
+  | "external-link"
+  | "alert-circle"
+  | "info"
+  | "lock"
+  | "shield-check"
+  | "check-circle-2"
+  | "x-circle"
+  | "loader-2"
+  | "calendar"
+  | "git-branch"
+  | "azure"
+  | "github"
+  | "gitlab"
+  | "jira"
+  | "bitbucket";
+
+export type IconSize = "xs" | "sm" | "md" | "lg" | "xl";
+
+export function renderIcon(
+  name: IconName,
+  size: IconSize = "md",
+  extraClass = "",
+): string {
+  const cls = `icon icon-${size}${extraClass ? ` ${extraClass}` : ""}`;
+  return `<svg class="${cls}" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-${name}"></use></svg>`;
+}
+
+export function createIconSvg(
+  name: IconName,
+  size: IconSize = "md",
+  extraClass = "",
+): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute(
+    "class",
+    `icon icon-${size}${extraClass ? ` ${extraClass}` : ""}`,
+  );
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `/assets/icons/sprite.svg#icon-${name}`);
+  svg.appendChild(use);
+  return svg;
+}

@@ -6,7 +6,7 @@ import type {
   ProjectRepository,
   RepositoryRole,
 } from "../../src/shared/types.js";
-import { clearElement, el } from "./dom.js";
+import { clearElement, createIconSvg, el } from "./dom.js";
 import { $ } from "./utils.js";
 import type { SelectedWizardRepo, WizardState } from "./wizard-state.js";
 import { inferRepoRole } from "./wizard-url.js";
@@ -535,5 +535,119 @@ export function renderDiscoveredReposList(
         (newRole) => onRoleChange(r.name, newRole),
       ),
     );
+  }
+}
+
+export function renderScopeDiagnostics(res: {
+  ok: boolean;
+  overPrivileged?: boolean;
+  scopes?: {
+    workItemsRead: boolean;
+    codeRead: boolean;
+    codeStatus: boolean;
+    workItemsWriteDetected: boolean;
+    codeFullDetected?: boolean;
+  };
+  scopeErrors?: string[];
+  scopeWarnings?: string[];
+  warnings?: string[];
+  errors?: string[];
+  error?: string;
+}): void {
+  const card = $<HTMLElement>("#azure-scope-diagnostic-card");
+  if (!card) return;
+
+  if (!res.scopes) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  const pill = $<HTMLElement>("#scope-status-pill");
+  if (pill) {
+    if (res.ok && !res.overPrivileged) {
+      pill.textContent = "Verified Token Privileges";
+      pill.style.background = "var(--green-dim)";
+      pill.style.color = "var(--green)";
+    } else if (res.ok && res.overPrivileged) {
+      pill.textContent = "Notice: Over-Privileged";
+      pill.style.background = "var(--orange-dim)";
+      pill.style.color = "var(--orange)";
+    } else {
+      pill.textContent = "Missing Required Scopes";
+      pill.style.background = "var(--red-dim)";
+      pill.style.color = "var(--red)";
+    }
+  }
+
+  const updateRow = (id: string, ok: boolean, isViolation = false) => {
+    const row = $<HTMLElement>(`#${id}`);
+    if (!row) return;
+    const icon = row.querySelector<HTMLElement>(".scope-icon");
+    if (icon) {
+      clearElement(icon);
+      if (isViolation) {
+        if (ok) {
+          row.className = "scope-item-row failed";
+          icon.appendChild(
+            createIconSvg("x-circle", "sm", "icon-status-failed"),
+          );
+        } else {
+          row.className = "scope-item-row passed";
+          icon.appendChild(
+            createIconSvg("check-circle-2", "sm", "icon-status-passed"),
+          );
+        }
+      } else {
+        if (ok) {
+          row.className = "scope-item-row passed";
+          icon.appendChild(
+            createIconSvg("check-circle-2", "sm", "icon-status-passed"),
+          );
+        } else {
+          row.className = "scope-item-row failed";
+          icon.appendChild(
+            createIconSvg("x-circle", "sm", "icon-status-failed"),
+          );
+        }
+      }
+    }
+  };
+
+  updateRow("scope-row-wit-read", Boolean(res.scopes.workItemsRead));
+  updateRow("scope-row-code-read", Boolean(res.scopes.codeRead));
+  updateRow("scope-row-code-status", Boolean(res.scopes.codeStatus));
+  updateRow(
+    "scope-row-wit-write",
+    Boolean(res.scopes.workItemsWriteDetected),
+    true,
+  );
+  updateRow("scope-row-code-full", Boolean(res.scopes.codeFullDetected), true);
+
+  const warnBox = $<HTMLElement>("#scope-overprivileged-warning");
+  const warnText = $<HTMLElement>("#scope-overprivileged-text");
+  const ackChk = $<HTMLInputElement>("#chk-pat-least-privilege-ack");
+  if (warnBox && warnText) {
+    if (res.overPrivileged && res.warnings && res.warnings.length > 0) {
+      warnBox.hidden = false;
+      warnText.textContent = res.warnings.join(" ");
+      if (ackChk) ackChk.checked = false;
+    } else {
+      warnBox.hidden = true;
+      warnText.textContent = "";
+      if (ackChk) ackChk.checked = true;
+    }
+  }
+
+  const alerts = $<HTMLElement>("#scope-diagnostic-alerts");
+  if (alerts) {
+    const errs = res.scopeErrors || (res.error ? [res.error] : []);
+    if (errs.length > 0 && !res.ok) {
+      alerts.hidden = false;
+      alerts.textContent = errs.join(" ");
+    } else {
+      alerts.hidden = true;
+      alerts.textContent = "";
+    }
   }
 }

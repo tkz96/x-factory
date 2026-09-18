@@ -59,6 +59,8 @@ const testPipelineDeps: PipelineDependencies = {
   safeCommitAll: async () => {},
   push: async () => {},
   createPullRequest: async () => mockPrUrl,
+  createAzurePullRequest: async () => ({ ok: true, url: mockPrUrl }),
+  publishStatus: async () => ({ ok: true }),
   createImplementationSession: async () =>
     ({
       prompt: async (text: string) => {

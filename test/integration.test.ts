@@ -89,6 +89,36 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       expect([403, 404]).toContain(res.status);
     });
 
+    it("serves docs.html on GET /docs with documentation content and styles", async () => {
+      const res = await fetch(`${baseUrl}/docs`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toContain("text/html");
+
+      const html = await res.text();
+      expect(html).toContain("X-Factory Documentation");
+      expect(html).toContain('id="azure-pat"');
+      expect(html).toContain('href="/styles.css"');
+    });
+
+    it("serves docs.html on GET /docs/ with trailing slash", async () => {
+      const res = await fetch(`${baseUrl}/docs/`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toContain("text/html");
+
+      const html = await res.text();
+      expect(html).toContain("X-Factory Documentation");
+    });
+
+    it("serves sprite.svg on GET /assets/icons/sprite.svg with image/svg+xml MIME type", async () => {
+      const res = await fetch(`${baseUrl}/assets/icons/sprite.svg`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+
+      const text = await res.text();
+      expect(text).toContain('<symbol id="icon-layers"');
+      expect(text).toContain('<symbol id="icon-azure"');
+    });
+
     it("returns 404 for unknown static file", async () => {
       const res = await fetch(`${baseUrl}/non-existent-asset.xyz`);
       expect(res.status).toBe(404);
@@ -240,6 +270,28 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     it("GET /api/runs/:id/events returns 404 for non-existent run", async () => {
       const res = await fetch(`${baseUrl}/api/runs/non-existent-sse/events`);
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("Azure Scope Diagnostics API", () => {
+    it("POST /api/projects/test-azure-scopes returns diagnostic structure", async () => {
+      const res = await fetch(`${baseUrl}/api/projects/test-azure-scopes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgUrl: "",
+          project: "",
+        }),
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as {
+        ok: boolean;
+        scopes: unknown;
+        errors: string[];
+      };
+      expect(data.ok).toBe(false);
+      expect(data).toHaveProperty("scopes");
+      expect(data).toHaveProperty("errors");
     });
   });
 });

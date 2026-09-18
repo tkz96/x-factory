@@ -51,6 +51,22 @@ export interface WizardState {
   trackerHost: string;
   trackerEmail: string;
   trackerToken: string;
+  gitHost: string;
+  patScopeResult?:
+    | {
+        ok: boolean;
+        overPrivileged?: boolean | undefined;
+        scopes?: {
+          workItemsRead: boolean;
+          codeRead: boolean;
+          codeStatus: boolean;
+          workItemsWriteDetected: boolean;
+          codeFullDetected?: boolean | undefined;
+        };
+        errors?: string[];
+        warnings?: string[];
+      }
+    | undefined;
   discoverySource: string;
   primaryRepo: string;
   discovered: DiscoveredRepo[];
@@ -74,6 +90,8 @@ export function createInitialWizardState(): WizardState {
     trackerHost: "",
     trackerEmail: "",
     trackerToken: "",
+    gitHost: "azure",
+    patScopeResult: undefined,
     discoverySource: "local",
     primaryRepo: "",
     discovered: [],

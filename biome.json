@@ -40,7 +40,12 @@
   },
   "overrides": [
     {
-      "includes": ["public/index.html", "public/favicon.svg"],
+      "includes": [
+        "public/index.html",
+        "public/docs.html",
+        "public/favicon.svg",
+        "public/assets/**"
+      ],
       "linter": {
         "rules": {
           "a11y": {

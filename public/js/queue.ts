@@ -1,7 +1,7 @@
 // public/js/queue.ts — Work item queue, ticket cards, instant search, and run pre-fill.
 
 import type { Ticket } from "../../src/shared/types.js";
-import { clearElement, el } from "./dom.js";
+import { clearElement, createIconSvg, el } from "./dom.js";
 import { openNewRunModal } from "./router.js";
 import { state } from "./state.js";
 import { $, api } from "./utils.js";
@@ -104,45 +104,6 @@ function createTicketCard(t: Ticket): HTMLElement {
   );
 }
 
-function createEmptyQueueSvg(): SVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("width", "32");
-  svg.setAttribute("height", "32");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1.8");
-
-  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  rect.setAttribute("x", "3");
-  rect.setAttribute("y", "4");
-  rect.setAttribute("width", "18");
-  rect.setAttribute("height", "18");
-  rect.setAttribute("rx", "2");
-  rect.setAttribute("ry", "2");
-  svg.appendChild(rect);
-
-  for (const [x1, x2] of [
-    ["16", "16"],
-    ["8", "8"],
-  ]) {
-    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    l.setAttribute("x1", x1);
-    l.setAttribute("y1", "2");
-    l.setAttribute("x2", x2);
-    l.setAttribute("y2", "6");
-    svg.appendChild(l);
-  }
-  const l3 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  l3.setAttribute("x1", "3");
-  l3.setAttribute("y1", "10");
-  l3.setAttribute("x2", "21");
-  l3.setAttribute("y2", "10");
-  svg.appendChild(l3);
-
-  return svg;
-}
-
 function renderEmptyQueue(): void {
   const queueTicketsList = $<HTMLElement>("#queue-tickets-list");
   if (!queueTicketsList) return;
@@ -158,7 +119,7 @@ function renderEmptyQueue(): void {
   clearElement(queueTicketsList);
   queueTicketsList.appendChild(
     el("div", { className: "empty-state card" }, [
-      el("div", { className: "empty-icon" }, [createEmptyQueueSvg()]),
+      el("div", { className: "empty-icon" }, [createIconSvg("calendar", "xl")]),
       el("h3", { textContent: "No Work Items in Queue" }),
       el("p", {}, [
         "No open tickets with label ",

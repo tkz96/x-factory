@@ -9,25 +9,61 @@
         "connectionId": "azure",
         "projectId": "Converso",
         "azure": {
-          "orgUrl": "",
+          "orgUrl": "https://dev.azure.com/xynotech",
           "project": "Converso"
         }
       },
       "repositories": [
         {
-          "id": "f1c0daa8-127e-4dee-9f3b-48437d25163c",
+          "id": "ai-engine",
+          "name": "ai-engine",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/ai-engine",
+          "path": "/Users/talhazuberi/projects/ai-engine",
+          "defaultBranch": "main",
+          "role": "other"
+        },
+        {
+          "id": "Vendifai-Custom",
+          "name": "Vendifai-Custom",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Vendifai-Custom",
+          "path": "/Users/talhazuberi/projects/Vendifai-Custom",
+          "defaultBranch": "main",
+          "role": "other"
+        },
+        {
+          "id": "Shopify-Plugin",
+          "name": "Shopify-Plugin",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Shopify-Plugin",
+          "path": "/Users/talhazuberi/projects/Shopify-Plugin",
+          "defaultBranch": "main",
+          "role": "other"
+        },
+        {
+          "id": "Converso-Front-End",
           "name": "Converso-Front-End",
           "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Converso-Front-End",
           "path": "/Users/talhazuberi/projects/Converso-Front-End",
           "defaultBranch": "main",
-          "role": "frontend",
-          "commands": {
-            "test": "npm run test",
-            "typecheck": "npx tsc --noEmit"
-          }
+          "role": "frontend"
         },
         {
-          "id": "78fa6843-963e-4c9e-aea1-9cf37189541d",
+          "id": "VendifAi-Extension",
+          "name": "VendifAi-Extension",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/VendifAi-Extension",
+          "path": "/Users/talhazuberi/projects/VendifAi-Extension",
+          "defaultBranch": "main",
+          "role": "other"
+        },
+        {
+          "id": "converso-infra-prod",
+          "name": "converso-infra-prod",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/converso-infra-prod",
+          "path": "/Users/talhazuberi/projects/converso-infra-prod",
+          "defaultBranch": "main",
+          "role": "infrastructure"
+        },
+        {
+          "id": "converso-portal",
           "name": "converso-portal",
           "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/converso-portal",
           "path": "/Users/talhazuberi/projects/converso-portal",
@@ -35,49 +71,59 @@
           "role": "frontend"
         },
         {
-          "id": "564ae039-1d36-4822-a131-a6628194ed5b",
+          "id": "ticket-agent",
+          "name": "ticket-agent",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/ticket-agent",
+          "path": "/Users/talhazuberi/projects/ticket-agent",
+          "defaultBranch": "main",
+          "role": "other"
+        },
+        {
+          "id": "RBRE",
           "name": "RBRE",
           "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/RBRE",
           "path": "/Users/talhazuberi/projects/RBRE",
           "defaultBranch": "main",
-          "role": "other",
-          "commands": {
-            "test": "pytest",
-            "lint": "ruff check"
-          }
+          "role": "other"
         },
         {
-          "id": "63d12798-14e2-412c-a006-b3ebd508c8eb",
+          "id": "Vendifai-pulse",
           "name": "Vendifai-pulse",
           "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Vendifai-pulse",
           "path": "/Users/talhazuberi/projects/Vendifai-pulse",
           "defaultBranch": "main",
-          "role": "worker",
-          "commands": {
-            "test": "bundle exec rspec",
-            "lint": "bundle exec rubocop"
-          }
+          "role": "worker"
         },
         {
-          "id": "2ae6e24f-4ad8-4d78-90b6-b9f08048a01c",
+          "id": "Converso",
           "name": "Converso",
           "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/Converso",
           "path": "/Users/talhazuberi/projects/Converso",
           "defaultBranch": "main",
-          "role": "other",
-          "commands": {
-            "test": "pnpm run test",
-            "typecheck": "pnpm exec tsc --noEmit",
-            "lint": "pnpm run lint"
-          }
+          "role": "other"
         },
         {
-          "id": "a215eb65-0c4b-4f97-b487-d85b65c623c9",
+          "id": "vendifiai-test-automation",
+          "name": "vendifiai-test-automation",
+          "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/vendifiai-test-automation",
+          "path": "/Users/talhazuberi/projects/vendifiai-test-automation",
+          "defaultBranch": "main",
+          "role": "other"
+        },
+        {
+          "id": "converso-infra",
           "name": "converso-infra",
           "remote": "https://xynotech@dev.azure.com/xynotech/Converso/_git/converso-infra",
           "path": "/Users/talhazuberi/projects/converso-infra",
           "defaultBranch": "main",
           "role": "infrastructure"
+        },
+        {
+          "id": "ai-docs",
+          "name": "ai-docs",
+          "path": "/Users/talhazuberi/projects/ai-docs",
+          "defaultBranch": "main",
+          "role": "documentation"
         }
       ]
     },
