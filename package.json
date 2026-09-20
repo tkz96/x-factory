@@ -8,7 +8,7 @@
     "start:production": "NODE_ENV=production bun src/server.ts",
     "dev": "bun --watch src/server.ts",
     "build": "bun build ./public/app.ts --target browser --outdir dist/public --minify && bun run build:assets",
-    "build:assets": "mkdir -p dist/public && cp public/index.html public/docs.html public/styles.css public/favicon.svg dist/public/ && cp -r public/fonts public/assets dist/public/",
+    "build:assets": "mkdir -p dist/public && cp public/index.html public/docs.html public/reference.html public/styles.css public/favicon.svg dist/public/ && cp -r public/fonts public/assets dist/public/",
     "test": "bun test",
     "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov",
     "test:integration": "bun --config=bunfig.selective.toml test test/integration.test.ts",

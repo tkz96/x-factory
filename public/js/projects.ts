@@ -200,11 +200,11 @@ function createProjectCard(p: Project): HTMLElement {
     [
       createProjectCardHeader(p, trackerLabel),
       el("div", { className: "project-card-meta" }, [
-        el("strong", { textContent: "ID:" }),
+        el("strong", { textContent: "ID" }),
         el("code", { title: p.id, textContent: p.id }),
       ]),
       el("div", { className: "project-card-meta" }, [
-        el("strong", { textContent: "Workspace:" }),
+        el("strong", { textContent: "Workspace" }),
         el("code", { title: displayPath, textContent: displayPath }),
       ]),
       createProjectCardFooter(p, repoCount),
@@ -252,15 +252,15 @@ function createArchivedProjectCard(p: Project): HTMLElement {
         ],
       ),
       el("div", { className: "project-card-meta" }, [
-        el("strong", { textContent: "ID:" }),
+        el("strong", { textContent: "ID" }),
         el("code", { title: p.id, textContent: p.id }),
       ]),
       el("div", { className: "project-card-meta" }, [
-        el("strong", { textContent: "Workspace:" }),
+        el("strong", { textContent: "Workspace" }),
         el("code", { title: displayPath, textContent: displayPath }),
       ]),
       el("div", { className: "project-card-meta" }, [
-        el("strong", { textContent: "Tracker:" }),
+        el("strong", { textContent: "Tracker" }),
         el("span", {
           className: "meta-val",
           title: `${trackerLabel} (Locked)`,
@@ -269,7 +269,7 @@ function createArchivedProjectCard(p: Project): HTMLElement {
       ]),
       p.successorId
         ? el("div", { className: "project-card-meta" }, [
-            el("strong", { textContent: "Successor:" }),
+            el("strong", { textContent: "Successor" }),
             el("code", { title: p.successorId, textContent: p.successorId }),
           ])
         : null,
@@ -439,28 +439,31 @@ function renderProjectDetailMeta(metaEl: HTMLElement, project: Project): void {
 
   clearElement(metaEl);
   metaEl.append(
-    el("div", {}, [
-      el("strong", { textContent: "Product ID: " }),
-      el("code", { textContent: project.id }),
+    el("div", { className: "project-meta-item" }, [
+      el("strong", { textContent: "Product ID" }),
+      el("code", { title: project.id, textContent: project.id }),
     ]),
-    el("div", {}, [
-      el("strong", { textContent: "Workspace Root: " }),
-      el("code", { textContent: project.workspacePath || "None" }),
+    el("div", { className: "project-meta-item" }, [
+      el("strong", { textContent: "Workspace Root" }),
+      el("code", {
+        title: project.workspacePath || "None",
+        textContent: project.workspacePath || "None",
+      }),
     ]),
-    el("div", {}, [
-      el("strong", { textContent: "Issue Tracker: " }),
+    el("div", { className: "project-meta-item" }, [
+      el("strong", { textContent: "Issue Tracker" }),
       el("span", { className: "role-badge", textContent: trackerDesc }),
     ]),
-    el("div", {}, [
-      el("strong", { textContent: "Knowledge Repo: " }),
-      el("code", { textContent: kPath }),
+    el("div", { className: "project-meta-item" }, [
+      el("strong", { textContent: "Knowledge Repo" }),
+      el("code", { title: kPath, textContent: kPath }),
     ]),
   );
 
   if (project.archived) {
     metaEl.append(
-      el("div", {}, [
-        el("strong", { textContent: "Status: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Status" }),
         el("span", {
           className: "role-badge",
           style: {
@@ -528,27 +531,38 @@ function createProjectDetailRepoRow(
     : rReadiness?.message || "Pending Setup";
 
   return el("tr", {}, [
-    el("td", {}, [el("strong", { textContent: r.name })]),
+    el("td", { className: "cell-name" }, [
+      el("strong", { textContent: r.name }),
+    ]),
+    el("td", { className: "cell-readiness" }, [
+      el("span", {
+        className: `status-pill ${statusClass}`,
+        title: rReadiness?.message || "",
+        textContent: statusLabel,
+      }),
+    ]),
     el("td", {}, [
       el("span", {
         className: "role-badge",
         textContent: r.role || "other",
       }),
     ]),
-    el("td", {}, [el("code", { textContent: r.path })]),
-    el("td", {}, [el("code", { textContent: r.defaultBranch || "main" })]),
+    el("td", { className: "cell-branch" }, [
+      el("code", { textContent: r.defaultBranch || "main" }),
+    ]),
     el("td", {}, [
-      el("span", {
-        className: "text-muted",
-        style: { "font-size": "0.76rem" },
-        textContent: r.remote || "—",
+      el("code", {
+        className: "cell-truncate",
+        title: r.path,
+        textContent: r.path,
       }),
     ]),
     el("td", {}, [
       el("span", {
-        className: `status-pill ${statusClass}`,
-        title: rReadiness?.message || "",
-        textContent: statusLabel,
+        className: "text-muted cell-truncate-remote",
+        style: { "font-size": "0.76rem" },
+        title: r.remote || "",
+        textContent: r.remote || "—",
       }),
     ]),
   ]);
@@ -567,11 +581,11 @@ function createProjectDetailTable(
     el("thead", {}, [
       el("tr", {}, [
         el("th", { textContent: "Repository" }),
-        el("th", { textContent: "Role" }),
-        el("th", { textContent: "Local Checkout" }),
-        el("th", { textContent: "Branch" }),
-        el("th", { textContent: "Remote" }),
         el("th", { textContent: "Readiness" }),
+        el("th", { textContent: "Role" }),
+        el("th", { textContent: "Branch" }),
+        el("th", { textContent: "Local Checkout" }),
+        el("th", { textContent: "Remote" }),
       ]),
     ]),
     tbody,
@@ -739,62 +753,78 @@ async function renderProjectTrackerCard(project: Project): Promise<void> {
 
   if (provider === "azure") {
     detailsGrid.append(
-      el("div", {}, [
-        el("strong", { textContent: "Organization URL: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Organization URL" }),
         el("code", {
+          title: tracker?.azure?.orgUrl || "Not configured",
           textContent: tracker?.azure?.orgUrl || "Not configured",
         }),
       ]),
-      el("div", {}, [
-        el("strong", { textContent: "Project: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Project" }),
         el("code", {
+          title:
+            tracker?.azure?.project || tracker?.projectId || "Not configured",
           textContent:
             tracker?.azure?.project || tracker?.projectId || "Not configured",
         }),
       ]),
-      el("div", {}, [
-        el("strong", { textContent: "Required Tag: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Required Tag" }),
         el("code", {
+          style: { "white-space": "nowrap" },
           textContent: tracker?.azure?.requiredLabel || "agentic-workflow",
         }),
       ]),
     );
   } else if (provider === "jira") {
     detailsGrid.append(
-      el("div", {}, [
-        el("strong", { textContent: "Jira Host: " }),
-        el("code", { textContent: tracker?.jira?.host || "Not configured" }),
-      ]),
-      el("div", {}, [
-        el("strong", { textContent: "User Email: " }),
-        el("code", { textContent: tracker?.jira?.email || "Not configured" }),
-      ]),
-      el("div", {}, [
-        el("strong", { textContent: "Project Key: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Jira Host" }),
         el("code", {
+          title: tracker?.jira?.host || "Not configured",
+          textContent: tracker?.jira?.host || "Not configured",
+        }),
+      ]),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "User Email" }),
+        el("code", {
+          title: tracker?.jira?.email || "Not configured",
+          textContent: tracker?.jira?.email || "Not configured",
+        }),
+      ]),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Project Key" }),
+        el("code", {
+          title:
+            tracker?.jira?.project || tracker?.projectId || "Not configured",
           textContent:
             tracker?.jira?.project || tracker?.projectId || "Not configured",
         }),
       ]),
-      el("div", {}, [
-        el("strong", { textContent: "Required Label: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Required Label" }),
         el("code", {
+          style: { "white-space": "nowrap" },
           textContent: tracker?.jira?.requiredLabel || "agentic-workflow",
         }),
       ]),
     );
   } else if (provider === "github") {
     detailsGrid.append(
-      el("div", {}, [
-        el("strong", { textContent: "Repository: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Repository" }),
         el("code", {
+          title:
+            tracker?.github?.repo || tracker?.projectId || "Not configured",
           textContent:
             tracker?.github?.repo || tracker?.projectId || "Not configured",
         }),
       ]),
-      el("div", {}, [
-        el("strong", { textContent: "Required Label: " }),
+      el("div", { className: "project-meta-item" }, [
+        el("strong", { textContent: "Required Label" }),
         el("code", {
+          style: { "white-space": "nowrap" },
           textContent: tracker?.github?.requiredLabel || "agentic-workflow",
         }),
       ]),

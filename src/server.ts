@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProjects } from "./config.js";
 import { reportStaleWorktrees } from "./git.js";
+import { getOpenApiSpec } from "./http/openapi.js";
+import { jsonResponse } from "./http/responses.js";
 import { handleApi } from "./http/routes.js";
 import { serveStatic } from "./http/static.js";
 import * as runs from "./runs.js";
@@ -51,6 +53,9 @@ export function startServer(port = PORT, customPublicDir?: string) {
       const url = new URL(req.url);
       if (url.pathname.startsWith("/api/")) {
         return handleApi(req, url);
+      }
+      if (url.pathname === "/openapi.json") {
+        return jsonResponse(getOpenApiSpec());
       }
       return serveStatic(url.pathname, publicDir);
     },

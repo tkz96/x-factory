@@ -1,5 +1,6 @@
 // src/http/routes.ts — Thin HTTP routing dispatcher delegating to specialized controllers.
 
+import { getOpenApiSpec } from "./openapi.js";
 import { handleProjectsRoute } from "./projects-controller.js";
 import { errorResponse, jsonResponse } from "./responses.js";
 import { handleRunsRoute } from "./runs-controller.js";
@@ -17,6 +18,9 @@ async function routeApiRequest(
       uptime: Math.floor(process.uptime()),
       version: "0.1.0",
     });
+  }
+  if (resource === "openapi.json" || resource === "openapi") {
+    return jsonResponse(getOpenApiSpec());
   }
   if (
     resource === "projects" ||

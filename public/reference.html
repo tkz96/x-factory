@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="X-Factory Interactive API Reference — Powered by Scalar">
+  <title>API Reference — X-Factory</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+    (() => {
+      const theme = localStorage.getItem("xf_theme") ||
+        (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      document.documentElement.setAttribute("data-theme", theme);
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark-mode");
+      } else {
+        document.documentElement.classList.add("light-mode");
+      }
+    })();
+  </script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .scalar-navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      padding: 0 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .nav-left, .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      padding: 0.4rem 0.65rem;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+    }
+    .nav-btn:hover {
+      color: var(--text);
+      background: var(--bg-hover);
+    }
+    .nav-divider {
+      color: var(--border);
+    }
+    .badge-scalar {
+      background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(191, 90, 242, 0.15));
+      color: var(--accent);
+      border: 1px solid rgba(10, 132, 255, 0.3);
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-pill);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    #scalar-target {
+      flex: 1;
+      width: 100%;
+      min-height: calc(100vh - 56px);
+    }
+    .offline-fallback {
+      display: none;
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 2.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      text-align: center;
+    }
+    .offline-fallback h2 {
+      margin-top: 0;
+      font-size: 1.5rem;
+    }
+    .offline-fallback p {
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .offline-actions {
+      margin-top: 1.5rem;
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="scalar-navbar">
+    <div class="nav-left">
+      <a href="/" class="nav-btn" title="Return to workbench">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-arrow-left"></use></svg>
+        <span>Workbench</span>
+      </a>
+      <a href="/docs" class="nav-btn" title="View documentation">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-book-open"></use></svg>
+        <span>Docs</span>
+      </a>
+      <span class="nav-divider">|</span>
+      <div class="brand" style="display: flex; align-items: center; gap: 0.6rem;">
+        <span class="brand-title" style="font-weight: 700; font-size: 1.05rem;">X-Factory</span>
+        <span class="badge-scalar">SCALAR API REFERENCE</span>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <a href="/api/openapi.json" target="_blank" class="nav-btn" title="Open raw OpenAPI 3.1 specification">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-external-link"></use></svg>
+        <span>OpenAPI JSON</span>
+      </a>
+      <button id="scalar-theme-toggle" type="button" class="theme-toggle" aria-label="Toggle Theme" title="Toggle dark/light mode">
+        <span class="theme-icon sun-icon">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-sun"></use></svg>
+        </span>
+        <span class="theme-icon moon-icon">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-moon"></use></svg>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <div id="scalar-target">
+    <script
+      id="api-reference"
+      data-url="/api/openapi.json"
+      data-configuration='{
+        "theme": "default",
+        "layout": "modern",
+        "defaultHttpClient": { "targetKey": "shell", "clientKey": "curl" },
+        "searchHotKey": "k",
+        "hideDownloadButton": false,
+        "showSidebar": true,
+        "metaData": {
+          "title": "X-Factory API Reference",
+          "description": "Interactive OpenAPI 3.1 Reference for X-Factory developer workbench"
+        }
+      }'></script>
+  </div>
+
+  <div id="scalar-fallback" class="offline-fallback">
+    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📡</div>
+    <h2>Interactive Scalar Reference</h2>
+    <p>
+      The interactive Scalar reference library loads dynamically from CDN (<code>@scalar/api-reference</code>).
+      If you are working offline or external CDNs are restricted, you can inspect the full raw OpenAPI 3.1 specification directly.
+    </p>
+    <div class="offline-actions">
+      <a href="/api/openapi.json" class="btn btn-primary" target="_blank">View OpenAPI Specification (JSON)</a>
+      <a href="/docs" class="btn btn-secondary">Open Workbench Documentation</a>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference" onerror="document.getElementById('scalar-fallback').style.display='block';"></script>
+
+  <script>
+    // Theme toggle handling
+    const themeBtn = document.getElementById("scalar-theme-toggle");
+    themeBtn?.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      if (next === "dark") {
+        document.documentElement.classList.add("dark-mode");
+        document.documentElement.classList.remove("light-mode");
+      } else {
+        document.documentElement.classList.add("light-mode");
+        document.documentElement.classList.remove("dark-mode");
+      }
+      localStorage.setItem("xf_theme", next);
+    });
+  </script>
+</body>
+</html>

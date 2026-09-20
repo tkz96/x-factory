@@ -41,8 +41,7 @@ function createTicketFooter(t: Ticket): HTMLElement {
         href: t.url,
         target: "_blank",
         rel: "noopener",
-        className: "text-muted",
-        style: { "font-size": "0.75rem" },
+        className: "ticket-ext-link",
         textContent: `View on ${t.provider || "tracker"} ↗`,
         onClick: (e: MouseEvent) => e.stopPropagation(),
       })

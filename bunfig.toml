@@ -11,5 +11,6 @@ coveragePathIgnorePatterns = [
   "src/runs.ts",
   "src/trackers/azure.ts",
   "src/trackers/github.ts",
-  "src/trackers/jira.ts"
+  "src/trackers/jira.ts",
+  "src/inspection/readiness.ts"
 ]

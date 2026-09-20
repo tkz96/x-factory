@@ -128,6 +128,45 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       const res = await fetch(`${baseUrl}/missing-script.js`);
       expect(res.status).toBe(404);
     });
+    it("serves reference.html on GET /reference with Scalar configuration", async () => {
+      const res = await fetch(`${baseUrl}/reference`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toContain("text/html");
+
+      const html = await res.text();
+      expect(html).toContain("SCALAR API REFERENCE");
+      expect(html).toContain('data-url="/api/openapi.json"');
+      expect(html).toContain("@scalar/api-reference");
+    });
+
+    it("serves reference.html on GET /scalar alias", async () => {
+      const res = await fetch(`${baseUrl}/scalar`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toContain("text/html");
+    });
+
+    it("serves OpenAPI 3.1 spec on GET /api/openapi.json", async () => {
+      const res = await fetch(`${baseUrl}/api/openapi.json`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe(
+        "application/json; charset=utf-8",
+      );
+
+      const data = await res.json();
+      expect(data.openapi).toBe("3.1.0");
+      expect(data.info.title).toBe("X-Factory API");
+    });
+
+    it("serves OpenAPI 3.1 spec on root GET /openapi.json", async () => {
+      const res = await fetch(`${baseUrl}/openapi.json`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe(
+        "application/json; charset=utf-8",
+      );
+
+      const data = await res.json();
+      expect(data.openapi).toBe("3.1.0");
+    });
   });
 
   describe("Core API Contracts", () => {

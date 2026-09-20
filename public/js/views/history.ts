@@ -10,7 +10,7 @@ const HISTORY_TEMPLATE = `
         <h2>Factory Run History</h2>
         <p class="text-muted">All previous, active, and completed factory runs.</p>
       </div>
-      <button id="btn-history-new-run" class="btn-primary">
+      <button id="btn-history-new-run" class="btn-primary" style="display: none;" aria-hidden="true">
         <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-plus"></use></svg>
         <span>New Run</span>
       </button>

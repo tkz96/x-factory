@@ -50,7 +50,14 @@ export async function serveStatic(
       ? "index.html"
       : pathname === "/docs" || pathname === "/docs/"
         ? "docs.html"
-        : pathname;
+        : pathname === "/reference" ||
+            pathname === "/reference/" ||
+            pathname === "/scalar" ||
+            pathname === "/scalar/" ||
+            pathname === "/api-docs" ||
+            pathname === "/api-docs/"
+          ? "reference.html"
+          : pathname;
   if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
   const filePath = path.normalize(path.join(publicDir, relPath));
