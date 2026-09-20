@@ -4,8 +4,68 @@ import { createAzurePullRequest } from "../azure/pr.js";
 import { defaultEventBus } from "../events.js";
 import * as git from "../git.js";
 import { createPullRequest } from "../github.js";
-import type { PullRequest } from "../shared/types.js";
+import type { Project, PullRequest } from "../shared/types.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
+
+export interface PrMetadata {
+  commitMsg: string;
+  prTitle: string;
+  prBody: string;
+}
+
+export function buildPrMetadata(ticket: {
+  id: string;
+  title: string;
+  acceptanceCriteria: string[];
+}): PrMetadata {
+  const commitMsg = `[X-Factory] ${ticket.id}: ${ticket.title}`;
+  const prTitle = commitMsg;
+  const prBody = `Implemented by X-Factory.\n\nTicket: ${ticket.id} — ${ticket.title}\n\nAcceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n") || "None specified"}`;
+  return { commitMsg, prTitle, prBody };
+}
+
+export async function createPullRequestWithFallback(
+  params: {
+    project: Project;
+    branch: string;
+    worktree: string;
+    prTitle: string;
+    prBody: string;
+  },
+  deps: {
+    createAzurePullRequest: typeof createAzurePullRequest;
+    createPullRequest: typeof createPullRequest;
+  },
+): Promise<string> {
+  const { project, branch, worktree, prTitle, prBody } = params;
+  if (
+    project.issueTracker?.provider === "azure" &&
+    project.issueTracker?.azure
+  ) {
+    const { orgUrl, project: azureProject } = project.issueTracker.azure;
+    const repoName = project.name || project.id;
+    const azPrResult = await deps.createAzurePullRequest({
+      orgUrl,
+      project: azureProject,
+      repoIdOrName: repoName,
+      sourceBranch: branch,
+      targetBranch: project.defaultBranch,
+      title: prTitle,
+      description: prBody,
+    });
+
+    if (azPrResult.ok && azPrResult.url) {
+      return azPrResult.url;
+    }
+  }
+
+  return deps.createPullRequest(
+    worktree,
+    prTitle,
+    prBody,
+    project.defaultBranch,
+  );
+}
 
 export interface DeliverDependencies {
   recordBaseline: typeof git.recordBaseline;
@@ -35,9 +95,7 @@ export class DeliverExecutor implements StageExecutor {
     const { run, project, operationLedgerRepo } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
-    const commitMsg = `[X-Factory] ${run.ticket.id}: ${run.ticket.title}`;
-    const prTitle = commitMsg;
-    const prBody = `Implemented by X-Factory.\n\nTicket: ${run.ticket.id} — ${run.ticket.title}\n\nAcceptance Criteria:\n${run.ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n") || "None specified"}`;
+    const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket);
 
     // 1. Idempotent Git commit (XFM-32, XFM-33)
     await operationLedgerRepo.executeWithLedger(
@@ -86,41 +144,16 @@ export class DeliverExecutor implements StageExecutor {
           text: "Creating pull request…",
         });
 
-        let prUrl = "";
-        if (
-          project.issueTracker?.provider === "azure" &&
-          project.issueTracker?.azure
-        ) {
-          const { orgUrl, project: azureProject } = project.issueTracker.azure;
-          const repoName = project.name || project.id;
-          const azPrResult = await this.deps.createAzurePullRequest({
-            orgUrl,
-            project: azureProject,
-            repoIdOrName: repoName,
-            sourceBranch: run.branch,
-            targetBranch: project.defaultBranch,
-            title: prTitle,
-            description: prBody,
-          });
-
-          if (azPrResult.ok && azPrResult.url) {
-            prUrl = azPrResult.url;
-          } else {
-            prUrl = await this.deps.createPullRequest(
-              worktree,
-              prTitle,
-              prBody,
-              project.defaultBranch,
-            );
-          }
-        } else {
-          prUrl = await this.deps.createPullRequest(
+        const prUrl = await createPullRequestWithFallback(
+          {
+            project,
+            branch: run.branch,
             worktree,
             prTitle,
             prBody,
-            project.defaultBranch,
-          );
-        }
+          },
+          this.deps,
+        );
 
         const createdPr: PullRequest = {
           url: prUrl.trim(),

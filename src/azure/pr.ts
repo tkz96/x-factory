@@ -2,7 +2,7 @@
 // STRICT SAFETY INVARIANT: X-Factory only creates pull requests and posts check statuses.
 // X-Factory MUST NEVER merge, abandon, or close pull requests.
 
-import { formatAzureAuthHeader, resolveAzureAuthHeader } from "./auth.js";
+import { resolveAzureAuthHeader } from "./auth.js";
 
 export interface CreateAzurePullRequestOptions {
   orgUrl: string;
@@ -56,12 +56,7 @@ export async function createAzurePullRequest(
     };
   }
 
-  let authHeader = "";
-  if (options.pat?.trim()) {
-    authHeader = formatAzureAuthHeader(options.pat);
-  } else {
-    authHeader = await resolveAzureAuthHeader();
-  }
+  const authHeader = await resolveAzureAuthHeader(options.pat);
 
   if (!authHeader) {
     return {

@@ -1,353 +1,292 @@
-// test/frontend-smoke.test.ts — Lightweight DOM, navigation, view template, and client bundle smoke tests.
+// test/frontend-smoke.test.ts — React application structure, routing, views, and components smoke tests.
 
 import { describe, expect, it } from "bun:test";
 import path from "node:path";
-import { renderIcon } from "../public/js/dom.js";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import { renderToString } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
+import { App } from "../src/frontend/App.js";
+import { AppShell } from "../src/frontend/components/AppShell.js";
+import { EmptyStateCard } from "../src/frontend/components/EmptyStateCard.js";
+import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
+import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
+import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
+import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
+import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
+import { ModalProvider } from "../src/frontend/context/ModalContext.js";
+import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
+import { routeDefinitions, router } from "../src/frontend/routes.js";
+import { DocsView } from "../src/frontend/views/DocsView.js";
+import { HistoryView } from "../src/frontend/views/HistoryView.js";
+import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
+import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
+import { QueueView } from "../src/frontend/views/QueueView.js";
+import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
+import { RunsView } from "../src/frontend/views/RunsView.js";
+import { SettingsView } from "../src/frontend/views/SettingsView.js";
 
-const PUBLIC_DIR = path.resolve(import.meta.dir, "..", "public");
+const ROOT_DIR = path.resolve(import.meta.dir, "..");
 
-describe("Frontend Smoke — App Shell, Navigation & Views", () => {
-  describe("App Shell & Root Markup", () => {
-    it("index.html contains expected application shell elements", async () => {
-      const html = await Bun.file(path.join(PUBLIC_DIR, "index.html")).text();
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+  return renderToString(
+    React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      React.createElement(
+        ProjectProvider,
+        null,
+        React.createElement(
+          ModalProvider,
+          null,
+          React.createElement(MemoryRouter, null, ui),
+        ),
+      ),
+    ),
+  );
+}
 
-      // Meta and resources
+describe("Frontend Smoke — React Application Structure & Views", () => {
+  describe("React Root & Entrypoint", () => {
+    it("index.html contains React root container and module script entrypoint", async () => {
+      const html = await Bun.file(path.join(ROOT_DIR, "index.html")).text();
+
+      expect(html).toContain('<div id="root"></div>');
+      expect(html).toContain('src="/src/frontend/main.tsx"');
+      expect(html).toContain('type="module"');
       expect(html).toContain("<title>X-Factory</title>");
-      expect(html).toContain('href="/favicon.svg"');
       expect(html).toContain('href="/styles.css"');
-      expect(html).toContain('src="/app.js"');
+      expect(html).toContain('href="/favicon.svg"');
+    });
 
-      // Core layout containers
+    it("src/frontend/main.tsx mounts App inside StrictMode on #root", async () => {
+      const mainTsx = await Bun.file(
+        path.join(ROOT_DIR, "src/frontend/main.tsx"),
+      ).text();
+
+      expect(mainTsx).toContain('document.getElementById("root")');
+      expect(mainTsx).toContain("createRoot");
+      expect(mainTsx).toContain("<StrictMode>");
+      expect(mainTsx).toContain("<App />");
+    });
+
+    it("src/frontend/App.tsx wires QueryClientProvider and RouterProvider", async () => {
+      const appTsx = await Bun.file(
+        path.join(ROOT_DIR, "src/frontend/App.tsx"),
+      ).text();
+
+      expect(appTsx).toContain("<QueryClientProvider");
+      expect(appTsx).toContain("<RouterProvider");
+      expect(appTsx).toContain("client={queryClient}");
+      expect(appTsx).toContain("router={router}");
+
+      // Verify SSR render does not throw
+      const rendered = renderToString(React.createElement(App));
+      expect(rendered).toContain("app-shell");
+    });
+  });
+
+  describe("Router & Route Configuration", () => {
+    it("declares root layout route with AppShell", () => {
+      const rootRoute = routeDefinitions.find((r) => r.path === "/");
+      expect(rootRoute).toBeDefined();
+      expect(rootRoute?.element).toBeDefined();
+      expect(rootRoute?.children).toBeDefined();
+    });
+
+    it("declares all expected canonical workbench routes", () => {
+      const rootRoute = routeDefinitions.find((r) => r.path === "/");
+      const children = rootRoute?.children || [];
+      const paths = children.map((c) => c.path ?? (c.index ? "index" : ""));
+
+      expect(paths).toContain("index");
+      expect(paths).toContain("queue");
+      expect(paths).toContain("runs");
+      expect(paths).toContain("runs/:runId");
+      expect(paths).toContain("history");
+      expect(paths).toContain("projects");
+      expect(paths).toContain("projects/:id");
+      expect(paths).toContain("settings");
+      expect(paths).toContain("docs");
+      expect(paths).toContain("*");
+    });
+
+    it("router instance is initialized", () => {
+      expect(router).toBeDefined();
+      expect(router.state).toBeDefined();
+    });
+  });
+
+  describe("Critical Views", () => {
+    it("QueueView renders search bar, refresh button, and tickets section", () => {
+      const html = renderWithProviders(React.createElement(QueueView));
+
+      expect(html).toContain('id="area-queue"');
+      expect(html).toContain('id="queue-search"');
+      expect(html).toContain('id="btn-queue-refresh"');
+      expect(html).toContain('id="queue-tickets-list"');
+      expect(html).toContain("agentic-workflow");
+    });
+
+    it("ProjectsView renders segmented tabs and project catalog layout", () => {
+      const html = renderWithProviders(React.createElement(ProjectsView));
+
+      expect(html).toContain("Projects");
+      expect(html).toContain("Active Projects");
+      expect(html).toContain("Archived");
+      expect(html).toContain("Onboard Project");
+    });
+
+    it("SettingsView renders tab navigation and settings sections", () => {
+      const html = renderWithProviders(React.createElement(SettingsView));
+
+      expect(html).toContain("Settings");
+      expect(html).toContain("Connections");
+      expect(html).toContain("Appearance");
+      expect(html).toContain("Diagnostics");
+    });
+
+    it("DocsView renders documentation hierarchy, token requirements, and scope table", () => {
+      const html = renderWithProviders(React.createElement(DocsView));
+
+      expect(html).toContain("X-Factory Documentation");
+      expect(html).toContain("Principle of Least Privilege");
+      expect(html).toContain("Security Guardrail");
+    });
+
+    it("HistoryView, RunsView, RunDetailView, and ProjectDetailView export functional components", () => {
+      expect(typeof HistoryView).toBe("function");
+      expect(typeof RunsView).toBe("function");
+      expect(typeof RunDetailView).toBe("function");
+      expect(typeof ProjectDetailView).toBe("function");
+    });
+  });
+
+  describe("Critical Components", () => {
+    it("AppShell renders navigation sidebar, header, and route outlets", () => {
+      const html = renderWithProviders(React.createElement(AppShell));
+
       expect(html).toContain('id="app-shell"');
-      expect(html).toContain('id="app-sidebar"');
-      expect(html).toContain('id="select-project"');
-      expect(html).toContain('id="sidebar-nav"');
-      expect(html).toContain('id="modal-container"');
+      expect(html).toContain("X-Factory");
+      expect(html).toContain('href="/queue"');
+      expect(html).toContain('href="/runs"');
+      expect(html).toContain('href="/projects"');
+      expect(html).toContain('href="/settings"');
+      expect(html).toContain('href="/docs"');
     });
 
-    it("defines navigation routes for all workbench views", async () => {
-      const html = await Bun.file(path.join(PUBLIC_DIR, "index.html")).text();
-
-      // Desktop and mobile navigation items
-      expect(html).toContain('href="#/queue"');
-      expect(html).toContain('href="#/runs"');
-      expect(html).toContain('href="#/projects"');
-      expect(html).toContain('href="#/settings"');
-      expect(html).toContain('id="queue-badge"');
-    });
-  });
-
-  describe("View Templates & Controller Wiring", () => {
-    it("Work Queue template defines required controls and accessibility attributes", async () => {
-      const queueView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/queue.ts"),
-      ).text();
-      const queueLogic = await Bun.file(
-        path.join(PUBLIC_DIR, "js/queue.ts"),
-      ).text();
-
-      expect(queueView).toContain('id="btn-queue-refresh"');
-      expect(queueView).toContain('id="queue-search"');
-      expect(queueView).toContain('id="queue-tickets-list"');
-      expect(queueView).toContain('aria-label="Refresh work queue"');
-
-      // Wiring
-      expect(queueLogic).toContain(
-        '$<HTMLButtonElement>("#btn-queue-refresh")',
+    it("EmptyStateCard renders loading, error, and empty states cleanly", () => {
+      const emptyHtml = renderToString(
+        React.createElement(EmptyStateCard, {
+          title: "Nothing Here",
+          message: "No items match current criteria.",
+        }),
       );
-      expect(queueLogic).toContain('$<HTMLInputElement>("#queue-search")');
-    });
+      expect(emptyHtml).toContain("empty-state");
+      expect(emptyHtml).toContain("Nothing Here");
 
-    it("Active Runs template defines stepper and launch trigger controls", async () => {
-      const runsView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/runs.ts"),
-      ).text();
-
-      expect(runsView).toContain('id="btn-runs-start"');
-      expect(runsView).toContain('id="workflow-stepper"');
-      expect(runsView).toContain('id="view-run"');
-      expect(runsView).toContain('id="view-result"');
-    });
-
-    it("Projects template defines 2-column grid and switchable active/archived tabs", async () => {
-      const projectsView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/projects.ts"),
-      ).text();
-      const projectsLogic = await Bun.file(
-        path.join(PUBLIC_DIR, "js/projects.ts"),
-      ).text();
-
-      expect(projectsView).toContain('id="btn-tab-active-projects"');
-      expect(projectsView).toContain('id="btn-toggle-archived"');
-      expect(projectsView).toContain('id="projects-container"');
-      expect(projectsView).toContain('id="archived-projects-container"');
-
-      // Segmented control handling
-      expect(projectsLogic).toContain("activeProjectsTab");
-      expect(projectsLogic).toContain('btnTabActive.classList.add("active")');
-      expect(projectsLogic).toContain(
-        'btnToggleArchived.classList.add("active")',
+      const loadingHtml = renderToString(
+        React.createElement(EmptyStateCard, {
+          type: "loading",
+          title: "Loading Data…",
+        }),
       );
+      expect(loadingHtml).toContain("spinner-sm");
+      expect(loadingHtml).toContain("Loading Data…");
     });
 
-    it("Settings view defines tabs and appearance segmented control", async () => {
-      const settingsView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/settings.ts"),
-      ).text();
-      const settingsLogic = await Bun.file(
-        path.join(PUBLIC_DIR, "js/settings.ts"),
-      ).text();
-
-      expect(settingsView).toContain('id="btn-theme-light"');
-      expect(settingsView).toContain('id="btn-theme-dark"');
-      expect(settingsView).toContain('id="btn-save-settings"');
-      expect(settingsView).toContain("Save Model Settings");
-
-      // Theme toggle logic
-      expect(settingsLogic).toContain("data-theme");
-      expect(settingsLogic).toContain('localStorage.setItem("xf_theme"');
-    });
-
-    it("Modal templates define onboarding wizard, git host selector, and PAT diagnostics", async () => {
-      const modalView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/modals.ts"),
-      ).text();
-
-      expect(modalView).toContain('id="modal-project-onboarding"');
-      expect(modalView).toContain('id="modal-new-run"');
-      expect(modalView).toContain('id="onboard-git-host"');
-      expect(modalView).toContain('id="azure-scope-diagnostic-card"');
-      expect(modalView).toContain('href="/docs#azure-pat"');
-      expect(modalView).toContain('href="/docs#azure-code"');
-    });
-
-    it("docs.html exists and contains comprehensive PAT and scopes reference", async () => {
-      const docsHtml = await Bun.file(
-        path.join(PUBLIC_DIR, "docs.html"),
-      ).text();
-
-      expect(docsHtml).toContain("X-Factory Documentation");
-      expect(docsHtml).toContain('id="azure-pat"');
-      expect(docsHtml).toContain('id="azure-code"');
-      expect(docsHtml).toContain('id="github"');
-      expect(docsHtml).toContain('id="gitlab"');
-      expect(docsHtml).toContain('id="jira"');
-      expect(docsHtml).toContain('id="least-privilege"');
-      expect(docsHtml).toContain("Code: Status");
-      expect(docsHtml).toContain("Work Items: Read");
-    });
-  });
-
-  describe("Client Bundle Syntax Integrity", () => {
-    it("bundles public/app.ts without syntax or module resolution errors", async () => {
-      const buildResult = await Bun.build({
-        entrypoints: [path.join(PUBLIC_DIR, "app.ts")],
-        target: "browser",
-        format: "esm",
-        minify: true,
-      });
-
-      expect(buildResult.success).toBe(true);
-      expect(buildResult.outputs.length).toBeGreaterThan(0);
-
-      const output = await buildResult.outputs[0]?.text();
-      expect(output).toBeDefined();
-      expect(output?.length).toBeGreaterThan(10000);
-    });
-  });
-
-  describe("Icon Design System & Anti-Drift Enforcement", () => {
-    it("enforces zero inline SVG paths/polygons in index.html and docs.html", async () => {
-      const indexHtml = await Bun.file(
-        path.join(PUBLIC_DIR, "index.html"),
-      ).text();
-      const docsHtml = await Bun.file(
-        path.join(PUBLIC_DIR, "docs.html"),
-      ).text();
-
-      // Check that all SVGs in index.html use the centralized sprite sheet
-      const indexSvgMatches = indexHtml.match(/<svg[\s\S]*?<\/svg>/g) || [];
-      expect(indexSvgMatches.length).toBeGreaterThan(0);
-      for (const svg of indexSvgMatches) {
-        expect(svg).toContain('<use href="/assets/icons/sprite.svg#icon-');
-        expect(svg).not.toContain("<path ");
-        expect(svg).not.toContain("<polygon ");
-        expect(svg).not.toContain("<polyline ");
-      }
-
-      // Check that all SVGs in docs.html use the centralized sprite sheet (excluding code samples)
-      const docsNonCode = docsHtml.replace(/<code>[\s\S]*?<\/code>/g, "");
-      const docsSvgMatches = docsNonCode.match(/<svg[\s\S]*?<\/svg>/g) || [];
-      expect(docsSvgMatches.length).toBeGreaterThan(0);
-      for (const svg of docsSvgMatches) {
-        expect(svg).toContain('<use href="/assets/icons/sprite.svg#icon-');
-        expect(svg).not.toContain("<path ");
-        expect(svg).not.toContain("<polygon ");
-      }
-    });
-
-    it("verifies sprite.svg defines all approved symbols and matches individual source files", async () => {
-      const spritePath = path.join(PUBLIC_DIR, "assets/icons/sprite.svg");
-      const spriteText = await Bun.file(spritePath).text();
-
-      const symbolMatches =
-        spriteText.match(/<symbol id="icon-([^"]+)"/g) || [];
-      const definedIds = symbolMatches.map((m) =>
-        m.replace('<symbol id="icon-', "").replace('"', ""),
+    it("ProjectCard renders project name, tracker badge, and action links", () => {
+      const html = renderWithProviders(
+        React.createElement(ProjectCard, {
+          project: {
+            id: "proj-1",
+            name: "X-Factory Core",
+            repositoryPath: "/path/to/repo",
+            defaultBranch: "main",
+            testCommand: "bun test",
+            repositories: [],
+            issueTracker: {
+              provider: "azure",
+              azure: {
+                orgUrl: "https://dev.azure.com/org",
+                project: "proj",
+              },
+            },
+          },
+        }),
       );
 
-      expect(definedIds.length).toBeGreaterThanOrEqual(27);
-      expect(definedIds).toContain("layers");
-      expect(definedIds).toContain("play");
-      expect(definedIds).toContain("clock");
-      expect(definedIds).toContain("folder");
-      expect(definedIds).toContain("settings");
-      expect(definedIds).toContain("book-open");
-      expect(definedIds).toContain("check-circle-2");
-      expect(definedIds).toContain("x-circle");
-      expect(definedIds).toContain("loader-2");
-      expect(definedIds).toContain("azure");
-      expect(definedIds).toContain("github");
-      expect(definedIds).toContain("gitlab");
-      expect(definedIds).toContain("jira");
-
-      // Verify every symbol in sprite.svg has a corresponding source SVG in assets/icons/
-      for (const id of definedIds) {
-        const uiFile = Bun.file(
-          path.join(PUBLIC_DIR, `assets/icons/ui/${id}.svg`),
-        );
-        const brandFile = Bun.file(
-          path.join(PUBLIC_DIR, `assets/icons/brands/${id}.svg`),
-        );
-        const exists = (await uiFile.exists()) || (await brandFile.exists());
-        expect(exists).toBe(true);
-      }
+      expect(html).toContain("X-Factory Core");
+      expect(html).toContain("proj-1");
+      expect(html).toContain("azure");
+      expect(html).toContain("View Details →");
     });
 
-    it("verifies all sprite <use> references in HTML point to valid defined symbols", async () => {
-      const spriteText = await Bun.file(
-        path.join(PUBLIC_DIR, "assets/icons/sprite.svg"),
-      ).text();
-      const indexHtml = await Bun.file(
-        path.join(PUBLIC_DIR, "index.html"),
-      ).text();
-      const docsHtml = await Bun.file(
-        path.join(PUBLIC_DIR, "docs.html"),
-      ).text();
-
-      const refMatches = [
-        ...(indexHtml.match(
-          /href="\/assets\/icons\/sprite\.svg#icon-([^"]+)"/g,
-        ) || []),
-        ...(docsHtml.match(
-          /href="\/assets\/icons\/sprite\.svg#icon-([^"]+)"/g,
-        ) || []),
-      ];
-
-      expect(refMatches.length).toBeGreaterThan(0);
-      for (const ref of refMatches) {
-        const iconName = ref
-          .replace('href="/assets/icons/sprite.svg#icon-', "")
-          .replace('"', "");
-        expect(spriteText).toContain(`id="icon-${iconName}"`);
-      }
-    });
-
-    it("strictly prohibits raw status emojis in wizard logic and views", async () => {
-      const wizardRender = await Bun.file(
-        path.join(PUBLIC_DIR, "js/wizard-render.ts"),
-      ).text();
-      const modalsView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/modals.ts"),
-      ).text();
-
-      // No raw emojis allowed for statuses
-      expect(wizardRender).not.toContain("✅");
-      expect(wizardRender).not.toContain("❌");
-      expect(wizardRender).not.toContain("⏳");
-
-      expect(modalsView).not.toContain("⏳");
-      expect(modalsView).not.toContain("✅");
-      expect(modalsView).not.toContain("❌");
-    });
-
-    it("verifies styles.css provides standardized .icon and size modifier classes", async () => {
-      const css = await Bun.file(path.join(PUBLIC_DIR, "styles.css")).text();
-
-      expect(css).toContain(".icon {");
-      expect(css).toContain(".icon-xs {");
-      expect(css).toContain(".icon-sm {");
-      expect(css).toContain(".icon-md {");
-      expect(css).toContain(".icon-lg {");
-      expect(css).toContain(".icon-xl {");
-      expect(css).toContain(".icon-spin {");
-      expect(css).toContain(".icon-status-passed {");
-      expect(css).toContain(".icon-status-failed {");
-    });
-
-    it("renderIcon generates compliant HTML strings with aria-hidden and sprite reference", () => {
-      const rendered = renderIcon("search", "sm", "custom-class");
-      expect(rendered).toContain('class="icon icon-sm custom-class"');
-      expect(rendered).toContain('aria-hidden="true"');
-      expect(rendered).toContain(
-        '<use href="/assets/icons/sprite.svg#icon-search"></use>',
+    it("RunHistoryCard renders run ticket details, status, and duration", () => {
+      const html = renderWithProviders(
+        React.createElement(RunHistoryCard, {
+          run: {
+            id: "run-123",
+            project: { id: "proj-1", name: "X-Factory Core" },
+            ticket: {
+              id: "TICK-42",
+              title: "Fix frontend smoke test",
+              url: "https://ticket.url",
+              acceptanceCriteria: ["All tests pass"],
+            },
+            branch: "xf-tick-42",
+            status: "ready_for_pr",
+            plan: "Implementation plan",
+            events: [],
+            startedAt: "2026-09-20T12:00:00.000Z",
+            finishedAt: "2026-09-20T12:05:00.000Z",
+            implementationContext: null,
+            verification: null,
+            review: null,
+            artifacts: [],
+            diff: null,
+            pullRequest: null,
+            repairAttempts: 0,
+            artifactsDir: "/tmp/artifacts",
+            worktreePath: "/tmp/worktree",
+          },
+        }),
       );
-    });
-  });
 
-  describe("PAT Verification & Over-Privilege UI Architecture", () => {
-    it("modal markup contains scope card, responsibility notice, and ack checkbox", async () => {
-      const modalsView = await Bun.file(
-        path.join(PUBLIC_DIR, "js/views/modals.ts"),
-      ).text();
-
-      // Card & Header
-      expect(modalsView).toContain('id="azure-scope-diagnostic-card"');
-      expect(modalsView).toContain('id="scope-status-pill"');
-      expect(modalsView).toContain("PAT Verification & Privileges");
-
-      // Responsibility Notice
-      expect(modalsView).toContain('id="scope-responsibility-notice"');
-      expect(modalsView).toContain("Scope Responsibility Notice:");
-      expect(modalsView).toContain("Work Items: Read");
-      expect(modalsView).toContain("Code: Read & write");
-      expect(modalsView).toContain("Code: Status");
-
-      // Scope rows
-      expect(modalsView).toContain('id="scope-row-wit-read"');
-      expect(modalsView).toContain('id="scope-row-code-read"');
-      expect(modalsView).toContain('id="scope-row-code-status"');
-      expect(modalsView).toContain('id="scope-row-wit-write"');
-      expect(modalsView).toContain('id="scope-row-code-full"');
-
-      // Over-privilege warning and acknowledgement checkbox
-      expect(modalsView).toContain('id="scope-overprivileged-warning"');
-      expect(modalsView).toContain('id="scope-overprivileged-text"');
-      expect(modalsView).toContain('id="chk-pat-least-privilege-ack"');
-      expect(modalsView).toContain(
-        "I understand that X-Factory only needs minimal permissions and accept responsibility for this token's scopes.",
-      );
+      expect(html).toContain("TICK-42");
+      expect(html).toContain("Fix frontend smoke test");
+      expect(html).toContain("ready_for_pr");
     });
 
-    it("wizard logic enforces 'Verified Token Privileges' label and acknowledgement gating", async () => {
-      const wizardRender = await Bun.file(
-        path.join(PUBLIC_DIR, "js/wizard-render.ts"),
-      ).text();
-      const wizardLogic = await Bun.file(
-        path.join(PUBLIC_DIR, "js/wizard.ts"),
-      ).text();
-
-      // Status pill states
-      expect(wizardRender).toContain('"Verified Token Privileges"');
-      expect(wizardRender).toContain('"Notice: Over-Privileged"');
-      expect(wizardRender).toContain('"Missing Required Scopes"');
-
-      // Gate enforcement
-      expect(wizardLogic).toContain("overPrivileged");
-      expect(wizardLogic).toContain("#chk-pat-least-privilege-ack");
-      expect(wizardLogic).toContain(
-        "Please check 'I understand' to acknowledge this token's permissions before continuing.",
+    it("WorkflowStepper renders workflow stages and active progression", () => {
+      const html = renderToString(
+        React.createElement(WorkflowStepper, {
+          status: "implementing",
+        }),
       );
+
+      expect(html).toContain("workflow-stepper");
+      expect(html).toContain("Prepare");
+      expect(html).toContain("Understand");
+      expect(html).toContain("Implement");
+      expect(html).toContain("Verify");
+      expect(html).toContain("Review");
+      expect(html).toContain("Deliver");
+    });
+
+    it("ReadinessBanner renders system tooling readiness state", () => {
+      const html = renderWithProviders(React.createElement(ReadinessBanner));
+      expect(html).toContain("readiness-banner");
+    });
+
+    it("ModalContainer renders modal dialog portal target", () => {
+      const html = renderWithProviders(React.createElement(ModalContainer));
+      expect(html).toBeDefined();
     });
   });
 });

@@ -1,6 +1,7 @@
 // src/frontend/views/ProjectsView.tsx — Projects catalog view with active & archived tabs (XFM-38, XFM-40, XFM-48).
 
 import { useState } from "react";
+import { EmptyStateCard } from "../components/EmptyStateCard.js";
 import { ProjectCard } from "../components/projects/ProjectCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useProjects } from "../hooks/useQueries.js";
@@ -74,45 +75,24 @@ export function ProjectsView() {
         </div>
 
         {isLoading ? (
-          <div className="empty-state card">
-            <div className="spinner-sm" />
-            <h3 style={{ marginTop: "1rem" }}>Loading Projects…</h3>
-          </div>
+          <EmptyStateCard type="loading" title="Loading Projects…" />
         ) : error ? (
-          <div className="empty-state card">
-            <div className="empty-icon">
-              <svg className="icon icon-xl" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-              </svg>
-            </div>
-            <h3>Unable to Load Projects</h3>
-            <p className="error-message">{String(error)}</p>
-          </div>
+          <EmptyStateCard
+            type="error"
+            title="Unable to Load Projects"
+            message={String(error)}
+          />
         ) : activeTab === "active" ? (
           <div id="projects-container" className="projects-grid">
             {activeProjects.length === 0 ? (
-              <div
-                className="empty-state card"
+              <EmptyStateCard
+                icon="icon-folder"
+                title="No Active Projects"
+                message="Click Onboard Project to connect a workspace repository."
+                actionText="Onboard Project"
+                onAction={openOnboardingModal}
                 style={{ gridColumn: "1 / -1" }}
-              >
-                <div className="empty-icon">
-                  <svg className="icon icon-xl" aria-hidden="true">
-                    <use href="/assets/icons/sprite.svg#icon-folder" />
-                  </svg>
-                </div>
-                <h3>No Active Projects</h3>
-                <p className="text-muted">
-                  Click Onboard Project to connect a workspace repository.
-                </p>
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  style={{ marginTop: "1rem" }}
-                  onClick={openOnboardingModal}
-                >
-                  Onboard Project
-                </button>
-              </div>
+              />
             ) : (
               activeProjects.map((p) => <ProjectCard key={p.id} project={p} />)
             )}
@@ -121,12 +101,10 @@ export function ProjectsView() {
           <div id="archived-projects-section">
             <div id="archived-projects-container" className="projects-grid">
               {archivedProjects.length === 0 ? (
-                <div
-                  className="empty-state card"
+                <EmptyStateCard
+                  message="No archived projects found."
                   style={{ gridColumn: "1 / -1" }}
-                >
-                  <p className="text-muted">No archived projects found.</p>
-                </div>
+                />
               ) : (
                 archivedProjects.map((p) => (
                   <ProjectCard key={p.id} project={p} isArchived />

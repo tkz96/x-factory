@@ -2,6 +2,30 @@
 
 import { useState } from "react";
 
+interface AzureDocScope {
+  category: string;
+  permission: string;
+  purpose: string;
+}
+
+const AZURE_DOC_SCOPES: AzureDocScope[] = [
+  {
+    category: "Work Items",
+    permission: "Work Items: Read",
+    purpose: "Fetch backlog tickets and acceptance criteria",
+  },
+  {
+    category: "Code",
+    permission: "Code: Read & write",
+    purpose: "Clone repo, push implementation branch, open PR",
+  },
+  {
+    category: "Code",
+    permission: "Code: Status",
+    purpose: "Post commit statuses and PR verification checks",
+  },
+];
+
 export function DocsView() {
   const [activeSection, setActiveSection] = useState<
     "least-privilege" | "azure" | "github" | "gitlab" | "jira"
@@ -181,39 +205,18 @@ export function DocsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  >
-                    <td style={{ padding: "0.5rem" }}>Work Items</td>
-                    <td style={{ padding: "0.5rem" }}>
-                      <strong>Work Items: Read</strong>
-                    </td>
-                    <td style={{ padding: "0.5rem" }}>
-                      Fetch backlog tickets and acceptance criteria
-                    </td>
-                  </tr>
-                  <tr
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  >
-                    <td style={{ padding: "0.5rem" }}>Code</td>
-                    <td style={{ padding: "0.5rem" }}>
-                      <strong>Code: Read &amp; write</strong>
-                    </td>
-                    <td style={{ padding: "0.5rem" }}>
-                      Clone repo, push implementation branch, open PR
-                    </td>
-                  </tr>
-                  <tr
-                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                  >
-                    <td style={{ padding: "0.5rem" }}>Code</td>
-                    <td style={{ padding: "0.5rem" }}>
-                      <strong>Code: Status</strong>
-                    </td>
-                    <td style={{ padding: "0.5rem" }}>
-                      Post commit statuses and PR verification checks
-                    </td>
-                  </tr>
+                  {AZURE_DOC_SCOPES.map((scope) => (
+                    <tr
+                      key={scope.permission}
+                      style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                    >
+                      <td style={{ padding: "0.5rem" }}>{scope.category}</td>
+                      <td style={{ padding: "0.5rem" }}>
+                        <strong>{scope.permission}</strong>
+                      </td>
+                      <td style={{ padding: "0.5rem" }}>{scope.purpose}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

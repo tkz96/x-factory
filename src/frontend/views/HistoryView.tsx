@@ -1,6 +1,7 @@
 // src/frontend/views/HistoryView.tsx — Historical completed and active runs view (XFM-38, XFM-40, XFM-49).
 
 import { useMemo, useState } from "react";
+import { EmptyStateCard } from "../components/EmptyStateCard.js";
 import { RunHistoryCard } from "../components/history/RunHistoryCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
@@ -94,46 +95,24 @@ export function HistoryView() {
 
         <div id="history-runs-container">
           {isLoading ? (
-            <div className="empty-state card">
-              <div className="spinner-sm" />
-              <p style={{ marginTop: "1rem" }}>Loading run history…</p>
-            </div>
+            <EmptyStateCard type="loading" message="Loading run history…" />
           ) : error ? (
-            <div className="empty-state card">
-              <div className="empty-icon">
-                <svg className="icon icon-xl" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-                </svg>
-              </div>
-              <h3>Unable to Load History</h3>
-              <p className="error-message">{String(error)}</p>
-            </div>
+            <EmptyStateCard
+              type="error"
+              title="Unable to Load History"
+              message={String(error)}
+            />
           ) : runs.length === 0 ? (
-            <div className="empty-state card">
-              <div className="empty-icon">
-                <svg className="icon icon-xl" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-clock" />
-                </svg>
-              </div>
-              <p>
-                No factory runs found. Launch your first run to populate
-                history.
-              </p>
-              <button
-                type="button"
-                className="btn-primary btn-sm"
-                style={{ marginTop: "1rem" }}
-                onClick={() => openNewRunModal()}
-              >
-                Launch New Run
-              </button>
-            </div>
+            <EmptyStateCard
+              icon="icon-clock"
+              message="No factory runs found. Launch your first run to populate history."
+              actionText="Launch New Run"
+              onAction={() => openNewRunModal()}
+            />
           ) : filteredRuns.length === 0 ? (
-            <div className="empty-state card">
-              <p className="text-muted">
-                No runs matching the &ldquo;{filter}&rdquo; filter.
-              </p>
-            </div>
+            <EmptyStateCard
+              message={`No runs matching the “${filter}” filter.`}
+            />
           ) : (
             filteredRuns.map((run) => <RunHistoryCard key={run.id} run={run} />)
           )}

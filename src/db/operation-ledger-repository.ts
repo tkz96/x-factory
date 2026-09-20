@@ -81,22 +81,36 @@ export class OperationLedgerRepository {
   }
 
   /**
-   * Records that an external mutation is pending.
-   * If an entry exists, transitions status to 'pending'.
+   * Internal upsert helper consolidating SQL statement preparation and parameter binding.
    */
-  recordPending(runId: string, operation: string): OperationLedgerRecord {
+  private upsertEntry(
+    runId: string,
+    operation: string,
+    status: OperationStatus,
+    options: {
+      externalId?: string | null | undefined;
+      result?: unknown;
+      error?: string | null | undefined;
+    } = {},
+  ): OperationLedgerRecord {
     const now = new Date().toISOString();
     const id = randomUUID();
+    const serializedResult =
+      options.result !== undefined && options.result !== null
+        ? JSON.stringify(options.result)
+        : null;
 
     const stmt = this.db.prepare(`
       INSERT INTO operation_ledger (
         id, run_id, operation, status, external_id, result, error, created_at, updated_at
       ) VALUES (
-        $id, $runId, $operation, 'pending', NULL, NULL, NULL, $now, $now
+        $id, $runId, $operation, $status, $externalId, $result, $error, $now, $now
       )
       ON CONFLICT(run_id, operation) DO UPDATE SET
-        status = 'pending',
-        error = NULL,
+        status = $status,
+        external_id = $externalId,
+        result = $result,
+        error = $error,
         updated_at = $now
       RETURNING *;
     `);
@@ -105,10 +119,22 @@ export class OperationLedgerRepository {
       $id: id,
       $runId: runId,
       $operation: operation,
+      $status: status,
+      $externalId: options.externalId ?? null,
+      $result: serializedResult,
+      $error: options.error ?? null,
       $now: now,
     }) as OperationLedgerRow;
 
     return rowToRecord(row);
+  }
+
+  /**
+   * Records that an external mutation is pending.
+   * If an entry exists, transitions status to 'pending'.
+   */
+  recordPending(runId: string, operation: string): OperationLedgerRecord {
+    return this.upsertEntry(runId, operation, "pending");
   }
 
   /**
@@ -120,36 +146,10 @@ export class OperationLedgerRepository {
     externalId?: string | null,
     result?: unknown,
   ): OperationLedgerRecord {
-    const now = new Date().toISOString();
-    const id = randomUUID();
-    const serializedResult =
-      result !== undefined && result !== null ? JSON.stringify(result) : null;
-
-    const stmt = this.db.prepare(`
-      INSERT INTO operation_ledger (
-        id, run_id, operation, status, external_id, result, error, created_at, updated_at
-      ) VALUES (
-        $id, $runId, $operation, 'completed', $externalId, $result, NULL, $now, $now
-      )
-      ON CONFLICT(run_id, operation) DO UPDATE SET
-        status = 'completed',
-        external_id = $externalId,
-        result = $result,
-        error = NULL,
-        updated_at = $now
-      RETURNING *;
-    `);
-
-    const row = stmt.get({
-      $id: id,
-      $runId: runId,
-      $operation: operation,
-      $externalId: externalId ?? null,
-      $result: serializedResult,
-      $now: now,
-    }) as OperationLedgerRow;
-
-    return rowToRecord(row);
+    return this.upsertEntry(runId, operation, "completed", {
+      externalId,
+      result,
+    });
   }
 
   /**
@@ -160,31 +160,7 @@ export class OperationLedgerRepository {
     operation: string,
     error: string,
   ): OperationLedgerRecord {
-    const now = new Date().toISOString();
-    const id = randomUUID();
-
-    const stmt = this.db.prepare(`
-      INSERT INTO operation_ledger (
-        id, run_id, operation, status, external_id, result, error, created_at, updated_at
-      ) VALUES (
-        $id, $runId, $operation, 'failed', NULL, NULL, $error, $now, $now
-      )
-      ON CONFLICT(run_id, operation) DO UPDATE SET
-        status = 'failed',
-        error = $error,
-        updated_at = $now
-      RETURNING *;
-    `);
-
-    const row = stmt.get({
-      $id: id,
-      $runId: runId,
-      $operation: operation,
-      $error: error,
-      $now: now,
-    }) as OperationLedgerRow;
-
-    return rowToRecord(row);
+    return this.upsertEntry(runId, operation, "failed", { error });
   }
 
   /**

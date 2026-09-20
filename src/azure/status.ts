@@ -1,6 +1,6 @@
 // src/azure/status.ts — Commit status publishing for Azure DevOps Git repositories.
 
-import { formatAzureAuthHeader, resolveAzureAuthHeader } from "./auth.js";
+import { resolveAzureAuthHeader } from "./auth.js";
 
 type AzureCommitStatusState = "pending" | "succeeded" | "failed" | "error";
 
@@ -45,12 +45,7 @@ export async function publishAzureCommitStatus(
     };
   }
 
-  let authHeader = "";
-  if (options.pat?.trim()) {
-    authHeader = formatAzureAuthHeader(options.pat);
-  } else {
-    authHeader = await resolveAzureAuthHeader();
-  }
+  const authHeader = await resolveAzureAuthHeader(options.pat);
 
   if (!authHeader) {
     return {

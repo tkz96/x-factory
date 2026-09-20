@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "/Users/talhazuberi/.local/bin/graphify-mcp",
+      "args": ["/Users/talhazuberi/x-factory/graphify-out/graph.json"]
+    }
+  }
+}

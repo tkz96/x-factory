@@ -2,9 +2,11 @@
 
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { OperationLedgerRepository } from "../db/operation-ledger-repository.js";
 import { defaultEventBus } from "../events.js";
 import * as git from "../git.js";
 import { ensureDir, getWorktreePath } from "../paths.js";
+import type { Project } from "../shared/types.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
@@ -43,6 +45,93 @@ export const defaultPrepareDeps: PrepareDependencies = {
   readFile: async (p, enc) => readFile(p, enc || "utf-8"),
 };
 
+export async function prepareBranch(
+  operationLedgerRepo: OperationLedgerRepository,
+  runId: string,
+  project: Project,
+  branch: string,
+  branchExistsFn: typeof git.branchExists,
+  createBranchFn: typeof git.createBranch,
+): Promise<void> {
+  await operationLedgerRepo.executeWithLedger(
+    runId,
+    "create_branch",
+    async () => {
+      const branchExists = await branchExistsFn(project.repositoryPath, branch);
+      if (!branchExists) {
+        await createBranchFn(
+          project.repositoryPath,
+          branch,
+          project.defaultBranch,
+        );
+      }
+      return {
+        externalId: branch,
+        result: { branch },
+      };
+    },
+  );
+}
+
+export async function prepareWorktree(
+  operationLedgerRepo: OperationLedgerRepository,
+  runId: string,
+  project: Project,
+  branch: string,
+  expectedWorktreePath: string,
+  worktreeExistsFn: (path: string) => Promise<boolean>,
+  createWorktreeFn: typeof git.createWorktree,
+): Promise<string> {
+  const worktreeResult = await operationLedgerRepo.executeWithLedger<{
+    worktreePath: string;
+  }>(runId, "create_worktree", async () => {
+    const exists = await worktreeExistsFn(expectedWorktreePath);
+    if (exists) {
+      return {
+        externalId: expectedWorktreePath,
+        result: { worktreePath: expectedWorktreePath },
+      };
+    }
+
+    const wtPath = await createWorktreeFn(
+      project.repositoryPath,
+      branch,
+      project.id,
+      runId,
+    );
+    return {
+      externalId: wtPath,
+      result: { worktreePath: wtPath },
+    };
+  });
+
+  return worktreeResult.worktreePath;
+}
+
+export async function initializeArtifactFiles(
+  artifactsDir: string,
+  ticket: {
+    id: string;
+    title: string;
+    description?: string | undefined;
+    acceptanceCriteria: string[];
+  },
+  plan: string,
+  writeFileFn: (
+    path: string,
+    data: string,
+    encoding?: BufferEncoding,
+  ) => Promise<void>,
+): Promise<void> {
+  const ticketContent = `# Ticket ${ticket.id}: ${ticket.title}\n\n${ticket.description || ""}\n\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}`;
+  await writeFileFn(
+    path.join(artifactsDir, "ticket.md"),
+    ticketContent,
+    "utf-8",
+  );
+  await writeFileFn(path.join(artifactsDir, "plan.md"), plan, "utf-8");
+}
+
 export class PrepareExecutor implements StageExecutor {
   readonly stage = "prepare";
   private deps: PrepareDependencies;
@@ -60,26 +149,13 @@ export class PrepareExecutor implements StageExecutor {
     });
 
     // 1. Idempotent Git branch verification/creation (XFM-32, XFM-33)
-    await operationLedgerRepo.executeWithLedger(
+    await prepareBranch(
+      operationLedgerRepo,
       run.id,
-      "create_branch",
-      async () => {
-        const branchExists = await this.deps.branchExists(
-          project.repositoryPath,
-          run.branch,
-        );
-        if (!branchExists) {
-          await this.deps.createBranch(
-            project.repositoryPath,
-            run.branch,
-            project.defaultBranch,
-          );
-        }
-        return {
-          externalId: run.branch,
-          result: { branch: run.branch },
-        };
-      },
+      project,
+      run.branch,
+      this.deps.branchExists,
+      this.deps.createBranch,
     );
 
     // 2. Idempotent external worktree creation (XFM-32, XFM-33)
@@ -91,32 +167,15 @@ export class PrepareExecutor implements StageExecutor {
     const expectedWorktreePath =
       run.worktreePath || getWorktreePath(project.id, run.id);
 
-    const worktreeResult = await operationLedgerRepo.executeWithLedger(
+    const worktreePath = await prepareWorktree(
+      operationLedgerRepo,
       run.id,
-      "create_worktree",
-      async () => {
-        const exists = await this.deps.worktreeExists(expectedWorktreePath);
-        if (exists) {
-          return {
-            externalId: expectedWorktreePath,
-            result: { worktreePath: expectedWorktreePath },
-          };
-        }
-
-        const wtPath = await this.deps.createWorktree(
-          project.repositoryPath,
-          run.branch,
-          project.id,
-          run.id,
-        );
-        return {
-          externalId: wtPath,
-          result: { worktreePath: wtPath },
-        };
-      },
+      project,
+      run.branch,
+      expectedWorktreePath,
+      this.deps.worktreeExists,
+      this.deps.createWorktree,
     );
-
-    const worktreePath = worktreeResult.worktreePath;
 
     // 3. Reconstructable baseline tracking (XFM-35)
     await ensureDir(run.artifactsDir);
@@ -130,16 +189,11 @@ export class PrepareExecutor implements StageExecutor {
     );
 
     // 4. Initialize ticket and plan files in artifactsDir
-    const ticketContent = `# Ticket ${run.ticket.id}: ${run.ticket.title}\n\n${run.ticket.description || ""}\n\n### Acceptance Criteria:\n${run.ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}`;
-    await this.deps.writeFile(
-      path.join(run.artifactsDir, "ticket.md"),
-      ticketContent,
-      "utf-8",
-    );
-    await this.deps.writeFile(
-      path.join(run.artifactsDir, "plan.md"),
+    await initializeArtifactFiles(
+      run.artifactsDir,
+      run.ticket,
       run.plan,
-      "utf-8",
+      this.deps.writeFile,
     );
 
     // 5. Update run record in SQLite with worktreePath

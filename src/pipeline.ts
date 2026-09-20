@@ -9,6 +9,10 @@ import {
 import { createAzurePullRequest } from "./azure/pr.js";
 import { publishAzureCommitStatus } from "./azure/status.js";
 import type { RunEventBus } from "./events.js";
+import {
+  buildPrMetadata,
+  createPullRequestWithFallback,
+} from "./executors/deliver.js";
 import * as git from "./git.js";
 import { createPullRequest } from "./github.js";
 import { reviewRun } from "./review.js";
@@ -479,9 +483,7 @@ export async function executeDeliverStage(
     untrackedFiles: new Set(),
   };
 
-  const commitMsg = `[X-Factory] ${run.ticket.id}: ${run.ticket.title}`;
-  const prTitle = commitMsg;
-  const prBody = `Implemented by X-Factory.\n\nTicket: ${run.ticket.id} — ${run.ticket.title}\n\nAcceptance Criteria:\n${run.ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n") || "None specified"}`;
+  const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket);
 
   eventBus.emit(run.id, {
     type: "pr_step",
@@ -493,40 +495,16 @@ export async function executeDeliverStage(
   await deps.push(worktree, run.branch);
 
   eventBus.emit(run.id, { type: "pr_step", text: "Creating pull request…" });
-  let prUrl = "";
-  if (
-    project.issueTracker?.provider === "azure" &&
-    project.issueTracker?.azure
-  ) {
-    const { orgUrl, project: azureProject } = project.issueTracker.azure;
-    const repoName = project.name || project.id;
-    const azPrResult = await deps.createAzurePullRequest({
-      orgUrl,
-      project: azureProject,
-      repoIdOrName: repoName,
-      sourceBranch: run.branch,
-      targetBranch: project.defaultBranch,
-      title: prTitle,
-      description: prBody,
-    });
-    if (azPrResult.ok && azPrResult.url) {
-      prUrl = azPrResult.url;
-    } else {
-      prUrl = await deps.createPullRequest(
-        worktree,
-        prTitle,
-        prBody,
-        project.defaultBranch,
-      );
-    }
-  } else {
-    prUrl = await deps.createPullRequest(
+  const prUrl = await createPullRequestWithFallback(
+    {
+      project,
+      branch: run.branch,
       worktree,
       prTitle,
       prBody,
-      project.defaultBranch,
-    );
-  }
+    },
+    deps,
+  );
 
   const pr: PullRequest = {
     url: prUrl.trim(),

@@ -112,6 +112,7 @@ jobs:
 
   test:
     name: Tests
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -124,6 +125,12 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
       - name: Run Test Suite with Coverage Ratchet
         run: bun run test:coverage

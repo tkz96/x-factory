@@ -65,15 +65,32 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       expect(css.length).toBeGreaterThan(100);
     });
 
-    it("serves bundled client script on GET /app.js", async () => {
-      const res = await fetch(`${baseUrl}/app.js`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toContain(
-        "application/javascript",
-      );
+    it("serves bundled client script", async () => {
+      if (process.env.NODE_ENV === "production") {
+        const rootRes = await fetch(`${baseUrl}/`);
+        expect(rootRes.status).toBe(200);
+        const html = await rootRes.text();
+        const match = html.match(/src="(\/assets\/index-[^"]+\.js)"/);
+        expect(match).not.toBeNull();
+        const scriptPath = match?.[1] ?? "";
+        expect(scriptPath).toMatch(/^\/assets\/index-[a-zA-Z0-9_-]+\.js$/);
 
-      const js = await res.text();
-      expect(js.length).toBeGreaterThan(1000);
+        const assetRes = await fetch(`${baseUrl}${scriptPath}`);
+        expect(assetRes.status).toBe(200);
+        expect(assetRes.headers.get("Content-Type")).toContain(
+          "application/javascript",
+        );
+        const bundle = await assetRes.text();
+        expect(bundle.length).toBeGreaterThan(1000);
+      } else {
+        const res = await fetch(`${baseUrl}/app.js`);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("Content-Type")).toContain(
+          "application/javascript",
+        );
+        const js = await res.text();
+        expect(js.length).toBeGreaterThan(1000);
+      }
     });
 
     it("serves SVG favicon on GET /favicon.svg", async () => {
