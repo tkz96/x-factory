@@ -60,6 +60,31 @@ export class RunEventBus {
       summary,
     });
   }
+
+  listenerCount(runId: string): number {
+    return this.listeners.get(runId)?.size ?? 0;
+  }
+
+  /**
+   * Gracefully notifies all connected listeners of server shutdown and clears subscribers (XFM-71).
+   */
+  closeAll(reason = "Server is shutting down"): void {
+    for (const subs of this.listeners.values()) {
+      const shutdownEvent: RunEvent = {
+        type: "server_shutdown",
+        text: reason,
+        timestamp: Date.now(),
+      };
+      for (const fn of subs) {
+        try {
+          fn(shutdownEvent);
+        } catch {
+          // Ignore errors during shutdown notification
+        }
+      }
+    }
+    this.listeners.clear();
+  }
 }
 
 export const defaultEventBus = new RunEventBus();

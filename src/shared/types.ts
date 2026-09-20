@@ -15,6 +15,7 @@ export type WorkflowStage =
  * Finite state machine states for a run.
  */
 export type RunStatus =
+  | "queued"
   | "preparing"
   | "understanding"
   | "implementing"
@@ -23,7 +24,8 @@ export type RunStatus =
   | "ready_for_pr"
   | "pr_created"
   | "failed"
-  | "stopped";
+  | "stopped"
+  | "recovery_required";
 
 /**
  * Role metadata for a repository inside a project.
@@ -281,7 +283,8 @@ export type RunEventPayload =
   | { type: "steer"; text: string }
   | { type: "verification"; result: VerificationResult }
   | { type: "review"; result: ReviewResult }
-  | { type: "pr_step"; text: string };
+  | { type: "pr_step"; text: string }
+  | { type: "server_shutdown"; text: string };
 
 /**
  * Discriminated union of SSE events emitted to connected clients.

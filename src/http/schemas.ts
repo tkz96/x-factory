@@ -25,6 +25,8 @@ export const SteerRunBodySchema = z
       .string({ error: "Message is required." })
       .trim()
       .min(1, "Message is required."),
+    commandId: z.string().optional(),
+    command_id: z.string().optional(),
   })
   .passthrough();
 

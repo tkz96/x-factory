@@ -1,6 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": ["public/index.html"],
+  "entry": [
+    "src/server.ts",
+    "src/worker.ts",
+    "index.html",
+    "public/index.html",
+    "scripts/backup.ts",
+    "scripts/verify-durable-pi.ts"
+  ],
   "boundaries": {
     "zones": [
       {
@@ -19,8 +26,13 @@
           "src/git.ts",
           "src/pollution.ts",
           "src/settings.ts",
-          "src/config.ts"
+          "src/config.ts",
+          "src/diagnostics/**"
         ]
+      },
+      {
+        "name": "data",
+        "patterns": ["src/db/**"]
       },
       {
         "name": "subsystems",
@@ -37,6 +49,7 @@
           "src/store.ts",
           "src/pipeline.ts",
           "src/runs.ts",
+          "src/executors/**",
           "src/understand.ts",
           "src/review.ts",
           "src/verification.ts"
@@ -44,11 +57,11 @@
       },
       {
         "name": "presentation",
-        "patterns": ["src/http/**", "src/server.ts"]
+        "patterns": ["src/http/**", "src/server.ts", "src/worker.ts"]
       },
       {
         "name": "frontend",
-        "patterns": ["public/**"]
+        "patterns": ["public/**", "src/frontend/**"]
       }
     ],
     "rules": [
@@ -65,18 +78,23 @@
         "allow": ["domain", "shared"]
       },
       {
+        "from": "data",
+        "allow": ["domain", "infrastructure", "shared"]
+      },
+      {
         "from": "subsystems",
         "allow": ["domain", "infrastructure", "shared"]
       },
       {
         "from": "orchestration",
-        "allow": ["domain", "infrastructure", "subsystems", "shared"]
+        "allow": ["domain", "infrastructure", "data", "subsystems", "shared"]
       },
       {
         "from": "presentation",
         "allow": [
           "domain",
           "infrastructure",
+          "data",
           "subsystems",
           "orchestration",
           "shared"
@@ -87,6 +105,17 @@
         "allow": ["shared"]
       }
     ]
+  },
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": ["bun:sqlite"],
+  "duplicates": {
+    "enabled": false
+  },
+  "rules": {
+    "unused-exports": "warn",
+    "unused-types": "warn",
+    "unused-files": "warn",
+    "unused-class-members": "warn"
   },
   "health": {
     "ignore": ["test/**", "public/**"],

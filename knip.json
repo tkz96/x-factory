@@ -1,5 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@5/overview/configuration.json",
   "entry": ["public/app.ts", "test/**/*.ts"],
-  "project": ["src/**/*.ts", "public/**/*.ts", "test/**/*.ts"]
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "public/**/*.{ts,tsx}",
+    "test/**/*.{ts,tsx}"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "exports": "warn",
+    "types": "warn"
+  }
 }

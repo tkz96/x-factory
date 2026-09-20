@@ -186,3 +186,22 @@ export async function createReviewSession(
     options,
   );
 }
+
+// Active session registry for in-flight Pi sessions (XFM-74)
+const activeSessions = new Map<string, PiAgentSession>();
+
+export function registerActiveSession(
+  runId: string,
+  session: PiAgentSession,
+): () => void {
+  activeSessions.set(runId, session);
+  return () => {
+    if (activeSessions.get(runId) === session) {
+      activeSessions.delete(runId);
+    }
+  };
+}
+
+export function getActiveSession(runId: string): PiAgentSession | undefined {
+  return activeSessions.get(runId);
+}

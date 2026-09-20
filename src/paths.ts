@@ -37,12 +37,18 @@ export async function scanGitSubdirectories(
   }
 }
 
-/**
- * Get the base data directory for X-Factory.
- * Defaults to ~/.x-factory or X_FACTORY_DATA_DIR if set.
- */
-function getDataDir(): string {
+export function getDataDir(): string {
   return process.env.X_FACTORY_DATA_DIR || path.join(homedir(), ".x-factory");
+}
+
+/**
+ * Get the SQLite database file path.
+ * Defaults to ~/.x-factory/x-factory.db or X_FACTORY_DB_PATH if set.
+ */
+export function getDatabasePath(): string {
+  return (
+    process.env.X_FACTORY_DB_PATH || path.join(getDataDir(), "x-factory.db")
+  );
 }
 
 /**

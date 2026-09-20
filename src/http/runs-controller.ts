@@ -2,6 +2,7 @@
 
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
+import type { RunEvent } from "../shared/types.js";
 import {
   catchHttpErrors,
   createEventStreamResponse,
@@ -73,11 +74,42 @@ function handleGetRun(runId: string): Response {
   return jsonResponse(run);
 }
 
-function handleRunEvents(runId: string): Response {
+function handleRunEvents(runId: string, req?: Request): Response {
   const run = runs.getRun(runId);
   if (!run) return errorResponse("Run not found.", 404);
 
-  return createEventStreamResponse(run.events, (listener) =>
+  let sinceSequence: number | undefined;
+  if (req) {
+    const lastEventIdHeader = req.headers.get("last-event-id");
+    if (lastEventIdHeader && !Number.isNaN(Number(lastEventIdHeader))) {
+      sinceSequence = Number(lastEventIdHeader);
+    } else {
+      try {
+        const url = new URL(req.url);
+        const queryVal = url.searchParams.get("last_event_id");
+        if (queryVal && !Number.isNaN(Number(queryVal))) {
+          sinceSequence = Number(queryVal);
+        }
+      } catch {
+        // ignore url parsing error
+      }
+    }
+  }
+
+  // Query durable events from SQLite (XFM-12, XFM-15)
+  const durableEvents = runs.getRunEvents(runId, { sinceSequence });
+  const initialEvents: (RunEvent | Record<string, unknown>)[] =
+    durableEvents.length > 0
+      ? durableEvents.map((e) => ({
+          id: e.sequence,
+          sequence: e.sequence,
+          type: e.type,
+          payload: e.payload,
+          createdAt: e.createdAt,
+        }))
+      : run.events;
+
+  return createEventStreamResponse(initialEvents, (listener) =>
     runs.subscribe(runId, listener),
   );
 }
@@ -87,8 +119,10 @@ async function handleSteerRun(req: Request, runId: string): Promise<Response> {
     req,
     SteerRunBodySchema,
     async (body) => {
-      await runs.steerRun(runId, body.message);
-      return jsonResponse({ ok: true });
+      const commandId =
+        body.commandId || (body as { command_id?: string }).command_id;
+      const deduplicated = await runs.steerRun(runId, body.message, commandId);
+      return jsonResponse({ ok: true, deduplicated });
     },
     "Invalid JSON in request body.",
   );
@@ -104,6 +138,16 @@ async function handleCreatePR(runId: string): Promise<Response> {
   return jsonResponse(pr);
 }
 
+async function handleResumeRun(runId: string): Promise<Response> {
+  const run = await runs.resumeRun(runId);
+  return jsonResponse({ ok: true, run });
+}
+
+async function handleAbandonRun(runId: string): Promise<Response> {
+  const run = await runs.abandonRun(runId);
+  return jsonResponse({ ok: true, run });
+}
+
 async function handleRunAction(
   action: string,
   method: string,
@@ -111,7 +155,7 @@ async function handleRunAction(
   req: Request,
 ): Promise<Response | null> {
   if (method === "GET" && action === "events") {
-    return handleRunEvents(runId);
+    return handleRunEvents(runId, req);
   }
   if (method === "POST") {
     switch (action) {
@@ -121,6 +165,10 @@ async function handleRunAction(
         return handleStopRun(runId);
       case "pr":
         return handleCreatePR(runId);
+      case "resume":
+        return handleResumeRun(runId);
+      case "abandon":
+        return handleAbandonRun(runId);
     }
   }
   return null;

@@ -28,6 +28,7 @@ const STAGE_ORDER: WorkflowStage[] = [
 ];
 
 const STATUS_TO_STAGE: Record<RunStatus, WorkflowStage | null> = {
+  queued: "prepare",
   preparing: "prepare",
   understanding: "understand",
   implementing: "implement",
@@ -35,6 +36,7 @@ const STATUS_TO_STAGE: Record<RunStatus, WorkflowStage | null> = {
   reviewing: "review",
   ready_for_pr: "deliver",
   pr_created: "deliver",
+  recovery_required: null,
   failed: null,
   stopped: null,
 };

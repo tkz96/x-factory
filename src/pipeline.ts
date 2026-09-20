@@ -13,12 +13,19 @@ import * as git from "./git.js";
 import { createPullRequest } from "./github.js";
 import { reviewRun } from "./review.js";
 import { loadSettings } from "./settings.js";
-import type { InternalRun, RunStore } from "./store.js";
+import type { InternalRun } from "./store.js";
 import type {
   ImplementationContext,
   PullRequest,
+  RunStatus,
   VerificationResult,
 } from "./types.js";
+
+export interface PipelineStore {
+  transition(run: InternalRun, status: RunStatus): boolean;
+  persistRun(run: InternalRun): Promise<void>;
+}
+
 import {
   buildImplementationContext,
   buildImplementationPrompt,
@@ -73,7 +80,7 @@ async function promptSession(
   promptText: string,
   errorPrefix: string,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
 ): Promise<boolean> {
   try {
     await session.prompt(promptText);
@@ -132,7 +139,7 @@ async function executeUnderstandStage(
   run: InternalRun,
   worktreePath: string,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<ImplementationContext> {
   const { id } = run;
@@ -203,7 +210,7 @@ async function executeImplementStage(
   worktreePath: string,
   context: ImplementationContext,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
   const { id } = run;
@@ -266,7 +273,7 @@ async function attemptAutomatedRepair(
   run: InternalRun,
   vResult: VerificationResult,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
 ): Promise<boolean> {
   store.transition(run, "implementing");
   eventBus.emit(run.id, {
@@ -300,7 +307,7 @@ async function executeVerifyAndRepairStage(
   run: InternalRun,
   worktreePath: string,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
   const { id } = run;
@@ -386,7 +393,7 @@ async function executeReviewStage(
   run: InternalRun,
   worktreePath: string,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
   const { id } = run;
@@ -462,7 +469,7 @@ async function executeReviewStage(
 export async function executeDeliverStage(
   run: InternalRun,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<PullRequest> {
   const worktree = run.worktreePath;
@@ -549,7 +556,7 @@ export async function executeDeliverStage(
 export async function runWorkflow(
   run: InternalRun,
   eventBus: RunEventBus,
-  store: RunStore,
+  store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<void> {
   const worktreePath = await executePrepareStage(run, eventBus, deps);

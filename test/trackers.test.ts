@@ -1,6 +1,8 @@
 // test/trackers.test.ts — Unit tests for issue tracker integration and criteria extraction.
 
-import { describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   extractCriteria,
   fetchAzureTickets,
@@ -368,6 +370,28 @@ describe("Azure DevOps Tracker (WIQL)", () => {
   });
 
   describe("fetchProjectTickets", () => {
+    let originalProjectsJson: string | null = null;
+    const projectsJsonPath = path.resolve(
+      __dirname,
+      "..",
+      "config",
+      "projects.json",
+    );
+
+    beforeAll(async () => {
+      try {
+        originalProjectsJson = await readFile(projectsJsonPath, "utf-8");
+      } catch {
+        // ignore
+      }
+    });
+
+    afterAll(async () => {
+      if (originalProjectsJson !== null) {
+        await writeFile(projectsJsonPath, originalProjectsJson, "utf-8");
+      }
+    });
+
     test("throws error when project is not found", async () => {
       await expect(
         fetchProjectTickets("non-existent-project-id-999"),

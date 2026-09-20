@@ -2,18 +2,29 @@
 
 import { afterAll, beforeAll, describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execStrict } from "../src/proc.js";
 import { startServer } from "../src/server.js";
-import type { InternalRun } from "../src/store.js";
 
 let server: ReturnType<typeof startServer>;
 let baseUrl: string;
 let tempDir: string;
+let originalProjectsJson: string | null = null;
+const projectsJsonPath = path.resolve(
+  __dirname,
+  "..",
+  "config",
+  "projects.json",
+);
 
 beforeAll(async () => {
+  try {
+    originalProjectsJson = await readFile(projectsJsonPath, "utf-8");
+  } catch {
+    // ignore
+  }
   tempDir = await mkdtemp(path.join(tmpdir(), "xf-proj-api-test-"));
   // Run on an ephemeral port
   server = startServer(0);
@@ -24,6 +35,9 @@ afterAll(async () => {
   server.stop(true);
   if (tempDir) {
     await rm(tempDir, { recursive: true, force: true });
+  }
+  if (originalProjectsJson !== null) {
+    await writeFile(projectsJsonPath, originalProjectsJson, "utf-8");
   }
 });
 
@@ -337,20 +351,20 @@ describe("Project Onboarding & Management APIs", () => {
   }, 15000);
 
   it("POST /api/projects/:id/migrate blocks migration with 409 if project has active run", async () => {
-    const { defaultRunStore } = await import("../src/store.js");
+    const { getRunRepository } = await import("../src/runs.js");
     const activeRunId = `run-active-${Date.now()}`;
-    defaultRunStore.set(activeRunId, {
+    const runRepo = getRunRepository();
+    runRepo.create({
       id: activeRunId,
-      project: { id: trackerProjId, name: "Tracker Test Product" },
-      _project: { id: trackerProjId, name: "Tracker Test Product" },
-      status: "implementing",
-      prompt: "test",
+      projectId: trackerProjId,
+      projectName: "Tracker Test Product",
+      ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
+      plan: "test",
       branch: "test",
-      events: [],
+      status: "implementing",
       artifactsDir: tempDir,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as unknown as InternalRun);
+      worktreePath: tempDir,
+    });
 
     const res = await fetch(
       `${baseUrl}/api/projects/${trackerProjId}/migrate`,
@@ -368,10 +382,7 @@ describe("Project Onboarding & Management APIs", () => {
     assert.ok(errBody.error.includes("active runs"));
 
     // Finish the run
-    const existingRun = defaultRunStore.get(activeRunId);
-    if (existingRun) {
-      existingRun.status = "stopped";
-    }
+    runRepo.update(activeRunId, { status: "stopped" });
   });
 
   it("POST /api/projects/:id/migrate archives predecessor and creates successor", async () => {

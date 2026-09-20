@@ -839,6 +839,74 @@ export function getOpenApiSpec() {
           },
         },
       },
+      "/api/runs/{id}/resume": {
+        post: {
+          tags: ["Runs"],
+          summary: "Resume Run from Recovery Checkpoint",
+          description:
+            "Manually resumes an execution run from recovery_required status by re-queuing the last active stage safely.",
+          operationId: "resumeRun",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              description: "Run identifier",
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Run resumed successfully",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      ok: { type: "boolean", example: true },
+                      run: { $ref: "#/components/schemas/Run" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/runs/{id}/abandon": {
+        post: {
+          tags: ["Runs"],
+          summary: "Abandon Run",
+          description:
+            "Permanently abandons a run in recovery_required status, transitioning it to terminal failed status.",
+          operationId: "abandonRun",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              description: "Run identifier",
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Run abandoned successfully",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      ok: { type: "boolean", example: true },
+                      run: { $ref: "#/components/schemas/Run" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/settings": {
         get: {
           tags: ["Settings"],

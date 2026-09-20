@@ -3,7 +3,10 @@
 import path from "node:path";
 import { z } from "zod/v4";
 import type {
+  AzureTrackerConfig,
+  GitHubTrackerConfig,
   IssueTrackerProvider,
+  JiraTrackerConfig,
   KnowledgeRepository,
   Project,
   ProjectIssueTracker,
@@ -384,6 +387,68 @@ function _parseModern(obj: Record<string, unknown>): Project {
   };
 }
 
+function parseAzureTrackerConfig(
+  t: Record<string, unknown>,
+  provider: IssueTrackerProvider,
+): AzureTrackerConfig | undefined {
+  if (t.azure && typeof t.azure === "object") {
+    const a = t.azure as Record<string, unknown>;
+    return {
+      orgUrl: typeof a.orgUrl === "string" ? a.orgUrl.trim() : "",
+      project: typeof a.project === "string" ? a.project.trim() : "",
+      requiredLabel:
+        typeof a.requiredLabel === "string" && a.requiredLabel.trim()
+          ? a.requiredLabel.trim()
+          : undefined,
+    };
+  }
+  if (
+    provider === "azure" &&
+    typeof t.projectId === "string" &&
+    t.projectId.trim()
+  ) {
+    return {
+      orgUrl: typeof t.orgUrl === "string" ? (t.orgUrl as string).trim() : "",
+      project: t.projectId.trim(),
+    };
+  }
+  return undefined;
+}
+
+function parseJiraTrackerConfig(
+  t: Record<string, unknown>,
+): JiraTrackerConfig | undefined {
+  if (t.jira && typeof t.jira === "object") {
+    const j = t.jira as Record<string, unknown>;
+    return {
+      host: typeof j.host === "string" ? j.host.trim() : "",
+      email: typeof j.email === "string" ? j.email.trim() : "",
+      project: typeof j.project === "string" ? j.project.trim() : "",
+      requiredLabel:
+        typeof j.requiredLabel === "string" && j.requiredLabel.trim()
+          ? j.requiredLabel.trim()
+          : undefined,
+    };
+  }
+  return undefined;
+}
+
+function parseGitHubTrackerConfig(
+  t: Record<string, unknown>,
+): GitHubTrackerConfig | undefined {
+  if (t.github && typeof t.github === "object") {
+    const g = t.github as Record<string, unknown>;
+    return {
+      repo: typeof g.repo === "string" ? g.repo.trim() : "",
+      requiredLabel:
+        typeof g.requiredLabel === "string" && g.requiredLabel.trim()
+          ? g.requiredLabel.trim()
+          : undefined,
+    };
+  }
+  return undefined;
+}
+
 function _parseIssueTracker(
   raw: unknown,
   _projectId: string,
@@ -409,50 +474,14 @@ function _parseIssueTracker(
         : undefined,
   };
 
-  if (t.azure && typeof t.azure === "object") {
-    const a = t.azure as Record<string, unknown>;
-    result.azure = {
-      orgUrl: typeof a.orgUrl === "string" ? a.orgUrl.trim() : "",
-      project: typeof a.project === "string" ? a.project.trim() : "",
-      requiredLabel:
-        typeof a.requiredLabel === "string" && a.requiredLabel.trim()
-          ? a.requiredLabel.trim()
-          : undefined,
-    };
-  } else if (
-    provider === "azure" &&
-    typeof t.projectId === "string" &&
-    t.projectId.trim()
-  ) {
-    result.azure = {
-      orgUrl: typeof t.orgUrl === "string" ? (t.orgUrl as string).trim() : "",
-      project: t.projectId.trim(),
-    };
-  }
+  const azure = parseAzureTrackerConfig(t, provider);
+  if (azure) result.azure = azure;
 
-  if (t.jira && typeof t.jira === "object") {
-    const j = t.jira as Record<string, unknown>;
-    result.jira = {
-      host: typeof j.host === "string" ? j.host.trim() : "",
-      email: typeof j.email === "string" ? j.email.trim() : "",
-      project: typeof j.project === "string" ? j.project.trim() : "",
-      requiredLabel:
-        typeof j.requiredLabel === "string" && j.requiredLabel.trim()
-          ? j.requiredLabel.trim()
-          : undefined,
-    };
-  }
+  const jira = parseJiraTrackerConfig(t);
+  if (jira) result.jira = jira;
 
-  if (t.github && typeof t.github === "object") {
-    const g = t.github as Record<string, unknown>;
-    result.github = {
-      repo: typeof g.repo === "string" ? g.repo.trim() : "",
-      requiredLabel:
-        typeof g.requiredLabel === "string" && g.requiredLabel.trim()
-          ? g.requiredLabel.trim()
-          : undefined,
-    };
-  }
+  const github = parseGitHubTrackerConfig(t);
+  if (github) result.github = github;
 
   return result;
 }

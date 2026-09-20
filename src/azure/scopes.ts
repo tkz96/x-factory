@@ -24,6 +24,154 @@ export interface TestAzurePatScopesOptions {
   fetchFn?: typeof fetch | undefined;
 }
 
+type Fetcher = typeof fetch;
+
+async function probeWorkItemsRead(
+  fetcher: Fetcher,
+  orgUrl: string,
+  encodedProject: string,
+  authHeader: string,
+): Promise<boolean> {
+  try {
+    const wiqlUrl = `${orgUrl}/${encodedProject}/_apis/wit/wiql?api-version=7.1`;
+    const res = await fetcher(wiqlUrl, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project ORDER BY [System.Id] DESC`,
+      }),
+      signal: AbortSignal.timeout(4500),
+    });
+    if (res.status === 200) return true;
+    if (res.status === 401 || res.status === 403) return false;
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function probeCodeRead(
+  fetcher: Fetcher,
+  orgUrl: string,
+  encodedProject: string,
+  authHeader: string,
+): Promise<{ codeRead: boolean; firstRepoIdOrName?: string | undefined }> {
+  try {
+    const reposUrl = `${orgUrl}/${encodedProject}/_apis/git/repositories?api-version=7.1`;
+    const res = await fetcher(reposUrl, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(4500),
+    });
+    if (res.status === 200) {
+      let firstRepoIdOrName: string | undefined;
+      try {
+        const data = (await res.json()) as {
+          value?: Array<{ id: string; name: string }>;
+        };
+        const first = data.value?.[0];
+        if (first) {
+          firstRepoIdOrName = first.id || first.name;
+        }
+      } catch {
+        // ignore json parse error
+      }
+      return { codeRead: true, firstRepoIdOrName };
+    }
+    return { codeRead: false };
+  } catch {
+    return { codeRead: false };
+  }
+}
+
+async function probeCodeStatus(
+  fetcher: Fetcher,
+  orgUrl: string,
+  encodedProject: string,
+  targetRepo: string,
+  authHeader: string,
+): Promise<boolean> {
+  try {
+    const statusUrl = `${orgUrl}/${encodedProject}/_apis/git/repositories/${encodeURIComponent(targetRepo)}/commits/0000000000000000000000000000000000000000/statuses?api-version=7.1`;
+    const res = await fetcher(statusUrl, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(4500),
+    });
+
+    if (res.status === 200 || res.status === 404) return true;
+    if (res.status === 401 || res.status === 403) return false;
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function probeWorkItemsWrite(
+  fetcher: Fetcher,
+  orgUrl: string,
+  authHeader: string,
+): Promise<boolean> {
+  try {
+    const writeProbeUrl = `${orgUrl}/_apis/wit/workitems/-1?api-version=7.1`;
+    const res = await fetcher(writeProbeUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json-patch+json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify([
+        {
+          op: "add",
+          path: "/fields/System.Title",
+          value: "x-factory-scope-probe",
+        },
+      ]),
+      signal: AbortSignal.timeout(4500),
+    });
+
+    // 404 means write authorization passed, but work item -1 was not found!
+    return res.status === 404 || res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+async function probeCodeFull(
+  fetcher: Fetcher,
+  orgUrl: string,
+  encodedProject: string,
+  authHeader: string,
+): Promise<boolean> {
+  try {
+    const binUrl = `${orgUrl}/${encodedProject}/_apis/git/recycleBin/repositories?api-version=7.1`;
+    const res = await fetcher(binUrl, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(4500),
+    });
+
+    // 200 OK means user has repository administration/manage permissions (Code: Full)
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Perform live least-privilege scope diagnostics against Azure DevOps REST APIs.
  *
@@ -89,131 +237,42 @@ export async function testAzurePatScopes(
 
   const encodedProject = encodeURIComponent(project);
 
-  // Probe 1: Work Items (Read) — Required
-  try {
-    const wiqlUrl = `${orgUrl}/${encodedProject}/_apis/wit/wiql?api-version=7.1`;
-    const res = await fetcher(wiqlUrl, {
-      method: "POST",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project ORDER BY [System.Id] DESC`,
-      }),
-      signal: AbortSignal.timeout(4500),
-    });
-    if (res.status === 200) {
-      scopes.workItemsRead = true;
-    } else if (res.status === 401 || res.status === 403) {
-      scopes.workItemsRead = false;
-    } else {
-      scopes.workItemsRead = res.ok;
-    }
-  } catch {
-    scopes.workItemsRead = false;
-  }
+  const workItemsRead = await probeWorkItemsRead(
+    fetcher,
+    orgUrl,
+    encodedProject,
+    authHeader,
+  );
+  const { codeRead, firstRepoIdOrName } = await probeCodeRead(
+    fetcher,
+    orgUrl,
+    encodedProject,
+    authHeader,
+  );
+  const codeStatus = await probeCodeStatus(
+    fetcher,
+    orgUrl,
+    encodedProject,
+    firstRepoIdOrName || project,
+    authHeader,
+  );
+  const workItemsWriteDetected = await probeWorkItemsWrite(
+    fetcher,
+    orgUrl,
+    authHeader,
+  );
+  const codeFullDetected = await probeCodeFull(
+    fetcher,
+    orgUrl,
+    encodedProject,
+    authHeader,
+  );
 
-  // Probe 2: Code (Read) — Required
-  let firstRepoIdOrName = "";
-  try {
-    const reposUrl = `${orgUrl}/${encodedProject}/_apis/git/repositories?api-version=7.1`;
-    const res = await fetcher(reposUrl, {
-      method: "GET",
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(4500),
-    });
-    if (res.status === 200) {
-      scopes.codeRead = true;
-      try {
-        const data = (await res.json()) as {
-          value?: Array<{ id: string; name: string }>;
-        };
-        const first = data.value?.[0];
-        if (first) {
-          firstRepoIdOrName = first.id || first.name;
-        }
-      } catch {
-        // ignore json parse error
-      }
-    } else if (res.status === 401 || res.status === 403) {
-      scopes.codeRead = false;
-    }
-  } catch {
-    scopes.codeRead = false;
-  }
-
-  // Probe 3: Code (Status) — Required
-  try {
-    const targetRepo = firstRepoIdOrName || project;
-    const statusUrl = `${orgUrl}/${encodedProject}/_apis/git/repositories/${encodeURIComponent(targetRepo)}/commits/0000000000000000000000000000000000000000/statuses?api-version=7.1`;
-    const res = await fetcher(statusUrl, {
-      method: "GET",
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(4500),
-    });
-
-    if (res.status === 200 || res.status === 404) {
-      scopes.codeStatus = true;
-    } else if (res.status === 401 || res.status === 403) {
-      scopes.codeStatus = false;
-    } else {
-      scopes.codeStatus = res.ok;
-    }
-  } catch {
-    scopes.codeStatus = false;
-  }
-
-  // Probe 4: Over-privilege check for Work Items: Write
-  try {
-    const writeProbeUrl = `${orgUrl}/_apis/wit/workitems/-1?api-version=7.1`;
-    const res = await fetcher(writeProbeUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/json-patch+json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify([
-        {
-          op: "add",
-          path: "/fields/System.Title",
-          value: "x-factory-scope-probe",
-        },
-      ]),
-      signal: AbortSignal.timeout(4500),
-    });
-
-    // 404 means write authorization passed, but work item -1 was not found!
-    scopes.workItemsWriteDetected = res.status === 404 || res.status === 200;
-  } catch {
-    scopes.workItemsWriteDetected = false;
-  }
-
-  // Probe 5: Over-privilege check for Code: Full (vso.code_manage)
-  try {
-    const binUrl = `${orgUrl}/${encodedProject}/_apis/git/recycleBin/repositories?api-version=7.1`;
-    const res = await fetcher(binUrl, {
-      method: "GET",
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(4500),
-    });
-
-    // 200 OK means user has repository administration/manage permissions (Code: Full)
-    scopes.codeFullDetected = res.status === 200;
-  } catch {
-    scopes.codeFullDetected = false;
-  }
+  scopes.workItemsRead = workItemsRead;
+  scopes.codeRead = codeRead;
+  scopes.codeStatus = codeStatus;
+  scopes.workItemsWriteDetected = workItemsWriteDetected;
+  scopes.codeFullDetected = codeFullDetected;
 
   // Minimum required scope validations
   if (!scopes.workItemsRead) {

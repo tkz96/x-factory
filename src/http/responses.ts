@@ -89,8 +89,21 @@ export async function catchHttpErrors(
   }
 }
 
+export function formatSSEMessage(event: unknown): string {
+  const obj = event as Record<string, unknown>;
+  let out = "";
+  if (obj.sequence !== undefined && obj.sequence !== null) {
+    out += `id: ${obj.sequence}\n`;
+  }
+  if (typeof obj.type === "string") {
+    out += `event: ${obj.type}\n`;
+  }
+  out += `data: ${JSON.stringify(event)}\n\n`;
+  return out;
+}
+
 export function createEventStreamResponse(
-  initialEvents: RunEvent[],
+  initialEvents: (RunEvent | Record<string, unknown>)[],
   subscribe: (listener: (event: RunEvent) => void) => () => void,
 ): Response {
   let unsubscribe: (() => void) | null = null;
@@ -99,16 +112,12 @@ export function createEventStreamResponse(
     start(controller) {
       const encoder = new TextEncoder();
       for (const event of initialEvents) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
-        );
+        controller.enqueue(encoder.encode(formatSSEMessage(event)));
       }
 
       unsubscribe = subscribe((event) => {
         try {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
-          );
+          controller.enqueue(encoder.encode(formatSSEMessage(event)));
         } catch {
           // Client disconnected
         }

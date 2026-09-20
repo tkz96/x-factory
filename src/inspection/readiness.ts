@@ -130,10 +130,7 @@ export async function inspectLocalRepository(
   };
 }
 
-export function normalizeGitRemoteUrl(url?: string): string {
-  if (!url) return "";
-  const trimmed = url.trim();
-
+function matchAzureRemote(trimmed: string): string | null {
   // Azure DevOps SSH: git@ssh.dev.azure.com:v3/org/project/repo
   const azSsh = trimmed.match(
     /^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i,
@@ -158,15 +155,20 @@ export function normalizeGitRemoteUrl(url?: string): string {
     return `azure:${azVs[1].toLowerCase()}/${azVs[2].toLowerCase()}/${azVs[3].replace(/\.git$/, "").toLowerCase()}`;
   }
 
-  // GitHub: git@github.com:owner/repo or https://github.com/owner/repo
+  return null;
+}
+
+function matchGitHubRemote(trimmed: string): string | null {
   const ghMatch = trimmed.match(
     /^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|(?:git@)?github\.com:)([^/]+)\/([^/]+)/i,
   );
   if (ghMatch?.[1] && ghMatch[2]) {
     return `github:${ghMatch[1].toLowerCase()}/${ghMatch[2].replace(/\.git$/, "").toLowerCase()}`;
   }
+  return null;
+}
 
-  // Generic fallback: strip protocols, user auth, .git, and trailing slashes
+function cleanGenericRemote(trimmed: string): string {
   return trimmed
     .replace(/^(?:https?|ssh|git):\/\//i, "")
     .replace(/^[^@/]+@/, "")
@@ -174,6 +176,16 @@ export function normalizeGitRemoteUrl(url?: string): string {
     .replace(/\.git$/, "")
     .replace(/\/+$/, "")
     .toLowerCase();
+}
+
+export function normalizeGitRemoteUrl(url?: string): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  return (
+    matchAzureRemote(trimmed) ||
+    matchGitHubRemote(trimmed) ||
+    cleanGenericRemote(trimmed)
+  );
 }
 
 async function checkGitRemoteMatch(

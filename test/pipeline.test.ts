@@ -12,10 +12,12 @@ import {
   defaultPipelineDeps,
   executeDeliverStage,
   type PipelineDependencies,
+  type PipelineStore,
   pipelineDeps,
   runWorkflow,
 } from "../src/pipeline.js";
-import { type InternalRun, RunStore } from "../src/store.js";
+import { canTransition } from "../src/state-machine.js";
+import type { InternalRun } from "../src/store.js";
 import type {
   ImplementationContext,
   PullRequest,
@@ -141,14 +143,21 @@ describe("Pipeline Orchestrator (src/pipeline.ts)", () => {
 
   async function setupRunFixture(): Promise<{
     run: InternalRun;
-    store: RunStore;
+    store: PipelineStore;
     bus: RunEventBus;
     tempDir: string;
     statusEvents: RunStatus[];
     allEvents: RunEvent[];
   }> {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "xf-pipe-"));
-    const store = new RunStore();
+    const store: PipelineStore = {
+      transition: (r, s) => {
+        if (!canTransition(r.status, s)) return false;
+        r.status = s;
+        return true;
+      },
+      persistRun: async () => {},
+    };
     const bus = new RunEventBus();
     const statusEvents: RunStatus[] = [];
     const allEvents: RunEvent[] = [];
@@ -176,7 +185,6 @@ describe("Pipeline Orchestrator (src/pipeline.ts)", () => {
       _baseline: null,
       _project: mockProject,
     };
-    store.set(run.id, run);
 
     bus.subscribe(run.id, (event: RunEvent) => {
       allEvents.push(event);

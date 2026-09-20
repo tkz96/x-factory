@@ -23,6 +23,7 @@
     "useUnknownInCatchVariables": true,
     "noImplicitOverride": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "verbatimModuleSyntax": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true

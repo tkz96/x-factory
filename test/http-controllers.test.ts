@@ -5,6 +5,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import {
+  type PiAgentSession,
+  registerActiveSession,
+} from "../src/agents/pi.js";
 import { deleteProject, saveProject, validateProject } from "../src/config.js";
 import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import { handleApi } from "../src/http/routes.js";
@@ -14,7 +18,7 @@ import {
 } from "../src/http/runs-controller.js";
 import { handleSettingsRoute } from "../src/http/settings-controller.js";
 import { execStrict } from "../src/proc.js";
-import { defaultRunStore, type InternalRun } from "../src/store.js";
+import { getRunRepository } from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
 
 describe("HTTP Routing & Controllers (src/http)", () => {
@@ -276,37 +280,29 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         acceptanceCriteria: ["Works"],
       };
 
-      const runId = "test-http-run-1";
-      const internalRun: InternalRun = {
+      const runId = `test-http-run-${Date.now()}`;
+      const sessionMock = {
+        steer: async () => {},
+        abort: async () => {},
+        prompt: async () => {},
+        subscribe: () => () => {},
+      };
+      registerActiveSession(runId, sessionMock as unknown as PiAgentSession);
+
+      const runRepo = getRunRepository();
+      runRepo.create({
         id: runId,
-        project: { id: mockProject.id, name: mockProject.name },
+        projectId: mockProject.id,
+        projectName: mockProject.name,
         ticket: mockTicket,
-        plan: "Test plan",
-        branch: "xfactory/http-test",
+        plan: "Plan",
+        branch: "factory/t-1",
         status: "implementing",
-        events: [{ type: "info", text: "Run started", timestamp: Date.now() }],
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        implementationContext: null,
-        verification: null,
-        review: null,
-        artifacts: [],
-        diff: null,
-        pullRequest: null,
-        repairAttempts: 0,
         artifactsDir: tempDir,
         worktreePath: tempDir,
-        _session: {
-          steer: async () => {},
-          abort: async () => {},
-          prompt: async () => {},
-          subscribe: () => () => {},
-        } as unknown as InternalRun["_session"],
-        _baseline: null,
-        _project: mockProject,
-      };
-
-      defaultRunStore.set(runId, internalRun);
+      });
+      const { getEventRepository } = await import("../src/runs.js");
+      getEventRepository().appendEvent(runId, "info", { text: "Run started" });
 
       // GET /api/runs/:id
       const getReq = new Request(`http://localhost/api/runs/${runId}`, {
@@ -364,9 +360,9 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const stopRes = await handleRunsRoute("POST", runId, "stop", 3, stopReq);
       assert.ok(stopRes);
       assert.equal(stopRes.status, 200);
-      const stopData = await stopRes.json();
+      const stopData = (await stopRes.json()) as { ok: boolean };
       assert.equal(stopData.ok, true);
-      assert.equal(internalRun.status, "stopped");
+      assert.equal(runRepo.get(runId)?.status, "stopped");
 
       await rm(tempDir, { recursive: true, force: true });
     });

@@ -2,10 +2,10 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { defaultEventBus } from "../src/events.js";
-import { startServer } from "../src/server.js";
-import { defaultRunStore } from "../src/store.js";
+import { getEventRepository, getRunRepository } from "../src/runs.js";
+import { type ServerInstance, startServer } from "../src/server.js";
 
-let server: ReturnType<typeof Bun.serve>;
+let server: ServerInstance;
 let baseUrl: string;
 
 beforeAll(async () => {
@@ -46,9 +46,13 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
 
       const html = await res.text();
       expect(html).toContain("<title>X-Factory</title>");
-      expect(html).toContain('id="app-shell"');
-      expect(html).toContain('id="sidebar-nav"');
-      expect(html).toContain('src="/app.js"');
+      if (process.env.NODE_ENV === "production") {
+        expect(html).toContain('id="root"');
+      } else {
+        expect(html).toContain('id="app-shell"');
+        expect(html).toContain('id="sidebar-nav"');
+        expect(html).toContain('src="/app.js"');
+      }
     });
 
     it("serves styles.css on GET /styles.css", async () => {
@@ -87,6 +91,12 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     it("blocks directory traversal with 403 Forbidden", async () => {
       const res = await fetch(`${baseUrl}/%2e%2e/%2e%2e/package.json`);
       expect([403, 404]).toContain(res.status);
+    });
+
+    it("serves index.html on SPA routes like GET /queue", async () => {
+      const res = await fetch(`${baseUrl}/queue`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toContain("text/html");
     });
 
     it("serves docs.html on GET /docs with documentation content and styles", async () => {
@@ -223,43 +233,25 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     const runId = "test-integration-sse-run";
 
     beforeAll(() => {
-      defaultRunStore.set(runId, {
+      const runRepo = getRunRepository();
+      runRepo.create({
         id: runId,
-        project: { id: "p1", name: "Test Project" },
+        projectId: "p1",
+        projectName: "Test Project",
         ticket: { id: "T-1", title: "Test Ticket", acceptanceCriteria: [] },
         plan: "Test Plan",
         branch: "factory/t-1",
         status: "implementing",
-        events: [
-          { type: "info", text: "Initial run event", timestamp: Date.now() },
-        ],
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        implementationContext: null,
-        verification: null,
-        review: null,
-        artifacts: [],
-        diff: null,
-        pullRequest: null,
-        repairAttempts: 0,
         artifactsDir: "/tmp",
         worktreePath: "/tmp",
-        _session: null,
-        _baseline: null,
-        _project: {
-          id: "p1",
-          name: "Test Project",
-          repositoryPath: "/tmp",
-          defaultBranch: "main",
-          testCommand: "bun test",
-          issueTracker: { provider: "github", github: { repo: "test/repo" } },
-          repositories: [],
-        },
+      });
+      getEventRepository().appendEvent(runId, "info", {
+        text: "Initial run event",
       });
     });
 
     afterAll(() => {
-      defaultRunStore.delete(runId);
+      getRunRepository().delete(runId);
     });
 
     it("GET /api/runs/:id/events returns 200 text/event-stream with initial events", async () => {

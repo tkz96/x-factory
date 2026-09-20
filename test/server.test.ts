@@ -5,10 +5,11 @@ import assert from "node:assert/strict";
 import {
   checkOrphanedWorktrees,
   formatOrphanedWorktree,
+  type ServerInstance,
   startServer,
 } from "../src/server.js";
 
-let server: ReturnType<typeof Bun.serve>;
+let server: ServerInstance;
 let baseUrl: string;
 
 beforeAll(async () => {
@@ -19,11 +20,17 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (server) {
-    server.stop(true);
+    await server.shutdown(500);
   }
 });
 
 describe("Native Bun HTTP Server & API Endpoints", () => {
+  it("exposes server status, port, and in-flight counters", () => {
+    assert.equal(typeof server.port, "number");
+    assert.ok(server.port > 0);
+    assert.equal(server.isShuttingDown(), false);
+    assert.equal(server.getInFlightCount(), 0);
+  });
   it("serves static index.html on root path GET /", async () => {
     const res = await fetch(`${baseUrl}/`);
     assert.equal(res.status, 200);
