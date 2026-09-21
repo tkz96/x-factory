@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "drive-projects-runs-1d08d0ca-s07317c4",
+  "projectId": "x-factory-0c993cea",
+  "createdAt": 1789978906035,
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "link",
+        "name": "Projects"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "route": {
+          "pathname": "/projects"
+        }
+      }
+    }
+  ],
+  "startPath": "/runs/1d08d0ca"
+}

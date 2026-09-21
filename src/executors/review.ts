@@ -2,7 +2,6 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defaultEventBus } from "../events.js";
 import { reviewRun } from "../review.js";
 import { loadSettings } from "../settings.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
@@ -31,9 +30,7 @@ export class ReviewExecutor implements StageExecutor {
     const { run } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
-    defaultEventBus.emit(run.id, {
-      type: "status",
-      status: "reviewing",
+    context.eventRepo.appendEvent(run.id, "info", {
       text: "Conducting automated code review…",
     });
 
@@ -71,27 +68,42 @@ export class ReviewExecutor implements StageExecutor {
       "utf-8",
     );
 
-    // Update run record in SQLite
-    context.runRepo.update(run.id, {
-      review: rResult,
-      expectedRevision: run.revision,
-    });
-
-    defaultEventBus.emit(run.id, {
-      type: "review",
-      result: rResult,
-    });
-
-    if (rResult.passed) {
-      defaultEventBus.emitStageEvidence(
+    // Atomically update review record and append events (Phase 2, Section 31)
+    const tx = context.db.transaction(() => {
+      context.runRepo.update(
         run.id,
-        "review",
-        `Review approved: ${rResult.summary}`,
+        {
+          review: rResult,
+          expectedRevision: run.revision,
+        },
+        context.db,
       );
 
+      context.eventRepo.appendEvent(
+        run.id,
+        "review",
+        { result: rResult },
+        context.db,
+      );
+
+      context.eventRepo.appendEvent(
+        run.id,
+        "stage_evidence",
+        {
+          stage: "review",
+          evidence: rResult.passed
+            ? `Review approved: ${rResult.summary}`
+            : `Review rejected: ${rResult.summary}`,
+        },
+        context.db,
+      );
+    });
+    tx();
+
+    if (rResult.passed) {
       return {
         status: "success",
-        nextStage: "deliver",
+        nextStage: undefined,
         nextRunStatus: "ready_for_pr",
         output: {
           passed: true,
@@ -99,12 +111,6 @@ export class ReviewExecutor implements StageExecutor {
         },
       };
     }
-
-    defaultEventBus.emitStageEvidence(
-      run.id,
-      "review",
-      `Review rejected: ${rResult.summary}`,
-    );
 
     return {
       status: "failed",

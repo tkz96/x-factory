@@ -1,7 +1,6 @@
 // src/db/run-repository.ts — SQLite-backed authoritative repository for workflow runs.
 
 import type { Database } from "bun:sqlite";
-import { defaultEventBus } from "../events.js";
 import type {
   ImplementationContext,
   PullRequest,
@@ -12,6 +11,11 @@ import type {
   VerificationResult,
 } from "../shared/types.js";
 import { canTransition } from "../state-machine.js";
+import {
+  type EventRecord,
+  type EventRow,
+  rowToEventRecord,
+} from "./event-repository.js";
 
 export class RunNotFoundError extends Error {
   readonly runId: string;
@@ -160,11 +164,16 @@ function rowToRunRecord(row: RunRow): RunRecord {
 export class RunRepository {
   constructor(private db: Database) {}
 
-  create(input: CreateRunRecordInput): RunRecord {
+  private getDb(txDb?: Database): Database {
+    return txDb ?? this.db;
+  }
+
+  create(input: CreateRunRecordInput, txDb?: Database): RunRecord {
+    const db = this.getDb(txDb);
     const now = new Date().toISOString();
     const startedAt = input.startedAt || now;
 
-    const stmt = this.db.prepare(`
+    const stmt = db.prepare(`
       INSERT INTO runs (
         id, project_id, project_name, ticket_id, ticket_title, ticket_description,
         ticket_acceptance_criteria, plan, branch, status, started_at, finished_at,
@@ -200,16 +209,16 @@ export class RunRepository {
     return rowToRunRecord(row);
   }
 
-  get(id: string): RunRecord | null {
-    const stmt = this.db.prepare("SELECT * FROM runs WHERE id = ?;");
+  get(id: string, txDb?: Database): RunRecord | null {
+    const db = this.getDb(txDb);
+    const stmt = db.prepare("SELECT * FROM runs WHERE id = ?;");
     const row = stmt.get(id) as RunRow | null;
     return row ? rowToRunRecord(row) : null;
   }
 
-  list(): RunRecord[] {
-    const stmt = this.db.prepare(
-      "SELECT * FROM runs ORDER BY created_at DESC;",
-    );
+  list(txDb?: Database): RunRecord[] {
+    const db = this.getDb(txDb);
+    const stmt = db.prepare("SELECT * FROM runs ORDER BY created_at DESC;");
     const rows = stmt.all() as RunRow[];
     return rows.map(rowToRunRecord);
   }
@@ -217,8 +226,9 @@ export class RunRepository {
   /**
    * Retrieves all runs in an active, non-terminal state.
    */
-  listActive(): RunRecord[] {
-    const stmt = this.db.prepare(`
+  listActive(txDb?: Database): RunRecord[] {
+    const db = this.getDb(txDb);
+    const stmt = db.prepare(`
       SELECT * FROM runs
       WHERE status NOT IN ('pr_created', 'failed', 'stopped', 'recovery_required')
       ORDER BY created_at ASC;
@@ -227,8 +237,13 @@ export class RunRepository {
     return rows.map(rowToRunRecord);
   }
 
-  update(id: string, updates: UpdateRunRecordInput): RunRecord {
-    const current = this.get(id);
+  update(
+    id: string,
+    updates: UpdateRunRecordInput,
+    txDb?: Database,
+  ): RunRecord {
+    const db = this.getDb(txDb);
+    const current = this.get(id, db);
     if (!current) {
       throw new RunNotFoundError(id);
     }
@@ -308,14 +323,31 @@ export class RunRepository {
       params.$worktreePath = updates.worktreePath;
     }
 
+    let whereClause = "WHERE id = $id";
+    if (updates.expectedRevision !== undefined) {
+      whereClause += " AND revision = $expectedRevision";
+      params.$expectedRevision = updates.expectedRevision;
+    }
+
     const sql = `
       UPDATE runs
       SET ${fields.join(", ")}
-      WHERE id = $id
+      ${whereClause}
       RETURNING *;
     `;
 
-    const row = this.db.prepare(sql).get(params) as RunRow;
+    const row = db.prepare(sql).get(params) as RunRow | null;
+    if (!row) {
+      const refreshed = this.get(id, db);
+      if (!refreshed) {
+        throw new RunNotFoundError(id);
+      }
+      throw new StaleRevisionError(
+        id,
+        updates.expectedRevision ?? refreshed.revision,
+        refreshed.revision,
+      );
+    }
     return rowToRunRecord(row);
   }
 
@@ -332,21 +364,17 @@ export class RunRepository {
       event?: { type: string; payload: unknown } | undefined;
       finishedAt?: string | null | undefined;
     },
-  ): RunRecord {
+    txDb?: Database,
+  ): { run: RunRecord; event: EventRecord | null } {
     // 1. Verify transition legality against FSM (XFM-08)
     if (!canTransition(fromState, toState)) {
       throw new IllegalStateTransitionError(fromState, toState);
     }
 
-    let eventToBroadcast: {
-      runId: string;
-      type: string;
-      payload: unknown;
-    } | null = null;
-
-    // 2. Execute transition and durable event atomically
-    const tx = this.db.transaction(() => {
-      const selectStmt = this.db.prepare("SELECT * FROM runs WHERE id = ?;");
+    const execute = (
+      db: Database,
+    ): { run: RunRecord; event: EventRecord | null } => {
+      const selectStmt = db.prepare("SELECT * FROM runs WHERE id = ?;");
       const current = selectStmt.get(runId) as RunRow | null;
       if (!current) {
         throw new RunNotFoundError(runId);
@@ -381,7 +409,7 @@ export class RunRepository {
             ? now
             : current.finished_at;
 
-      const updateStmt = this.db.prepare(`
+      const updateStmt = db.prepare(`
         UPDATE runs
         SET status = $status,
             revision = $revision,
@@ -408,9 +436,10 @@ export class RunRepository {
         );
       }
 
+      let insertedEvent: EventRecord | null = null;
       // 3. Atomically insert event into run_events table if specified (XFM-14)
       if (options?.event) {
-        const insertEventStmt = this.db.prepare(`
+        const insertEventStmt = db.prepare(`
           INSERT INTO run_events (run_id, sequence, type, payload, created_at)
           VALUES (
             $runId,
@@ -418,10 +447,11 @@ export class RunRepository {
             $type,
             $payload,
             $createdAt
-          );
+          )
+          RETURNING *;
         `);
 
-        insertEventStmt.run({
+        const eventRow = insertEventStmt.get({
           $runId: runId,
           $type: options.event.type,
           $payload:
@@ -429,56 +459,30 @@ export class RunRepository {
               ? options.event.payload
               : JSON.stringify(options.event.payload ?? {}),
           $createdAt: now,
-        });
+        }) as EventRow | null;
 
-        eventToBroadcast = {
-          runId,
-          type: options.event.type,
-          payload: options.event.payload,
-        };
+        if (eventRow) {
+          insertedEvent = rowToEventRecord(eventRow);
+        }
       }
 
-      return rowToRunRecord(updatedRow);
-    });
+      return {
+        run: rowToRunRecord(updatedRow),
+        event: insertedEvent,
+      };
+    };
 
-    const updated = tx();
-
-    // 4. Broadcast event to SSE subscribers strictly AFTER transaction commit
-    if (eventToBroadcast) {
-      const evt: { runId: string; type: string; payload: unknown } =
-        eventToBroadcast;
-      if (evt.type === "status") {
-        const text =
-          typeof evt.payload === "object" &&
-          evt.payload !== null &&
-          "text" in evt.payload &&
-          typeof (evt.payload as { text: unknown }).text === "string"
-            ? (evt.payload as { text: string }).text
-            : `Run transitioned to ${toState}`;
-
-        defaultEventBus.emit(evt.runId, {
-          type: "status",
-          status: toState,
-          text,
-        });
-      } else {
-        const text =
-          typeof evt.payload === "string"
-            ? evt.payload
-            : JSON.stringify(evt.payload ?? {});
-
-        defaultEventBus.emit(evt.runId, {
-          type: "info",
-          text,
-        });
-      }
+    if (txDb) {
+      return execute(txDb);
     }
 
-    return updated;
+    const tx = this.db.transaction(() => execute(this.db));
+    return tx();
   }
 
-  delete(id: string): boolean {
-    const stmt = this.db.prepare("DELETE FROM runs WHERE id = ?;");
+  delete(id: string, txDb?: Database): boolean {
+    const db = this.getDb(txDb);
+    const stmt = db.prepare("DELETE FROM runs WHERE id = ?;");
     const result = stmt.run(id);
     return result.changes > 0;
   }

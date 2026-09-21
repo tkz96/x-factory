@@ -11,7 +11,7 @@
     "dev:frontend": "vite",
     "build": "vite build && bun run build:assets",
     "build:frontend": "vite build",
-    "build:assets": "mkdir -p dist/public && cp public/docs.html public/reference.html public/styles.css public/favicon.svg dist/public/ && cp -r public/fonts public/assets dist/public/",
+    "build:assets": "mkdir -p dist/public && cp public/reference.html public/styles.css public/favicon.svg dist/public/ && cp -r public/fonts public/assets dist/public/",
     "test": "bun test",
     "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov",
     "test:integration": "bun --config=bunfig.selective.toml test test/integration.test.ts",
@@ -24,7 +24,7 @@
     "knip": "knip",
     "check:knip": "knip",
     "check:fallow": "bunx fallow",
-    "check:cycles": "dpdm --exit-code circular:1 --circular --warning=false --tree=false src/server.ts public/app.ts",
+    "check:cycles": "dpdm --exit-code circular:1 --circular --warning=false --tree=false src/server.ts src/worker.ts src/frontend/main.tsx",
     "prepare": "lefthook install"
   },
   "dependencies": {
@@ -37,6 +37,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
+    "@reticlehq/react": "3.1.0",
+    "@reticlehq/vite-plugin": "3.1.0",
     "@tanstack/react-query-devtools": "^5.103.1",
     "@types/bun": "latest",
     "@types/react": "^19.3.0",

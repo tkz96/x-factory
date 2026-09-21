@@ -26,7 +26,7 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
     }
   });
 
-  it("migrates incrementally from older schema (v3) to latest (v6) preserving existing data", () => {
+  it("migrates incrementally from older schema (v3) to latest (v8) preserving existing data", () => {
     const db = createDatabase({ path: ":memory:" });
     const allMigrations = loadMigrations();
 
@@ -59,11 +59,11 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
       );
     `).run();
 
-    // 3. Migrate incrementally to latest schema version 6
+    // 3. Migrate incrementally to latest schema version 8
     const step2 = runMigrations(db, allMigrations);
-    expect(step2.applied).toBe(3); // 4, 5, 6 applied
-    expect(step2.currentVersion).toBe(6);
-    expect(getSchemaVersion(db)).toBe(6);
+    expect(step2.applied).toBe(5); // 4, 5, 6, 7, 8 applied
+    expect(step2.currentVersion).toBe(8);
+    expect(getSchemaVersion(db)).toBe(8);
 
     // 4. Verify pre-existing data was preserved completely
     const preservedRun = db
@@ -80,7 +80,7 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
     expect(preservedJob?.status).toBe("pending");
   });
 
-  it("verifies all 6 tables and critical performance indexes exist in latest schema", () => {
+  it("verifies all 8 tables and critical performance indexes exist in latest schema", () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
 
@@ -96,6 +96,8 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
     expect(tableNames).toContain("run_events");
     expect(tableNames).toContain("stage_attempts");
     expect(tableNames).toContain("operation_ledger");
+    expect(tableNames).toContain("run_commands");
+    expect(tableNames).toContain("worker_heartbeats");
 
     // Indexes check
     const indexes = db
@@ -108,6 +110,7 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
     expect(indexNames).toContain("idx_run_events_run_sequence");
     expect(indexNames).toContain("idx_stage_attempts_run_stage");
     expect(indexNames).toContain("idx_operation_ledger_run_op");
+    expect(indexNames).toContain("idx_run_commands_pending");
   });
 
   it("passes PRAGMA integrity_check with zero errors", () => {

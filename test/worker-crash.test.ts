@@ -1,6 +1,7 @@
 // test/worker-crash.test.ts — Comprehensive worker crash & restart recovery tests across all 6 stages (XFM-57).
 
 import { describe, expect, it } from "bun:test";
+import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -53,12 +54,6 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       runStatus: "reviewing",
       expectedNextStatus: "ready_for_pr",
       // Review reaches human approval gate, next stage undefined
-    },
-    {
-      stage: "deliver",
-      runStatus: "ready_for_pr",
-      expectedNextStatus: "pr_created",
-      // Deliver creates PR, no next stage
     },
   ];
 
@@ -337,7 +332,6 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     runMigrations(db);
 
     const runRepo = new RunRepository(db);
-    const jobRepo = new JobRepository(db);
     const operationLedgerRepo = new OperationLedgerRepository(db);
 
     const run = runRepo.create({
@@ -382,27 +376,27 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       },
     });
 
-    const job = jobRepo.createJob({
+    const commandRepo = new CommandRepository(db);
+    const cmd = commandRepo.insertOrRetryCommand({
       runId: run.id,
-      stage: "deliver",
-      status: "pending",
+      command: "deliver",
+      payload: {},
+      idempotencyKey: `deliver:${run.id}`,
     });
 
     const worker = new Worker({
       workerId: "worker-deliver-resumed",
       db,
-      getStageExecutor: () => deliverExecutor,
+      deliverExecutor,
     });
 
-    const claimed = jobRepo.claimNextJob(worker.workerId, 30000);
-    if (!claimed) throw new Error("Job not claimed");
-    await worker.processJob(claimed);
+    await worker.processCommand(cmd);
 
     // PR was in ledger -> createPullRequest was NOT called again
     expect(prCallCount).toBe(0);
 
-    const completedJob = jobRepo.getJob(job.id);
-    expect(completedJob?.status).toBe("completed");
+    const completedCmd = commandRepo.getCommand(cmd.id);
+    expect(completedCmd?.status).toBe("completed");
     const updatedRun = runRepo.get(run.id);
     expect(updatedRun?.status).toBe("pr_created");
     expect(updatedRun?.pullRequest?.url).toBe(

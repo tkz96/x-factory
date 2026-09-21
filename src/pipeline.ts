@@ -6,15 +6,22 @@ import {
   createImplementationSession,
   type PiAgentSession,
 } from "./agents/pi.js";
-import { createAzurePullRequest } from "./azure/pr.js";
+import {
+  createAzurePullRequest,
+  findExistingAzurePullRequest,
+} from "./azure/pr.js";
 import { publishAzureCommitStatus } from "./azure/status.js";
-import type { RunEventBus } from "./events.js";
+export interface PipelineEventBus {
+  emit(runId: string, event: unknown): void;
+  emitStageEvidence(runId: string, stage: string, evidence: string): void;
+}
+
 import {
   buildPrMetadata,
   createPullRequestWithFallback,
 } from "./executors/deliver.js";
 import * as git from "./git.js";
-import { createPullRequest } from "./github.js";
+import { createPullRequest, findExistingPullRequest } from "./github.js";
 import { reviewRun } from "./review.js";
 import { loadSettings } from "./settings.js";
 import type { InternalRun } from "./store.js";
@@ -49,7 +56,9 @@ export interface PipelineDependencies {
   safeCommitAll: typeof git.safeCommitAll;
   push: typeof git.push;
   createPullRequest: typeof createPullRequest;
+  findExistingPullRequest: typeof findExistingPullRequest;
   createAzurePullRequest: typeof createAzurePullRequest;
+  findExistingAzurePullRequest: typeof findExistingAzurePullRequest;
   publishStatus: typeof publishAzureCommitStatus;
   createImplementationSession: typeof createImplementationSession;
   runVerification: typeof runVerification;
@@ -67,7 +76,9 @@ export const defaultPipelineDeps: PipelineDependencies = {
   safeCommitAll: git.safeCommitAll,
   push: git.push,
   createPullRequest,
+  findExistingPullRequest,
   createAzurePullRequest,
+  findExistingAzurePullRequest,
   publishStatus: publishAzureCommitStatus,
   createImplementationSession,
   runVerification,
@@ -83,7 +94,7 @@ async function promptSession(
   session: PiAgentSession,
   promptText: string,
   errorPrefix: string,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
 ): Promise<boolean> {
   try {
@@ -100,7 +111,7 @@ async function promptSession(
 
 async function executePrepareStage(
   run: InternalRun,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<string> {
   const { id } = run;
@@ -142,7 +153,7 @@ async function executePrepareStage(
 async function executeUnderstandStage(
   run: InternalRun,
   worktreePath: string,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<ImplementationContext> {
@@ -181,7 +192,7 @@ async function executeUnderstandStage(
 function attachImplementationListeners(
   session: PiAgentSession,
   runId: string,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
 ): void {
   session.subscribe((e) => {
     if (e.type === "text" && e.text) {
@@ -213,7 +224,7 @@ async function executeImplementStage(
   run: InternalRun,
   worktreePath: string,
   context: ImplementationContext,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
@@ -276,7 +287,7 @@ async function persistVerificationArtifacts(
 async function attemptAutomatedRepair(
   run: InternalRun,
   vResult: VerificationResult,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
 ): Promise<boolean> {
   store.transition(run, "implementing");
@@ -310,7 +321,7 @@ async function attemptAutomatedRepair(
 async function executeVerifyAndRepairStage(
   run: InternalRun,
   worktreePath: string,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
@@ -396,7 +407,7 @@ async function executeVerifyAndRepairStage(
 async function executeReviewStage(
   run: InternalRun,
   worktreePath: string,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<boolean> {
@@ -472,7 +483,7 @@ async function executeReviewStage(
 
 export async function executeDeliverStage(
   run: InternalRun,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<PullRequest> {
@@ -533,7 +544,7 @@ export async function executeDeliverStage(
 
 export async function runWorkflow(
   run: InternalRun,
-  eventBus: RunEventBus,
+  eventBus: PipelineEventBus,
   store: PipelineStore,
   deps: PipelineDependencies = pipelineDeps,
 ): Promise<void> {

@@ -7,6 +7,7 @@ import {
 import {
   handleDiagnosticsRoute,
   handleHealthRoute,
+  handleReadinessRoute,
   handleReadyRoute,
 } from "./diagnostics-controller.js";
 import { getOpenApiSpec } from "./openapi.js";
@@ -30,6 +31,11 @@ async function routeApiRequest(
   // Readiness probe (XFM-69)
   if (resource === "ready") {
     return handleReadyRoute();
+  }
+
+  // UI Readiness check (XFM-48)
+  if (resource === "readiness") {
+    return handleReadinessRoute();
   }
 
   // Operational diagnostics (XFM-70)

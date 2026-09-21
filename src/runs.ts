@@ -2,8 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import { getActiveSession } from "./agents/pi.js";
-import { loadProjects } from "./config.js";
+import { CommandRepository } from "./db/command-repository.js";
 import { createDatabase } from "./db/connection.js";
 import { type EventRecord, EventRepository } from "./db/event-repository.js";
 import { type JobRecord, JobRepository } from "./db/job-repository.js";
@@ -17,26 +16,20 @@ import {
   type StageAttemptRecord,
   StageAttemptRepository,
 } from "./db/stage-attempt-repository.js";
-import { defaultEventBus } from "./events.js";
-import { DeliverExecutor } from "./executors/deliver.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
+import { STOPPABLE_RUN_STATUSES } from "./state-machine.js";
 import { initializeRunArtifacts } from "./store.js";
-import type {
-  Project,
-  PullRequest,
-  Run,
-  RunEvent,
-  RunStatus,
-  Ticket,
-} from "./types.js";
-
-const eventBus = defaultEventBus;
+import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
 
 let hydrationPromise: Promise<void> | null = null;
 let dbInstance: Database | null = null;
 let runRepoInstance: RunRepository | null = null;
 let jobRepoInstance: JobRepository | null = null;
+let eventRepoInstance: EventRepository | null = null;
+let commandRepoInstance: CommandRepository | null = null;
+let stageAttemptRepoInstance: StageAttemptRepository | null = null;
+let operationLedgerRepoInstance: OperationLedgerRepository | null = null;
 
 export function getDb(): Database {
   if (!dbInstance) {
@@ -60,8 +53,6 @@ export function getJobRepository(): JobRepository {
   return jobRepoInstance;
 }
 
-let eventRepoInstance: EventRepository | null = null;
-
 export function getEventRepository(): EventRepository {
   if (!eventRepoInstance) {
     eventRepoInstance = new EventRepository(getDb());
@@ -69,11 +60,33 @@ export function getEventRepository(): EventRepository {
   return eventRepoInstance;
 }
 
+export function getCommandRepository(): CommandRepository {
+  if (!commandRepoInstance) {
+    commandRepoInstance = new CommandRepository(getDb());
+  }
+  return commandRepoInstance;
+}
+
+export function getStageAttemptRepository(): StageAttemptRepository {
+  if (!stageAttemptRepoInstance) {
+    stageAttemptRepoInstance = new StageAttemptRepository(getDb());
+  }
+  return stageAttemptRepoInstance;
+}
+
+export function getOperationLedgerRepository(): OperationLedgerRepository {
+  if (!operationLedgerRepoInstance) {
+    operationLedgerRepoInstance = new OperationLedgerRepository(getDb());
+  }
+  return operationLedgerRepoInstance;
+}
+
 export function setDbForTesting(db: Database | null): void {
   dbInstance = db;
   runRepoInstance = db ? new RunRepository(db) : null;
   jobRepoInstance = db ? new JobRepository(db) : null;
   eventRepoInstance = db ? new EventRepository(db) : null;
+  commandRepoInstance = db ? new CommandRepository(db) : null;
   operationLedgerRepoInstance = db ? new OperationLedgerRepository(db) : null;
   stageAttemptRepoInstance = db ? new StageAttemptRepository(db) : null;
 }
@@ -85,26 +98,8 @@ export function getRunEvents(
   return getEventRepository().getEventsForRun(runId, options);
 }
 
-let stageAttemptRepoInstance: StageAttemptRepository | null = null;
-
-export function getStageAttemptRepository(): StageAttemptRepository {
-  if (!stageAttemptRepoInstance) {
-    stageAttemptRepoInstance = new StageAttemptRepository(getDb());
-  }
-  return stageAttemptRepoInstance;
-}
-
 export function getStageAttempts(runId: string): StageAttemptRecord[] {
   return getStageAttemptRepository().listForRun(runId);
-}
-
-let operationLedgerRepoInstance: OperationLedgerRepository | null = null;
-
-export function getOperationLedgerRepository(): OperationLedgerRepository {
-  if (!operationLedgerRepoInstance) {
-    operationLedgerRepoInstance = new OperationLedgerRepository(getDb());
-  }
-  return operationLedgerRepoInstance;
 }
 
 export function getOperationLedger(runId: string): OperationLedgerRecord[] {
@@ -178,41 +173,52 @@ export async function createRun(
     acceptanceCriteria: acceptanceCriteria.map((c) => c.trim()).filter(Boolean),
   };
 
+  // Create run artifacts before exposing pending job in database (Phase 1, Section 19)
+  await initializeRunArtifacts(artifactsDir, ticket, plan);
+
   const db = getDb();
   const runRepo = getRunRepository();
   const jobRepo = getJobRepository();
+  const eventRepo = getEventRepository();
 
-  let createdRun: Run | null = null;
+  let createdRun: RunRecord | null = null;
 
-  // Atomically persist Run and initial Job in a single SQLite transaction
   const atomicInit = db.transaction(() => {
-    createdRun = runRepo.create({
-      id,
-      projectId: project.id,
-      projectName: project.name,
-      ticket,
-      plan,
-      branch: branchName,
-      status: "preparing",
-      artifactsDir,
-      worktreePath,
-    });
+    createdRun = runRepo.create(
+      {
+        id,
+        projectId: project.id,
+        projectName: project.name,
+        ticket,
+        plan,
+        branch: branchName,
+        status: "preparing",
+        artifactsDir,
+        worktreePath,
+      },
+      db,
+    );
 
-    jobRepo.createJob({
-      runId: id,
-      stage: "prepare",
-      status: "pending",
-    });
+    jobRepo.createJob(
+      {
+        runId: id,
+        stage: "prepare",
+        status: "pending",
+      },
+      db,
+    );
+
+    eventRepo.appendEvent(
+      id,
+      "status",
+      {
+        status: "preparing",
+        text: "Preparing run workspace…",
+      },
+      db,
+    );
   });
   atomicInit();
-
-  await initializeRunArtifacts(artifactsDir, ticket, plan);
-
-  eventBus.emit(id, {
-    type: "status",
-    status: "preparing",
-    text: "Preparing run workspace…",
-  });
 
   if (!createdRun) {
     throw new Error("Failed to initialize run record");
@@ -226,216 +232,344 @@ export async function steerRun(
   message: string,
   commandId?: string,
 ): Promise<boolean> {
-  if (commandId) {
-    const ledger = getOperationLedgerRepository();
-    const existing = ledger.getOperation(id, `steer:${commandId}`);
-    if (existing && existing.status === "completed") {
-      return true; // deduplicated
+  const db = getDb();
+  const runRepo = getRunRepository();
+  const jobRepo = getJobRepository();
+  const commandRepo = getCommandRepository();
+  const eventRepo = getEventRepository();
+
+  const idempotencyKey = commandId
+    ? `steer:${commandId}`
+    : `steer:${randomUUID()}`;
+  let alreadyExisted = false;
+
+  const tx = db.transaction(() => {
+    const run = runRepo.get(id, db);
+    if (!run) throw new Error(`Run ${id} not found.`);
+    if (run.status !== "implementing") {
+      throw new Error(`Cannot steer in status "${run.status}".`);
     }
-  }
 
-  const run = getRunRepository().get(id);
-  if (!run) throw new Error(`Run ${id} not found.`);
-  if (run.status !== "implementing") {
-    throw new Error(`Cannot steer in status "${run.status}".`);
-  }
+    if (commandId) {
+      const existingCmd = db
+        .prepare<{ id: string }, [string]>(
+          "SELECT id FROM run_commands WHERE idempotency_key = ?;",
+        )
+        .get(idempotencyKey);
 
-  const session = getActiveSession(id);
-  if (!session) throw new Error("No active Pi session to steer.");
+      if (existingCmd) {
+        alreadyExisted = true;
+        return;
+      }
+    }
 
-  eventBus.emit(id, { type: "steer", text: message });
-  await session.steer(message);
+    const activeJob = jobRepo.findActiveJobForRun(id, db);
+    const targetWorkerId = activeJob?.workerId || null;
 
-  if (commandId) {
-    const ledger = getOperationLedgerRepository();
-    ledger.recordCompleted(id, `steer:${commandId}`, commandId, { message });
-  }
+    commandRepo.insertOrRetryCommand(
+      {
+        runId: id,
+        command: "steer",
+        payload: { message },
+        idempotencyKey,
+        targetWorkerId,
+      },
+      db,
+    );
 
-  return false;
+    eventRepo.appendEvent(id, "steer", { message }, db);
+  });
+  tx();
+
+  return alreadyExisted;
 }
 
-export async function stopRun(id: string): Promise<void> {
-  const dbRun = getRunRepository().get(id);
-  if (!dbRun) throw new Error(`Run ${id} not found.`);
+export async function stopRun(
+  id: string,
+  deps?: {
+    db?: Database;
+    runRepo?: RunRepository;
+    jobRepo?: JobRepository;
+    commandRepo?: CommandRepository;
+    eventRepo?: EventRepository;
+  },
+): Promise<RunRecord> {
+  const db = deps?.db ?? getDb();
+  const runRepo = deps?.runRepo ?? getRunRepository();
+  const jobRepo = deps?.jobRepo ?? getJobRepository();
+  const commandRepo = deps?.commandRepo ?? getCommandRepository();
 
-  if (dbRun.status === "stopped") {
-    // Idempotent no-op for double-click stop
-    return;
-  }
+  const tx = db.transaction((): RunRecord => {
+    const run = runRepo.get(id, db);
+    if (!run) throw new Error(`Run ${id} not found.`);
 
-  if (
-    dbRun.status !== "implementing" &&
-    dbRun.status !== "understanding" &&
-    dbRun.status !== "preparing"
-  ) {
-    throw new Error(`Cannot stop in status "${dbRun.status}".`);
-  }
+    if (run.status === "stopped") {
+      return run;
+    }
 
-  const session = getActiveSession(id);
-  if (session) {
-    await session.abort();
-  }
+    if (!STOPPABLE_RUN_STATUSES.has(run.status)) {
+      throw new Error(`Cannot stop in status "${run.status}".`);
+    }
 
-  getRunRepository().update(id, {
-    status: "stopped",
-    finishedAt: new Date().toISOString(),
+    // Capture active job before cancellation clears worker_id
+    const activeJob = jobRepo.findActiveJobForRun(id, db);
+
+    const transitionResult = runRepo.transitionRun(
+      id,
+      run.status,
+      "stopped",
+      {
+        event: {
+          type: "status",
+          payload: {
+            status: "stopped",
+            text: "Run stopped by user.",
+          },
+        },
+      },
+      db,
+    );
+
+    cancelAndStopActiveJob(
+      jobRepo,
+      commandRepo,
+      id,
+      activeJob,
+      "Run stopped by user.",
+      db,
+    );
+
+    return transitionResult.run;
   });
 
-  eventBus.emit(id, {
-    type: "status",
-    status: "stopped",
-    text: "Run stopped by user.",
-  });
+  return tx();
 }
 
-export async function createPR(id: string): Promise<PullRequest> {
-  const dbRun = getRunRepository().get(id);
-  if (!dbRun) throw new Error(`Run ${id} not found.`);
-
-  const existingPr = dbRun.pullRequest;
-  if (existingPr) {
-    // Idempotent return for double PR creation
-    return existingPr;
-  }
-
-  if (dbRun.status !== "ready_for_pr") {
-    throw new Error(
-      `Cannot create PR in status "${dbRun.status}". Status must be "ready_for_pr".`,
+function cancelAndStopActiveJob(
+  jobRepo: JobRepository,
+  commandRepo: CommandRepository,
+  runId: string,
+  activeJob: JobRecord | null,
+  reason: string,
+  db: Database,
+): void {
+  jobRepo.cancelJobsForRun(runId, reason, db);
+  if (activeJob?.workerId) {
+    commandRepo.insertOrRetryCommand(
+      {
+        runId,
+        command: "stop",
+        payload: { jobId: activeJob.id },
+        idempotencyKey: `stop:${runId}`,
+        targetWorkerId: activeJob.workerId,
+      },
+      db,
     );
   }
-
-  const projects = await loadProjects();
-  const project = projects.find((p) => p.id === dbRun.project.id);
-  if (!project) {
-    throw new Error(`Project ${dbRun.project.id} not found.`);
-  }
-
-  const deliverExecutor = new DeliverExecutor();
-  const now = new Date().toISOString();
-  const dummyJob: JobRecord = {
-    id: `job-deliver-${id}`,
-    runId: id,
-    stage: "deliver",
-    status: "claimed",
-    workerId: "api-process",
-    attempts: 1,
-    maxAttempts: 3,
-    availableAt: now,
-    leaseUntil: new Date(Date.now() + 60000).toISOString(),
-    lastHeartbeatAt: now,
-    error: null,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const result = await deliverExecutor.execute({
-    run: dbRun,
-    job: dummyJob,
-    project,
-    workerId: "api-process",
-    db: getDb(),
-    runRepo: getRunRepository(),
-    jobRepo: getJobRepository(),
-    stageAttemptRepo: getStageAttemptRepository(),
-    operationLedgerRepo: getOperationLedgerRepository(),
-    eventRepo: getEventRepository(),
-    attemptId: `attempt-deliver-${id}`,
-  });
-
-  return result.output as PullRequest;
 }
 
-function getRecoverableRun(
+function verifyRecoveryRequired(
+  runRepo: RunRepository,
   id: string,
-  action: "resume" | "abandon",
+  db: Database,
+  action: string,
 ): RunRecord {
-  const dbRun = getRunRepository().get(id);
-  if (!dbRun) {
-    throw new Error(`Run ${id} not found.`);
-  }
-
+  const dbRun = runRepo.get(id, db);
+  if (!dbRun) throw new Error(`Run ${id} not found.`);
   if (dbRun.status !== "recovery_required") {
     throw new Error(
       `Cannot ${action} run in status "${dbRun.status}". Run must be in "recovery_required".`,
     );
   }
-
   return dbRun;
 }
 
+export async function createPR(
+  id: string,
+  deps?: {
+    db?: Database;
+    runRepo?: RunRepository;
+    commandRepo?: CommandRepository;
+    eventRepo?: EventRepository;
+  },
+): Promise<{
+  ok: boolean;
+  queued?: boolean | undefined;
+  completed?: boolean | undefined;
+  prUrl?: string | undefined;
+  pullRequest?: PullRequest | undefined;
+}> {
+  const db = deps?.db ?? getDb();
+  const runRepo = deps?.runRepo ?? getRunRepository();
+  const commandRepo = deps?.commandRepo ?? getCommandRepository();
+  const eventRepo = deps?.eventRepo ?? getEventRepository();
+
+  type CreatePrResult = {
+    ok: boolean;
+    queued?: boolean | undefined;
+    completed?: boolean | undefined;
+    url?: string | undefined;
+    prUrl?: string | undefined;
+    pullRequest?: PullRequest | undefined;
+  };
+
+  const tx = db.transaction((): CreatePrResult => {
+    const run = runRepo.get(id, db);
+    if (!run) throw new Error(`Run ${id} not found.`);
+
+    if (run.pullRequest) {
+      return {
+        ok: true,
+        completed: true,
+        url: run.pullRequest.url,
+        prUrl: run.pullRequest.url,
+        pullRequest: run.pullRequest,
+      };
+    }
+
+    if (run.status !== "ready_for_pr") {
+      throw new Error(
+        `Cannot create PR in status "${run.status}". Run must be in "ready_for_pr".`,
+      );
+    }
+
+    const existingCmd = commandRepo.getCommand(`deliver:${id}`, db);
+    if (existingCmd) {
+      if (
+        existingCmd.status === "pending" ||
+        existingCmd.status === "claimed"
+      ) {
+        return { ok: true, queued: true };
+      }
+      if (existingCmd.status === "completed") {
+        const refreshed = runRepo.get(id, db);
+        return {
+          ok: true,
+          completed: true,
+          url: refreshed?.pullRequest?.url,
+          prUrl: refreshed?.pullRequest?.url,
+          pullRequest: refreshed?.pullRequest ?? undefined,
+        };
+      }
+      if (existingCmd.status === "failed") {
+        commandRepo.insertOrRetryCommand(
+          {
+            runId: id,
+            command: "deliver",
+            idempotencyKey: `deliver:${id}`,
+          },
+          db,
+        );
+        return { ok: true, queued: true };
+      }
+    }
+
+    commandRepo.insertOrRetryCommand(
+      {
+        runId: id,
+        command: "deliver",
+        idempotencyKey: `deliver:${id}`,
+      },
+      db,
+    );
+
+    eventRepo.appendEvent(
+      id,
+      "info",
+      { text: "Pull Request delivery queued" },
+      db,
+    );
+
+    return { ok: true, queued: true };
+  });
+
+  return tx();
+}
+
 export async function resumeRun(id: string): Promise<Run> {
-  getRecoverableRun(id, "resume");
+  const db = getDb();
+  const runRepo = getRunRepository();
+  const jobRepo = getJobRepository();
+  const stageAttemptRepo = getStageAttemptRepository();
 
-  // Determine stage to resume
-  const attempts = getStageAttempts(id);
-  const lastAttempt =
-    attempts.length > 0 ? attempts[attempts.length - 1] : null;
+  const tx = db.transaction((): RunRecord => {
+    verifyRecoveryRequired(runRepo, id, db, "resume");
 
-  let targetStage = "prepare";
-  let targetStatus: RunStatus = "preparing";
-
-  if (lastAttempt) {
-    targetStage = lastAttempt.stage;
+    const attempts = stageAttemptRepo.listForRun(id, db);
+    const lastAttempt =
+      attempts.length > 0 ? attempts[attempts.length - 1] : null;
+    const targetStage = lastAttempt?.stage || "prepare";
     const stageToStatus: Record<string, RunStatus> = {
       prepare: "preparing",
-      parse_issue: "preparing",
       understand: "understanding",
       implement: "implementing",
       verify: "verifying",
       review: "reviewing",
     };
-    targetStatus = stageToStatus[targetStage] || "preparing";
-  }
+    const targetStatus: RunStatus =
+      stageToStatus[targetStage] || "implementing";
 
-  getRunRepository().transitionRun(id, "recovery_required", targetStatus, {
-    event: {
-      type: "resumed",
-      payload: {
-        message: `Run resumed by operator from stage "${targetStage}".`,
+    const transitionResult = runRepo.transitionRun(
+      id,
+      "recovery_required",
+      targetStatus,
+      {
+        event: {
+          type: "status",
+          payload: {
+            status: targetStatus,
+            text: `Run resumed by operator into stage ${targetStage}.`,
+          },
+        },
       },
-    },
-  });
-  getJobRepository().createJob({ runId: id, stage: targetStage });
+      db,
+    );
 
-  eventBus.emit(id, {
-    type: "status",
-    status: targetStatus,
-    text: `Run resumed by operator. Stage "${targetStage}" enqueued.`,
+    jobRepo.createJob({ runId: id, stage: targetStage }, db);
+    return transitionResult.run;
   });
 
-  const updated = getRun(id);
-  if (!updated) throw new Error(`Run ${id} not found after resume.`);
-  return updated;
+  return tx();
 }
 
 export async function abandonRun(id: string): Promise<Run> {
-  getRecoverableRun(id, "abandon");
+  const db = getDb();
+  const runRepo = getRunRepository();
+  const jobRepo = getJobRepository();
+  const commandRepo = getCommandRepository();
 
-  const now = new Date().toISOString();
-  getRunRepository().transitionRun(id, "recovery_required", "failed", {
-    finishedAt: now,
-    event: {
-      type: "abandoned",
-      payload: { message: "Run abandoned by operator." },
-    },
+  const tx = db.transaction((): RunRecord => {
+    verifyRecoveryRequired(runRepo, id, db, "abandon");
+
+    const activeJob = jobRepo.findActiveJobForRun(id, db);
+
+    const transitionResult = runRepo.transitionRun(
+      id,
+      "recovery_required",
+      "failed",
+      {
+        event: {
+          type: "status",
+          payload: {
+            status: "failed",
+            text: "Run abandoned by operator.",
+          },
+        },
+      },
+      db,
+    );
+
+    cancelAndStopActiveJob(
+      jobRepo,
+      commandRepo,
+      id,
+      activeJob,
+      "Run abandoned by operator.",
+      db,
+    );
+
+    return transitionResult.run;
   });
 
-  getJobRepository().cancelJobsForRun(id, "Run abandoned by operator.");
-
-  eventBus.emit(id, {
-    type: "status",
-    status: "failed",
-    text: "Run abandoned by operator.",
-  });
-
-  const updated = getRun(id);
-  if (!updated) throw new Error(`Run ${id} not found after abandon.`);
-  return updated;
-}
-
-export function subscribe(
-  id: string,
-  listener: (event: RunEvent) => void,
-): () => void {
-  return eventBus.subscribe(id, listener);
+  return tx();
 }

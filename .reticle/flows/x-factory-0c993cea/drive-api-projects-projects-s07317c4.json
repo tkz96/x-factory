@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "name": "drive-api-projects-projects-s07317c4",
+  "projectId": "x-factory-0c993cea",
+  "createdAt": 1789978906040,
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "textbox",
+        "name": "Paste URL (e.g. dev.azure.com/xynotech/Converso or github.com/owner/repo)"
+      },
+      "args": {
+        "value": "https://github.com/tkz96/simple-hello-world"
+      },
+      "action": "fill"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Continue to Tracker →"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Continue to Discovery →"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Continue to Repositories →"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Continue to Inspection →"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Continue to Review →"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Create & Connect Project"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "net": {
+          "urlContains": "/api/projects"
+        }
+      }
+    }
+  ],
+  "startPath": "/projects"
+}

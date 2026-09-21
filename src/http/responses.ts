@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import type { RunEvent } from "../types.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -89,51 +88,42 @@ export async function catchHttpErrors(
   }
 }
 
-export function formatSSEMessage(event: unknown): string {
-  const obj = event as Record<string, unknown>;
-  let out = "";
-  if (obj.sequence !== undefined && obj.sequence !== null) {
-    out += `id: ${obj.sequence}\n`;
-  }
-  if (typeof obj.type === "string") {
-    out += `event: ${obj.type}\n`;
-  }
-  out += `data: ${JSON.stringify(event)}\n\n`;
-  return out;
+export interface WireSSEEvent {
+  id: number;
+  type: string;
+  payload: unknown;
+  timestamp: string;
 }
 
-export function createEventStreamResponse(
-  initialEvents: (RunEvent | Record<string, unknown>)[],
-  subscribe: (listener: (event: RunEvent) => void) => () => void,
-): Response {
-  let unsubscribe: (() => void) | null = null;
+export function formatSSEMessage(
+  event: WireSSEEvent | Record<string, unknown>,
+): string {
+  const obj = event as Record<string, unknown>;
+  const id =
+    "sequence" in obj && typeof obj.sequence === "number"
+      ? obj.sequence
+      : "id" in obj && typeof obj.id === "number"
+        ? obj.id
+        : undefined;
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const encoder = new TextEncoder();
-      for (const event of initialEvents) {
-        controller.enqueue(encoder.encode(formatSSEMessage(event)));
-      }
+  const timestamp =
+    "timestamp" in obj && typeof obj.timestamp === "string"
+      ? obj.timestamp
+      : "createdAt" in obj && typeof obj.createdAt === "string"
+        ? obj.createdAt
+        : new Date().toISOString();
 
-      unsubscribe = subscribe((event) => {
-        try {
-          controller.enqueue(encoder.encode(formatSSEMessage(event)));
-        } catch {
-          // Client disconnected
-        }
-      });
-    },
-    cancel() {
-      if (unsubscribe) unsubscribe();
-    },
-  });
+  const canonicalEvent: WireSSEEvent = {
+    id: id ?? 0,
+    type: String(obj.type || ""),
+    payload: obj.payload ?? {},
+    timestamp,
+  };
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
-  });
+  let out = "";
+  if (id !== undefined && id !== null) {
+    out += `id: ${id}\n`;
+  }
+  out += `data: ${JSON.stringify(canonicalEvent)}\n\n`;
+  return out;
 }

@@ -3,9 +3,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
-import { defaultEventBus } from "../src/events.js";
+import { defaultSSERegistry } from "../src/http/sse-registry.js";
 import { type ServerInstance, startServer } from "../src/server.js";
-import type { RunEvent } from "../src/shared/types.js";
 
 describe("Coordinated Graceful Application Shutdown (XFM-71)", () => {
   let activeServer: ServerInstance | null = null;
@@ -33,30 +32,23 @@ describe("Coordinated Graceful Application Shutdown (XFM-71)", () => {
     activeDbPaths = [];
   });
 
-  it("notifies active SSE subscribers with server_shutdown event and closes bus on shutdown", async () => {
-    const receivedEvents: RunEvent[] = [];
-    const runId = "run-shutdown-sse";
+  it("closes all active SSE streams on sseRegistry.closeAll during shutdown", async () => {
+    let closed = false;
 
-    const unsub = defaultEventBus.subscribe(runId, (event) => {
-      receivedEvents.push(event);
+    const unregister = defaultSSERegistry.register(() => {
+      closed = true;
     });
 
-    expect(defaultEventBus.listenerCount(runId)).toBe(1);
+    expect(defaultSSERegistry.count).toBeGreaterThan(0);
 
     // Trigger closeAll
-    defaultEventBus.closeAll("Server is shutting down for deployment");
+    defaultSSERegistry.closeAll();
 
-    // Assert: subscriber received shutdown event
-    expect(receivedEvents.length).toBe(1);
-    const shutdownEvent = receivedEvents[0];
-    expect(shutdownEvent?.type).toBe("server_shutdown");
-    if (shutdownEvent && shutdownEvent.type === "server_shutdown") {
-      expect(shutdownEvent.text).toContain("Server is shutting down");
-    }
+    // Assert: stream close callback was invoked
+    expect(closed).toBe(true);
+    expect(defaultSSERegistry.count).toBe(0);
 
-    // Assert: all listeners were cleared
-    expect(defaultEventBus.listenerCount(runId)).toBe(0);
-    unsub();
+    unregister();
   });
 
   it("rejects new incoming non-health HTTP requests with HTTP 503 during shutdown", async () => {

@@ -3,7 +3,11 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 
-export type StageAttemptStatus = "running" | "completed" | "failed";
+export type StageAttemptStatus =
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export interface StageAttemptRecord {
   id: string;
@@ -61,6 +65,10 @@ function rowToRecord(row: StageAttemptRow): StageAttemptRecord {
 export class StageAttemptRepository {
   constructor(private db: Database) {}
 
+  private getDb(txDb?: Database): Database {
+    return txDb ?? this.db;
+  }
+
   /**
    * Records the start of a stage attempt with status 'running'.
    */
@@ -68,13 +76,15 @@ export class StageAttemptRepository {
     runId: string,
     stage: string,
     attempt?: number | undefined,
+    txDb?: Database,
   ): StageAttemptRecord {
+    const db = this.getDb(txDb);
     const id = `att-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
 
     let attemptNum = attempt;
     if (attemptNum === undefined) {
-      const latest = this.getLatestAttempt(runId, stage);
+      const latest = this.getLatestAttempt(runId, stage, txDb);
       attemptNum = (latest?.attempt ?? 0) + 1;
     }
 
@@ -87,7 +97,7 @@ export class StageAttemptRepository {
       RETURNING *;
     `;
 
-    const stmt = this.db.prepare<
+    const stmt = db.prepare<
       StageAttemptRow,
       {
         $id: string;
@@ -118,7 +128,12 @@ export class StageAttemptRepository {
   /**
    * Records the successful completion of a stage attempt.
    */
-  recordCompletion(id: string, output?: unknown): StageAttemptRecord {
+  recordCompletion(
+    id: string,
+    output?: unknown,
+    txDb?: Database,
+  ): StageAttemptRecord {
+    const db = this.getDb(txDb);
     const now = new Date().toISOString();
     const serializedOutput =
       output !== undefined
@@ -137,7 +152,7 @@ export class StageAttemptRepository {
       RETURNING *;
     `;
 
-    const stmt = this.db.prepare<
+    const stmt = db.prepare<
       StageAttemptRow,
       {
         $id: string;
@@ -162,12 +177,18 @@ export class StageAttemptRepository {
   /**
    * Records the failure of a stage attempt.
    */
-  recordFailure(id: string, error: string): StageAttemptRecord {
+  private recordTerminalStatus(
+    id: string,
+    status: "failed" | "cancelled",
+    error: string,
+    txDb?: Database,
+  ): StageAttemptRecord {
+    const db = this.getDb(txDb);
     const now = new Date().toISOString();
 
     const query = `
       UPDATE stage_attempts
-      SET status = 'failed',
+      SET status = $status,
           finished_at = $now,
           error = $error,
           updated_at = $now
@@ -175,10 +196,11 @@ export class StageAttemptRepository {
       RETURNING *;
     `;
 
-    const stmt = this.db.prepare<
+    const stmt = db.prepare<
       StageAttemptRow,
       {
         $id: string;
+        $status: string;
         $error: string;
         $now: string;
       }
@@ -186,6 +208,7 @@ export class StageAttemptRepository {
 
     const row = stmt.get({
       $id: id,
+      $status: status,
       $error: error,
       $now: now,
     });
@@ -197,17 +220,37 @@ export class StageAttemptRepository {
     return rowToRecord(row);
   }
 
+  recordFailure(
+    id: string,
+    error: string,
+    txDb?: Database,
+  ): StageAttemptRecord {
+    return this.recordTerminalStatus(id, "failed", error, txDb);
+  }
+
+  /**
+   * Records cancellation of a stage attempt.
+   */
+  recordCancellation(
+    id: string,
+    reason: string,
+    txDb?: Database,
+  ): StageAttemptRecord {
+    return this.recordTerminalStatus(id, "cancelled", reason, txDb);
+  }
+
   /**
    * Lists all stage attempts for a run ordered chronologically.
    */
-  listForRun(runId: string): StageAttemptRecord[] {
+  listForRun(runId: string, txDb?: Database): StageAttemptRecord[] {
+    const db = this.getDb(txDb);
     const query = `
       SELECT * FROM stage_attempts
       WHERE run_id = $runId
       ORDER BY started_at ASC, rowid ASC;
     `;
 
-    const stmt = this.db.prepare<StageAttemptRow, { $runId: string }>(query);
+    const stmt = db.prepare<StageAttemptRow, { $runId: string }>(query);
     const rows = stmt.all({ $runId: runId });
     return rows.map(rowToRecord);
   }
@@ -215,7 +258,12 @@ export class StageAttemptRepository {
   /**
    * Retrieves the most recent attempt for a given stage in a run.
    */
-  getLatestAttempt(runId: string, stage: string): StageAttemptRecord | null {
+  getLatestAttempt(
+    runId: string,
+    stage: string,
+    txDb?: Database,
+  ): StageAttemptRecord | null {
+    const db = this.getDb(txDb);
     const query = `
       SELECT * FROM stage_attempts
       WHERE run_id = $runId AND stage = $stage
@@ -223,7 +271,7 @@ export class StageAttemptRepository {
       LIMIT 1;
     `;
 
-    const stmt = this.db.prepare<
+    const stmt = db.prepare<
       StageAttemptRow,
       { $runId: string; $stage: string }
     >(query);

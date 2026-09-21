@@ -3,8 +3,7 @@
   "entry": [
     "src/server.ts",
     "src/worker.ts",
-    "index.html",
-    "public/index.html",
+    "src/frontend/main.tsx",
     "scripts/backup.ts",
     "scripts/verify-durable-pi.ts"
   ],
@@ -26,8 +25,7 @@
           "src/git.ts",
           "src/pollution.ts",
           "src/settings.ts",
-          "src/config.ts",
-          "src/diagnostics/**"
+          "src/config.ts"
         ]
       },
       {
@@ -57,11 +55,16 @@
       },
       {
         "name": "presentation",
-        "patterns": ["src/http/**", "src/server.ts", "src/worker.ts"]
+        "patterns": [
+          "src/http/**",
+          "src/server.ts",
+          "src/worker.ts",
+          "src/diagnostics/**"
+        ]
       },
       {
         "name": "frontend",
-        "patterns": ["public/**", "src/frontend/**"]
+        "patterns": ["src/frontend/**"]
       }
     ],
     "rules": [
@@ -118,7 +121,7 @@
     "unused-class-members": "warn"
   },
   "health": {
-    "ignore": ["test/**", "public/**"],
+    "ignore": ["test/**"],
     "maxCrap": 1000.0,
     "maxCognitive": 50,
     "maxCyclomatic": 50,

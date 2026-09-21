@@ -36,17 +36,28 @@ export function normalizeGitRef(branch: string): string {
 
 /**
  * Create a new pull request in Azure DevOps.
- *
+ */
+function parseAzureRepoCoords(options: {
+  fetchFn?: typeof fetch | undefined;
+  orgUrl?: string | undefined;
+  project?: string | undefined;
+  repoIdOrName?: string | undefined;
+}) {
+  const fetcher = options.fetchFn || globalThis.fetch;
+  const orgUrl = (options.orgUrl || "").trim().replace(/\/+$/, "");
+  const project = (options.project || "").trim();
+  const repo = (options.repoIdOrName || "").trim();
+  return { fetcher, orgUrl, project, repo };
+}
+
+/**
  * NOTE: X-Factory is strictly prohibited from closing, rejecting, or merging PRs.
  * This module does not provide any merge or close operations.
  */
 export async function createAzurePullRequest(
   options: CreateAzurePullRequestOptions,
 ): Promise<AzurePullRequestResult> {
-  const fetcher = options.fetchFn || globalThis.fetch;
-  const orgUrl = (options.orgUrl || "").trim().replace(/\/+$/, "");
-  const project = (options.project || "").trim();
-  const repo = (options.repoIdOrName || "").trim();
+  const { fetcher, orgUrl, project, repo } = parseAzureRepoCoords(options);
 
   if (!orgUrl || !project || !repo) {
     return {
@@ -118,5 +129,62 @@ export async function createAzurePullRequest(
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+/**
+ * Query active PRs in Azure DevOps to discover an existing PR for the source branch.
+ */
+export async function findExistingAzurePullRequest(
+  options: Pick<
+    CreateAzurePullRequestOptions,
+    "orgUrl" | "project" | "repoIdOrName" | "sourceBranch" | "pat" | "fetchFn"
+  >,
+): Promise<string | null> {
+  const { fetcher, orgUrl, project, repo } = parseAzureRepoCoords(options);
+
+  if (!orgUrl || !project || !repo) return null;
+
+  const authHeader = await resolveAzureAuthHeader(options.pat);
+  if (!authHeader) return null;
+
+  const sourceRef = encodeURIComponent(normalizeGitRef(options.sourceBranch));
+  const endpoint = `${orgUrl}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repo)}/pullrequests?searchCriteria.sourceRefName=${sourceRef}&searchCriteria.status=active&api-version=7.1`;
+
+  try {
+    const res = await fetcher(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as {
+      value?: Array<{
+        pullRequestId?: number;
+        url?: string;
+        _links?: { web?: { href?: string } };
+      }>;
+    };
+
+    const pr = data.value?.[0];
+    if (pr) {
+      return (
+        pr._links?.web?.href ||
+        pr.url ||
+        (pr.pullRequestId
+          ? `${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${pr.pullRequestId}`
+          : null) ||
+        null
+      );
+    }
+
+    return null;
+  } catch {
+    return null;
   }
 }

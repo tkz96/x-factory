@@ -10,8 +10,11 @@ import {
   formatStructuredLog,
 } from "../src/diagnostics/correlation.js";
 import {
+  getActiveWorkers,
   registerWorkerHeartbeat,
   resetWorkerRegistryForTesting,
+  setHeartbeatRepoForTesting,
+  unregisterWorker,
 } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
@@ -50,7 +53,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
       worktreePath: "/tmp/w1",
     });
 
-    const run2 = runRepo.create({
+    runRepo.create({
       id: "run-diag-2",
       projectId: "p1",
       projectName: "Proj 1",
@@ -77,14 +80,13 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
 
     // Create a stale claimed job
     const staleJob = jobRepo.createJob({
-      runId: run2.id,
-      stage: "deliver",
+      runId: run1.id,
+      stage: "verify",
       status: "pending",
     });
-    jobRepo.claimNextJob("worker-dead", 30000);
-    // Artificially expire lease in DB
+    // Set to claimed with expired lease
     db.run(
-      "UPDATE jobs SET lease_until = '2020-01-01T00:00:00.000Z' WHERE id = ?",
+      "UPDATE jobs SET status = 'claimed', worker_id = 'worker-dead', lease_until = '2020-01-01T00:00:00.000Z' WHERE id = ?",
       [staleJob.id],
     );
 
@@ -174,5 +176,19 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     expect(entry.worker_id).toBe("worker-1");
     expect(entry.attempt).toBe(2);
     expect(entry.duration_ms).toBe(120);
+  });
+
+  it("unregisters workers and supports test heartbeat repo injection", () => {
+    registerWorkerHeartbeat("worker-test-unreg");
+    expect(
+      getActiveWorkers().some((w) => w.workerId === "worker-test-unreg"),
+    ).toBe(true);
+
+    unregisterWorker("worker-test-unreg");
+    expect(
+      getActiveWorkers().some((w) => w.workerId === "worker-test-unreg"),
+    ).toBe(false);
+
+    setHeartbeatRepoForTesting(null);
   });
 });

@@ -11,7 +11,7 @@ import type {
   StageExecutor,
   StageResult,
 } from "../src/executors/index.js";
-import { setDbForTesting } from "../src/runs.js";
+import { createPR, setDbForTesting } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 
 describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", () => {
@@ -138,6 +138,8 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
       workerId: "e2e-worker",
       db,
       pollIntervalMs: 20,
+      commandPollIntervalMs: 20,
+      deliverExecutor: mockExecutors.deliver,
       getStageExecutor: (stg) => {
         const executor = mockExecutors[stg];
         if (!executor) {
@@ -184,14 +186,10 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     expect(stageCalls.length).toBe(5);
 
     // 3. Human Gate Approval: Operator clicks "Create PR"
-    // Queue deliver job into the durable WAL queue
-    jobRepo.createJob({
-      runId: run.id,
-      stage: "deliver",
-      status: "pending",
-    });
+    // Triggers deliver command via createPR into the durable WAL command queue
+    await createPR(run.id, { db });
 
-    // 4. Worker automatically claims the deliver job and creates PR
+    // 4. Worker automatically claims the deliver command and creates PR
     const prTimeout = Date.now() + 5000;
     while (Date.now() < prTimeout) {
       const current = runRepo.get(run.id);

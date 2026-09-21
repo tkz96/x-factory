@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "1789972375729-e243",
+  "createdAt": 1789972375730,
+  "origin": "failed-assert",
+  "expected": "declared consequence",
+  "observed": "no element matched {\"text\":\"Database Size\"} — that text IS on the page, split across the children of generic — no single element's own text carries it, so no text query can match it; retry as {\"kind\":\"text\",\"contains\":\"Database Size\",\"scope\":\"e228\",\"self\":true}",
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "testid",
+        "value": "e243",
+        "source": {
+          "file": "src/frontend/views/SettingsView.tsx",
+          "line": 618,
+          "column": 10
+        }
+      },
+      "action": "click"
+    }
+  ]
+}

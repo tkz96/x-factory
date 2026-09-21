@@ -7,11 +7,11 @@ import { loadProjects } from "./config.js";
 import { createDatabase } from "./db/connection.js";
 import { runMigrations } from "./db/migrator.js";
 import { emitStructuredLog } from "./diagnostics/correlation.js";
-import { defaultEventBus } from "./events.js";
 import { reportStaleWorktrees } from "./git.js";
 import { getOpenApiSpec } from "./http/openapi.js";
 import { jsonResponse } from "./http/responses.js";
 import { handleApi } from "./http/routes.js";
+import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
 import * as runs from "./runs.js";
 
@@ -124,8 +124,8 @@ export function startServer(
     shuttingDown = true;
     emitStructuredLog("info", "Initiating coordinated graceful shutdown", {});
 
-    // 1. Send close notification to all active SSE streams (XFM-71)
-    defaultEventBus.closeAll("Server is shutting down");
+    // 1. Close all active SSE connections (Phase 2, Section 40)
+    defaultSSERegistry.closeAll();
 
     // 2. Wait for in-flight requests to complete up to timeoutMs
     const deadline = Date.now() + timeoutMs;

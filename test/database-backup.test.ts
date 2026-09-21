@@ -66,7 +66,7 @@ describe("Live Database Backup & Recovery (XFM-72)", () => {
 
     expect(backupResult.backupPath).toBe(backupPath);
     expect(backupResult.integrity).toBe("ok");
-    expect(backupResult.schemaVersion).toBe(6);
+    expect(backupResult.schemaVersion).toBe(8);
     expect(backupResult.stats.runs).toBe(1);
     expect(backupResult.stats.jobs).toBe(2);
     expect(backupResult.stats.events).toBe(1);
@@ -107,7 +107,7 @@ describe("Live Database Backup & Recovery (XFM-72)", () => {
     // Restore to fresh location
     const restoreResult = await restoreDatabase(backupPath, restorePath);
     expect(restoreResult.ok).toBe(true);
-    expect(restoreResult.schemaVersion).toBe(6);
+    expect(restoreResult.schemaVersion).toBe(8);
     expect(existsSync(restorePath)).toBe(true);
 
     // Open restored database and query data

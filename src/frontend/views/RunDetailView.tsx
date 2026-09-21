@@ -100,8 +100,6 @@ export function RunDetailView() {
     }
   };
 
-  const rawEvents = events.map((e) => e.event);
-
   return (
     <section id="area-runs" className="area-view active">
       {/* 6-Stage Workflow Stepper */}
@@ -208,7 +206,7 @@ export function RunDetailView() {
           <h3 style={{ marginTop: "1.2rem", marginBottom: "0.5rem" }}>
             Live Activity
           </h3>
-          <EventLogViewer events={rawEvents} />
+          <EventLogViewer events={events} />
 
           {/* Steer Bar */}
           {!isTerminal && !isRecoveryRequired && !isReadyForPr && (

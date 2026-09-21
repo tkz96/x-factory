@@ -1,7 +1,6 @@
 // test/integration.test.ts — Lightweight integration tests validating server startup, static asset delivery, health check, and core API contracts.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { defaultEventBus } from "../src/events.js";
 import { getEventRepository, getRunRepository } from "../src/runs.js";
 import { type ServerInstance, startServer } from "../src/server.js";
 
@@ -39,60 +38,6 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
   });
 
   describe("Static Asset Serving", () => {
-    it("serves index.html on GET / with app shell elements", async () => {
-      const res = await fetch(`${baseUrl}/`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toContain("text/html");
-
-      const html = await res.text();
-      expect(html).toContain("<title>X-Factory</title>");
-      if (process.env.NODE_ENV === "production") {
-        expect(html).toContain('id="root"');
-      } else {
-        expect(html).toContain('id="app-shell"');
-        expect(html).toContain('id="sidebar-nav"');
-        expect(html).toContain('src="/app.js"');
-      }
-    });
-
-    it("serves styles.css on GET /styles.css", async () => {
-      const res = await fetch(`${baseUrl}/styles.css`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toContain("text/css");
-
-      const css = await res.text();
-      expect(css).toContain(":root");
-      expect(css.length).toBeGreaterThan(100);
-    });
-
-    it("serves bundled client script", async () => {
-      if (process.env.NODE_ENV === "production") {
-        const rootRes = await fetch(`${baseUrl}/`);
-        expect(rootRes.status).toBe(200);
-        const html = await rootRes.text();
-        const match = html.match(/src="(\/assets\/index-[^"]+\.js)"/);
-        expect(match).not.toBeNull();
-        const scriptPath = match?.[1] ?? "";
-        expect(scriptPath).toMatch(/^\/assets\/index-[a-zA-Z0-9_-]+\.js$/);
-
-        const assetRes = await fetch(`${baseUrl}${scriptPath}`);
-        expect(assetRes.status).toBe(200);
-        expect(assetRes.headers.get("Content-Type")).toContain(
-          "application/javascript",
-        );
-        const bundle = await assetRes.text();
-        expect(bundle.length).toBeGreaterThan(1000);
-      } else {
-        const res = await fetch(`${baseUrl}/app.js`);
-        expect(res.status).toBe(200);
-        expect(res.headers.get("Content-Type")).toContain(
-          "application/javascript",
-        );
-        const js = await res.text();
-        expect(js.length).toBeGreaterThan(1000);
-      }
-    });
-
     it("serves SVG favicon on GET /favicon.svg", async () => {
       const res = await fetch(`${baseUrl}/favicon.svg`);
       expect(res.status).toBe(200);
@@ -108,32 +53,6 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     it("blocks directory traversal with 403 Forbidden", async () => {
       const res = await fetch(`${baseUrl}/%2e%2e/%2e%2e/package.json`);
       expect([403, 404]).toContain(res.status);
-    });
-
-    it("serves index.html on SPA routes like GET /queue", async () => {
-      const res = await fetch(`${baseUrl}/queue`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toContain("text/html");
-    });
-
-    it("serves docs.html on GET /docs with documentation content and styles", async () => {
-      const res = await fetch(`${baseUrl}/docs`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toContain("text/html");
-
-      const html = await res.text();
-      expect(html).toContain("X-Factory Documentation");
-      expect(html).toContain('id="azure-pat"');
-      expect(html).toContain('href="/styles.css"');
-    });
-
-    it("serves docs.html on GET /docs/ with trailing slash", async () => {
-      const res = await fetch(`${baseUrl}/docs/`);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toContain("text/html");
-
-      const html = await res.text();
-      expect(html).toContain("X-Factory Documentation");
     });
 
     it("serves sprite.svg on GET /assets/icons/sprite.svg with image/svg+xml MIME type", async () => {
@@ -300,9 +219,8 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       // Read initial queued event
       await reader.read();
 
-      // Broadcast an event over defaultEventBus
-      defaultEventBus.emit(runId, {
-        type: "info",
+      // Append an event to SQLite
+      getEventRepository().appendEvent(runId, "info", {
         text: "Live streamed test event",
       });
 

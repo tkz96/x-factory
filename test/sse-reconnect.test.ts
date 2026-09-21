@@ -5,7 +5,6 @@ import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import { defaultEventBus } from "../src/events.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
 
@@ -117,16 +116,16 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     expect(events2[2]).toContain("id: 6");
     expect(events2[2]).toContain("Event 6");
 
-    // 6. While connected, a live event 7 is emitted
+    // 6. While connected, a live event 7 is appended to SQLite
     const livePromise = readEvents(reader2, 1);
-    defaultEventBus.emit(runId, {
-      type: "status",
-      status: "implementing",
+    eventRepo.appendEvent(runId, "info", {
       text: "Event 7 Live",
     });
 
     const liveEvents = await livePromise;
     expect(liveEvents[0]).toContain("Event 7 Live");
+    expect(liveEvents[0]).not.toContain("event:");
+    expect(liveEvents[0]).toContain("id: 7");
 
     await reader2?.cancel();
   });

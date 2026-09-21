@@ -4,7 +4,6 @@ import {
   createImplementationSession,
   registerActiveSession,
 } from "../agents/pi.js";
-import { defaultEventBus } from "../events.js";
 import * as git from "../git.js";
 import { loadSettings } from "../settings.js";
 import { buildImplementationPrompt } from "../understand.js";
@@ -40,9 +39,7 @@ export class ImplementExecutor implements StageExecutor {
     const worktreePath = run.worktreePath || run.artifactsDir;
 
     const isRepair = (run.repairAttempts ?? 0) > 0 && !!run.verification;
-    defaultEventBus.emit(run.id, {
-      type: "status",
-      status: "implementing",
+    context.eventRepo.appendEvent(run.id, "info", {
       text: isRepair
         ? `Verification checks failed. Triggering automated repair (attempt ${run.repairAttempts})…`
         : "Pi is implementing ticket…",
@@ -93,26 +90,40 @@ export class ImplementExecutor implements StageExecutor {
       signal.addEventListener("abort", abortHandler, { once: true });
     }
 
-    // Subscribe live event forwarding
+    // Buffer Pi output text every ~1000ms as durable pi_output_chunk (Phase 2, Section 33)
+    let textBuffer = "";
+    let lastFlushTime = Date.now();
+
+    const flushBuffer = () => {
+      if (textBuffer.length > 0) {
+        const textToFlush = textBuffer;
+        textBuffer = "";
+        lastFlushTime = Date.now();
+        context.eventRepo.appendEvent(run.id, "pi_output_chunk", {
+          role: "implementer",
+          text: textToFlush,
+        });
+      }
+    };
+
+    const flushInterval = setInterval(() => {
+      flushBuffer();
+    }, 1000);
+
     session.subscribe((e) => {
       if (e.type === "text" && e.text) {
-        defaultEventBus.emit(run.id, {
-          type: "pi_text",
-          text: e.text,
-          role: "implementer",
-        });
+        textBuffer += e.text;
+        if (Date.now() - lastFlushTime >= 1000) {
+          flushBuffer();
+        }
       } else if (e.type === "tool" && e.tool) {
-        defaultEventBus.emit(run.id, {
-          type: "pi_tool",
-          tool: e.tool,
-          input: e.input,
-          role: "implementer",
+        flushBuffer();
+        context.eventRepo.appendEvent(run.id, "info", {
+          text: `Tool: ${e.tool} ${e.input ? `(${e.input})` : ""}`,
         });
-      } else if (e.type === "done") {
-        defaultEventBus.emit(run.id, { type: "pi_done", role: "implementer" });
       } else if (e.type === "error" && e.error) {
-        defaultEventBus.emit(run.id, {
-          type: "pi_error",
+        flushBuffer();
+        context.eventRepo.appendEvent(run.id, "error", {
           error: e.error,
           role: "implementer",
         });
@@ -122,6 +133,8 @@ export class ImplementExecutor implements StageExecutor {
     try {
       await session.prompt(prompt);
     } finally {
+      clearInterval(flushInterval);
+      flushBuffer();
       unregisterSession();
       if (signal) {
         signal.removeEventListener("abort", abortHandler);
@@ -139,11 +152,10 @@ export class ImplementExecutor implements StageExecutor {
       expectedRevision: run.revision,
     });
 
-    defaultEventBus.emitStageEvidence(
-      run.id,
-      "implement",
-      `Implementation complete; ${diff.filesChanged.length} files modified.`,
-    );
+    context.eventRepo.appendEvent(run.id, "stage_evidence", {
+      stage: "implement",
+      evidence: `Implementation complete; ${diff.filesChanged.length} files modified.`,
+    });
 
     return {
       status: "success",

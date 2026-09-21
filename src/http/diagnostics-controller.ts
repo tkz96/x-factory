@@ -1,6 +1,6 @@
 // src/http/diagnostics-controller.ts — Endpoints for liveness, readiness, and runtime diagnostics (XFM-69, XFM-70).
 
-import { getSchemaVersion } from "../db/migrator.js";
+import { getLatestMigrationVersion, getSchemaVersion } from "../db/migrator.js";
 import {
   getActiveWorkers,
   isWorkerReady,
@@ -22,6 +22,7 @@ export function handleHealthRoute(): Response {
 }
 
 export interface ReadinessCheckResult {
+  ready?: boolean | undefined;
   status: "ready" | "unavailable";
   database: {
     status: "ready" | "unavailable";
@@ -34,14 +35,17 @@ export interface ReadinessCheckResult {
     activeWorkers: number;
     reason?: string | undefined;
   };
+  checks?:
+    | Array<{
+        name: string;
+        status: "pass" | "warn" | "fail";
+        message: string;
+      }>
+    | undefined;
   timestamp: string;
 }
 
-/**
- * GET /api/ready (Readiness Probe)
- * Deep health check verifying that SQLite and background workers are available to accept work.
- */
-export function handleReadyRoute(): Response {
+function computeReadinessStatus() {
   let dbReady = false;
   let schemaVersion = 0;
   let journalMode = "unknown";
@@ -69,10 +73,11 @@ export function handleReadyRoute(): Response {
   const activeWorkers = getActiveWorkers();
   const workerReady = activeWorkers.length > 0;
 
-  const isReady = dbReady && schemaVersion >= 6 && workerReady;
-  const statusCode = isReady ? 200 : 503;
+  const isReady =
+    dbReady && schemaVersion >= getLatestMigrationVersion() && workerReady;
 
   const result: ReadinessCheckResult = {
+    ready: isReady,
     status: isReady ? "ready" : "unavailable",
     database: {
       status: dbReady ? "ready" : "unavailable",
@@ -87,10 +92,45 @@ export function handleReadyRoute(): Response {
         ? { reason: "No active background worker heartbeats detected" }
         : {}),
     },
+    checks: [
+      {
+        name: "Database",
+        status: dbReady ? "pass" : "fail",
+        message: dbReady
+          ? `SQLite version ${schemaVersion} (${journalMode})`
+          : dbError || "Database connection unavailable",
+      },
+      {
+        name: "Background Worker",
+        status: workerReady ? "pass" : "warn",
+        message: workerReady
+          ? `${activeWorkers.length} active worker heartbeat(s)`
+          : "No active background worker heartbeats detected",
+      },
+    ],
     timestamp: new Date().toISOString(),
   };
 
+  return { isReady, result };
+}
+
+/**
+ * GET /api/ready (Readiness Probe)
+ * Deep health check verifying that SQLite and background workers are available to accept work.
+ */
+export function handleReadyRoute(): Response {
+  const { isReady, result } = computeReadinessStatus();
+  const statusCode = isReady ? 200 : 503;
   return jsonResponse(result, statusCode);
+}
+
+/**
+ * GET /api/readiness (UI Readiness API)
+ * Returns the full readiness assessment for the dashboard and UI banners.
+ */
+export function handleReadinessRoute(): Response {
+  const { result } = computeReadinessStatus();
+  return jsonResponse(result, 200);
 }
 
 /**

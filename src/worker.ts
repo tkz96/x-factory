@@ -2,7 +2,13 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import os from "node:os";
+import { getActiveSession } from "./agents/pi.js";
 import { getProject } from "./config.js";
+import {
+  type CommandRecord,
+  CommandRepository,
+} from "./db/command-repository.js";
 import { createDatabase } from "./db/connection.js";
 import { EventRepository } from "./db/event-repository.js";
 import { type JobRecord, JobRepository } from "./db/job-repository.js";
@@ -13,16 +19,16 @@ import {
   type StageAttemptRecord,
   StageAttemptRepository,
 } from "./db/stage-attempt-repository.js";
-import {
-  registerWorkerHeartbeat,
-  unregisterWorker,
-} from "./diagnostics/worker-registry.js";
+import { WorkerHeartbeatRepository } from "./db/worker-heartbeat-repository.js";
+import { DeliverExecutor } from "./executors/deliver.js";
 import {
   getStageExecutor,
+  type StageContext,
   type StageExecutor,
   type StageResult,
 } from "./executors/index.js";
-import type { Project } from "./shared/types.js";
+import { finalizeDeliver } from "./services/deliver-service.js";
+import type { Project, PullRequest, RunStatus } from "./shared/types.js";
 import { canTransition } from "./state-machine.js";
 
 export interface WorkerLogEntry {
@@ -41,9 +47,9 @@ export interface WorkerLogEntry {
     | "failure"
     | "shutdown"
     | "heartbeat_lost"
-    | "checkpoint"
     | "recovered"
     | "recovery_required"
+    | "cancelled"
     | "error";
   message?: string | undefined;
   error?: string | undefined;
@@ -53,11 +59,18 @@ export interface WorkerOptions {
   workerId?: string | undefined;
   db?: Database | undefined;
   pollIntervalMs?: number | undefined;
+  commandPollIntervalMs?: number | undefined;
   leaseDurationMs?: number | undefined;
   heartbeatIntervalMs?: number | undefined;
   shutdownTimeoutMs?: number | undefined;
   onLog?: ((entry: WorkerLogEntry) => void) | undefined;
   getStageExecutor?: ((stage: string) => StageExecutor) | undefined;
+  deliverExecutor?:
+    | {
+        deliver?: (ctx: StageContext) => Promise<PullRequest>;
+        execute?: (ctx: StageContext) => Promise<StageResult | PullRequest>;
+      }
+    | undefined;
 }
 
 export class Worker {
@@ -65,11 +78,20 @@ export class Worker {
   private db: Database;
   private runRepo: RunRepository;
   private jobRepo: JobRepository;
+  private commandRepo: CommandRepository;
+  private heartbeatRepo: WorkerHeartbeatRepository;
   private stageAttemptRepo: StageAttemptRepository;
   private operationLedgerRepo: OperationLedgerRepository;
   private eventRepo: EventRepository;
   private stageExecutorResolver: (stage: string) => StageExecutor;
+  private deliverExecutor?:
+    | {
+        deliver?: (ctx: StageContext) => Promise<PullRequest>;
+        execute?: (ctx: StageContext) => Promise<StageResult | PullRequest>;
+      }
+    | undefined;
   private pollIntervalMs: number;
+  private commandPollIntervalMs: number;
   private leaseDurationMs: number;
   private heartbeatIntervalMs: number;
   private shutdownTimeoutMs: number;
@@ -87,11 +109,15 @@ export class Worker {
     this.db = options?.db || createDatabase();
     this.runRepo = new RunRepository(this.db);
     this.jobRepo = new JobRepository(this.db);
+    this.commandRepo = new CommandRepository(this.db);
+    this.heartbeatRepo = new WorkerHeartbeatRepository(this.db);
     this.stageAttemptRepo = new StageAttemptRepository(this.db);
-    this.operationLedgerRepo = new OperationLedgerRepository(this.db);
     this.eventRepo = new EventRepository(this.db);
+    this.operationLedgerRepo = new OperationLedgerRepository(this.db);
+    this.deliverExecutor = options?.deliverExecutor;
     this.stageExecutorResolver = options?.getStageExecutor ?? getStageExecutor;
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
+    this.commandPollIntervalMs = options?.commandPollIntervalMs ?? 500;
     this.leaseDurationMs = options?.leaseDurationMs ?? 30000;
     this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 10000;
     this.shutdownTimeoutMs = options?.shutdownTimeoutMs ?? 5000;
@@ -191,13 +217,10 @@ export class Worker {
   }
 
   private reclaimOrphanedRun(run: RunRecord): boolean {
-    // If run is ready for user action (ready_for_pr), it naturally does not have pending jobs
     if (run.status === "ready_for_pr") {
       return false;
     }
 
-    // Active run with NO pending and NO claimed jobs (orphaned run)
-    // Transition to recovery_required (XFM-37)
     this.emitStructuredLog({
       result: "recovery_required",
       run_id: run.id,
@@ -230,13 +253,11 @@ export class Worker {
     job: JobRecord,
     now: string,
   ): "recovered" | "recovery_required" | null {
-    // Check if job was claimed by a dead worker whose lease expired
     if (job.status !== "claimed" || !job.leaseUntil || job.leaseUntil >= now) {
       return null;
     }
 
     if (job.attempts >= job.maxAttempts) {
-      // Retries exhausted -> mark job failed and transition run to recovery_required (XFM-37)
       this.emitStructuredLog({
         result: "recovery_required",
         run_id: run.id,
@@ -272,7 +293,6 @@ export class Worker {
       }
     }
 
-    // Check latest stage attempt: if it was in-flight ("running"), mark it failed
     const latestAttempt = this.stageAttemptRepo.getLatestAttempt(
       run.id,
       job.stage,
@@ -284,7 +304,6 @@ export class Worker {
       );
     }
 
-    // Re-queue job safely (idempotency strategies in place for all stages) (XFM-32, XFM-33, XFM-36)
     const requeued = this.jobRepo.requeueJob(job.id);
     if (requeued) {
       this.emitStructuredLog({
@@ -305,7 +324,6 @@ export class Worker {
     if (this.isRunning) return;
     this.isRunning = true;
     this.isStopping = false;
-    registerWorkerHeartbeat(this.workerId, { pid: process.pid });
 
     // Validate database and run migrations before accepting any work
     try {
@@ -317,6 +335,9 @@ export class Worker {
       this.error("Database migration check failed. Halting worker.", err);
       throw err;
     }
+
+    // Register worker heartbeat in SQLite after migrations succeed (Phase 3, Section 47)
+    this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
 
     // Startup recovery for incomplete work / dead workers (XFM-36, XFM-37)
     try {
@@ -330,8 +351,9 @@ export class Worker {
       this.error("Startup recovery error:", err);
     }
 
-    this.log("Worker started. Polling for pending jobs...");
+    this.log("Worker started. Polling for pending jobs and commands...");
     this.pollLoop();
+    this.commandPollingLoop();
   }
 
   async stop(): Promise<void> {
@@ -375,7 +397,13 @@ export class Worker {
       result: "shutdown",
       message: "Worker stopped cleanly",
     });
-    unregisterWorker(this.workerId);
+
+    try {
+      this.heartbeatRepo.remove(this.workerId);
+    } catch {
+      // ignore errors during shutdown
+    }
+
     this.log("Worker stopped.");
   }
 
@@ -383,6 +411,9 @@ export class Worker {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       try {
+        // Renew worker heartbeat in SQLite
+        this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+
         const ok = this.jobRepo.renewLease(
           jobId,
           this.workerId,
@@ -414,10 +445,292 @@ export class Worker {
     }
   }
 
+  /**
+   * Command polling loop running concurrently with job execution (Phase 1, Section 10, 17, 23, 48).
+   */
+  private async commandPollingLoop(): Promise<void> {
+    while (this.isRunning && !this.isStopping) {
+      try {
+        const commands = this.commandRepo.claimPendingCommands(
+          this.workerId,
+          this.leaseDurationMs,
+        );
+
+        for (const command of commands) {
+          await this.processCommand(command);
+        }
+      } catch (err: unknown) {
+        this.error("Unexpected error in worker command loop", err);
+      }
+
+      await new Promise((r) => setTimeout(r, this.commandPollIntervalMs));
+    }
+  }
+
+  async processCommand(command: CommandRecord): Promise<void> {
+    if (command.targetWorkerId && command.targetWorkerId !== this.workerId) {
+      const isTargetAlive = this.heartbeatRepo.isWorkerActive(
+        command.targetWorkerId,
+        30000,
+      );
+      if (!isTargetAlive) {
+        if (command.command === "stop") {
+          this.commandRepo.completeCommand(command.id, {
+            stopped: true,
+            reason: `Target worker ${command.targetWorkerId} is dead or inactive; run already stopped`,
+          });
+          return;
+        }
+        if (command.command === "steer") {
+          this.commandRepo.failCommand(
+            command.id,
+            `Target worker ${command.targetWorkerId} is dead or inactive`,
+          );
+          return;
+        }
+      }
+    }
+
+    if (command.command === "stop") {
+      const payload = command.payload as { jobId?: string } | null;
+      const targetJobId = payload?.jobId;
+
+      if (
+        this.currentJob &&
+        this.currentJob.id === targetJobId &&
+        this.currentJob.runId === command.runId
+      ) {
+        this.log(
+          `Aborting active job ${targetJobId} for run ${command.runId} due to targeted stop command`,
+        );
+        this.currentAbortController?.abort();
+      }
+
+      this.commandRepo.completeCommand(command.id, { stopped: true });
+    } else if (command.command === "steer") {
+      const payload = command.payload as { message?: string } | null;
+      const message = payload?.message || "";
+
+      // 1. Mark command completed before invocation (at-most-once)
+      this.commandRepo.completeCommand(command.id, { steered: true });
+
+      // 2. Find active Pi session
+      const session = getActiveSession(command.runId);
+      if (session) {
+        try {
+          await session.steer(message);
+        } catch (err) {
+          this.error(`Error steering Pi session for run ${command.runId}`, err);
+        }
+      } else {
+        this.log(
+          `No active Pi session found for steer command on run ${command.runId}`,
+        );
+      }
+    } else if (command.command === "deliver") {
+      await this.processDeliverCommand(command);
+    }
+  }
+
+  private async processDeliverCommand(command: CommandRecord): Promise<void> {
+    const run = this.runRepo.get(command.runId);
+    if (!run) {
+      this.commandRepo.failCommand(
+        command.id,
+        `Run ${command.runId} not found`,
+      );
+      return;
+    }
+
+    if (run.status !== "ready_for_pr") {
+      this.commandRepo.failCommand(
+        command.id,
+        `Cannot deliver run ${command.runId} in status "${run.status}". Must be ready_for_pr.`,
+      );
+      return;
+    }
+
+    const project = await this.resolveProject(run);
+
+    const dummyJob: JobRecord = {
+      id: `cmd-job-${command.id}`,
+      runId: run.id,
+      stage: "deliver",
+      status: "claimed",
+      workerId: this.workerId,
+      attempts: 1,
+      maxAttempts: 3,
+      availableAt: new Date().toISOString(),
+      leaseUntil: new Date(Date.now() + 60000).toISOString(),
+      lastHeartbeatAt: new Date().toISOString(),
+      error: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const attempt = this.stageAttemptRepo.recordStart(run.id, "deliver", 1);
+
+    try {
+      const deliverExecutor = this.deliverExecutor ?? new DeliverExecutor();
+      const stageCtx = {
+        run,
+        job: dummyJob,
+        project,
+        workerId: this.workerId,
+        db: this.db,
+        runRepo: this.runRepo,
+        jobRepo: this.jobRepo,
+        eventRepo: this.eventRepo,
+        stageAttemptRepo: this.stageAttemptRepo,
+        operationLedgerRepo: this.operationLedgerRepo,
+        attemptId: attempt.id,
+      };
+      let pr: PullRequest;
+      if (deliverExecutor.deliver) {
+        pr = await deliverExecutor.deliver(stageCtx);
+      } else if (deliverExecutor.execute) {
+        const res = await deliverExecutor.execute(stageCtx);
+        if ("url" in res && typeof (res as PullRequest).url === "string") {
+          pr = res as PullRequest;
+        } else if (
+          (res as StageResult).status === "success" &&
+          (res as StageResult).output
+        ) {
+          pr = (res as StageResult).output as PullRequest;
+        } else {
+          throw new Error(
+            (res as StageResult).error || "Deliver failed without output",
+          );
+        }
+      } else {
+        throw new Error("No deliver executor available");
+      }
+
+      finalizeDeliver(
+        this.db,
+        this.runRepo,
+        this.eventRepo,
+        this.commandRepo,
+        run.id,
+        command.id,
+        this.workerId,
+        pr,
+      );
+
+      this.stageAttemptRepo.recordCompletion(attempt.id, {
+        ok: true,
+        output: pr,
+      });
+
+      this.log(
+        `Deliver command ${command.id} completed successfully for run ${run.id}: ${pr.url}`,
+      );
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.stageAttemptRepo.recordCompletion(attempt.id, {
+        ok: false,
+        error: errorMsg,
+      });
+      this.error(`Deliver command ${command.id} failed: ${errorMsg}`, err);
+      this.commandRepo.failCommand(command.id, errorMsg);
+    }
+  }
+
+  /**
+   * Claims and executes exactly one pending/claimed job if available,
+   * managing heartbeat renewal and error handling.
+   * Returns the processed JobRecord, or null if no job was claimed.
+   */
+  async stepOnce(): Promise<JobRecord | null> {
+    this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+    const job = this.jobRepo.claimNextJob(this.workerId, this.leaseDurationMs);
+
+    if (!job) {
+      return null;
+    }
+
+    this.currentJob = job;
+    this.emitStructuredLog({
+      job_id: job.id,
+      run_id: job.runId,
+      stage: job.stage,
+      attempt: job.attempts,
+      result: "claimed",
+      message: `Job claimed by worker ${this.workerId}`,
+    });
+
+    this.startHeartbeat(job.id);
+    const processPromise = this.processJob(job);
+    this.activeProcessingPromise = processPromise;
+    try {
+      await processPromise;
+      return job;
+    } finally {
+      this.activeProcessingPromise = null;
+      this.stopHeartbeat();
+      this.currentJob = null;
+    }
+  }
+
+  /**
+   * Claims and executes the next pending job for a specific run.
+   * Returns the processed JobRecord, or null if no job was available for the run.
+   */
+  async stepRun(runId: string): Promise<JobRecord | null> {
+    this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+    const job = this.jobRepo.claimJobForRun(
+      runId,
+      this.workerId,
+      this.leaseDurationMs,
+    );
+
+    if (!job) {
+      return null;
+    }
+
+    this.currentJob = job;
+    this.emitStructuredLog({
+      job_id: job.id,
+      run_id: job.runId,
+      stage: job.stage,
+      attempt: job.attempts,
+      result: "claimed",
+      message: `Job claimed by worker ${this.workerId}`,
+    });
+
+    this.startHeartbeat(job.id);
+    const processPromise = this.processJob(job);
+    this.activeProcessingPromise = processPromise;
+    try {
+      await processPromise;
+      return job;
+    } finally {
+      this.activeProcessingPromise = null;
+      this.stopHeartbeat();
+      this.currentJob = null;
+    }
+  }
+
+  /**
+   * Claims and processes pending commands (such as deliver or stop) if available.
+   * Returns the processed CommandRecord array.
+   */
+  async stepCommandOnce(): Promise<CommandRecord[]> {
+    const commands = this.commandRepo.claimPendingCommands(
+      this.workerId,
+      this.leaseDurationMs,
+    );
+
+    for (const command of commands) {
+      await this.processCommand(command);
+    }
+    return commands;
+  }
+
   private async pollLoop(): Promise<void> {
     while (this.isRunning && !this.isStopping) {
-      registerWorkerHeartbeat(this.workerId);
       try {
+        this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
         const job = this.jobRepo.claimNextJob(
           this.workerId,
           this.leaseDurationMs,
@@ -455,6 +768,58 @@ export class Worker {
     }
   }
 
+  private async resolveProject(run: RunRecord): Promise<Project> {
+    try {
+      const project = await getProject(run.project.id);
+      if (project) return project;
+    } catch {
+      // Fallback below
+    }
+
+    return {
+      id: run.project.id,
+      name: run.project.name,
+      workspacePath: run.worktreePath || run.artifactsDir,
+      repositoryPath: run.worktreePath || run.artifactsDir,
+      defaultBranch: "main",
+      testCommand: "bun test",
+      repositories: [],
+      issueTracker: {
+        provider: "jira",
+      },
+    };
+  }
+
+  private checkAndHandleCancellation(
+    job: JobRecord,
+    attemptId: string,
+    startTime: number,
+  ): boolean {
+    const currentRun = this.runRepo.get(job.runId);
+    const currentJob = this.jobRepo.getJob(job.id);
+    if (
+      currentRun?.status === "stopped" ||
+      currentJob?.status === "cancelled"
+    ) {
+      const duration = Math.round(performance.now() - startTime);
+      this.stageAttemptRepo.recordCancellation(
+        attemptId,
+        "Run stopped by operator during stage execution",
+      );
+      this.emitStructuredLog({
+        job_id: job.id,
+        run_id: job.runId,
+        stage: job.stage,
+        attempt: job.attempts,
+        duration_ms: duration,
+        result: "cancelled",
+        message: `Stage '${job.stage}' cancelled due to run stop.`,
+      });
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Executes a claimed job using discrete stage executors and atomic SQLite transactions (XFM-28, XFM-29, XFM-30, XFM-31).
    */
@@ -464,45 +829,23 @@ export class Worker {
       `Job started: job_id=${job.id} run_id=${job.runId} stage=${job.stage}`,
     );
 
+    // Section 12: Early Cancellation Gate
     const run = this.runRepo.get(job.runId);
-    if (!run) {
-      const duration = Math.round(performance.now() - startTime);
-      this.error(`Run not found for job ${job.id}: run_id=${job.runId}`);
-      this.jobRepo.failJob(job.id, this.workerId, `Run ${job.runId} not found`);
-      this.emitStructuredLog({
-        job_id: job.id,
-        run_id: job.runId,
-        stage: job.stage,
-        attempt: job.attempts,
-        duration_ms: duration,
-        result: "failure",
-        error: `Run ${job.runId} not found`,
-      });
+    const freshJob = this.jobRepo.getJob(job.id);
+    if (
+      !run ||
+      run.status === "stopped" ||
+      !freshJob ||
+      freshJob.status === "cancelled"
+    ) {
+      this.log(
+        `Job ${job.id} skipped due to early cancellation: run status is ${run?.status}, job status is ${freshJob?.status}`,
+      );
       return;
     }
 
     // Load project configuration
-    let project: Project | null = null;
-    try {
-      project = await getProject(run.project.id);
-    } catch {
-      project = null;
-    }
-
-    if (!project) {
-      project = {
-        id: run.project.id,
-        name: run.project.name,
-        workspacePath: run.worktreePath || run.artifactsDir,
-        repositoryPath: run.worktreePath || run.artifactsDir,
-        defaultBranch: "main",
-        testCommand: "bun test",
-        repositories: [],
-        issueTracker: {
-          provider: "jira",
-        },
-      };
-    }
+    const project = await this.resolveProject(run);
 
     // Durably record stage attempt start in SQLite (XFM-29)
     const attempt = this.stageAttemptRepo.recordStart(
@@ -533,16 +876,28 @@ export class Worker {
       });
 
       if (this.isStopping) return;
+
+      // Section 13: Re-read state after executor completion to catch mid-flight stops
+      if (this.checkAndHandleCancellation(job, attempt.id, startTime)) {
+        return;
+      }
+
       const duration = Math.round(performance.now() - startTime);
 
       if (result.status === "success" || result.status === "retry") {
-        this.commitStageProgression(job, attempt, result, duration);
+        this.commitStageProgression(job, attempt, result, duration, run.status);
       } else {
         const errorMsg = result.error || `Stage '${job.stage}' failed`;
         this.handleStageFailure(job, run, attempt.id, errorMsg, duration);
       }
     } catch (err: unknown) {
       if (this.isStopping) return;
+
+      // Section 13: Re-read state in catch handler to catch mid-flight stops
+      if (this.checkAndHandleCancellation(job, attempt.id, startTime)) {
+        return;
+      }
+
       const duration = Math.round(performance.now() - startTime);
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.handleStageFailure(job, run, attempt.id, errorMsg, duration);
@@ -556,21 +911,37 @@ export class Worker {
     attempt: StageAttemptRecord,
     result: StageResult,
     duration: number,
-  ): void {
+    expectedRunStatus: RunStatus,
+  ): boolean {
     const isRetry = result.status === "retry";
     const transitionText = isRetry
       ? `Stage '${job.stage}' requested retry: transitioning to '${result.nextRunStatus}'.`
       : `Stage '${job.stage}' completed. Transitioning to '${result.nextRunStatus}'.`;
 
-    const tx = this.db.transaction(() => {
-      this.stageAttemptRepo.recordCompletion(attempt.id, result.output);
+    const committed = this.db.transaction(() => {
+      // Section 11: Worker Progression CAS verification
+      const j = this.jobRepo.getJob(job.id, this.db);
+      const r = this.runRepo.get(job.runId, this.db);
+
+      if (
+        j?.status !== "claimed" ||
+        j?.workerId !== this.workerId ||
+        r?.status !== expectedRunStatus
+      ) {
+        return false;
+      }
+
+      this.stageAttemptRepo.recordCompletion(
+        attempt.id,
+        result.output,
+        this.db,
+      );
 
       if (result.nextRunStatus) {
-        const latestRun = this.runRepo.get(job.runId);
-        if (latestRun && latestRun.status !== result.nextRunStatus) {
+        if (r.status !== result.nextRunStatus) {
           this.runRepo.transitionRun(
             job.runId,
-            latestRun.status,
+            r.status,
             result.nextRunStatus,
             {
               event: {
@@ -581,22 +952,34 @@ export class Worker {
                 },
               },
             },
+            this.db,
           );
         }
       }
 
+      // Section 15: If nextStage is specified, enqueue next job.
+      // If nextRunStatus is ready_for_pr and nextStage is undefined, no next job is created.
       if (result.nextStage) {
-        this.jobRepo.createJob({
-          runId: job.runId,
-          stage: result.nextStage,
-          status: "pending",
-        });
+        this.jobRepo.createJob(
+          {
+            runId: job.runId,
+            stage: result.nextStage,
+            status: "pending",
+          },
+          this.db,
+        );
       }
 
-      this.jobRepo.completeJob(job.id, this.workerId);
-    });
+      this.jobRepo.completeJob(job.id, this.workerId, this.db);
+      return true;
+    })();
 
-    tx();
+    if (!committed) {
+      this.log(
+        `Progression CAS check failed for job ${job.id} on run ${job.runId}. Stage progression aborted.`,
+      );
+      return false;
+    }
 
     if (isRetry) {
       this.emitStructuredLog({
@@ -625,6 +1008,8 @@ export class Worker {
         `Job completed successfully: job_id=${job.id}, stage=${job.stage}`,
       );
     }
+
+    return true;
   }
 
   private handleStageFailure(

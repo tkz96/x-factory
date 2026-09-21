@@ -12,15 +12,15 @@ import { setDbForTesting } from "../src/runs.js";
 
 describe("API Health & Readiness Probes (XFM-69)", () => {
   beforeEach(() => {
-    resetWorkerRegistryForTesting();
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
     setDbForTesting(db);
+    resetWorkerRegistryForTesting();
   });
 
   afterEach(() => {
-    setDbForTesting(null);
     resetWorkerRegistryForTesting();
+    setDbForTesting(null);
   });
 
   it("GET /api/health returns 200 OK regardless of worker state (liveness)", async () => {
@@ -54,7 +54,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
     expect(body.status).toBe("unavailable");
     expect(body.database.status).toBe("ready");
-    expect(body.database.version).toBe(6);
+    expect(body.database.version).toBe(8);
     expect(body.worker.status).toBe("unavailable");
     expect(body.worker.activeWorkers).toBe(0);
     expect(body.worker.reason).toContain("No active background worker");
@@ -76,7 +76,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
     expect(body.status).toBe("ready");
     expect(body.database.status).toBe("ready");
-    expect(body.database.version).toBe(6);
+    expect(body.database.version).toBe(8);
     expect(body.worker.status).toBe("ready");
     expect(body.worker.activeWorkers).toBe(1);
   });
@@ -105,9 +105,25 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
     const readyRes = await handleApi(readyReq, new URL(readyReq.url));
     expect(readyRes.status).toBe(503);
 
-    // Health probe must still return 200 so orchestrator doesn't kill the HTTP container
     const healthReq = new Request("http://localhost/api/health");
     const healthRes = await handleApi(healthReq, new URL(healthReq.url));
     expect(healthRes.status).toBe(200);
+  });
+
+  it("GET /api/readiness returns 200 with structured readiness checks for UI", async () => {
+    const req = new Request("http://localhost/api/readiness");
+    const res = await handleApi(req, new URL(req.url));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      ready: boolean;
+      status: string;
+      checks: Array<{ name: string; status: string; message: string }>;
+    };
+    expect(body.ready).toBe(false);
+    expect(body.status).toBe("unavailable");
+    expect(body.checks.length).toBeGreaterThanOrEqual(2);
+    expect(body.checks[0]?.name).toBe("Database");
+    expect(body.checks[0]?.status).toBe("pass");
   });
 });

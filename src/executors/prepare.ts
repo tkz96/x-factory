@@ -3,7 +3,6 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { OperationLedgerRepository } from "../db/operation-ledger-repository.js";
-import { defaultEventBus } from "../events.js";
 import * as git from "../git.js";
 import { ensureDir, getWorktreePath } from "../paths.js";
 import type { Project } from "../shared/types.js";
@@ -143,8 +142,7 @@ export class PrepareExecutor implements StageExecutor {
   async execute(context: StageContext): Promise<StageResult> {
     const { run, project, operationLedgerRepo } = context;
 
-    defaultEventBus.emit(run.id, {
-      type: "info",
+    context.eventRepo.appendEvent(run.id, "info", {
       text: `Preparing branch ${run.branch}…`,
     });
 
@@ -159,8 +157,7 @@ export class PrepareExecutor implements StageExecutor {
     );
 
     // 2. Idempotent external worktree creation (XFM-32, XFM-33)
-    defaultEventBus.emit(run.id, {
-      type: "info",
+    context.eventRepo.appendEvent(run.id, "info", {
       text: "Creating dedicated external worktree…",
     });
 
@@ -201,11 +198,10 @@ export class PrepareExecutor implements StageExecutor {
       worktreePath,
     });
 
-    defaultEventBus.emitStageEvidence(
-      run.id,
-      "prepare",
-      `Worktree ready at external path; branch ${run.branch}; baseline recorded.`,
-    );
+    context.eventRepo.appendEvent(run.id, "stage_evidence", {
+      stage: "prepare",
+      evidence: `Worktree ready at external path; branch ${run.branch}; baseline recorded.`,
+    });
 
     return {
       status: "success",

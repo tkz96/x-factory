@@ -33,3 +33,27 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
 export function canTransition(from: RunStatus, to: RunStatus): boolean {
   return TRANSITIONS[from]?.includes(to) ?? false;
 }
+
+export const EXECUTABLE_RUN_STATUSES = new Set<RunStatus>([
+  "queued",
+  "preparing",
+  "understanding",
+  "implementing",
+  "verifying",
+  "reviewing",
+]);
+
+export const STOPPABLE_RUN_STATUSES = new Set<RunStatus>([
+  "queued",
+  "preparing",
+  "understanding",
+  "implementing",
+  "verifying",
+  "reviewing",
+]);
+
+export const TERMINAL_RUN_STATUSES = new Set<RunStatus>([
+  "pr_created",
+  "failed",
+  "stopped",
+]);

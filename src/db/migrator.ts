@@ -30,6 +30,31 @@ export function loadMigrations(migrationsDir?: string): Migration[] {
   return migrations.sort((a, b) => a.version - b.version);
 }
 
+let cachedLatestMigrationVersion: number | null = null;
+
+export function resetMigrationVersionCacheForTesting(): void {
+  cachedLatestMigrationVersion = null;
+}
+
+/**
+ * Returns the highest migration version defined in the codebase.
+ * Memoizes the result to avoid parsing filesystem migrations repeatedly on diagnostics routes.
+ */
+export function getLatestMigrationVersion(migrationsDir?: string): number {
+  if (cachedLatestMigrationVersion !== null && !migrationsDir) {
+    return cachedLatestMigrationVersion;
+  }
+  const migrations = loadMigrations(migrationsDir);
+  const version =
+    migrations.length > 0
+      ? (migrations[migrations.length - 1]?.version ?? 0)
+      : 0;
+  if (!migrationsDir) {
+    cachedLatestMigrationVersion = version;
+  }
+  return version;
+}
+
 /**
  * Returns the latest applied schema version from the database, or 0 if uninitialized.
  */

@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "intents": {
+    "inline:clicking-projects-navigation-link-navigates-to-p-3e4ee98c": {
+      "id": "inline:clicking-projects-navigation-link-navigates-to-p-3e4ee98c",
+      "statement": "Clicking Projects navigation link navigates to /projects",
+      "state": "proved",
+      "declaredAt": 1789971976414,
+      "binding": {
+        "kind": "route",
+        "pathname": "/projects"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/AppShell.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789971976525",
+        "grade": "presence",
+        "at": 1789971976525
+      }
+    },
+    "inline:filtering-tickets-shows-matching-ticket-az-3171-f92f290f": {
+      "id": "inline:filtering-tickets-shows-matching-ticket-az-3171-f92f290f",
+      "statement": "Filtering tickets shows matching ticket AZ-3171",
+      "state": "bound",
+      "declaredAt": 1789972278248,
+      "binding": {
+        "kind": "text",
+        "contains": "AZ-3171"
+      }
+    },
+    "inline:searching-for-non-existent-ticket-displays-no-ma-85deb8d5": {
+      "id": "inline:searching-for-non-existent-ticket-displays-no-ma-85deb8d5",
+      "statement": "Searching for non-existent ticket displays 'No Matching Tickets' empty state",
+      "state": "proved",
+      "declaredAt": 1789972313172,
+      "binding": {
+        "kind": "text",
+        "contains": "No Matching Tickets"
+      },
+      "surface": {
+        "route": "/queue",
+        "files": ["src/frontend/components/queue/TicketSearchToolbar.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972315795",
+        "grade": "presence",
+        "at": 1789972315795
+      }
+    },
+    "inline:clicking-clear-filter-restores-ticket-list-fcc7be23": {
+      "id": "inline:clicking-clear-filter-restores-ticket-list-fcc7be23",
+      "statement": "Clicking Clear Filter restores ticket list",
+      "state": "proved",
+      "declaredAt": 1789972332567,
+      "binding": {
+        "kind": "text",
+        "contains": "TEST TICKET. PLEASE IGNORE."
+      },
+      "surface": {
+        "route": "/queue",
+        "files": ["src/frontend/views/QueueView.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972334694",
+        "grade": "presence",
+        "at": 1789972334694
+      }
+    },
+    "inline:clicking-settings-navigates-to-settings-5d2edb19": {
+      "id": "inline:clicking-settings-navigates-to-settings-5d2edb19",
+      "statement": "Clicking Settings navigates to /settings",
+      "state": "proved",
+      "declaredAt": 1789972351635,
+      "binding": {
+        "kind": "route",
+        "pathname": "/settings"
+      },
+      "surface": {
+        "route": "/settings",
+        "files": ["src/frontend/components/AppShell.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972353717",
+        "grade": "presence",
+        "at": 1789972353717
+      }
+    },
+    "inline:switching-to-diagnostics-tab-displays-runtime-te-7df7c27a": {
+      "id": "inline:switching-to-diagnostics-tab-displays-runtime-te-7df7c27a",
+      "statement": "Switching to Diagnostics tab displays runtime telemetry cards including Database Size",
+      "state": "bound",
+      "declaredAt": 1789972369933,
+      "binding": {
+        "kind": "text",
+        "contains": "Database Size"
+      }
+    },
+    "inline:diagnostics-tab-displays-database-size-metric-637093bb": {
+      "id": "inline:diagnostics-tab-displays-database-size-metric-637093bb",
+      "statement": "Diagnostics tab displays Database Size metric",
+      "state": "proved",
+      "declaredAt": 1789972404523,
+      "binding": {
+        "kind": "text",
+        "contains": "Database Size",
+        "scope": "e228",
+        "self": true
+      },
+      "surface": {
+        "route": "/settings",
+        "files": ["src/frontend/views/SettingsView.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_assert:1789972404539",
+        "grade": "presence",
+        "at": 1789972404539
+      }
+    },
+    "inline:clicking-documentation-link-navigates-to-docs-cef37d29": {
+      "id": "inline:clicking-documentation-link-navigates-to-docs-cef37d29",
+      "statement": "Clicking Documentation link navigates to /docs",
+      "state": "proved",
+      "declaredAt": 1789972417242,
+      "binding": {
+        "kind": "route",
+        "pathname": "/docs"
+      },
+      "surface": {
+        "route": "/docs",
+        "files": ["src/frontend/components/AppShell.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972419679",
+        "grade": "presence",
+        "at": 1789972419679
+      }
+    },
+    "inline:clicking-theme-toggle-switches-dark-and-light-mo-e2a1a6fd": {
+      "id": "inline:clicking-theme-toggle-switches-dark-and-light-mo-e2a1a6fd",
+      "statement": "Clicking theme toggle switches dark and light mode",
+      "state": "bound",
+      "declaredAt": 1789972445418,
+      "binding": {
+        "kind": "element",
+        "query": {
+          "role": "button",
+          "name": "Toggle Dark and Light Mode"
+        }
+      }
+    },
+    "inline:operator-can-view-the-active-runs-table-and-pipe-2b845902": {
+      "id": "inline:operator-can-view-the-active-runs-table-and-pipe-2b845902",
+      "statement": "Operator can view the active runs table and pipeline states",
+      "state": "proved",
+      "declaredAt": 1789972761455,
+      "binding": {
+        "kind": "route",
+        "pathname": "/runs"
+      },
+      "surface": {
+        "route": "/runs",
+        "files": ["src/frontend/components/AppShell.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972763993",
+        "grade": "presence",
+        "at": 1789972763993
+      }
+    },
+    "inline:operator-can-click-an-active-run-to-open-its-det-1c201f25": {
+      "id": "inline:operator-can-click-an-active-run-to-open-its-det-1c201f25",
+      "statement": "Operator can click an active run to open its detail and timeline view",
+      "state": "proved",
+      "declaredAt": 1789972777175,
+      "binding": {
+        "kind": "route",
+        "pathname": "/runs/1d08d0ca"
+      },
+      "surface": {
+        "route": "/runs/1d08d0ca",
+        "files": ["src/frontend/views/RunsView.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972778705",
+        "grade": "presence",
+        "at": 1789972778705
+      }
+    },
+    "inline:operator-can-navigate-to-projects-directory-and-b83044f7": {
+      "id": "inline:operator-can-navigate-to-projects-directory-and-b83044f7",
+      "statement": "Operator can navigate to projects directory and view readiness status",
+      "state": "proved",
+      "declaredAt": 1789972798430,
+      "binding": {
+        "kind": "route",
+        "pathname": "/projects"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/AppShell.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972800691",
+        "grade": "presence",
+        "at": 1789972800691
+      }
+    },
+    "inline:operator-can-click-into-project-converso-to-see-4b901c92": {
+      "id": "inline:operator-can-click-into-project-converso-to-see-4b901c92",
+      "statement": "Operator can click into project Converso to see repository readiness and configuration",
+      "state": "proved",
+      "declaredAt": 1789972813674,
+      "binding": {
+        "kind": "route",
+        "pathname": "/projects/converso"
+      },
+      "surface": {
+        "route": "/projects/converso",
+        "files": ["src/frontend/views/ProjectsView.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972815761",
+        "grade": "presence",
+        "at": 1789972815761
+      }
+    },
+    "inline:operator-can-recheck-system-readiness-and-receiv-5f76d8db": {
+      "id": "inline:operator-can-recheck-system-readiness-and-receiv-5f76d8db",
+      "statement": "Operator can recheck system readiness and receive latest diagnostics",
+      "state": "proved",
+      "declaredAt": 1789972828759,
+      "binding": {
+        "kind": "net",
+        "urlContains": "/api/readiness"
+      },
+      "surface": {
+        "route": "/projects/converso",
+        "files": ["src/frontend/components/projects/ReadinessBanner.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789972830699",
+        "grade": "net",
+        "at": 1789972830699
+      }
+    },
+    "inline:pasting-github-url-into-quick-url-box-auto-detec-cd79e417": {
+      "id": "inline:pasting-github-url-into-quick-url-box-auto-detec-cd79e417",
+      "statement": "Pasting GitHub URL into Quick URL box auto-detects repository settings and updates fields",
+      "state": "proved",
+      "declaredAt": 1789976465594,
+      "binding": {
+        "kind": "text",
+        "contains": "URL Detected"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/modals/OnboardingWizardModal.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789976467813",
+        "grade": "presence",
+        "at": 1789976467813
+      }
+    },
+    "inline:operator-moves-from-basics-step-to-tracker-confi-d9035882": {
+      "id": "inline:operator-moves-from-basics-step-to-tracker-confi-d9035882",
+      "statement": "Operator moves from Basics step to Tracker configuration",
+      "state": "bound",
+      "declaredAt": 1789976489737,
+      "binding": {
+        "kind": "text",
+        "contains": "Issue Tracker Connection"
+      }
+    },
+    "inline:operator-moves-from-tracker-step-to-discovery-st-61dacdbf": {
+      "id": "inline:operator-moves-from-tracker-step-to-discovery-st-61dacdbf",
+      "statement": "Operator moves from Tracker step to Discovery step",
+      "state": "proved",
+      "declaredAt": 1789976509686,
+      "binding": {
+        "kind": "text",
+        "contains": "Repository Discovery"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/modals/OnboardingWizardModal.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789976511582",
+        "grade": "presence",
+        "at": 1789976511582
+      }
+    },
+    "inline:operator-moves-from-discovery-step-to-configure-b3e167e9": {
+      "id": "inline:operator-moves-from-discovery-step-to-configure-b3e167e9",
+      "statement": "Operator moves from Discovery step to Configure Repositories step",
+      "state": "proved",
+      "declaredAt": 1789976529245,
+      "binding": {
+        "kind": "text",
+        "contains": "Configure Repositories"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/modals/OnboardingWizardModal.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789976531578",
+        "grade": "presence",
+        "at": 1789976531578
+      }
+    },
+    "inline:operator-moves-from-repositories-step-to-tooling-fd38a910": {
+      "id": "inline:operator-moves-from-repositories-step-to-tooling-fd38a910",
+      "statement": "Operator moves from Repositories step to Tooling Inspection step",
+      "state": "proved",
+      "declaredAt": 1789976554017,
+      "binding": {
+        "kind": "text",
+        "contains": "Tooling Inspection"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/modals/OnboardingWizardModal.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_act_and_wait:1789976555569",
+        "grade": "presence",
+        "at": 1789976555569
+      }
+    },
+    "inline:submitting-onboarding-wizard-sends-project-creat-b7ca586a": {
+      "id": "inline:submitting-onboarding-wizard-sends-project-creat-b7ca586a",
+      "statement": "Submitting onboarding wizard sends project creation payload to backend",
+      "state": "bound",
+      "declaredAt": 1789976605969,
+      "binding": {
+        "kind": "net",
+        "urlContains": "/api/projects"
+      }
+    },
+    "inline:onboarded-project-simple-hello-world-is-rendered-c6f4dd88": {
+      "id": "inline:onboarded-project-simple-hello-world-is-rendered-c6f4dd88",
+      "statement": "Onboarded project simple-hello-world is rendered in the active projects list",
+      "state": "proved",
+      "declaredAt": 1789976620084,
+      "binding": {
+        "kind": "text",
+        "contains": "simple-hello-world"
+      },
+      "surface": {
+        "route": "/projects",
+        "files": ["src/frontend/components/modals/OnboardingWizardModal.tsx"]
+      },
+      "provenBy": {
+        "verdictId": "reticle_assert:1789976620113",
+        "grade": "presence",
+        "at": 1789976620113
+      }
+    }
+  }
+}

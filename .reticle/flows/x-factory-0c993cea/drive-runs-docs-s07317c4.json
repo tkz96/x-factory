@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "name": "drive-runs-docs-s07317c4",
+  "projectId": "x-factory-0c993cea",
+  "createdAt": 1789978906033,
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Toggle Dark and Light Mode"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "element": {
+          "role": "button",
+          "name": "Toggle Dark and Light Mode"
+        }
+      }
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "link",
+        "name": "Active Runs 137"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "route": {
+          "pathname": "/runs"
+        }
+      }
+    }
+  ],
+  "startPath": "/docs"
+}

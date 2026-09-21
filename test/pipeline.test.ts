@@ -7,11 +7,11 @@ import os from "node:os";
 import path from "node:path";
 import type { PiAgentSession } from "../src/agents/pi.js";
 import { validateProject } from "../src/config.js";
-import { RunEventBus } from "../src/events.js";
 import {
   defaultPipelineDeps,
   executeDeliverStage,
   type PipelineDependencies,
+  type PipelineEventBus,
   type PipelineStore,
   pipelineDeps,
   runWorkflow,
@@ -61,7 +61,9 @@ const testPipelineDeps: PipelineDependencies = {
   safeCommitAll: async () => {},
   push: async () => {},
   createPullRequest: async () => mockPrUrl,
+  findExistingPullRequest: async () => null,
   createAzurePullRequest: async () => ({ ok: true, url: mockPrUrl }),
+  findExistingAzurePullRequest: async () => null,
   publishStatus: async () => ({ ok: true }),
   createImplementationSession: async () =>
     ({
@@ -144,7 +146,9 @@ describe("Pipeline Orchestrator (src/pipeline.ts)", () => {
   async function setupRunFixture(): Promise<{
     run: InternalRun;
     store: PipelineStore;
-    bus: RunEventBus;
+    bus: PipelineEventBus & {
+      subscribe: (runId: string, cb: (event: RunEvent) => void) => void;
+    };
     tempDir: string;
     statusEvents: RunStatus[];
     allEvents: RunEvent[];
@@ -158,9 +162,42 @@ describe("Pipeline Orchestrator (src/pipeline.ts)", () => {
       },
       persistRun: async () => {},
     };
-    const bus = new RunEventBus();
     const statusEvents: RunStatus[] = [];
     const allEvents: RunEvent[] = [];
+    const subscribers: Array<(event: RunEvent) => void> = [];
+    const bus: PipelineEventBus & {
+      subscribe: (runId: string, cb: (event: RunEvent) => void) => void;
+    } = {
+      emit: (_runId, event) => {
+        const ev = (event && typeof event === "object" ? event : {}) as Record<
+          string,
+          unknown
+        >;
+        const fullEvent = { ...ev, timestamp: Date.now() } as RunEvent;
+        allEvents.push(fullEvent);
+        if (ev.type === "status" && typeof ev.status === "string") {
+          statusEvents.push(ev.status as RunStatus);
+        }
+        for (const sub of subscribers) {
+          sub(fullEvent);
+        }
+      },
+      emitStageEvidence: (_runId, stage, summary) => {
+        const ev = {
+          type: "stage_evidence",
+          stage,
+          summary,
+          timestamp: Date.now(),
+        } as RunEvent;
+        allEvents.push(ev);
+        for (const sub of subscribers) {
+          sub(ev);
+        }
+      },
+      subscribe: (_runId, cb) => {
+        subscribers.push(cb);
+      },
+    };
 
     const run: InternalRun = {
       id: "test-run-pipe",
@@ -185,13 +222,6 @@ describe("Pipeline Orchestrator (src/pipeline.ts)", () => {
       _baseline: null,
       _project: mockProject,
     };
-
-    bus.subscribe(run.id, (event: RunEvent) => {
-      allEvents.push(event);
-      if (event.type === "status") {
-        statusEvents.push(event.status);
-      }
-    });
 
     // Reset mocks to clean happy path
     mockVerificationResults = [];

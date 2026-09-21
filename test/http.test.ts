@@ -5,13 +5,12 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  createEventStreamResponse,
   errorResponse,
+  formatSSEMessage,
   jsonResponse,
   parseJsonBody,
 } from "../src/http/responses.js";
 import { serveStatic } from "../src/http/static.js";
-import type { RunEvent } from "../src/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, "..", "public");
@@ -28,15 +27,15 @@ describe("HTTP Response Helpers", () => {
     assert.deepEqual(data, { hello: "world" });
   });
 
-  it("errorResponse formats error object with status code", async () => {
-    const res = errorResponse("Something went wrong", 400);
+  it("errorResponse formats error object with default 400", async () => {
+    const res = errorResponse("Something went wrong");
     assert.equal(res.status, 400);
-    const data = await res.json();
-    assert.deepEqual(data, { error: "Something went wrong" });
+    const data = (await res.json()) as { error: string };
+    assert.equal(data.error, "Something went wrong");
   });
 
-  it("parseJsonBody parses valid JSON and returns null for invalid JSON", async () => {
-    const validReq = new Request("http://localhost/api", {
+  it("parseJsonBody parses valid JSON and returns null on malformed body", async () => {
+    const validReq = new Request("http://localhost", {
       method: "POST",
       body: JSON.stringify({ key: "value" }),
       headers: { "Content-Type": "application/json" },
@@ -44,39 +43,29 @@ describe("HTTP Response Helpers", () => {
     const parsedValid = await parseJsonBody(validReq);
     assert.deepEqual(parsedValid, { key: "value" });
 
-    const invalidReq = new Request("http://localhost/api", {
+    const invalidReq = new Request("http://localhost", {
       method: "POST",
-      body: "not-json",
+      body: "{ not valid json",
       headers: { "Content-Type": "application/json" },
     });
     const parsedInvalid = await parseJsonBody(invalidReq);
     assert.equal(parsedInvalid, null);
   });
 
-  it("createEventStreamResponse streams initial events", async () => {
-    const events: RunEvent[] = [
-      { type: "info", text: "Test event", timestamp: 123456 },
-    ];
-    const res = createEventStreamResponse(events, () => () => {});
-    assert.equal(res.headers.get("Content-Type"), "text/event-stream");
-
-    const reader = res.body?.getReader();
-    assert.ok(reader);
-    const chunk = await reader.read();
-    assert.equal(chunk.done, false);
-    const text = new TextDecoder().decode(chunk.value);
-    assert.ok(text.includes(`"text":"Test event"`));
-    await reader.cancel();
+  it("formatSSEMessage formats wire SSE message with sequence id and payload", () => {
+    const sse = formatSSEMessage({
+      id: 1,
+      type: "info",
+      payload: { text: "Test event" },
+      timestamp: "2026-09-21T00:00:00.000Z",
+    });
+    assert.ok(sse.includes("id: 1\n"));
+    assert.ok(sse.includes(`"text":"Test event"`));
+    assert.ok(!sse.includes("event:"));
   });
 });
 
 describe("Static Asset Serving", () => {
-  it("serves index.html on root path /", async () => {
-    const res = await serveStatic("/", PUBLIC_DIR);
-    assert.equal(res.status, 200);
-    assert.ok(res.headers.get("Content-Type")?.includes("text/html"));
-  });
-
   it("serves css file with text/css content type", async () => {
     const res = await serveStatic("/styles.css", PUBLIC_DIR);
     assert.equal(res.status, 200);
@@ -105,46 +94,10 @@ describe("Static Asset Serving", () => {
     assert.equal(res.headers.get("Content-Type"), "image/svg+xml");
   });
 
-  it("bundles app.ts on the fly when /app.js is requested", async () => {
-    const res = await serveStatic("/app.js", PUBLIC_DIR);
+  it("serves reference.html on /reference route", async () => {
+    const res = await serveStatic("/reference", PUBLIC_DIR);
     assert.equal(res.status, 200);
-    assert.ok(
-      res.headers.get("Content-Type")?.includes("application/javascript"),
-    );
-    const content = await res.text();
-    assert.ok(content.includes("initRouter") || content.includes("showView"));
-
-    // Second request should hit the in-memory cache
-    const cachedRes = await serveStatic("/app.js", PUBLIC_DIR);
-    assert.equal(cachedRes.status, 200);
-    const cachedContent = await cachedRes.text();
-    assert.equal(cachedContent, content);
-  });
-
-  it("transpiles TypeScript module when requested as .js in development", async () => {
-    const res = await serveStatic("/js/state.js", PUBLIC_DIR);
-    assert.equal(res.status, 200);
-    assert.ok(
-      res.headers.get("Content-Type")?.includes("application/javascript"),
-    );
-    const content = await res.text();
-    assert.ok(content.includes("state"));
-  });
-
-  it("does not bundle on the fly in production mode", async () => {
-    const origEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    try {
-      // In production, requesting a non-existent .js file returns 404 even if .ts exists
-      const res = await serveStatic("/app.js", "/non/existent/public/dir");
-      assert.equal(res.status, 404);
-    } finally {
-      if (origEnv !== undefined) {
-        process.env.NODE_ENV = origEnv;
-      } else {
-        delete process.env.NODE_ENV;
-      }
-    }
+    assert.ok(res.headers.get("Content-Type")?.includes("text/html"));
   });
 
   it("serves unknown extensions with application/octet-stream fallback", async () => {

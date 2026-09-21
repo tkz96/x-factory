@@ -2,7 +2,6 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defaultEventBus } from "../events.js";
 import * as git from "../git.js";
 import { MAX_REPAIR_ATTEMPTS, runVerification } from "../verification.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
@@ -37,14 +36,12 @@ export class VerifyExecutor implements StageExecutor {
   }
 
   async execute(context: StageContext): Promise<StageResult> {
-    const { run, project } = context;
-    const worktreePath = run.worktreePath || run.artifactsDir;
-
-    defaultEventBus.emit(run.id, {
-      type: "status",
-      status: "verifying",
+    context.eventRepo.appendEvent(context.run.id, "info", {
       text: "Running automated verification suite…",
     });
+
+    const { run, project } = context;
+    const worktreePath = run.worktreePath || run.artifactsDir;
 
     // Reconstruct pre-implementation baseline state from artifactsDir (XFM-35)
     const baselineJsonPath = path.join(run.artifactsDir, "baseline.json");
@@ -77,25 +74,47 @@ export class VerifyExecutor implements StageExecutor {
       "utf-8",
     );
 
-    // Update run record in SQLite
-    context.runRepo.update(run.id, {
-      verification: vResult,
-      diff: vResult.diff,
-      expectedRevision: run.revision,
-    });
+    const currentRepairs = run.repairAttempts ?? 0;
+    const nextRepairs = currentRepairs + 1;
 
-    defaultEventBus.emit(run.id, {
-      type: "verification",
-      result: vResult,
-    });
-
-    if (vResult.passed) {
-      defaultEventBus.emitStageEvidence(
+    // Atomically persist verification, diff, verification event, and stage_evidence (Phase 2, Section 31)
+    const tx = context.db.transaction(() => {
+      context.runRepo.update(
         run.id,
-        "verify",
-        `Verification checks passed: ${vResult.summary}`,
+        {
+          verification: vResult,
+          diff: vResult.diff,
+          expectedRevision: run.revision,
+        },
+        context.db,
       );
 
+      context.eventRepo.appendEvent(
+        run.id,
+        "verification",
+        { result: vResult },
+        context.db,
+      );
+
+      const evidenceText = vResult.passed
+        ? `Verification checks passed: ${vResult.summary}`
+        : nextRepairs <= MAX_REPAIR_ATTEMPTS
+          ? `Verification checks failed: ${vResult.summary}. Queuing repair attempt ${nextRepairs}/${MAX_REPAIR_ATTEMPTS}.`
+          : `Verification failed after exhausting ${MAX_REPAIR_ATTEMPTS} repair attempts: ${vResult.summary}`;
+
+      context.eventRepo.appendEvent(
+        run.id,
+        "stage_evidence",
+        {
+          stage: "verify",
+          evidence: evidenceText,
+        },
+        context.db,
+      );
+    });
+    tx();
+
+    if (vResult.passed) {
       return {
         status: "success",
         nextStage: "review",
@@ -108,19 +127,10 @@ export class VerifyExecutor implements StageExecutor {
     }
 
     // Verification failed; check bounded automated repair (XFM-31)
-    const currentRepairs = run.repairAttempts ?? 0;
-    const nextRepairs = currentRepairs + 1;
-
     if (nextRepairs <= MAX_REPAIR_ATTEMPTS) {
       context.runRepo.update(run.id, {
         repairAttempts: nextRepairs,
       });
-
-      defaultEventBus.emitStageEvidence(
-        run.id,
-        "verify",
-        `Verification checks failed: ${vResult.summary}. Queuing repair attempt ${nextRepairs}/${MAX_REPAIR_ATTEMPTS}.`,
-      );
 
       return {
         status: "retry",
@@ -133,13 +143,6 @@ export class VerifyExecutor implements StageExecutor {
         },
       };
     }
-
-    // Repair attempts exhausted; fail run
-    defaultEventBus.emitStageEvidence(
-      run.id,
-      "verify",
-      `Verification failed after exhausting ${MAX_REPAIR_ATTEMPTS} repair attempts: ${vResult.summary}`,
-    );
 
     return {
       status: "failed",

@@ -3,4 +3,10 @@ coverage/
 dist/
 graphify-out/
 .graphify*
-
+.env
+.env.*
+*.local
+.cursor/
+*.db
+*.db-shm
+*.db-wal

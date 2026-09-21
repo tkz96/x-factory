@@ -2,7 +2,6 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defaultEventBus } from "../events.js";
 import { buildImplementationContext } from "../understand.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
@@ -28,9 +27,7 @@ export class UnderstandExecutor implements StageExecutor {
     const { run, project } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
-    defaultEventBus.emit(run.id, {
-      type: "status",
-      status: "understanding",
+    context.eventRepo.appendEvent(run.id, "info", {
       text: "Analyzing codebase & synthesizing context…",
     });
 
@@ -54,11 +51,10 @@ export class UnderstandExecutor implements StageExecutor {
       expectedRevision: run.revision,
     });
 
-    defaultEventBus.emitStageEvidence(
-      run.id,
-      "understand",
-      `Identified ${implContext.relevantFiles.length} relevant files, ${implContext.constraints.length} constraints.`,
-    );
+    context.eventRepo.appendEvent(run.id, "stage_evidence", {
+      stage: "understand",
+      evidence: `Identified ${implContext.relevantFiles.length} relevant files, ${implContext.constraints.length} constraints.`,
+    });
 
     return {
       status: "success",

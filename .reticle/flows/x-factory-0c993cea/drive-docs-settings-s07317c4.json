@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "drive-docs-settings-s07317c4",
+  "projectId": "x-factory-0c993cea",
+  "createdAt": 1789978906033,
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Diagnostics"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "link",
+        "name": "Documentation"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "route": {
+          "pathname": "/docs"
+        }
+      }
+    }
+  ],
+  "startPath": "/settings"
+}

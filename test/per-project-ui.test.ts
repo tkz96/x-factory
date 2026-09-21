@@ -1,13 +1,13 @@
-// test/per-project-ui.test.ts — Unit tests for Per-Project Tracker UI components, templates, and wizard validation
+// test/per-project-ui.test.ts — Unit tests for React Per-Project Tracker UI components and wizard validation
 
 import { describe, expect, it } from "bun:test";
 import path from "node:path";
 
-describe("Per-Project Tracker UI & Templates", () => {
+describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
   it("Settings view includes read-only Connections Registry table and no global tracker inputs", async () => {
     const settingsViewPath = path.join(
       import.meta.dir,
-      "../public/js/views/settings.ts",
+      "../src/frontend/views/SettingsView.tsx",
     );
     const content = await Bun.file(settingsViewPath).text();
 
@@ -23,57 +23,59 @@ describe("Per-Project Tracker UI & Templates", () => {
   });
 
   it("Settings logic populates connections registry with project tracker links", async () => {
-    const settingsJsPath = path.join(
+    const settingsViewPath = path.join(
       import.meta.dir,
-      "../public/js/settings.ts",
+      "../src/frontend/views/SettingsView.tsx",
     );
-    const content = await Bun.file(settingsJsPath).text();
+    const content = await Bun.file(settingsViewPath).text();
 
-    expect(content).toContain("renderConnectionsRegistry");
+    expect(content).toContain("useProjects");
     expect(content).toContain("connections-registry-tbody");
-    expect(content).toContain("/projects?includeArchived=true");
-    expect(content).toContain('href="#/projects/');
+    expect(content).toContain("projects.map");
+    expect(content).toContain("encodeURIComponent(p.id)");
   });
 
   it("Projects view includes dedicated tracker section and collapsible archived projects section", async () => {
     const projectsViewPath = path.join(
       import.meta.dir,
-      "../public/js/views/projects.ts",
+      "../src/frontend/views/ProjectsView.tsx",
     );
-    const content = await Bun.file(projectsViewPath).text();
+    const projectsContent = await Bun.file(projectsViewPath).text();
 
-    expect(content).toContain('id="project-tracker-section"');
-    expect(content).toContain('class="project-tracker-card card"');
-    expect(content).toContain('id="archived-projects-section"');
-    expect(content).toContain('id="btn-toggle-archived"');
-    expect(content).toContain('id="archived-projects-container"');
+    expect(projectsContent).toContain('id="archived-projects-section"');
+    expect(projectsContent).toContain('id="btn-toggle-archived"');
+    expect(projectsContent).toContain('id="archived-projects-container"');
+
+    const trackerSectionPath = path.join(
+      import.meta.dir,
+      "../src/frontend/components/projects/TrackerSection.tsx",
+    );
+    const trackerContent = await Bun.file(trackerSectionPath).text();
+
+    expect(trackerContent).toContain('id="project-tracker-section"');
+    expect(trackerContent).toContain('className="project-tracker-card card"');
   });
 
-  it("Projects logic renders locked badge, credential status, test connection, rotation, and migration", async () => {
-    const projectsJsPath = path.join(
+  it("TrackerSection renders provider badge, target, ingestion label, and Azure scope testing", async () => {
+    const trackerSectionPath = path.join(
       import.meta.dir,
-      "../public/js/projects.ts",
+      "../src/frontend/components/projects/TrackerSection.tsx",
     );
-    const content = await Bun.file(projectsJsPath).text();
+    const content = await Bun.file(trackerSectionPath).text();
 
-    expect(content).toContain("renderProjectTrackerCard");
-    expect(content).toContain("🔒");
-    expect(content).toContain("Per-project issue tracker configuration");
-    expect(content).toContain("/tracker");
-    expect(content).toContain("/tracker/test");
-    expect(content).toContain("/tracker/credentials");
-    expect(content).toContain("/migrate");
-    expect(content).toContain("Switch Tracker / Migrate Project");
-    expect(content).toContain("active runs");
-    expect(content).toContain("activeRuns");
+    expect(content).toContain("tracker.provider");
+    expect(content).toContain("handleTestAzureScopes");
+    expect(content).toContain("Test Azure DevOps Scopes");
+    expect(content).toContain("api.testAzureScopes");
+    expect(content).toContain("Ingestion Label");
   });
 
   it("Onboarding Wizard step 2 requires tracker platform and contains no skip/none option", async () => {
-    const modalsViewPath = path.join(
+    const modalPath = path.join(
       import.meta.dir,
-      "../public/js/views/modals.ts",
+      "../src/frontend/components/modals/OnboardingWizardModal.tsx",
     );
-    const content = await Bun.file(modalsViewPath).text();
+    const content = await Bun.file(modalPath).text();
 
     expect(content).toContain('id="onboard-step-2"');
     expect(content).toContain('id="onboard-tracker-connection"');
@@ -86,25 +88,28 @@ describe("Per-Project Tracker UI & Templates", () => {
   });
 
   it("Wizard client validation enforces tracker fields before advancing past Step 2", async () => {
-    const wizardJsPath = path.join(import.meta.dir, "../public/js/wizard.ts");
-    const content = await Bun.file(wizardJsPath).text();
+    const modalPath = path.join(
+      import.meta.dir,
+      "../src/frontend/components/modals/OnboardingWizardModal.tsx",
+    );
+    const content = await Bun.file(modalPath).text();
 
-    expect(content).toContain("Azure Organization URL is required");
-    expect(content).toContain("Azure Project Name is required");
-    expect(content).toContain("Jira Host URL is required");
-    expect(content).toContain("Jira Email is required");
-    expect(content).toContain("GitHub Repository (owner/repo) is required");
+    expect(content).toContain("canGoNextFromStep2");
+    expect(content).toContain(
+      "Please complete the required tracker configuration",
+    );
+    expect(content).toContain("leastPrivilegeAck");
   });
 
-  it("Wizard actions saves credentials directly to project .env", async () => {
-    const wizardActionsPath = path.join(
+  it("Wizard actions saves project configuration directly to /api/projects", async () => {
+    const modalPath = path.join(
       import.meta.dir,
-      "../public/js/wizard-actions.ts",
+      "../src/frontend/components/modals/OnboardingWizardModal.tsx",
     );
-    const content = await Bun.file(wizardActionsPath).text();
+    const content = await Bun.file(modalPath).text();
 
-    expect(content).toContain("/tracker/credentials");
-    expect(content).toContain("config.id");
-    expect(content).toContain("state.tracker");
+    expect(content).toContain('fetch("/api/projects"');
+    expect(content).toContain('method: "POST"');
+    expect(content).toContain("invalidateProjects");
   });
 });

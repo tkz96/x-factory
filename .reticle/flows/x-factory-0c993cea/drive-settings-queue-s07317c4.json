@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "name": "drive-settings-queue-s07317c4",
+  "projectId": "x-factory-0c993cea",
+  "createdAt": 1789978906032,
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "textbox",
+        "name": "Filter tickets (label: agentic-workflow)…"
+      },
+      "args": {
+        "value": "AZ-3171"
+      },
+      "action": "fill"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "textbox",
+        "name": "Filter tickets (label: agentic-workflow)…"
+      },
+      "args": {
+        "value": "UNKNOWN-TICKET-999"
+      },
+      "action": "fill"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Clear Filter"
+      },
+      "args": {},
+      "action": "click"
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "link",
+        "name": "Settings"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "route": {
+          "pathname": "/settings"
+        }
+      }
+    }
+  ],
+  "startPath": "/queue"
+}

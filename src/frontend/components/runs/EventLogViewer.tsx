@@ -1,10 +1,202 @@
 // src/frontend/components/runs/EventLogViewer.tsx — Real-time auto-scrolling SSE activity log (XFM-50).
 
 import { useEffect, useRef } from "react";
-import type { RunEvent } from "../../../shared/types.js";
+import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
 
 interface EventLogViewerProps {
-  events: RunEvent[];
+  events: CanonicalWireEvent[];
+}
+
+function getPayloadRecord(item: CanonicalWireEvent): Record<string, unknown> {
+  return (
+    item.payload && typeof item.payload === "object" ? item.payload : {}
+  ) as Record<string, unknown>;
+}
+
+function renderStatus(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const status = typeof payload.status === "string" ? payload.status : "";
+  const text = typeof payload.text === "string" ? payload.text : "";
+  return (
+    <div key={item.id} className="event-item event-status">
+      [{status.toUpperCase()}] {text}
+    </div>
+  );
+}
+
+function renderEvidence(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const stage = typeof payload.stage === "string" ? payload.stage : "";
+  const summary =
+    typeof payload.summary === "string"
+      ? payload.summary
+      : typeof payload.evidence === "string"
+        ? payload.evidence
+        : "";
+  return (
+    <div key={item.id} className="event-item event-evidence">
+      <span className="event-prefix">✓ </span>
+      {stage && <strong>{stage.toUpperCase()}: </strong>}
+      {summary}
+    </div>
+  );
+}
+
+function renderPiChunk(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const role = typeof payload.role === "string" ? payload.role : "";
+  const text = typeof payload.text === "string" ? payload.text : "";
+  const rolePrefix = role === "reviewer" ? "[Reviewer] " : "";
+  return (
+    <div key={item.id} className="event-item">
+      {rolePrefix}
+      {text}
+    </div>
+  );
+}
+
+function renderPrStep(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text =
+    typeof payload.text === "string"
+      ? payload.text
+      : typeof payload.step === "string"
+        ? payload.step
+        : "";
+  return (
+    <div key={item.id} className="event-item event-status">
+      <span className="event-prefix">▸ </span>
+      {text}
+    </div>
+  );
+}
+
+function renderEvalResult(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+  label: "Verification" | "Review",
+) {
+  const res = (
+    payload.result && typeof payload.result === "object"
+      ? payload.result
+      : payload
+  ) as { passed?: boolean; summary?: string };
+  const passed = Boolean(res.passed);
+  const summary = typeof res.summary === "string" ? res.summary : "";
+  return (
+    <div
+      key={item.id}
+      className={`event-item ${passed ? "event-status" : "event-error"}`}
+    >
+      {label}: {summary}
+    </div>
+  );
+}
+
+function renderError(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text =
+    typeof payload.text === "string"
+      ? payload.text
+      : typeof payload.error === "string"
+        ? payload.error
+        : typeof payload.message === "string"
+          ? payload.message
+          : "";
+  return (
+    <div key={item.id} className="event-item event-error">
+      Error: {text}
+    </div>
+  );
+}
+
+function renderSteer(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text =
+    typeof payload.text === "string"
+      ? payload.text
+      : typeof payload.message === "string"
+        ? payload.message
+        : "";
+  return (
+    <div key={item.id} className="event-item event-steer">
+      <span className="event-prefix">→ Steer: </span>
+      {text}
+    </div>
+  );
+}
+
+function renderInfo(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text =
+    typeof payload.text === "string"
+      ? payload.text
+      : typeof payload.message === "string"
+        ? payload.message
+        : "";
+  return (
+    <div key={item.id} className="event-item text-muted">
+      {text}
+    </div>
+  );
+}
+
+function renderFallback(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text =
+    typeof payload.text === "string"
+      ? payload.text
+      : typeof item.payload === "string"
+        ? item.payload
+        : JSON.stringify(item.payload ?? item);
+  return (
+    <div key={item.id} className="event-item text-muted">
+      {text}
+    </div>
+  );
+}
+
+function renderEventItem(item: CanonicalWireEvent) {
+  const payload = getPayloadRecord(item);
+
+  switch (item.type) {
+    case "status":
+      return renderStatus(item, payload);
+    case "stage_evidence":
+      return renderEvidence(item, payload);
+    case "pi_output_chunk":
+      return renderPiChunk(item, payload);
+    case "pr_step":
+      return renderPrStep(item, payload);
+    case "verification":
+      return renderEvalResult(item, payload, "Verification");
+    case "review":
+      return renderEvalResult(item, payload, "Review");
+    case "error":
+      return renderError(item, payload);
+    case "steer":
+      return renderSteer(item, payload);
+    case "info":
+      return renderInfo(item, payload);
+    default:
+      return renderFallback(item, payload);
+  }
 }
 
 export function EventLogViewer({ events }: EventLogViewerProps) {
@@ -17,119 +209,6 @@ export function EventLogViewer({ events }: EventLogViewerProps) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [events.length]);
-
-  const renderEventItem = (item: RunEvent, index: number) => {
-    switch (item.type) {
-      case "pi_text": {
-        const rolePrefix = item.role === "reviewer" ? "[Reviewer] " : "";
-        return (
-          <div key={`${item.timestamp}-${index}`} className="event-item">
-            {rolePrefix}
-            {item.text}
-          </div>
-        );
-      }
-      case "status":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-status"
-          >
-            [{item.status.toUpperCase()}] {item.text}
-          </div>
-        );
-      case "stage_evidence":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-evidence"
-          >
-            <span className="event-prefix">✓ </span>
-            <strong>{item.stage.toUpperCase()}: </strong>
-            {item.summary}
-          </div>
-        );
-      case "pi_tool":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-tool"
-          >
-            <span className="event-prefix">▸ </span>
-            <span>{item.tool}</span>
-            {item.input && <span className="text-muted"> {item.input}</span>}
-          </div>
-        );
-      case "pi_done":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-status"
-          >
-            {item.role === "reviewer"
-              ? "Reviewer session finished."
-              : "Implementation session finished."}
-          </div>
-        );
-      case "pi_error":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-error"
-          >
-            Pi error: {item.error}
-          </div>
-        );
-      case "error":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-error"
-          >
-            Error: {item.text}
-          </div>
-        );
-      case "steer":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item event-steer"
-          >
-            <span className="event-prefix">→ Steer: </span>
-            {item.text}
-          </div>
-        );
-      case "verification":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className={`event-item ${item.result.passed ? "event-status" : "event-error"}`}
-          >
-            Verification: {item.result.summary}
-          </div>
-        );
-      case "review":
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className={`event-item ${item.result.passed ? "event-status" : "event-error"}`}
-          >
-            Review: {item.result.summary}
-          </div>
-        );
-      default:
-        return (
-          <div
-            key={`${item.timestamp}-${index}`}
-            className="event-item text-muted"
-          >
-            {"text" in item && typeof item.text === "string"
-              ? item.text
-              : JSON.stringify(item)}
-          </div>
-        );
-    }
-  };
 
   return (
     <div
@@ -152,7 +231,7 @@ export function EventLogViewer({ events }: EventLogViewerProps) {
       {events.length === 0 ? (
         <span className="text-muted">Awaiting pipeline events…</span>
       ) : (
-        events.map((event, idx) => renderEventItem(event, idx))
+        events.map((event) => renderEventItem(event))
       )}
     </div>
   );

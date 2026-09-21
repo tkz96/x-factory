@@ -54,15 +54,23 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
   it("succeeds through legal happy path state transitions", () => {
     createTestRun("run-happy", "queued");
 
-    const r1 = runRepo.transitionRun("run-happy", "queued", "preparing");
+    const { run: r1 } = runRepo.transitionRun(
+      "run-happy",
+      "queued",
+      "preparing",
+    );
     expect(r1.status).toBe("preparing");
     expect(r1.revision).toBe(2);
 
-    const r2 = runRepo.transitionRun("run-happy", "preparing", "understanding");
+    const { run: r2 } = runRepo.transitionRun(
+      "run-happy",
+      "preparing",
+      "understanding",
+    );
     expect(r2.status).toBe("understanding");
     expect(r2.revision).toBe(3);
 
-    const r3 = runRepo.transitionRun(
+    const { run: r3 } = runRepo.transitionRun(
       "run-happy",
       "understanding",
       "implementing",
@@ -70,19 +78,35 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
     expect(r3.status).toBe("implementing");
     expect(r3.revision).toBe(4);
 
-    const r4 = runRepo.transitionRun("run-happy", "implementing", "verifying");
+    const { run: r4 } = runRepo.transitionRun(
+      "run-happy",
+      "implementing",
+      "verifying",
+    );
     expect(r4.status).toBe("verifying");
     expect(r4.revision).toBe(5);
 
-    const r5 = runRepo.transitionRun("run-happy", "verifying", "reviewing");
+    const { run: r5 } = runRepo.transitionRun(
+      "run-happy",
+      "verifying",
+      "reviewing",
+    );
     expect(r5.status).toBe("reviewing");
     expect(r5.revision).toBe(6);
 
-    const r6 = runRepo.transitionRun("run-happy", "reviewing", "ready_for_pr");
+    const { run: r6 } = runRepo.transitionRun(
+      "run-happy",
+      "reviewing",
+      "ready_for_pr",
+    );
     expect(r6.status).toBe("ready_for_pr");
     expect(r6.revision).toBe(7);
 
-    const r7 = runRepo.transitionRun("run-happy", "ready_for_pr", "pr_created");
+    const { run: r7 } = runRepo.transitionRun(
+      "run-happy",
+      "ready_for_pr",
+      "pr_created",
+    );
     expect(r7.status).toBe("pr_created");
     expect(r7.revision).toBe(8);
     expect(r7.finishedAt).not.toBeNull();
@@ -92,7 +116,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
     createTestRun("run-recovery", "implementing");
 
     // Any active state can transition to recovery_required
-    const r1 = runRepo.transitionRun(
+    const { run: r1 } = runRepo.transitionRun(
       "run-recovery",
       "implementing",
       "recovery_required",
@@ -101,7 +125,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
     expect(r1.revision).toBe(2);
 
     // recovery_required can resume back to implementing
-    const r2 = runRepo.transitionRun(
+    const { run: r2 } = runRepo.transitionRun(
       "run-recovery",
       "recovery_required",
       "implementing",
@@ -111,7 +135,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
 
     // recovery_required can also abandon to failed
     runRepo.transitionRun("run-recovery", "implementing", "recovery_required");
-    const r3 = runRepo.transitionRun(
+    const { run: r3 } = runRepo.transitionRun(
       "run-recovery",
       "recovery_required",
       "failed",
@@ -178,9 +202,14 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
     const revWorkerB = 1;
 
     // Worker A transitions first
-    const rA = runRepo.transitionRun("run-race", "implementing", "verifying", {
-      expectedRevision: revWorkerA,
-    });
+    const { run: rA } = runRepo.transitionRun(
+      "run-race",
+      "implementing",
+      "verifying",
+      {
+        expectedRevision: revWorkerA,
+      },
+    );
     expect(rA.status).toBe("verifying");
     expect(rA.revision).toBe(2);
 
@@ -200,7 +229,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
   it("atomically records durable event alongside state transition (XFM-14)", () => {
     createTestRun("run-events", "preparing");
 
-    const updated = runRepo.transitionRun(
+    const { run: updated, event: recordedEvent } = runRepo.transitionRun(
       "run-events",
       "preparing",
       "understanding",
@@ -214,6 +243,8 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
 
     expect(updated.status).toBe("understanding");
     expect(updated.revision).toBe(2);
+    expect(recordedEvent).not.toBeNull();
+    expect(recordedEvent?.sequence).toBe(1);
 
     // Verify durable event was committed in run_events
     const events = eventRepo.getEventsForRun("run-events");
@@ -247,7 +278,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
           if (canTransition(from, to)) {
             const runId = `matrix-legal-${from}-to-${to}`;
             createTestRun(runId, from);
-            const res = runRepo.transitionRun(runId, from, to);
+            const { run: res } = runRepo.transitionRun(runId, from, to);
             expect(res.status).toBe(to);
             expect(res.revision).toBe(2);
             legalCount++;

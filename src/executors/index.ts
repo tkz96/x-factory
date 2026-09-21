@@ -1,6 +1,5 @@
 // src/executors/index.ts — Central registry and exports for stage executors (XFM-28).
 
-import { CheckpointExecutor } from "./checkpoint.js";
 import { DeliverExecutor } from "./deliver.js";
 import { ImplementExecutor } from "./implement.js";
 import { PrepareExecutor } from "./prepare.js";
@@ -9,7 +8,6 @@ import type { StageExecutor } from "./types.js";
 import { UnderstandExecutor } from "./understand.js";
 import { VerifyExecutor } from "./verify.js";
 
-export * from "./checkpoint.js";
 export * from "./deliver.js";
 export * from "./implement.js";
 export * from "./prepare.js";
@@ -26,7 +24,6 @@ const EXECUTORS: Record<string, StageExecutor> = {
   verify: new VerifyExecutor(),
   review: new ReviewExecutor(),
   deliver: new DeliverExecutor(),
-  pi_checkpoint: new CheckpointExecutor(),
 };
 
 /**

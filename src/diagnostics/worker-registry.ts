@@ -1,37 +1,49 @@
-// src/diagnostics/worker-registry.ts — In-process and queryable registry for active worker heartbeats (XFM-69, XFM-70).
+// src/diagnostics/worker-registry.ts — SQLite-backed registry for active worker heartbeats (XFM-69, XFM-70).
 
-export interface WorkerHeartbeatRecord {
-  workerId: string;
-  lastHeartbeatAt: string;
-  metadata?:
-    | {
-        hostname?: string | undefined;
-        pid?: number | undefined;
-      }
-    | undefined;
+import os from "node:os";
+import { WorkerHeartbeatRepository } from "../db/worker-heartbeat-repository.js";
+import { getDb } from "../runs.js";
+
+let heartbeatRepo: WorkerHeartbeatRepository | null = null;
+
+function getHeartbeatRepo(): WorkerHeartbeatRepository {
+  if (!heartbeatRepo) {
+    heartbeatRepo = new WorkerHeartbeatRepository(getDb());
+  }
+  return heartbeatRepo;
 }
 
-const activeHeartbeats = new Map<string, WorkerHeartbeatRecord>();
+export function setHeartbeatRepoForTesting(
+  repo: WorkerHeartbeatRepository | null,
+): void {
+  heartbeatRepo = repo;
+}
 
 /**
- * Registers or updates a worker's heartbeat timestamp.
+ * Registers or updates a worker's heartbeat timestamp in SQLite.
  */
 export function registerWorkerHeartbeat(
   workerId: string,
   metadata?: { hostname?: string | undefined; pid?: number | undefined },
 ): void {
-  activeHeartbeats.set(workerId, {
-    workerId,
-    lastHeartbeatAt: new Date().toISOString(),
-    metadata,
-  });
+  const pid = metadata?.pid ?? process.pid;
+  const hostname = metadata?.hostname ?? os.hostname();
+  try {
+    getHeartbeatRepo().upsert(workerId, pid, hostname);
+  } catch {
+    // Ignore if table does not exist yet (e.g. unmigrated database)
+  }
 }
 
 /**
  * Removes a worker from the active registry on shutdown.
  */
 export function unregisterWorker(workerId: string): void {
-  activeHeartbeats.delete(workerId);
+  try {
+    getHeartbeatRepo().remove(workerId);
+  } catch {
+    // Ignore if table does not exist
+  }
 }
 
 /**
@@ -40,38 +52,37 @@ export function unregisterWorker(workerId: string): void {
 export function getActiveWorkers(
   ttlMs = 30000,
 ): Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }> {
-  const now = Date.now();
-  const result: Array<{
-    workerId: string;
-    lastHeartbeatAt: string;
-    ageMs: number;
-  }> = [];
-
-  for (const [id, record] of activeHeartbeats.entries()) {
-    const lastTime = new Date(record.lastHeartbeatAt).getTime();
-    const ageMs = Math.max(0, now - lastTime);
-    if (ageMs <= ttlMs) {
-      result.push({
-        workerId: id,
-        lastHeartbeatAt: record.lastHeartbeatAt,
+  try {
+    const now = Date.now();
+    const records = getHeartbeatRepo().getActiveWorkers(ttlMs);
+    return records.map((r) => {
+      const ageMs = Math.max(0, now - new Date(r.lastHeartbeat).getTime());
+      return {
+        workerId: r.workerId,
+        lastHeartbeatAt: r.lastHeartbeat,
         ageMs,
-      });
-    }
+      };
+    });
+  } catch {
+    return [];
   }
-
-  return result;
 }
 
 /**
- * Evaluates whether at least one worker is active and healthy.
+ * Evaluates whether at least one worker is active and healthy via SQLite.
  */
 export function isWorkerReady(ttlMs = 30000): boolean {
-  return getActiveWorkers(ttlMs).length > 0;
+  return getHeartbeatRepo().isReady(ttlMs);
 }
 
 /**
  * Clears the registry for test isolation.
  */
 export function resetWorkerRegistryForTesting(): void {
-  activeHeartbeats.clear();
+  heartbeatRepo = null;
+  try {
+    getDb().prepare("DELETE FROM worker_heartbeats;").run();
+  } catch {
+    // ignore if table doesn't exist yet in mock tests
+  }
 }

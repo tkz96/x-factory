@@ -41,7 +41,6 @@ describe("Production Build UI QA (XFM-65)", () => {
 
     // Static assets
     expect(existsSync(path.join(distPublicDir, "styles.css"))).toBe(true);
-    expect(existsSync(path.join(distPublicDir, "docs.html"))).toBe(true);
     expect(existsSync(path.join(distPublicDir, "reference.html"))).toBe(true);
     expect(existsSync(path.join(distPublicDir, "favicon.svg"))).toBe(true);
     expect(existsSync(path.join(distPublicDir, "fonts"))).toBe(true);
@@ -59,12 +58,15 @@ describe("Production Build UI QA (XFM-65)", () => {
 
   it("serves SPA index.html fallback for client-side deep routes", async () => {
     const deepRoutes = [
+      "/",
       "/queue",
       "/runs",
       "/runs/run-prod-qa-test",
+      "/projects",
       "/projects/proj-prod-qa",
       "/history",
       "/settings",
+      "/docs",
     ];
 
     for (const route of deepRoutes) {
@@ -77,16 +79,16 @@ describe("Production Build UI QA (XFM-65)", () => {
     }
   });
 
-  it("serves favicon and static documentation files in production mode", async () => {
+  it("serves favicon and API reference in production mode", async () => {
     const svgRes = await fetch(`${baseUrl}/favicon.svg`);
     expect(svgRes.status).toBe(200);
     expect(svgRes.headers.get("Content-Type")).toContain("image/svg+xml");
     const svgText = await svgRes.text();
     expect(svgText).toContain("<svg");
 
-    const docsRes = await fetch(`${baseUrl}/docs.html`);
-    expect(docsRes.status).toBe(200);
-    expect(docsRes.headers.get("Content-Type")).toContain("text/html");
+    const refRes = await fetch(`${baseUrl}/reference`);
+    expect(refRes.status).toBe(200);
+    expect(refRes.headers.get("Content-Type")).toContain("text/html");
   });
 
   it("serves API endpoints cleanly alongside production static assets", async () => {

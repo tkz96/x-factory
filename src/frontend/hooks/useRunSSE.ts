@@ -2,24 +2,31 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import type { Run, RunEvent } from "../../shared/types.js";
+import type {
+  PullRequest,
+  ReviewResult,
+  Run,
+  RunStatus,
+  VerificationResult,
+} from "../../shared/types.js";
 import { patchRunCache } from "../lib/query-client.js";
 
-const TERMINAL_STATUSES = new Set([
+const TERMINAL_STATUSES = new Set<RunStatus>([
   "pr_created",
   "failed",
-  "cancelled",
-  "recovery_required",
+  "stopped",
 ]);
 
-export interface StreamEventItem {
-  id: string;
-  event: RunEvent;
+export interface CanonicalWireEvent {
+  id: number;
+  type: string;
+  payload: unknown;
+  timestamp: string;
 }
 
 export function useRunSSE(run: Run | undefined | null) {
   const queryClient = useQueryClient();
-  const [events, setEvents] = useState<StreamEventItem[]>([]);
+  const [events, setEvents] = useState<CanonicalWireEvent[]>([]);
   const [connected, setConnected] = useState(false);
 
   const runId = run?.id;
@@ -41,17 +48,52 @@ export function useRunSSE(run: Run | undefined | null) {
 
     eventSource.onmessage = (e) => {
       try {
-        const rawEvent = JSON.parse(e.data) as RunEvent;
-        const eventId = `ev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        setEvents((prev) => [...prev, { id: eventId, event: rawEvent }]);
+        const wireEvent = JSON.parse(e.data) as CanonicalWireEvent;
+        if (!wireEvent || typeof wireEvent.id !== "number") {
+          return;
+        }
 
-        // Direct cache updates for specific run state transitions (XFM-42)
-        if (rawEvent.type === "status") {
-          patchRunCache(runId, { status: rawEvent.status }, queryClient);
-        } else if (rawEvent.type === "verification") {
-          patchRunCache(runId, { verification: rawEvent.result }, queryClient);
-        } else if (rawEvent.type === "review") {
-          patchRunCache(runId, { review: rawEvent.result }, queryClient);
+        setEvents((prev) => {
+          if (prev.some((item) => item.id === wireEvent.id)) {
+            return prev;
+          }
+          return [...prev, wireEvent];
+        });
+
+        if (wireEvent.type === "status") {
+          const payload = wireEvent.payload as {
+            status?: RunStatus;
+            text?: string;
+            pullRequest?: PullRequest;
+          } | null;
+
+          if (payload?.status) {
+            if (payload.status === "pr_created") {
+              patchRunCache(
+                runId,
+                {
+                  status: "pr_created",
+                  pullRequest: payload.pullRequest ?? null,
+                },
+                queryClient,
+              );
+              queryClient.invalidateQueries({ queryKey: ["run", runId] });
+            } else {
+              patchRunCache(runId, { status: payload.status }, queryClient);
+            }
+          }
+        } else if (wireEvent.type === "verification") {
+          const payload = wireEvent.payload as {
+            result?: VerificationResult;
+          } | null;
+          if (payload?.result) {
+            patchRunCache(runId, { verification: payload.result }, queryClient);
+          }
+        } else if (wireEvent.type === "review") {
+          const payload = wireEvent.payload as { result?: ReviewResult } | null;
+          if (payload?.result) {
+            patchRunCache(runId, { review: payload.result }, queryClient);
+          }
         }
       } catch {
         // Non-JSON or keepalive comment
@@ -60,7 +102,7 @@ export function useRunSSE(run: Run | undefined | null) {
 
     eventSource.onerror = () => {
       setConnected(false);
-      eventSource.close();
+      // Do not call eventSource.close() here to allow browser native reconnect logic
     };
 
     return () => {

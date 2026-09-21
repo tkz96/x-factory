@@ -11,7 +11,7 @@ export interface EventRecord {
   createdAt: string;
 }
 
-interface EventRow {
+export interface EventRow {
   id: number;
   run_id: string;
   sequence: number;
@@ -20,7 +20,7 @@ interface EventRow {
   created_at: string;
 }
 
-function rowToEventRecord(row: EventRow): EventRecord {
+export function rowToEventRecord(row: EventRow): EventRecord {
   let parsedPayload: unknown;
   try {
     parsedPayload = JSON.parse(row.payload);
@@ -45,7 +45,13 @@ export class EventRepository {
    * Appends an event to the durable store with atomic monotonic sequence allocation (XFM-13).
    * Safe within external or internal transactions.
    */
-  appendEvent(runId: string, type: string, payload: unknown): EventRecord {
+  appendEvent(
+    runId: string,
+    type: string,
+    payload: unknown,
+    txDb?: Database,
+  ): EventRecord {
+    const conn = txDb || this.db;
     const now = new Date().toISOString();
     const serializedPayload =
       typeof payload === "string" ? payload : JSON.stringify(payload ?? {});
@@ -62,7 +68,7 @@ export class EventRepository {
       RETURNING *;
     `;
 
-    const stmt = this.db.prepare<
+    const stmt = conn.prepare<
       EventRow,
       {
         $runId: string;
@@ -92,7 +98,9 @@ export class EventRepository {
   getEventsForRun(
     runId: string,
     options?: { sinceSequence?: number | undefined },
+    txDb?: Database,
   ): EventRecord[] {
+    const conn = txDb || this.db;
     const sinceSequence = options?.sinceSequence ?? null;
 
     let query: string;
@@ -104,7 +112,7 @@ export class EventRepository {
         WHERE run_id = $runId AND sequence > $sinceSequence
         ORDER BY sequence ASC;
       `;
-      const stmt = this.db.prepare<
+      const stmt = conn.prepare<
         EventRow,
         {
           $runId: string;
@@ -118,7 +126,7 @@ export class EventRepository {
         WHERE run_id = $runId
         ORDER BY sequence ASC;
       `;
-      const stmt = this.db.prepare<EventRow, { $runId: string }>(query);
+      const stmt = conn.prepare<EventRow, { $runId: string }>(query);
       rows = stmt.all({ $runId: runId });
     }
 
@@ -128,11 +136,11 @@ export class EventRepository {
   /**
    * Gets the highest sequence number recorded for a run (or 0 if none exist).
    */
-  getLatestSequence(runId: string): number {
-    const stmt = this.db.prepare<
-      { max_seq: number | null },
-      { $runId: string }
-    >("SELECT MAX(sequence) as max_seq FROM run_events WHERE run_id = $runId;");
+  getLatestSequence(runId: string, txDb?: Database): number {
+    const conn = txDb || this.db;
+    const stmt = conn.prepare<{ max_seq: number | null }, { $runId: string }>(
+      "SELECT MAX(sequence) as max_seq FROM run_events WHERE run_id = $runId;",
+    );
     const result = stmt.get({ $runId: runId });
     return result?.max_seq ?? 0;
   }

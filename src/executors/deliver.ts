@@ -1,9 +1,11 @@
 // src/executors/deliver.ts — DeliverExecutor: Safe commit, remote push, and PR creation with operation ledger (XFM-28, XFM-32, XFM-33).
 
-import { createAzurePullRequest } from "../azure/pr.js";
-import { defaultEventBus } from "../events.js";
+import {
+  createAzurePullRequest,
+  findExistingAzurePullRequest,
+} from "../azure/pr.js";
 import * as git from "../git.js";
-import { createPullRequest } from "../github.js";
+import { createPullRequest, findExistingPullRequest } from "../github.js";
 import type { Project, PullRequest } from "../shared/types.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
@@ -32,10 +34,7 @@ export async function createPullRequestWithFallback(
     prTitle: string;
     prBody: string;
   },
-  deps: {
-    createAzurePullRequest: typeof createAzurePullRequest;
-    createPullRequest: typeof createPullRequest;
-  },
+  deps: DeliverDependencies,
 ): Promise<string> {
   const { project, branch, worktree, prTitle, prBody } = params;
   if (
@@ -43,7 +42,23 @@ export async function createPullRequestWithFallback(
     project.issueTracker?.azure
   ) {
     const { orgUrl, project: azureProject } = project.issueTracker.azure;
-    const repoName = project.name || project.id;
+    const primaryRepo =
+      project.repositories?.find((r) => r.path === project.repositoryPath) ||
+      project.repositories?.[0];
+    const repoName =
+      primaryRepo?.name || primaryRepo?.id || project.name || project.id;
+
+    // External PR Crash Recovery: check for existing PR first
+    const existing = await deps.findExistingAzurePullRequest({
+      orgUrl,
+      project: azureProject,
+      repoIdOrName: repoName,
+      sourceBranch: branch,
+    });
+    if (existing) {
+      return existing;
+    }
+
     const azPrResult = await deps.createAzurePullRequest({
       orgUrl,
       project: azureProject,
@@ -59,6 +74,12 @@ export async function createPullRequestWithFallback(
     }
   }
 
+  // External PR Crash Recovery: check for existing PR first
+  const existing = await deps.findExistingPullRequest(worktree, branch);
+  if (existing) {
+    return existing;
+  }
+
   return deps.createPullRequest(
     worktree,
     prTitle,
@@ -72,7 +93,9 @@ export interface DeliverDependencies {
   safeCommitAll: typeof git.safeCommitAll;
   push: typeof git.push;
   createAzurePullRequest: typeof createAzurePullRequest;
+  findExistingAzurePullRequest: typeof findExistingAzurePullRequest;
   createPullRequest: typeof createPullRequest;
+  findExistingPullRequest: typeof findExistingPullRequest;
 }
 
 export const defaultDeliverDeps: DeliverDependencies = {
@@ -80,7 +103,9 @@ export const defaultDeliverDeps: DeliverDependencies = {
   safeCommitAll: git.safeCommitAll,
   push: git.push,
   createAzurePullRequest,
+  findExistingAzurePullRequest,
   createPullRequest,
+  findExistingPullRequest,
 };
 
 export class DeliverExecutor implements StageExecutor {
@@ -89,6 +114,14 @@ export class DeliverExecutor implements StageExecutor {
 
   constructor(deps: Partial<DeliverDependencies> = {}) {
     this.deps = { ...defaultDeliverDeps, ...deps };
+  }
+
+  async deliver(context: StageContext): Promise<PullRequest> {
+    const result = await this.execute(context);
+    if (result.status !== "success" || !result.output) {
+      throw new Error(result.error || "Deliver failed without output");
+    }
+    return result.output as PullRequest;
   }
 
   async execute(context: StageContext): Promise<StageResult> {
@@ -102,8 +135,8 @@ export class DeliverExecutor implements StageExecutor {
       run.id,
       "git_commit",
       async () => {
-        defaultEventBus.emit(run.id, {
-          type: "pr_step",
+        context.eventRepo.appendEvent(run.id, "pr_step", {
+          step: "git_commit",
           text: "Committing verified changes safely…",
         });
 
@@ -122,8 +155,8 @@ export class DeliverExecutor implements StageExecutor {
       run.id,
       "git_push",
       async () => {
-        defaultEventBus.emit(run.id, {
-          type: "pr_step",
+        context.eventRepo.appendEvent(run.id, "pr_step", {
+          step: "git_push",
           text: "Pushing branch to remote…",
         });
         await this.deps.push(worktree, run.branch);
@@ -139,8 +172,8 @@ export class DeliverExecutor implements StageExecutor {
       run.id,
       "create_pr",
       async () => {
-        defaultEventBus.emit(run.id, {
-          type: "pr_step",
+        context.eventRepo.appendEvent(run.id, "pr_step", {
+          step: "create_pr",
           text: "Creating pull request…",
         });
 
@@ -169,20 +202,10 @@ export class DeliverExecutor implements StageExecutor {
       },
     );
 
-    // Update run record in SQLite with pull request info
-    context.run = context.runRepo.update(run.id, {
-      pullRequest: pr,
-    });
-
-    defaultEventBus.emitStageEvidence(
-      run.id,
-      "deliver",
-      `Pull Request ready: ${pr.url}`,
-    );
-
+    // Note: State finalization (updating pullRequest, stage evidence, transition to pr_created)
+    // is delegated to finalizeDeliver in src/services/deliver-service.ts to ensure single-transaction atomicity.
     return {
       status: "success",
-      nextRunStatus: "pr_created",
       output: pr,
     };
   }

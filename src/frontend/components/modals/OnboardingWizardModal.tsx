@@ -5,6 +5,7 @@ import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
 import { invalidateProjects } from "../../lib/query-client.js";
+import { parseQuickUrl } from "../../lib/wizard-url.js";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -38,9 +39,12 @@ const STEPS = [
 // ---------------------------------------------------------------------------
 
 interface Step1BasicsProps {
+  quickUrl: string;
+  quickUrlStatus: "detected" | "invalid" | null;
   projectName: string;
   projectId: string;
   workspacePath: string;
+  onQuickUrlChange: (url: string) => void;
   onNameChange: (name: string) => void;
   onIdChange: (id: string) => void;
   onWorkspacePathChange: (path: string) => void;
@@ -49,9 +53,12 @@ interface Step1BasicsProps {
 }
 
 function Step1Basics({
+  quickUrl,
+  quickUrlStatus,
   projectName,
   projectId,
   workspacePath,
+  onQuickUrlChange,
   onNameChange,
   onIdChange,
   onWorkspacePathChange,
@@ -60,6 +67,49 @@ function Step1Basics({
 }: Step1BasicsProps) {
   return (
     <div id="onboard-step-1" className="wizard-pane active">
+      <div className="quick-url-box">
+        <div className="quick-url-header">
+          <span>⚡ Quick Setup from URL</span>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-dim)",
+              fontWeight: "normal",
+            }}
+          >
+            Auto-detects provider, project &amp; repos
+          </span>
+        </div>
+        <input
+          id="onboard-quick-url"
+          type="text"
+          placeholder="Paste URL (e.g. dev.azure.com/xynotech/Converso or github.com/owner/repo)"
+          className="form-input code-input"
+          value={quickUrl}
+          onChange={(e) => onQuickUrlChange(e.target.value)}
+        />
+        {quickUrlStatus === "detected" && (
+          <div
+            id="quick-url-feedback"
+            className="quick-url-feedback quick-url-success"
+          >
+            <div>
+              <strong style={{ color: "var(--green)" }}>✓ URL Detected</strong>
+              <span> — Fields auto-populated.</span>
+            </div>
+          </div>
+        )}
+        {quickUrlStatus === "invalid" && (
+          <div
+            id="quick-url-feedback"
+            className="quick-url-feedback quick-url-tip"
+          >
+            <span>
+              Tip: Enter a valid Azure DevOps project URL or GitHub URL.
+            </span>
+          </div>
+        )}
+      </div>
       <div className="form-group">
         <label htmlFor="onboard-proj-name">
           Project Display Name <span className="required">*</span>
@@ -427,7 +477,12 @@ function Step3Discovery({
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
-        <button type="button" className="btn-primary" onClick={onNext}>
+        <button
+          type="button"
+          id="btn-step-3-next"
+          className="btn-primary"
+          onClick={onNext}
+        >
           Continue to Repositories →
         </button>
       </div>
@@ -441,12 +496,16 @@ function Step3Discovery({
 
 interface Step4RepositoriesProps {
   workspacePath: string;
+  projectId: string;
+  quickUrl: string;
   onBack: () => void;
   onNext: () => void;
 }
 
 function Step4Repositories({
   workspacePath,
+  projectId,
+  quickUrl,
   onBack,
   onNext,
 }: Step4RepositoriesProps) {
@@ -457,19 +516,32 @@ function Step4Repositories({
         Designate the primary repository and configure default branch.
       </p>
       <div className="card" style={{ marginTop: "1rem", padding: "1rem" }}>
-        <strong>Primary Workspace Repository</strong>
+        <strong>Primary Workspace Repository: {projectId || "primary"}</strong>
         <p
           className="text-muted"
           style={{ fontSize: "0.85rem", margin: "0.3rem 0 0" }}
         >
-          Using workspace path: {workspacePath} (branch: main)
+          Path: {workspacePath}/{projectId || "primary"} (branch: main)
         </p>
+        {quickUrl && (
+          <p
+            className="text-muted"
+            style={{ fontSize: "0.85rem", margin: "0.3rem 0 0" }}
+          >
+            Remote: <code>{quickUrl}</code>
+          </p>
+        )}
       </div>
       <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
-        <button type="button" className="btn-primary" onClick={onNext}>
+        <button
+          type="button"
+          id="btn-step-4-next"
+          className="btn-primary"
+          onClick={onNext}
+        >
           Continue to Inspection →
         </button>
       </div>
@@ -504,7 +576,12 @@ function Step5Inspection({ onBack, onNext }: Step5InspectionProps) {
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
-        <button type="button" className="btn-primary" onClick={onNext}>
+        <button
+          type="button"
+          id="btn-step-5-next"
+          className="btn-primary"
+          onClick={onNext}
+        >
           Continue to Review →
         </button>
       </div>
@@ -521,6 +598,7 @@ interface Step6ReviewProps {
   projectId: string;
   workspacePath: string;
   tracker: string;
+  quickUrl: string;
   isSubmitting: boolean;
   onBack: () => void;
   onSubmit: () => void;
@@ -531,6 +609,7 @@ function Step6Review({
   projectId,
   workspacePath,
   tracker,
+  quickUrl,
   isSubmitting,
   onBack,
   onSubmit,
@@ -562,6 +641,12 @@ function Step6Review({
           <strong>Tracker</strong>
           <span>{tracker}</span>
         </div>
+        {quickUrl && (
+          <div className="project-meta-item">
+            <strong>Remote URL</strong>
+            <code>{quickUrl}</code>
+          </div>
+        )}
       </div>
 
       <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
@@ -599,6 +684,10 @@ export function OnboardingWizardModal() {
   const [maxStep, setMaxStep] = useState<WizardStep>(1);
 
   // Form state
+  const [quickUrl, setQuickUrl] = useState("");
+  const [quickUrlStatus, setQuickUrlStatus] = useState<
+    "detected" | "invalid" | null
+  >(null);
   const [projectName, setProjectName] = useState("");
   const [projectId, setProjectId] = useState("");
   const [workspacePath, setWorkspacePath] = useState(
@@ -620,6 +709,46 @@ export function OnboardingWizardModal() {
   const [error, setError] = useState<string | null>(null);
 
   if (!isOnboardingOpen) return null;
+
+  const handleQuickUrlChange = (val: string) => {
+    setQuickUrl(val);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setQuickUrlStatus(null);
+      return;
+    }
+    const parsed = parseQuickUrl(trimmed);
+    if (!parsed) {
+      setQuickUrlStatus("invalid");
+      return;
+    }
+
+    setQuickUrlStatus("detected");
+    if (parsed.provider === "azure") {
+      setProjectName(parsed.project);
+      setProjectId(
+        parsed.project
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, ""),
+      );
+      setTracker("azure");
+      setGitHost("azure");
+      setTrackerProject(parsed.project);
+      setTrackerOrgUrl(parsed.orgUrl);
+    } else {
+      setProjectName(parsed.repo);
+      setProjectId(
+        parsed.repo
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, ""),
+      );
+      setTracker("github");
+      setGitHost("github");
+      setTrackerProject(`${parsed.owner}/${parsed.repo}`);
+    }
+  };
 
   const handleNameChange = (val: string) => {
     setProjectName(val);
@@ -657,6 +786,9 @@ export function OnboardingWizardModal() {
       if (!trackerOrgUrl || !trackerProject || !trackerPat) return false;
       if (patScopeResult?.overPrivileged && !leastPrivilegeAck) return false;
     }
+    if (tracker === "github") {
+      if (!trackerProject.trim()) return false;
+    }
     return true;
   };
 
@@ -684,13 +816,21 @@ export function OnboardingWizardModal() {
     setIsSubmitting(true);
     setError(null);
     try {
+      const trimmedProjectId = projectId.trim();
+      const trimmedName = projectName.trim() || trimmedProjectId;
+      const trimmedWs = workspacePath.trim();
+      const repoPath = `${trimmedWs.replace(/\/+$/, "")}/${trimmedProjectId}`;
+
       const payload = {
-        id: projectId.trim(),
-        name: projectName.trim(),
-        workspacePath: workspacePath.trim() || undefined,
+        id: trimmedProjectId,
+        name: trimmedName,
+        workspacePath: trimmedWs || undefined,
+        repositoryPath: repoPath,
         defaultBranch: "main",
         issueTracker: {
           provider: tracker as "azure" | "github" | "jira",
+          connectionId: tracker,
+          projectId: trackerProject.trim() || undefined,
           azure:
             tracker === "azure"
               ? {
@@ -699,7 +839,27 @@ export function OnboardingWizardModal() {
                   requiredLabel: "agentic-workflow",
                 }
               : undefined,
+          github:
+            tracker === "github"
+              ? {
+                  repo: trackerProject.trim(),
+                }
+              : undefined,
         },
+        repositories: [
+          {
+            id: trimmedProjectId,
+            name: trimmedProjectId,
+            path: repoPath,
+            defaultBranch: "main",
+            remote:
+              quickUrl.trim() ||
+              (tracker === "github" && trackerProject.trim()
+                ? `https://github.com/${trackerProject.trim()}`
+                : undefined),
+            role: "backend",
+          },
+        ],
       };
 
       const res = await fetch("/api/projects", {
@@ -782,9 +942,12 @@ export function OnboardingWizardModal() {
 
           {step === 1 && (
             <Step1Basics
+              quickUrl={quickUrl}
+              quickUrlStatus={quickUrlStatus}
               projectName={projectName}
               projectId={projectId}
               workspacePath={workspacePath}
+              onQuickUrlChange={handleQuickUrlChange}
               onNameChange={handleNameChange}
               onIdChange={setProjectId}
               onWorkspacePathChange={setWorkspacePath}
@@ -826,6 +989,8 @@ export function OnboardingWizardModal() {
           {step === 4 && (
             <Step4Repositories
               workspacePath={workspacePath}
+              projectId={projectId}
+              quickUrl={quickUrl}
               onBack={() => goToStep(3)}
               onNext={() => goToStep(5)}
             />
@@ -844,6 +1009,7 @@ export function OnboardingWizardModal() {
               projectId={projectId}
               workspacePath={workspacePath}
               tracker={tracker}
+              quickUrl={quickUrl}
               isSubmitting={isSubmitting}
               onBack={() => goToStep(5)}
               onSubmit={handleCompleteOnboard}

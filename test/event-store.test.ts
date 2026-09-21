@@ -106,7 +106,7 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
     expect(allEvents.length).toBe(5);
   });
 
-  it("formats SSE messages with id: sequence and event: type framing (XFM-12)", () => {
+  it("formats SSE messages with id: sequence and data framing (XFM-12, Section 34)", () => {
     const sseText = formatSSEMessage({
       sequence: 17,
       type: "stage_evidence",
@@ -114,9 +114,10 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
     });
 
     expect(sseText).toContain("id: 17\n");
-    expect(sseText).toContain("event: stage_evidence\n");
-    expect(sseText).toContain(
-      'data: {"sequence":17,"type":"stage_evidence","payload":{"stage":"verify","passed":true}}\n\n',
-    );
+    expect(sseText).not.toContain("event: stage_evidence\n");
+    expect(sseText).toContain('"id":17');
+    expect(sseText).toContain('"type":"stage_evidence"');
+    expect(sseText).toContain('"payload":{"stage":"verify","passed":true}');
+    expect(sseText.endsWith("\n\n")).toBe(true);
   });
 });

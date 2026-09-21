@@ -196,7 +196,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
       if (sseReader) {
         const chunk = await sseReader.read();
         const text = new TextDecoder().decode(chunk.value);
-        expect(text).toContain("event: ");
+        expect(text).toContain("id: ");
         expect(text).toContain("Prepared during API restart window");
         await sseReader.cancel();
       }

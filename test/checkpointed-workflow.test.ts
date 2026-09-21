@@ -109,7 +109,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     expect(nextJob?.status).toBe("pending");
   });
 
-  it("progresses sequentially across full multi-stage pipeline (prepare -> understand -> implement -> verify -> review -> deliver)", async () => {
+  it("progresses sequentially across full multi-stage pipeline (prepare -> understand -> implement -> verify -> review -> ready_for_pr)", async () => {
     const { db, runRepo, jobRepo, stageAttemptRepo, run } = setup();
 
     const stageResults: Record<string, StageResult> = {
@@ -139,14 +139,8 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
       },
       review: {
         status: "success",
-        nextStage: "deliver",
         nextRunStatus: "ready_for_pr",
         output: { approved: true },
-      },
-      deliver: {
-        status: "success",
-        nextRunStatus: "pr_created",
-        output: { prUrl: "https://github.com/org/repo/pull/1" },
       },
     };
 
@@ -172,30 +166,93 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
       processedCount++;
     }
 
-    // 6 stages processed
-    expect(processedCount).toBe(6);
+    // 5 stages processed (paused at ready_for_pr)
+    expect(processedCount).toBe(5);
 
-    // Final run status
+    // Final run status is ready_for_pr
     const finalRun = runRepo.get(run.id);
-    expect(finalRun?.status).toBe("pr_created");
+    expect(finalRun?.status).toBe("ready_for_pr");
 
-    // All 6 stage attempts persisted in order
+    // All 5 stage attempts persisted in order
     const attempts = stageAttemptRepo.listForRun(run.id);
-    expect(attempts.length).toBe(6);
+    expect(attempts.length).toBe(5);
     expect(attempts.map((a) => a.stage)).toEqual([
       "prepare",
       "understand",
       "implement",
       "verify",
       "review",
-      "deliver",
     ]);
     expect(attempts.every((a) => a.status === "completed")).toBe(true);
 
-    // All 6 jobs completed
+    // All 5 jobs completed
     const allJobs = jobRepo.listJobsForRun(run.id);
-    expect(allJobs.length).toBe(6);
+    expect(allJobs.length).toBe(5);
     expect(allJobs.every((j) => j.status === "completed")).toBe(true);
+  });
+
+  it("delivers pull request from ready_for_pr via deliver command to pr_created", async () => {
+    const { db, runRepo } = setup();
+    const { CommandRepository } = await import(
+      "../src/db/command-repository.js"
+    );
+    const { EventRepository } = await import("../src/db/event-repository.js");
+    const { createPR } = await import("../src/runs.js");
+
+    const commandRepo = new CommandRepository(db);
+    const eventRepo = new EventRepository(db);
+
+    // Set run to ready_for_pr
+    runRepo.update("run-cp-1", { status: "ready_for_pr" });
+
+    // Trigger createPR
+    const prRes = await createPR("run-cp-1", {
+      db,
+      runRepo,
+      commandRepo,
+      eventRepo,
+    });
+    expect(prRes.ok).toBe(true);
+    expect(prRes.queued).toBe(true);
+
+    const pendingCommands = commandRepo.claimPendingCommands(
+      "worker-deliver-test",
+      30000,
+    );
+    expect(pendingCommands.length).toBe(1);
+    const cmd = pendingCommands[0];
+    if (!cmd) throw new Error("Deliver command not claimed");
+    expect(cmd.command).toBe("deliver");
+
+    // Mock DeliverExecutor
+    const mockDeliverExecutor = {
+      stage: "deliver" as const,
+      execute: async () => ({
+        url: "https://github.com/org/repo/pull/42",
+        branch: "factory/CP-1",
+        baseBranch: "main",
+        title: "Checkpointed Ticket",
+      }),
+    };
+
+    const worker = new Worker({
+      db,
+      workerId: "worker-deliver-test",
+      deliverExecutor: mockDeliverExecutor,
+    });
+
+    await worker.processCommand(cmd);
+
+    // Run status transitioned to pr_created
+    const deliveredRun = runRepo.get("run-cp-1");
+    expect(deliveredRun?.status).toBe("pr_created");
+    expect(deliveredRun?.pullRequest?.url).toBe(
+      "https://github.com/org/repo/pull/42",
+    );
+
+    // Command marked completed
+    const finishedCmd = commandRepo.getCommand(cmd.id);
+    expect(finishedCmd?.status).toBe("completed");
   });
 
   it("handles bounded verification repair loops (verify failure -> retry implement) (XFM-31)", async () => {

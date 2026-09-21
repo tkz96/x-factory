@@ -3,11 +3,13 @@ import {
   type PiAgentSession,
   registerActiveSession,
 } from "../src/agents/pi.js";
+import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
+import { Worker } from "../src/worker.js";
 
 describe("Duplicate-Action Idempotency (XFM-62)", () => {
   afterAll(() => {
@@ -111,7 +113,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
   });
 
   it("steer deduplication ignores duplicate command_id submissions", async () => {
-    const { runRepo } = setupTest();
+    const { db, runRepo } = setupTest();
 
     const runId = `run-steer-${Date.now()}`;
     const run = runRepo.create({
@@ -136,6 +138,9 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
 
     registerActiveSession(run.id, mockSession as unknown as PiAgentSession);
 
+    const commandRepo = new CommandRepository(db);
+    const worker = new Worker({ db, workerId: "worker-steer-test" });
+
     const commandId = `cmd-${Date.now()}-abc`;
 
     // 1. First Steer
@@ -152,6 +157,15 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const body1 = (await res1.json()) as { ok: boolean; deduplicated: boolean };
     expect(body1.ok).toBe(true);
     expect(body1.deduplicated).toBe(false);
+
+    // Worker processes first command
+    const commands1 = commandRepo.claimPendingCommands(
+      "worker-steer-test",
+      30000,
+    );
+    for (const cmd of commands1) {
+      await worker.processCommand(cmd);
+    }
     expect(piSteerCallCount).toBe(1);
 
     // 2. Second Steer with SAME commandId (or command_id)
@@ -168,7 +182,13 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const body2 = (await res2.json()) as { ok: boolean; deduplicated: boolean };
     expect(body2.ok).toBe(true);
     expect(body2.deduplicated).toBe(true);
-    // Pi session steer must NOT have been called a second time
+
+    // No new commands queued; Pi session steer must NOT have been called a second time
+    const commands2 = commandRepo.claimPendingCommands(
+      "worker-steer-test",
+      30000,
+    );
+    expect(commands2.length).toBe(0);
     expect(piSteerCallCount).toBe(1);
   });
 });

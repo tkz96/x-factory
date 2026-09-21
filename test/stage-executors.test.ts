@@ -19,7 +19,12 @@ import {
   VerifyExecutor,
 } from "../src/executors/index.js";
 import type { BaselineState } from "../src/pollution.js";
-import type { Project, VerificationResult } from "../src/shared/types.js";
+import { finalizeDeliver } from "../src/services/deliver-service.js";
+import type {
+  Project,
+  PullRequest,
+  VerificationResult,
+} from "../src/shared/types.js";
 
 describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
   const mockBaseline: BaselineState = {
@@ -307,7 +312,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       const result = await executor.execute(context);
 
       expect(result.status).toBe("success");
-      expect(result.nextStage).toBe("deliver");
+      expect(result.nextStage).toBeUndefined();
       expect(result.nextRunStatus).toBe("ready_for_pr");
 
       const updatedRun = runRepo.get(context.run.id);
@@ -338,7 +343,9 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
   describe("DeliverExecutor (XFM-28)", () => {
     it("safely commits, pushes, and creates pull request", async () => {
-      const { context, runRepo } = setupTestContext("deliver");
+      const { context, runRepo } = setupTestContext("deliver", {
+        status: "ready_for_pr",
+      });
 
       let committed = false;
       let pushed = false;
@@ -360,12 +367,26 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(committed).toBe(true);
       expect(pushed).toBe(true);
       expect(result.status).toBe("success");
-      expect(result.nextRunStatus).toBe("pr_created");
+      expect((result.output as PullRequest).url).toBe(
+        "https://github.com/org/repo/pull/42",
+      );
+
+      finalizeDeliver(
+        context.db,
+        context.runRepo,
+        context.eventRepo,
+        undefined,
+        context.run.id,
+        "cmd-test",
+        context.workerId,
+        result.output as PullRequest,
+      );
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.pullRequest?.url).toBe(
         "https://github.com/org/repo/pull/42",
       );
+      expect(updatedRun?.status).toBe("pr_created");
     });
   });
 

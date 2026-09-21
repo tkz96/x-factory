@@ -146,6 +146,29 @@
           }
         }
       ]
+    },
+    {
+      "id": "simple-hello-world",
+      "name": "simple-hello-world",
+      "workspacePath": "/Users/talhazuberi/projects",
+      "issueTracker": {
+        "provider": "github",
+        "connectionId": "github",
+        "projectId": "tkz96/simple-hello-world",
+        "github": {
+          "repo": "tkz96/simple-hello-world"
+        }
+      },
+      "repositories": [
+        {
+          "id": "simple-hello-world",
+          "name": "simple-hello-world",
+          "remote": "https://github.com/tkz96/simple-hello-world",
+          "path": "/Users/talhazuberi/projects/simple-hello-world",
+          "defaultBranch": "main",
+          "role": "backend"
+        }
+      ]
     }
   ]
 }

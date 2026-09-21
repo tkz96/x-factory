@@ -2,15 +2,18 @@
 
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
-import type { RunEvent } from "../shared/types.js";
+import type { RunStatus } from "../shared/types.js";
+import { TERMINAL_RUN_STATUSES } from "../state-machine.js";
 import {
   catchHttpErrors,
-  createEventStreamResponse,
   errorResponse,
+  formatSSEMessage,
   jsonResponse,
+  type WireSSEEvent,
   withValidatedBody,
 } from "./responses.js";
 import { CreateRunBodySchema, SteerRunBodySchema } from "./schemas.js";
+import { defaultSSERegistry } from "./sse-registry.js";
 
 export function parseAcceptanceCriteria(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -78,17 +81,17 @@ function handleRunEvents(runId: string, req?: Request): Response {
   const run = runs.getRun(runId);
   if (!run) return errorResponse("Run not found.", 404);
 
-  let sinceSequence: number | undefined;
+  let initialSequence = 0;
   if (req) {
     const lastEventIdHeader = req.headers.get("last-event-id");
     if (lastEventIdHeader && !Number.isNaN(Number(lastEventIdHeader))) {
-      sinceSequence = Number(lastEventIdHeader);
+      initialSequence = Number(lastEventIdHeader);
     } else {
       try {
         const url = new URL(req.url);
         const queryVal = url.searchParams.get("last_event_id");
         if (queryVal && !Number.isNaN(Number(queryVal))) {
-          sinceSequence = Number(queryVal);
+          initialSequence = Number(queryVal);
         }
       } catch {
         // ignore url parsing error
@@ -96,22 +99,147 @@ function handleRunEvents(runId: string, req?: Request): Response {
     }
   }
 
-  // Query durable events from SQLite (XFM-12, XFM-15)
-  const durableEvents = runs.getRunEvents(runId, { sinceSequence });
-  const initialEvents: (RunEvent | Record<string, unknown>)[] =
-    durableEvents.length > 0
-      ? durableEvents.map((e) => ({
-          id: e.sequence,
-          sequence: e.sequence,
-          type: e.type,
-          payload: e.payload,
-          createdAt: e.createdAt,
-        }))
-      : run.events;
+  let lastSequence = initialSequence;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  let isClosed = false;
+  let unregisterRegistry: (() => void) | null = null;
 
-  return createEventStreamResponse(initialEvents, (listener) =>
-    runs.subscribe(runId, listener),
-  );
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+
+      const cleanup = () => {
+        if (isClosed) return;
+        isClosed = true;
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        if (keepaliveTimer) {
+          clearInterval(keepaliveTimer);
+          keepaliveTimer = null;
+        }
+        if (unregisterRegistry) {
+          unregisterRegistry();
+          unregisterRegistry = null;
+        }
+      };
+
+      unregisterRegistry = defaultSSERegistry.register(() => {
+        cleanup();
+        try {
+          controller.close();
+        } catch {
+          // ignore already closed
+        }
+      });
+
+      const pollEvents = () => {
+        if (isClosed) return;
+        try {
+          const events = runs.getRunEvents(runId, {
+            sinceSequence: lastSequence,
+          });
+          for (const event of events) {
+            const wireEvent: WireSSEEvent = {
+              id: event.sequence,
+              type: event.type,
+              payload: event.payload,
+              timestamp: event.createdAt,
+            };
+            controller.enqueue(encoder.encode(formatSSEMessage(wireEvent)));
+            lastSequence = event.sequence;
+
+            if (event.type === "status") {
+              const payload = event.payload as { status?: string } | null;
+              if (
+                payload?.status &&
+                TERMINAL_RUN_STATUSES.has(payload.status as RunStatus)
+              ) {
+                cleanup();
+                try {
+                  controller.close();
+                } catch {
+                  // ignore
+                }
+                return;
+              }
+            }
+          }
+
+          // If no new events and run was already terminal
+          const currentRun = runs.getRun(runId);
+          if (
+            currentRun &&
+            TERMINAL_RUN_STATUSES.has(currentRun.status) &&
+            events.length === 0
+          ) {
+            cleanup();
+            try {
+              controller.close();
+            } catch {
+              // ignore
+            }
+          }
+        } catch {
+          cleanup();
+          try {
+            controller.close();
+          } catch {
+            // ignore
+          }
+        }
+      };
+
+      // Initial catch-up replay
+      pollEvents();
+
+      if (!isClosed) {
+        // Poll SQLite every 300ms (Phase 2, Section 35)
+        pollTimer = setInterval(pollEvents, 300);
+
+        // Keepalive every 15s (Phase 2, Section 38)
+        keepaliveTimer = setInterval(() => {
+          if (isClosed) return;
+          try {
+            controller.enqueue(encoder.encode(": keep-alive\n\n"));
+          } catch {
+            cleanup();
+            try {
+              controller.close();
+            } catch {
+              // ignore
+            }
+          }
+        }, 15000);
+      }
+    },
+    cancel() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (keepaliveTimer) {
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = null;
+      }
+      if (unregisterRegistry) {
+        unregisterRegistry();
+        unregisterRegistry = null;
+      }
+      isClosed = true;
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
 
 async function handleSteerRun(req: Request, runId: string): Promise<Response> {
@@ -134,8 +262,8 @@ async function handleStopRun(runId: string): Promise<Response> {
 }
 
 async function handleCreatePR(runId: string): Promise<Response> {
-  const pr = await runs.createPR(runId);
-  return jsonResponse(pr);
+  const result = await runs.createPR(runId);
+  return jsonResponse(result);
 }
 
 async function handleResumeRun(runId: string): Promise<Response> {

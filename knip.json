@@ -1,11 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@5/overview/configuration.json",
-  "entry": ["public/app.ts", "test/**/*.ts"],
-  "project": [
-    "src/**/*.{ts,tsx}",
-    "public/**/*.{ts,tsx}",
-    "test/**/*.{ts,tsx}"
-  ],
+  "entry": ["test/**/*.ts", "src/reticle-dev.ts"],
+  "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"],
+  "ignoreDependencies": ["@reticlehq/react"],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "exports": "warn",

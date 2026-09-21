@@ -75,6 +75,22 @@ function translateSessionEvent(event: {
       input: summarizeToolInput(toolEvent.args),
     };
   } else if (event.type === "agent_end") {
+    const raw = event as {
+      messages?: Array<{
+        role?: string;
+        stopReason?: string;
+        errorMessage?: string;
+      }>;
+    };
+    const lastMsg = raw.messages?.[raw.messages.length - 1];
+    if (lastMsg?.stopReason === "error" || lastMsg?.errorMessage) {
+      return {
+        type: "error",
+        error:
+          lastMsg.errorMessage ||
+          `Pi session failed with stopReason: ${lastMsg?.stopReason}`,
+      };
+    }
     return { type: "done" };
   }
   return null;
@@ -85,11 +101,17 @@ function translateSessionEvent(event: {
  */
 function wrapSession(session: AgentSession): PiAgentSession {
   const listeners = new Set<PiEventListener>();
+  let lastSessionError: string | null = null;
 
   session.subscribe((event) => {
     try {
       const payload = translateSessionEvent(event as { type?: string });
-      if (payload) notifyListeners(listeners, payload);
+      if (payload) {
+        if (payload.type === "error" && payload.error) {
+          lastSessionError = payload.error;
+        }
+        notifyListeners(listeners, payload);
+      }
     } catch {
       // Prevent listener errors from failing the session
     }
@@ -98,8 +120,12 @@ function wrapSession(session: AgentSession): PiAgentSession {
   return {
     session,
     async prompt(text: string): Promise<void> {
+      lastSessionError = null;
       try {
         await session.prompt(text);
+        if (lastSessionError) {
+          throw new Error(lastSessionError);
+        }
       } catch (err: unknown) {
         const error = err instanceof Error ? err.message : String(err);
         notifyListeners(listeners, { type: "error", error });

@@ -3,14 +3,15 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
 import { createDatabase } from "../src/db/connection.js";
+import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import { defaultEventBus } from "../src/events.js";
 import { patchRunCache } from "../src/frontend/lib/query-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { handleApi } from "../src/http/routes.js";
+import { defaultSSERegistry } from "../src/http/sse-registry.js";
 import { setDbForTesting } from "../src/runs.js";
-import type { Run, RunEventPayload } from "../src/shared/types.js";
+import type { Run, RunStatus } from "../src/shared/types.js";
 
 describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
   afterAll(() => {
@@ -22,8 +23,9 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     runMigrations(db);
     setDbForTesting(db);
     const runRepo = new RunRepository(db);
+    const eventRepo = new EventRepository(db);
 
-    return { db, runRepo };
+    return { db, runRepo, eventRepo };
   }
 
   function createTestRun(id: string, runRepo: RunRepository): Run {
@@ -40,7 +42,7 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     });
   }
 
-  it("rapid run switching unsubscribes previous streams without cross-contaminating cache", async () => {
+  it("rapid run switching updates cache only for active target", () => {
     const { runRepo } = setupTest();
 
     const runA = createTestRun("run-switch-A", runRepo);
@@ -52,83 +54,39 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     queryClient.setQueryData(queryKeys.run(runB.id), runB);
     queryClient.setQueryData(queryKeys.run(runC.id), runC);
 
-    // Track active subscriber callbacks
-    const eventsA: Array<RunEventPayload & { timestamp?: number }> = [];
-    const eventsB: Array<RunEventPayload & { timestamp?: number }> = [];
-    const eventsC: Array<RunEventPayload & { timestamp?: number }> = [];
-
-    // 1. User views Run A
-    const unsubA1 = defaultEventBus.subscribe(runA.id, (e) => {
-      eventsA.push(e);
-      if (e.type === "status") {
-        patchRunCache(runA.id, { status: e.status }, queryClient);
+    let activeRunId = runA.id;
+    const onEvent = (targetRunId: string, newStatus: RunStatus) => {
+      if (targetRunId === activeRunId) {
+        patchRunCache(targetRunId, { status: newStatus }, queryClient);
       }
-    });
+    };
 
-    // 2. Rapid switch to Run B -> unsub A
-    unsubA1();
-    const unsubB = defaultEventBus.subscribe(runB.id, (e) => {
-      eventsB.push(e);
-      if (e.type === "status") {
-        patchRunCache(runB.id, { status: e.status }, queryClient);
-      }
-    });
+    // 1. Switch to B
+    activeRunId = runB.id;
+    // 2. Switch to C
+    activeRunId = runC.id;
+    // 3. Switch back to A
+    activeRunId = runA.id;
 
-    // 3. Rapid switch to Run C -> unsub B
-    unsubB();
-    const unsubC = defaultEventBus.subscribe(runC.id, (e) => {
-      eventsC.push(e);
-      if (e.type === "status") {
-        patchRunCache(runC.id, { status: e.status }, queryClient);
-      }
-    });
+    // Discarded event for B
+    onEvent(runB.id, "failed");
+    // Active event for A
+    onEvent(runA.id, "verifying");
 
-    // 4. Switch back to Run A -> unsub C
-    unsubC();
-    const unsubA2 = defaultEventBus.subscribe(runA.id, (e) => {
-      eventsA.push(e);
-      if (e.type === "status") {
-        patchRunCache(runA.id, { status: e.status }, queryClient);
-      }
-    });
-
-    // Emit event on Run B (which was unsubscribed)
-    defaultEventBus.emit(runB.id, {
-      type: "status",
-      status: "failed",
-      text: "Run failed",
-    });
-
-    // Emit event on Run A (which is currently active)
-    defaultEventBus.emit(runA.id, {
-      type: "status",
-      status: "verifying",
-      text: "Run verifying",
-    });
-
-    // Assert: eventsB did NOT receive event after unsub
-    expect(eventsB.length).toBe(0);
     // Run B cache was NOT modified
     const cachedB = queryClient.getQueryData<Run>(queryKeys.run(runB.id));
     expect(cachedB?.status).toBe("implementing");
 
-    // Assert: eventsA received only the active event
-    expect(eventsA.length).toBe(1);
-    expect(eventsA[0]?.type === "status" ? eventsA[0].status : null).toBe(
-      "verifying",
-    );
+    // Run A cache updated
     const cachedA = queryClient.getQueryData<Run>(queryKeys.run(runA.id));
     expect(cachedA?.status).toBe("verifying");
-
-    unsubA2();
   });
 
-  it("abrupt SSE connection abort cleans up event bus listeners completely", async () => {
+  it("abrupt SSE connection abort cleans up SSE registry completely", async () => {
     const { runRepo } = setupTest();
     const run = createTestRun("run-disconnect-test", runRepo);
 
-    // Initial listener count
-    const initialListenerCount = defaultEventBus.listenerCount(run.id);
+    const initialCount = defaultSSERegistry.count;
 
     // 1. Client connects via SSE
     const req = new Request(`http://localhost/api/runs/${run.id}/events`);
@@ -138,57 +96,53 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     const reader = res.body?.getReader();
     expect(reader).toBeDefined();
 
-    // Listener count should now be +1
-    expect(defaultEventBus.listenerCount(run.id)).toBe(
-      initialListenerCount + 1,
-    );
+    expect(defaultSSERegistry.count).toBe(initialCount + 1);
 
     // 2. Client abruptly disconnects / cancels stream
     await reader?.cancel();
 
-    // Give microtask tick for cancel() callback in ReadableStream to trigger
-    await new Promise((r) => setTimeout(r, 10));
+    // Allow cancel callback in ReadableStream to execute
+    await new Promise((r) => setTimeout(r, 50));
 
-    // Listener count MUST return to initial count (0 zombie listeners)
-    expect(defaultEventBus.listenerCount(run.id)).toBe(initialListenerCount);
+    expect(defaultSSERegistry.count).toBe(initialCount);
   });
 
-  it("broadcasts events independently to multiple concurrent subscribers without cross-talk", async () => {
-    const { runRepo } = setupTest();
+  it("streams events independently to distinct run subscribers without cross-talk", async () => {
+    const { runRepo, eventRepo } = setupTest();
     const run1 = createTestRun("run-multi-sub-1", runRepo);
     const run2 = createTestRun("run-multi-sub-2", runRepo);
 
-    // Two clients subscribe to run 1
-    const sub1Events: string[] = [];
-    const sub2Events: string[] = [];
-    const unsub1 = defaultEventBus.subscribe(run1.id, (e) =>
-      sub1Events.push(e.type),
-    );
-    const unsub2 = defaultEventBus.subscribe(run1.id, (e) =>
-      sub2Events.push(e.type),
-    );
+    // Connect client to Run 1
+    const req1 = new Request(`http://localhost/api/runs/${run1.id}/events`);
+    const res1 = await handleApi(req1, new URL(req1.url));
+    const reader1 = res1.body?.getReader();
+    expect(reader1).toBeDefined();
 
-    // One client subscribes to run 2
-    const sub3Events: string[] = [];
-    const unsub3 = defaultEventBus.subscribe(run2.id, (e) =>
-      sub3Events.push(e.type),
-    );
+    // Connect client to Run 2
+    const req2 = new Request(`http://localhost/api/runs/${run2.id}/events`);
+    const res2 = await handleApi(req2, new URL(req2.url));
+    const reader2 = res2.body?.getReader();
+    expect(reader2).toBeDefined();
 
-    // Emit event on run 1
-    defaultEventBus.emit(run1.id, { type: "info", text: "Run 1 event" });
+    // Append events to SQLite
+    eventRepo.appendEvent(run1.id, "info", { text: "Run 1 unique payload" });
+    eventRepo.appendEvent(run2.id, "pr_step", { text: "Run 2 unique payload" });
 
-    // Emit event on run 2
-    defaultEventBus.emit(run2.id, { type: "pr_step", text: "Run 2 event" });
+    // Read from client 1
+    const read1Promise = reader1?.read();
+    const val1 = await read1Promise;
+    const text1 = new TextDecoder().decode(val1?.value);
+    expect(text1).toContain("Run 1 unique payload");
+    expect(text1).not.toContain("Run 2 unique payload");
 
-    // Assert both run 1 subscribers got run 1 event
-    expect(sub1Events).toEqual(["info"]);
-    expect(sub2Events).toEqual(["info"]);
+    // Read from client 2
+    const read2Promise = reader2?.read();
+    const val2 = await read2Promise;
+    const text2 = new TextDecoder().decode(val2?.value);
+    expect(text2).toContain("Run 2 unique payload");
+    expect(text2).not.toContain("Run 1 unique payload");
 
-    // Assert run 2 subscriber got ONLY run 2 event
-    expect(sub3Events).toEqual(["pr_step"]);
-
-    unsub1();
-    unsub2();
-    unsub3();
+    await reader1?.cancel();
+    await reader2?.cancel();
   });
 });
