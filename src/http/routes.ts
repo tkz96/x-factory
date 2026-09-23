@@ -10,6 +10,7 @@ import {
   handleReadinessRoute,
   handleReadyRoute,
 } from "./diagnostics-controller.js";
+import { handleDocsRoute } from "./docs-controller.js";
 import { getOpenApiSpec } from "./openapi.js";
 import { handleProjectsRoute } from "./projects-controller.js";
 import { errorResponse, jsonResponse } from "./responses.js";
@@ -22,6 +23,11 @@ async function routeApiRequest(
   req: Request,
 ): Promise<Response | null> {
   const [resource, id, action, subaction] = parts;
+
+  // In-app Diátaxis documentation (XFM-53)
+  if (resource === "docs") {
+    return handleDocsRoute(method, id, action, req);
+  }
 
   // Liveness probe (XFM-69)
   if (resource === "health") {

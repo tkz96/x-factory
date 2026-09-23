@@ -1,0 +1,57 @@
+/* ── History Runs Table ──────────────────────────────────────────────── */
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-3);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  transition: all var(--transition);
+}
+
+.history-item:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.history-item:active {
+  transform: scale(0.985);
+}
+
+.history-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.history-ticket {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-body);
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+
+.history-sub {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: var(--space-1);
+}
+
+.history-branch {
+  font-size: var(--text-caption-1);
+}
+
+.history-badge {
+  text-transform: capitalize;
+  align-self: center;
+}

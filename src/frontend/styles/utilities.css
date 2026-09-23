@@ -1,0 +1,237 @@
+/* ── Spacing Utilities (8pt grid from DESIGN.md) ────────────────────── */
+
+/* Margin-bottom */
+.mb-1 {
+  margin-bottom: var(--space-1);
+}
+.mb-2 {
+  margin-bottom: var(--space-2);
+}
+.mb-3 {
+  margin-bottom: var(--space-3);
+}
+.mb-4 {
+  margin-bottom: var(--space-4);
+}
+.mb-5 {
+  margin-bottom: var(--space-5);
+}
+.mb-6 {
+  margin-bottom: var(--space-6);
+}
+.mb-8 {
+  margin-bottom: var(--space-8);
+}
+
+/* Margin-top */
+.mt-1 {
+  margin-top: var(--space-1);
+}
+.mt-2 {
+  margin-top: var(--space-2);
+}
+.mt-3 {
+  margin-top: var(--space-3);
+}
+.mt-4 {
+  margin-top: var(--space-4);
+}
+.mt-5 {
+  margin-top: var(--space-5);
+}
+.mt-6 {
+  margin-top: var(--space-6);
+}
+.mt-8 {
+  margin-top: var(--space-8);
+}
+
+/* Padding */
+.p-2 {
+  padding: var(--space-2);
+}
+.p-3 {
+  padding: var(--space-3);
+}
+.p-4 {
+  padding: var(--space-4);
+}
+.p-5 {
+  padding: var(--space-5);
+}
+.p-6 {
+  padding: var(--space-6);
+}
+.p-8 {
+  padding: var(--space-8);
+}
+
+/* Gap */
+.gap-2 {
+  gap: var(--space-2);
+}
+.gap-3 {
+  gap: var(--space-3);
+}
+.gap-4 {
+  gap: var(--space-4);
+}
+.gap-5 {
+  gap: var(--space-5);
+}
+.gap-6 {
+  gap: var(--space-6);
+}
+
+/* ── Typography Utilities (HIG Type Scale from DESIGN.md §5) ────────── */
+.text-large-title {
+  font-size: var(--text-large-title);
+}
+.text-title-1 {
+  font-size: var(--text-title-1);
+}
+.text-title-2 {
+  font-size: var(--text-title-2);
+}
+.text-title-3 {
+  font-size: var(--text-title-3);
+}
+.text-headline {
+  font-size: var(--text-headline);
+  font-weight: 600;
+}
+.text-body {
+  font-size: var(--text-body);
+}
+.text-callout {
+  font-size: var(--text-callout);
+}
+.text-subhead {
+  font-size: var(--text-subhead);
+}
+.text-footnote {
+  font-size: var(--text-footnote);
+}
+.text-caption-1 {
+  font-size: var(--text-caption-1);
+}
+.text-caption-2 {
+  font-size: var(--text-caption-2);
+}
+.font-semibold {
+  font-weight: 600;
+}
+.font-bold {
+  font-weight: 700;
+}
+
+/* ── Layout Utilities ───────────────────────────────────────────────── */
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.stack-lg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.grid-auto-fit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+.text-center {
+  text-align: center;
+}
+.list-none {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.col-span-full {
+  grid-column: 1 / -1;
+}
+
+/* ── Utility Modifiers ───────────────────────────────────────────────── */
+.m-0 {
+  margin: 0;
+}
+.mr-2 {
+  margin-right: var(--space-2);
+}
+.d-none {
+  display: none;
+}
+.font-medium {
+  font-weight: 500;
+}
+
+/* ── Color Utilities ────────────────────────────────────────────────── */
+.color-muted,
+.text-muted {
+  color: var(--text-muted);
+}
+.color-dim,
+.text-dim {
+  color: var(--text-dim);
+}
+.color-accent,
+.text-accent {
+  color: var(--accent);
+}
+.color-success,
+.text-success {
+  color: var(--green);
+}
+.color-danger,
+.text-danger {
+  color: var(--red);
+}
+.color-warning,
+.text-warning {
+  color: var(--yellow);
+}
+
+/* ── Error Message ──────────────────────────────────────────────────── */
+.error-message {
+  margin-top: 1rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--red-dim);
+  color: var(--red);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+/* ── Screen-Reader Only Accessibility Utility ───────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

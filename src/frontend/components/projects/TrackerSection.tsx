@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Project } from "../../../shared/types.js";
 import { api } from "../../lib/api-client.js";
+import "./TrackerSection.css";
 
 interface TrackerSectionProps {
   project: Project;
@@ -56,17 +57,10 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
   return (
     <div id="project-tracker-section" className="project-tracker-card card">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
+      <div className="tracker-section-header">
         <div>
-          <h3 style={{ margin: 0 }}>Issue Tracker Connection</h3>
-          <p className="text-muted" style={{ margin: "0.2rem 0 0" }}>
+          <h3 className="tracker-title">Issue Tracker Connection</h3>
+          <p className="text-muted tracker-subtitle">
             Automated ticket ingestion and PR linking.
           </p>
         </div>
@@ -116,7 +110,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
       </div>
 
       {tracker.provider === "azure" && (
-        <div style={{ marginTop: "1.2rem" }}>
+        <div className="tracker-test-container">
           <button
             type="button"
             className="btn-secondary btn-sm"
@@ -128,40 +122,18 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
           {testResult && (
             <div
-              style={{
-                marginTop: "0.8rem",
-                padding: "0.8rem",
-                borderRadius: "var(--radius-sm)",
-                background: testResult.ok
-                  ? "var(--bg-success-subtle)"
-                  : "var(--bg-danger-subtle)",
-                border: `1px solid ${
-                  testResult.ok ? "var(--success)" : "var(--danger)"
-                }`,
-              }}
+              className={`tracker-test-result ${
+                testResult.ok ? "success" : "danger"
+              }`}
             >
               <strong>{testResult.message}</strong>
               {testResult.overPrivileged && (
-                <div
-                  style={{
-                    marginTop: "0.4rem",
-                    color: "var(--warning)",
-                    fontWeight: 600,
-                  }}
-                >
+                <div className="tracker-overprivileged-notice">
                   Notice: Token has broader access than the recommended minimum.
                 </div>
               )}
               {testResult.details && (
-                <pre
-                  style={{
-                    marginTop: "0.5rem",
-                    fontSize: "0.75rem",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  {testResult.details}
-                </pre>
+                <pre className="tracker-test-details">{testResult.details}</pre>
               )}
             </div>
           )}

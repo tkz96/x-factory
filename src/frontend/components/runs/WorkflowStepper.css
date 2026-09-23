@@ -1,0 +1,101 @@
+/* ── Workflow Stepper ────────────────────────────────────────────────── */
+
+.workflow-stepper {
+  padding: 1.2rem 1.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.stepper-track {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.6rem;
+  position: relative;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.6rem 0.3rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  transition: all var(--transition);
+}
+
+.step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--border);
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+  transition: all var(--transition);
+}
+
+.step-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.step-evidence {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  line-height: 1.25;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.step.active {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.step.active .step-dot {
+  background: var(--accent);
+  color: var(--text-on-dot);
+  box-shadow: 0 0 10px rgba(88, 166, 255, 0.5);
+}
+
+.step.active .step-label {
+  color: var(--accent);
+}
+
+.step.completed {
+  border-color: rgba(63, 185, 80, 0.4);
+  background: rgba(63, 185, 80, 0.06);
+}
+
+.step.completed .step-dot {
+  background: var(--green);
+  color: var(--text-on-dot);
+}
+
+.step.completed .step-label {
+  color: var(--green);
+}
+
+.step.failed {
+  border-color: rgba(248, 81, 73, 0.5);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.step.failed .step-dot {
+  background: var(--red);
+  color: var(--text-on-accent);
+}
+
+.step.failed .step-label {
+  color: var(--red);
+}

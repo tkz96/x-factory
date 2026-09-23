@@ -1,0 +1,14 @@
+/* ── History View Styles (Apple HIG) ──────────────────────────────── */
+
+.history-filter-bar {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-5);
+  flex-wrap: wrap;
+}
+
+.history-filter-bar .btn-secondary.active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}

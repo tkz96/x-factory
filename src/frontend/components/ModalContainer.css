@@ -1,0 +1,135 @@
+/* ── Modal Dialog & Apple Launch Blur Animation ──────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  padding: 1rem;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal-backdrop:not([hidden]) {
+  display: flex;
+  animation: appleBackdropBlur 340ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes appleBackdropBlur {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+    background: rgba(0, 0, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    background: rgba(0, 0, 0, 0.65);
+  }
+}
+
+.modal-backdrop:not([hidden]) .modal-dialog {
+  animation: appleModalSpring 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes appleModalSpring {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(24px);
+    filter: blur(6px);
+  }
+  60% {
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0px);
+  }
+}
+
+.modal-dialog {
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 680px;
+  max-height: min(90vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 9001;
+  transition: all var(--transition);
+}
+
+[data-theme="light"] .modal-dialog {
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.modal-dialog-lg {
+  max-width: 820px;
+  width: 92%;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-header h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.022em;
+}
+
+.modal-body {
+  padding: 1.4rem 1.4rem 1.2rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding: 1rem 0 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-modal);
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.modal-actions .btn-primary,
+.modal-actions .btn-secondary {
+  min-height: 44px;
+  padding: 0.55rem 1.25rem;
+  font-size: var(--text-subhead);
+  font-weight: 550;
+  width: auto;
+  margin-top: 0;
+}

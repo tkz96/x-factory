@@ -1,0 +1,302 @@
+/* ── Settings Paned Layout (Apple HIG) ───────────────────────────────── */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 1.5rem;
+  min-height: 380px;
+}
+
+.settings-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-right: 1px solid var(--border);
+  padding-right: 0.8rem;
+}
+
+.settings-tab-btn {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.settings-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.settings-tab-btn.active {
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.settings-content {
+  padding-left: 0.5rem;
+}
+
+.settings-pane {
+  display: none;
+}
+
+.settings-pane.active {
+  display: block;
+  animation: fadeIn 180ms ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.setting-item {
+  margin-top: 1rem;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+/* ── Theme Segmented Control ─────────────────────────────────────────── */
+
+.theme-segmented-control {
+  display: inline-flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+}
+
+.theme-segment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  min-height: 44px;
+  font-size: var(--text-callout);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.theme-segment-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.theme-segment-btn.active {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+}
+
+.theme-segment-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* ── Diagnostics & Telemetry (new classes for migrated inline styles) ── */
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.metric-card-label {
+  font-size: var(--text-caption-1);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.metric-card-value {
+  font-size: var(--text-title-2);
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.telemetry-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.telemetry-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  font-size: 0.84rem;
+}
+
+.telemetry-stat-label {
+  color: var(--text-muted);
+}
+
+.telemetry-stat-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.integration-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.6rem;
+}
+
+.integration-row-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.integration-row-status {
+  font-size: var(--text-caption-1);
+  font-family: var(--font-mono);
+}
+
+.status-dot-sm {
+  width: 8px;
+  height: 8px;
+}
+
+.metric-value-lg {
+  font-size: var(--text-title-3);
+  display: block;
+  margin-top: var(--space-2);
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+
+.telemetry-num {
+  display: block;
+  font-size: var(--text-title-3);
+}
+
+.connections-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.connections-registry-container {
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+.connections-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.connections-table th {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-footnote);
+}
+
+.connections-table th.align-right {
+  text-align: right;
+}
+
+.connections-table td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-footnote);
+}
+
+.connections-table td.align-right {
+  text-align: right;
+}
+
+.connections-target {
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+}
+
+.badge-status-active {
+  padding: 2px 6px;
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.badge-status-archived {
+  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.badge-provider {
+  padding: 2px 6px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.project-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.project-link:hover {
+  text-decoration: underline;
+}
+
+.settings-actions-bar {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}

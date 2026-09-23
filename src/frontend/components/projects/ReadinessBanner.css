@@ -1,0 +1,44 @@
+/* ── Readiness Banner ────────────────────────────────────────────────── */
+
+.readiness-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-5);
+  margin-bottom: var(--space-5);
+  font-size: var(--text-callout);
+}
+
+.readiness-banner.ready {
+  background: var(--green-dim);
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+
+.readiness-banner.pending,
+.readiness-banner.warning {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+  border: 1px solid var(--yellow);
+}
+
+.readiness-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.status-dot-sm {
+  width: 10px;
+  height: 10px;
+}
+
+.readiness-title {
+  display: block;
+}
+
+.readiness-desc {
+  font-size: var(--text-footnote);
+}

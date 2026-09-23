@@ -1,0 +1,35 @@
+/* ── Diff Viewer ─────────────────────────────────────────────────────── */
+
+.diff-viewer {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  line-height: 1.4;
+  max-height: 450px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+}
+
+.diff-line {
+  display: block;
+}
+
+.diff-add {
+  color: var(--green);
+  background: rgba(46, 160, 67, 0.15);
+}
+
+.diff-del {
+  color: var(--red);
+  background: rgba(248, 81, 73, 0.15);
+}
+
+.diff-hunk {
+  color: var(--purple);
+  background: rgba(188, 140, 255, 0.1);
+}

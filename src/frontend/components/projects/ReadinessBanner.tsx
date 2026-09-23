@@ -1,5 +1,7 @@
 // src/frontend/components/projects/ReadinessBanner.tsx — Tooling & Environment Readiness Banner (XFM-48).
 
+import "./ReadinessBanner.css";
+
 import { useReadiness } from "../../hooks/useQueries.js";
 
 export function ReadinessBanner() {
@@ -7,7 +9,7 @@ export function ReadinessBanner() {
 
   if (isLoading) {
     return (
-      <div className="readiness-banner card" style={{ padding: "1rem" }}>
+      <div className="readiness-banner card">
         <span className="text-muted">
           Checking system and project readiness…
         </span>
@@ -18,28 +20,18 @@ export function ReadinessBanner() {
   const isReady = readiness?.ready !== false;
 
   return (
-    <div
-      className={`readiness-banner card ${isReady ? "ready" : "warning"}`}
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "1rem",
-        marginTop: "1.2rem",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
+    <div className={`readiness-banner card ${isReady ? "ready" : "warning"}`}>
+      <div className="readiness-content">
         <span
-          className={`status-dot ${isReady ? "online" : "offline"}`}
-          style={{ width: "10px", height: "10px" }}
+          className={`status-dot status-dot-sm ${isReady ? "online" : "offline"}`}
         />
         <div>
-          <strong style={{ display: "block" }}>
+          <strong className="readiness-title">
             {isReady
               ? "Tooling & Environment Ready"
               : "Readiness Issues Detected"}
           </strong>
-          <span className="text-muted" style={{ fontSize: "0.85rem" }}>
+          <span className="text-muted readiness-desc">
             {isReady
               ? "All required CLI tools, Git worktree isolation, and credentials verified."
               : "Some prerequisites or CLI tools are missing. Review below."}

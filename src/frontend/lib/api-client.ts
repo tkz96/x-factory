@@ -208,7 +208,72 @@ export const api = {
     const res = await fetch("/api/diagnostics");
     return handleResponse<DiagnosticsData>(res);
   },
+
+  async getDocsCatalog(): Promise<DocsCatalogResponse> {
+    const res = await fetch("/api/docs");
+    return handleResponse<DocsCatalogResponse>(res);
+  },
+
+  async searchDocs(query: string): Promise<DocsSearchResponse> {
+    const res = await fetch(`/api/docs/search?q=${encodeURIComponent(query)}`);
+    return handleResponse<DocsSearchResponse>(res);
+  },
+
+  async getDoc(category: string, slug: string): Promise<DocDetailResponse> {
+    const res = await fetch(
+      `/api/docs/${encodeURIComponent(category)}/${encodeURIComponent(slug)}`,
+    );
+    return handleResponse<DocDetailResponse>(res);
+  },
 };
+
+export interface DocSearchMatch {
+  heading: string;
+  headingId: string;
+  snippet: string;
+  matchCount: number;
+}
+
+export interface DocSearchResult {
+  category: string;
+  categoryName: string;
+  slug: string;
+  title: string;
+  totalMatches: number;
+  sections: DocSearchMatch[];
+}
+
+export interface DocsSearchResponse {
+  query: string;
+  totalMatches: number;
+  results: DocSearchResult[];
+}
+
+export interface DocItem {
+  slug: string;
+  title: string;
+  description: string;
+  path: string;
+}
+
+export interface DocCategory {
+  id: string;
+  name: string;
+  description: string;
+  docs: DocItem[];
+}
+
+export interface DocsCatalogResponse {
+  categories: DocCategory[];
+}
+
+export interface DocDetailResponse {
+  category: string;
+  slug: string;
+  title: string;
+  description: string;
+  markdown: string;
+}
 
 export interface DiagnosticsData {
   status: string;

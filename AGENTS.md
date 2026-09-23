@@ -9,13 +9,14 @@ This document defines the working contracts, architectural authority, and toolch
 The system hierarchy and division of responsibility is strictly defined as follows:
 
 ```text
-       AGENTS.md
-           +
-docs/runtime-architecture.md
-           +
-      Graphify MCP
-           ↓
-     Coding Agent
+          AGENTS.md
+              +
+       docs/README.md
+ (docs/reference + explanation)
+              +
+         Graphify MCP
+              ↓
+        Coding Agent
 ```
 
 ### The Core Principle
@@ -23,14 +24,15 @@ docs/runtime-architecture.md
 
 1. **Authoritative Sources of Truth for Architecture**:
    - [`AGENTS.md`](file:///Users/talhazuberi/x-factory/AGENTS.md) (this document): Operational guidelines, coding standards, and agent rules.
-   - [`docs/runtime-architecture.md`](file:///Users/talhazuberi/x-factory/docs/runtime-architecture.md): Authoritative contracts for process boundaries, command/query classifications, durable SQLite schemas, job lifecycle, and finite state machine transitions.
-   - [`docs/architecture.md`](file:///Users/talhazuberi/x-factory/docs/architecture.md): Deep-dive documentation on multi-process topology, optimistic locking, event streaming, and the React UI architecture.
+   - [`docs/README.md`](file:///Users/talhazuberi/x-factory/docs/README.md): Central index for the Diátaxis documentation framework.
+   - [`docs/reference/database-schema.md`](file:///Users/talhazuberi/x-factory/docs/reference/database-schema.md) & [`docs/reference/state-machine-matrix.md`](file:///Users/talhazuberi/x-factory/docs/reference/state-machine-matrix.md): Authoritative contracts for durable SQLite schemas, job lifecycle, and finite state machine transitions.
+   - [`docs/explanation/process-boundaries-and-topology.md`](file:///Users/talhazuberi/x-factory/docs/explanation/process-boundaries-and-topology.md) & [`docs/explanation/ui-state-and-event-streaming.md`](file:///Users/talhazuberi/x-factory/docs/explanation/ui-state-and-event-streaming.md): Deep-dive documentation on multi-process topology, optimistic locking, event streaming, and the React UI architecture.
    - [`DESIGN.md`](file:///Users/talhazuberi/x-factory/DESIGN.md): Apple Human Interface Guidelines (HIG) specification for layout, typography, colors, and components.
 
 2. **Graphify MCP (Code Relationships & Traversal)**:
    - Graphify serves as the graph query engine over the codebase's Abstract Syntax Tree (AST), symbol hierarchy, and dependency relationships (`graphify-out/graph.json`).
    - Use Graphify MCP tools (`query_graph`, `get_node`, `get_neighbors`, `shortest_path`, `god_nodes`, `get_community`, `graph_stats`) or the `graphify` CLI to explore how modules, classes, and functions are connected.
-   - **Rule**: Graph queries reveal *what code exists and how it connects*. Documentation determines *how code is permitted to behave*. In any conflict between an inferred graph connection and the architectural contracts in `docs/runtime-architecture.md`, the documentation wins unconditionally.
+   - **Rule**: Graph queries reveal *what code exists and how it connects*. Documentation determines *how code is permitted to behave*. In any conflict between an inferred graph connection and the architectural contracts in `docs/reference/` and `docs/explanation/`, the documentation wins unconditionally.
 
 3. **Knowledge-Graph Tool Restriction**:
    - Graphify MCP is the dedicated knowledge-graph provider for this repository.
@@ -52,9 +54,12 @@ Every coding agent must respect and preserve these architectural invariants:
 - The $11 \times 11$ workflow transition matrix must be strictly observed (`pending` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `planning` $\rightarrow$ `implementing` $\rightarrow$ `verifying` $\rightarrow$ `ready_for_pr` $\rightarrow$ `completed`, with terminal/exception states `reviewing`, `recovery_required`, `failed`, `aborted`).
 - Transitions must be atomic, monotonic, and recorded in `runs`, `jobs`, `events`, and `stage_attempts`.
 
-### C. Frontend Architecture
+### C. Frontend Architecture & Styling Invariants
 - Built with React 19, Vite, React Router, and TanStack Query.
 - Visual styling follows Apple HIG layout conventions with CSS tokens and Lucide/Sprite SVG icons.
+- **Modular CSS Architecture**: Design system is strictly layered under `src/frontend/styles/` (`tokens.css` → `base.css` → `shared/*.css` → `utilities.css`), imported centrally via `src/frontend/styles/index.css`.
+- **Zero Inline Styles (`style={{...}}`) Invariant**: Inline styles in `.tsx` files are strictly banned. All styling must use design tokens, utility classes, or co-located component stylesheets (`./MyComponent.css`). Automated gate: `bun run test:frontend-smoke`.
+- **Rule Authority**: Governed by `.agents/rules/frontend-styling.md`.
 - Server-Sent Events (SSE) update the TanStack Query cache directly with zero full-page flickering.
 
 ---

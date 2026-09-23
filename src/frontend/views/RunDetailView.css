@@ -1,0 +1,186 @@
+/* ── Run Detail View ─────────────────────────────────────────────────── */
+
+.run-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.code-sub {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.section-header h3 {
+  margin-bottom: 0;
+}
+
+/* ── Steer Bar ───────────────────────────────────────────────────────── */
+
+.steer-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.steer-bar input {
+  flex: 1;
+}
+
+.steer-bar button {
+  flex-shrink: 0;
+}
+
+/* ── Run Actions ─────────────────────────────────────────────────────── */
+
+.run-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* ── Knowledge Status ────────────────────────────────────────────────── */
+
+.knowledge-status {
+  margin-top: 0.8rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.knowledge-status .check {
+  color: var(--green);
+}
+
+.knowledge-status .missing {
+  color: var(--text-dim);
+}
+
+/* ── Result & Evidence Sections ──────────────────────────────────────── */
+
+.result-section {
+  margin-bottom: 1.6rem;
+  padding-bottom: 1.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.evidence-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+
+.evidence-text {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.test-output {
+  margin-top: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Criteria & Findings ─────────────────────────────────────────────── */
+
+.criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.criteria-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.criteria-icon.pass {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.criteria-icon.fail {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.finding-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  background: var(--bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--border);
+}
+
+.finding-item.finding-error {
+  border-left-color: var(--red);
+}
+.finding-item.finding-warning {
+  border-left-color: var(--yellow);
+}
+.finding-item.finding-info {
+  border-left-color: var(--accent);
+}
+
+.recovery-box {
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-danger-subtle);
+  border: 1px solid var(--danger);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.btn-danger-text {
+  color: var(--danger);
+}
+
+.status-dot-sm {
+  width: 8px;
+  height: 8px;
+}

@@ -235,6 +235,9 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 - MUST use the centralized SVG sprite sheet (`/assets/icons/sprite.svg`) or TypeScript icon helpers (`renderIcon` / `createIconSvg`).
 - MUST NOT write inline SVG shapes (`<path>`, `<polygon>`, `<polyline>`) in HTML, templates, or view modules.
 - MUST NOT use raw emojis (e.g. `✅`, `❌`, `⏳`) for status badges, test results, or diagnostic states.
+- MUST NOT write inline `style={{...}}` blocks in TSX/JSX components. All styling must use semantic tokens, co-located component CSS (`./ComponentName.css`), or utility classes (`src/frontend/styles/utilities.css`).
+- MUST co-locate component and view stylesheets (`ComponentName.css` alongside `ComponentName.tsx`) and import them explicitly.
+- MUST adhere to the layered CSS architecture (`src/frontend/styles/index.css` = tokens → base → shared → utilities).
 
 ## 9. Definition of done
 
@@ -244,12 +247,14 @@ Before calling any UI work finished, confirm:
 - [ ] Matches the Apple Figma kit component, or deviates with a documented reason
 - [ ] Light and dark mode both implemented and visually checked
 - [ ] Type scale, spacing grid, and color tokens used — no magic numbers
+- [ ] Zero inline styles (`style={{...}}`) in any TSX file
+- [ ] Co-located `.css` file imported for any component/view with custom styles
 - [ ] Tap targets ≥ 44×44pt
 - [ ] Motion respects `prefers-reduced-motion`
 - [ ] Icons are one consistent weight/style, baseline-aligned with text
 - [ ] Icons use `/assets/icons/sprite.svg` or `renderIcon` / `createIconSvg` (zero inline SVGs)
 - [ ] Zero raw emojis used for status or diagnostics
-- [ ] Anti-drift tests pass (`bun test test/frontend-smoke.test.ts`)
+- [ ] Anti-drift & Design System tests pass (`bun test test/frontend-smoke.test.ts`)
 - [ ] Contrast checked — 4.5:1 minimum for body text
 - [ ] Every icon-only control has an accessible label
 

@@ -1,0 +1,201 @@
+/* ── Locally Served Open-Source Fonts (Inter & IBM Plex Mono) ────────── */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Inter-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/Inter-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/Inter-Semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Inter-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/IBMPlexMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/IBMPlexMono-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/IBMPlexMono-Semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/IBMPlexMono-Bold.woff2") format("woff2");
+}
+
+/* ── Apple HIG Design Tokens (Dark & Light) ───────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --bg: #000000;
+  --bg-sidebar: #0b0b0c;
+  --bg-card: #1c1c1e;
+  --bg-card-hover: #2c2c2e;
+  --bg-input: rgba(255, 255, 255, 0.08);
+  --bg-glass: rgba(14, 14, 16, 0.78);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-color: var(--border);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.22);
+  --border-focus: #0a84ff;
+  --text: #f5f5f7;
+  --text-muted: #98989d;
+  --text-dim: #636366;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-pressed: #0071e3;
+  --accent-dim: rgba(10, 132, 255, 0.16);
+  --color-primary: var(--accent);
+  --green: #30d158;
+  --green-dim: rgba(48, 209, 88, 0.15);
+  --red: #ff453a;
+  --red-dim: rgba(255, 69, 58, 0.15);
+  --yellow: #ffd60a;
+  --yellow-dim: rgba(255, 214, 10, 0.15);
+  --purple: #bf5af2;
+  --purple-dim: rgba(191, 90, 242, 0.15);
+  --radius-pill: 980px;
+  --radius-card: 16px;
+  --radius-md: 12px;
+  --radius-input: 10px;
+  --radius-sm: 8px;
+  --radius: 16px;
+  --bg-circle-btn: rgba(255, 255, 255, 0.08);
+  --bg-circle-btn-hover: rgba(255, 255, 255, 0.16);
+  --bg-circle-btn-active: rgba(255, 255, 255, 0.24);
+  --bg-code: rgba(0, 0, 0, 0.45);
+  --bg-surface-2: #242426;
+  --bg-modal: #1c1c1e;
+  --text-main: #f5f5f7;
+  --text-on-accent: #ffffff;
+  --text-on-dot: #0e1117;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
+    sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter",
+    system-ui, sans-serif;
+  --font-serif:
+    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65);
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Spacing — 8pt grid, 4pt sub-grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Apple HIG Type Scale */
+  --text-large-title: 2.125rem; /* 34px */
+  --text-title-1: 1.75rem; /* 28px */
+  --text-title-2: 1.375rem; /* 22px */
+  --text-title-3: 1.25rem; /* 20px */
+  --text-headline: 1.0625rem; /* 17px semibold */
+  --text-body: 1.0625rem; /* 17px regular */
+  --text-callout: 1rem; /* 16px */
+  --text-subhead: 0.9375rem; /* 15px */
+  --text-footnote: 0.8125rem; /* 13px */
+  --text-caption-1: 0.75rem; /* 12px */
+  --text-caption-2: 0.6875rem; /* 11px */
+
+  /* Additional semantic aliases */
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-tertiary: rgba(255, 255, 255, 0.06);
+  --bg-secondary: rgba(255, 255, 255, 0.08);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="light"] {
+  --bg: #f2f2f7;
+  --bg-sidebar: #e5e5ea;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9f9fb;
+  --bg-input: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --border: rgba(60, 60, 67, 0.16);
+  --border-color: var(--border);
+  --border-subtle: rgba(60, 60, 67, 0.08);
+  --border-hover: rgba(60, 60, 67, 0.28);
+  --border-focus: #007aff;
+  --text: #000000;
+  --text-muted: #525257;
+  --text-dim: #707075;
+  --text-main: #000000;
+  --bg-code: rgba(0, 0, 0, 0.05);
+  --bg-surface-2: #f2f2f7;
+  --accent: #007aff;
+  --accent-hover: #0066d6;
+  --accent-pressed: #0051b3;
+  --accent-dim: rgba(0, 122, 255, 0.12);
+  --color-primary: var(--accent);
+  --green: #34c759;
+  --green-dim: rgba(52, 199, 89, 0.14);
+  --red: #ff3b30;
+  --red-dim: rgba(255, 59, 48, 0.14);
+  --yellow: #ff9500;
+  --yellow-dim: rgba(255, 149, 0, 0.14);
+  --purple: #af52de;
+  --purple-dim: rgba(175, 82, 222, 0.14);
+  --bg-circle-btn: #e5e5ea;
+  --bg-circle-btn-hover: #d1d1d6;
+  --bg-circle-btn-active: #c7c7cc;
+  --bg-modal: #ffffff;
+  --text-on-accent: #ffffff;
+  --text-on-dot: #ffffff;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.12);
+  --bg-hover: rgba(0, 0, 0, 0.03);
+  --bg-tertiary: rgba(0, 0, 0, 0.04);
+  --bg-secondary: rgba(0, 0, 0, 0.06);
+  --text-secondary: var(--text-muted);
+}

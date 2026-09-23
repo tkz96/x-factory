@@ -1,3 +1,5 @@
+import "./RunHistoryCard.css";
+
 import { Link } from "react-router-dom";
 import type { Run } from "../../../shared/types.js";
 
@@ -19,34 +21,19 @@ export function RunHistoryCard({ run }: RunHistoryCardProps) {
       to={`/runs/${run.id}`}
       className="history-item card"
       aria-label={`View run for ticket ${ticketId}: ${ticketTitle}`}
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        textDecoration: "none",
-        color: "inherit",
-        cursor: "pointer",
-        marginBottom: "0.75rem",
-      }}
     >
       <div className="history-meta">
-        <span className="history-ticket" style={{ fontWeight: 600 }}>
+        <span className="history-ticket">
           #{ticketId} — {ticketTitle}
         </span>
-        <span
-          className="history-sub text-muted"
-          style={{ fontSize: "0.85rem", marginTop: "0.2rem" }}
-        >
+        <span className="history-sub text-muted">
           {projectName ? `${projectName} · ` : ""}
-          <code style={{ fontSize: "0.8rem" }}>{run.branch}</code>
+          <code className="history-branch">{run.branch}</code>
           {` · ${dateStr}`}
         </span>
       </div>
 
-      <span
-        className="badge"
-        data-status={run.status}
-        style={{ textTransform: "capitalize", alignSelf: "center" }}
-      >
+      <span className="badge history-badge" data-status={run.status}>
         {statusLabel}
       </span>
     </Link>

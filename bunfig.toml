@@ -24,6 +24,8 @@ coveragePathIgnorePatterns = [
   "src/frontend/hooks/useRunSSE.ts",
   "src/frontend/lib/api-client.ts",
   "src/frontend/components/AppShell.tsx",
+  "src/frontend/components/docs/DocsSidebarNav.tsx",
+  "src/frontend/components/MarkdownViewer.tsx",
   "src/frontend/components/ModalContainer.tsx",
   "src/frontend/components/history/RunHistoryCard.tsx",
   "src/frontend/components/modals/NewRunModal.tsx",

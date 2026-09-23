@@ -1,0 +1,27 @@
+/* ── Card ────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.card h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  margin-bottom: 1.2rem;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.card h3 {
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}

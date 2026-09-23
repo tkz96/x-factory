@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
+import "./RunsView.css";
 
 export function RunsView() {
   const { openNewRunModal } = useModal();
@@ -18,7 +19,7 @@ export function RunsView() {
       {isLoading ? (
         <div className="empty-state card">
           <div className="spinner-sm" />
-          <h3 style={{ marginTop: "1rem" }}>Loading Active Runs…</h3>
+          <h3 className="mt-4">Loading Active Runs…</h3>
         </div>
       ) : activeRuns.length === 0 ? (
         /* Standby state when no active run */
@@ -33,8 +34,7 @@ export function RunsView() {
           <button
             type="button"
             id="btn-runs-start"
-            className="btn-primary btn-sm"
-            style={{ marginTop: "1rem" }}
+            className="btn-primary btn-sm mt-4"
             onClick={() => openNewRunModal()}
           >
             Launch New Run
@@ -42,10 +42,7 @@ export function RunsView() {
         </div>
       ) : (
         <div>
-          <div
-            className="section-header-flex"
-            style={{ marginBottom: "1.2rem" }}
-          >
+          <div className="runs-header">
             <div>
               <h2>Active Runs</h2>
               <p className="text-muted">
@@ -64,32 +61,20 @@ export function RunsView() {
             </button>
           </div>
 
-          <div className="runs-grid" style={{ display: "grid", gap: "1rem" }}>
+          <div className="runs-grid">
             {activeRuns.map((r) => (
               <Link
                 key={r.id}
                 to={`/runs/${r.id}`}
-                className="card run-card"
-                style={{
-                  display: "block",
-                  textDecoration: "none",
-                  color: "inherit",
-                  cursor: "pointer",
-                }}
+                className="card run-card run-card-link"
                 aria-label={`Open run ${r.id}`}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                  }}
-                >
+                <div className="run-card-header">
                   <div>
-                    <h3 style={{ margin: "0 0 0.3rem" }}>
+                    <h3 className="run-card-title">
                       #{r.ticket?.id || r.id} — {r.ticket?.title || "Task"}
                     </h3>
-                    <span className="code-sub" style={{ fontSize: "0.85rem" }}>
+                    <span className="code-sub run-card-subtitle">
                       {r.project?.name || r.project?.id || ""} · {r.branch}
                     </span>
                   </div>

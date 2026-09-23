@@ -1,5 +1,7 @@
 // src/frontend/components/runs/WorkflowStepper.tsx — 6-Stage Workflow Stepper (XFM-50).
 
+import "./WorkflowStepper.css";
+
 import type { RunStatus, WorkflowStage } from "../../../shared/types.js";
 
 const STAGE_ORDER: WorkflowStage[] = [

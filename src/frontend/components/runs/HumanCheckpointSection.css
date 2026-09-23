@@ -1,0 +1,80 @@
+/* ── Delivery Checkpoint ─────────────────────────────────────────────── */
+
+.delivery-checkpoint {
+  background: rgba(63, 185, 80, 0.05);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+  margin-top: 1rem;
+}
+
+.checkpoint-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.pr-steps {
+  margin-top: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+
+.pr-result {
+  margin-top: 1.2rem;
+  padding: 1.2rem;
+  background: var(--green-dim);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.pr-result h3 {
+  color: var(--green);
+  margin-bottom: 0.6rem;
+}
+
+.pr-result a {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+.pr-result a:hover {
+  text-decoration: underline;
+}
+
+.badge-success-subtle {
+  background: var(--bg-success-subtle);
+  color: var(--green);
+}
+
+.badge-danger-subtle {
+  background: var(--bg-danger-subtle);
+  color: var(--red);
+}
+
+.pr-success-title {
+  margin: 0 0 var(--space-1);
+  color: var(--green);
+}
+
+.mr-2 {
+  margin-right: var(--space-2);
+}
+
+.my-1 {
+  margin: var(--space-1) 0;
+}
+
+.my-2 {
+  margin: var(--space-2) 0;
+}
+
+.m-0 {
+  margin: 0;
+}

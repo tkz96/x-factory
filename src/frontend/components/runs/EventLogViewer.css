@@ -1,0 +1,56 @@
+/* ── Event Log ───────────────────────────────────────────────────────── */
+
+.event-log {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  max-height: 360px;
+  overflow-y: auto;
+  margin-bottom: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  line-height: 1.45;
+  color: var(--text-muted);
+  scroll-behavior: smooth;
+}
+
+.event-log .event {
+  padding: 0.15rem 0;
+  animation: eventIn 200ms ease;
+}
+
+.event-log .event.event-status {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.event-log .event.event-evidence {
+  color: var(--green);
+}
+
+.event-log .event.event-error {
+  color: var(--red);
+}
+
+.event-log .event.event-steer {
+  color: var(--yellow);
+}
+
+.event-log .event.event-tool {
+  color: var(--text-dim);
+}
+
+.event-log .event .event-prefix {
+  color: var(--text-dim);
+  margin-right: 0.4rem;
+}
+
+@keyframes eventIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

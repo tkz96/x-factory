@@ -1,0 +1,23 @@
+/* X-Factory Design System — Single Import Entrypoint
+ * IMPORT ORDER: tokens → base → shared → utilities (last for override specificity)
+ *
+ * Component and view CSS files are imported directly by their TSX files
+ * via: import './ComponentName.css'
+ */
+
+/* Layer 1: Design Tokens & Fonts */
+@import "./tokens.css";
+
+/* Layer 2: Global Resets & Base */
+@import "./base.css";
+
+/* Layer 3: Shared Components */
+@import "./shared/buttons.css";
+@import "./shared/badges.css";
+@import "./shared/forms.css";
+@import "./shared/cards.css";
+@import "./shared/scrollbar.css";
+@import "./shared/icons.css";
+
+/* Layer 4: Utilities (last for highest specificity) */
+@import "./utilities.css";

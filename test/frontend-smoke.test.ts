@@ -1,6 +1,7 @@
 // test/frontend-smoke.test.ts — React application structure, routing, views, and components smoke tests.
 
 import { describe, expect, it } from "bun:test";
+import fs from "node:fs";
 import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
@@ -8,6 +9,7 @@ import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/frontend/App.js";
 import { AppShell } from "../src/frontend/components/AppShell.js";
+import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
 import { EmptyStateCard } from "../src/frontend/components/EmptyStateCard.js";
 import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
@@ -28,7 +30,10 @@ import { SettingsView } from "../src/frontend/views/SettingsView.js";
 
 const ROOT_DIR = path.resolve(import.meta.dir, "..");
 
-function renderWithProviders(ui: React.ReactElement) {
+function renderWithProviders(
+  ui: React.ReactElement,
+  initialEntries: string[] = ["/"],
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -44,7 +49,7 @@ function renderWithProviders(ui: React.ReactElement) {
         React.createElement(
           ModalProvider,
           null,
-          React.createElement(MemoryRouter, null, ui),
+          React.createElement(MemoryRouter, { initialEntries }, ui),
         ),
       ),
     ),
@@ -154,7 +159,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     it("DocsView renders documentation hierarchy, token requirements, and scope table", () => {
       const html = renderWithProviders(React.createElement(DocsView));
 
-      expect(html).toContain("X-Factory Documentation");
       expect(html).toContain("Principle of Least Privilege");
       expect(html).toContain("Security Guardrail");
     });
@@ -178,6 +182,32 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain('href="/projects"');
       expect(html).toContain('href="/settings"');
       expect(html).toContain('href="/docs"');
+    });
+
+    it("AppShell renders Documentation ↗ link targeting new tab in workbench mode", () => {
+      const html = renderWithProviders(React.createElement(AppShell), [
+        "/queue",
+      ]);
+
+      expect(html).toContain('href="/docs"');
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain("Documentation ↗");
+    });
+
+    it("AppShell renders DocsSidebarNav when viewing documentation route", () => {
+      const html = renderWithProviders(React.createElement(AppShell), [
+        "/docs",
+      ]);
+
+      expect(html).toContain("X-Factory Docs");
+      expect(html).toContain("Documentation");
+      expect(html).toContain('href="/queue"');
+      expect(html).toContain("Back to Workbench");
+      expect(html).not.toContain("btn-open-new-run");
+    });
+
+    it("DocsSidebarNav exports functional component", () => {
+      expect(typeof DocsSidebarNav).toBe("function");
     });
 
     it("EmptyStateCard renders loading, error, and empty states cleanly", () => {
@@ -287,6 +317,67 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     it("ModalContainer renders modal dialog portal target", () => {
       const html = renderWithProviders(React.createElement(ModalContainer));
       expect(html).toBeDefined();
+    });
+  });
+
+  describe("Design System & CSS Architecture Enforcement", () => {
+    function getAllTsxFiles(dir: string): string[] {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const files: string[] = [];
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...getAllTsxFiles(fullPath));
+        } else if (entry.name.endsWith(".tsx")) {
+          files.push(fullPath);
+        }
+      }
+      return files;
+    }
+
+    it("enforces zero inline style={{ declarations across all frontend TSX files", () => {
+      const frontendDir = path.join(ROOT_DIR, "src/frontend");
+      const tsxFiles = getAllTsxFiles(frontendDir);
+      const violations: { file: string; line: number; text: string }[] = [];
+
+      for (const filePath of tsxFiles) {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const lines = content.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i] ?? "";
+          if (line.includes("style={{")) {
+            violations.push({
+              file: path.relative(ROOT_DIR, filePath),
+              line: i + 1,
+              text: line.trim(),
+            });
+          }
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+
+    it("verifies main.tsx imports the layered design system stylesheets", async () => {
+      const mainContent = await Bun.file(
+        path.join(ROOT_DIR, "src/frontend/main.tsx"),
+      ).text();
+      expect(mainContent).toContain('import "./styles/index.css"');
+    });
+
+    it("verifies index.css wires tokens, base, shared layers, and utilities in order", async () => {
+      const indexCss = await Bun.file(
+        path.join(ROOT_DIR, "src/frontend/styles/index.css"),
+      ).text();
+      expect(indexCss).toContain("./tokens.css");
+      expect(indexCss).toContain("./base.css");
+      expect(indexCss).toContain("./shared/buttons.css");
+      expect(indexCss).toContain("./shared/cards.css");
+      expect(indexCss).toContain("./shared/forms.css");
+      expect(indexCss).toContain("./shared/badges.css");
+      expect(indexCss).toContain("./shared/icons.css");
+      expect(indexCss).toContain("./shared/scrollbar.css");
+      expect(indexCss).toContain("./utilities.css");
     });
   });
 });

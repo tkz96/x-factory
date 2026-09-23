@@ -1,5 +1,7 @@
 // src/frontend/components/queue/TicketSearchToolbar.tsx — Filter & Search controls for Work Queue (XFM-47).
 
+import "./TicketSearchToolbar.css";
+
 interface TicketSearchToolbarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;

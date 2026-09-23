@@ -1,0 +1,125 @@
+/* ── Project Detail View ─────────────────────────────────────────────── */
+
+.project-detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin: 1.25rem 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+
+.project-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.project-meta-item strong {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.project-meta-item code,
+.project-meta-item .meta-val {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.project-meta-item .role-badge {
+  align-self: flex-start;
+}
+
+.role-badge-archived {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Repos Table ─────────────────────────────────────────────────────── */
+
+.repos-table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.repos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.repos-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: var(--text-caption-1);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-hover);
+  white-space: nowrap;
+}
+
+.repos-table td {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.repos-table tr:last-child td {
+  border-bottom: none;
+}
+
+.repos-table tr:hover td {
+  background: var(--bg-hover);
+}
+
+.repos-table .cell-name {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.repos-table .cell-readiness {
+  white-space: nowrap;
+}
+
+.repos-table .cell-branch {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.repos-table .cell-truncate {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.repos-table .cell-truncate-remote {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}

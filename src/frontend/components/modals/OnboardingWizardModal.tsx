@@ -1,5 +1,7 @@
 // src/frontend/components/modals/OnboardingWizardModal.tsx — Multi-step project onboarding wizard (XFM-46, XFM-52).
 
+import "./OnboardingWizardModal.css";
+
 import { useState } from "react";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
@@ -70,13 +72,7 @@ function Step1Basics({
       <div className="quick-url-box">
         <div className="quick-url-header">
           <span>⚡ Quick Setup from URL</span>
-          <span
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--text-dim)",
-              fontWeight: "normal",
-            }}
-          >
+          <span className="quick-url-subtitle">
             Auto-detects provider, project &amp; repos
           </span>
         </div>
@@ -94,7 +90,7 @@ function Step1Basics({
             className="quick-url-feedback quick-url-success"
           >
             <div>
-              <strong style={{ color: "var(--green)" }}>✓ URL Detected</strong>
+              <strong className="text-success">✓ URL Detected</strong>
               <span> — Fields auto-populated.</span>
             </div>
           </div>
@@ -154,7 +150,7 @@ function Step1Basics({
         />
       </div>
 
-      <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
+      <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onCancel}>
           Cancel
         </button>
@@ -187,18 +183,8 @@ function AzureScopeDiagnosticCard({
   onAckChange,
 }: AzureScopeDiagnosticCardProps) {
   return (
-    <div
-      id="azure-scope-diagnostic-card"
-      className="card"
-      style={{ marginTop: "1rem" }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div id="azure-scope-diagnostic-card" className="card mt-4">
+      <div className="flex-between">
         <h4>PAT Verification &amp; Privileges</h4>
         <span
           id="scope-status-pill"
@@ -218,61 +204,34 @@ function AzureScopeDiagnosticCard({
         </span>
       </div>
 
-      <div
-        id="scope-responsibility-notice"
-        style={{
-          fontSize: "0.85rem",
-          marginTop: "0.5rem",
-          color: "var(--text-muted)",
-        }}
-      >
+      <div id="scope-responsibility-notice" className="scope-diagnostic-box">
         <strong>Scope Responsibility Notice:</strong>
-        <p style={{ margin: "0.2rem 0" }}>
+        <p className="scope-note">
           X-Factory adheres to the principle of least privilege. Minimal
           required scopes:
         </p>
-        <ul style={{ margin: "0.2rem 0 0 1.2rem", padding: 0 }}>
+        <ul className="scope-list">
           <li id="scope-row-wit-read">Work Items: Read</li>
           <li id="scope-row-code-read">Code: Read &amp; write</li>
           <li id="scope-row-code-status">Code: Status</li>
         </ul>
-        <div style={{ display: "none" }}>
+        <div className="d-none">
           <span id="scope-row-wit-write">Work Items: Write</span>
           <span id="scope-row-code-full">Code: Full</span>
         </div>
-        <p style={{ marginTop: "0.4rem" }}>
+        <p className="mt-2">
           See <a href="/docs#azure-pat">Azure PAT Docs</a> and{" "}
           <a href="/docs#azure-code">Code Scopes Reference</a>.
         </p>
       </div>
 
       {patScopeResult?.overPrivileged && (
-        <div
-          id="scope-overprivileged-warning"
-          style={{
-            marginTop: "0.8rem",
-            padding: "0.8rem",
-            background: "var(--bg-warning-subtle)",
-            border: "1px solid var(--warning)",
-            borderRadius: "var(--radius-sm)",
-          }}
-        >
-          <p
-            id="scope-overprivileged-text"
-            style={{ margin: 0, fontWeight: 500 }}
-          >
+        <div id="scope-overprivileged-warning" className="scope-warning-box">
+          <p id="scope-overprivileged-text" className="m-0 font-medium">
             Warning: This PAT contains write permissions beyond the recommended
             minimum.
           </p>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginTop: "0.5rem",
-              cursor: "pointer",
-            }}
-          >
+          <label className="scope-checkbox-label">
             <input
               type="checkbox"
               id="chk-pat-least-privilege-ack"
@@ -408,7 +367,7 @@ function Step2Tracker({
               value={trackerPat}
               onChange={(e) => onTrackerPatChange(e.target.value)}
             />
-            <div style={{ marginTop: "0.5rem" }}>
+            <div className="mt-2">
               <button
                 type="button"
                 id="btn-verify-azure-pat"
@@ -429,7 +388,7 @@ function Step2Tracker({
         </div>
       )}
 
-      <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
+      <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
@@ -468,12 +427,12 @@ function Step3Discovery({
         Scan your workspace path ({workspacePath}) to detect repositories
         matching this project.
       </p>
-      <div className="card" style={{ marginTop: "1rem", padding: "1rem" }}>
-        <p style={{ margin: 0 }}>
+      <div className="card mt-4 p-4">
+        <p className="m-0">
           Ready to discover repositories in workspace directory.
         </p>
       </div>
-      <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
+      <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
@@ -515,24 +474,18 @@ function Step4Repositories({
       <p className="text-muted">
         Designate the primary repository and configure default branch.
       </p>
-      <div className="card" style={{ marginTop: "1rem", padding: "1rem" }}>
+      <div className="card mt-4 p-4">
         <strong>Primary Workspace Repository: {projectId || "primary"}</strong>
-        <p
-          className="text-muted"
-          style={{ fontSize: "0.85rem", margin: "0.3rem 0 0" }}
-        >
+        <p className="text-muted text-footnote mt-1">
           Path: {workspacePath}/{projectId || "primary"} (branch: main)
         </p>
         {quickUrl && (
-          <p
-            className="text-muted"
-            style={{ fontSize: "0.85rem", margin: "0.3rem 0 0" }}
-          >
+          <p className="text-muted text-footnote mt-1">
             Remote: <code>{quickUrl}</code>
           </p>
         )}
       </div>
-      <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
+      <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
@@ -565,14 +518,11 @@ function Step5Inspection({ onBack, onNext }: Step5InspectionProps) {
       <p className="text-muted">
         Verifying Git worktrees, test runners, and tooling health.
       </p>
-      <div
-        className="card ready"
-        style={{ marginTop: "1rem", padding: "1rem" }}
-      >
-        <span className="status-dot online" style={{ marginRight: "0.5rem" }} />
+      <div className="card ready mt-4 p-4">
+        <span className="status-dot online mr-2" />
         <span>Prerequisites and Git worktree isolation verified.</span>
       </div>
-      <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
+      <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
@@ -621,10 +571,7 @@ function Step6Review({
         Review configuration before creating project.
       </p>
 
-      <div
-        className="project-detail-meta-grid card"
-        style={{ marginTop: "1rem" }}
-      >
+      <div className="project-detail-meta-grid card mt-4">
         <div className="project-meta-item">
           <strong>Project Name</strong>
           <span>{projectName}</span>
@@ -649,7 +596,7 @@ function Step6Review({
         )}
       </div>
 
-      <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
+      <div className="modal-actions mt-6">
         <button
           type="button"
           className="btn-secondary"
@@ -934,11 +881,7 @@ export function OnboardingWizardModal() {
         </div>
 
         <div className="modal-body">
-          {error && (
-            <div className="error-message" style={{ marginBottom: "1rem" }}>
-              {error}
-            </div>
-          )}
+          {error && <div className="error-message mb-4">{error}</div>}
 
           {step === 1 && (
             <Step1Basics

@@ -1,6 +1,11 @@
-// src/frontend/components/AppShell.tsx — React Application Shell reproducing Apple HIG layout (XFM-38, XFM-45, XFM-46).
+import "./AppShell.css";
 
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import {
@@ -9,6 +14,7 @@ import {
 } from "../context/ProjectContext.js";
 import { useReadiness, useRuns, useTickets } from "../hooks/useQueries.js";
 import { useTheme } from "../hooks/useTheme.js";
+import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
 
 function getActiveTitle(pathname: string): { title: string; subtitle: string } {
@@ -64,7 +70,7 @@ interface ThemeToggleButtonProps {
   onToggle: () => void;
 }
 
-function ThemeToggleButton({
+export function ThemeToggleButton({
   id,
   className,
   onToggle,
@@ -93,6 +99,7 @@ function ThemeToggleButton({
 }
 
 interface AppShellSidebarProps {
+  isDocs: boolean;
   projects: Project[];
   isProjectsLoading: boolean;
   selectedProjectId: string;
@@ -104,6 +111,7 @@ interface AppShellSidebarProps {
 }
 
 function AppShellSidebar({
+  isDocs,
   projects,
   isProjectsLoading,
   selectedProjectId,
@@ -113,6 +121,17 @@ function AppShellSidebar({
   readiness,
   onToggleTheme,
 }: AppShellSidebarProps) {
+  if (isDocs) {
+    return (
+      <aside id="app-sidebar" className="sidebar">
+        <DocsSidebarNav
+          onToggleTheme={onToggleTheme}
+          ThemeToggleButton={ThemeToggleButton}
+        />
+      </aside>
+    );
+  }
+
   return (
     <aside id="app-sidebar" className="sidebar">
       <div className="sidebar-header">
@@ -218,17 +237,19 @@ function AppShellSidebar({
           <span>Settings</span>
         </NavLink>
 
-        <NavLink
-          to="/docs"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-item"
           data-area="docs"
-          title="Open PAT & Security Documentation"
+          title="Open Documentation in New Tab"
         >
           <svg className="icon icon-md" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-book-open" />
           </svg>
-          <span>Documentation</span>
-        </NavLink>
+          <span>Documentation ↗</span>
+        </a>
 
         <a
           href="/reference"
@@ -264,26 +285,75 @@ function AppShellSidebar({
   );
 }
 
+const SECURITY_TITLES: Record<string, string> = {
+  "least-privilege": "Least Privilege",
+  azure: "Azure DevOps",
+  github: "GitHub",
+  gitlab: "GitLab",
+  jira: "Jira Software",
+};
+
+const CATEGORY_TITLES: Record<string, string> = {
+  tutorials: "Tutorials",
+  "how-to": "How-To Guides",
+  reference: "Reference",
+  explanation: "Explanation",
+  security: "Credentials & Scopes",
+};
+
 interface AppShellHeaderProps {
+  isDocs: boolean;
   title: string;
   subtitle: string;
+  docBreadcrumb?:
+    | {
+        category: string;
+        item: string;
+      }
+    | undefined;
   onToggleTheme: () => void;
   onOpenNewRun: () => void;
 }
 
 function AppShellHeader({
+  isDocs,
   title,
   subtitle,
+  docBreadcrumb,
   onToggleTheme,
   onOpenNewRun,
 }: AppShellHeaderProps) {
   return (
     <header id="content-toolbar" className="toolbar">
       <div className="toolbar-left">
-        <h1 id="toolbar-title">{title}</h1>
-        <span id="toolbar-subtitle" className="toolbar-subtitle">
-          {subtitle}
-        </span>
+        {isDocs && docBreadcrumb ? (
+          <nav
+            className="toolbar-breadcrumb"
+            aria-label="Documentation Breadcrumbs"
+          >
+            <div className="docs-header-crumb-trail">
+              <span className="docs-header-crumb-root">Documentation</span>
+              <span className="docs-header-crumb-sep">›</span>
+              <span className="docs-header-crumb-cat">
+                {docBreadcrumb.category}
+              </span>
+              <span className="docs-header-crumb-sep">›</span>
+              <span className="docs-header-crumb-current">
+                {docBreadcrumb.item}
+              </span>
+            </div>
+            <span id="toolbar-subtitle" className="toolbar-subtitle">
+              {subtitle}
+            </span>
+          </nav>
+        ) : (
+          <>
+            <h1 id="toolbar-title">{title}</h1>
+            <span id="toolbar-subtitle" className="toolbar-subtitle">
+              {subtitle}
+            </span>
+          </>
+        )}
       </div>
       <div className="toolbar-actions">
         <ThemeToggleButton
@@ -291,17 +361,19 @@ function AppShellHeader({
           className="theme-toggle mobile-only"
           onToggle={onToggleTheme}
         />
-        <button
-          id="btn-open-new-run"
-          className="btn-primary btn-sm"
-          type="button"
-          onClick={onOpenNewRun}
-        >
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-plus" />
-          </svg>
-          <span>New Run</span>
-        </button>
+        {!isDocs && (
+          <button
+            id="btn-open-new-run"
+            className="btn-primary btn-sm"
+            type="button"
+            onClick={onOpenNewRun}
+          >
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-plus" />
+            </svg>
+            <span>New Run</span>
+          </button>
+        )}
       </div>
     </header>
   );
@@ -391,11 +463,33 @@ function AppShellContent() {
   ).length;
 
   const queueCount = tickets.length;
+  const isDocs = location.pathname.startsWith("/docs");
   const { title, subtitle } = getActiveTitle(location.pathname);
+
+  const [searchParams] = useSearchParams();
+  const docCategory = searchParams.get("cat") || "tutorials";
+  const docSlug = searchParams.get("slug") || "first-agent-run";
+
+  const docBreadcrumb = isDocs
+    ? {
+        category:
+          CATEGORY_TITLES[docCategory] ||
+          docCategory.charAt(0).toUpperCase() +
+            docCategory.slice(1).replace("-", " "),
+        item:
+          docCategory === "security"
+            ? SECURITY_TITLES[docSlug] || docSlug
+            : docSlug
+                .split("-")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" "),
+      }
+    : undefined;
 
   return (
     <div id="app-shell" className="app-shell">
       <AppShellSidebar
+        isDocs={isDocs}
         projects={projects}
         isProjectsLoading={isProjectsLoading}
         selectedProjectId={selectedProjectId}
@@ -408,8 +502,10 @@ function AppShellContent() {
 
       <main id="app-main" className="main-content">
         <AppShellHeader
+          isDocs={isDocs}
           title={title}
           subtitle={subtitle}
+          docBreadcrumb={docBreadcrumb}
           onToggleTheme={toggleTheme}
           onOpenNewRun={openNewRunModal}
         />

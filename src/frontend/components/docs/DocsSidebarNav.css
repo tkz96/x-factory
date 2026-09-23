@@ -1,0 +1,497 @@
+/* ── Docs Sidebar Navigation (Apple HIG) ─────────────────────────────── */
+
+.docs-sidebar-nav-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.docs-sidebar-brand {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Search Bar with Apple HIG Aesthetics (Option 3A) ──────────────── */
+
+.docs-search-wrapper {
+  position: relative;
+  margin-top: 0.25rem;
+  width: 100%;
+}
+
+.docs-search-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  line-height: 1.25;
+  user-select: none;
+}
+
+.docs-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 0.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.docs-search-field:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.docs-search-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 0.6rem;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.docs-search-field input[type="text"].docs-search-input,
+.docs-search-field .docs-search-input {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: auto;
+  padding: 0;
+  font-size: var(--text-footnote);
+  font-family: var(--font-sans);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.docs-search-field input[type="text"].docs-search-input:focus,
+.docs-search-field .docs-search-input:focus {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.docs-search-field input[type="text"].docs-search-input::placeholder,
+.docs-search-field .docs-search-input::placeholder {
+  color: var(--text-dim);
+  font-size: var(--text-footnote);
+}
+
+.docs-search-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.4rem;
+  flex-shrink: 0;
+}
+
+.docs-search-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: docsSpin 600ms linear infinite;
+}
+
+@keyframes docsSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.docs-search-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  transition: color var(--transition-fast);
+}
+
+.docs-search-clear-btn:hover {
+  color: var(--text);
+}
+
+/* ── Full-Text Search Results View ──────────────────────────────────── */
+
+.docs-search-results-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.docs-search-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.docs-search-summary-text {
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.docs-search-summary-clear {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--text-caption-1);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.docs-search-summary-clear:hover {
+  text-decoration: underline;
+}
+
+.docs-search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.docs-search-group {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.docs-search-group:hover {
+  border-color: var(--border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.docs-search-group-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.6rem 0.75rem 0.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.docs-search-group-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .docs-search-group-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.docs-search-group-header.active {
+  background: var(--accent-dim);
+}
+
+.docs-search-group-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.25rem;
+}
+
+.docs-search-group-cat {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.docs-search-hit-badge {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.docs-search-doc-title {
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docs-search-sections {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-subtle);
+  background: transparent;
+}
+
+.docs-search-section-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.45rem 0.75rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.docs-search-section-item:last-child {
+  border-bottom: none;
+}
+
+.docs-search-section-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .docs-search-section-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.docs-search-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.docs-search-section-bullet {
+  width: 11px;
+  height: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition:
+    transform var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.docs-search-section-item:hover .docs-search-section-bullet {
+  transform: translateX(2px);
+  color: var(--accent);
+  opacity: 1;
+}
+
+.docs-search-section-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
+.docs-search-section-snippet {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0.25rem 0 0 1rem;
+  font-style: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.docs-search-highlight {
+  background: rgba(10, 132, 255, 0.18);
+  color: var(--accent);
+  font-weight: 600;
+  border-radius: 3px;
+  padding: 0.05rem 0.25rem;
+}
+
+[data-theme="light"] .docs-search-highlight {
+  background: rgba(0, 122, 255, 0.12);
+  color: #0066cc;
+}
+
+/* ── Empty Search Results State ─────────────────────────────────────── */
+
+.docs-search-empty {
+  padding: 1.75rem 0.75rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.docs-search-empty-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  margin-bottom: 0.25rem;
+}
+
+.docs-search-empty-title {
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.docs-search-empty-desc {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0 0 0.5rem 0;
+}
+
+/* ── Diátaxis Sections & Navigation Items ───────────────────────────── */
+
+#docs-sidebar-nav {
+  overflow-x: hidden;
+  padding: 0.75rem 0.6rem;
+}
+
+.docs-nav-group {
+  margin-bottom: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  transition:
+    opacity 180ms var(--spring),
+    transform 180ms var(--spring);
+}
+
+.docs-category-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-caption-1);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding: 0.5rem 0.65rem 0.3rem;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.docs-category-title svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.docs-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0.45rem 0.75rem;
+  font-size: var(--text-subhead);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: 400;
+  font-family: var(--font-sans);
+  text-decoration: none;
+  position: relative;
+  text-align: left;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.docs-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+[data-theme="light"] .docs-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.docs-nav-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.docs-nav-label {
+  display: block;
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Sidebar Footer & Back Link ──────────────────────────────────────── */
+
+.docs-back-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.docs-back-link:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .docs-back-link:hover {
+  background: rgba(0, 0, 0, 0.04);
+}

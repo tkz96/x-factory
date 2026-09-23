@@ -1,0 +1,34 @@
+/* ── Runs View Styles (Apple HIG) ─────────────────────────────────── */
+
+.runs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.runs-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.run-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.run-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.run-card-title {
+  margin: 0 0 var(--space-1);
+}
+
+.run-card-subtitle {
+  font-size: var(--text-footnote);
+}

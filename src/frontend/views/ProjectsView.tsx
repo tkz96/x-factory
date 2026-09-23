@@ -91,7 +91,7 @@ export function ProjectsView() {
                 message="Click Onboard Project to connect a workspace repository."
                 actionText="Onboard Project"
                 onAction={openOnboardingModal}
-                style={{ gridColumn: "1 / -1" }}
+                className="col-span-full"
               />
             ) : (
               activeProjects.map((p) => <ProjectCard key={p.id} project={p} />)
@@ -103,7 +103,7 @@ export function ProjectsView() {
               {archivedProjects.length === 0 ? (
                 <EmptyStateCard
                   message="No archived projects found."
-                  style={{ gridColumn: "1 / -1" }}
+                  className="col-span-full"
                 />
               ) : (
                 archivedProjects.map((p) => (

@@ -6,6 +6,7 @@ import { TicketSearchToolbar } from "../components/queue/TicketSearchToolbar.js"
 import { useModal } from "../context/ModalContext.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useTickets } from "../hooks/useQueries.js";
+import "./QueueView.css";
 
 export function QueueView() {
   const { selectedProjectId } = useCurrentProject();
@@ -46,7 +47,7 @@ export function QueueView() {
         {isLoading ? (
           <div className="empty-state card">
             <div className="spinner-sm" />
-            <h3 style={{ marginTop: "1rem" }}>Loading Work Queue…</h3>
+            <h3 className="mt-4">Loading Work Queue…</h3>
             <p className="text-muted">
               Fetching tickets from connected issue tracker.
             </p>
@@ -59,17 +60,13 @@ export function QueueView() {
               </svg>
             </div>
             <h3>Unable to Load Work Queue</h3>
-            <p
-              className="error-message"
-              style={{ margin: "1rem auto", maxWidth: "450px" }}
-            >
+            <p className="error-message queue-error-message">
               {error instanceof Error ? error.message : String(error)}
             </p>
             <button
               type="button"
               id="btn-queue-manual"
-              className="btn-secondary btn-sm"
-              style={{ marginTop: "1rem" }}
+              className="btn-secondary btn-sm mt-4"
               onClick={() => openNewRunModal()}
             >
               Start Manual Run
@@ -91,8 +88,7 @@ export function QueueView() {
             <button
               type="button"
               id="btn-queue-manual"
-              className="btn-secondary btn-sm"
-              style={{ marginTop: "1rem" }}
+              className="btn-secondary btn-sm mt-4"
               onClick={() => openNewRunModal()}
             >
               Start Manual Run
@@ -111,8 +107,7 @@ export function QueueView() {
             </p>
             <button
               type="button"
-              className="btn-secondary btn-sm"
-              style={{ marginTop: "1rem" }}
+              className="btn-secondary btn-sm mt-4"
               onClick={() => setSearchQuery("")}
             >
               Clear Filter

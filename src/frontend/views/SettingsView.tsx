@@ -1,5 +1,7 @@
 // src/frontend/views/SettingsView.tsx — Workbench Settings view (XFM-38, XFM-40, XFM-51).
 
+import "./SettingsView.css";
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
@@ -28,32 +30,15 @@ function DiagnosticMetricCard({
   detail,
 }: DiagnosticMetricCardProps) {
   return (
-    <div className="card" style={{ padding: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div className="card p-4">
+      <div className="flex-between">
         <span className="text-muted">{title}</span>
         <span
-          className={`status-dot ${isOnline ? "online" : "offline"}`}
-          style={{ width: "8px", height: "8px" }}
+          className={`status-dot status-dot-sm ${isOnline ? "online" : "offline"}`}
         />
       </div>
-      <strong
-        style={{
-          fontSize: "1.2rem",
-          display: "block",
-          marginTop: "0.5rem",
-        }}
-      >
-        {value}
-      </strong>
-      <span className="text-muted" style={{ fontSize: "0.8rem" }}>
-        {detail}
-      </span>
+      <strong className="metric-value-lg">{value}</strong>
+      <span className="text-muted text-footnote">{detail}</span>
     </div>
   );
 }
@@ -69,21 +54,15 @@ function DiagnosticsTabContent({
 }: DiagnosticsTabContentProps) {
   if (isLoading) {
     return (
-      <div className="card" style={{ padding: "1rem" }}>
+      <div className="card p-4">
         <span className="text-muted">Loading diagnostics…</span>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "1rem",
-        }}
-      >
+    <div className="stack mt-4">
+      <div className="diagnostics-grid">
         <DiagnosticMetricCard
           title="API Status"
           isOnline={true}
@@ -106,53 +85,32 @@ function DiagnosticsTabContent({
         />
       </div>
 
-      <div className="card" style={{ padding: "1.2rem" }}>
-        <h4 style={{ margin: "0 0 1rem 0" }}>Job Queue Telemetry</h4>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: "1rem",
-          }}
-        >
+      <div className="card p-5">
+        <h4 className="mb-4">Job Queue Telemetry</h4>
+        <div className="telemetry-grid">
           <div>
-            <span className="text-muted" style={{ fontSize: "0.85rem" }}>
-              Active Jobs
-            </span>
-            <strong style={{ display: "block", fontSize: "1.3rem" }}>
+            <span className="text-muted text-footnote">Active Jobs</span>
+            <strong className="telemetry-num">
               {diagnostics?.database.jobs.claimed ?? 0}
             </strong>
           </div>
           <div>
-            <span className="text-muted" style={{ fontSize: "0.85rem" }}>
-              Pending Jobs
-            </span>
-            <strong style={{ display: "block", fontSize: "1.3rem" }}>
+            <span className="text-muted text-footnote">Pending Jobs</span>
+            <strong className="telemetry-num">
               {diagnostics?.database.jobs.pending ?? 0}
             </strong>
           </div>
           <div>
-            <span className="text-muted" style={{ fontSize: "0.85rem" }}>
-              Stale Jobs
-            </span>
+            <span className="text-muted text-footnote">Stale Jobs</span>
             <strong
-              style={{
-                display: "block",
-                fontSize: "1.3rem",
-                color:
-                  (diagnostics?.database.jobs.stale ?? 0) > 0
-                    ? "var(--color-warning)"
-                    : "inherit",
-              }}
+              className={`telemetry-num ${(diagnostics?.database.jobs.stale ?? 0) > 0 ? "text-warning" : ""}`}
             >
               {diagnostics?.database.jobs.stale ?? 0}
             </strong>
           </div>
           <div>
-            <span className="text-muted" style={{ fontSize: "0.85rem" }}>
-              Completed Jobs
-            </span>
-            <strong style={{ display: "block", fontSize: "1.3rem" }}>
+            <span className="text-muted text-footnote">Completed Jobs</span>
+            <strong className="telemetry-num">
               {diagnostics?.database.jobs.completed ?? 0}
             </strong>
           </div>
@@ -176,7 +134,7 @@ function GeneralTabContent({
       <h3>General Settings</h3>
       <p className="text-muted">Workbench behavior and system defaults.</p>
 
-      <div className="setting-item" style={{ marginTop: "1.2rem" }}>
+      <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
         <div
           className="theme-segmented-control"
@@ -212,7 +170,7 @@ function GeneralTabContent({
         </div>
       </div>
 
-      <div className="setting-item" style={{ marginTop: "1.2rem" }}>
+      <div className="setting-item mt-4">
         <label htmlFor="setting-data-dir">Data Directory</label>
         <input
           id="setting-data-dir"
@@ -239,15 +197,7 @@ function ConnectionsTabContent({
 }: ConnectionsTabContentProps) {
   return (
     <div id="tab-trackers" className="settings-pane active">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="connections-header">
         <div>
           <h3>Tracker Connections</h3>
           <p className="text-muted">
@@ -268,46 +218,27 @@ function ConnectionsTabContent({
         </button>
       </div>
 
-      <div
-        className="connections-registry-container"
-        style={{ marginTop: "1rem", overflowX: "auto" }}
-      >
-        <table
-          className="table"
-          style={{ width: "100%", borderCollapse: "collapse" }}
-        >
+      <div className="connections-registry-container">
+        <table className="connections-table">
           <thead>
-            <tr
-              style={{
-                textAlign: "left",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <th style={{ padding: "0.5rem" }}>Project</th>
-              <th style={{ padding: "0.5rem" }}>Tracker Provider</th>
-              <th style={{ padding: "0.5rem" }}>Target</th>
-              <th style={{ padding: "0.5rem" }}>Status</th>
-              <th style={{ padding: "0.5rem", textAlign: "right" }}>Action</th>
+            <tr>
+              <th>Project</th>
+              <th>Tracker Provider</th>
+              <th>Target</th>
+              <th>Status</th>
+              <th className="align-right">Action</th>
             </tr>
           </thead>
           <tbody id="connections-registry-tbody">
             {isLoading ? (
               <tr>
-                <td
-                  colSpan={5}
-                  style={{ padding: "1rem", textAlign: "center" }}
-                  className="text-muted"
-                >
+                <td colSpan={5} className="text-muted text-center p-4">
                   Loading connections…
                 </td>
               </tr>
             ) : projects.length === 0 ? (
               <tr>
-                <td
-                  colSpan={5}
-                  style={{ padding: "1rem", textAlign: "center" }}
-                  className="text-muted"
-                >
+                <td colSpan={5} className="text-muted text-center p-4">
                   No projects configured.
                 </td>
               </tr>
@@ -327,71 +258,25 @@ function ConnectionsTabContent({
                 }
 
                 return (
-                  <tr
-                    key={p.id}
-                    style={{
-                      borderBottom: "1px solid var(--border-subtle)",
-                    }}
-                  >
-                    <td
-                      style={{
-                        padding: "0.75rem 0.5rem",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {p.name}
+                  <tr key={p.id}>
+                    <td>{p.name}</td>
+                    <td>
+                      <span className="badge badge-provider">{provider}</span>
                     </td>
-                    <td style={{ padding: "0.75rem 0.5rem" }}>
-                      <span
-                        className="badge"
-                        style={{
-                          padding: "2px 6px",
-                          textTransform: "uppercase",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {provider}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.75rem 0.5rem",
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "0.85rem",
-                      }}
-                      className="text-muted"
-                    >
+                    <td className="text-muted connections-target">
                       {target || "—"}
                     </td>
-                    <td style={{ padding: "0.75rem 0.5rem" }}>
+                    <td>
                       <span
-                        className="badge"
-                        style={{
-                          padding: "2px 6px",
-                          background: p.archived
-                            ? "var(--bg-tertiary)"
-                            : "var(--bg-success-subtle)",
-                          color: p.archived
-                            ? "var(--text-muted)"
-                            : "var(--success)",
-                        }}
+                        className={`badge ${p.archived ? "badge-status-archived" : "badge-status-active"}`}
                       >
                         {p.archived ? "Archived" : "Active"}
                       </span>
                     </td>
-                    <td
-                      style={{
-                        padding: "0.75rem 0.5rem",
-                        textAlign: "right",
-                      }}
-                    >
+                    <td className="align-right">
                       <Link
                         to={`/projects/${encodeURIComponent(p.id)}`}
-                        style={{
-                          color: "var(--accent)",
-                          textDecoration: "none",
-                          fontWeight: 500,
-                        }}
+                        className="project-link"
                       >
                         View Project →
                       </Link>
@@ -458,7 +343,7 @@ function ModelsTabContent({
         Configure LLM providers and models for Pi Agent sessions.
       </p>
 
-      <form onSubmit={handleSaveModels} style={{ marginTop: "1.2rem" }}>
+      <form onSubmit={handleSaveModels} className="mt-4">
         <div className="setting-item">
           <label htmlFor="setting-model-a-provider">
             Implementation Provider (Session A)
@@ -473,7 +358,7 @@ function ModelsTabContent({
           />
         </div>
 
-        <div className="setting-item" style={{ marginTop: "0.8rem" }}>
+        <div className="setting-item mt-3">
           <label htmlFor="setting-model-a-model">
             Implementation Model (Session A)
           </label>
@@ -487,7 +372,7 @@ function ModelsTabContent({
           />
         </div>
 
-        <div className="setting-item" style={{ marginTop: "0.8rem" }}>
+        <div className="setting-item mt-3">
           <label htmlFor="setting-model-b-provider">
             Review Provider (Session B)
           </label>
@@ -501,7 +386,7 @@ function ModelsTabContent({
           />
         </div>
 
-        <div className="setting-item" style={{ marginTop: "0.8rem" }}>
+        <div className="setting-item mt-3">
           <label htmlFor="setting-model-b-model">
             Review Model (Session B)
           </label>
@@ -515,15 +400,7 @@ function ModelsTabContent({
           />
         </div>
 
-        <div
-          className="settings-actions"
-          style={{
-            marginTop: "1.5rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-          }}
-        >
+        <div className="settings-actions-bar">
           <button
             type="submit"
             id="btn-save-settings"
@@ -533,11 +410,7 @@ function ModelsTabContent({
             {saveSettingsMutation.isPending ? "Saving…" : "Save Model Settings"}
           </button>
           {saveStatus && (
-            <span
-              id="settings-status"
-              className="text-muted"
-              style={{ fontSize: "0.85rem" }}
-            >
+            <span id="settings-status" className="text-muted text-footnote">
               {saveStatus}
             </span>
           )}
@@ -554,7 +427,7 @@ function GitTabContent() {
       <p className="text-muted">
         Worktree storage and baseline pollution rules.
       </p>
-      <div className="setting-item" style={{ marginTop: "1.2rem" }}>
+      <div className="setting-item mt-4">
         <label htmlFor="setting-worktree-path">Worktree Path</label>
         <input
           id="setting-worktree-path"

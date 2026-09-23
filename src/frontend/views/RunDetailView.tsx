@@ -1,5 +1,7 @@
 // src/frontend/views/RunDetailView.tsx — Canonical Run Detail view with live SSE streaming (XFM-39, XFM-42, XFM-44, XFM-50).
 
+import "./RunDetailView.css";
+
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { DiffViewer } from "../components/runs/DiffViewer.js";
@@ -33,7 +35,7 @@ export function RunDetailView() {
       <section id="area-runs" className="area-view active">
         <div className="empty-state card">
           <div className="spinner-sm" />
-          <h3 style={{ marginTop: "1rem" }}>Loading Run {runId}…</h3>
+          <h3 className="mt-4">Loading Run {runId}…</h3>
         </div>
       </section>
     );
@@ -52,11 +54,7 @@ export function RunDetailView() {
           <p className="text-muted">
             No active or historical run matches ID: {runId}
           </p>
-          <Link
-            to="/runs"
-            className="btn-secondary btn-sm"
-            style={{ marginTop: "1rem" }}
-          >
+          <Link to="/runs" className="btn-secondary btn-sm mt-4">
             ← Back to Runs
           </Link>
         </div>
@@ -107,40 +105,26 @@ export function RunDetailView() {
 
       {/* Main Execution View */}
       <div id="view-run" className="view active">
-        <div className="card" style={{ marginTop: "1.2rem" }}>
+        <div className="card mt-4">
           <div className="run-header">
             <div>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <Link
-                  to="/runs"
-                  className="text-muted text-xs"
-                  style={{ textDecoration: "none" }}
-                >
+              <div className="flex-center gap-2">
+                <Link to="/runs" className="text-muted text-xs">
                   ← Runs /
                 </Link>
-                <h2 id="run-title" style={{ margin: 0 }}>
+                <h2 id="run-title">
                   #{run.ticket?.id || run.id} — {run.ticket?.title || "Task"}
                 </h2>
               </div>
-              <span
-                id="run-branch"
-                className="code-sub"
-                style={{ display: "block", marginTop: "0.3rem" }}
-              >
-                {run.project?.name} ·{" "}
-                <code style={{ fontSize: "0.85rem" }}>{run.branch}</code>
+              <span id="run-branch" className="code-sub">
+                {run.project?.name} · <code>{run.branch}</code>
               </span>
             </div>
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}
-            >
+            <div className="flex-center gap-3">
               {connected && !isTerminal && (
                 <span
-                  className="status-dot online"
+                  className="status-dot status-dot-sm online"
                   title="Live SSE stream connected"
-                  style={{ width: "8px", height: "8px" }}
                 />
               )}
               <span id="run-status" className="badge" data-status={run.status}>
@@ -151,31 +135,15 @@ export function RunDetailView() {
 
           {/* Recovery Required Actions */}
           {isRecoveryRequired && (
-            <div
-              style={{
-                marginTop: "1rem",
-                padding: "0.8rem 1rem",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--bg-danger-subtle)",
-                border: "1px solid var(--danger)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "0.8rem",
-              }}
-            >
+            <div className="recovery-box">
               <div>
                 <strong>Pipeline requires operator recovery</strong>
-                <p
-                  className="text-muted"
-                  style={{ margin: "0.2rem 0 0", fontSize: "0.85rem" }}
-                >
+                <p className="text-muted text-footnote m-0 mt-1">
                   Worker process terminated or an unexpected state interruption
                   occurred.
                 </p>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div className="flex-center gap-2">
                 <button
                   type="button"
                   className="btn-primary btn-sm"
@@ -186,8 +154,7 @@ export function RunDetailView() {
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary btn-sm"
-                  style={{ color: "var(--danger)" }}
+                  className="btn-secondary btn-sm btn-danger-text"
                   disabled={abandonMutation.isPending}
                   onClick={() =>
                     abandonMutation.mutate({
@@ -203,9 +170,7 @@ export function RunDetailView() {
           )}
 
           {/* Live Activity Log */}
-          <h3 style={{ marginTop: "1.2rem", marginBottom: "0.5rem" }}>
-            Live Activity
-          </h3>
+          <h3 className="mt-4 mb-2">Live Activity</h3>
           <EventLogViewer events={events} />
 
           {/* Steer Bar */}
@@ -232,7 +197,7 @@ export function RunDetailView() {
 
           {/* Run Control Actions */}
           {!isTerminal && !isRecoveryRequired && !isReadyForPr && (
-            <div className="run-actions" style={{ marginTop: "1rem" }}>
+            <div className="run-actions mt-4">
               <button
                 type="button"
                 id="btn-stop"
@@ -246,11 +211,7 @@ export function RunDetailView() {
           )}
 
           {actionError && (
-            <div
-              id="run-error"
-              className="error-message"
-              style={{ marginTop: "0.8rem" }}
-            >
+            <div id="run-error" className="error-message mt-3">
               {actionError}
             </div>
           )}

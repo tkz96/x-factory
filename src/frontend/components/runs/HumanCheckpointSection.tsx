@@ -1,5 +1,7 @@
 // src/frontend/components/runs/HumanCheckpointSection.tsx — Human delivery checkpoint and PR creation (XFM-50).
 
+import "./HumanCheckpointSection.css";
+
 import { useState } from "react";
 import type { Run } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
@@ -36,7 +38,7 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
     verificationResult?.tests?.stdout || verificationResult?.tests?.stderr;
 
   return (
-    <div id="view-result" className="view" style={{ marginTop: "1.2rem" }}>
+    <div id="view-result" className="view mt-4">
       <div className="card">
         <div className="run-header">
           <h2 id="result-heading">Human Checkpoint &amp; Evidence</h2>
@@ -50,12 +52,9 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
         </div>
 
         {/* 1. Deterministic Verification Evidence */}
-        <div className="result-section" style={{ marginTop: "1.2rem" }}>
+        <div className="result-section mt-4">
           <h3>1. Deterministic Verification</h3>
-          <div
-            className="evidence-row"
-            style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}
-          >
+          <div className="evidence-row flex-center gap-2 m-0 my-2">
             <span
               id="result-tests"
               className={`badge ${verificationResult?.passed ? "badge-success" : "badge-neutral"}`}
@@ -67,19 +66,7 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
             </span>
           </div>
           {testOutput && (
-            <pre
-              id="result-test-output"
-              className="test-output"
-              style={{
-                maxHeight: "200px",
-                overflow: "auto",
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.8rem",
-                padding: "0.8rem",
-                background: "var(--bg-tertiary)",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
+            <pre id="result-test-output" className="test-output">
               {testOutput}
             </pre>
           )}
@@ -87,16 +74,9 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
 
         {/* 2. Independent Review Evidence */}
         {reviewResult && (
-          <div
-            className="result-section"
-            id="review-section"
-            style={{ marginTop: "1.2rem" }}
-          >
+          <div className="result-section mt-4" id="review-section">
             <h3>2. Independent Review (Read-Only Session B)</h3>
-            <div
-              className="evidence-row"
-              style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}
-            >
+            <div className="evidence-row flex-center gap-2 m-0 my-2">
               <span
                 id="result-review-badge"
                 className={`badge ${reviewResult.passed ? "badge-success" : "badge-danger"}`}
@@ -111,23 +91,18 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
             {reviewResult.criteriaChecked &&
               reviewResult.criteriaChecked.length > 0 && (
                 <div id="criteria-checklist" className="criteria-list">
-                  <h4 style={{ fontSize: "0.85rem", marginTop: "0.8rem" }}>
+                  <h4 className="text-footnote mt-3">
                     Acceptance Criteria Verified:
                   </h4>
-                  <ul style={{ listStyle: "none", padding: 0 }}>
+                  <ul className="list-none">
                     {reviewResult.criteriaChecked.map((c) => (
-                      <li key={c.criterion} style={{ margin: "0.3rem 0" }}>
+                      <li key={c.criterion} className="my-1">
                         <span
-                          className="badge badge-xs"
-                          style={{
-                            marginRight: "0.5rem",
-                            background: c.satisfied
-                              ? "var(--bg-success-subtle)"
-                              : "var(--bg-danger-subtle)",
-                            color: c.satisfied
-                              ? "var(--success)"
-                              : "var(--danger)",
-                          }}
+                          className={`badge badge-xs mr-2 ${
+                            c.satisfied
+                              ? "badge-success-subtle"
+                              : "badge-danger-subtle"
+                          }`}
                         >
                           {c.satisfied ? "✓ PASS" : "✗ FAIL"}
                         </span>
@@ -141,26 +116,16 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
         )}
 
         {/* 3. Delivery Checkpoint */}
-        <div
-          className="delivery-checkpoint"
-          id="delivery-checkpoint"
-          style={{
-            marginTop: "1.5rem",
-            padding: "1.2rem",
-            border: "1px solid var(--border-subtle)",
-            borderRadius: "var(--radius-md)",
-            background: "var(--bg-secondary)",
-          }}
-        >
-          <h3 style={{ margin: "0 0 0.5rem" }}>3. Delivery Checkpoint</h3>
-          <p className="checkpoint-text text-muted" style={{ margin: 0 }}>
+        <div className="delivery-checkpoint mt-6" id="delivery-checkpoint">
+          <h3 className="m-0 mb-2">3. Delivery Checkpoint</h3>
+          <p className="checkpoint-text text-muted m-0">
             All automated verification tests passed and the read-only reviewer
             confirmed acceptance criteria. Confirm below to commit, push, and
             open the Pull Request.
           </p>
 
           {!isPrCreated ? (
-            <div style={{ marginTop: "1rem" }}>
+            <div className="mt-4">
               <button
                 type="button"
                 id="btn-pr"
@@ -174,27 +139,15 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
               </button>
             </div>
           ) : (
-            <div
-              id="pr-result"
-              className="pr-result"
-              style={{
-                marginTop: "1rem",
-                padding: "0.8rem",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--bg-success-subtle)",
-                border: "1px solid var(--success)",
-              }}
-            >
-              <h4 style={{ margin: "0 0 0.4rem", color: "var(--success)" }}>
-                Pull Request Created
-              </h4>
+            <div id="pr-result" className="pr-result mt-4">
+              <h4 className="pr-success-title">Pull Request Created</h4>
               {prUrl && (
                 <a
                   id="pr-link"
                   href={prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontWeight: 600 }}
+                  className="font-semibold"
                 >
                   Open Pull Request ↗
                 </a>
@@ -203,11 +156,7 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
           )}
 
           {error && (
-            <div
-              id="result-error"
-              className="error-message"
-              style={{ marginTop: "0.8rem" }}
-            >
+            <div id="result-error" className="error-message mt-3">
               {error}
             </div>
           )}
@@ -216,8 +165,7 @@ export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
         <button
           type="button"
           id="btn-new"
-          className="btn-secondary"
-          style={{ marginTop: "1.5rem" }}
+          className="btn-secondary mt-6"
           onClick={() => openNewRunModal()}
         >
           Start New Run

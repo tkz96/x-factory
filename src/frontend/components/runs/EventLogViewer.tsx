@@ -1,5 +1,7 @@
 // src/frontend/components/runs/EventLogViewer.tsx — Real-time auto-scrolling SSE activity log (XFM-50).
 
+import "./EventLogViewer.css";
+
 import { useEffect, useRef } from "react";
 import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
 
@@ -217,16 +219,6 @@ export function EventLogViewer({ events }: EventLogViewerProps) {
       className="event-log"
       aria-live="polite"
       role="log"
-      style={{
-        maxHeight: "360px",
-        overflowY: "auto",
-        fontFamily: "var(--font-mono)",
-        fontSize: "0.85rem",
-        lineHeight: 1.45,
-        padding: "0.8rem",
-        background: "var(--bg-tertiary)",
-        borderRadius: "var(--radius-sm)",
-      }}
     >
       {events.length === 0 ? (
         <span className="text-muted">Awaiting pipeline events…</span>

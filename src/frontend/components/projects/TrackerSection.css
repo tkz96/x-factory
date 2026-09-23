@@ -1,0 +1,49 @@
+/* ── Tracker Section Styles (Apple HIG) ──────────────────────────── */
+
+.tracker-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.tracker-title {
+  margin: 0;
+}
+
+.tracker-subtitle {
+  margin: var(--space-1) 0 0;
+}
+
+.tracker-test-container {
+  margin-top: var(--space-5);
+}
+
+.tracker-test-result {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.tracker-test-result.success {
+  background: var(--bg-success-subtle);
+  border-color: var(--success);
+}
+
+.tracker-test-result.danger {
+  background: var(--bg-danger-subtle);
+  border-color: var(--danger);
+}
+
+.tracker-overprivileged-notice {
+  margin-top: var(--space-2);
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.tracker-test-details {
+  margin-top: var(--space-2);
+  font-size: var(--text-caption-1);
+  font-family: var(--font-mono);
+}

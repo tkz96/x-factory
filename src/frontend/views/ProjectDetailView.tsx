@@ -1,5 +1,7 @@
 // src/frontend/views/ProjectDetailView.tsx — Detailed single project view (XFM-48).
 
+import "./ProjectDetailView.css";
+
 import { useNavigate, useParams } from "react-router-dom";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
@@ -17,7 +19,7 @@ export function ProjectDetailView() {
       <section id="area-projects" className="area-view active">
         <div className="empty-state card">
           <div className="spinner-sm" />
-          <h3 style={{ marginTop: "1rem" }}>Loading Project…</h3>
+          <h3 className="mt-4">Loading Project…</h3>
         </div>
       </section>
     );
@@ -38,8 +40,7 @@ export function ProjectDetailView() {
           </p>
           <button
             type="button"
-            className="btn-secondary btn-sm"
-            style={{ marginTop: "1rem" }}
+            className="btn-secondary btn-sm mt-4"
             onClick={() => navigate("/projects")}
           >
             ← Back to Projects
@@ -55,7 +56,7 @@ export function ProjectDetailView() {
     <section id="area-projects" className="area-view active">
       <div id="projects-detail-view" className="view-panel">
         <div className="section-header-flex">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
+          <div className="flex-center gap-3">
             <button
               type="button"
               id="btn-back-to-projects-list"
@@ -69,36 +70,21 @@ export function ProjectDetailView() {
               </svg>
               <span>All Projects</span>
             </button>
-            <h2 id="project-detail-name" style={{ margin: 0 }}>
-              {project.name}
-            </h2>
+            <h2 id="project-detail-name">{project.name}</h2>
             {project.archived && (
-              <span
-                className="role-badge"
-                style={{
-                  background: "var(--bg-tertiary)",
-                  color: "var(--text-muted)",
-                  fontFamily: "var(--font-mono)",
-                }}
-              >
-                Archived
-              </span>
+              <span className="role-badge role-badge-archived">Archived</span>
             )}
           </div>
         </div>
 
-        <div
-          id="project-detail-meta"
-          className="project-detail-meta-grid"
-          style={{ marginTop: "1.2rem" }}
-        >
+        <div id="project-detail-meta" className="project-detail-meta-grid">
           <div className="project-meta-item">
             <strong>Project ID</strong>
-            <code style={{ fontFamily: "var(--font-mono)" }}>{project.id}</code>
+            <code>{project.id}</code>
           </div>
           <div className="project-meta-item">
             <strong>Workspace Path</strong>
-            <code style={{ fontFamily: "var(--font-mono)" }}>
+            <code>
               {project.workspacePath || project.repositoryPath || "Default"}
             </code>
           </div>
@@ -114,24 +100,14 @@ export function ProjectDetailView() {
 
         <ReadinessBanner />
 
-        <div style={{ marginTop: "1.5rem" }}>
+        <div className="mt-6">
           <TrackerSection project={project} />
         </div>
 
-        <div className="project-repos-section" style={{ marginTop: "1.5rem" }}>
-          <div
-            className="section-header-flex"
-            style={{ marginBottom: "0.8rem" }}
-          >
+        <div className="project-repos-section mt-6">
+          <div className="section-header-flex mb-3">
             <h3>Repositories</h3>
-            <span
-              id="project-detail-repo-count"
-              className="nav-badge"
-              style={{
-                display: "inline-block",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
+            <span id="project-detail-repo-count" className="nav-badge">
               {repos.length}
             </span>
           </div>
@@ -141,46 +117,25 @@ export function ProjectDetailView() {
             className="repos-table-container card"
           >
             {repos.length === 0 ? (
-              <p className="text-muted" style={{ padding: "1rem", margin: 0 }}>
+              <p className="text-muted p-4">
                 No separate sub-repositories configured. Using primary workspace
                 repository.
               </p>
             ) : (
-              <table
-                className="table"
-                style={{ width: "100%", borderCollapse: "collapse" }}
-              >
+              <table className="repos-table">
                 <thead>
-                  <tr
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <th style={{ padding: "0.6rem" }}>Repository Name</th>
-                    <th style={{ padding: "0.6rem" }}>Path</th>
-                    <th style={{ padding: "0.6rem" }}>Default Branch</th>
+                  <tr>
+                    <th>Repository Name</th>
+                    <th>Path</th>
+                    <th>Default Branch</th>
                   </tr>
                 </thead>
                 <tbody>
                   {repos.map((r) => (
-                    <tr
-                      key={r.name}
-                      style={{ borderBottom: "1px solid var(--border-subtle)" }}
-                    >
-                      <td style={{ padding: "0.6rem", fontWeight: 600 }}>
-                        {r.name}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.6rem",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        {r.path}
-                      </td>
-                      <td style={{ padding: "0.6rem" }}>
+                    <tr key={r.name}>
+                      <td className="cell-name">{r.name}</td>
+                      <td className="cell-truncate">{r.path}</td>
+                      <td className="cell-branch">
                         {r.defaultBranch || "main"}
                       </td>
                     </tr>

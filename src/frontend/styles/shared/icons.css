@@ -1,0 +1,68 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Design System Icons (DRY SVG Sprite Architecture - Lucide Standard)
+   ────────────────────────────────────────────────────────────────────────── */
+.icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  stroke: currentColor;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.125em;
+  flex-shrink: 0;
+  transition:
+    color var(--transition-fast, 0.15s ease),
+    stroke var(--transition-fast, 0.15s ease);
+}
+
+.icon-xs {
+  width: 12px;
+  height: 12px;
+}
+.icon-sm {
+  width: 14px;
+  height: 14px;
+}
+.icon-md {
+  width: 16px;
+  height: 16px;
+}
+.icon-lg {
+  width: 20px;
+  height: 20px;
+}
+.icon-xl {
+  width: 32px;
+  height: 32px;
+}
+
+@keyframes icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-spin {
+  animation: icon-spin 1s linear infinite;
+}
+
+.icon-status-passed {
+  color: var(--green);
+}
+
+.icon-status-failed {
+  color: var(--red);
+}
+
+.icon-status-warning {
+  color: var(--yellow);
+}
+
+.icon-status-pending {
+  color: var(--text-dim);
+}

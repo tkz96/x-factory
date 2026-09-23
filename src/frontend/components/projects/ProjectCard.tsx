@@ -1,5 +1,7 @@
 // src/frontend/components/projects/ProjectCard.tsx — Project card component (XFM-48).
 
+import "./ProjectCard.css";
+
 import { Link } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
 
@@ -20,30 +22,15 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
   return (
     <Link
       to={`/projects/${project.id}`}
-      className="project-card card"
-      style={{
-        display: "block",
-        textDecoration: "none",
-        color: "inherit",
-        ...(isArchived
-          ? { opacity: 0.85, borderStyle: "dashed", cursor: "pointer" }
-          : { cursor: "pointer" }),
-      }}
+      className={`project-card card project-card-link ${
+        isArchived ? "is-archived" : ""
+      }`}
       aria-label={`View details for project ${project.name}`}
     >
       <div className="project-card-header">
         <h3 title={project.name}>{project.name}</h3>
         {isArchived ? (
-          <span
-            className="role-badge"
-            style={{
-              background: "var(--bg-tertiary)",
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            Archived
-          </span>
+          <span className="role-badge role-badge-archived">Archived</span>
         ) : (
           <span className="role-badge">{trackerLabel}</span>
         )}
@@ -67,17 +54,8 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
           </span>
         </div>
       ) : (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "0.8rem",
-            paddingTop: "0.6rem",
-            borderTop: "1px solid var(--border-subtle)",
-          }}
-        >
-          <span className="nav-badge" style={{ display: "inline-block" }}>
+        <div className="project-card-footer">
+          <span className="nav-badge">
             {repoCount} {repoCount === 1 ? "repo" : "repos"}
           </span>
           <span className="status-pill ready">View Details →</span>

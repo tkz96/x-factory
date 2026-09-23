@@ -1,5 +1,7 @@
 // src/frontend/components/queue/TicketCard.tsx — Ticket card component with prefill action (XFM-47).
 
+import "./TicketCard.css";
+
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 
@@ -68,10 +70,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
 
       <div className="ticket-footer">
         <div className="ticket-tags">
-          <span
-            className="filter-pill"
-            style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}
-          >
+          <span className="filter-pill ticket-pill">
             <span className="pill-dot" />
             agentic-workflow
           </span>

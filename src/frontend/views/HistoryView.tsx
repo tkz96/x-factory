@@ -5,6 +5,7 @@ import { EmptyStateCard } from "../components/EmptyStateCard.js";
 import { RunHistoryCard } from "../components/history/RunHistoryCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
+import "./HistoryView.css";
 
 type StatusFilter = "all" | "completed" | "active" | "failed";
 
@@ -57,14 +58,7 @@ export function HistoryView() {
         </div>
 
         {/* Filter controls */}
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            margin: "1rem 0 1.2rem",
-            flexWrap: "wrap",
-          }}
-        >
+        <div className="history-filter-bar">
           {(
             [
               { id: "all", label: "All Runs" },
@@ -77,15 +71,6 @@ export function HistoryView() {
               key={item.id}
               type="button"
               className={`btn-secondary btn-sm ${filter === item.id ? "active" : ""}`}
-              style={
-                filter === item.id
-                  ? {
-                      background: "var(--accent)",
-                      color: "#fff",
-                      borderColor: "var(--accent)",
-                    }
-                  : undefined
-              }
               onClick={() => setFilter(item.id)}
             >
               {item.label}

@@ -1,5 +1,7 @@
 // src/frontend/components/EmptyStateCard.tsx — Reusable empty, error, and loading state cards.
 
+import "./EmptyStateCard.css";
+
 import type { CSSProperties, ReactNode } from "react";
 
 export interface EmptyStateCardProps {
@@ -29,8 +31,8 @@ export function EmptyStateCard({
     return (
       <div className={baseClasses} style={style}>
         <div className="spinner-sm" />
-        {title && <h3 style={{ marginTop: "1rem" }}>{title}</h3>}
-        {message && <p style={{ marginTop: "1rem" }}>{message}</p>}
+        {title && <h3 className="mt-4">{title}</h3>}
+        {message && <p className="mt-4">{message}</p>}
       </div>
     );
   }
@@ -67,8 +69,7 @@ export function EmptyStateCard({
       {actionText && onAction && (
         <button
           type="button"
-          className="btn-primary btn-sm"
-          style={{ marginTop: "1rem" }}
+          className="btn-primary btn-sm mt-4"
           onClick={onAction}
         >
           {actionText}

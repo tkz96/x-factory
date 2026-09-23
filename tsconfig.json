@@ -4,7 +4,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["bun"],
+    "types": ["bun", "vite/client"],
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,

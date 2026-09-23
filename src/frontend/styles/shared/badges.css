@@ -1,0 +1,129 @@
+/* ── Badge ───────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.badge[data-status="preparing"] {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+.badge[data-status="understanding"] {
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+.badge[data-status="implementing"] {
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+.badge[data-status="verifying"] {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+.badge[data-status="reviewing"] {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+.badge[data-status="ready_for_pr"] {
+  background: var(--green-dim);
+  color: var(--green);
+}
+.badge[data-status="pr_created"] {
+  background: var(--green-dim);
+  color: var(--green);
+}
+.badge[data-status="failed"] {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.badge[data-status="stopped"] {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.badge[data-status="passed"] {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.badge-info {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+}
+.badge-warning {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+.badge-error {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.badge-neutral {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+/* ── Role, Primary, Knowledge Badges ────────────────────────────────── */
+
+.role-badge {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.primary-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.knowledge-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--purple-dim);
+  color: var(--purple);
+  border: 1px solid var(--purple);
+  font-weight: 600;
+}
+
+/* ── Status Pill ─────────────────────────────────────────────────────── */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.status-pill.ready {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.status-pill.pending {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+}
+
+.status-pill.error {
+  background: var(--red-dim);
+  color: var(--red);
+}

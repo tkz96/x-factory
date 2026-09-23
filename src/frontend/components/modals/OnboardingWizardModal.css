@@ -1,0 +1,702 @@
+/* ── Project Onboarding Wizard & Management View (Apple HIG) ───────── */
+
+.section-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.stepper-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1.4rem;
+  background: var(--bg-hover);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 0.5rem;
+}
+
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--transition);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
+
+.step-indicator:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.step-indicator.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-dim);
+}
+
+.step-indicator.completed {
+  color: var(--green);
+}
+
+.step-indicator .step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.step-indicator.active .step-num {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: 0 0 10px var(--accent-dim);
+}
+
+.step-indicator.completed .step-num {
+  background: var(--green);
+  color: var(--text-on-accent);
+}
+
+.wizard-pane {
+  display: block;
+  padding-bottom: 2rem;
+}
+
+.wizard-pane[hidden] {
+  display: none;
+}
+
+/* ── Label with Tooltip ──────────────────────────────────────────────── */
+
+.label-with-tooltip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  position: relative;
+  z-index: 1;
+}
+
+.label-with-tooltip label {
+  margin-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  cursor: help;
+  transition: all 180ms var(--spring);
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.tooltip-badge:hover,
+.tooltip-badge:focus,
+.tooltip-badge:focus-within {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+  outline: none;
+  transform: scale(1.12);
+  z-index: 10000;
+}
+
+/* Elevate active form group and label so active tooltip popover floats on top of all subsequent inputs & badges */
+.form-group.tooltip-open,
+.form-group:has(.tooltip-badge:hover),
+.form-group:has(.tooltip-badge:focus),
+.form-group:has(.tooltip-badge:focus-within),
+.label-with-tooltip.tooltip-open,
+.label-with-tooltip:has(.tooltip-badge:hover),
+.label-with-tooltip:has(.tooltip-badge:focus),
+.label-with-tooltip:has(.tooltip-badge:focus-within) {
+  z-index: 10000;
+}
+
+.tooltip-popover {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -4px;
+  width: 300px;
+  max-width: min(320px, calc(100vw - 48px));
+  padding: 0.85rem 1rem;
+  background: rgba(28, 28, 30, 0.96);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  z-index: 10001;
+  transform: translateY(6px);
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms;
+}
+
+/* Caret indicator pointing to ? badge */
+.tooltip-popover::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 10px;
+  width: 8px;
+  height: 8px;
+  background: rgba(28, 28, 30, 0.96);
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  transform: rotate(45deg);
+}
+
+[data-theme="light"] .tooltip-popover::before {
+  background: rgba(255, 255, 255, 0.98);
+  border-left: 1px solid rgba(0, 0, 0, 0.14);
+  border-top: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+/* Flipped state (when tooltip opens upwards) */
+.tooltip-popover.popover-flipped {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateY(-6px);
+}
+
+.tooltip-popover.popover-flipped::before {
+  top: auto;
+  bottom: -5px;
+  border-left: none;
+  border-top: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="light"] .tooltip-popover.popover-flipped::before {
+  border-right: 1px solid rgba(0, 0, 0, 0.14);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+/* Right-aligned state (when badge is on the right side) */
+.tooltip-popover.popover-align-right {
+  left: auto;
+  right: -4px;
+}
+
+.tooltip-popover.popover-align-right::before {
+  left: auto;
+  right: 10px;
+}
+
+.inspection-commands-grid > div:last-child .tooltip-popover {
+  left: auto;
+  right: -4px;
+}
+
+.inspection-commands-grid > div:last-child .tooltip-popover::before {
+  left: auto;
+  right: 10px;
+}
+
+[data-theme="light"] .tooltip-popover {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  color: var(--text-main);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+}
+
+.tooltip-popover strong {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0.3rem;
+}
+
+.tooltip-popover code {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--accent);
+}
+
+[data-theme="light"] .tooltip-popover code {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tooltip-badge:hover .tooltip-popover,
+.tooltip-badge:focus .tooltip-popover,
+.tooltip-badge:focus-within .tooltip-popover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.tooltip-badge:hover .tooltip-popover.popover-flipped,
+.tooltip-badge:focus .tooltip-popover.popover-flipped,
+.tooltip-badge:focus-within .tooltip-popover.popover-flipped {
+  transform: translateY(0);
+}
+
+/* ── Quick URL Box ───────────────────────────────────────────────────── */
+
+.quick-url-box {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 113, 227, 0.08),
+    rgba(0, 113, 227, 0.02)
+  );
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+}
+
+.quick-url-box .quick-url-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.quick-url-feedback {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* ── Discovery Trigger ───────────────────────────────────────────────── */
+
+.discovery-trigger-box {
+  padding: 1.2rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  margin-top: 1rem;
+}
+
+/* ── Repo Check Items ────────────────────────────────────────────────── */
+
+.selection-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0.8rem;
+}
+
+.onboard-repo-checklist {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-right: 0.4rem;
+}
+
+.repo-check-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
+  transition: all var(--transition);
+}
+
+.repo-check-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.repo-check-item.selected {
+  border-color: var(--accent);
+  background: rgba(0, 113, 227, 0.04);
+}
+
+.repo-check-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.repo-check-left input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+.repo-check-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.primary-star-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  border-radius: 4px;
+  transition: all var(--transition);
+}
+
+.primary-star-btn:hover {
+  color: var(--yellow);
+  background: rgba(255, 214, 10, 0.1);
+}
+
+.primary-star-btn.is-primary {
+  color: var(--yellow);
+}
+
+/* ── Info & Status Banners ───────────────────────────────────────────── */
+
+.info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin: 0.75rem 0;
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(0, 113, 227, 0.25);
+}
+
+.info-banner.success {
+  background: var(--green-dim);
+  color: var(--green);
+  border-color: rgba(48, 209, 88, 0.3);
+}
+
+.info-banner.warning {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+  border-color: rgba(255, 214, 10, 0.3);
+}
+
+/* ── Path Validation ─────────────────────────────────────────────────── */
+
+.path-feedback-box {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.path-feedback-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--green);
+}
+
+.path-feedback-item.warn {
+  color: var(--yellow);
+}
+
+.quick-path-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  display: inline-block;
+  width: fit-content;
+}
+
+.quick-path-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Tracker Test Status ─────────────────────────────────────────────── */
+
+.tracker-test-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  margin-left: 0.6rem;
+}
+
+.tracker-test-status.testing {
+  color: var(--text-dim);
+}
+
+.tracker-test-status.success {
+  color: var(--green);
+  font-weight: 500;
+}
+
+.tracker-test-status.error {
+  color: var(--red);
+  font-weight: 500;
+}
+
+/* ── Inspection Cards ────────────────────────────────────────────────── */
+
+.inspection-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  padding-bottom: 2.5rem;
+}
+
+.inspection-card {
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.inspection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.inspection-commands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.code-preview-container {
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-top: 0.8rem;
+}
+
+.code-preview-container pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-main);
+}
+
+/* ── Scope Diagnostic Box ────────────────────────────────────────────── */
+
+.scope-diagnostic-box {
+  margin-top: 0.9rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.scope-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.scope-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.82rem;
+}
+
+.scope-item-row.passed {
+  border-left: 3px solid var(--green);
+}
+
+.scope-item-row.failed {
+  border-left: 3px solid var(--red);
+  background: var(--red-dim);
+}
+
+.scope-item-row.warning {
+  border-left: 3px solid var(--yellow);
+  background: var(--yellow-dim);
+}
+
+.scope-item-row .scope-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scope-item-row .scope-label {
+  color: var(--text);
+}
+
+.scope-item-row .scope-desc {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ── Review Summary ──────────────────────────────────────────────────── */
+
+.review-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.review-metric-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1.1rem;
+}
+
+.review-metric-box .metric-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+
+.review-metric-box .metric-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.review-repos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.review-repos-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.review-repos-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ── Settings Responsive (moved from AppShell mobile) ────────────────── */
+
+@media (max-width: 768px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sidebar {
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    gap: 0.5rem;
+  }
+
+  .settings-tab-btn {
+    flex-shrink: 0;
+  }
+}
+
+.quick-url-subtitle {
+  font-size: var(--text-caption-1);
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.scope-note {
+  margin: var(--space-1) 0;
+}
+
+.scope-list {
+  margin: var(--space-1) 0 0 var(--space-5);
+  padding: 0;
+}
+
+.scope-warning-box {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-warning-subtle);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+}
+
+.scope-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  cursor: pointer;
+}
