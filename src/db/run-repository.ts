@@ -74,6 +74,7 @@ export interface CreateRunRecordInput {
 
 export interface UpdateRunRecordInput {
   status?: RunStatus | undefined;
+  plan?: string | undefined;
   finishedAt?: string | null | undefined;
   repairAttempts?: number | undefined;
   implementationContext?: ImplementationContext | null | undefined;
@@ -275,6 +276,11 @@ export class RunRepository {
     if (updates.status !== undefined) {
       fields.push("status = $status");
       params.$status = updates.status;
+    }
+
+    if (updates.plan !== undefined) {
+      fields.push("plan = $plan");
+      params.$plan = updates.plan;
     }
 
     if (updates.finishedAt !== undefined) {

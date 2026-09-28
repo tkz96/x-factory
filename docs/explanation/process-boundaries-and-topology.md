@@ -9,35 +9,7 @@ The system divides responsibilities across two independent processes on a single
 1. The API Process (`src/server.ts`)
 2. The Worker Process (`src/worker.ts`)
 
-```text
-               ┌───────────────────────┐
-               │    Client Browser     │
-               └──────────┬────────────┘
-                          │ HTTP / SSE
-                          ▼
-               ┌───────────────────────┐
-               │      API Process      │
-               │  (src/server.ts)      │
-               └──────────┬────────────┘
-                          │ SQLite Transaction
-                          ▼
-    ┌──────────────────────────────────────────────┐
-    │              SQLite Database                 │
-    │  - runs (workflow truth, revision)          │
-    │  - jobs (schedulable units of work, leases)  │
-    └─────────────────────▲────────────────────────┘
-                          │ Atomic Claim / Heartbeat
-                          │
-               ┌──────────┴────────────┐
-               │    Worker Process     │
-               │   (src/worker.ts)     │
-               └──────────┬────────────┘
-                          │ Process / Session
-                          ▼
-               ┌───────────────────────┐
-               │     Pi Agent SDK      │
-               │ (Coding Agent Session)│
-               └───────────────────────┘
+```diagram:process-boundaries
 ```
 
 ## Why the API Process Does Not Execute Workflows
@@ -77,17 +49,7 @@ If a worker process crashes, SQLite rolls back uncommitted transactions and pres
 Multiple workers can run concurrently against the shared SQLite database.
 To prevent duplicate execution of the same job, X-Factory uses database-backed lease locks:
 
-```text
-  [Job: Pending] ──(Worker Claims with 30s Lease)──► [Job: Claimed]
-                                                            │
-                                        ┌───────────────────┴───────────────────┐
-                                        ▼                                       ▼
-                             (Heartbeat Every 10s)                    (Worker Crashes/Stalls)
-                             Lease Extended +30s                      Lease Expires (>30s)
-                                        │                                       │
-                                        ▼                                       ▼
-                             [Job: Completed]                         [Stale Job Reclaimed]
-                             Transitions to Next Stage                Increment Attempt; Retry
+```diagram:worker-lease-model
 ```
 
 1. When a worker polls for work, the worker atomically claims a job with a 30-second lease.

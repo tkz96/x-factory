@@ -35,3 +35,17 @@ export const SaveProjectBodySchema = ProjectInputSchema;
 
 /** Request body schema for updating projects */
 export const UpdateProjectBodySchema = z.record(z.string(), z.unknown());
+
+/** Request body schema for POST /api/runs/:id/transitions */
+export const TransitionRunBodySchema = z
+  .object({
+    action: z.enum(["approve", "restart", "abort", "requeue"]),
+    payload: z
+      .object({
+        failingTasks: z.array(z.string()).optional(),
+        chatNotes: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();

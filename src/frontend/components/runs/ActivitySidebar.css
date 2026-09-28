@@ -1,0 +1,77 @@
+/* src/frontend/components/runs/ActivitySidebar.css — Compact activity log sidebar (1/3 width) */
+
+.activity-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+}
+
+.activity-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.activity-sidebar-header h4 {
+  margin: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.activity-sidebar-header .activity-count {
+  font-size: var(--text-caption-2);
+  color: var(--text-dim);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.activity-dot {
+  margin-left: 6px;
+  display: inline-block;
+}
+
+.activity-sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Override ChatThread styles when inside the sidebar */
+.activity-sidebar .chat-thread-container {
+  max-height: none;
+  margin-bottom: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.activity-sidebar .chat-bubble {
+  font-size: var(--text-caption-2);
+  padding: var(--space-1) var(--space-2);
+}
+
+.activity-sidebar .chat-bubble-badge {
+  font-size: 9px;
+  padding: 0 var(--space-1);
+}
+
+.activity-sidebar .chat-bubble-header {
+  margin-bottom: 2px;
+}

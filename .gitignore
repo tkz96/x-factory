@@ -10,3 +10,4 @@ graphify-out/
 *.db
 *.db-shm
 *.db-wal
+.scratch/

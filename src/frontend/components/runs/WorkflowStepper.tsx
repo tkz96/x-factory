@@ -61,14 +61,20 @@ const STATUS_TO_STAGE: Record<RunStatus, WorkflowStage | null> = {
   queued: "prepare",
   preparing: "prepare",
   understanding: "understand",
-  implementing: "implement",
-  verifying: "verify",
-  reviewing: "review",
+  awaiting_understanding_approval: "understand",
+  planning: "plan",
+  awaiting_plan_approval: "plan",
+  executing: "execute",
+  awaiting_review: "review",
   ready_for_pr: "deliver",
   pr_created: "deliver",
   recovery_required: null,
   failed: null,
   stopped: null,
+  // Legacy states
+  implementing: "implement",
+  verifying: "verify",
+  reviewing: "review",
 };
 
 interface WorkflowStepperProps {

@@ -6,10 +6,13 @@
 export type WorkflowStage =
   | "prepare"
   | "understand"
-  | "implement"
-  | "verify"
+  | "plan"
+  | "execute"
   | "review"
-  | "deliver";
+  | "deliver"
+  // Legacy states for backward compatibility
+  | "implement"
+  | "verify";
 
 /**
  * Finite state machine states for a run.
@@ -18,14 +21,20 @@ export type RunStatus =
   | "queued"
   | "preparing"
   | "understanding"
-  | "implementing"
-  | "verifying"
-  | "reviewing"
+  | "awaiting_understanding_approval"
+  | "planning"
+  | "awaiting_plan_approval"
+  | "executing"
+  | "awaiting_review"
   | "ready_for_pr"
   | "pr_created"
   | "failed"
   | "stopped"
-  | "recovery_required";
+  | "recovery_required"
+  // Legacy states
+  | "implementing"
+  | "verifying"
+  | "reviewing";
 
 /**
  * Role metadata for a repository inside a project.
@@ -271,15 +280,29 @@ export type RunEventPayload =
   | { type: "stage_evidence"; stage: WorkflowStage; summary: string }
   | { type: "info"; text: string }
   | { type: "error"; text: string }
-  | { type: "pi_text"; text: string; role: "implementer" | "reviewer" }
+  | {
+      type: "pi_text";
+      text: string;
+      role: "implementer" | "reviewer" | "ralph";
+    }
   | {
       type: "pi_tool";
       tool: string;
       input?: string | undefined;
-      role: "implementer" | "reviewer";
+      role: "implementer" | "reviewer" | "ralph";
     }
-  | { type: "pi_done"; role: "implementer" | "reviewer" }
-  | { type: "pi_error"; error: string; role: "implementer" | "reviewer" }
+  | { type: "pi_done"; role: "implementer" | "reviewer" | "ralph" }
+  | {
+      type: "pi_error";
+      error: string;
+      role: "implementer" | "reviewer" | "ralph";
+    }
+  | {
+      type: "ralph_progress";
+      text: string;
+      iteration?: number | undefined;
+      task?: string | undefined;
+    }
   | { type: "steer"; text: string }
   | { type: "verification"; result: VerificationResult }
   | { type: "review"; result: ReviewResult }

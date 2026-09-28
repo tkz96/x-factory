@@ -142,6 +142,34 @@ export const api = {
     return handleResponse<{ ok: boolean; runId: string }>(res);
   },
 
+  async chatWithRun(
+    runId: string,
+    message: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    return handleResponse<{ ok: boolean; message: string }>(res);
+  },
+
+  async transitionRun(
+    runId: string,
+    action: "approve" | "restart" | "abort" | "requeue",
+    payload?: unknown,
+  ): Promise<{ ok: boolean; run: Run }> {
+    const res = await fetch(
+      `/api/runs/${encodeURIComponent(runId)}/transitions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, payload }),
+      },
+    );
+    return handleResponse<{ ok: boolean; run: Run }>(res);
+  },
+
   async stopRun(runId: string): Promise<{ ok: boolean; run: Run }> {
     const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/stop`, {
       method: "POST",

@@ -1,3 +1,27 @@
+/* ── Run Detail Layout (2/3 main + 1/3 sidebar) ─────────────────────── */
+
+.run-detail-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  align-items: start;
+  min-height: 0;
+}
+
+.run-detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .run-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Run Detail View ─────────────────────────────────────────────────── */
 
 .run-header {

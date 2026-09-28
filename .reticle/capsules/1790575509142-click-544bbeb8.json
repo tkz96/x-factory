@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "origin": "failed-assert",
+  "expected": "declared consequence",
+  "observed": "current route (no route change in the window) '/queue', expected '/runs/'",
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "testid",
+        "value": "e412",
+        "source": {
+          "file": "src/frontend/components/queue/TicketCard.tsx",
+          "line": 48,
+          "column": 8
+        }
+      },
+      "action": "click"
+    }
+  ],
+  "id": "1790575509142-click-544bbeb8",
+  "createdAt": 1790575509142,
+  "seen": 1,
+  "lastSeenAt": 1790575509142
+}
