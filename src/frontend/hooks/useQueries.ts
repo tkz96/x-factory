@@ -130,6 +130,25 @@ export function useSteerRun() {
   });
 }
 
+export function useTransitionRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      runId,
+      action,
+      payload,
+    }: {
+      runId: string;
+      action: "approve" | "restart" | "abort" | "requeue";
+      payload?: unknown;
+    }) => api.transitionRun(runId, action, payload),
+    onSuccess: (data) => {
+      void invalidateRuns(queryClient);
+      queryClient.setQueryData(queryKeys.run(data.run.id), data.run);
+    },
+  });
+}
+
 export function useStopRun() {
   const queryClient = useQueryClient();
   return useMutation({

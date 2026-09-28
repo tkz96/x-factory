@@ -3,6 +3,7 @@
 import "./MarkdownViewer.css";
 
 import { useState } from "react";
+import { FlowDiagramViewer } from "./diagrams/FlowDiagramViewer.js";
 
 interface MarkdownViewerProps {
   content: string;
@@ -192,6 +193,15 @@ function parseFencedCode(
     idx++;
   }
   idx++; // Skip closing ```
+
+  if (language.startsWith("diagram:")) {
+    const diagramId = language.slice(8).trim();
+    return {
+      node: <FlowDiagramViewer key={`diagram-${idx}`} diagramId={diagramId} />,
+      nextIndex: idx,
+    };
+  }
+
   return {
     node: (
       <CodeBlock

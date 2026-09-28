@@ -12,7 +12,11 @@ import {
   type WireSSEEvent,
   withValidatedBody,
 } from "./responses.js";
-import { CreateRunBodySchema, SteerRunBodySchema } from "./schemas.js";
+import {
+  CreateRunBodySchema,
+  SteerRunBodySchema,
+  TransitionRunBodySchema,
+} from "./schemas.js";
 import { defaultSSERegistry } from "./sse-registry.js";
 
 export function parseAcceptanceCriteria(raw: unknown): string[] {
@@ -256,9 +260,36 @@ async function handleSteerRun(req: Request, runId: string): Promise<Response> {
   );
 }
 
+async function handleChatMessage(
+  req: Request,
+  runId: string,
+): Promise<Response> {
+  const body = (await req.json()) as { message?: string };
+  if (!body.message || typeof body.message !== "string") {
+    return errorResponse("message is required.", 400);
+  }
+  const result = await runs.chatWithRun(runId, body.message);
+  return jsonResponse(result);
+}
+
 async function handleStopRun(runId: string): Promise<Response> {
   await runs.stopRun(runId);
   return jsonResponse({ ok: true });
+}
+
+async function handleTransitions(
+  req: Request,
+  runId: string,
+): Promise<Response> {
+  return withValidatedBody(
+    req,
+    TransitionRunBodySchema,
+    async (body) => {
+      const run = await runs.handleTransition(runId, body.action, body.payload);
+      return jsonResponse({ ok: true, run });
+    },
+    "Invalid JSON in request body.",
+  );
 }
 
 async function handleCreatePR(runId: string): Promise<Response> {
@@ -289,6 +320,10 @@ async function handleRunAction(
     switch (action) {
       case "steer":
         return handleSteerRun(req, runId);
+      case "chat":
+        return handleChatMessage(req, runId);
+      case "transitions":
+        return handleTransitions(req, runId);
       case "stop":
         return handleStopRun(runId);
       case "pr":

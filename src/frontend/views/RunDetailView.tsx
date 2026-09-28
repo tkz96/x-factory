@@ -4,15 +4,18 @@ import "./RunDetailView.css";
 
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ActivitySidebar } from "../components/runs/ActivitySidebar.js";
 import { DiffViewer } from "../components/runs/DiffViewer.js";
-import { EventLogViewer } from "../components/runs/EventLogViewer.js";
 import { HumanCheckpointSection } from "../components/runs/HumanCheckpointSection.js";
+import { ReviewAndRequeueSection } from "../components/runs/ReviewAndRequeueSection.js";
+import { UnderstandingChat } from "../components/runs/UnderstandingChat.js";
 import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
 import {
   useAbandonRun,
   useResumeRun,
   useRun,
   useSteerRun,
+  useTransitionRun,
 } from "../hooks/useQueries.js";
 import { useRunSSE } from "../hooks/useRunSSE.js";
 import { api } from "../lib/api-client.js";
@@ -25,6 +28,7 @@ export function RunDetailView() {
   const steerMutation = useSteerRun();
   const resumeMutation = useResumeRun();
   const abandonMutation = useAbandonRun();
+  const transitionMutation = useTransitionRun();
 
   const [steerMessage, setSteerMessage] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -68,6 +72,10 @@ export function RunDetailView() {
     run.status === "failed" ||
     run.status === "stopped";
   const isReadyForPr = run.status === "ready_for_pr";
+  const isUnderstandingApproval =
+    run.status === "awaiting_understanding_approval";
+  const isPlanApproval = run.status === "awaiting_plan_approval";
+  const isApprovalGate = isUnderstandingApproval || isPlanApproval;
 
   const handleSteer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,102 +106,167 @@ export function RunDetailView() {
     }
   };
 
+  const handleApprove = () => {
+    transitionMutation.mutate({ runId: run.id, action: "approve" });
+  };
+
+  const handleRestart = () => {
+    transitionMutation.mutate({ runId: run.id, action: "restart" });
+  };
+
+  const handleAbort = () => {
+    transitionMutation.mutate({ runId: run.id, action: "abort" });
+  };
+
   return (
     <section id="area-runs" className="area-view active">
       {/* 6-Stage Workflow Stepper */}
       <WorkflowStepper status={run.status} />
 
-      {/* Main Execution View */}
-      <div id="view-run" className="view active">
-        <div className="card mt-4">
-          <div className="run-header">
-            <div>
-              <div className="flex-center gap-2">
-                <Link to="/runs" className="text-muted text-xs">
-                  ← Runs /
-                </Link>
-                <h2 id="run-title">
-                  #{run.ticket?.id || run.id} — {run.ticket?.title || "Task"}
-                </h2>
+      {/* 2/3 Main + 1/3 Activity Sidebar Layout */}
+      <div className="run-detail-layout">
+        {/* ── Main Content (2/3) ──────────────────────────────────────── */}
+        <div className="run-detail-main">
+          {/* Run Header Card */}
+          <div id="view-run" className="card">
+            <div className="run-header">
+              <div>
+                <div className="flex-center gap-2">
+                  <Link to="/runs" className="text-muted text-xs">
+                    ← Runs /
+                  </Link>
+                  <h2 id="run-title">
+                    #{run.ticket?.id || run.id} — {run.ticket?.title || "Task"}
+                  </h2>
+                </div>
+                <span id="run-branch" className="code-sub">
+                  {run.project?.name} · <code>{run.branch}</code>
+                </span>
               </div>
-              <span id="run-branch" className="code-sub">
-                {run.project?.name} · <code>{run.branch}</code>
-              </span>
-            </div>
-            <div className="flex-center gap-3">
-              {connected && !isTerminal && (
+              <div className="flex-center gap-3">
                 <span
-                  className="status-dot status-dot-sm online"
-                  title="Live SSE stream connected"
-                />
-              )}
-              <span id="run-status" className="badge" data-status={run.status}>
-                {run.status.replace(/_/g, " ")}
-              </span>
+                  id="run-status"
+                  className="badge"
+                  data-status={run.status}
+                >
+                  {run.status.replace(/_/g, " ")}
+                </span>
+              </div>
             </div>
+
+            {/* Recovery Required Actions */}
+            {isRecoveryRequired && (
+              <div className="recovery-box">
+                <div>
+                  <strong>Pipeline requires operator recovery</strong>
+                  <p className="text-muted text-footnote m-0 mt-1">
+                    Worker process terminated or an unexpected state
+                    interruption occurred.
+                  </p>
+                </div>
+                <div className="flex-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    disabled={resumeMutation.isPending}
+                    onClick={() => resumeMutation.mutate(run.id)}
+                  >
+                    {resumeMutation.isPending ? "Resuming…" : "Resume Run"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm btn-danger-text"
+                    disabled={abandonMutation.isPending}
+                    onClick={() =>
+                      abandonMutation.mutate({
+                        runId: run.id,
+                        reason: "Abandoned from operator console",
+                      })
+                    }
+                  >
+                    {abandonMutation.isPending ? "Abandoning…" : "Abandon Run"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Plan Approval Actions (non-understanding gates) */}
+            {isPlanApproval && (
+              <div className="recovery-box mt-4">
+                <div>
+                  <strong>Pipeline paused for plan approval</strong>
+                  <p className="text-muted text-footnote m-0 mt-1">
+                    Please review the agent's plan. You can approve to continue,
+                    restart to clear context, or abort the run.
+                  </p>
+                </div>
+                <div className="flex-center gap-2 mt-3">
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    disabled={transitionMutation.isPending}
+                    onClick={handleApprove}
+                  >
+                    {transitionMutation.isPending
+                      ? "Approving…"
+                      : "Approve & Continue"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    disabled={transitionMutation.isPending}
+                    onClick={handleRestart}
+                  >
+                    Restart Phase
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm btn-danger-text"
+                    disabled={transitionMutation.isPending}
+                    onClick={handleAbort}
+                  >
+                    Abort Run
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Recovery Required Actions */}
-          {isRecoveryRequired && (
-            <div className="recovery-box">
-              <div>
-                <strong>Pipeline requires operator recovery</strong>
-                <p className="text-muted text-footnote m-0 mt-1">
-                  Worker process terminated or an unexpected state interruption
-                  occurred.
-                </p>
-              </div>
-              <div className="flex-center gap-2">
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  disabled={resumeMutation.isPending}
-                  onClick={() => resumeMutation.mutate(run.id)}
-                >
-                  {resumeMutation.isPending ? "Resuming…" : "Resume Run"}
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm btn-danger-text"
-                  disabled={abandonMutation.isPending}
-                  onClick={() =>
-                    abandonMutation.mutate({
-                      runId: run.id,
-                      reason: "Abandoned from operator console",
-                    })
-                  }
-                >
-                  {abandonMutation.isPending ? "Abandoning…" : "Abandon Run"}
-                </button>
-              </div>
-            </div>
+          {/* Understanding Approval Gate — iMessage Chat */}
+          {isUnderstandingApproval && (
+            <UnderstandingChat
+              run={run}
+              onApprove={handleApprove}
+              onRestart={handleRestart}
+              onAbort={handleAbort}
+              isTransitioning={transitionMutation.isPending}
+            />
           )}
 
-          {/* Live Activity Log */}
-          <h3 className="mt-4 mb-2">Live Activity</h3>
-          <EventLogViewer events={events} />
-
-          {/* Steer Bar */}
-          {!isTerminal && !isRecoveryRequired && !isReadyForPr && (
-            <form id="steer-bar" className="steer-bar" onSubmit={handleSteer}>
-              <input
-                id="input-steer"
-                type="text"
-                placeholder="Send steering instruction to active Pi session…"
-                value={steerMessage}
-                onChange={(e) => setSteerMessage(e.target.value)}
-                disabled={steerMutation.isPending}
-              />
-              <button
-                type="submit"
-                id="btn-steer"
-                className="btn-secondary"
-                disabled={!steerMessage.trim() || steerMutation.isPending}
-              >
-                {steerMutation.isPending ? "Sending…" : "Steer"}
-              </button>
-            </form>
-          )}
+          {/* Steer Bar (only during active non-approval execution) */}
+          {!isTerminal &&
+            !isRecoveryRequired &&
+            !isReadyForPr &&
+            !isApprovalGate && (
+              <form id="steer-bar" className="steer-bar" onSubmit={handleSteer}>
+                <input
+                  id="input-steer"
+                  type="text"
+                  placeholder="Send steering instruction to active Pi session…"
+                  value={steerMessage}
+                  onChange={(e) => setSteerMessage(e.target.value)}
+                  disabled={steerMutation.isPending}
+                />
+                <button
+                  type="submit"
+                  id="btn-steer"
+                  className="btn-secondary"
+                  disabled={!steerMessage.trim() || steerMutation.isPending}
+                >
+                  {steerMutation.isPending ? "Sending…" : "Steer"}
+                </button>
+              </form>
+            )}
 
           {/* Run Control Actions */}
           {!isTerminal && !isRecoveryRequired && !isReadyForPr && (
@@ -215,15 +288,22 @@ export function RunDetailView() {
               {actionError}
             </div>
           )}
+
+          {/* Live Diff Preview / Review Section */}
+          {run.status === "awaiting_review" ? (
+            <ReviewAndRequeueSection run={run} />
+          ) : (
+            <DiffViewer diff={run.diff} />
+          )}
+
+          {/* Human Checkpoint & Delivery */}
+          {(isReadyForPr || run.status === "pr_created") && (
+            <HumanCheckpointSection run={run} />
+          )}
         </div>
 
-        {/* Live Diff Preview */}
-        <DiffViewer diff={run.diff} />
-
-        {/* Human Checkpoint & Delivery */}
-        {(isReadyForPr || run.status === "pr_created") && (
-          <HumanCheckpointSection run={run} />
-        )}
+        {/* ── Activity Sidebar (1/3) ─────────────────────────────────── */}
+        <ActivitySidebar events={events} connected={connected} />
       </div>
     </section>
   );

@@ -159,8 +159,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       const result = await executor.execute(context);
 
       expect(result.status).toBe("success");
-      expect(result.nextStage).toBe("implement");
-      expect(result.nextRunStatus).toBe("implementing");
+      expect(result.nextStage).toBeUndefined();
+      expect(result.nextRunStatus).toBe("awaiting_understanding_approval");
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.implementationContext?.relevantFiles).toEqual([

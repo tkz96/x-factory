@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "origin": "failed-assert",
+  "expected": "declared consequence",
+  "observed": "route changed to '/runs/58de0ffe', expected '/runs/'",
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "testid",
+        "value": "e431",
+        "source": {
+          "file": "src/frontend/components/modals/NewRunModal.tsx",
+          "line": 261,
+          "column": 14
+        }
+      },
+      "action": "click"
+    }
+  ],
+  "id": "1790575601025-click-911fcea2",
+  "createdAt": 1790575601025,
+  "seen": 1,
+  "lastSeenAt": 1790575601025
+}

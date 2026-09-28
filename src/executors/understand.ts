@@ -58,8 +58,8 @@ export class UnderstandExecutor implements StageExecutor {
 
     return {
       status: "success",
-      nextStage: "implement",
-      nextRunStatus: "implementing",
+      nextStage: undefined,
+      nextRunStatus: "awaiting_understanding_approval",
       output: {
         relevantFilesCount: implContext.relevantFiles.length,
         constraintsCount: implContext.constraints.length,

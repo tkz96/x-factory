@@ -15,6 +15,8 @@ import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCar
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
+import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { EventLogViewer } from "../src/frontend/components/runs/EventLogViewer.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
@@ -208,6 +210,11 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
 
     it("DocsSidebarNav exports functional component", () => {
       expect(typeof DocsSidebarNav).toBe("function");
+    });
+
+    it("ChatThread and EventLogViewer export functional components", () => {
+      expect(typeof ChatThread).toBe("function");
+      expect(typeof EventLogViewer).toBe("function");
     });
 
     it("EmptyStateCard renders loading, error, and empty states cleanly", () => {

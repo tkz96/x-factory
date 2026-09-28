@@ -46,6 +46,14 @@
   margin-right: 0.4rem;
 }
 
+.event-log .event.event-ralph,
+.event-item.event-ralph {
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+  padding-left: var(--space-2);
+  margin: 0.2rem 0;
+}
+
 @keyframes eventIn {
   from {
     opacity: 0;

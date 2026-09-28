@@ -573,3 +573,298 @@ export async function abandonRun(id: string): Promise<Run> {
 
   return tx();
 }
+
+/**
+ * Handle a chat message during an approval gate (understanding or plan).
+ * Records the user message and generates a contextual agent response
+ * based on the run's implementation context.
+ */
+export async function chatWithRun(
+  id: string,
+  message: string,
+): Promise<{ ok: boolean; message: string }> {
+  const runRepo = getRunRepository();
+  const eventRepo = getEventRepository();
+
+  const run = runRepo.get(id);
+  if (!run) throw new Error(`Run ${id} not found.`);
+
+  if (
+    run.status !== "awaiting_understanding_approval" &&
+    run.status !== "awaiting_plan_approval"
+  ) {
+    throw new Error(
+      `Chat is only available during approval gates. Current status: "${run.status}".`,
+    );
+  }
+
+  // Record user message as an event
+  eventRepo.appendEvent(id, "chat_user", { text: message });
+
+  // Build contextual response from implementation context
+  const ctx = run.implementationContext
+    ? ((typeof run.implementationContext === "string"
+        ? JSON.parse(run.implementationContext)
+        : run.implementationContext) as {
+        relevantFiles?: string[];
+        constraints?: string[];
+        risks?: string[];
+        architecturalNotes?: string;
+        existingBehavior?: string;
+      })
+    : null;
+
+  let agentResponse: string;
+
+  if (!ctx) {
+    agentResponse =
+      "I don't have detailed context for this run yet. You can approve to proceed or restart the understanding phase.";
+  } else {
+    // Simple keyword-based contextual responses
+    const lowerMsg = message.toLowerCase();
+
+    if (
+      lowerMsg.includes("file") ||
+      lowerMsg.includes("which") ||
+      lowerMsg.includes("where")
+    ) {
+      const files = ctx.relevantFiles ?? [];
+      agentResponse =
+        files.length > 0
+          ? `Based on my analysis, the most relevant files are:\n\n${files.map((f: string) => `• ${f}`).join("\n")}\n\nWould you like me to explain why any specific file is included?`
+          : "I haven't identified specific files yet. This would be determined during a deeper analysis.";
+    } else if (
+      lowerMsg.includes("risk") ||
+      lowerMsg.includes("concern") ||
+      lowerMsg.includes("worry")
+    ) {
+      const risks = ctx.risks ?? [];
+      agentResponse =
+        risks.length > 0
+          ? `Here are the risks I've identified:\n\n${risks.map((r: string) => `⚠️ ${r}`).join("\n")}\n\nDo you want me to elaborate on any of these?`
+          : "I haven't identified significant risks for this change. The implementation appears straightforward.";
+    } else if (
+      lowerMsg.includes("constraint") ||
+      lowerMsg.includes("pattern") ||
+      lowerMsg.includes("rule")
+    ) {
+      const constraints = ctx.constraints ?? [];
+      agentResponse =
+        constraints.length > 0
+          ? `The constraints I'm respecting:\n\n${constraints.map((c: string) => `• ${c}`).join("\n")}\n\nAnything you'd like to add or modify?`
+          : "No specific constraints beyond the standard codebase patterns.";
+    } else if (
+      lowerMsg.includes("architecture") ||
+      lowerMsg.includes("design") ||
+      lowerMsg.includes("approach")
+    ) {
+      agentResponse = ctx.architecturalNotes
+        ? `Here's my architectural understanding:\n\n${ctx.architecturalNotes}\n\nDoes this align with your vision?`
+        : "I'll determine the architectural approach during the planning phase based on the codebase patterns.";
+    } else if (
+      lowerMsg.includes("existing") ||
+      lowerMsg.includes("current") ||
+      lowerMsg.includes("behavior")
+    ) {
+      agentResponse = ctx.existingBehavior
+        ? `Current behavior:\n\n${ctx.existingBehavior}\n\nWould you like me to preserve or change any of this?`
+        : "I'll analyze the existing behavior more closely during implementation.";
+    } else {
+      agentResponse = `That's a great question. Based on my analysis of ${ctx.relevantFiles?.length ?? 0} relevant files and ${ctx.constraints?.length ?? 0} constraints, here's what I think:\n\nThe ticket requirements should be achievable within the current architecture. I've accounted for ${ctx.risks?.length ?? 0} potential risk${(ctx.risks?.length ?? 0) === 1 ? "" : "s"}.\n\nIs there a specific aspect you'd like me to dig deeper into — files, risks, constraints, or the overall approach?`;
+    }
+  }
+
+  // Record agent response as an event
+  eventRepo.appendEvent(id, "chat_agent", { text: agentResponse });
+
+  return { ok: true, message: agentResponse };
+}
+
+export async function handleTransition(
+  id: string,
+  action: "approve" | "restart" | "abort" | "requeue",
+  _payload?: unknown,
+): Promise<RunRecord> {
+  if (action === "abort") {
+    return stopRun(id);
+  }
+
+  const db = getDb();
+  const runRepo = getRunRepository();
+  const jobRepo = getJobRepository();
+  const commandRepo = getCommandRepository();
+  const eventRepo = getEventRepository();
+
+  const tx = db.transaction((): RunRecord => {
+    const run = runRepo.get(id, db);
+    if (!run) throw new Error(`Run ${id} not found.`);
+
+    if (action === "approve") {
+      if (run.status === "awaiting_understanding_approval") {
+        const transitionResult = runRepo.transitionRun(
+          id,
+          run.status,
+          "planning",
+          {
+            event: {
+              type: "status",
+              payload: {
+                status: "planning",
+                text: "Understanding approved, starting planning.",
+              },
+            },
+          },
+          db,
+        );
+        jobRepo.createJob({ runId: id, stage: "plan" }, db);
+        return transitionResult.run;
+      }
+      if (run.status === "awaiting_plan_approval") {
+        const transitionResult = runRepo.transitionRun(
+          id,
+          run.status,
+          "executing",
+          {
+            event: {
+              type: "status",
+              payload: {
+                status: "executing",
+                text: "Plan approved, moving to execution.",
+              },
+            },
+          },
+          db,
+        );
+        jobRepo.createJob({ runId: id, stage: "execute" }, db);
+        return transitionResult.run;
+      }
+      if (run.status === "awaiting_review") {
+        const transitionResult = runRepo.transitionRun(
+          id,
+          run.status,
+          "ready_for_pr",
+          {
+            event: {
+              type: "status",
+              payload: {
+                status: "ready_for_pr",
+                text: "Review approved, ready for Pull Request.",
+              },
+            },
+          },
+          db,
+        );
+        return transitionResult.run;
+      }
+      throw new Error(`Cannot approve in status "${run.status}".`);
+    }
+
+    if (action === "restart") {
+      if (
+        run.status === "awaiting_understanding_approval" ||
+        run.status === "awaiting_plan_approval"
+      ) {
+        // Cancel any active jobs first
+        const activeJob = jobRepo.findActiveJobForRun(id, db);
+        if (activeJob) {
+          cancelAndStopActiveJob(
+            jobRepo,
+            commandRepo,
+            id,
+            activeJob,
+            "Run restarted.",
+            db,
+          );
+        }
+
+        const transitionResult = runRepo.transitionRun(
+          id,
+          run.status,
+          "understanding",
+          {
+            event: {
+              type: "status",
+              payload: {
+                status: "understanding",
+                text: "Restarting plan context...",
+              },
+            },
+          },
+          db,
+        );
+        jobRepo.createJob({ runId: id, stage: "understand" }, db);
+        return transitionResult.run;
+      }
+      throw new Error(`Cannot restart in status "${run.status}".`);
+    }
+
+    if (action === "requeue") {
+      if (run.status === "awaiting_review") {
+        const payload = _payload as
+          | { failingTasks?: string[]; chatNotes?: string }
+          | undefined;
+        let requeueText = "Requeueing run for fresh plan...";
+        if (payload?.chatNotes) {
+          requeueText += ` Notes: ${payload.chatNotes}`;
+        }
+
+        let newPlan = run.plan;
+        if (payload?.failingTasks && payload.failingTasks.length > 0) {
+          newPlan += "\n\n### Requeue Feedback:\n";
+          newPlan += payload.failingTasks
+            .map((t) => `- Failed: ${t}`)
+            .join("\n");
+        }
+        if (payload?.chatNotes) {
+          newPlan += `\nNotes: ${payload.chatNotes}\n`;
+        }
+
+        runRepo.update(
+          id,
+          { plan: newPlan, expectedRevision: run.revision },
+          db,
+        );
+
+        const transitionResult = runRepo.transitionRun(
+          id,
+          run.status,
+          "understanding",
+          {
+            event: {
+              type: "status",
+              payload: {
+                status: "understanding",
+                text: requeueText,
+              },
+            },
+          },
+          db,
+        );
+
+        if (
+          payload?.chatNotes ||
+          (payload?.failingTasks && payload.failingTasks.length > 0)
+        ) {
+          eventRepo.appendEvent(
+            id,
+            "user_feedback",
+            {
+              failingTasks: payload.failingTasks,
+              notes: payload.chatNotes,
+              text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
+            },
+            db,
+          );
+        }
+
+        jobRepo.createJob({ runId: id, stage: "understand" }, db);
+        return transitionResult.run;
+      }
+      throw new Error(`Cannot requeue in status "${run.status}".`);
+    }
+
+    throw new Error(`Unknown transition action: ${action}`);
+  });
+
+  return tx();
+}

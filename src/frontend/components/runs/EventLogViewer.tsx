@@ -54,10 +54,28 @@ function renderPiChunk(
 ) {
   const role = typeof payload.role === "string" ? payload.role : "";
   const text = typeof payload.text === "string" ? payload.text : "";
-  const rolePrefix = role === "reviewer" ? "[Reviewer] " : "";
+  const rolePrefix =
+    role === "reviewer" ? "[Reviewer] " : role === "ralph" ? "[Ralph] " : "";
   return (
     <div key={item.id} className="event-item">
       {rolePrefix}
+      {text}
+    </div>
+  );
+}
+
+function renderRalphProgress(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text = typeof payload.text === "string" ? payload.text : "";
+  const iteration = payload.iteration;
+  const task = payload.task;
+  return (
+    <div key={item.id} className="event-item event-ralph">
+      <span className="event-prefix">⚙ [Ralph] </span>
+      {iteration ? <span>[Iter #{String(iteration)}] </span> : null}
+      {task ? <strong>{String(task)}: </strong> : null}
       {text}
     </div>
   );
@@ -194,6 +212,8 @@ function renderEventItem(item: CanonicalWireEvent) {
       return renderError(item, payload);
     case "steer":
       return renderSteer(item, payload);
+    case "ralph_progress":
+      return renderRalphProgress(item, payload);
     case "info":
       return renderInfo(item, payload);
     default:

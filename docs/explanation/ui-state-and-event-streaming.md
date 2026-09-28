@@ -7,25 +7,7 @@ This document explains the architecture for real-time telemetry streaming, event
 X-Factory streams execution telemetry from background workers to browser clients through Server-Sent Events (SSE).
 The architecture decouples the event producer (the worker) from event consumers (browser clients) through an in-memory event bus and a durable database table.
 
-```text
-┌──────────────────────┐          ┌──────────────────────┐
-│    Worker Process    │          │     API Process      │
-│   (src/worker.ts)    │          │   (src/server.ts)    │
-└──────────┬───────────┘          └──────────▲───────────┘
-           │                                 │
-           │ 1. Emit Telemetry Event         │ 3. Dispatch Event
-           ▼                                 │
-┌────────────────────────────────────────────┴───────────┐
-│               RunEventBus (src/events.ts)              │
-│               In-Memory Event Dispatcher               │
-└──────────────────────┬─────────────────────────────────┘
-                       │
-                       │ 2. Persist Event
-                       ▼
-┌────────────────────────────────────────────────────────┐
-│               SQLite events Table                      │
-│               (Durable Historical Record)              │
-└────────────────────────────────────────────────────────┘
+```diagram:event-distribution
 ```
 
 ## Why Server-Sent Events Instead of WebSockets

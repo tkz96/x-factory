@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "origin": "failed-assert",
+  "expected": "declared consequence",
+  "observed": "no element matched {\"text\":\"Work Item Queue\"} — that text IS on the page, split across the children of generic — no single element's own text carries it, so no text query can match it; retry as {\"kind\":\"text\",\"contains\":\"Work Item Queue\",\"scope\":\"e214\",\"self\":true}",
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "testid",
+        "value": "e3",
+        "source": {
+          "file": "src/frontend/components/AppShell.tsx",
+          "line": 172,
+          "column": 6
+        }
+      },
+      "action": "click"
+    }
+  ],
+  "id": "1790575414519-click-4802b267",
+  "createdAt": 1790575414519,
+  "seen": 1,
+  "lastSeenAt": 1790575414519
+}

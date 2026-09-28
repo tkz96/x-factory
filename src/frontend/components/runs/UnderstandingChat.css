@@ -1,0 +1,296 @@
+/* src/frontend/components/runs/UnderstandingChat.css — iMessage-style chat for understanding approval gate */
+
+.understanding-chat {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: 100%;
+  min-height: 420px;
+}
+
+/* ── Chat Header ────────────────────────────────────────────────────── */
+
+.understanding-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  flex-shrink: 0;
+}
+
+.understanding-chat-header-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.understanding-chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.understanding-chat-avatar svg {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+}
+
+.understanding-chat-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.understanding-chat-meta strong {
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.understanding-chat-meta span {
+  font-size: var(--text-caption-2);
+  color: var(--text-dim);
+}
+
+.understanding-chat-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── Message Thread ─────────────────────────────────────────────────── */
+
+.understanding-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  scroll-behavior: smooth;
+}
+
+/* ── Individual Message Bubbles ─────────────────────────────────────── */
+
+.imsg-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 82%;
+  animation: imsgBubbleIn 220ms var(--spring);
+}
+
+.imsg-row.imsg-agent {
+  align-self: flex-start;
+}
+
+.imsg-row.imsg-user {
+  align-self: flex-end;
+}
+
+.imsg-bubble {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 18px;
+  font-size: var(--text-footnote);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.imsg-agent .imsg-bubble {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.imsg-user .imsg-bubble {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-bottom-right-radius: 4px;
+}
+
+.imsg-timestamp {
+  font-size: var(--text-caption-2);
+  color: var(--text-dim);
+  margin-top: 2px;
+  padding: 0 var(--space-1);
+}
+
+.imsg-agent .imsg-timestamp {
+  text-align: left;
+}
+
+.imsg-user .imsg-timestamp {
+  text-align: right;
+}
+
+/* ── Context Card (agent's initial analysis) ────────────────────────── */
+
+.imsg-context-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}
+
+.imsg-context-card h5 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.imsg-context-card ul {
+  margin: 0;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.imsg-context-card li {
+  margin-bottom: 2px;
+}
+
+.imsg-context-card code {
+  background: var(--bg-code);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-2);
+}
+
+/* ── Typing Indicator ───────────────────────────────────────────────── */
+
+.imsg-typing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  align-self: flex-start;
+}
+
+.imsg-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  animation: imsgTyping 1.4s infinite ease-in-out;
+}
+
+.imsg-typing-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.imsg-typing-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+/* ── Chat Input ─────────────────────────────────────────────────────── */
+
+.understanding-chat-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  flex-shrink: 0;
+}
+
+.understanding-chat-input input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-footnote);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.understanding-chat-input input:focus {
+  border-color: var(--border-focus);
+}
+
+.understanding-chat-input input::placeholder {
+  color: var(--text-dim);
+}
+
+.imsg-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.imsg-send-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: scale(1.05);
+}
+
+.imsg-send-btn:active:not(:disabled) {
+  background: var(--accent-pressed);
+  transform: scale(0.95);
+}
+
+.imsg-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.imsg-send-btn svg {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────── */
+
+@keyframes imsgBubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes imsgTyping {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

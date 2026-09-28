@@ -155,6 +155,8 @@ export class JobRepository {
             'queued',
             'preparing',
             'understanding',
+            'planning',
+            'executing',
             'implementing',
             'verifying',
             'reviewing'

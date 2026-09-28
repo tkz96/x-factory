@@ -1,0 +1,292 @@
+/* src/frontend/components/diagrams/FlowDiagramViewer.css */
+
+/* Import core React Flow styles */
+@import "@xyflow/react/dist/style.css";
+
+/* ── Diagram Container ─────────────────────────────────────────────── */
+.flow-diagram-container {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin: var(--space-4) 0;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  position: relative;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.flow-diagram-container:hover {
+  border-color: var(--border);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07);
+}
+
+/* ── Diagram Header ────────────────────────────────────────────────── */
+.flow-diagram-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.95rem;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.flow-diagram-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.flow-diagram-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.flow-diagram-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+}
+
+.flow-diagram-title {
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.flow-diagram-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* ── Diagram Actions & Toolbar ─────────────────────────────────────── */
+.flow-diagram-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.flow-btn-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.flow-btn-tool:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .flow-btn-tool:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.flow-btn-tool svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Canvas Area ───────────────────────────────────────────────────── */
+.flow-canvas-wrapper {
+  width: 100%;
+  height: 480px;
+  position: relative;
+  background: var(--bg-card);
+}
+
+/* Ensure React Flow elements conform to Apple HIG */
+.react-flow__background {
+  opacity: 0.4;
+}
+
+.flow-canvas-wrapper .react-flow__controls,
+.flow-modal-canvas .react-flow__controls {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.flow-canvas-wrapper .react-flow__controls-button,
+.flow-modal-canvas .react-flow__controls-button {
+  background: transparent;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text);
+  fill: var(--text);
+}
+
+.flow-canvas-wrapper .react-flow__controls-button:hover,
+.flow-modal-canvas .react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .flow-canvas-wrapper .react-flow__controls-button:hover,
+[data-theme="light"] .flow-modal-canvas .react-flow__controls-button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── Sleek Floating Glass MiniMap ──────────────────────────────────── */
+.flow-canvas-wrapper .react-flow__minimap,
+.flow-modal-canvas .react-flow__minimap {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
+  margin: var(--space-3);
+}
+
+[data-theme="dark"] .flow-canvas-wrapper .react-flow__minimap,
+[data-theme="dark"] .flow-modal-canvas .react-flow__minimap {
+  background: rgba(26, 29, 36, 0.85);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.flow-canvas-wrapper .react-flow__minimap-mask,
+.flow-modal-canvas .react-flow__minimap-mask {
+  fill: rgba(0, 122, 255, 0.08);
+  stroke: var(--accent);
+  stroke-width: 1px;
+}
+
+@media (max-width: 768px) {
+  .flow-canvas-wrapper .react-flow__minimap,
+  .flow-modal-canvas .react-flow__minimap {
+    display: none;
+  }
+}
+
+/* ── Modal Overlay for Expanded Detailed View ──────────────────────── */
+.flow-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: flowModalFadeIn 180ms ease-out forwards;
+}
+
+@keyframes flowModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.flow-modal-container {
+  width: 92vw;
+  height: 88vh;
+  max-width: 1400px;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: flowModalScaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes flowModalScaleIn {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.flow-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.flow-modal-canvas {
+  width: 100%;
+  flex: 1;
+  position: relative;
+  background: var(--bg-card);
+}
+
+.flow-modal-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.flow-modal-close-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .flow-modal-close-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── Fallback Container (SSR or Missing Definition) ─────────────────── */
+.flow-fallback-card {
+  padding: var(--space-4);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin: var(--space-3) 0;
+}
+
+.flow-fallback-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.flow-fallback-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
