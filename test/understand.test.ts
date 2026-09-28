@@ -69,6 +69,24 @@ describe("Understand Stage (src/understand.ts)", () => {
       assert.equal(constraints[2], 'Test command must pass: "bun test"');
       assert.ok(!constraints.some((c) => c.includes("undefined")));
     });
+
+    it("filters out empty or noise acceptance criteria like '-'", () => {
+      const ticket: Ticket = {
+        ...baseTicket,
+        acceptanceCriteria: [
+          "Valid criterion",
+          "-",
+          "  ",
+          "–",
+          "Another valid",
+        ],
+      };
+      const constraints = buildProjectConstraints(baseProject, ticket);
+      assert.equal(constraints[0], "Criterion: Valid criterion");
+      assert.equal(constraints[1], "Criterion: Another valid");
+      assert.equal(constraints[2], 'Test command must pass: "bun test"');
+      assert.equal(constraints.length, 3);
+    });
   });
 
   describe("extractMentionedFiles", () => {

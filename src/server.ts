@@ -1,6 +1,11 @@
 // src/server.ts — Native Bun HTTP server entry point and lifecycle management (XFM-71).
 
+import { bootstrapLLMEnv } from "./env-bootstrap.js";
+
+bootstrapLLMEnv();
+
 import type { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProjects } from "./config.js";
@@ -107,6 +112,28 @@ export function startServer(
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());
+        }
+        if (
+          process.env.NODE_ENV !== "production" &&
+          !existsSync(path.join(publicDir, "index.html"))
+        ) {
+          const relPath = url.pathname === "/" ? "" : url.pathname.slice(1);
+          const staticCandidate = path.normalize(path.join(publicDir, relPath));
+          if (!relPath || !existsSync(staticCandidate)) {
+            const ext = path.extname(url.pathname);
+            if (!ext || ext === ".html") {
+              return new Response(
+                `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=http://localhost:5173${url.pathname}"><title>Redirecting…</title></head><body><p>Redirecting to <a href="http://localhost:5173${url.pathname}">Vite Dev Server</a>…</p></body></html>`,
+                {
+                  status: 302,
+                  headers: {
+                    Location: `http://localhost:5173${url.pathname}`,
+                    "Content-Type": "text/html; charset=utf-8",
+                  },
+                },
+              );
+            }
+          }
         }
         return await serveStatic(url.pathname, publicDir);
       } finally {

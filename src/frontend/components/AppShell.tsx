@@ -12,7 +12,13 @@ import {
   ProjectProvider,
   useCurrentProject,
 } from "../context/ProjectContext.js";
-import { useReadiness, useRuns, useTickets } from "../hooks/useQueries.js";
+import {
+  useReadiness,
+  useRun,
+  useRuns,
+  useStopRun,
+  useTickets,
+} from "../hooks/useQueries.js";
 import { useTheme } from "../hooks/useTheme.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
@@ -313,6 +319,9 @@ interface AppShellHeaderProps {
     | undefined;
   onToggleTheme: () => void;
   onOpenNewRun: () => void;
+  activeRunId: string | undefined;
+  onStopRun: () => void;
+  stopPending: boolean;
 }
 
 function AppShellHeader({
@@ -322,6 +331,9 @@ function AppShellHeader({
   docBreadcrumb,
   onToggleTheme,
   onOpenNewRun,
+  activeRunId,
+  onStopRun,
+  stopPending,
 }: AppShellHeaderProps) {
   return (
     <header id="content-toolbar" className="toolbar">
@@ -361,19 +373,33 @@ function AppShellHeader({
           className="theme-toggle mobile-only"
           onToggle={onToggleTheme}
         />
-        {!isDocs && (
-          <button
-            id="btn-open-new-run"
-            className="btn-primary btn-sm"
-            type="button"
-            onClick={onOpenNewRun}
-          >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-plus" />
-            </svg>
-            <span>New Run</span>
-          </button>
-        )}
+        {!isDocs &&
+          (activeRunId ? (
+            <button
+              id="btn-stop"
+              className="btn-danger btn-sm"
+              type="button"
+              onClick={onStopRun}
+              disabled={stopPending}
+            >
+              <svg className="icon icon-sm" aria-hidden="true">
+                <use href="/assets/icons/sprite.svg#icon-square" />
+              </svg>
+              <span>{stopPending ? "Stopping…" : "Stop Run"}</span>
+            </button>
+          ) : (
+            <button
+              id="btn-open-new-run"
+              className="btn-primary btn-sm"
+              type="button"
+              onClick={onOpenNewRun}
+            >
+              <svg className="icon icon-sm" aria-hidden="true">
+                <use href="/assets/icons/sprite.svg#icon-plus" />
+              </svg>
+              <span>New Run</span>
+            </button>
+          ))}
       </div>
     </header>
   );
@@ -450,6 +476,26 @@ function AppShellContent() {
   } = useCurrentProject();
   const { openNewRunModal } = useModal();
   const { toggleTheme } = useTheme();
+  const stopRunMutation = useStopRun();
+
+  const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
+  const runId = runIdMatch ? runIdMatch[1] : undefined;
+  const { data: runData } = useRun(runId);
+
+  const isActiveRun =
+    runData != null &&
+    runData.status !== "pr_created" &&
+    runData.status !== "failed" &&
+    runData.status !== "stopped" &&
+    runData.status !== "recovery_required" &&
+    runData.status !== "ready_for_pr";
+  const activeRunId = isActiveRun ? runData.id : undefined;
+
+  const handleStopRun = () => {
+    if (!activeRunId) return;
+    if (!confirm("Are you sure you want to stop this run?")) return;
+    stopRunMutation.mutate(activeRunId);
+  };
 
   const { data: runs = [] } = useRuns();
   const { data: tickets = [] } = useTickets(selectedProjectId);
@@ -464,7 +510,16 @@ function AppShellContent() {
 
   const queueCount = tickets.length;
   const isDocs = location.pathname.startsWith("/docs");
-  const { title, subtitle } = getActiveTitle(location.pathname);
+  const { title: genericTitle, subtitle: genericSubtitle } = getActiveTitle(
+    location.pathname,
+  );
+
+  const title = runData
+    ? `#${runData.ticket?.id || runData.id} — ${runData.ticket?.title || "Task"}`
+    : genericTitle;
+  const subtitle = runData
+    ? `${runData.project?.name} · ${runData.branch}`
+    : genericSubtitle;
 
   const [searchParams] = useSearchParams();
   const docCategory = searchParams.get("cat") || "tutorials";
@@ -486,6 +541,8 @@ function AppShellContent() {
       }
     : undefined;
 
+  const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
+
   return (
     <div id="app-shell" className="app-shell">
       <AppShellSidebar
@@ -500,7 +557,10 @@ function AppShellContent() {
         onToggleTheme={toggleTheme}
       />
 
-      <main id="app-main" className="main-content">
+      <main
+        id="app-main"
+        className={`main-content ${isRunDetail ? "main-content-locked" : ""}`}
+      >
         <AppShellHeader
           isDocs={isDocs}
           title={title}
@@ -508,9 +568,15 @@ function AppShellContent() {
           docBreadcrumb={docBreadcrumb}
           onToggleTheme={toggleTheme}
           onOpenNewRun={openNewRunModal}
+          activeRunId={activeRunId}
+          onStopRun={handleStopRun}
+          stopPending={stopRunMutation.isPending}
         />
 
-        <div id="viewport-container" className="viewport-container">
+        <div
+          id="viewport-container"
+          className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
+        >
           <Outlet />
         </div>
       </main>

@@ -11,3 +11,4 @@ graphify-out/
 *.db-shm
 *.db-wal
 .scratch/
+config/projects.json

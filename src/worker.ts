@@ -1,5 +1,9 @@
 // src/worker.ts — Independent Bun background worker process for durable job execution and stage orchestration.
 
+import { bootstrapLLMEnv } from "./env-bootstrap.js";
+
+bootstrapLLMEnv();
+
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import os from "node:os";

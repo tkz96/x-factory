@@ -1,0 +1,24 @@
+{
+  "projects": [
+    {
+      "id": "my-app",
+      "name": "My Application",
+      "issueTracker": {
+        "provider": "github",
+        "connectionId": "github",
+        "github": {
+          "repo": "owner/repo-name"
+        }
+      },
+      "repositories": [
+        {
+          "id": "my-app",
+          "name": "My Application",
+          "path": "/absolute/path/to/your/repo",
+          "defaultBranch": "main",
+          "role": "backend"
+        }
+      ]
+    }
+  ]
+}

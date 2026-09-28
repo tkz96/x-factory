@@ -31,12 +31,12 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.equal(server.isShuttingDown(), false);
     assert.equal(server.getInFlightCount(), 0);
   });
-  it("serves static index.html on root path GET /", async () => {
-    const res = await fetch(`${baseUrl}/`);
-    assert.equal(res.status, 200);
-    assert.ok(res.headers.get("Content-Type")?.includes("text/html"));
+  it("redirects root path GET / to Vite dev server in development mode", async () => {
+    const res = await fetch(`${baseUrl}/`, { redirect: "manual" });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get("Location"), "http://localhost:5173/");
     const text = await res.text();
-    assert.ok(text.includes("<title>X-Factory</title>"));
+    assert.ok(text.includes("Vite Dev Server"));
   });
 
   it("serves static CSS on GET /styles.css", async () => {

@@ -2,7 +2,7 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -174,6 +174,19 @@ describe("Project Configuration & Migration", () => {
       const afterDelete = await loadProjects(configPath);
       assert.equal(afterDelete.length, 1);
       assert.equal(afterDelete[0]?.id, "second-proj");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("auto-bootstraps empty projects array if config file does not exist", async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), "xf-bootstrap-test-"));
+    const configPath = path.join(tempDir, "subdir", "projects.json");
+    try {
+      const projects = await loadProjects(configPath);
+      assert.deepEqual(projects, []);
+      const onDisk = await readFile(configPath, "utf-8");
+      assert.deepEqual(JSON.parse(onDisk), { projects: [] });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

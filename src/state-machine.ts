@@ -28,6 +28,7 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
   executing: ["awaiting_review", "failed", "stopped", "recovery_required"],
   awaiting_review: [
     "ready_for_pr",
+    "planning",
     "understanding",
     "failed",
     "stopped",

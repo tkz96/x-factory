@@ -99,88 +99,32 @@ flowchart LR
 
 ## Quickstart
 
-### 1. Prerequisites
+### Prerequisites
 
-- **Bun** ≥ 1.2.3
+- **Bun** ≥ 1.4.0 ([install](https://bun.sh))
 - **Git CLI**
-- **GitHub CLI** (`gh`) authenticated (`gh auth login`) or **Azure DevOps CLI**
-- **Model Credentials**: `ANTHROPIC_API_KEY` set in your environment (default: Claude 3.7 Sonnet)
+- **LLM API Key**: An API key from Anthropic, Google (Gemini), or OpenAI
 
-### 2. Installation
+### Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/tkz96/x-factory.git
 cd x-factory
-
-# Install dependencies
 bun install
-```
-
-### 3. Configure Target Projects
-
-Configure target repositories in `config/projects.json`:
-
-```json
-{
-  "projects": [
-    {
-      "id": "my-app",
-      "name": "My Application",
-      "repositoryPath": "/absolute/path/to/my-app",
-      "defaultBranch": "main",
-      "testCommand": "bun test",
-      "typecheckCommand": "bun run typecheck",
-      "lintCommand": "bun run lint"
-    }
-  ]
-}
-```
-
-### 4. Start the Engine
-
-X-Factory uses a multi-process runtime consisting of an **API Server** and a **Background Worker**. You can run in **Production Mode** (pre-bundled UI served directly from port 3777) or **Development Mode** (Vite on port 5173 with instant Hot Module Replacement).
-
-#### Option A: Production Mode (Standalone on Port 3777)
-
-In production mode, the API server directly serves the pre-bundled React 19 single-page application from `dist/public/`. This is the recommended mode for everyday workflow runs.
-
-```bash
-# 1. Build the production bundle into dist/public/
-bun run build
-
-# 2. Terminal 1: Start the API server in production mode (port 3777)
-bun run start:production
-# (Equivalent to: NODE_ENV=production bun src/server.ts)
-
-# 3. Terminal 2: Start the background worker process
-bun run worker
-```
-
-👉 Open **[http://localhost:3777](http://localhost:3777)** in your browser.
-
----
-
-#### Option B: Development Mode (With Vite Hot Module Replacement on Port 5173)
-
-When developing or modifying React components, start the Vite development server. Vite compiles TypeScript/JSX on the fly with instant Hot Module Replacement (HMR) and automatically proxies all `/api` and `/reference` calls to port 3777:
-
-```bash
-# 1. Terminal 1: Start the backend API server with watch mode (port 3777)
+cp .env.example .env   # Add your LLM_API_KEY
 bun run dev
-
-# 2. Terminal 2: Start the Vite frontend dev server (port 5173)
-bun run dev:frontend
-
-# 3. Terminal 3: Start the background worker process
-bun run worker
 ```
 
-👉 Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+Open **http://localhost:5173** in your browser.
 
-> [!NOTE]
-> **Why port 3777 shows a blank screen in development mode:**
-> In raw development mode (`bun run dev`), the server serves the uncompiled HTML template containing `<script type="module" src="/src/frontend/main.tsx"></script>`. Browsers cannot execute raw `.tsx` files directly. To view the UI in development, always open the Vite server at **`http://localhost:5173`**, or run `bun run build && bun run start:production` to view the compiled bundle on port **`3777`**.
+On first launch, X-Factory starts with an empty project list. Click **"Onboard Project"** to connect your first Git repository, then click **"+ New Run"** to trigger your first autonomous workflow.
+
+> **Production Mode**: To run without Vite HMR on a single port:
+> ```bash
+> bun run build
+> bun run start:production  # Serves on http://localhost:3777
+> bun run worker            # In a second terminal
+> ```
 
 ---
 

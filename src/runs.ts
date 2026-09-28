@@ -2,6 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
 import { CommandRepository } from "./db/command-repository.js";
 import { createDatabase } from "./db/connection.js";
 import { type EventRecord, EventRepository } from "./db/event-repository.js";
@@ -18,6 +19,7 @@ import {
 } from "./db/stage-attempt-repository.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
+import { loadSettings } from "./settings.js";
 import { STOPPABLE_RUN_STATUSES } from "./state-machine.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
@@ -591,7 +593,8 @@ export async function chatWithRun(
 
   if (
     run.status !== "awaiting_understanding_approval" &&
-    run.status !== "awaiting_plan_approval"
+    run.status !== "awaiting_plan_approval" &&
+    run.status !== "awaiting_review"
   ) {
     throw new Error(
       `Chat is only available during approval gates. Current status: "${run.status}".`,
@@ -616,62 +619,49 @@ export async function chatWithRun(
 
   let agentResponse: string;
 
-  if (!ctx) {
-    agentResponse =
-      "I don't have detailed context for this run yet. You can approve to proceed or restart the understanding phase.";
-  } else {
-    // Simple keyword-based contextual responses
-    const lowerMsg = message.toLowerCase();
+  try {
+    const settings = await loadSettings();
+    const providerId = settings.models?.sessionA?.provider || "anthropic";
+    const modelId = settings.models?.sessionA?.model || "claude-3-7-sonnet";
 
-    if (
-      lowerMsg.includes("file") ||
-      lowerMsg.includes("which") ||
-      lowerMsg.includes("where")
-    ) {
-      const files = ctx.relevantFiles ?? [];
-      agentResponse =
-        files.length > 0
-          ? `Based on my analysis, the most relevant files are:\n\n${files.map((f: string) => `• ${f}`).join("\n")}\n\nWould you like me to explain why any specific file is included?`
-          : "I haven't identified specific files yet. This would be determined during a deeper analysis.";
-    } else if (
-      lowerMsg.includes("risk") ||
-      lowerMsg.includes("concern") ||
-      lowerMsg.includes("worry")
-    ) {
-      const risks = ctx.risks ?? [];
-      agentResponse =
-        risks.length > 0
-          ? `Here are the risks I've identified:\n\n${risks.map((r: string) => `⚠️ ${r}`).join("\n")}\n\nDo you want me to elaborate on any of these?`
-          : "I haven't identified significant risks for this change. The implementation appears straightforward.";
-    } else if (
-      lowerMsg.includes("constraint") ||
-      lowerMsg.includes("pattern") ||
-      lowerMsg.includes("rule")
-    ) {
-      const constraints = ctx.constraints ?? [];
-      agentResponse =
-        constraints.length > 0
-          ? `The constraints I'm respecting:\n\n${constraints.map((c: string) => `• ${c}`).join("\n")}\n\nAnything you'd like to add or modify?`
-          : "No specific constraints beyond the standard codebase patterns.";
-    } else if (
-      lowerMsg.includes("architecture") ||
-      lowerMsg.includes("design") ||
-      lowerMsg.includes("approach")
-    ) {
-      agentResponse = ctx.architecturalNotes
-        ? `Here's my architectural understanding:\n\n${ctx.architecturalNotes}\n\nDoes this align with your vision?`
-        : "I'll determine the architectural approach during the planning phase based on the codebase patterns.";
-    } else if (
-      lowerMsg.includes("existing") ||
-      lowerMsg.includes("current") ||
-      lowerMsg.includes("behavior")
-    ) {
-      agentResponse = ctx.existingBehavior
-        ? `Current behavior:\n\n${ctx.existingBehavior}\n\nWould you like me to preserve or change any of this?`
-        : "I'll analyze the existing behavior more closely during implementation.";
-    } else {
-      agentResponse = `That's a great question. Based on my analysis of ${ctx.relevantFiles?.length ?? 0} relevant files and ${ctx.constraints?.length ?? 0} constraints, here's what I think:\n\nThe ticket requirements should be achievable within the current architecture. I've accounted for ${ctx.risks?.length ?? 0} potential risk${(ctx.risks?.length ?? 0) === 1 ? "" : "s"}.\n\nIs there a specific aspect you'd like me to dig deeper into — files, risks, constraints, or the overall approach?`;
+    const events = eventRepo.getEventsForRun(id);
+    const messages: ChatMessageInput[] = [];
+
+    const phase =
+      run.status === "awaiting_understanding_approval"
+        ? "Understanding/Analysis phase"
+        : run.status === "awaiting_plan_approval"
+          ? "Planning phase"
+          : "Review phase";
+
+    messages.push({
+      role: "system",
+      content: `You are a senior software engineer grilling the user about their ticket implementation. You follow Matt Pocock's "grill-me" skill persona: be relentless, question their plan, look for edge cases, ask hard questions, ensure they have fully thought through constraints.
+We are currently in the ${phase}. Keep your responses concise (like an iMessage chat).
+Context:\n${JSON.stringify(ctx, null, 2)}`,
+    });
+
+    for (const e of events) {
+      const payload = e.payload as { text?: string } | null | undefined;
+      const text = payload?.text;
+      if (text) {
+        if (e.type === "chat_user") {
+          messages.push({ role: "user", content: text });
+        } else if (e.type === "chat_agent") {
+          messages.push({ role: "assistant", content: text });
+        }
+      }
     }
+
+    agentResponse = await chatWithModel(providerId, modelId, messages);
+    if (!agentResponse?.trim()) {
+      agentResponse =
+        "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+    }
+  } catch (err) {
+    console.error("LLM Chat Error:", err);
+    agentResponse =
+      "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
   }
 
   // Record agent response as an event
@@ -828,12 +818,12 @@ export async function handleTransition(
         const transitionResult = runRepo.transitionRun(
           id,
           run.status,
-          "understanding",
+          "planning",
           {
             event: {
               type: "status",
               payload: {
-                status: "understanding",
+                status: "planning",
                 text: requeueText,
               },
             },
@@ -857,7 +847,7 @@ export async function handleTransition(
           );
         }
 
-        jobRepo.createJob({ runId: id, stage: "understand" }, db);
+        jobRepo.createJob({ runId: id, stage: "plan" }, db);
         return transitionResult.run;
       }
       throw new Error(`Cannot requeue in status "${run.status}".`);

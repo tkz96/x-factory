@@ -301,6 +301,24 @@
   margin: 0 auto;
 }
 
+@media (min-width: 961px) {
+  .main-content.main-content-locked {
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .viewport-container.viewport-container-locked {
+    padding: 0;
+    max-width: none;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
 /* ── Area Views ──────────────────────────────────────────────────────── */
 
 .area-view {

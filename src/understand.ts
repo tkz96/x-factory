@@ -86,15 +86,21 @@ export function buildProjectConstraints(
   project: Project,
   ticket: Ticket,
 ): string[] {
-  const constraints = ticket.acceptanceCriteria.map((ac) => `Criterion: ${ac}`);
-  constraints.push(`Test command must pass: "${project.testCommand}"`);
-  if (project.typecheckCommand) {
+  const constraints = (ticket.acceptanceCriteria || [])
+    .map((ac) => ac.trim())
+    .filter((ac) => ac && ac !== "-" && ac !== "–" && ac !== "—")
+    .map((ac) => `Criterion: ${ac}`);
+
+  if (project.testCommand?.trim()) {
+    constraints.push(`Test command must pass: "${project.testCommand.trim()}"`);
+  }
+  if (project.typecheckCommand?.trim()) {
     constraints.push(
-      `Typecheck command must pass: "${project.typecheckCommand}"`,
+      `Typecheck command must pass: "${project.typecheckCommand.trim()}"`,
     );
   }
-  if (project.lintCommand) {
-    constraints.push(`Lint command must pass: "${project.lintCommand}"`);
+  if (project.lintCommand?.trim()) {
+    constraints.push(`Lint command must pass: "${project.lintCommand.trim()}"`);
   }
   return constraints;
 }
