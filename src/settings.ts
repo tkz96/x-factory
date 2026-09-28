@@ -19,6 +19,8 @@ export interface FactorySettings {
   models?: ModelConfig | undefined;
 }
 
+// Default settings applied on initial startup. Provider and model pairs
+// are fully user-configurable via the Settings UI or environment variables.
 const DEFAULT_SETTINGS: FactorySettings = {
   theme: "dark",
   models: {

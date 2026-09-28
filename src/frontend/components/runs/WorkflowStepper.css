@@ -1,101 +1,203 @@
-/* ── Workflow Stepper ────────────────────────────────────────────────── */
+/* ── Workflow Stepper (Apple HIG Compact Progress Strip) ─────────────── */
 
 .workflow-stepper {
-  padding: 1.2rem 1.4rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  user-select: none;
+  background: transparent;
+  padding: 0;
+  border: none;
 }
 
-.stepper-track {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0.6rem;
+.stepper-progress-track {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  right: 24px;
+  height: 2px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.stepper-track-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--border-subtle);
+  border-radius: 1px;
+}
+
+.stepper-track-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--green);
+  border-radius: 1px;
+  transition: width 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stepper-track-fill.progress-step-0 {
+  width: 0%;
+}
+.stepper-track-fill.progress-step-1 {
+  width: 20%;
+}
+.stepper-track-fill.progress-step-2 {
+  width: 40%;
+}
+.stepper-track-fill.progress-step-3 {
+  width: 60%;
+}
+.stepper-track-fill.progress-step-4 {
+  width: 80%;
+}
+.stepper-track-fill.progress-step-5 {
+  width: 100%;
+}
+
+.stepper-steps-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   position: relative;
+  z-index: 2;
+  width: 100%;
 }
 
 .step {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  padding: 0.6rem 0.3rem;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border);
-  transition: all var(--transition);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-sm);
 }
 
 .step-dot {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-caption-1);
   font-weight: 700;
-  background: var(--border);
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
-  transition: all var(--transition);
+  background: var(--bg-tertiary);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.step-info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  white-space: nowrap;
 }
 
 .step-label {
-  font-size: 0.8rem;
+  font-size: var(--text-footnote);
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 0.2rem;
+  letter-spacing: -0.01em;
+  transition: color 220ms ease;
 }
 
 .step-evidence {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-caption-2);
   color: var(--text-dim);
-  line-height: 1.25;
-  word-break: break-word;
-  max-width: 100%;
+  display: none;
 }
+
+@keyframes stepPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(10, 132, 255, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(10, 132, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(10, 132, 255, 0);
+  }
+}
+
+/* ── Step States (HIG Compliant) ─────────────────────────────────────── */
 
 .step.active {
   border-color: var(--accent);
-  background: rgba(88, 166, 255, 0.08);
+  background: var(--bg-card);
+  box-shadow: 0 0 14px rgba(10, 132, 255, 0.28);
 }
 
 .step.active .step-dot {
   background: var(--accent);
-  color: var(--text-on-dot);
-  box-shadow: 0 0 10px rgba(88, 166, 255, 0.5);
+  border-color: var(--accent);
+  color: #ffffff;
+  animation: stepPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .step.active .step-label {
   color: var(--accent);
 }
 
+.step.active .step-evidence {
+  display: inline-block;
+  color: var(--text-muted);
+}
+
 .step.completed {
-  border-color: rgba(63, 185, 80, 0.4);
-  background: rgba(63, 185, 80, 0.06);
+  border-color: rgba(52, 199, 89, 0.35);
+  background: var(--bg-card);
 }
 
 .step.completed .step-dot {
   background: var(--green);
-  color: var(--text-on-dot);
+  border-color: var(--green);
+  color: #ffffff;
 }
 
 .step.completed .step-label {
-  color: var(--green);
+  color: var(--text);
+}
+
+.step.pending {
+  opacity: 0.72;
 }
 
 .step.failed {
-  border-color: rgba(248, 81, 73, 0.5);
-  background: rgba(248, 81, 73, 0.08);
+  border-color: var(--red);
+  background: var(--bg-card);
 }
 
 .step.failed .step-dot {
   background: var(--red);
-  color: var(--text-on-accent);
+  border-color: var(--red);
+  color: #ffffff;
 }
 
 .step.failed .step-label {
   color: var(--red);
+}
+
+@media (max-width: 960px) {
+  .step-info .step-evidence {
+    display: none;
+  }
+  .step {
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-1);
+  }
 }

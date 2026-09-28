@@ -77,10 +77,10 @@ export function useRunSSE(run: Run | undefined | null) {
                 },
                 queryClient,
               );
-              queryClient.invalidateQueries({ queryKey: ["run", runId] });
             } else {
               patchRunCache(runId, { status: payload.status }, queryClient);
             }
+            queryClient.invalidateQueries({ queryKey: ["run", runId] });
           }
         } else if (wireEvent.type === "verification") {
           const payload = wireEvent.payload as {

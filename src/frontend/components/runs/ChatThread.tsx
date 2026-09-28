@@ -15,6 +15,22 @@ function getPayloadRecord(item: CanonicalWireEvent): Record<string, unknown> {
   ) as Record<string, unknown>;
 }
 
+function formatFullTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    const seconds = pad(d.getSeconds());
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return iso;
+  }
+}
+
 function renderStatusBubble(
   item: CanonicalWireEvent,
   payload: Record<string, unknown>,
@@ -28,6 +44,9 @@ function renderStatusBubble(
         <span>[{status.toUpperCase()}]</span>
       </div>
       <div className="chat-bubble-body">{text}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -50,6 +69,9 @@ function renderEvidenceBubble(
         {stage && <strong>{stage.toUpperCase()}</strong>}
       </div>
       <div className="chat-bubble-body">✓ {summary}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -69,6 +91,9 @@ function renderRalphBubble(
         {task ? <span>· {String(task)}</span> : null}
       </div>
       <div className="chat-bubble-body">{text}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -95,6 +120,9 @@ function renderPiChunkBubble(
         <span className="chat-bubble-badge">{badgeLabel}</span>
       </div>
       <div className="chat-bubble-body">{text}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -112,9 +140,56 @@ function renderSteerBubble(
   return (
     <div key={item.id} className="chat-bubble bubble-steer">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">You</span>
+        <span className="chat-bubble-badge">Steer Action</span>
       </div>
       <div className="chat-bubble-body">{text}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
+    </div>
+  );
+}
+
+function renderChatUserBubble(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text = typeof payload.text === "string" ? payload.text : "";
+  const snippet = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  return (
+    <div key={item.id} className="chat-bubble bubble-chat-user">
+      <div className="chat-bubble-header">
+        <span className="chat-bubble-badge">Chat</span>
+        <strong>User Message Sent</strong>
+      </div>
+      <div className="chat-bubble-body">
+        {snippet || "User sent message in chat"}
+      </div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
+    </div>
+  );
+}
+
+function renderChatAgentBubble(
+  item: CanonicalWireEvent,
+  payload: Record<string, unknown>,
+) {
+  const text = typeof payload.text === "string" ? payload.text : "";
+  const snippet = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  return (
+    <div key={item.id} className="chat-bubble bubble-chat-agent">
+      <div className="chat-bubble-header">
+        <span className="chat-bubble-badge">Chat</span>
+        <strong>Agent Response Received</strong>
+      </div>
+      <div className="chat-bubble-body">
+        {snippet || "Agent replied in chat"}
+      </div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -137,6 +212,9 @@ function renderErrorBubble(
         <span className="chat-bubble-badge">Error</span>
       </div>
       <div className="chat-bubble-body">{text}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -155,6 +233,9 @@ function renderDefaultBubble(
   return (
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-body">{text}</div>
+      <time className="chat-bubble-time" dateTime={item.timestamp}>
+        {formatFullTimestamp(item.timestamp)}
+      </time>
     </div>
   );
 }
@@ -173,6 +254,10 @@ function renderBubble(item: CanonicalWireEvent) {
       return renderPiChunkBubble(item, payload);
     case "steer":
       return renderSteerBubble(item, payload);
+    case "chat_user":
+      return renderChatUserBubble(item, payload);
+    case "chat_agent":
+      return renderChatAgentBubble(item, payload);
     case "error":
       return renderErrorBubble(item, payload);
     default:

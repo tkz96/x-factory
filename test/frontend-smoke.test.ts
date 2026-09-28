@@ -16,7 +16,9 @@ import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
 import { EventLogViewer } from "../src/frontend/components/runs/EventLogViewer.js";
+import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
@@ -217,6 +219,27 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof EventLogViewer).toBe("function");
     });
 
+    it("RunChat and DiffModal export functional components and render cleanly", () => {
+      expect(typeof RunChat).toBe("function");
+      expect(typeof DiffModal).toBe("function");
+
+      const diffModalHtml = renderToString(
+        React.createElement(DiffModal, {
+          isOpen: true,
+          file: "src/sample.ts",
+          added: 5,
+          removed: 2,
+          hunks: "@@ -1,2 +1,5 @@\n+line1\n-line2\n line3",
+          onClose: () => {},
+        }),
+      );
+      expect(diffModalHtml).toContain("src/sample.ts");
+      expect(diffModalHtml).toContain("+5");
+      expect(diffModalHtml).toContain("−2");
+      expect(diffModalHtml).toContain("diff-row-add");
+      expect(diffModalHtml).toContain("diff-row-del");
+    });
+
     it("EmptyStateCard renders loading, error, and empty states cleanly", () => {
       const emptyHtml = renderToString(
         React.createElement(EmptyStateCard, {
@@ -310,8 +333,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("workflow-stepper");
       expect(html).toContain("Prepare");
       expect(html).toContain("Understand");
-      expect(html).toContain("Implement");
-      expect(html).toContain("Verify");
+      expect(html).toContain("Plan");
+      expect(html).toContain("Execute");
       expect(html).toContain("Review");
       expect(html).toContain("Deliver");
     });

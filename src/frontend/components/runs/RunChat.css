@@ -1,6 +1,6 @@
-/* src/frontend/components/runs/UnderstandingChat.css — iMessage-style chat for understanding approval gate */
+/* src/frontend/components/runs/RunChat.css — Universal conversation view for run execution */
 
-.understanding-chat {
+.run-chat {
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
@@ -8,12 +8,13 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   height: 100%;
-  min-height: 420px;
+  min-height: 0;
+  flex: 1;
 }
 
 /* ── Chat Header ────────────────────────────────────────────────────── */
 
-.understanding-chat-header {
+.run-chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -25,13 +26,13 @@
   flex-shrink: 0;
 }
 
-.understanding-chat-header-info {
+.run-chat-header-info {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.understanding-chat-avatar {
+.run-chat-avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -42,36 +43,36 @@
   flex-shrink: 0;
 }
 
-.understanding-chat-avatar svg {
+.run-chat-avatar svg {
   width: 16px;
   height: 16px;
   color: #fff;
 }
 
-.understanding-chat-meta {
+.run-chat-meta {
   display: flex;
   flex-direction: column;
 }
 
-.understanding-chat-meta strong {
+.run-chat-meta strong {
   font-size: var(--text-footnote);
   font-weight: 600;
   color: var(--text);
 }
 
-.understanding-chat-meta span {
+.run-chat-meta span {
   font-size: var(--text-caption-2);
   color: var(--text-dim);
 }
 
-.understanding-chat-actions {
+.run-chat-actions {
   display: flex;
   gap: var(--space-2);
 }
 
 /* ── Message Thread ─────────────────────────────────────────────────── */
 
-.understanding-chat-messages {
+.run-chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-4);
@@ -79,6 +80,42 @@
   flex-direction: column;
   gap: var(--space-3);
   scroll-behavior: smooth;
+}
+
+/* ── System Dividers ─────────────────────────────────────────────────── */
+
+.imsg-system-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+  width: 100%;
+  animation: imsgBubbleIn 200ms var(--spring);
+}
+
+.imsg-system-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.imsg-system-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--text-caption-2);
+  color: var(--text-muted);
+  max-width: 85%;
+  text-align: center;
+}
+
+.imsg-system-time {
+  font-size: 0.68rem;
+  color: var(--text-dim);
 }
 
 /* ── Individual Message Bubbles ─────────────────────────────────────── */
@@ -174,6 +211,35 @@
   font-size: var(--text-caption-2);
 }
 
+/* ── Gate Breathing Room Banner ─────────────────────────────────────── */
+
+.runchat-gate-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--space-3);
+}
+
+.runchat-gate-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.runchat-gate-text strong {
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.runchat-gate-text span {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}
+
 /* ── Typing Indicator ───────────────────────────────────────────────── */
 
 .imsg-typing {
@@ -202,7 +268,7 @@
 
 /* ── Chat Input ─────────────────────────────────────────────────────── */
 
-.understanding-chat-input {
+.run-chat-input {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -212,7 +278,7 @@
   flex-shrink: 0;
 }
 
-.understanding-chat-input input {
+.run-chat-input input {
   flex: 1;
   background: var(--bg-input);
   border: 1px solid var(--border);
@@ -224,11 +290,18 @@
   transition: border-color var(--transition-fast);
 }
 
-.understanding-chat-input input:focus {
+.run-chat-input input:focus:not(:disabled) {
   border-color: var(--border-focus);
 }
 
-.understanding-chat-input input::placeholder {
+.run-chat-input input:disabled {
+  background: var(--bg-secondary);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.run-chat-input input::placeholder {
   color: var(--text-dim);
 }
 
@@ -293,4 +366,156 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* ── Diff Summary in Chat ───────────────────────────────────────────── */
+
+.imsg-diff-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  width: 100%;
+}
+
+.diff-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.diff-file-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-focus);
+}
+
+.diff-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.diff-file-icon {
+  font-size: var(--text-callout);
+  flex-shrink: 0;
+}
+
+.diff-file-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-1);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diff-file-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-2);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.diff-file-add {
+  color: var(--green);
+}
+
+.diff-file-remove {
+  color: var(--red);
+}
+
+/* ── Inline Chat Actions ────────────────────────────────────────────── */
+
+.imsg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.imsg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption-1);
+  font-weight: 550;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.imsg-action-primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.imsg-action-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.imsg-action-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.imsg-action-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.imsg-action-danger {
+  background: transparent;
+  color: var(--red);
+  border-color: var(--border);
+}
+
+.imsg-action-danger:hover:not(:disabled) {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: var(--red);
+}
+
+.imsg-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.imsg-action-resolved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.25rem 0;
+}
+
+.imsg-action-resolved-check {
+  color: var(--green);
+}
+
+/* ── Inline Rework Prompt ───────────────────────────────────────────── */
+
+.imsg-rework-box {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
 }

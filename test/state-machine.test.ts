@@ -19,6 +19,12 @@ describe("Workflow State Machine", () => {
     assert.ok(canTransition("verifying", "implementing"));
   });
 
+  it("allows review gate transitions: awaiting_review → planning, ready_for_pr", () => {
+    assert.ok(canTransition("awaiting_review", "planning"));
+    assert.ok(canTransition("awaiting_review", "ready_for_pr"));
+    assert.ok(canTransition("awaiting_review", "understanding"));
+  });
+
   it("allows failure transitions from active states", () => {
     assert.ok(canTransition("preparing", "failed"));
     assert.ok(canTransition("understanding", "failed"));

@@ -1,104 +1,106 @@
 # Tutorial: Run Your First Agent Workflow
 
-This tutorial teaches you how to start X-Factory and execute your first workflow run.
-You will start the API server, start the worker process, and trigger a run.
+This tutorial guides you through launching X-Factory, onboarding a Git repository, and executing your first autonomous software engineering workflow run.
+
 You will complete this tutorial in approximately 5 minutes.
+
+---
 
 ## Prerequisites
 
-Before you start, make sure that you have these tools installed:
-- Bun runtime (version 1.2.3 or newer)
-- Git command line interface
+Before you start, make sure that you have:
+- **Bun** runtime (version 1.4.0 or newer) — [install instructions](https://bun.sh)
+- **Git** CLI installed and configured
+- An **LLM API key** from Anthropic, Google (Gemini), or OpenAI
 
-## Step 1: Install Dependencies
+---
 
-Open a terminal.
-Run this command to install the project dependencies:
+## Step 1: Install & Configure
+
+Clone the repository and install dependencies:
 
 ```bash
+git clone https://github.com/tkz96/x-factory.git
+cd x-factory
 bun install
 ```
 
-Wait until the installation process completes.
-
-## Step 2: Start the API Server
-
-Start the API server in your first terminal:
+Copy the environment template and add your API key:
 
 ```bash
-bun run start
+cp .env.example .env
 ```
 
-Verify that the terminal displays this message:
-
-```text
-X-Factory server running at http://localhost:3777
-```
-
-Keep this terminal window open.
-
-## Step 3: Start the Background Worker
-
-Open a second terminal window.
-Navigate to your project root directory.
-Start the background worker process:
+Open `.env` in your editor and paste your API key:
 
 ```bash
-bun run worker
+LLM_API_KEY=your-api-key-here
 ```
 
-Verify that the worker terminal displays these messages:
+> **Tip**: X-Factory automatically detects the model provider based on key prefix (`sk-ant-*` for Anthropic Claude, `AIzaSy*` for Google Gemini, `sk-*` for OpenAI).
 
-```text
-Database verified at schema version 6.
-Worker started. Polling for pending jobs...
-```
+---
 
-Keep this second terminal window open.
+## Step 2: Launch X-Factory
 
-## Step 4: Open the User Interface
-
-Open your web browser.
-Navigate to this URL:
-
-```text
-http://localhost:3777
-```
-
-Verify that the browser displays the X-Factory user interface.
-
-## Step 5: Submit a New Run
-
-Submit a test run from a third terminal:
+Start the unified development environment:
 
 ```bash
-curl -X POST http://localhost:3777/api/runs \
-  -H "Content-Type: application/json" \
-  -d '{"projectId": "converso", "ticketId": "DEMO-1", "ticketTitle": "First Run", "plan": "Verify basic execution"}'
+bun run dev
 ```
 
-Verify that the terminal displays a JSON response with status `201 Created`:
+This single command launches:
+1. **API Server** on port 3777
+2. **Background Worker** process polling SQLite for pipeline tasks
+3. **Vite Frontend** with instant Hot Module Replacement on port 5173
 
-```json
-{
-  "id": "<runId>",
-  "status": "preparing",
-  "ticket": { "id": "DEMO-1", "title": "First Run" },
-  "revision": 1
-}
+Open your browser to:
+
+```text
+http://localhost:5173
 ```
 
-## Step 6: Observe the Workflow Execution
+---
 
-Return to the second terminal window.
-Observe the worker terminal output.
-The worker claims the job and executes the workflow stages:
-1. The worker claims the job.
-2. The worker updates the run status to preparing.
-3. The worker advances the run through the workflow stages.
+## Step 3: Onboard Your First Project
 
-Open your browser window at `http://localhost:3777`.
-Observe the live status card for your run.
-The status card updates in real time.
+On first launch, X-Factory starts with an empty workspace.
 
-You have successfully completed your first X-Factory run.
+1. Navigate to **Projects** in the left sidebar (or click the **"Onboard Project"** button on the home view).
+2. Click **"+ Onboard Project"** to open the wizard modal.
+3. Provide a project name and select or input the absolute path to a local Git repository on your machine.
+4. Optionally configure your issue tracker connection (GitHub Issues, Azure DevOps, or Jira).
+5. Click **"Save Project"**.
+
+Your project card will appear in the workspace with repository readiness indicators.
+
+---
+
+## Step 4: Create and Observe a Run
+
+1. In the top navigation bar, click **"+ New Run"**.
+2. Select your newly onboarded project and primary repository.
+3. Enter a ticket title and prompt or task description (for example: `"Add health check endpoint and test"`).
+4. Click **"Start Run"**.
+
+X-Factory redirects you directly to the live Run Detail view. Watch the pipeline advance across sequential stages in real time:
+
+- **Prepare**: Allocates an isolated, ephemeral Git worktree outside your active branch.
+- **Understand**: Pi agent reads the codebase, gathers context, and forms an execution plan.
+- **Implement**: Agent edits files, applies changes, and executes self-repair against compiler errors.
+- **Verify**: Executes test suites and deterministic verification checks inside the worktree.
+- **Review**: A fresh, independent read-only reviewer evaluates the diff against acceptance criteria.
+- **Deliver**: Presents the final human-in-the-loop checkpoint.
+
+---
+
+## Step 5: Review & Deliver
+
+When the run transitions to `ready_for_pr` (the Deliver stage):
+
+1. Inspect the interactive **Diff Viewer** modal to examine every modified line.
+2. Review the automated verification logs, test results, and reviewer scorecards.
+3. Chat with the agent directly in the Run Detail view if you want to request revisions or steer further changes.
+4. Click **"Approve & Create PR"** to commit, push the branch, and open a pull request on your remote repository.
+
+You have successfully run your first autonomous engineering workflow with X-Factory!

@@ -72,6 +72,26 @@
   color: var(--red);
 }
 
+.chat-bubble.bubble-chat-user {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text-primary);
+}
+
+.chat-bubble.bubble-chat-agent {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.chat-bubble-time {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: var(--space-1);
+  display: block;
+}
+
 .chat-bubble-header {
   display: flex;
   align-items: center;

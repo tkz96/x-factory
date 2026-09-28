@@ -32,6 +32,17 @@ export async function loadProjects(
   try {
     raw = await readFile(configPath, "utf-8");
   } catch (err: unknown) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
+      const empty = `${JSON.stringify({ projects: [] }, null, 2)}\n`;
+      await mkdir(path.dirname(configPath), { recursive: true });
+      await writeFile(configPath, empty, "utf-8");
+      return [];
+    }
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(
       `Failed to read configuration file at ${configPath}: ${message}`,

@@ -231,3 +231,108 @@ export function registerActiveSession(
 export function getActiveSession(runId: string): PiAgentSession | undefined {
   return activeSessions.get(runId);
 }
+
+export interface ChatMessageInput {
+  role: "system" | "user" | "assistant";
+  content?: string;
+  timestamp?: number;
+}
+
+export async function chatWithModel(
+  provider: string,
+  modelName: string,
+  messages: ChatMessageInput[],
+): Promise<string> {
+  const modelRuntime = await ModelRuntime.create();
+  const model = modelRuntime.getModel(provider, modelName);
+  if (!model) {
+    throw new Error(`Model not found: ${provider} ${modelName}`);
+  }
+
+  let systemPrompt: string | undefined;
+  const contextMessages: Record<string, unknown>[] = [];
+
+  for (const m of messages) {
+    if (m.role === "system") {
+      systemPrompt =
+        (systemPrompt ? `${systemPrompt}\n\n` : "") + (m.content || "");
+    } else if (m.role === "user") {
+      contextMessages.push({
+        role: "user",
+        content: m.content || "",
+        timestamp: m.timestamp || Date.now(),
+      });
+    } else if (m.role === "assistant") {
+      contextMessages.push({
+        role: "assistant",
+        content: [{ type: "text", text: String(m.content || "") }],
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "stop",
+        timestamp: m.timestamp || Date.now(),
+      });
+    }
+  }
+
+  type ContextPayload = {
+    messages: unknown[];
+    systemPrompt?: string;
+  };
+
+  const context: ContextPayload = {
+    messages: contextMessages,
+  };
+  if (systemPrompt) {
+    context.systemPrompt = systemPrompt;
+  }
+
+  type SimpleOptionsPayload = {
+    reasoning?: "low" | "medium" | "high";
+  };
+  const options: SimpleOptionsPayload = {};
+  if (model.reasoning) {
+    options.reasoning = "low";
+  }
+
+  const response = await modelRuntime.completeSimple(
+    model,
+    context as unknown as Parameters<typeof modelRuntime.completeSimple>[1],
+    options as unknown as Parameters<typeof modelRuntime.completeSimple>[2],
+  );
+  if (response.stopReason === "error") {
+    throw new Error(response.errorMessage || "Model request returned error");
+  }
+
+  let text = "";
+  if (typeof response.content === "string") {
+    text = response.content;
+  } else if (Array.isArray(response.content)) {
+    type ContentBlock = { type?: string; text?: string };
+    text = (response.content as ContentBlock[])
+      .filter(
+        (b): b is ContentBlock & { text: string } =>
+          b.type === "text" && typeof b.text === "string",
+      )
+      .map((b) => b.text)
+      .join("\n");
+  } else if (response.content) {
+    text = String(response.content);
+  }
+
+  if (!text?.trim()) {
+    throw new Error(
+      response.errorMessage || "Model returned empty response text",
+    );
+  }
+
+  return text.trim();
+}
