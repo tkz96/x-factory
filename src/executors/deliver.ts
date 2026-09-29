@@ -96,6 +96,9 @@ export interface DeliverDependencies {
   findExistingAzurePullRequest: typeof findExistingAzurePullRequest;
   createPullRequest: typeof createPullRequest;
   findExistingPullRequest: typeof findExistingPullRequest;
+  getHeadMessage: typeof git.getHeadMessage;
+  getHeadSha: typeof git.getHeadSha;
+  getRemoteBranchSha: typeof git.getRemoteBranchSha;
 }
 
 export const defaultDeliverDeps: DeliverDependencies = {
@@ -106,6 +109,9 @@ export const defaultDeliverDeps: DeliverDependencies = {
   findExistingAzurePullRequest,
   createPullRequest,
   findExistingPullRequest,
+  getHeadMessage: git.getHeadMessage,
+  getHeadSha: git.getHeadSha,
+  getRemoteBranchSha: git.getRemoteBranchSha,
 };
 
 export class DeliverExecutor implements StageExecutor {
@@ -148,6 +154,20 @@ export class DeliverExecutor implements StageExecutor {
           result: { committed: true, message: commitMsg },
         };
       },
+      async () => {
+        try {
+          const headMsg = await this.deps.getHeadMessage(worktree);
+          if (headMsg === commitMsg) {
+            return {
+              externalId: commitMsg,
+              result: { committed: true, message: commitMsg },
+            };
+          }
+        } catch {
+          // If repo is empty or command fails, we can't reconcile
+        }
+        return null;
+      },
     );
 
     // 2. Idempotent Git remote push (XFM-32, XFM-33)
@@ -164,6 +184,25 @@ export class DeliverExecutor implements StageExecutor {
           externalId: run.branch,
           result: { pushed: true, branch: run.branch },
         };
+      },
+      async () => {
+        try {
+          const headSha = await this.deps.getHeadSha(worktree);
+          const remoteSha = await this.deps.getRemoteBranchSha(
+            worktree,
+            "origin",
+            run.branch,
+          );
+          if (headSha === remoteSha) {
+            return {
+              externalId: run.branch,
+              result: { pushed: true, branch: run.branch },
+            };
+          }
+        } catch {
+          // Fall back to fn
+        }
+        return null;
       },
     );
 
@@ -199,6 +238,55 @@ export class DeliverExecutor implements StageExecutor {
           externalId: createdPr.url,
           result: createdPr,
         };
+      },
+      async () => {
+        // Because createPullRequestWithFallback internally checks for existing PRs
+        // using the same findExisting dependencies, we can just run it without side effects
+        // if the PR already exists. However, if it DOESN'T exist, it will create one.
+        // We only want to recover, not mutate. So we call the finders directly.
+        if (
+          project.issueTracker?.provider === "azure" &&
+          project.issueTracker?.azure
+        ) {
+          const { orgUrl, project: azureProject } = project.issueTracker.azure;
+          const primaryRepo =
+            project.repositories?.find(
+              (r) => r.path === project.repositoryPath,
+            ) || project.repositories?.[0];
+          const repoName =
+            primaryRepo?.name || primaryRepo?.id || project.name || project.id;
+
+          const existing = await this.deps.findExistingAzurePullRequest({
+            orgUrl,
+            project: azureProject,
+            repoIdOrName: repoName,
+            sourceBranch: run.branch,
+          });
+          if (existing) {
+            const recovered: PullRequest = {
+              url: existing.trim(),
+              branch: run.branch,
+              baseBranch: project.defaultBranch,
+              title: prTitle,
+            };
+            return { externalId: recovered.url, result: recovered };
+          }
+        } else {
+          const existing = await this.deps.findExistingPullRequest(
+            worktree,
+            run.branch,
+          );
+          if (existing) {
+            const recovered: PullRequest = {
+              url: existing.trim(),
+              branch: run.branch,
+              baseBranch: project.defaultBranch,
+              title: prTitle,
+            };
+            return { externalId: recovered.url, result: recovered };
+          }
+        }
+        return null;
       },
     );
 

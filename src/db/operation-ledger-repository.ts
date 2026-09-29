@@ -171,6 +171,10 @@ export class OperationLedgerRepository {
     runId: string,
     operation: string,
     fn: () => Promise<{ externalId?: string | null | undefined; result: T }>,
+    reconcile?: () => Promise<{
+      externalId?: string | null | undefined;
+      result: T;
+    } | null>,
   ): Promise<T> {
     const existing = this.getOperation(runId, operation);
     if (
@@ -179,6 +183,19 @@ export class OperationLedgerRepository {
       existing.result !== null
     ) {
       return existing.result as T;
+    }
+
+    if (existing && existing.status === "pending" && reconcile) {
+      const recovered = await reconcile();
+      if (recovered) {
+        this.recordCompleted(
+          runId,
+          operation,
+          recovered.externalId,
+          recovered.result,
+        );
+        return recovered.result;
+      }
     }
 
     this.recordPending(runId, operation);

@@ -258,3 +258,35 @@ export async function getHeadSha(repoPath: string): Promise<string> {
   });
   return result.stdout.trim();
 }
+
+/**
+ * Get current commit message at HEAD.
+ */
+export async function getHeadMessage(repoPath: string): Promise<string> {
+  const result = await execStrict("git", ["log", "-1", "--pretty=format:%B"], {
+    cwd: repoPath,
+  });
+  return result.stdout.trim();
+}
+
+/**
+ * Get remote branch SHA if it exists.
+ */
+export async function getRemoteBranchSha(
+  repoPath: string,
+  remote: string,
+  branchName: string,
+): Promise<string | null> {
+  const result = await execCommand(
+    "git",
+    ["ls-remote", remote, `refs/heads/${branchName}`],
+    {
+      cwd: repoPath,
+    },
+  );
+  if (result.exitCode !== 0 || !result.stdout.trim()) {
+    return null;
+  }
+  const parts = result.stdout.trim().split(/\s+/);
+  return parts[0] || null;
+}

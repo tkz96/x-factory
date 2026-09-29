@@ -146,4 +146,45 @@ describe("Operation Ledger Repository (XFM-33)", () => {
     expect(recoveredOp?.status).toBe("completed");
     expect(recoveredOp?.error).toBeNull();
   });
+
+  it("executeWithLedger uses reconcile function to recover from pending state without calling mutation", async () => {
+    const { ledgerRepo, run } = setupDb();
+
+    // 1. Manually set state to 'pending' to simulate a crash before completion
+    ledgerRepo.recordPending(run.id, "crash_api");
+
+    let externalCalls = 0;
+    const executeMutation = async () => {
+      externalCalls++;
+      return {
+        externalId: "should-not-happen",
+        result: { value: "mutation" },
+      };
+    };
+
+    let reconcileCalls = 0;
+    const reconcileFn = async () => {
+      reconcileCalls++;
+      return {
+        externalId: "recovered-id",
+        result: { value: "recovered" },
+      };
+    };
+
+    const result = await ledgerRepo.executeWithLedger(
+      run.id,
+      "crash_api",
+      executeMutation,
+      reconcileFn,
+    );
+
+    expect(externalCalls).toBe(0); // Should not execute the mutation again!
+    expect(reconcileCalls).toBe(1); // Should call the reconcile function
+    expect(result).toEqual({ value: "recovered" });
+
+    // Verify record in database updated to completed
+    const op = ledgerRepo.getOperation(run.id, "crash_api");
+    expect(op?.status).toBe("completed");
+    expect(op?.externalId).toBe("recovered-id");
+  });
 });

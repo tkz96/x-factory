@@ -396,4 +396,100 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       "https://github.com/org/repo/pull/99",
     );
   });
+
+  it("verifies DeliverExecutor reconciles pending Git commit, push, and PR without duplicate mutations", async () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+
+    const runRepo = new RunRepository(db);
+    const operationLedgerRepo = new OperationLedgerRepository(db);
+
+    const run = runRepo.create({
+      id: "run-deliver-pending",
+      projectId: "proj-pending",
+      projectName: "Project Pending",
+      ticket: {
+        id: "D-2",
+        title: "Deliver Pending Test",
+        acceptanceCriteria: [],
+      },
+      plan: "Plan",
+      branch: "factory/D-2",
+      status: "ready_for_pr",
+      artifactsDir: "/tmp/artifacts-d2",
+      worktreePath: "/tmp/worktrees-d2",
+    });
+
+    // Simulate crash after mutations but before ledger completion
+    operationLedgerRepo.recordPending(run.id, "git_commit");
+    operationLedgerRepo.recordPending(run.id, "git_push");
+    operationLedgerRepo.recordPending(run.id, "create_pr");
+
+    let commitCallCount = 0;
+    let pushCallCount = 0;
+    let prCallCount = 0;
+
+    const deliverExecutor = new DeliverExecutor({
+      recordBaseline: async () => ({
+        trackedFiles: new Set(),
+        untrackedFiles: new Set(),
+      }),
+      safeCommitAll: async () => {
+        commitCallCount++;
+      },
+      push: async () => {
+        pushCallCount++;
+      },
+      createPullRequest: async () => {
+        prCallCount++;
+        return "https://github.com/org/repo/pull/101";
+      },
+      // Mock the reconcile helpers to simulate that the external state already matches
+      getHeadMessage: async () => "[X-Factory] D-2: Deliver Pending Test",
+      getHeadSha: async () => "sha-12345",
+      getRemoteBranchSha: async () => "sha-12345",
+      findExistingPullRequest: async () =>
+        "https://github.com/org/repo/pull/101",
+    });
+
+    const commandRepo = new CommandRepository(db);
+    const cmd = commandRepo.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+      payload: {},
+      idempotencyKey: `deliver:${run.id}`,
+    });
+
+    const worker = new Worker({
+      workerId: "worker-deliver-reconcile",
+      db,
+      deliverExecutor,
+    });
+
+    const claimedCmds = commandRepo.claimPendingCommands(
+      "worker-deliver-reconcile",
+      10000,
+    );
+    expect(claimedCmds.length).toBe(1);
+
+    if (claimedCmds[0]) await worker.processCommand(claimedCmds[0]);
+
+    // All should be reconciled, so no actual mutations are called
+    expect(commitCallCount).toBe(0);
+    expect(pushCallCount).toBe(0);
+    expect(prCallCount).toBe(0);
+
+    const completedCmd = commandRepo.getCommand(cmd.id);
+    expect(completedCmd?.status).toBe("completed");
+
+    // Ledger should be updated to completed
+    const commitOp = operationLedgerRepo.getOperation(run.id, "git_commit");
+    expect(commitOp?.status).toBe("completed");
+
+    const pushOp = operationLedgerRepo.getOperation(run.id, "git_push");
+    expect(pushOp?.status).toBe("completed");
+
+    const prOp = operationLedgerRepo.getOperation(run.id, "create_pr");
+    expect(prOp?.status).toBe("completed");
+  });
 });
