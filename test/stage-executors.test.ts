@@ -261,6 +261,33 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(result.error).toContain("Deterministic verification is missing");
       expect(reviewRunCalled).toBe(false);
     });
+
+    it("passes the exact verification object unchanged to reviewRun", async () => {
+      const { context } = setupTestContext("review");
+
+      // Inject mockVerification directly to verify reference identity
+      context.run.verification = mockVerification;
+
+      let receivedVerification: unknown = null;
+
+      const executor = new ReviewExecutor({
+        loadSettings: async () => ({}),
+        reviewRun: async (args) => {
+          receivedVerification = args.verification;
+          return {
+            passed: true,
+            findings: [],
+            criteriaChecked: [],
+            summary: "Identity check passed",
+          };
+        },
+        writeFile: async () => {},
+      });
+
+      await executor.execute(context);
+
+      expect(receivedVerification).toBe(mockVerification);
+    });
   });
 
   describe("DeliverExecutor (XFM-28)", () => {
