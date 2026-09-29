@@ -69,7 +69,7 @@ export const DOC_CATALOG: DocCategory[] = [
         slug: "state-machine-matrix",
         title: "Workflow State Machine and Transition Contracts",
         description:
-          "State definitions, the 11×11 state transition matrix, transition triggers, and monotonic execution rules.",
+          "Canonical workflow states, transitions, stage mapping, checkpoints, recovery, and terminal conditions.",
         path: "docs/reference/state-machine-matrix.md",
       },
       {

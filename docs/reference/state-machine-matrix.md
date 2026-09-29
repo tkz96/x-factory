@@ -3,6 +3,39 @@
 This document defines the formal finite state machine for X-Factory workflow runs.
 It specifies permitted state transitions, transition invariants, and terminal conditions, updated for the 3-phase pipeline (Planning, Execution, Review).
 
+> The current runtime is not yet fully conformant with this contract. Runtime conformance is implemented by follow-up issues.
+
+## Terminology
+
+```text
+RunStatus = lifecycle/FSM state
+WorkflowStage = logical workflow stage
+Job = durable schedulable unit of work
+```
+
+Clarify that `execute` and `review` are workflow stages, while `verifying` is **not** a `WorkflowStage` or `RunStatus`. It is an internal activity of execution.
+
+## State to Stage/Job Mapping
+
+```text
+RunStatus                      WorkflowStage      Job / Activity
+---------------------------------------------------------------------------
+queued                         —                  queued
+preparing                      prepare            prepare job
+understanding                  understand         understand job
+awaiting_understanding_approval —                  human checkpoint
+planning                       plan               plan job
+awaiting_plan_approval         —                  human checkpoint
+executing                      execute            execute job
+executing                      review             automated review activity
+awaiting_review                —                  human checkpoint
+ready_for_pr                   deliver            delivery command/job
+pr_created                     —                  terminal
+recovery_required              depends            recovery/resume activity
+failed                         —                  terminal
+stopped                        —                  terminal
+```
+
 ## Workflow States
 
 The finite state machine governs each run through discrete, sequential execution states.

@@ -15,8 +15,9 @@ This document serves as the persistent domain glossary and architectural context
 | Term | Definition |
 | --- | --- |
 | **Run** | A top-level user-initiated task/workflow execution with a unique ID (`runId`), belonging to a `projectId`. Tracks stages, logs, events, and diffs. |
-| **Stage** | A distinct phase in the run lifecycle governed by the $13 \times 13$ Finite State Machine (`queued` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `awaiting_understanding_approval` $\rightarrow$ `planning` $\rightarrow$ `awaiting_plan_approval` $\rightarrow$ `executing` $\rightarrow$ `awaiting_review` $\rightarrow$ `ready_for_pr`, plus `pr_created`, `recovery_required`, `failed`, `stopped`). |
-| **Job** | A schedulable unit of work claimed and executed by worker processes. Operates with lease-based optimistic locking. |
+| **Stage** | A logical workflow stage executed by the worker (`prepare`, `understand`, `plan`, `execute`, `review`, `deliver`). A stage is not the same as an FSM `RunStatus`. |
+| **RunStatus** | The durable FSM state of a run. The canonical state machine is defined in `docs/reference/state-machine-matrix.md`. |
+| **Job** | A durable schedulable unit of work associated with a workflow stage. |
 | **Worker Process** | An independent background process (`src/worker.ts`) that polls SQLite, claims pending jobs, executes stages via isolated executors, and updates state. |
 | **API Process** | HTTP/SSE server (`src/server.ts`) handling client routing, settings, run creation, and persistence. Never executes heavy pipeline stages directly. |
 | **Pi Agent** | The autonomous coding agent engine executing codebase investigation, planning, and code synthesis within Git worktrees. |
