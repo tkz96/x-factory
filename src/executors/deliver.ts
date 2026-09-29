@@ -55,8 +55,8 @@ export async function createPullRequestWithFallback(
       repoIdOrName: repoName,
       sourceBranch: branch,
     });
-    if (existing) {
-      return existing;
+    if (existing && existing.url) {
+      return existing.url;
     }
 
     const azPrResult = await deps.createAzurePullRequest({
@@ -76,8 +76,8 @@ export async function createPullRequestWithFallback(
 
   // External PR Crash Recovery: check for existing PR first
   const existing = await deps.findExistingPullRequest(worktree, branch);
-  if (existing) {
-    return existing;
+  if (existing && existing.url) {
+    return existing.url;
   }
 
   return deps.createPullRequest(
@@ -98,6 +98,7 @@ export interface DeliverDependencies {
   findExistingPullRequest: typeof findExistingPullRequest;
   getHeadMessage: typeof git.getHeadMessage;
   getHeadSha: typeof git.getHeadSha;
+  getParentSha: typeof git.getParentSha;
   getRemoteBranchSha: typeof git.getRemoteBranchSha;
 }
 
@@ -111,6 +112,7 @@ export const defaultDeliverDeps: DeliverDependencies = {
   findExistingPullRequest,
   getHeadMessage: git.getHeadMessage,
   getHeadSha: git.getHeadSha,
+  getParentSha: git.getParentSha,
   getRemoteBranchSha: git.getRemoteBranchSha,
 };
 
@@ -154,19 +156,34 @@ export class DeliverExecutor implements StageExecutor {
           result: { committed: true, message: commitMsg },
         };
       },
-      async () => {
-        try {
-          const headMsg = await this.deps.getHeadMessage(worktree);
-          if (headMsg === commitMsg) {
-            return {
-              externalId: commitMsg,
-              result: { committed: true, message: commitMsg },
-            };
-          }
-        } catch {
-          // If repo is empty or command fails, we can't reconcile
+      async (metadata) => {
+        const preCommitSha = (metadata as { preCommitSha?: string | null })
+          ?.preCommitSha;
+        if (!preCommitSha) {
+          throw new Error(
+            "Cannot safely reconcile git_commit without preCommitSha metadata.",
+          );
         }
-        return null;
+
+        const headMsg = await this.deps.getHeadMessage(worktree);
+        const headSha = await this.deps.getHeadSha(worktree);
+        const parentSha = await this.deps.getParentSha(worktree);
+
+        if (
+          headMsg === commitMsg &&
+          parentSha === preCommitSha &&
+          headSha !== preCommitSha
+        ) {
+          return {
+            externalId: commitMsg,
+            result: { committed: true, message: commitMsg },
+          };
+        }
+        return null; // Not matching -> allow mutation
+      },
+      async () => {
+        const preCommitSha = await this.deps.getHeadSha(worktree);
+        return { preCommitSha };
       },
     );
 
@@ -186,21 +203,17 @@ export class DeliverExecutor implements StageExecutor {
         };
       },
       async () => {
-        try {
-          const headSha = await this.deps.getHeadSha(worktree);
-          const remoteSha = await this.deps.getRemoteBranchSha(
-            worktree,
-            "origin",
-            run.branch,
-          );
-          if (headSha === remoteSha) {
-            return {
-              externalId: run.branch,
-              result: { pushed: true, branch: run.branch },
-            };
-          }
-        } catch {
-          // Fall back to fn
+        const headSha = await this.deps.getHeadSha(worktree);
+        const remoteSha = await this.deps.getRemoteBranchSha(
+          worktree,
+          "origin",
+          run.branch,
+        );
+        if (headSha === remoteSha) {
+          return {
+            externalId: run.branch,
+            result: { pushed: true, branch: run.branch },
+          };
         }
         return null;
       },
@@ -240,10 +253,16 @@ export class DeliverExecutor implements StageExecutor {
         };
       },
       async () => {
-        // Because createPullRequestWithFallback internally checks for existing PRs
-        // using the same findExisting dependencies, we can just run it without side effects
-        // if the PR already exists. However, if it DOESN'T exist, it will create one.
         // We only want to recover, not mutate. So we call the finders directly.
+        const currentHeadSha = await this.deps
+          .getHeadSha(worktree)
+          .catch(() => null);
+        if (!currentHeadSha) {
+          throw new Error(
+            "Cannot safely reconcile create_pr without a valid local HEAD SHA.",
+          );
+        }
+
         if (
           project.issueTracker?.provider === "azure" &&
           project.issueTracker?.azure
@@ -262,9 +281,15 @@ export class DeliverExecutor implements StageExecutor {
             repoIdOrName: repoName,
             sourceBranch: run.branch,
           });
-          if (existing) {
+
+          // Must match branch and head commit precisely
+          if (
+            existing &&
+            existing.sourceRefName.replace("refs/heads/", "") === run.branch &&
+            existing.lastMergeSourceCommit === currentHeadSha
+          ) {
             const recovered: PullRequest = {
-              url: existing.trim(),
+              url: existing.url.trim(),
               branch: run.branch,
               baseBranch: project.defaultBranch,
               title: prTitle,
@@ -276,9 +301,13 @@ export class DeliverExecutor implements StageExecutor {
             worktree,
             run.branch,
           );
-          if (existing) {
+          if (
+            existing &&
+            existing.headRefName === run.branch &&
+            existing.headRefOid === currentHeadSha
+          ) {
             const recovered: PullRequest = {
-              url: existing.trim(),
+              url: existing.url.trim(),
               branch: run.branch,
               baseBranch: project.defaultBranch,
               title: prTitle,

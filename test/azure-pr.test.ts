@@ -248,6 +248,12 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
                     href: "https://dev.azure.com/myorg/myproject/_git/my-repo/pullrequest/101",
                   },
                 },
+                sourceRefName: "refs/heads/feat/1",
+                targetRefName: "refs/heads/main",
+                status: "active",
+                lastMergeSourceCommit: {
+                  commitId: "sha-123",
+                },
               },
             ],
           }),
@@ -265,7 +271,7 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
       });
 
       assert.equal(
-        res,
+        res?.url,
         "https://dev.azure.com/myorg/myproject/_git/my-repo/pullrequest/101",
       );
     });
@@ -274,7 +280,17 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
       const mockFetcher = (async () => {
         return new Response(
           JSON.stringify({
-            value: [{ pullRequestId: 202 }],
+            value: [
+              {
+                pullRequestId: 202,
+                sourceRefName: "refs/heads/feat/1",
+                targetRefName: "refs/heads/main",
+                status: "active",
+                lastMergeSourceCommit: {
+                  commitId: "sha-123",
+                },
+              },
+            ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
@@ -290,7 +306,7 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
       });
 
       assert.equal(
-        res,
+        res?.url,
         "https://dev.azure.com/myorg/myproject/_git/my-repo/pullrequest/202",
       );
     });

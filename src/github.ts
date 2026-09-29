@@ -2,21 +2,38 @@
 
 import { execStrict } from "./proc.js";
 
+export interface ExistingGitHubPullRequest {
+  url: string;
+  headRefName: string;
+  headRefOid: string;
+  baseRefName: string;
+  state: string;
+}
+
 /**
- * Check if a PR already exists for the head branch. Returns PR URL or null.
+ * Check if a PR already exists for the head branch. Returns PR metadata or null.
  */
 export async function findExistingPullRequest(
   worktreePath: string,
   headBranch: string,
-): Promise<string | null> {
+): Promise<ExistingGitHubPullRequest | null> {
   try {
     const result = await execStrict(
       "gh",
-      ["pr", "view", headBranch, "--json", "url", "-q", ".url"],
+      [
+        "pr",
+        "view",
+        headBranch,
+        "--json",
+        "url,headRefName,headRefOid,baseRefName,state",
+      ],
       { cwd: worktreePath },
     );
-    const url = result.stdout.trim();
-    return url || null;
+    const data = JSON.parse(result.stdout) as ExistingGitHubPullRequest;
+    if (data && data.url) {
+      return data;
+    }
+    return null;
   } catch {
     return null;
   }

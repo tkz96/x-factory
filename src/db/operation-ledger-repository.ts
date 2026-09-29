@@ -133,8 +133,12 @@ export class OperationLedgerRepository {
    * Records that an external mutation is pending.
    * If an entry exists, transitions status to 'pending'.
    */
-  recordPending(runId: string, operation: string): OperationLedgerRecord {
-    return this.upsertEntry(runId, operation, "pending");
+  recordPending(
+    runId: string,
+    operation: string,
+    result?: unknown,
+  ): OperationLedgerRecord {
+    return this.upsertEntry(runId, operation, "pending", { result });
   }
 
   /**
@@ -171,10 +175,11 @@ export class OperationLedgerRepository {
     runId: string,
     operation: string,
     fn: () => Promise<{ externalId?: string | null | undefined; result: T }>,
-    reconcile?: () => Promise<{
+    reconcile?: (metadata?: unknown) => Promise<{
       externalId?: string | null | undefined;
       result: T;
     } | null>,
+    prepareContext?: () => Promise<unknown>,
   ): Promise<T> {
     const existing = this.getOperation(runId, operation);
     if (
@@ -186,7 +191,10 @@ export class OperationLedgerRepository {
     }
 
     if (existing && existing.status === "pending" && reconcile) {
-      const recovered = await reconcile();
+      // pending + reconciliation confirms success -> mark completed
+      // pending + reconciliation says not present -> return null, perform mutation
+      // pending + reconciliation cannot determine state -> fail closed (throw) -> do not perform the mutation
+      const recovered = await reconcile(existing.result);
       if (recovered) {
         this.recordCompleted(
           runId,
@@ -198,7 +206,8 @@ export class OperationLedgerRepository {
       }
     }
 
-    this.recordPending(runId, operation);
+    const contextData = prepareContext ? await prepareContext() : undefined;
+    this.recordPending(runId, operation, contextData);
 
     try {
       const outcome = await fn();
