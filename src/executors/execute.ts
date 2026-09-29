@@ -60,7 +60,7 @@ fi
 for (( i=1; i<=ITERATIONS; i++ )); do
   echo "Iteration $i of $ITERATIONS"
 
-  sbx run --name "ralph-\${AGENT}-$\${RANDOM}" "\${AGENT}" .
+  sbx run --name "ralph-\${AGENT}-\${RANDOM}" "\${AGENT}" .
 
   if [[ -f .agent/tasks.md ]]; then
     if ! grep -q '\\- \\[ \\]' .agent/tasks.md; then

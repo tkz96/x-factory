@@ -31,6 +31,7 @@ Reference guides provide factual, objective technical specifications, schemas, m
 - **[Database Schema and Durable Entities](./reference/database-schema.md)**: SQLite table definitions, columns, constraints, connection PRAGMAs, and runtime entity rules.
 - **[Workflow State Machine and Transition Contracts](./reference/state-machine-matrix.md)**: State definitions, the canonical workflow state transition matrix, transition triggers, and monotonic execution rules.
 - **[Production Readiness Checklist and Evaluation Criteria](./reference/production-readiness-checklist.md)**: System verification standards across the twelve production pillars.
+- **[Security Model and Execution Boundary](./reference/security.md)**: The autonomous execution boundary, sandbox requirements, and credential management constraints.
 
 ---
 

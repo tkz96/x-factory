@@ -334,11 +334,18 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       expect(result.error).toContain("ENOENT");
     });
 
-    it("spawns ralph with restricted environment, stripping sensitive host variables", async () => {
+    it("spawns ralph with restricted environment, strictly isolating credentials and config", async () => {
       const { context } = setupTestContext("execute");
 
+      // Inject wide array of secrets and config
       process.env.AWS_SECRET_ACCESS_KEY = "sensitive-secret-token";
       process.env.PI_API_KEY = "test-pi-key";
+      process.env.HTTP_PROXY = "http://proxy:8080";
+      process.env.HTTPS_PROXY = "http://proxy:8080";
+      process.env.NO_PROXY = "localhost";
+      process.env.OPENAI_API_KEY = "test-openai-key";
+      process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
+      process.env.GEMINI_API_KEY = "test-gemini-key";
 
       class MockSuccessChild extends EventEmitter {
         stdout = new EventEmitter();
@@ -348,17 +355,23 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
 
       const mockChild = new MockSuccessChild();
       let capturedEnv: Record<string, string> | undefined;
+      let capturedArgs: string[] | undefined;
 
       const executor = new ExecuteExecutor({
         mkdir: async () => {},
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
+        loadSettings: async () =>
+          ({
+            models: { sessionA: { provider: "openai" } },
+          }) as unknown as ReturnType<typeof loadSettings>,
         spawn: ((
           _command: string,
-          _args: string[],
+          args: string[],
           options: { env?: NodeJS.ProcessEnv },
         ) => {
+          capturedArgs = args;
           capturedEnv = options.env as Record<string, string>;
           setTimeout(() => {
             mockChild.emit("close", 0);
@@ -371,11 +384,40 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       await executor.execute(context);
 
       expect(capturedEnv).toBeDefined();
+      expect(capturedArgs).toBeDefined();
+
+      // 1. Credentials are not put into command arguments
+      const argsStr = capturedArgs?.join(" ") ?? "";
+      expect(argsStr).not.toContain("test-openai-key");
+      expect(argsStr).not.toContain("test-pi-key");
+
+      // 2. The selected provider credential is present
+      expect(capturedEnv?.OPENAI_API_KEY).toBe("test-openai-key");
+
+      // 3. PI_API_KEY is present
       expect(capturedEnv?.PI_API_KEY).toBe("test-pi-key");
+
+      // 4. Irrelevant provider keys are absent
+      expect(capturedEnv?.ANTHROPIC_API_KEY).toBeUndefined();
+      expect(capturedEnv?.GEMINI_API_KEY).toBeUndefined();
+
+      // 5. Unrelated secrets are absent
       expect(capturedEnv?.AWS_SECRET_ACCESS_KEY).toBeUndefined();
 
+      // 6. Proxy variables are absent
+      expect(capturedEnv?.HTTP_PROXY).toBeUndefined();
+      expect(capturedEnv?.HTTPS_PROXY).toBeUndefined();
+      expect(capturedEnv?.NO_PROXY).toBeUndefined();
+
+      // Cleanup
       delete process.env.AWS_SECRET_ACCESS_KEY;
       delete process.env.PI_API_KEY;
+      delete process.env.HTTP_PROXY;
+      delete process.env.HTTPS_PROXY;
+      delete process.env.NO_PROXY;
+      delete process.env.OPENAI_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.GEMINI_API_KEY;
     });
   });
 });

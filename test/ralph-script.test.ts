@@ -201,4 +201,50 @@ describe("Ralph Loop Script", () => {
     expect(exitCode).not.toBe(0);
     expect(stdout).not.toContain("Agent executed");
   });
+
+  it("sandbox is required for every iteration", async () => {
+    const tasks = ["- [ ] Task 1", "- [ ] Task 2"].join("\n");
+    await writeFile(join(workDir, ".agent", "tasks.md"), tasks);
+
+    // Mock agent records its arguments to a file
+    await createMockAgent(`
+      echo "$@" >> "$(dirname "$0")/../sbx_invocations.log"
+      awk '/- \\[ \\]/ && !done { sub(/- \\[ \\]/, "- [x]"); done=1 } 1' .agent/tasks.md > .agent/tasks.md.tmp
+      mv .agent/tasks.md.tmp .agent/tasks.md
+    `);
+
+    await runRalph(["-n", "5"]);
+
+    const invocations = await Bun.file(
+      join(workDir, "sbx_invocations.log"),
+    ).text();
+    const lines = invocations.trim().split("\n").filter(Boolean);
+    expect(lines.length).toBe(2);
+    for (const line of lines) {
+      expect(line).toMatch(/^run --name ralph-pi-\d+ pi \.$/);
+    }
+  });
+
+  it("pi cannot execute directly when sbx is missing", async () => {
+    const tasks = ["- [ ] Task 1"].join("\n");
+    await writeFile(join(workDir, ".agent", "tasks.md"), tasks);
+
+    // Create a mock pi binary to see if it gets called directly
+    const mockPiPath = join(binDir, "pi");
+    await writeFile(
+      mockPiPath,
+      "#!/usr/bin/env bash\\necho 'Bare-metal pi executed'\\n",
+    );
+    await chmod(mockPiPath, 0o755);
+
+    // Make sure sbx doesn't exist (no mock agent created)
+
+    const { stderr, stdout, exitCode } = await runRalph(["-n", "1"]);
+
+    expect(stderr).toContain(
+      "Error: Sandbox execution environment (sbx) is required but not found.",
+    );
+    expect(exitCode).not.toBe(0);
+    expect(stdout).not.toContain("Bare-metal pi executed");
+  });
 });
