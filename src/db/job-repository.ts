@@ -2,6 +2,11 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { EXECUTABLE_RUN_STATUSES } from "../state-machine.js";
+
+const executableStatusesSql = Array.from(EXECUTABLE_RUN_STATUSES)
+  .map((s) => `'${s}'`)
+  .join(", ");
 
 export type JobStatus =
   | "pending"
@@ -151,16 +156,7 @@ export class JobRepository {
         WHERE (j.status = 'pending' OR (j.status = 'claimed' AND j.lease_until < $now))
           AND j.available_at <= $now
           AND j.attempts < j.max_attempts
-          AND r.status IN (
-            'queued',
-            'preparing',
-            'understanding',
-            'planning',
-            'executing',
-            'implementing',
-            'verifying',
-            'reviewing'
-          )
+          AND r.status IN (${executableStatusesSql})
         ORDER BY j.created_at ASC
         LIMIT 1
       )
@@ -200,10 +196,12 @@ export class JobRepository {
           updated_at = $now
       WHERE id = (
         SELECT j.id FROM jobs j
+        JOIN runs r ON j.run_id = r.id
         WHERE j.run_id = $runId
           AND (j.status = 'pending' OR (j.status = 'claimed' AND j.lease_until < $now))
           AND j.available_at <= $now
           AND j.attempts < j.max_attempts
+          AND r.status IN (${executableStatusesSql})
         ORDER BY j.created_at ASC
         LIMIT 1
       )

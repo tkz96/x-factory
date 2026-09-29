@@ -167,4 +167,116 @@ describe("JobRepository", () => {
     expect(released).toBe(true);
     expect(jobRepo.getJob(job2.id)?.status).toBe("pending");
   });
+
+  describe("claimJobForRun invariants", () => {
+    it("claims job when run is in executable state", () => {
+      const { jobRepo, runRepo } = setup();
+      const run = runRepo.create({
+        id: "run-exec-1",
+        projectId: "proj-1",
+        projectName: "Project One",
+        ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
+        plan: "Plan",
+        branch: "factory/T-1",
+        status: "preparing", // executable
+        artifactsDir: "/tmp/artifacts",
+        worktreePath: "/tmp/worktree",
+      });
+      const job = jobRepo.createJob({ runId: run.id, stage: "prepare" });
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      expect(claimed).not.toBeNull();
+      expect(claimed?.id).toBe(job.id);
+    });
+
+    it("does not claim job when run is in checkpoint state", () => {
+      const { jobRepo, runRepo } = setup();
+      const run = runRepo.create({
+        id: "run-check-1",
+        projectId: "proj-1",
+        projectName: "Project One",
+        ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
+        plan: "Plan",
+        branch: "factory/T-1",
+        status: "awaiting_understanding_approval",
+        artifactsDir: "/tmp/artifacts",
+        worktreePath: "/tmp/worktree",
+      });
+      jobRepo.createJob({ runId: run.id, stage: "prepare" });
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      expect(claimed).toBeNull();
+    });
+
+    it("does not claim job when run is in terminal state", () => {
+      const { jobRepo, runRepo } = setup();
+      const run = runRepo.create({
+        id: "run-term-1",
+        projectId: "proj-1",
+        projectName: "Project One",
+        ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
+        plan: "Plan",
+        branch: "factory/T-1",
+        status: "pr_created",
+        artifactsDir: "/tmp/artifacts",
+        worktreePath: "/tmp/worktree",
+      });
+      jobRepo.createJob({ runId: run.id, stage: "prepare" });
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      expect(claimed).toBeNull();
+    });
+
+    it("does not claim job when run is in recovery_required state", () => {
+      const { jobRepo, runRepo } = setup();
+      const run = runRepo.create({
+        id: "run-rec-1",
+        projectId: "proj-1",
+        projectName: "Project One",
+        ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
+        plan: "Plan",
+        branch: "factory/T-1",
+        status: "recovery_required",
+        artifactsDir: "/tmp/artifacts",
+        worktreePath: "/tmp/worktree",
+      });
+      jobRepo.createJob({ runId: run.id, stage: "prepare" });
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      expect(claimed).toBeNull();
+    });
+
+    it("does not claim job when parent run is missing", () => {
+      const { jobRepo, db } = setup();
+      // Insert job with missing run bypassing foreign keys
+      db.prepare("PRAGMA foreign_keys = OFF;").run();
+      db.prepare(`
+        INSERT INTO jobs (id, run_id, stage, status, attempts, max_attempts, available_at, created_at, updated_at)
+        VALUES ('job-orphan', 'run-missing', 'prepare', 'pending', 0, 3, datetime('now'), datetime('now'), datetime('now'))
+      `).run();
+      db.prepare("PRAGMA foreign_keys = ON;").run();
+
+      const claimed = jobRepo.claimJobForRun("run-missing", "worker-1");
+      expect(claimed).toBeNull();
+    });
+
+    it("allows only one successful claimant for concurrent targeted claims", () => {
+      const { jobRepo, runRepo } = setup();
+      const run = runRepo.create({
+        id: "run-conc-1",
+        projectId: "proj-1",
+        projectName: "Project One",
+        ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
+        plan: "Plan",
+        branch: "factory/T-1",
+        status: "preparing",
+        artifactsDir: "/tmp/artifacts",
+        worktreePath: "/tmp/worktree",
+      });
+      jobRepo.createJob({ runId: run.id, stage: "prepare" });
+
+      const claim1 = jobRepo.claimJobForRun(run.id, "worker-A");
+      const claim2 = jobRepo.claimJobForRun(run.id, "worker-B");
+
+      expect(claim1).not.toBeNull();
+      expect(claim1?.workerId).toBe("worker-A");
+      expect(claim2).toBeNull();
+    });
+  });
 });
