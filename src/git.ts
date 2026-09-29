@@ -308,7 +308,7 @@ export async function findCommitByMessageAndParent(
       const sha = parts[0];
       const parents = parts.slice(1);
       if (parents.includes(parentSha)) {
-        return sha;
+        return sha ?? null;
       }
     }
   }

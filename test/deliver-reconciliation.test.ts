@@ -528,7 +528,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
           getHeadSha: async () => "sha-C",
           getParentSha: async () => "sha-B",
           // B = intended X-Factory commit
-          findCommitByMessageAndParent: async (repoPath, msg, parentSha) => {
+          findCommitByMessageAndParent: async (_repoPath, msg, parentSha) => {
             if (
               msg === "[X-Factory] D-1: Test" &&
               parentSha === "sha-parent-A"
