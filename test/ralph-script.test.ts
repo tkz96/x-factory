@@ -23,7 +23,9 @@ describe("Ralph Loop Script", () => {
     await writeFile(join(workDir, ".agent", "PROMPT.md"), "Test prompt");
 
     originalPath = process.env.PATH || "";
-    process.env.PATH = `${binDir}:${originalPath}`;
+    // Ensure deterministic tests by excluding host-installed custom binaries (sbx, pi)
+    // while keeping standard UNIX paths so bash, awk, and other utilities still work.
+    process.env.PATH = `${binDir}:/usr/bin:/bin:/usr/sbin:/sbin`;
   });
 
   afterEach(async () => {

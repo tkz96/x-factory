@@ -30,6 +30,6 @@ The selected LLM API credentials are not stored in configuration files (like `se
 
 - **Provider Resolution**: The executor reads `settings.json` to determine which LLM provider the user has configured (e.g., Anthropic, OpenAI, or Google).
 - **Credential Selection**: Only the API key corresponding to the selected provider (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GEMINI_API_KEY`) is injected into the sandbox environment. Irrelevant provider keys are stripped.
-- **Pi API Key (`PI_API_KEY`)**: The system universally allows `PI_API_KEY` through the sandbox boundary, as this key is required by the `pi` execution agent to authenticate its internal control channel.
+- **Pi API Key (`PI_API_KEY`)**: The system universally allows `PI_API_KEY` through the sandbox boundary to support the `pi` execution agent.
 
 Credentials are provided strictly via environment variables. They are never injected as command-line arguments to the agent process, ensuring they do not leak into process listings (`ps`).
