@@ -204,28 +204,29 @@ async function handleTestProjectTracker(
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
-  let bodyData: Record<string, unknown> = {};
-  try {
-    bodyData = (await req.json()) as Record<string, unknown>;
-  } catch {
-    // optional body
+  const processRequest = async (bodyData: Record<string, unknown>) => {
+    const tracker = project.issueTracker;
+    const provider = (bodyData.provider ||
+      tracker?.provider ||
+      tracker?.connectionId ||
+      "github") as IssueTrackerProvider;
+    const env = await loadProjectEnv(projectId);
+
+    const result = await testProjectTrackerConnection(
+      provider,
+      tracker,
+      env,
+      bodyData,
+      project.repositoryPath,
+    );
+    return jsonResponse(result);
+  };
+
+  if (!req.body) {
+    return processRequest({});
   }
 
-  const tracker = project.issueTracker;
-  const provider = (bodyData.provider ||
-    tracker?.provider ||
-    tracker?.connectionId ||
-    "github") as IssueTrackerProvider;
-  const env = await loadProjectEnv(projectId);
-
-  const result = await testProjectTrackerConnection(
-    provider,
-    tracker,
-    env,
-    bodyData,
-    project.repositoryPath,
-  );
-  return jsonResponse(result);
+  return withJsonBody(req, processRequest, "Invalid JSON for tracker test.");
 }
 
 async function handleMigrateProject(

@@ -350,6 +350,32 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(typeof body.ok, "boolean");
   }, 15000);
 
+  it("POST /api/projects/:id/tracker/test rejects malformed JSON with 400", async () => {
+    const res = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/tracker/test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{ malformed: true",
+      },
+    );
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { error: string };
+    assert.ok(body.error.includes("Invalid JSON"));
+  });
+
+  it("POST /api/projects/:id/tracker/test works with empty body (optional body contract)", async () => {
+    const res = await fetch(
+      `${baseUrl}/api/projects/${trackerProjId}/tracker/test`,
+      {
+        method: "POST",
+      },
+    );
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean };
+    assert.equal(typeof body.ok, "boolean");
+  });
+
   it("POST /api/projects/:id/migrate blocks migration with 409 if project has active run", async () => {
     const { getRunRepository } = await import("../src/runs.js");
     const activeRunId = `run-active-${Date.now()}`;
