@@ -18,6 +18,7 @@ import {
 } from "../src/executors/execute.js";
 import { PlanExecutor } from "../src/executors/plan.js";
 import type { StageContext } from "../src/executors/types.js";
+import type { loadSettings } from "../src/settings.js";
 import type { Project } from "../src/shared/types.js";
 
 describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
