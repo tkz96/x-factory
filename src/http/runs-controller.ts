@@ -13,6 +13,7 @@ import {
   withValidatedBody,
 } from "./responses.js";
 import {
+  ChatRunBodySchema,
   CreateRunBodySchema,
   SteerRunBodySchema,
   TransitionRunBodySchema,
@@ -250,12 +251,17 @@ async function handleSteerRun(req: Request, runId: string): Promise<Response> {
   return withValidatedBody(
     req,
     SteerRunBodySchema,
-    async (body) => {
-      const commandId =
-        body.commandId || (body as { command_id?: string }).command_id;
-      const deduplicated = await runs.steerRun(runId, body.message, commandId);
-      return jsonResponse({ ok: true, deduplicated });
-    },
+    (body) =>
+      catchHttpErrors(async () => {
+        const commandId =
+          body.commandId || (body as { command_id?: string }).command_id;
+        const deduplicated = await runs.steerRun(
+          runId,
+          body.message,
+          commandId,
+        );
+        return jsonResponse({ ok: true, deduplicated });
+      }),
     "Invalid JSON in request body.",
   );
 }
@@ -264,12 +270,16 @@ async function handleChatMessage(
   req: Request,
   runId: string,
 ): Promise<Response> {
-  const body = (await req.json()) as { message?: string };
-  if (!body.message || typeof body.message !== "string") {
-    return errorResponse("message is required.", 400);
-  }
-  const result = await runs.chatWithRun(runId, body.message);
-  return jsonResponse(result);
+  return withValidatedBody(
+    req,
+    ChatRunBodySchema,
+    (body) =>
+      catchHttpErrors(async () => {
+        const result = await runs.chatWithRun(runId, body.message);
+        return jsonResponse(result);
+      }),
+    "Invalid JSON in request body.",
+  );
 }
 
 async function handleStopRun(runId: string): Promise<Response> {
@@ -284,10 +294,15 @@ async function handleTransitions(
   return withValidatedBody(
     req,
     TransitionRunBodySchema,
-    async (body) => {
-      const run = await runs.handleTransition(runId, body.action, body.payload);
-      return jsonResponse({ ok: true, run });
-    },
+    (body) =>
+      catchHttpErrors(async () => {
+        const run = await runs.handleTransition(
+          runId,
+          body.action,
+          body.payload,
+        );
+        return jsonResponse({ ok: true, run });
+      }),
     "Invalid JSON in request body.",
   );
 }

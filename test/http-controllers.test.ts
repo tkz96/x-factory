@@ -1,6 +1,6 @@
 // test/http-controllers.test.ts — Unit tests for HTTP routing and controller dispatching.
 
-import { describe, it } from "bun:test";
+import { describe, it, spyOn } from "bun:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -18,6 +18,7 @@ import {
 } from "../src/http/runs-controller.js";
 import { handleSettingsRoute } from "../src/http/settings-controller.js";
 import { execStrict } from "../src/proc.js";
+import * as runs from "../src/runs.js";
 import { getRunRepository } from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
 
@@ -264,6 +265,72 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.equal(data.error, "Message is required.");
     });
 
+    it("POST /api/runs/:id/chat validates message field", async () => {
+      const req = new Request(
+        "http://localhost/api/runs/nonexistent-run/chat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "   " }),
+        },
+      );
+      const res = await handleRunsRoute(
+        "POST",
+        "nonexistent-run",
+        "chat",
+        3,
+        req,
+      );
+      assert.ok(res);
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.equal(data.error, "message is required.");
+    });
+
+    it("POST /api/runs/:id/chat rejects malformed JSON", async () => {
+      const req = new Request(
+        "http://localhost/api/runs/nonexistent-run/chat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{ malformed json",
+        },
+      );
+      const res = await handleRunsRoute(
+        "POST",
+        "nonexistent-run",
+        "chat",
+        3,
+        req,
+      );
+      assert.ok(res);
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.equal(data.error, "Invalid JSON in request body.");
+    });
+
+    it("POST /api/runs/:id/chat returns 404 for unknown run", async () => {
+      const req = new Request(
+        "http://localhost/api/runs/nonexistent-run/chat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "hello" }),
+        },
+      );
+      const res = await handleRunsRoute(
+        "POST",
+        "nonexistent-run",
+        "chat",
+        3,
+        req,
+      );
+      assert.ok(res);
+      assert.equal(res.status, 404);
+      const data = await res.json();
+      assert.equal(data.error, "Run nonexistent-run not found.");
+    });
+
     it("handles run actions on existing run fixture", async () => {
       const tempDir = await mkdtemp(path.join(os.tmpdir(), "xf-http-"));
       const mockProject = validateProject({
@@ -352,6 +419,44 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.equal(steerRes.status, 200);
       const steerData = await steerRes.json();
       assert.equal(steerData.ok, true);
+
+      // POST /api/runs/:id/chat (returns 500 because run is in executing state)
+      const chatFailReq = new Request(
+        `http://localhost/api/runs/${runId}/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Hello" }),
+        },
+      );
+      const chatFailRes = await handleRunsRoute(
+        "POST",
+        runId,
+        "chat",
+        3,
+        chatFailReq,
+      );
+      assert.ok(chatFailRes);
+      assert.equal(chatFailRes.status, 500);
+
+      // Transition to awaiting_understanding_approval to test successful chat
+      runRepo.update(runId, { status: "awaiting_understanding_approval" });
+
+      const chatSpy = spyOn(runs, "chatWithRun").mockResolvedValue({
+        ok: true,
+        message: "Mock response",
+      });
+
+      // POST /api/runs/:id/chat (returns 200)
+      const chatReq = new Request(`http://localhost/api/runs/${runId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Hello" }),
+      });
+      const chatRes = await handleRunsRoute("POST", runId, "chat", 3, chatReq);
+      assert.ok(chatRes);
+      assert.equal(chatRes.status, 200);
+      chatSpy.mockRestore();
 
       // POST /api/runs/:id/stop
       const stopReq = new Request(`http://localhost/api/runs/${runId}/stop`, {

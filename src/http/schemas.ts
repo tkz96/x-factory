@@ -30,6 +30,16 @@ export const SteerRunBodySchema = z
   })
   .passthrough();
 
+/** Request body schema for POST /api/runs/:id/chat */
+export const ChatRunBodySchema = z
+  .object({
+    message: z
+      .string({ error: "message is required." })
+      .trim()
+      .min(1, "message is required."),
+  })
+  .passthrough();
+
 /** Request body schema for saving / creating projects */
 export const SaveProjectBodySchema = ProjectInputSchema;
 

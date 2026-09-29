@@ -175,7 +175,7 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "steer msg" }),
     });
-    assert.equal(res2.status, 500);
+    assert.equal(res2.status, 404);
   });
 
   it("POST /api/runs/:id/stop validates run existence", async () => {
