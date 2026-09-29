@@ -15,7 +15,7 @@ The finite state machine governs each run through discrete, sequential execution
 | `awaiting_understanding_approval` | Checkpoint | Execution pauses for human review and chat regarding the extracted context. |
 | `planning` | Active | The worker generates the implementation plan and task list. |
 | `awaiting_plan_approval` | Checkpoint | Execution pauses for human review and chat regarding the plan. |
-| `executing` | Active | The Ralph Loop autonomously iterates through the approved tasks, implementing and verifying. |
+| `executing` | Active | The Ralph Loop autonomously implements and verifies code, followed by an automated adversarial code review. |
 | `awaiting_review` | Checkpoint | Execution pauses for human code review of the execution results. |
 | `ready_for_pr` | Checkpoint | The reviewer has approved the code changes; pending PR creation. |
 | `pr_created` | Terminal | The pull request exists on the remote repository. |
@@ -53,7 +53,9 @@ Runs advance linearly through configured stages.
 Runs only return to earlier stages when a human explicitly requeues the run during `awaiting_understanding_approval`, `awaiting_plan_approval`, or `awaiting_review`. Requeueing from `awaiting_review` transitions all the way back to `understanding` for a fresh chat to update the plan before re-execution.
 
 ### 2. Autonomous Execution Phase (Phase 2)
-The `executing` state collapses the formerly separate `implementing`, `verifying`, and `reviewing` FSM states. The Ralph Loop handles red-green-refactor loops and task iteration internally without transitioning the primary FSM until completion.
+The `executing` state collapses the formerly separate `implementing`, `verifying`, and `reviewing` FSM states into a single active FSM state.
+- **Deterministic Verification**: This is not an FSM state. It is an internal stage within the Ralph Loop that runs repeatedly during execution.
+- **Automated Review**: This is not an FSM state. It is an internal stage executed by the `ReviewExecutor` immediately after the Ralph Loop completes, but before transitioning the FSM to `awaiting_review`.
 
 ### 3. Concurrency Protection
 The database guards every state mutation with the `revision` column.

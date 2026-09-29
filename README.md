@@ -97,7 +97,7 @@ flowchart LR
 1. **Prepare**: Allocates a unique run ID, creates branch `factory/<ticket>-<id>`, and provisions an isolated Git worktree outside the target repo.
 2. **Understand**: Synthesizes codebase symbols, documentation, and tickets into an `ImplementationContext` artifact. Pauses at human checkpoint `awaiting_understanding_approval`.
 3. **Plan**: Synthesizes structured markdown task lists and constraints from acceptance criteria. Pauses at human checkpoint `awaiting_plan_approval`.
-4. **Execute**: Drives the autonomous Ralph execution loop in the dedicated worktree using Matt Pocock TDD protocols with sanitized environment controls, streaming real-time iteration events.
+4. **Execute**: Drives the autonomous Ralph execution loop in the dedicated worktree using Matt Pocock TDD protocols with sanitized environment controls, streaming real-time iteration events. Execution completes with an automated adversarial code review against acceptance criteria.
 5. **Review**: Operator review gate at `awaiting_review`. Displays diff, artifacts, and execution evidence in the UI. Operator may approve or requeue with feedback.
 6. **Deliver**: Publishes branch, creates pull request on GitHub or Azure DevOps, and transitions run to `pr_created`.
 

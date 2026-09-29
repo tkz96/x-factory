@@ -51,7 +51,7 @@ Every coding agent must respect and preserve these architectural invariants:
 - **Filesystem Artifacts**: File artifacts live under `.runs/<projectId>/<runId>/` and Git worktrees under `.worktrees/<projectId>/<runId>/`. SQLite stores metadata and disk references, not raw large blobs.
 
 ### B. Finite State Machine (FSM)
-- The $11 \times 11$ workflow transition matrix must be strictly observed (`pending` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `planning` $\rightarrow$ `implementing` $\rightarrow$ `verifying` $\rightarrow$ `ready_for_pr` $\rightarrow$ `completed`, with terminal/exception states `reviewing`, `recovery_required`, `failed`, `aborted`).
+- The $13 \times 13$ workflow transition matrix must be strictly observed (`queued` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `awaiting_understanding_approval` $\rightarrow$ `planning` $\rightarrow$ `awaiting_plan_approval` $\rightarrow$ `executing` $\rightarrow$ `awaiting_review` $\rightarrow$ `ready_for_pr`, with terminal/exception states `pr_created`, `recovery_required`, `failed`, `stopped`).
 - Transitions must be atomic, monotonic, and recorded in `runs`, `jobs`, `events`, and `stage_attempts`.
 
 ### C. Frontend Architecture & Styling Invariants

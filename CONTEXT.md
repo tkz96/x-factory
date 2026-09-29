@@ -15,7 +15,7 @@ This document serves as the persistent domain glossary and architectural context
 | Term | Definition |
 | --- | --- |
 | **Run** | A top-level user-initiated task/workflow execution with a unique ID (`runId`), belonging to a `projectId`. Tracks stages, logs, events, and diffs. |
-| **Stage** | A distinct phase in the run lifecycle governed by the $11 \times 11$ Finite State Machine (`pending` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `planning` $\rightarrow$ `implementing` $\rightarrow$ `verifying` $\rightarrow$ `ready_for_pr` $\rightarrow$ `completed`, plus `reviewing`, `recovery_required`, `failed`, `aborted`). |
+| **Stage** | A distinct phase in the run lifecycle governed by the $13 \times 13$ Finite State Machine (`queued` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `awaiting_understanding_approval` $\rightarrow$ `planning` $\rightarrow$ `awaiting_plan_approval` $\rightarrow$ `executing` $\rightarrow$ `awaiting_review` $\rightarrow$ `ready_for_pr`, plus `pr_created`, `recovery_required`, `failed`, `stopped`). |
 | **Job** | A schedulable unit of work claimed and executed by worker processes. Operates with lease-based optimistic locking. |
 | **Worker Process** | An independent background process (`src/worker.ts`) that polls SQLite, claims pending jobs, executes stages via isolated executors, and updates state. |
 | **API Process** | HTTP/SSE server (`src/server.ts`) handling client routing, settings, run creation, and persistence. Never executes heavy pipeline stages directly. |
