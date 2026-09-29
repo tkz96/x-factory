@@ -52,18 +52,33 @@ done
 
 echo "Starting Ralph Loop: agent=$AGENT, iterations=$ITERATIONS"
 
-if command -v sbx &>/dev/null; then
-  sbx run --name "ralph-\${AGENT}-$\${RANDOM}" "\${AGENT}" .
-elif command -v ralph &>/dev/null; then
-  ralph --agent "\${AGENT}" -n "\${ITERATIONS}"
-else
-  echo "Executing iteration with \${AGENT}..."
-  if command -v pi &>/dev/null; then
-    pi --prompt "$(< .agent/PROMPT.md)"
+for (( i=1; i<=ITERATIONS; i++ )); do
+  echo "Iteration $i of $ITERATIONS"
+
+  if command -v sbx &>/dev/null; then
+    sbx run --name "ralph-\${AGENT}-$\${RANDOM}" "\${AGENT}" .
   else
-    echo "Completed tasks iteration."
+    echo "Executing iteration with \${AGENT}..."
+    if command -v pi &>/dev/null; then
+      pi --prompt "$(< .agent/PROMPT.md)"
+    else
+      echo "Completed tasks iteration."
+    fi
   fi
-fi
+
+  if [[ -f .agent/tasks.md ]]; then
+    if ! grep -q '\\- \\[ \\]' .agent/tasks.md; then
+      echo "All tasks completed successfully."
+      exit 0
+    fi
+  else
+    echo "No .agent/tasks.md found, finishing early."
+    exit 0
+  fi
+done
+
+echo "Maximum iterations ($ITERATIONS) reached."
+exit 0
 `;
 
 /**
