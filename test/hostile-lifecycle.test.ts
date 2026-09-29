@@ -36,7 +36,7 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
       ticket: { id: `T-${id}`, title: `Ticket ${id}`, acceptanceCriteria: [] },
       plan: "Plan",
       branch: `factory/${id}`,
-      status: "implementing",
+      status: "executing",
       artifactsDir: `/tmp/artifacts-${id}`,
       worktreePath: `/tmp/worktrees-${id}`,
     });
@@ -71,15 +71,15 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     // Discarded event for B
     onEvent(runB.id, "failed");
     // Active event for A
-    onEvent(runA.id, "verifying");
+    onEvent(runA.id, "executing");
 
     // Run B cache was NOT modified
     const cachedB = queryClient.getQueryData<Run>(queryKeys.run(runB.id));
-    expect(cachedB?.status).toBe("implementing");
+    expect(cachedB?.status).toBe("executing");
 
     // Run A cache updated
     const cachedA = queryClient.getQueryData<Run>(queryKeys.run(runA.id));
-    expect(cachedA?.status).toBe("verifying");
+    expect(cachedA?.status).toBe("executing");
   });
 
   it("abrupt SSE connection abort cleans up SSE registry completely", async () => {

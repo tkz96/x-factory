@@ -32,7 +32,7 @@ Standard load balancers, proxies, and firewalls handle SSE streams without speci
 
 When a client connects to `GET /api/runs/:id/events`, the server executes two sequential operations:
 1. **Historical Flush**: The server queries the durable `events` table for all past events associated with the run identifier. The server immediately flushes these events to the client stream.
-2. **Live Subscription**: The server attaches a listener to `RunEventBus`. As the worker publishes new events, the event bus pushes them to the open stream in real time.
+2. **Live Subscription**: The server registers the client with `SSERegistry` and continuously polls durable SQLite events (and flushes on commits), streaming newly appended events to the open SSE connection in real time.
 
 This dual-path design solves the race condition where a user opens or refreshes a browser tab while a run is in progress.
 The user receives the full execution history first, followed immediately by live updates.

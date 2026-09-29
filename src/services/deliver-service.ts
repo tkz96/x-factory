@@ -13,7 +13,7 @@ export function finalizeDeliver(
   commandRepo: CommandRepository | undefined,
   runId: string,
   commandId: string,
-  _workerId: string,
+  workerId: string,
   pr: PullRequest,
 ): void {
   const tx = db.transaction(() => {
@@ -75,7 +75,7 @@ export function finalizeDeliver(
 
     // 6. Complete deliver command if command repository and ID provided
     if (commandRepo && commandId) {
-      commandRepo.completeCommand(commandId, { prUrl: pr.url }, db);
+      commandRepo.completeCommand(commandId, workerId, { prUrl: pr.url }, db);
     }
   });
 

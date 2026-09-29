@@ -29,7 +29,7 @@ function setupTest() {
     ticket: { id: "T-1", title: "Ticket 1", acceptanceCriteria: [] },
     plan: "Plan",
     branch: "factory/deliver-1",
-    status: "reviewing",
+    status: "executing",
     artifactsDir: "/tmp",
     worktreePath: "/tmp",
   });
@@ -39,7 +39,7 @@ function setupTest() {
 
 describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   // Test 9: Review pause
-  it("pauses at ready_for_pr on review approval without creating deliver job", async () => {
+  it("pauses at awaiting_review on review approval without creating deliver job", async () => {
     const { db, runRepo, jobRepo, run } = setupTest();
 
     const job = jobRepo.createJob({
@@ -71,9 +71,9 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
 
     await worker.processJob(claimed);
 
-    // Run is paused at ready_for_pr
+    // Run is paused at awaiting_review
     const updatedRun = runRepo.get(run.id);
-    expect(updatedRun?.status).toBe("ready_for_pr");
+    expect(updatedRun?.status).toBe("awaiting_review");
 
     // Review job is completed
     expect(jobRepo.getJob(job.id)?.status).toBe("completed");
@@ -87,8 +87,8 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   it("atomically commits pullRequest, pr_step, stage_evidence, pr_created, and command completion in single transaction", () => {
     const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
 
-    // Move to ready_for_pr
-    runRepo.transitionRun(run.id, "reviewing", "ready_for_pr");
+    runRepo.update(run.id, { status: "awaiting_review" });
+    runRepo.transitionRun(run.id, "awaiting_review", "ready_for_pr");
 
     const cmd = commandRepo.insertOrRetryCommand({
       runId: run.id,
@@ -103,6 +103,8 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
       baseBranch: "main",
       title: "Ticket 1",
     };
+
+    commandRepo.claimPendingCommands("worker-deliv", 10000);
 
     finalizeDeliver(
       db,
@@ -140,7 +142,8 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   it("idempotently discovers existing pull request on retry after external crash before SQLite finalization", async () => {
     const { db, runRepo, commandRepo, run } = setupTest();
 
-    runRepo.transitionRun(run.id, "reviewing", "ready_for_pr");
+    runRepo.update(run.id, { status: "awaiting_review" });
+    runRepo.transitionRun(run.id, "awaiting_review", "ready_for_pr");
 
     const cmd = commandRepo.insertOrRetryCommand({
       runId: run.id,
@@ -174,7 +177,11 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
     });
 
     // Worker claims and processes deliver command
-    await worker.processCommand(cmd);
+    const claimed = commandRepo
+      .claimPendingCommands(worker.workerId, 10000)
+      .find((c) => c.id === cmd.id);
+    if (claimed) await worker.processCommand(claimed);
+    else await worker.processCommand(cmd);
 
     expect(externalPrCalls).toBe(1);
     expect(runRepo.get(run.id)?.status).toBe("pr_created");

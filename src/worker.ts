@@ -221,7 +221,12 @@ export class Worker {
   }
 
   private reclaimOrphanedRun(run: RunRecord): boolean {
-    if (run.status === "ready_for_pr") {
+    if (
+      run.status === "ready_for_pr" ||
+      run.status === "awaiting_review" ||
+      run.status === "awaiting_plan_approval" ||
+      run.status === "awaiting_understanding_approval"
+    ) {
       return false;
     }
 
@@ -273,7 +278,7 @@ export class Worker {
 
       this.jobRepo.failJob(
         job.id,
-        this.workerId,
+        job.workerId ?? this.workerId,
         "Maximum retry attempts exhausted across worker lifetimes.",
         0,
       );
@@ -479,7 +484,7 @@ export class Worker {
       );
       if (!isTargetAlive) {
         if (command.command === "stop") {
-          this.commandRepo.completeCommand(command.id, {
+          this.commandRepo.completeCommand(command.id, this.workerId, {
             stopped: true,
             reason: `Target worker ${command.targetWorkerId} is dead or inactive; run already stopped`,
           });
@@ -488,6 +493,7 @@ export class Worker {
         if (command.command === "steer") {
           this.commandRepo.failCommand(
             command.id,
+            this.workerId,
             `Target worker ${command.targetWorkerId} is dead or inactive`,
           );
           return;
@@ -510,13 +516,17 @@ export class Worker {
         this.currentAbortController?.abort();
       }
 
-      this.commandRepo.completeCommand(command.id, { stopped: true });
+      this.commandRepo.completeCommand(command.id, this.workerId, {
+        stopped: true,
+      });
     } else if (command.command === "steer") {
       const payload = command.payload as { message?: string } | null;
       const message = payload?.message || "";
 
       // 1. Mark command completed before invocation (at-most-once)
-      this.commandRepo.completeCommand(command.id, { steered: true });
+      this.commandRepo.completeCommand(command.id, this.workerId, {
+        steered: true,
+      });
 
       // 2. Find active Pi session
       const session = getActiveSession(command.runId);
@@ -541,6 +551,7 @@ export class Worker {
     if (!run) {
       this.commandRepo.failCommand(
         command.id,
+        this.workerId,
         `Run ${command.runId} not found`,
       );
       return;
@@ -549,6 +560,7 @@ export class Worker {
     if (run.status !== "ready_for_pr") {
       this.commandRepo.failCommand(
         command.id,
+        this.workerId,
         `Cannot deliver run ${command.runId} in status "${run.status}". Must be ready_for_pr.`,
       );
       return;
@@ -636,7 +648,7 @@ export class Worker {
         error: errorMsg,
       });
       this.error(`Deliver command ${command.id} failed: ${errorMsg}`, err);
-      this.commandRepo.failCommand(command.id, errorMsg);
+      this.commandRepo.failCommand(command.id, this.workerId, errorMsg);
     }
   }
 

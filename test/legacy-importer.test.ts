@@ -60,7 +60,7 @@ describe("Legacy run.json Migration & Artifact Separation (XFM-10, XFM-11)", () 
       },
       plan: "Original plan",
       branch: "feature/legacy-1",
-      status: "verifying",
+      status: "executing",
       repairAttempts: 1,
     });
 
@@ -82,7 +82,7 @@ describe("Legacy run.json Migration & Artifact Separation (XFM-10, XFM-11)", () 
     expect(importedRun).not.toBeNull();
     expect(importedRun?.project.id).toBe("proj-alpha");
     expect(importedRun?.ticket.id).toBe("TICK-101");
-    expect(importedRun?.status).toBe("verifying");
+    expect(importedRun?.status).toBe("executing");
     expect(importedRun?.artifactsDir).toBe(runDir);
     expect(importedRun?.revision).toBe(1);
   });
@@ -153,7 +153,7 @@ describe("Legacy run.json Migration & Artifact Separation (XFM-10, XFM-11)", () 
         title: "Artifact Separation",
         acceptanceCriteria: [],
       },
-      status: "implementing",
+      status: "executing",
     });
 
     const runDir = await createLegacyRunFile(

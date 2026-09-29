@@ -14,18 +14,13 @@ interface HumanCheckpointSectionProps {
 export function HumanCheckpointSection({ run }: HumanCheckpointSectionProps) {
   const { openNewRunModal } = useModal();
   const prMutation = usePrRun();
-  const [prUrl, setPrUrl] = useState<string | null>(
-    run.pullRequest?.url || null,
-  );
+  const prUrl = run.pullRequest?.url || null;
   const [error, setError] = useState<string | null>(null);
 
   const handleCreatePr = async () => {
     setError(null);
     try {
-      const result = await prMutation.mutateAsync({ runId: run.id });
-      if (result.prUrl) {
-        setPrUrl(result.prUrl);
-      }
+      await prMutation.mutateAsync({ runId: run.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

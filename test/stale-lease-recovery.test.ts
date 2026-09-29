@@ -31,14 +31,14 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/T-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-stale-1",
       worktreePath: "/tmp/worktrees-stale-1",
     });
 
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
       maxAttempts: 3,
     });
@@ -77,14 +77,14 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "T-2", title: "Test", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/T-2",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-unexpired",
       worktreePath: "/tmp/worktrees-unexpired",
     });
 
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
       maxAttempts: 3,
     });
@@ -115,7 +115,7 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "F-1", title: "FIFO 1", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/F-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-f1",
       worktreePath: "/tmp/worktrees-f1",
     });
@@ -127,7 +127,7 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "F-2", title: "FIFO 2", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/F-2",
-      status: "verifying",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-f2",
       worktreePath: "/tmp/worktrees-f2",
     });
@@ -137,7 +137,7 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
     const pastLease1 = new Date(Date.now() - 15000).toISOString();
     const job1 = jobRepo.createJob({
       runId: run1.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
     });
     db.prepare(`
@@ -158,7 +158,7 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
     const pastLease2 = new Date(Date.now() - 5000).toISOString();
     const job2 = jobRepo.createJob({
       runId: run2.id,
-      stage: "verify",
+      stage: "execute",
       status: "pending",
     });
     db.prepare(`
@@ -203,14 +203,14 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "R-1", title: "Recov", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/R-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-r1",
       worktreePath: "/tmp/worktrees-r1",
     });
 
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
       maxAttempts: 3,
     });
@@ -226,7 +226,7 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
     `).run({ $leaseUntil: pastLease, $id: job.id });
 
     // Attempt 1 was marked running
-    const att = stageAttemptRepo.recordStart(run.id, "implement", 1);
+    const att = stageAttemptRepo.recordStart(run.id, "execute", 1);
     expect(att.status).toBe("running");
 
     const worker = new Worker({
@@ -263,14 +263,14 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "EX-1", title: "Exhausted", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/EX-1",
-      status: "verifying",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-ex1",
       worktreePath: "/tmp/worktrees-ex1",
     });
 
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "verify",
+      stage: "execute",
       status: "pending",
       maxAttempts: 3,
     });
@@ -313,7 +313,7 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "ORPH-1", title: "Orphan", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/ORPH-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-orph1",
       worktreePath: "/tmp/worktrees-orph1",
     });
@@ -342,14 +342,14 @@ describe("Stale Lease Recovery & Reclamation (XFM-64)", () => {
       ticket: { id: "G-1", title: "Graceful", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/G-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-g1",
       worktreePath: "/tmp/worktrees-g1",
     });
 
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
     });
 

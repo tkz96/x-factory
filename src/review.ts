@@ -50,11 +50,11 @@ function attachReviewListeners(
     session.subscribe((e) => {
       if (e.type === "text" && e.text) {
         fullOutput += e.text;
-        onEvent({ type: "pi_text", text: e.text });
+        onEvent({ type: "info", text: e.text });
       } else if (e.type === "tool") {
-        onEvent({ type: "pi_tool", tool: e.tool, text: e.input });
+        onEvent({ type: "info", text: `Running tool ${e.tool}` });
       } else if (e.type === "error") {
-        onEvent({ type: "pi_error", error: e.error });
+        onEvent({ type: "error", error: e.error });
       }
     });
   }

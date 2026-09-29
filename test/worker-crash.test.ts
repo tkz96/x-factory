@@ -34,26 +34,20 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     {
       stage: "understand",
       runStatus: "understanding",
-      expectedNextStatus: "implementing",
-      expectedNextStage: "implement",
+      expectedNextStatus: "awaiting_understanding_approval",
+      expectedNextStage: undefined,
     },
     {
-      stage: "implement",
-      runStatus: "implementing",
-      expectedNextStatus: "verifying",
-      expectedNextStage: "verify",
+      stage: "plan",
+      runStatus: "planning",
+      expectedNextStatus: "awaiting_plan_approval",
+      expectedNextStage: undefined,
     },
     {
-      stage: "verify",
-      runStatus: "verifying",
-      expectedNextStatus: "reviewing",
-      expectedNextStage: "review",
-    },
-    {
-      stage: "review",
-      runStatus: "reviewing",
-      expectedNextStatus: "ready_for_pr",
-      // Review reaches human approval gate, next stage undefined
+      stage: "execute",
+      runStatus: "executing",
+      expectedNextStatus: "awaiting_review",
+      expectedNextStage: undefined,
     },
   ];
 
@@ -82,32 +76,25 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
           case "understand": {
             return {
               status: "success",
-              nextStage: "implement",
-              nextRunStatus: "implementing",
+              nextStage: undefined,
+              nextRunStatus: "awaiting_understanding_approval",
               output: { contextSynthesized: true },
             };
           }
-          case "implement": {
+          case "plan": {
             return {
               status: "success",
-              nextStage: "verify",
-              nextRunStatus: "verifying",
+              nextStage: undefined,
+              nextRunStatus: "awaiting_plan_approval",
               output: { implemented: true },
             };
           }
-          case "verify": {
+          case "execute": {
             return {
               status: "success",
-              nextStage: "review",
-              nextRunStatus: "reviewing",
+              nextStage: undefined,
+              nextRunStatus: "awaiting_review",
               output: { verified: true },
-            };
-          }
-          case "review": {
-            return {
-              status: "success",
-              nextRunStatus: "ready_for_pr",
-              output: { approved: true },
             };
           }
           case "deliver": {
@@ -390,7 +377,13 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       deliverExecutor,
     });
 
-    await worker.processCommand(cmd);
+    const claimedCmds = commandRepo.claimPendingCommands(
+      "worker-deliver-resumed",
+      10000,
+    );
+    expect(claimedCmds.length).toBe(1);
+
+    if (claimedCmds[0]) await worker.processCommand(claimedCmds[0]);
 
     // PR was in ledger -> createPullRequest was NOT called again
     expect(prCallCount).toBe(0);

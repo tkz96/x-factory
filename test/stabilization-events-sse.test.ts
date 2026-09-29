@@ -31,7 +31,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
       ticket: { id: "T-1", title: "Ticket 1", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/sse-test",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp",
       worktreePath: "/tmp",
     });
@@ -63,17 +63,17 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     const raw = {
       sequence: 42,
       type: "status",
-      payload: { status: "implementing", text: "Working" },
+      payload: { status: "executing", text: "Working" },
       createdAt: "2026-09-21T00:00:00.000Z",
     };
 
     const sse = formatSSEMessage(raw);
 
     // Wire contract:
-    // id: 42\ndata: {"id":42,"type":"status","payload":{"status":"implementing","text":"Working"},"timestamp":"..."}\n\n
+    // id: 42\ndata: {"id":42,"type":"status","payload":{"status":"executing","text":"Working"},"timestamp":"..."}\n\n
     expect(sse).toContain("id: 42\n");
     expect(sse).toContain(
-      'data: {"id":42,"type":"status","payload":{"status":"implementing","text":"Working"},"timestamp":"2026-09-21T00:00:00.000Z"}\n\n',
+      'data: {"id":42,"type":"status","payload":{"status":"executing","text":"Working"},"timestamp":"2026-09-21T00:00:00.000Z"}\n\n',
     );
     expect(sse).not.toContain("event:");
   });
@@ -136,7 +136,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     const { runRepo, run } = setupTest();
 
     // 1. recovery_required should NOT close automatically
-    runRepo.transitionRun(run.id, "implementing", "recovery_required");
+    runRepo.transitionRun(run.id, "executing", "recovery_required");
 
     const req1 = new Request(`http://localhost/api/runs/${run.id}/events`);
     const res1 = await handleApi(req1, new URL(req1.url));

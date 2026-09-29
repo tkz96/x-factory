@@ -23,11 +23,11 @@ The system hierarchy and division of responsibility is strictly defined as follo
 > **Graphify handles code relationships. Documentation handles architectural intent.**
 
 1. **Authoritative Sources of Truth for Architecture**:
-   - [`AGENTS.md`](file:///Users/talhazuberi/x-factory/AGENTS.md) (this document): Operational guidelines, coding standards, and agent rules.
-   - [`docs/README.md`](file:///Users/talhazuberi/x-factory/docs/README.md): Central index for the Diátaxis documentation framework.
-   - [`docs/reference/database-schema.md`](file:///Users/talhazuberi/x-factory/docs/reference/database-schema.md) & [`docs/reference/state-machine-matrix.md`](file:///Users/talhazuberi/x-factory/docs/reference/state-machine-matrix.md): Authoritative contracts for durable SQLite schemas, job lifecycle, and finite state machine transitions.
-   - [`docs/explanation/process-boundaries-and-topology.md`](file:///Users/talhazuberi/x-factory/docs/explanation/process-boundaries-and-topology.md) & [`docs/explanation/ui-state-and-event-streaming.md`](file:///Users/talhazuberi/x-factory/docs/explanation/ui-state-and-event-streaming.md): Deep-dive documentation on multi-process topology, optimistic locking, event streaming, and the React UI architecture.
-   - [`DESIGN.md`](file:///Users/talhazuberi/x-factory/DESIGN.md): Apple Human Interface Guidelines (HIG) specification for layout, typography, colors, and components.
+   - [`AGENTS.md`](./AGENTS.md) (this document): Operational guidelines, coding standards, and agent rules.
+   - [`docs/README.md`](./docs/README.md): Central index for the Diátaxis documentation framework.
+   - [`docs/reference/database-schema.md`](./docs/reference/database-schema.md) & [`docs/reference/state-machine-matrix.md`](./docs/reference/state-machine-matrix.md): Authoritative contracts for durable SQLite schemas, job lifecycle, and finite state machine transitions.
+   - [`docs/explanation/process-boundaries-and-topology.md`](./docs/explanation/process-boundaries-and-topology.md) & [`docs/explanation/ui-state-and-event-streaming.md`](./docs/explanation/ui-state-and-event-streaming.md): Deep-dive documentation on multi-process topology, optimistic locking, event streaming, and the React UI architecture.
+   - [`DESIGN.md`](./DESIGN.md): Apple Human Interface Guidelines (HIG) specification for layout, typography, colors, and components.
 
 2. **Graphify MCP (Code Relationships & Traversal)**:
    - Graphify serves as the graph query engine over the codebase's Abstract Syntax Tree (AST), symbol hierarchy, and dependency relationships (`graphify-out/graph.json`).
@@ -160,3 +160,20 @@ A dev server that is already running does not pick up an edited build config or 
 
 📄 **The rest is in [RETICLE.md](./RETICLE.md): what to do when the tools are missing, when a result carries `version_skew` or `update_available`, when `reticle_look { action: "state" }` comes back empty, and how to write a feedback report that can be acted on. Read it when you hit one of those, not before.**
 <!-- reticle:end -->
+
+---
+
+## Agent skills
+
+### Issue tracker
+GitHub Issues via `gh` CLI for `tkz96/x-factory`.
+See [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md).
+
+### Domain docs
+Single-context layout rooted at [`CONTEXT.md`](./CONTEXT.md) and Diátaxis documentation under [`docs/`](./docs/).
+See [`docs/agents/domain.md`](./docs/agents/domain.md).
+
+### Triage labels
+Standard canonical triage roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`).
+See [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md).
+

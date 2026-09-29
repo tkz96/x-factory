@@ -177,7 +177,7 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
         ticket: { id: "T-1", title: "Test Ticket", acceptanceCriteria: [] },
         plan: "Test Plan",
         branch: "factory/t-1",
-        status: "implementing",
+        status: "executing",
         artifactsDir: "/tmp",
         worktreePath: "/tmp",
       });

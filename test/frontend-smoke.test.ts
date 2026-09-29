@@ -326,7 +326,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     it("WorkflowStepper renders workflow stages and active progression", () => {
       const html = renderToString(
         React.createElement(WorkflowStepper, {
-          status: "implementing",
+          status: "executing",
         }),
       );
 

@@ -120,7 +120,8 @@ describe("API Process Restart Resilience (XFM-58)", () => {
           });
           return {
             status: "success",
-            nextRunStatus: "implementing",
+            nextStage: undefined,
+            nextRunStatus: "awaiting_understanding_approval",
             output: { step: 2 },
           };
         }
@@ -176,7 +177,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
         status: string;
       };
       expect(runData2.id).toBe(runId);
-      expect(runData2.status).toBe("implementing");
+      expect(runData2.status).toBe("awaiting_understanding_approval");
 
       // Verify attempts were recorded in SQLite
       const attempts = stageAttemptRepo.listForRun(runId);

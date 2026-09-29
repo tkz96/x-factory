@@ -35,7 +35,7 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
       ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/T-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-recov-1",
       worktreePath: "/tmp/worktrees-recov-1",
     });
@@ -44,7 +44,7 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
     const pastTime = new Date(Date.now() - 60000).toISOString();
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
       maxAttempts: 3,
     });
@@ -60,7 +60,7 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
     `).run({ $pastTime: pastTime, $id: job.id });
 
     // Simulate in-flight stage attempt
-    const attempt = stageAttemptRepo.recordStart(run.id, "implement", 1);
+    const attempt = stageAttemptRepo.recordStart(run.id, "execute", 1);
     expect(attempt.status).toBe("running");
 
     // Run startup recovery
@@ -81,7 +81,7 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
 
     // Run remains in implementing state
     const currentRun = runRepo.get(run.id);
-    expect(currentRun?.status).toBe("implementing");
+    expect(currentRun?.status).toBe("executing");
   });
 
   it("transitions run to recovery_required when retries are exhausted", async () => {
@@ -94,7 +94,7 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
       ticket: { id: "T-2", title: "Test Exhausted", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/T-2",
-      status: "verifying",
+      status: "executing",
       artifactsDir: "/tmp/artifacts-recov-2",
       worktreePath: "/tmp/worktrees-recov-2",
     });
@@ -102,7 +102,7 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
     const pastTime = new Date(Date.now() - 60000).toISOString();
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "verify",
+      stage: "execute",
       status: "pending",
       maxAttempts: 3,
     });

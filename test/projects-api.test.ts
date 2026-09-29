@@ -361,7 +361,7 @@ describe("Project Onboarding & Management APIs", () => {
       ticket: { id: "T-1", title: "Test", acceptanceCriteria: [] },
       plan: "test",
       branch: "test",
-      status: "implementing",
+      status: "executing",
       artifactsDir: tempDir,
       worktreePath: tempDir,
     });

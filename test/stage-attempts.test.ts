@@ -50,11 +50,11 @@ describe("StageAttemptRepository (XFM-29)", () => {
   it("auto-increments attempt number when omitted", () => {
     const { stageAttemptRepo, run } = setup();
 
-    const att1 = stageAttemptRepo.recordStart(run.id, "implement");
+    const att1 = stageAttemptRepo.recordStart(run.id, "execute");
     expect(att1.attempt).toBe(1);
     stageAttemptRepo.recordCompletion(att1.id, { result: "first" });
 
-    const att2 = stageAttemptRepo.recordStart(run.id, "implement");
+    const att2 = stageAttemptRepo.recordStart(run.id, "execute");
     expect(att2.attempt).toBe(2);
   });
 
@@ -80,7 +80,7 @@ describe("StageAttemptRepository (XFM-29)", () => {
   it("records stage attempt failure with error message", () => {
     const { stageAttemptRepo, run } = setup();
 
-    const attempt = stageAttemptRepo.recordStart(run.id, "verify", 1);
+    const attempt = stageAttemptRepo.recordStart(run.id, "execute", 1);
     const failed = stageAttemptRepo.recordFailure(
       attempt.id,
       "Verification failed: 2 tests failed",
@@ -101,7 +101,7 @@ describe("StageAttemptRepository (XFM-29)", () => {
     const a2 = stageAttemptRepo.recordStart(run.id, "understand", 1);
     stageAttemptRepo.recordCompletion(a2.id);
 
-    const a3 = stageAttemptRepo.recordStart(run.id, "implement", 1);
+    const a3 = stageAttemptRepo.recordStart(run.id, "execute", 1);
     stageAttemptRepo.recordCompletion(a3.id);
 
     const list = stageAttemptRepo.listForRun(run.id);
@@ -109,24 +109,24 @@ describe("StageAttemptRepository (XFM-29)", () => {
     expect(list.map((a) => a.stage)).toEqual([
       "prepare",
       "understand",
-      "implement",
+      "execute",
     ]);
   });
 
   it("retrieves the latest attempt for a given stage", () => {
     const { stageAttemptRepo, run } = setup();
 
-    stageAttemptRepo.recordStart(run.id, "verify", 1);
+    stageAttemptRepo.recordStart(run.id, "execute", 1);
     stageAttemptRepo.recordFailure(
-      (stageAttemptRepo.getLatestAttempt(run.id, "verify") as { id: string })
+      (stageAttemptRepo.getLatestAttempt(run.id, "execute") as { id: string })
         .id,
       "fail 1",
     );
 
-    const att2 = stageAttemptRepo.recordStart(run.id, "verify", 2);
+    const att2 = stageAttemptRepo.recordStart(run.id, "execute", 2);
     stageAttemptRepo.recordCompletion(att2.id, { passed: true });
 
-    const latest = stageAttemptRepo.getLatestAttempt(run.id, "verify");
+    const latest = stageAttemptRepo.getLatestAttempt(run.id, "execute");
     expect(latest).not.toBeNull();
     expect(latest?.attempt).toBe(2);
     expect(latest?.status).toBe("completed");

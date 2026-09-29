@@ -79,7 +79,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
       // Create an orphaned job
       jobRepo.createJob({
         runId: run.id,
-        stage: "implement",
+        stage: "execute",
         status: "pending",
       });
 
@@ -108,7 +108,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
     });
 
     it("rejects abandon when run is not in recovery_required status", async () => {
-      const { run } = createTestRun("implementing");
+      const { run } = createTestRun("executing");
 
       const req = new Request(`http://localhost/api/runs/${run.id}/abandon`, {
         method: "POST",

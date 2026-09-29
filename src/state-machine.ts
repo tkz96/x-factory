@@ -7,7 +7,7 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
   preparing: ["understanding", "failed", "stopped", "recovery_required"],
   understanding: [
     "awaiting_understanding_approval",
-    "implementing",
+    "planning",
     "failed",
     "stopped",
     "recovery_required",
@@ -40,25 +40,12 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
     "understanding",
     "planning",
     "executing",
-    "implementing",
-    "verifying",
-    "reviewing",
     "failed",
     "stopped",
   ],
   pr_created: [],
   failed: [],
   stopped: [],
-  // Legacy states
-  implementing: ["verifying", "failed", "stopped", "recovery_required"],
-  verifying: [
-    "reviewing",
-    "implementing",
-    "failed",
-    "stopped",
-    "recovery_required",
-  ],
-  reviewing: ["ready_for_pr", "failed", "stopped", "recovery_required"],
 };
 
 export function canTransition(from: RunStatus, to: RunStatus): boolean {
@@ -71,9 +58,6 @@ export const EXECUTABLE_RUN_STATUSES = new Set<RunStatus>([
   "understanding",
   "planning",
   "executing",
-  "implementing",
-  "verifying",
-  "reviewing",
 ]);
 
 export const STOPPABLE_RUN_STATUSES = new Set<RunStatus>([
@@ -85,9 +69,6 @@ export const STOPPABLE_RUN_STATUSES = new Set<RunStatus>([
   "awaiting_plan_approval",
   "executing",
   "awaiting_review",
-  "implementing",
-  "verifying",
-  "reviewing",
 ]);
 
 export const TERMINAL_RUN_STATUSES = new Set<RunStatus>([

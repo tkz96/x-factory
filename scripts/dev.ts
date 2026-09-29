@@ -24,10 +24,28 @@ launch("api", ["bun", "--watch", "src/server.ts"], "\x1b[36m");
 // 2. Worker
 launch("worker", ["bun", "src/worker.ts"], "\x1b[33m");
 
-// 3. Vite Frontend (after a brief delay for the API to bind)
-setTimeout(() => {
-  launch("vite", ["bun", "run", "dev:frontend"], "\x1b[35m");
-}, 500);
+// 3. Wait for API to bind before starting Vite Frontend
+async function waitForApiAndStartVite() {
+  const maxRetries = 20;
+  let retries = 0;
+  while (retries < maxRetries) {
+    try {
+      const res = await fetch("http://127.0.0.1:3777/api/health");
+      if (res.ok) {
+        launch("vite", ["bun", "run", "dev:frontend"], "\x1b[35m");
+        return;
+      }
+    } catch {
+      // Ignored, API not ready
+    }
+    retries++;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  console.error("API server failed to start within 5 seconds.");
+  shutdown();
+}
+
+waitForApiAndStartVite();
 
 // Unified shutdown
 const shutdown = () => {
@@ -37,7 +55,7 @@ const shutdown = () => {
       p.kill("SIGTERM");
     } catch {}
   }
-  process.exit(0);
+  process.exit(1);
 };
 
 process.on("SIGINT", shutdown);

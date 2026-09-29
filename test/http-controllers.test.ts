@@ -297,7 +297,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         ticket: mockTicket,
         plan: "Plan",
         branch: "factory/t-1",
-        status: "implementing",
+        status: "executing",
         artifactsDir: tempDir,
         worktreePath: tempDir,
       });

@@ -23,7 +23,7 @@ describe("Navigation Persistence & Deterministic Fetch Counting (XFM-60)", () =>
 
     const mockFetchRuns = async () => {
       runsFetchCount++;
-      return [{ id: "run-1", status: "implementing" }];
+      return [{ id: "run-1", status: "executing" }];
     };
 
     const client = new QueryClient();
@@ -84,7 +84,7 @@ describe("Navigation Persistence & Deterministic Fetch Counting (XFM-60)", () =>
     let runDetailFetchCount = 0;
     const mockFetchRunDetail = async (id: string) => {
       runDetailFetchCount++;
-      return { id, status: "verifying", diff: "diff-content" };
+      return { id, status: "executing", diff: "diff-content" };
     };
 
     const client = new QueryClient();

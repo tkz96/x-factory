@@ -36,7 +36,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
       ticket: { id: "STOP-1", title: "Stop Test", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/stop-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: `/tmp/artifacts-${runId}`,
       worktreePath: `/tmp/worktrees-${runId}`,
     });
@@ -123,7 +123,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
       ticket: { id: "STEER-1", title: "Steer Test", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/steer-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: `/tmp/artifacts-${runId}`,
       worktreePath: `/tmp/worktrees-${runId}`,
     });
@@ -164,7 +164,11 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
       30000,
     );
     for (const cmd of commands1) {
-      await worker.processCommand(cmd);
+      const claimed = commandRepo
+        .claimPendingCommands(worker.workerId, 10000)
+        .find((c) => c.id === cmd.id);
+      if (claimed) await worker.processCommand(claimed);
+      else await worker.processCommand(cmd);
     }
     expect(piSteerCallCount).toBe(1);
 

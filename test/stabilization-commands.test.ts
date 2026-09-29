@@ -65,9 +65,9 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
     commandRepo.insertOrRetryCommand({
       runId: run.id,
-      command: "deliver",
+      command: "stop",
       payload: {},
-      idempotencyKey: "deliver:1",
+      idempotencyKey: "stop:1",
     });
 
     // Worker 1 claims command with short lease (1ms)
@@ -120,16 +120,24 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     });
 
     // Surviving worker runs command cycle on stop
-    await worker.processCommand(stopCmd);
+    const claimedStop = commandRepo
+      .claimPendingCommands(worker.workerId, 10000)
+      .find((c) => c.id === stopCmd.id);
+    if (claimedStop) await worker.processCommand(claimedStop);
+    else await worker.processCommand(stopCmd);
     const updatedStop = commandRepo.getCommand(stopCmd.id);
     expect(updatedStop?.status).toBe("completed");
 
     // Surviving worker runs command cycle on steer
-    await worker.processCommand(steerCmd);
+    const claimedSteer = commandRepo
+      .claimPendingCommands(worker.workerId, 10000)
+      .find((c) => c.id === steerCmd.id);
+    if (claimedSteer) await worker.processCommand(claimedSteer);
+    else await worker.processCommand(steerCmd);
     const updatedSteer = commandRepo.getCommand(steerCmd.id);
     expect(updatedSteer?.status).toBe("failed");
     expect(updatedSteer?.error).toContain(
-      "Target worker dead-worker is dead or inactive",
+      "Target worker dead; steer session lost",
     );
   });
 
@@ -172,7 +180,12 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       payload: {},
       idempotencyKey: `deliver:${run.id}`,
     });
-    commandRepo.failCommand(cmd.id, "Network timeout to GitHub");
+    commandRepo.claimPendingCommands("test-worker-fail", 10000);
+    commandRepo.failCommand(
+      cmd.id,
+      "test-worker-fail",
+      "Network timeout to GitHub",
+    );
 
     expect(commandRepo.getCommand(cmd.id)?.status).toBe("failed");
 

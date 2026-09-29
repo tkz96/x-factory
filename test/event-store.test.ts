@@ -110,14 +110,14 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
     const sseText = formatSSEMessage({
       sequence: 17,
       type: "stage_evidence",
-      payload: { stage: "verify", passed: true },
+      payload: { stage: "execute", passed: true },
     });
 
     expect(sseText).toContain("id: 17\n");
     expect(sseText).not.toContain("event: stage_evidence\n");
     expect(sseText).toContain('"id":17');
     expect(sseText).toContain('"type":"stage_evidence"');
-    expect(sseText).toContain('"payload":{"stage":"verify","passed":true}');
+    expect(sseText).toContain('"payload":{"stage":"execute","passed":true}');
     expect(sseText.endsWith("\n\n")).toBe(true);
   });
 });

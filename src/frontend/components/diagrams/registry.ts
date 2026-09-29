@@ -361,7 +361,7 @@ export const DIAGRAM_REGISTRY: Record<string, DiagramDefinition> = {
     id: "event-distribution",
     title: "Real-Time Telemetry & Event Distribution",
     subtitle:
-      "Decoupled event pipeline: background workers publish to in-memory bus, which streams SSE to clients and persists to SQLite.",
+      "Decoupled event pipeline: background workers persist durable events to SQLite, and SSE registry streams real-time updates to connected clients.",
     defaultHeight: 460,
     nodes: [
       {
@@ -388,11 +388,11 @@ export const DIAGRAM_REGISTRY: Record<string, DiagramDefinition> = {
         position: { x: 350, y: 100 },
         data: {
           tag: "Dispatcher",
-          badge: "In-Memory",
+          badge: "SSE Stream",
           badgeVariant: "accent",
-          title: "RunEventBus",
+          title: "SSERegistry",
           subtitle: "Central decoupling layer for subscribers",
-          code: "src/events.ts",
+          code: "src/http/sse-registry.ts",
           icon: "icon-layers",
           variant: "service",
           hasLeftHandle: true,

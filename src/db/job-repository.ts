@@ -305,7 +305,7 @@ export class JobRepository {
    */
   failJob(
     jobId: string,
-    _workerId: string,
+    workerId: string,
     errorMsg: string,
     retryDelayMs = 5000,
     txDb?: Database,
@@ -322,7 +322,7 @@ export class JobRepository {
 
     if (willRetry) {
       const availableAt = new Date(nowMs + retryDelayMs).toISOString();
-      conn
+      const res = conn
         .prepare(`
           UPDATE jobs
           SET status = 'pending',
@@ -331,16 +331,22 @@ export class JobRepository {
               available_at = $availableAt,
               error = $error,
               updated_at = $now
-          WHERE id = $jobId
+          WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
         `)
         .run({
           $jobId: jobId,
+          $workerId: workerId,
           $availableAt: availableAt,
           $error: errorMsg,
           $now: now,
         });
+      if (res.changes === 0) {
+        throw new Error(
+          `Job "${jobId}" cannot be mutated: worker "${workerId}" does not hold a valid lease.`,
+        );
+      }
     } else {
-      conn
+      const res = conn
         .prepare(`
           UPDATE jobs
           SET status = 'failed',
@@ -348,13 +354,19 @@ export class JobRepository {
               lease_until = NULL,
               error = $error,
               updated_at = $now
-          WHERE id = $jobId
+          WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
         `)
         .run({
           $jobId: jobId,
+          $workerId: workerId,
           $error: errorMsg,
           $now: now,
         });
+      if (res.changes === 0) {
+        throw new Error(
+          `Job "${jobId}" cannot be mutated: worker "${workerId}" does not hold a valid lease.`,
+        );
+      }
     }
 
     return { willRetry, attempts: current.attempts };

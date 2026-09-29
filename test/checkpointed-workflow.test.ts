@@ -121,26 +121,21 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
       },
       understand: {
         status: "success",
-        nextStage: "implement",
-        nextRunStatus: "implementing",
+        nextStage: undefined,
+        nextRunStatus: "awaiting_understanding_approval",
         output: { understood: true },
       },
-      implement: {
+      plan: {
         status: "success",
-        nextStage: "verify",
-        nextRunStatus: "verifying",
+        nextStage: undefined,
+        nextRunStatus: "awaiting_plan_approval",
+        output: { planned: true },
+      },
+      execute: {
+        status: "success",
+        nextStage: undefined,
+        nextRunStatus: "awaiting_review",
         output: { diff: "patch" },
-      },
-      verify: {
-        status: "success",
-        nextStage: "review",
-        nextRunStatus: "reviewing",
-        output: { passed: true },
-      },
-      review: {
-        status: "success",
-        nextRunStatus: "ready_for_pr",
-        output: { approved: true },
       },
     };
 
@@ -161,33 +156,54 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     let processedCount = 0;
     while (true) {
       const job = jobRepo.claimNextJob("worker-pipeline-test", 30000);
-      if (!job) break;
-      await worker.processJob(job);
-      processedCount++;
+      if (job) {
+        await worker.processJob(job);
+        processedCount++;
+      } else {
+        const currentRun = runRepo.get(run.id);
+        if (currentRun?.status === "awaiting_understanding_approval") {
+          runRepo.update(run.id, { status: "planning" });
+          jobRepo.createJob({
+            runId: run.id,
+            stage: "plan",
+            status: "pending",
+          });
+        } else if (currentRun?.status === "awaiting_plan_approval") {
+          runRepo.update(run.id, { status: "executing" });
+          jobRepo.createJob({
+            runId: run.id,
+            stage: "execute",
+            status: "pending",
+          });
+        } else if (currentRun?.status === "awaiting_review") {
+          runRepo.update(run.id, { status: "ready_for_pr" });
+        } else {
+          break;
+        }
+      }
     }
 
-    // 5 stages processed (paused at ready_for_pr)
-    expect(processedCount).toBe(5);
+    // 4 stages processed (paused at ready_for_pr)
+    expect(processedCount).toBe(4);
 
     // Final run status is ready_for_pr
     const finalRun = runRepo.get(run.id);
     expect(finalRun?.status).toBe("ready_for_pr");
 
-    // All 5 stage attempts persisted in order
+    // All 4 stage attempts persisted in order
     const attempts = stageAttemptRepo.listForRun(run.id);
-    expect(attempts.length).toBe(5);
+    expect(attempts.length).toBe(4);
     expect(attempts.map((a) => a.stage)).toEqual([
       "prepare",
       "understand",
-      "implement",
-      "verify",
-      "review",
+      "plan",
+      "execute",
     ]);
     expect(attempts.every((a) => a.status === "completed")).toBe(true);
 
-    // All 5 jobs completed
+    // All 4 jobs completed
     const allJobs = jobRepo.listJobsForRun(run.id);
-    expect(allJobs.length).toBe(5);
+    expect(allJobs.length).toBe(4);
     expect(allJobs.every((j) => j.status === "completed")).toBe(true);
   });
 
@@ -241,7 +257,11 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
       deliverExecutor: mockDeliverExecutor,
     });
 
-    await worker.processCommand(cmd);
+    const claimed = commandRepo
+      .claimPendingCommands(worker.workerId, 10000)
+      .find((c) => c.id === cmd.id);
+    if (claimed) await worker.processCommand(claimed);
+    else await worker.processCommand(cmd);
 
     // Run status transitioned to pr_created
     const deliveredRun = runRepo.get("run-cp-1");
@@ -277,42 +297,34 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
           if (stage === "understand") {
             return {
               status: "success",
-              nextStage: "implement",
-              nextRunStatus: "implementing",
+              nextRunStatus: "awaiting_understanding_approval",
             };
           }
-          if (stage === "implement") {
+          if (stage === "plan") {
             implementCount++;
             return {
               status: "success",
-              nextStage: "verify",
-              nextRunStatus: "verifying",
+              nextRunStatus: "awaiting_plan_approval",
             };
           }
-          if (stage === "verify") {
+          if (stage === "execute") {
             verifyCount++;
             if (verifyCount === 1) {
               // First verification attempt fails, requesting repair
               ctx.runRepo.update(ctx.run.id, { repairAttempts: 1 });
               return {
                 status: "retry",
-                nextStage: "implement",
-                nextRunStatus: "implementing",
+                nextStage: "execute",
+                nextRunStatus: "executing",
                 output: { passed: false, repairAttempt: 1 },
               };
             }
             // Second attempt passes
             return {
               status: "success",
-              nextStage: "review",
-              nextRunStatus: "reviewing",
+              nextStage: undefined,
+              nextRunStatus: "awaiting_review",
               output: { passed: true },
-            };
-          }
-          if (stage === "review") {
-            return {
-              status: "success",
-              nextRunStatus: "ready_for_pr",
             };
           }
           return { status: "failed", error: `Unexpected stage: ${stage}` };
@@ -323,12 +335,34 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     // Process all jobs in the workflow
     while (true) {
       const job = jobRepo.claimNextJob("worker-repair-test", 30000);
-      if (!job) break;
-      await worker.processJob(job);
+      if (job) {
+        await worker.processJob(job);
+      } else {
+        const currentRun = runRepo.get(run.id);
+        if (currentRun?.status === "awaiting_understanding_approval") {
+          runRepo.update(run.id, { status: "planning" });
+          jobRepo.createJob({
+            runId: run.id,
+            stage: "plan",
+            status: "pending",
+          });
+        } else if (currentRun?.status === "awaiting_plan_approval") {
+          runRepo.update(run.id, { status: "executing" });
+          jobRepo.createJob({
+            runId: run.id,
+            stage: "execute",
+            status: "pending",
+          });
+        } else if (currentRun?.status === "awaiting_review") {
+          runRepo.update(run.id, { status: "ready_for_pr" });
+        } else {
+          break;
+        }
+      }
     }
 
-    // Verify implement was called twice (initial + 1 repair)
-    expect(implementCount).toBe(2);
+    // Verify plan was called once, execute was called twice (initial + 1 repair)
+    expect(implementCount).toBe(1);
     expect(verifyCount).toBe(2);
 
     const finalRun = runRepo.get(run.id);
@@ -340,11 +374,9 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     expect(attempts.map((a) => a.stage)).toEqual([
       "prepare",
       "understand",
-      "implement",
-      "verify",
-      "implement",
-      "verify",
-      "review",
+      "plan",
+      "execute",
+      "execute",
     ]);
   });
 
@@ -367,8 +399,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
         async execute(): Promise<StageResult> {
           return {
             status: "success",
-            nextStage: "implement",
-            nextRunStatus: "implementing",
+            nextRunStatus: "awaiting_understanding_approval",
           };
         },
       },
@@ -415,7 +446,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     await worker2.processJob(job2);
     await worker2.stop();
 
-    // Verify progression continued to implementing
-    expect(runRepo.get(run.id)?.status).toBe("implementing");
+    // Verify progression continued to awaiting_understanding_approval
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_understanding_approval");
   });
 });

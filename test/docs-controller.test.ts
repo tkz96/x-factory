@@ -88,14 +88,14 @@ describe("Docs Controller (src/http/docs-controller.ts)", () => {
       expect(data.results).toEqual([]);
     });
 
-    it("searches across Diátaxis docs for 'implementing' with sections and snippets", async () => {
+    it("searches across Diátaxis docs for 'executing' with sections and snippets", async () => {
       const req = new Request(
-        "http://localhost:3777/api/docs/search?q=implementing",
+        "http://localhost:3777/api/docs/search?q=executing",
       );
       const res = await handleDocsRoute("GET", "search", undefined, req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.query).toBe("implementing");
+      expect(data.query).toBe("executing");
       expect(data.totalMatches).toBeGreaterThan(0);
       expect(Array.isArray(data.results)).toBe(true);
 
@@ -109,9 +109,7 @@ describe("Docs Controller (src/http/docs-controller.ts)", () => {
 
       const sectionWithSnippet = stateMachineMatch.sections[0];
       expect(sectionWithSnippet.heading).toBeDefined();
-      expect(sectionWithSnippet.snippet.toLowerCase()).toContain(
-        "implementing",
-      );
+      expect(sectionWithSnippet.snippet.toLowerCase()).toContain("executing");
       expect(sectionWithSnippet.matchCount).toBeGreaterThan(0);
     });
 

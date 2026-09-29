@@ -23,8 +23,6 @@ The finite state machine governs each run through discrete, sequential execution
 | `failed` | Terminal | The run halted because of unrecoverable errors or retry exhaustion. |
 | `stopped` | Terminal | The user requested cancellation of the active run. |
 
-*Legacy states (`implementing`, `verifying`, `reviewing`) remain in the type system for backward compatibility but are effectively replaced by `executing` in the Phase 2 autonomous loop.*
-
 ## State Transition Matrix
 
 The table specifies valid target states for each starting state.
@@ -34,7 +32,7 @@ Transitions not listed in this matrix are invalid and fail validation.
 |---|---|---|
 | `queued` | `preparing`, `failed`, `stopped` | Worker claim, error, or user stop. |
 | `preparing` | `understanding`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
-| `understanding` | `awaiting_understanding_approval`, `implementing` (legacy), `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
+| `understanding` | `awaiting_understanding_approval`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
 | `awaiting_understanding_approval` | `planning`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
 | `planning` | `awaiting_plan_approval`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
 | `awaiting_plan_approval` | `executing`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |

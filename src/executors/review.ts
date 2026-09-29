@@ -104,7 +104,7 @@ export class ReviewExecutor implements StageExecutor {
       return {
         status: "success",
         nextStage: undefined,
-        nextRunStatus: "ready_for_pr",
+        nextRunStatus: "awaiting_review",
         output: {
           passed: true,
           summary: rResult.summary,

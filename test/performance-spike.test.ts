@@ -30,7 +30,7 @@ describe("XF-025 Performance Spike: SSE Fan-out & Subprocess Buffering", () => {
         },
         plan: "Plan",
         branch: `factory/perf-${r}`,
-        status: "implementing",
+        status: "executing",
         artifactsDir: "/tmp",
         worktreePath: "/tmp",
       });

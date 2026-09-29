@@ -238,6 +238,8 @@ export class CommandRepository {
       }
     }
 
+    const deliverLeaseUntil = new Date(nowMs + 300000).toISOString();
+
     // 2. Claim claimable commands:
     // Either target_worker_id is null OR matches this worker.
     // Also include expired claimed commands (except steer which is at-most-once and fails on expiry).
@@ -245,7 +247,7 @@ export class CommandRepository {
       UPDATE run_commands
       SET status = 'claimed',
           worker_id = $workerId,
-          lease_until = $leaseUntil,
+          lease_until = CASE WHEN command = 'deliver' THEN $deliverLeaseUntil ELSE $leaseUntil END,
           attempts = attempts + 1
       WHERE id IN (
         SELECT id FROM run_commands
@@ -265,12 +267,14 @@ export class CommandRepository {
         {
           $workerId: string;
           $leaseUntil: string;
+          $deliverLeaseUntil: string;
           $now: string;
         }
       >(claimQuery)
       .all({
         $workerId: workerId,
         $leaseUntil: leaseUntil,
+        $deliverLeaseUntil: deliverLeaseUntil,
         $now: now,
       });
 
@@ -297,7 +301,12 @@ export class CommandRepository {
   /**
    * Marks a command as completed.
    */
-  completeCommand(id: string, result?: unknown, txDb?: Database): boolean {
+  completeCommand(
+    id: string,
+    workerId: string,
+    result?: unknown,
+    txDb?: Database,
+  ): boolean {
     const conn = txDb || this.db;
     const now = new Date().toISOString();
     const serializedResult =
@@ -313,10 +322,11 @@ export class CommandRepository {
         SET status = 'completed',
             result = $result,
             processed_at = $now
-        WHERE id = $id;
+        WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
       `)
       .run({
         $id: id,
+        $workerId: workerId,
         $result: serializedResult,
         $now: now,
       });
@@ -326,7 +336,12 @@ export class CommandRepository {
   /**
    * Marks a command as failed.
    */
-  failCommand(id: string, error: string, txDb?: Database): boolean {
+  failCommand(
+    id: string,
+    workerId: string,
+    error: string,
+    txDb?: Database,
+  ): boolean {
     const conn = txDb || this.db;
     const now = new Date().toISOString();
 
@@ -341,10 +356,11 @@ export class CommandRepository {
             lease_until = NULL,
             error = $error,
             processed_at = $now
-        WHERE id = $id;
+        WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
       `)
       .run({
         $id: id,
+        $workerId: workerId,
         $error: error,
         $now: now,
       });

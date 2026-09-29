@@ -1,6 +1,7 @@
 // src/runs.ts — Run lifecycle management, public service facade, and backward-compatible exports.
 
 import type { Database } from "bun:sqlite";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
 import { CommandRepository } from "./db/command-repository.js";
@@ -18,6 +19,7 @@ import {
   StageAttemptRepository,
 } from "./db/stage-attempt-repository.js";
 import * as git from "./git.js";
+import { NotFoundError } from "./http/responses.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
 import { STOPPABLE_RUN_STATUSES } from "./state-machine.js";
@@ -25,72 +27,95 @@ import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
 
 let hydrationPromise: Promise<void> | null = null;
-let dbInstance: Database | null = null;
-let runRepoInstance: RunRepository | null = null;
-let jobRepoInstance: JobRepository | null = null;
-let eventRepoInstance: EventRepository | null = null;
-let commandRepoInstance: CommandRepository | null = null;
-let stageAttemptRepoInstance: StageAttemptRepository | null = null;
-let operationLedgerRepoInstance: OperationLedgerRepository | null = null;
+
+const dbStorage = new AsyncLocalStorage<Database | null>();
+
+// Global fallback DB when not in a test context
+let defaultDbInstance: Database | null = null;
+
+const runRepoCache = new WeakMap<Database, RunRepository>();
+const jobRepoCache = new WeakMap<Database, JobRepository>();
+const eventRepoCache = new WeakMap<Database, EventRepository>();
+const commandRepoCache = new WeakMap<Database, CommandRepository>();
+const stageAttemptRepoCache = new WeakMap<Database, StageAttemptRepository>();
+const operationLedgerRepoCache = new WeakMap<
+  Database,
+  OperationLedgerRepository
+>();
 
 export function getDb(): Database {
-  if (!dbInstance) {
-    dbInstance = createDatabase();
-    runMigrations(dbInstance);
+  const storeDb = dbStorage.getStore();
+  if (storeDb) return storeDb;
+
+  if (!defaultDbInstance) {
+    defaultDbInstance = createDatabase();
+    runMigrations(defaultDbInstance);
   }
-  return dbInstance;
+  return defaultDbInstance;
 }
 
 export function getRunRepository(): RunRepository {
-  if (!runRepoInstance) {
-    runRepoInstance = new RunRepository(getDb());
+  const db = getDb();
+  let repo = runRepoCache.get(db);
+  if (!repo) {
+    repo = new RunRepository(db);
+    runRepoCache.set(db, repo);
   }
-  return runRepoInstance;
+  return repo;
 }
 
 export function getJobRepository(): JobRepository {
-  if (!jobRepoInstance) {
-    jobRepoInstance = new JobRepository(getDb());
+  const db = getDb();
+  let repo = jobRepoCache.get(db);
+  if (!repo) {
+    repo = new JobRepository(db);
+    jobRepoCache.set(db, repo);
   }
-  return jobRepoInstance;
+  return repo;
 }
 
 export function getEventRepository(): EventRepository {
-  if (!eventRepoInstance) {
-    eventRepoInstance = new EventRepository(getDb());
+  const db = getDb();
+  let repo = eventRepoCache.get(db);
+  if (!repo) {
+    repo = new EventRepository(db);
+    eventRepoCache.set(db, repo);
   }
-  return eventRepoInstance;
+  return repo;
 }
 
 export function getCommandRepository(): CommandRepository {
-  if (!commandRepoInstance) {
-    commandRepoInstance = new CommandRepository(getDb());
+  const db = getDb();
+  let repo = commandRepoCache.get(db);
+  if (!repo) {
+    repo = new CommandRepository(db);
+    commandRepoCache.set(db, repo);
   }
-  return commandRepoInstance;
+  return repo;
 }
 
 export function getStageAttemptRepository(): StageAttemptRepository {
-  if (!stageAttemptRepoInstance) {
-    stageAttemptRepoInstance = new StageAttemptRepository(getDb());
+  const db = getDb();
+  let repo = stageAttemptRepoCache.get(db);
+  if (!repo) {
+    repo = new StageAttemptRepository(db);
+    stageAttemptRepoCache.set(db, repo);
   }
-  return stageAttemptRepoInstance;
+  return repo;
 }
 
 export function getOperationLedgerRepository(): OperationLedgerRepository {
-  if (!operationLedgerRepoInstance) {
-    operationLedgerRepoInstance = new OperationLedgerRepository(getDb());
+  const db = getDb();
+  let repo = operationLedgerRepoCache.get(db);
+  if (!repo) {
+    repo = new OperationLedgerRepository(db);
+    operationLedgerRepoCache.set(db, repo);
   }
-  return operationLedgerRepoInstance;
+  return repo;
 }
 
 export function setDbForTesting(db: Database | null): void {
-  dbInstance = db;
-  runRepoInstance = db ? new RunRepository(db) : null;
-  jobRepoInstance = db ? new JobRepository(db) : null;
-  eventRepoInstance = db ? new EventRepository(db) : null;
-  commandRepoInstance = db ? new CommandRepository(db) : null;
-  operationLedgerRepoInstance = db ? new OperationLedgerRepository(db) : null;
-  stageAttemptRepoInstance = db ? new StageAttemptRepository(db) : null;
+  dbStorage.enterWith(db);
 }
 
 export function getRunEvents(
@@ -247,8 +272,8 @@ export async function steerRun(
 
   const tx = db.transaction(() => {
     const run = runRepo.get(id, db);
-    if (!run) throw new Error(`Run ${id} not found.`);
-    if (run.status !== "implementing") {
+    if (!run) throw new NotFoundError(`Run ${id} not found.`);
+    if (run.status !== "executing") {
       throw new Error(`Cannot steer in status "${run.status}".`);
     }
 
@@ -303,7 +328,7 @@ export async function stopRun(
 
   const tx = db.transaction((): RunRecord => {
     const run = runRepo.get(id, db);
-    if (!run) throw new Error(`Run ${id} not found.`);
+    if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (run.status === "stopped") {
       return run;
@@ -377,7 +402,7 @@ function verifyRecoveryRequired(
   action: string,
 ): RunRecord {
   const dbRun = runRepo.get(id, db);
-  if (!dbRun) throw new Error(`Run ${id} not found.`);
+  if (!dbRun) throw new NotFoundError(`Run ${id} not found.`);
   if (dbRun.status !== "recovery_required") {
     throw new Error(
       `Cannot ${action} run in status "${dbRun.status}". Run must be in "recovery_required".`,
@@ -417,7 +442,7 @@ export async function createPR(
 
   const tx = db.transaction((): CreatePrResult => {
     const run = runRepo.get(id, db);
-    if (!run) throw new Error(`Run ${id} not found.`);
+    if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (run.pullRequest) {
       return {
@@ -504,12 +529,13 @@ export async function resumeRun(id: string): Promise<Run> {
     const stageToStatus: Record<string, RunStatus> = {
       prepare: "preparing",
       understand: "understanding",
-      implement: "implementing",
-      verify: "verifying",
-      review: "reviewing",
+      plan: "planning",
+      execute: "executing",
+      verify: "executing",
+      review: "executing",
+      implement: "executing",
     };
-    const targetStatus: RunStatus =
-      stageToStatus[targetStage] || "implementing";
+    const targetStatus: RunStatus = stageToStatus[targetStage] || "executing";
 
     const transitionResult = runRepo.transitionRun(
       id,
@@ -589,7 +615,7 @@ export async function chatWithRun(
   const eventRepo = getEventRepository();
 
   const run = runRepo.get(id);
-  if (!run) throw new Error(`Run ${id} not found.`);
+  if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
   if (
     run.status !== "awaiting_understanding_approval" &&
@@ -687,7 +713,7 @@ export async function handleTransition(
 
   const tx = db.transaction((): RunRecord => {
     const run = runRepo.get(id, db);
-    if (!run) throw new Error(`Run ${id} not found.`);
+    if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (action === "approve") {
       if (run.status === "awaiting_understanding_approval") {

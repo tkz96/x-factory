@@ -48,7 +48,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
       ticket: { id: "T1", title: "Active Ticket", acceptanceCriteria: [] },
       plan: "plan",
       branch: "factory/t1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/a1",
       worktreePath: "/tmp/w1",
     });
@@ -73,7 +73,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     });
     jobRepo.createJob({
       runId: run1.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
     });
     jobRepo.claimNextJob("worker-alpha", 30000);
@@ -81,7 +81,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     // Create a stale claimed job
     const staleJob = jobRepo.createJob({
       runId: run1.id,
-      stage: "verify",
+      stage: "execute",
       status: "pending",
     });
     // Set to claimed with expired lease
@@ -159,7 +159,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
         request_id: "req_123",
         run_id: "run-456",
         job_id: "job-789",
-        stage: "implement",
+        stage: "execute",
         worker_id: "worker-1",
         attempt: 2,
       },
@@ -172,7 +172,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     expect(entry.request_id).toBe("req_123");
     expect(entry.run_id).toBe("run-456");
     expect(entry.job_id).toBe("job-789");
-    expect(entry.stage).toBe("implement");
+    expect(entry.stage).toBe("execute");
     expect(entry.worker_id).toBe("worker-1");
     expect(entry.attempt).toBe(2);
     expect(entry.duration_ms).toBe(120);

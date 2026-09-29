@@ -12,10 +12,9 @@ import {
   DeliverExecutor,
   PrepareExecutor,
   type StageContext,
-  VerifyExecutor,
 } from "../src/executors/index.js";
-import type { BaselineState } from "../src/pollution.js";
-import type { Project, VerificationResult } from "../src/shared/types.js";
+
+import type { Project } from "../src/shared/types.js";
 
 describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-35)", () => {
   function setupTest(stage: string) {
@@ -138,64 +137,6 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
       expect(result2.status).toBe("success");
       expect(branchCreateCalls).toBe(1); // Unchanged!
       expect(worktreeCreateCalls).toBe(1); // Unchanged!
-    });
-  });
-
-  describe("VerifyExecutor Reconstructable Baseline (XFM-35)", () => {
-    it("reconstructs exact baseline state from baseline.json artifact", async () => {
-      const { context } = setupTest("verify");
-
-      const savedBaseline = {
-        trackedFiles: ["index.ts", "utils.ts"],
-        untrackedFiles: ["notes.txt"],
-      };
-
-      let baselinePassedToVerify: BaselineState | null = null;
-
-      const mockVResult: VerificationResult = {
-        passed: true,
-        repairAttempt: 1,
-        tests: {
-          command: "test",
-          exitCode: 0,
-          stdout: "pass",
-          stderr: "",
-          passed: true,
-          durationMs: 10,
-        },
-        diff: "diff --git a/index.ts b/index.ts",
-        filesChanged: ["index.ts"],
-        hasPollution: false,
-        summary: "1/1 tests passed",
-      };
-
-      const executor = new VerifyExecutor({
-        readFile: async (filepath: string) => {
-          if (filepath.endsWith("baseline.json")) {
-            return JSON.stringify(savedBaseline);
-          }
-          throw new Error("File not found");
-        },
-        writeFile: async () => {},
-        recordBaseline: async () => {
-          throw new Error(
-            "Should not record fresh baseline when baseline.json exists!",
-          );
-        },
-        runVerification: async (_wt, _proj, baseline) => {
-          baselinePassedToVerify = baseline;
-          return mockVResult;
-        },
-      });
-
-      const result = await executor.execute(context);
-      expect(result.status).toBe("success");
-      const captured = baselinePassedToVerify as BaselineState | null;
-      expect(captured).not.toBeNull();
-      if (!captured) throw new Error("Expected baseline to be captured");
-      expect(captured.trackedFiles.has("index.ts")).toBe(true);
-      expect(captured.trackedFiles.has("utils.ts")).toBe(true);
-      expect(captured.untrackedFiles.has("notes.txt")).toBe(true);
     });
   });
 

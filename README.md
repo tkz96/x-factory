@@ -63,37 +63,43 @@ Every task advances through a strictly governed finite state machine:
 flowchart LR
     Ticket([Issue Tracker Ticket<br/><i>GitHub / Jira / Azure</i>]) --> Prepare
     
-    subgraph Pipeline["Deterministic Workflow Engine"]
-        Prepare["1. Prepare<br/><i>Create Branch & Worktree</i>"]
-        Understand["2. Understand<br/><i>Extract Context & Spec</i>"]
-        Implement["3. Implement<br/><i>Pi Coding Agent</i>"]
-        Verify{"4. Verify<br/><i>Test • Lint • Typecheck</i>"}
-        Review{"5. Review<br/><i>Read-Only Spec Audit</i>"}
-        Deliver["6. Deliver<br/><i>Human Checkpoint</i>"]
+    subgraph Pipeline["Canonical Workflow Engine"]
+        Prepare["1. Prepare<br/><i>Branch & Worktree</i>"]
+        Understand["2. Understand<br/><i>Extract Context</i>"]
+        Chk1{{"Human Approval<br/><i>Understanding</i>"}}
+        Plan["3. Plan<br/><i>Synthesize Tasks</i>"]
+        Chk2{{"Human Approval<br/><i>Plan</i>"}}
+        Execute["4. Execute<br/><i>Autonomous Ralph Loop</i>"]
+        Review{{"5. Review<br/><i>Human Code Review</i>"}}
+        Deliver["6. Deliver<br/><i>Pull Request Creation</i>"]
     end
 
-    Prepare --> Understand --> Implement --> Verify
-    Verify -->|"Tests Pass"| Review
-    Verify -->|"Tests Fail (Retry &le; 3)"| Implement
-    Review -->|"Pass"| Deliver
-    Review -->|"Changes Required"| Implement
+    Prepare --> Understand --> Chk1
+    Chk1 -->|"Approved"| Plan
+    Chk1 -->|"Requeue"| Understand
+    Plan --> Chk2
+    Chk2 -->|"Approved"| Execute
+    Chk2 -->|"Requeue"| Understand
+    Execute --> Review
+    Review -->|"Approved"| Deliver
+    Review -->|"Feedback / Requeue"| Understand
     
-    Deliver -->|"User Approves (POST /api/runs/:id/pr)"| PR([Pull Request Created<br/><i>Ready to Merge</i>])
+    Deliver -->|"POST /api/runs/:id/pr"| PR([Pull Request Created<br/><i>Ready to Merge</i>])
     
     classDef stage fill:#f8fafc,stroke:#334155,stroke-width:1.5px;
-    classDef decision fill:#eff6ff,stroke:#2563eb,stroke-width:2px;
+    classDef checkpoint fill:#eff6ff,stroke:#2563eb,stroke-width:2px;
     classDef terminal fill:#ecfdf5,stroke:#059669,stroke-width:2px;
-    class Prepare,Understand,Implement,Deliver stage;
-    class Verify,Review decision;
+    class Prepare,Understand,Plan,Execute,Deliver stage;
+    class Chk1,Chk2,Review checkpoint;
     class Ticket,PR terminal;
 ```
 
-1. **Prepare**: Allocates a unique run ID, creates branch `xfactory/<ticket>-<id>`, and provisions an isolated Git worktree outside the target repo.
-2. **Understand**: Synthesizes codebase symbols, documentation, and tickets into an `ImplementationContext` artifact.
-3. **Implement**: Spawns Pi agent session in the dedicated worktree. Supports live interactive steering and cancellation.
-4. **Verify**: Deterministically executes target repository test, typecheck, and lint commands. Checks for repo pollution and unintended file deletions. If checks fail, feeds errors back to the agent for bounded repair (up to 3 attempts).
-5. **Review**: Launches a fresh, read-only Pi agent session to evaluate the diff against the ticket acceptance criteria.
-6. **Deliver**: Human-in-the-loop gate. Displays test evidence, review scorecards, and git patch in the UI. When approved, commits, pushes, and opens a pull request.
+1. **Prepare**: Allocates a unique run ID, creates branch `factory/<ticket>-<id>`, and provisions an isolated Git worktree outside the target repo.
+2. **Understand**: Synthesizes codebase symbols, documentation, and tickets into an `ImplementationContext` artifact. Pauses at human checkpoint `awaiting_understanding_approval`.
+3. **Plan**: Synthesizes structured markdown task lists and constraints from acceptance criteria. Pauses at human checkpoint `awaiting_plan_approval`.
+4. **Execute**: Drives the autonomous Ralph execution loop in the dedicated worktree using Matt Pocock TDD protocols with sanitized environment controls, streaming real-time iteration events.
+5. **Review**: Operator review gate at `awaiting_review`. Displays diff, artifacts, and execution evidence in the UI. Operator may approve or requeue with feedback.
+6. **Deliver**: Publishes branch, creates pull request on GitHub or Azure DevOps, and transitions run to `pr_created`.
 
 ---
 
@@ -197,7 +203,7 @@ The X-Factory workbench frontend is a local-first Single Page Application design
 
 - **Stack**: React 19, Vite 6, React Router 7, and TanStack Query 5.
 - **Real-Time Telemetry**: Server-Sent Events (SSE) update the TanStack Query cache dynamically without page reloads or layout shifts.
-- **Design Foundations**: Layout, typography, spacing, and colors follow [`DESIGN.md`](file:///Users/talhazuberi/x-factory/DESIGN.md) using curated semantic CSS variables with automatic dark and light theme switching.
+- **Design Foundations**: Layout, typography, spacing, and colors follow [`DESIGN.md`](./DESIGN.md) using curated semantic CSS variables with automatic dark and light theme switching.
 
 ### Modular CSS Architecture
 
@@ -242,16 +248,16 @@ When developing or modifying UI components:
 
 ## Documentation
 
-Full project documentation is structured using the [Diátaxis Framework](https://diataxis.fr) and written in [ASD-STE100 Simplified Technical English](file:///Users/talhazuberi/x-factory/docs/README.md):
+Full project documentation is structured using the [Diátaxis Framework](https://diataxis.fr) and written in [ASD-STE100 Simplified Technical English](./docs/README.md):
 
 | Quadrant | Purpose | Key Documents |
 |---|---|---|
-| **[Tutorials](file:///Users/talhazuberi/x-factory/docs/tutorials/first-agent-run.md)** | Learning-oriented guide for newcomers | [Run Your First Agent Workflow](file:///Users/talhazuberi/x-factory/docs/tutorials/first-agent-run.md) |
-| **[How-To Guides](file:///Users/talhazuberi/x-factory/docs/how-to/verify-worker-and-pi-session.md)** | Step-by-step problem-solving recipes | [Verify Worker Leases & Sessions](file:///Users/talhazuberi/x-factory/docs/how-to/verify-worker-and-pi-session.md)<br/>[Database Backup & Disaster Recovery](file:///Users/talhazuberi/x-factory/docs/how-to/backup-and-restore-database.md) |
-| **[Reference](file:///Users/talhazuberi/x-factory/docs/reference/database-schema.md)** | Factual technical specifications | [Database Schema & Entities](file:///Users/talhazuberi/x-factory/docs/reference/database-schema.md)<br/>[State Machine Transition Matrix](file:///Users/talhazuberi/x-factory/docs/reference/state-machine-matrix.md)<br/>[Production Readiness Checklist](file:///Users/talhazuberi/x-factory/docs/reference/production-readiness-checklist.md) |
-| **[Explanation](file:///Users/talhazuberi/x-factory/docs/explanation/process-boundaries-and-topology.md)** | Architectural understanding & "why" | [Process Boundaries & System Topology](file:///Users/talhazuberi/x-factory/docs/explanation/process-boundaries-and-topology.md)<br/>[UI State & Event Streaming](file:///Users/talhazuberi/x-factory/docs/explanation/ui-state-and-event-streaming.md) |
+| **[Tutorials](./docs/tutorials/first-agent-run.md)** | Learning-oriented guide for newcomers | [Run Your First Agent Workflow](./docs/tutorials/first-agent-run.md) |
+| **[How-To Guides](./docs/how-to/verify-worker-and-pi-session.md)** | Step-by-step problem-solving recipes | [Verify Worker Leases & Sessions](./docs/how-to/verify-worker-and-pi-session.md)<br/>[Database Backup & Disaster Recovery](./docs/how-to/backup-and-restore-database.md) |
+| **[Reference](./docs/reference/database-schema.md)** | Factual technical specifications | [Database Schema & Entities](./docs/reference/database-schema.md)<br/>[State Machine Transition Matrix](./docs/reference/state-machine-matrix.md)<br/>[Production Readiness Checklist](./docs/reference/production-readiness-checklist.md) |
+| **[Explanation](./docs/explanation/process-boundaries-and-topology.md)** | Architectural understanding & "why" | [Process Boundaries & System Topology](./docs/explanation/process-boundaries-and-topology.md)<br/>[UI State & Event Streaming](./docs/explanation/ui-state-and-event-streaming.md) |
 
-For the central documentation index, visit [`docs/README.md`](file:///Users/talhazuberi/x-factory/docs/README.md).
+For the central documentation index, visit [`docs/README.md`](./docs/README.md).
 
 ---
 

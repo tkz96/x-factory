@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { validateRepo } from "./git.js";
+import { NotFoundError } from "./http/responses.js";
 import type { Project, ProjectRepository } from "./types.js";
 
 export { validateProjectInput as validateProject } from "./config-schema.js";
@@ -167,7 +168,7 @@ export async function deleteProject(
   const projects = await loadProjects(configPath);
   const filtered = projects.filter((p) => p.id !== projectId);
   if (filtered.length === projects.length) {
-    throw new Error(`Project "${projectId}" not found.`);
+    throw new NotFoundError(`Project "${projectId}" not found.`);
   }
   await saveProjects(filtered, configPath);
 }

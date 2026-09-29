@@ -49,15 +49,15 @@ describe("Live Database Backup & Recovery (XFM-72)", () => {
       ticket: { id: "BKP-1", title: "Backup Ticket", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/bkp-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: "/tmp/a",
       worktreePath: "/tmp/w",
     });
 
     jobRepo.createJob({ runId: run.id, stage: "prepare", status: "completed" });
-    jobRepo.createJob({ runId: run.id, stage: "implement", status: "pending" });
+    jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
 
-    eventRepo.appendEvent(run.id, "status", { status: "implementing" });
+    eventRepo.appendEvent(run.id, "status", { status: "executing" });
     const att = attemptRepo.recordStart(run.id, "prepare", 1);
     attemptRepo.recordCompletion(att.id, { ok: true });
 
@@ -95,7 +95,7 @@ describe("Live Database Backup & Recovery (XFM-72)", () => {
       },
       plan: "Fidelity Plan",
       branch: "factory/fid-1",
-      status: "reviewing",
+      status: "awaiting_review",
       artifactsDir: "/tmp/afid",
       worktreePath: "/tmp/wfid",
     });
@@ -119,7 +119,7 @@ describe("Live Database Backup & Recovery (XFM-72)", () => {
       expect(fetchedRun).not.toBeNull();
       expect(fetchedRun?.id).toBe("run-fidelity-test");
       expect(fetchedRun?.ticket.title).toBe("Fidelity Ticket");
-      expect(fetchedRun?.status).toBe("reviewing");
+      expect(fetchedRun?.status).toBe("awaiting_review");
     } finally {
       restoredDb.close();
     }

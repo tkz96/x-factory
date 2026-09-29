@@ -13,6 +13,34 @@ export function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
+export class HttpError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class NotFoundError extends HttpError {
+  constructor(message = "Not found") {
+    super(404, message);
+  }
+}
+
+export class InternalServerError extends HttpError {
+  constructor(message = "Internal Server Error") {
+    super(500, message);
+  }
+}
+
+export class BadRequestError extends HttpError {
+  constructor(message = "Bad Request") {
+    super(400, message);
+  }
+}
+
 export async function parseJsonBody(
   req: Request,
 ): Promise<Record<string, unknown> | null> {
@@ -77,14 +105,15 @@ export async function withValidatedBody<T>(
  */
 export async function catchHttpErrors(
   action: () => Promise<Response>,
-  defaultStatus = 400,
 ): Promise<Response> {
   try {
     return await action();
   } catch (err: unknown) {
+    if (err instanceof HttpError) {
+      return errorResponse(err.message, err.status);
+    }
     const msg = err instanceof Error ? err.message : String(err);
-    const status = msg.includes("not found") ? 404 : defaultStatus;
-    return errorResponse(msg, status);
+    return errorResponse(msg, 500);
   }
 }
 

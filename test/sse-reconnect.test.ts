@@ -29,7 +29,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
       ticket: { id: "SSE-1", title: "SSE Test", acceptanceCriteria: [] },
       plan: "Plan",
       branch: "factory/sse-1",
-      status: "implementing",
+      status: "executing",
       artifactsDir: `/tmp/artifacts-${runId}`,
       worktreePath: `/tmp/worktrees-${runId}`,
     });

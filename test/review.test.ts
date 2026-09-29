@@ -403,9 +403,8 @@ FAILED
       const result = await reviewRun(reviewContext);
       assert.equal(result.passed, true);
       assert.equal(result.criteriaChecked.length, 2);
-      assert.ok(mockEvents.some((e) => e.type === "pi_text"));
-      assert.ok(mockEvents.some((e) => e.type === "pi_tool"));
-      assert.ok(mockEvents.some((e) => e.type === "pi_error"));
+      assert.ok(mockEvents.some((e) => e.type === "info"));
+      assert.ok(mockEvents.some((e) => e.type === "error"));
     });
 
     it("returns fallback review when session initialization fails", async () => {

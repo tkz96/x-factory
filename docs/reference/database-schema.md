@@ -28,6 +28,8 @@ The database applies migrations sequentially on startup through `src/db/migrator
 - **v4**: Adds optimistic locking `revision` counter to `runs`.
 - **v5**: Adds lease management columns (`worker_id`, `lease_until`, `last_heartbeat_at`) to `jobs`.
 - **v6**: Adds `operation_ledger` table for idempotent request processing.
+- **v7**: Adds `run_commands` table for durable operator commands and lease coordination.
+- **v8**: Adds `worker_heartbeats` table for tracking worker process liveness.
 
 ## Table Definitions
 
@@ -122,6 +124,40 @@ The `operation_ledger` table enforces idempotency across mutating API commands.
 | `created_at` | TEXT | NOT NULL | ISO8601 timestamp. |
 
 A unique constraint applies across `(operation_type, idempotency_key)`.
+
+### Table: `run_commands`
+
+The `run_commands` table persists asynchronous operator commands (such as stops, steers, and pull request deliveries) across process boundaries.
+
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | TEXT | PRIMARY KEY | Unique command identifier. |
+| `run_id` | TEXT | NOT NULL REFERENCES runs(id) | Associated run identifier. |
+| `command` | TEXT | NOT NULL | Command action type (`stop`, `steer`, `deliver`). |
+| `payload` | TEXT | NULL | JSON-serialized command arguments. |
+| `idempotency_key` | TEXT | UNIQUE | Unique client idempotency key. |
+| `target_worker_id` | TEXT | NULL | Worker identifier targeted for dedicated execution. |
+| `status` | TEXT | NOT NULL DEFAULT 'pending' | Command status (`pending`, `claimed`, `completed`, `failed`). |
+| `worker_id` | TEXT | NULL | Worker holding active execution lease. |
+| `lease_until` | TEXT | NULL | ISO8601 timestamp of command lease expiration. |
+| `attempts` | INTEGER | NOT NULL DEFAULT 0 | Count of execution attempts. |
+| `max_attempts` | INTEGER | NOT NULL DEFAULT 3 | Retry attempt limit. |
+| `error` | TEXT | NULL | Error message from execution failure. |
+| `result` | TEXT | NULL | JSON result payload from successful command execution. |
+| `created_at` | TEXT | NOT NULL | ISO8601 timestamp. |
+| `processed_at` | TEXT | NULL | ISO8601 completion timestamp. |
+
+### Table: `worker_heartbeats`
+
+The `worker_heartbeats` table tracks active background worker processes for liveness monitoring and orphan recovery.
+
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `worker_id` | TEXT | PRIMARY KEY | Unique worker identifier. |
+| `pid` | INTEGER | NULL | Operating system process identifier of the worker. |
+| `hostname` | TEXT | NULL | Hostname on which the worker is running. |
+| `last_heartbeat` | TEXT | NOT NULL | ISO8601 timestamp of the most recent heartbeat. |
+| `started_at` | TEXT | NOT NULL | ISO8601 startup timestamp. |
 
 ## Runtime-Only Entities
 

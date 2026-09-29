@@ -43,7 +43,7 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
       },
       plan: "Plan for reload",
       branch: "factory/rel-101",
-      status: "verifying",
+      status: "executing",
       artifactsDir: `/tmp/artifacts-${runId}`,
       worktreePath: `/tmp/worktrees-${runId}`,
     });
@@ -73,15 +73,15 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
     stageAttemptRepo.recordCompletion(a1.id, { ok: true });
     const a2 = stageAttemptRepo.recordStart(runId, "understand", 1);
     stageAttemptRepo.recordCompletion(a2.id, { ok: true });
-    const a3 = stageAttemptRepo.recordStart(runId, "implement", 1);
+    const a3 = stageAttemptRepo.recordStart(runId, "execute", 1);
     stageAttemptRepo.recordCompletion(a3.id, { ok: true });
-    stageAttemptRepo.recordStart(runId, "verify", 1);
+    stageAttemptRepo.recordStart(runId, "execute", 1);
 
     // Record events in SQLite event_store
     eventRepo.appendEvent(runId, "status", { status: "preparing" });
     eventRepo.appendEvent(runId, "status", { status: "understanding" });
-    eventRepo.appendEvent(runId, "status", { status: "implementing" });
-    eventRepo.appendEvent(runId, "status", { status: "verifying" });
+    eventRepo.appendEvent(runId, "status", { status: "executing" });
+    eventRepo.appendEvent(runId, "status", { status: "executing" });
 
     return { db, runRepo, eventRepo, stageAttemptRepo, runId };
   }
@@ -113,7 +113,7 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
 
     const runData = (await res.json()) as Run;
     expect(runData.id).toBe(runId);
-    expect(runData.status).toBe("verifying");
+    expect(runData.status).toBe("executing");
     expect(runData.ticket.id).toBe("REL-101");
     expect(runData.ticket.title).toBe("Direct Deep Link Ticket");
     expect(runData.ticket.acceptanceCriteria).toEqual(["AC 1", "AC 2"]);
@@ -159,8 +159,8 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
     expect(events.length).toBe(4);
     expect(events[0] ?? "").toContain("preparing");
     expect(events[1] ?? "").toContain("understanding");
-    expect(events[2] ?? "").toContain("implementing");
-    expect(events[3] ?? "").toContain("verifying");
+    expect(events[2] ?? "").toContain("executing");
+    expect(events[3] ?? "").toContain("executing");
 
     await reader?.cancel();
   });

@@ -72,8 +72,6 @@ function statusToSystemText(status: string, eventText?: string): string {
       return "🔄 Moving to planning phase...";
     case "executing":
       return "⚙️ Execution started — Ralph loop active";
-    case "verifying":
-      return "🔍 Verification started...";
     case "awaiting_understanding_approval":
       return "📋 Codebase analysis complete — review required";
     case "awaiting_plan_approval":
@@ -147,16 +145,6 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-executing",
       role: "agent",
       text: "I'm actively implementing the changes in the worktree. I'll let you know as soon as the test suite verifies the work.",
-      timestamp: now,
-    });
-    return messages;
-  }
-
-  if (run.status === "verifying") {
-    messages.push({
-      id: "system-verifying",
-      role: "system",
-      text: "🔍 Running test suites and typecheck verification...",
       timestamp: now,
     });
     return messages;
@@ -528,9 +516,7 @@ export function RunChat({
     if (run.status === "understanding") {
       return "Waiting for agent to finish codebase analysis…";
     }
-    if (run.status === "verifying") {
-      return "Waiting for agent to finish verification…";
-    }
+
     if (run.status === "pr_created" || run.status === "ready_for_pr") {
       return "Pull request stage reached.";
     }
@@ -548,7 +534,7 @@ export function RunChat({
     if (run.status === "executing") return "Implementation Execution";
     if (run.status === "planning") return "Plan Drafting";
     if (run.status === "understanding") return "Codebase Understanding";
-    if (run.status === "verifying") return "Quality Verification";
+
     return "Agent Workspace";
   };
 

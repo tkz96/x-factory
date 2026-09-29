@@ -7,15 +7,15 @@
 Please refer to the following authoritative documents:
 
 1. **Process Boundaries & System Topology**:
-   - [Process Boundaries and System Topology](file:///Users/talhazuberi/x-factory/docs/explanation/process-boundaries-and-topology.md)
+   - [Process Boundaries and System Topology](./explanation/process-boundaries-and-topology.md)
    - Covers process roles (API vs. Worker), SQLite WAL architecture, and worker lease lifecycles.
 
 2. **Durable Database Schemas & Contracts**:
-   - [Database Schema and Durable Entities](file:///Users/talhazuberi/x-factory/docs/reference/database-schema.md)
+   - [Database Schema and Durable Entities](./reference/database-schema.md)
    - Contains table definitions, column types, connection PRAGMAs, and runtime entity rules.
 
 3. **Workflow State Machine Contracts**:
-   - [Workflow State Machine and Transition Contracts](file:///Users/talhazuberi/x-factory/docs/reference/state-machine-matrix.md)
+   - [Workflow State Machine and Transition Contracts](./reference/state-machine-matrix.md)
    - Defines workflow states, the transition matrix, repair loops, and optimistic concurrency rules.
 
-For the full catalog of documentation, visit the [Documentation Index](file:///Users/talhazuberi/x-factory/docs/README.md).
+For the full catalog of documentation, visit the [Documentation Index](./README.md).

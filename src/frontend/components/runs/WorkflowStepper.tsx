@@ -73,10 +73,6 @@ const STATUS_TO_STAGE: Record<RunStatus, WorkflowStage | null> = {
   recovery_required: null,
   failed: null,
   stopped: null,
-  // Legacy states
-  implementing: "implement",
-  verifying: "verify",
-  reviewing: "review",
 };
 
 export interface WorkflowStepperProps {

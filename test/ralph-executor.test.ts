@@ -333,5 +333,49 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       expect(result.status).toBe("failed");
       expect(result.error).toContain("ENOENT");
     });
+
+    it("spawns ralph with restricted environment, stripping sensitive host variables", async () => {
+      const { context } = setupTestContext("execute");
+
+      process.env.AWS_SECRET_ACCESS_KEY = "sensitive-secret-token";
+      process.env.PI_API_KEY = "test-pi-key";
+
+      class MockSuccessChild extends EventEmitter {
+        stdout = new EventEmitter();
+        stderr = new EventEmitter();
+        kill() {}
+      }
+
+      const mockChild = new MockSuccessChild();
+      let capturedEnv: Record<string, string> | undefined;
+
+      const executor = new ExecuteExecutor({
+        mkdir: async () => {},
+        access: async () => {},
+        chmod: async () => {},
+        writeFile: async () => {},
+        spawn: ((
+          _command: string,
+          _args: string[],
+          options: { env?: NodeJS.ProcessEnv },
+        ) => {
+          capturedEnv = options.env as Record<string, string>;
+          setTimeout(() => {
+            mockChild.emit("close", 0);
+          }, 10);
+          return mockChild as unknown as ChildProcess;
+        }) as unknown as typeof spawn,
+        getDiff: async () => ({ diff: "", filesChanged: [] }),
+      });
+
+      await executor.execute(context);
+
+      expect(capturedEnv).toBeDefined();
+      expect(capturedEnv?.PI_API_KEY).toBe("test-pi-key");
+      expect(capturedEnv?.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+
+      delete process.env.AWS_SECRET_ACCESS_KEY;
+      delete process.env.PI_API_KEY;
+    });
   });
 });

@@ -7,19 +7,19 @@
 Please refer to the following authoritative documents:
 
 1. **System Topology and Process Isolation**:
-   - [Process Boundaries and System Topology](file:///Users/talhazuberi/x-factory/docs/explanation/process-boundaries-and-topology.md)
+   - [Process Boundaries and System Topology](./explanation/process-boundaries-and-topology.md)
    - Details API, Worker, and SQLite process boundaries, lease management, and worker recovery.
 
 2. **UI State and Real-Time Telemetry**:
-   - [UI State Management and Real-Time Event Streaming](file:///Users/talhazuberi/x-factory/docs/explanation/ui-state-and-event-streaming.md)
-   - Covers Server-Sent Events, `RunEventBus`, historical replay, and TanStack Query synchronization.
+   - [UI State Management and Real-Time Event Streaming](./explanation/ui-state-and-event-streaming.md)
+   - Covers Server-Sent Events, `SSERegistry`, SQLite event polling, historical replay, and TanStack Query synchronization.
 
 3. **Database Schema & Data Model**:
-   - [Database Schema and Durable Entities](file:///Users/talhazuberi/x-factory/docs/reference/database-schema.md)
+   - [Database Schema and Durable Entities](./reference/database-schema.md)
    - Defines tables, columns, indexes, and migrations.
 
 4. **Workflow State Machine**:
-   - [Workflow State Machine and Transition Contracts](file:///Users/talhazuberi/x-factory/docs/reference/state-machine-matrix.md)
+   - [Workflow State Machine and Transition Contracts](./reference/state-machine-matrix.md)
    - Details workflow state transitions, repair loops, and optimistic concurrency.
 
-For the full catalog of documentation, visit the [Documentation Index](file:///Users/talhazuberi/x-factory/docs/README.md).
+For the full catalog of documentation, visit the [Documentation Index](./README.md).

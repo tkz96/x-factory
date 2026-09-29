@@ -73,7 +73,7 @@ describe("RunRepository", () => {
     // Conflict detection on stale revision
     expect(() =>
       repo.update("run-2", {
-        status: "implementing",
+        status: "executing",
         expectedRevision: 1, // Stale! Current is 2
       }),
     ).toThrow(/Conflict/);

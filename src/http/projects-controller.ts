@@ -96,7 +96,7 @@ async function handleDeleteProject(projectId: string): Promise<Response> {
   return catchHttpErrors(async () => {
     await deleteProject(projectId);
     return jsonResponse({ ok: true });
-  }, 404);
+  });
 }
 
 async function handleDiscoverRepositories(req: Request): Promise<Response> {

@@ -16,6 +16,8 @@ export { JiraRepositoryDiscovery } from "./jira.js";
 export { LocalWorkspaceRepositoryDiscovery } from "./local.js";
 export * from "./types.js";
 
+import { BadRequestError } from "../http/responses.js";
+
 const PROVIDERS: Record<string, RepositoryDiscoveryProvider> = {
   azure: new AzureDevOpsRepositoryDiscovery(),
   "azure-devops": new AzureDevOpsRepositoryDiscovery(),
@@ -33,7 +35,7 @@ export function getDiscoveryProvider(
   const normalized = providerName.toLowerCase().trim();
   const provider = PROVIDERS[normalized];
   if (!provider) {
-    throw new Error(
+    throw new BadRequestError(
       `Unsupported discovery provider "${providerName}". Supported providers: ${Object.keys(PROVIDERS).join(", ")}`,
     );
   }

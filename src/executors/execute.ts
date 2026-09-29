@@ -59,7 +59,7 @@ elif command -v ralph &>/dev/null; then
 else
   echo "Executing iteration with \${AGENT}..."
   if command -v pi &>/dev/null; then
-    pi --prompt "$(< .agent/PROMPT.md)" || true
+    pi --prompt "$(< .agent/PROMPT.md)"
   else
     echo "Completed tasks iteration."
   fi
@@ -299,13 +299,36 @@ export class ExecuteExecutor implements StageExecutor {
     let timedOut = false;
     const timeoutMs = 15 * 60 * 1000; // 15 minutes execution timeout
 
+    const allowedEnvKeys = [
+      "PATH",
+      "HOME",
+      "USER",
+      "LANG",
+      "LC_ALL",
+      "PI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "NO_PROXY",
+    ];
+
+    const sanitizedEnv: Record<string, string> = {};
+    for (const key of allowedEnvKeys) {
+      const val = process.env[key];
+      if (val !== undefined) {
+        sanitizedEnv[key] = val;
+      }
+    }
+
     try {
       const child = this.deps.spawn(
         "./ralph.sh",
         ["--agent", "pi", "-n", String(iterations)],
         {
           cwd: worktreePath,
-          env: { ...process.env },
+          env: sanitizedEnv,
           stdio: ["ignore", "pipe", "pipe"],
         },
       );
@@ -400,6 +423,9 @@ export class ExecuteExecutor implements StageExecutor {
       }
 
       if (exitCode !== 0) {
+        context.eventRepo.appendEvent(run.id, "error", {
+          message: `Ralph Loop failed with exit code ${exitCode}`,
+        });
         return {
           status: "failed",
           error: `Ralph Loop exited with code ${exitCode}: ${

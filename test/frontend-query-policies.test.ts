@@ -107,7 +107,7 @@ describe("Direct SSE Cache Patching (XFM-42)", () => {
     patchRunCache(
       "run-1",
       {
-        status: "implementing",
+        status: "executing",
         diff: "diff --git a/file.ts b/file.ts",
       },
       client,
@@ -115,13 +115,13 @@ describe("Direct SSE Cache Patching (XFM-42)", () => {
 
     // Check individual run cache updated
     const updatedRun1 = client.getQueryData<Run>(queryKeys.run("run-1"));
-    expect(updatedRun1?.status).toBe("implementing");
+    expect(updatedRun1?.status).toBe("executing");
     expect(updatedRun1?.diff).toBe("diff --git a/file.ts b/file.ts");
 
     // Check runs collection cache updated for run-1, preserving run-2
     const updatedRunsList = client.getQueryData<Run[]>(queryKeys.runs());
     expect(updatedRunsList).toBeDefined();
-    expect(updatedRunsList?.[0]?.status).toBe("implementing");
+    expect(updatedRunsList?.[0]?.status).toBe("executing");
     expect(updatedRunsList?.[0]?.diff).toBe("diff --git a/file.ts b/file.ts");
     expect(updatedRunsList?.[1]?.status).toBe("queued");
 

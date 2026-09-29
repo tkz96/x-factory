@@ -72,45 +72,33 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
           stageCalls.push("understand");
           return {
             status: "success",
-            nextStage: "implement",
-            nextRunStatus: "implementing",
+            nextStage: undefined,
+            nextRunStatus: "awaiting_understanding_approval",
             output: { understood: true },
           };
         },
       },
-      implement: {
-        stage: "implement",
+      plan: {
+        stage: "plan",
         async execute(_ctx: StageContext): Promise<StageResult> {
-          stageCalls.push("implement");
+          stageCalls.push("plan");
           return {
             status: "success",
-            nextStage: "verify",
-            nextRunStatus: "verifying",
-            output: { implemented: true },
+            nextStage: undefined,
+            nextRunStatus: "awaiting_plan_approval",
+            output: { planned: true },
           };
         },
       },
-      verify: {
-        stage: "verify",
+      execute: {
+        stage: "execute",
         async execute(_ctx: StageContext): Promise<StageResult> {
-          stageCalls.push("verify");
+          stageCalls.push("execute");
           return {
             status: "success",
-            nextStage: "review",
-            nextRunStatus: "reviewing",
-            output: { verified: true },
-          };
-        },
-      },
-      review: {
-        stage: "review",
-        async execute(_ctx: StageContext): Promise<StageResult> {
-          stageCalls.push("review");
-          // Reaches Human Approval Gate: NO nextStage is returned!
-          return {
-            status: "success",
-            nextRunStatus: "ready_for_pr",
-            output: { reviewScore: 98, approved: true },
+            nextStage: undefined,
+            nextRunStatus: "awaiting_review",
+            output: { executed: true },
           };
         },
       },
@@ -149,27 +137,51 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
       },
     });
 
-    // 1. Start worker and wait for it to process up to review
+    // 1. Start worker and wait for it to process up to awaiting_understanding_approval
     await worker.start();
 
-    // Poll until run reaches ready_for_pr
-    const gateTimeout = Date.now() + 5000;
-    while (Date.now() < gateTimeout) {
+    // Poll until run reaches awaiting_understanding_approval
+    let timeout = Date.now() + 5000;
+    while (Date.now() < timeout) {
       const current = runRepo.get(run.id);
-      if (current?.status === "ready_for_pr") break;
+      if (current?.status === "awaiting_understanding_approval") break;
       await new Promise((r) => setTimeout(r, 25));
     }
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_understanding_approval");
+
+    // Manually approve understand
+    runRepo.update(run.id, { status: "planning" });
+    jobRepo.createJob({ runId: run.id, stage: "plan", status: "pending" });
+
+    // Poll until run reaches awaiting_plan_approval
+    timeout = Date.now() + 5000;
+    while (Date.now() < timeout) {
+      const current = runRepo.get(run.id);
+      if (current?.status === "awaiting_plan_approval") break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_plan_approval");
+
+    // Manually approve plan
+    runRepo.update(run.id, { status: "executing" });
+    jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
+
+    // Poll until run reaches awaiting_review
+    timeout = Date.now() + 5000;
+    while (Date.now() < timeout) {
+      const current = runRepo.get(run.id);
+      if (current?.status === "awaiting_review") break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+
+    // Manually approve review (simulating human action)
+    runRepo.update(run.id, { status: "ready_for_pr" });
 
     // 2. Assert that run has stopped at ready_for_pr
     const runAtGate = runRepo.get(run.id);
     expect(runAtGate?.status).toBe("ready_for_pr");
-    expect(stageCalls).toEqual([
-      "prepare",
-      "understand",
-      "implement",
-      "verify",
-      "review",
-    ]);
+    expect(stageCalls).toEqual(["prepare", "understand", "plan", "execute"]);
 
     // Assert NO deliver stage has been executed yet
     expect(stageCalls.includes("deliver")).toBe(false);
@@ -183,7 +195,7 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     await new Promise((r) => setTimeout(r, 100));
     const stillAtGate = runRepo.get(run.id);
     expect(stillAtGate?.status).toBe("ready_for_pr");
-    expect(stageCalls.length).toBe(5);
+    expect(stageCalls.length).toBe(4);
 
     // 3. Human Gate Approval: Operator clicks "Create PR"
     // Triggers deliver command via createPR into the durable WAL command queue
@@ -209,21 +221,19 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     expect(stageCalls).toEqual([
       "prepare",
       "understand",
-      "implement",
-      "verify",
-      "review",
+      "plan",
+      "execute",
       "deliver",
     ]);
 
-    // Verify exactly 6 stage attempts were recorded and all completed
+    // Verify exactly 5 stage attempts were recorded and all completed
     const attempts = stageAttemptRepo.listForRun(run.id);
-    expect(attempts.length).toBe(6);
+    expect(attempts.length).toBe(5);
     expect(attempts.map((a) => a.stage)).toEqual([
       "prepare",
       "understand",
-      "implement",
-      "verify",
-      "review",
+      "plan",
+      "execute",
       "deliver",
     ]);
     expect(attempts.every((a) => a.status === "completed")).toBe(true);

@@ -8,15 +8,19 @@ import type { Run, RunStatus } from "../src/types.js";
 describe("Workflow State Machine", () => {
   it("allows valid forward workflow transitions", () => {
     assert.ok(canTransition("preparing", "understanding"));
-    assert.ok(canTransition("understanding", "implementing"));
-    assert.ok(canTransition("implementing", "verifying"));
-    assert.ok(canTransition("verifying", "reviewing"));
-    assert.ok(canTransition("reviewing", "ready_for_pr"));
+    assert.ok(
+      canTransition("understanding", "awaiting_understanding_approval"),
+    );
+    assert.ok(canTransition("awaiting_understanding_approval", "planning"));
+    assert.ok(canTransition("planning", "awaiting_plan_approval"));
+    assert.ok(canTransition("awaiting_plan_approval", "executing"));
+    assert.ok(canTransition("executing", "awaiting_review"));
+    assert.ok(canTransition("awaiting_review", "ready_for_pr"));
     assert.ok(canTransition("ready_for_pr", "pr_created"));
   });
 
-  it("allows bounded repair transition: verifying → implementing", () => {
-    assert.ok(canTransition("verifying", "implementing"));
+  it("allows bounded repair transition: executing → executing is not possible directly, but through planning", () => {
+    assert.ok(canTransition("awaiting_review", "planning"));
   });
 
   it("allows review gate transitions: awaiting_review → planning, ready_for_pr", () => {
@@ -28,38 +32,38 @@ describe("Workflow State Machine", () => {
   it("allows failure transitions from active states", () => {
     assert.ok(canTransition("preparing", "failed"));
     assert.ok(canTransition("understanding", "failed"));
-    assert.ok(canTransition("implementing", "failed"));
-    assert.ok(canTransition("verifying", "failed"));
-    assert.ok(canTransition("reviewing", "failed"));
+    assert.ok(canTransition("planning", "failed"));
+    assert.ok(canTransition("executing", "failed"));
+    assert.ok(canTransition("awaiting_review", "failed"));
     assert.ok(canTransition("ready_for_pr", "failed"));
   });
 
   it("allows user stop from active agent states", () => {
     assert.ok(canTransition("understanding", "stopped"));
-    assert.ok(canTransition("implementing", "stopped"));
+    assert.ok(canTransition("executing", "stopped"));
   });
 
   it("blocks invalid skipping transitions", () => {
-    assert.ok(!canTransition("preparing", "implementing"));
-    assert.ok(!canTransition("preparing", "verifying"));
+    assert.ok(!canTransition("preparing", "executing"));
+    assert.ok(!canTransition("preparing", "awaiting_review"));
     assert.ok(!canTransition("preparing", "ready_for_pr"));
     assert.ok(!canTransition("understanding", "ready_for_pr"));
-    assert.ok(!canTransition("implementing", "ready_for_pr"));
-    assert.ok(!canTransition("implementing", "pr_created"));
-    assert.ok(!canTransition("reviewing", "implementing"));
+    assert.ok(!canTransition("executing", "ready_for_pr"));
+    assert.ok(!canTransition("executing", "pr_created"));
+    assert.ok(!canTransition("awaiting_review", "executing"));
   });
 
   it("blocks transitions from terminal states", () => {
     assert.ok(!canTransition("pr_created", "failed"));
-    assert.ok(!canTransition("failed", "implementing"));
-    assert.ok(!canTransition("stopped", "implementing"));
+    assert.ok(!canTransition("failed", "executing"));
+    assert.ok(!canTransition("stopped", "executing"));
     assert.deepEqual(TRANSITIONS.pr_created, []);
     assert.deepEqual(TRANSITIONS.failed, []);
     assert.deepEqual(TRANSITIONS.stopped, []);
   });
 
   it("returns false for unknown states", () => {
-    assert.ok(!canTransition("unknown_state" as RunStatus, "implementing"));
+    assert.ok(!canTransition("unknown_state" as RunStatus, "executing"));
     assert.ok(!canTransition("preparing", "unknown_state" as RunStatus));
   });
 });

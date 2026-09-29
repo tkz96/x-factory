@@ -30,7 +30,7 @@ function setupTest() {
     ticket: { id: "T-1", title: "Ticket 1", acceptanceCriteria: [] },
     plan: "Plan",
     branch: "factory/cancel-1",
-    status: "implementing",
+    status: "executing",
     artifactsDir: "/tmp",
     worktreePath: "/tmp",
   });
@@ -54,7 +54,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     // Create a claimed job
     const job1 = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
     });
     const claimed = jobRepo.claimNextJob("worker-stop-1", 30000);
@@ -63,7 +63,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     // Create a pending job
     const job2 = jobRepo.createJob({
       runId: run.id,
-      stage: "verify",
+      stage: "execute",
       status: "pending",
     });
 
@@ -110,11 +110,9 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
       run,
     } = setupTest();
 
-    runRepo.transitionRun(run.id, "implementing", "verifying");
-
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "verify",
+      stage: "execute",
       status: "pending",
     });
 
@@ -123,14 +121,14 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
 
     // Mock verify executor that stops the run mid-execution
     const mockVerifyExecutor: StageExecutor = {
-      stage: "verify",
+      stage: "execute",
       async execute(): Promise<StageResult> {
         // Run is stopped externally while verifying
         await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
         return {
           status: "success",
-          nextStage: "review",
-          nextRunStatus: "reviewing",
+          nextStage: undefined,
+          nextRunStatus: "awaiting_review",
         };
       },
     };
@@ -157,56 +155,6 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     // No next job created
     const jobs = jobRepo.listJobsForRun(run.id);
     expect(jobs.length).toBe(1);
-  });
-
-  // Test 6: Stop during Review
-  it("handles stop during review: marks stage attempt cancelled without next job", async () => {
-    const {
-      db,
-      runRepo,
-      jobRepo,
-      commandRepo,
-      eventRepo,
-      stageAttemptRepo,
-      run,
-    } = setupTest();
-
-    runRepo.transitionRun(run.id, "implementing", "verifying");
-    runRepo.transitionRun(run.id, "verifying", "reviewing");
-
-    const job = jobRepo.createJob({
-      runId: run.id,
-      stage: "review",
-      status: "pending",
-    });
-
-    const claimed = jobRepo.claimNextJob("worker-review-stop", 30000);
-    if (!claimed) throw new Error("Claim failed");
-
-    const mockReviewExecutor: StageExecutor = {
-      stage: "review",
-      async execute(): Promise<StageResult> {
-        await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
-        return {
-          status: "success",
-          nextRunStatus: "ready_for_pr",
-        };
-      },
-    };
-
-    const worker = new Worker({
-      db,
-      workerId: "worker-review-stop",
-      getStageExecutor: () => mockReviewExecutor,
-    });
-
-    await worker.processJob(claimed);
-
-    expect(runRepo.get(run.id)?.status).toBe("stopped");
-    expect(jobRepo.getJob(job.id)?.status).toBe("cancelled");
-    const attempts = stageAttemptRepo.listForRun(run.id);
-    expect(attempts[0]?.status).toBe("cancelled");
-    expect(jobRepo.listJobsForRun(run.id).length).toBe(1);
   });
 
   // Test 7: Delayed stop command
@@ -244,7 +192,11 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
       targetWorkerId: "worker-delayed-stop",
     });
 
-    await worker.processCommand(stopCmd);
+    const claimedStop = commandRepo
+      .claimPendingCommands(worker.workerId, 10000)
+      .find((c) => c.id === stopCmd.id);
+    if (claimedStop) await worker.processCommand(claimedStop);
+    else await worker.processCommand(stopCmd);
 
     // Stop command completed
     expect(commandRepo.getCommand(stopCmd.id)?.status).toBe("completed");
@@ -259,7 +211,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
 
     jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
     });
     const claimed = jobRepo.claimNextJob("worker-cas", 30000);
@@ -284,7 +236,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
           output?: unknown,
         ) => boolean;
       }
-    ).commitStageProgression(claimed, "implementing", "verify", "verifying");
+    ).commitStageProgression(claimed, "executing", "execute", "executing");
 
     // CAS rejected!
     expect(committed).toBe(false);
@@ -329,7 +281,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
 
     const job = jobRepo.createJob({
       runId: run.id,
-      stage: "implement",
+      stage: "execute",
       status: "pending",
     });
 

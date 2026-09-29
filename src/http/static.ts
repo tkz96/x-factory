@@ -88,7 +88,10 @@ export async function serveStatic(
   const filePath = path.normalize(path.join(publicDir, relPath));
 
   // Prevent directory traversal attacks
-  if (!filePath.startsWith(publicDir)) {
+  const canonicalPublicDir = publicDir.endsWith(path.sep)
+    ? publicDir
+    : publicDir + path.sep;
+  if (!filePath.startsWith(canonicalPublicDir) && filePath !== publicDir) {
     return new Response("Forbidden", { status: 403 });
   }
 
