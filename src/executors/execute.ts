@@ -62,7 +62,8 @@ for (( i=1; i<=ITERATIONS; i++ )); do
     if command -v pi &>/dev/null; then
       pi --prompt "$(< .agent/PROMPT.md)"
     else
-      echo "Completed tasks iteration."
+      echo "Error: No usable execution mechanism exists for agent \${AGENT}." >&2
+      exit 1
     fi
   fi
 
@@ -78,7 +79,7 @@ for (( i=1; i<=ITERATIONS; i++ )); do
 done
 
 echo "Maximum iterations ($ITERATIONS) reached."
-exit 0
+exit 1
 `;
 
 /**

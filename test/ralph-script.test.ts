@@ -81,7 +81,27 @@ describe("Ralph Loop Script", () => {
     const agentExecutions = (stdout.match(/Agent executed/g) || []).length;
     expect(agentExecutions).toBe(3);
     expect(stdout).toContain("Maximum iterations (3) reached.");
-    expect(exitCode).toBe(0);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("incomplete tasks after -n 3 produce failure", async () => {
+    const tasks = [
+      "- [ ] Task 1",
+      "- [ ] Task 2",
+      "- [ ] Task 3",
+      "- [ ] Task 4",
+      "- [ ] Task 5",
+    ].join("\n");
+    await writeFile(join(workDir, ".agent", "tasks.md"), tasks);
+
+    await createMockAgent(`
+      echo "Agent executed"
+    `);
+
+    const { stdout, exitCode } = await runRalph(["-n", "3"]);
+
+    expect(stdout).toContain("Maximum iterations (3) reached.");
+    expect(exitCode).not.toBe(0);
   });
 
   it("multiple iterations actually occur when unchecked tasks remain", async () => {
@@ -164,6 +184,20 @@ describe("Ralph Loop Script", () => {
     const agentExecutions = (stdout.match(/Agent executed/g) || []).length;
     expect(agentExecutions).toBe(1);
     expect(stdout).toContain("Maximum iterations (1) reached.");
-    expect(exitCode).toBe(0);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("missing agent execution support produces failure", async () => {
+    const tasks = ["- [ ] Task 1"].join("\n");
+    await writeFile(join(workDir, ".agent", "tasks.md"), tasks);
+
+    // DO NOT create mock agent to simulate missing execution mechanism
+
+    const { stderr, exitCode } = await runRalph(["-n", "1"]);
+
+    expect(stderr).toContain(
+      "Error: No usable execution mechanism exists for agent pi.",
+    );
+    expect(exitCode).not.toBe(0);
   });
 });
