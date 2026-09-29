@@ -17,7 +17,11 @@ import {
 } from "../src/executors/index.js";
 import type { BaselineState } from "../src/pollution.js";
 import { finalizeDeliver } from "../src/services/deliver-service.js";
-import type { Project, PullRequest } from "../src/shared/types.js";
+import type {
+  Project,
+  PullRequest,
+  VerificationResult,
+} from "../src/shared/types.js";
 
 describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
   const mockBaseline: BaselineState = {
@@ -268,12 +272,12 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       // Inject mockVerification directly to verify reference identity
       context.run.verification = mockVerification;
 
-      let receivedVerification: unknown = null;
+      let receivedVerification: VerificationResult | undefined;
 
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
-        reviewRun: async (args) => {
-          receivedVerification = args.verification;
+        reviewRun: async ({ verification }) => {
+          receivedVerification = verification;
           return {
             passed: true,
             findings: [],
