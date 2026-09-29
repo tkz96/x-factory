@@ -151,10 +151,14 @@ export async function findExistingAzurePullRequest(
 ): Promise<ExistingAzurePullRequest | null> {
   const { fetcher, orgUrl, project, repo } = parseAzureRepoCoords(options);
 
-  if (!orgUrl || !project || !repo) return null;
+  if (!orgUrl || !project || !repo) {
+    throw new Error("Missing Azure repository configuration.");
+  }
 
   const authHeader = await resolveAzureAuthHeader(options.pat);
-  if (!authHeader) return null;
+  if (!authHeader) {
+    throw new Error("Missing Azure authentication.");
+  }
 
   const sourceRef = encodeURIComponent(normalizeGitRef(options.sourceBranch));
   const endpoint = `${orgUrl}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repo)}/pullrequests?searchCriteria.sourceRefName=${sourceRef}&searchCriteria.status=active&api-version=7.1`;
@@ -169,7 +173,10 @@ export async function findExistingAzurePullRequest(
       signal: AbortSignal.timeout(8000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Azure PR lookup failed with status ${res.status}: ${errText}`);
+    }
 
     const data = (await res.json()) as {
       value?: Array<{
@@ -204,7 +211,7 @@ export async function findExistingAzurePullRequest(
     }
 
     return null;
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error(`Azure PR lookup failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

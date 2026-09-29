@@ -294,7 +294,12 @@ export async function getRemoteBranchSha(
       cwd: repoPath,
     },
   );
-  if (result.exitCode !== 0 || !result.stdout.trim()) {
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Git lookup failed for remote branch ${branchName}: exit code ${result.exitCode}. Error: ${result.stderr}`
+    );
+  }
+  if (!result.stdout.trim()) {
     return null;
   }
   const parts = result.stdout.trim().split(/\s+/);

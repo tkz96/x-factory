@@ -12,3 +12,4 @@ graphify-out/
 *.db-wal
 .scratch/
 config/projects.json
+fallow_output.txt

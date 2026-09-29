@@ -77,7 +77,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       ),
     });
 
-    const cmd = commandRepo.insertOrRetryCommand({
+    commandRepo.insertOrRetryCommand({
       runId: run.id,
       command: "deliver",
       payload: {},
@@ -345,7 +345,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
   });
 
   it("pending Azure PR + matching PR -> no duplicate create", async () => {
-    const { db, operationLedgerRepo, commandRepo, runRepo, run } = setupTest();
+    const { db, operationLedgerRepo, runRepo, run } = setupTest();
 
     const project = {
       id: "proj-1",
@@ -354,7 +354,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       repositoryPath: "/path",
       defaultBranch: "main",
       testCommand: "bun test",
-      repositories: [{ id: "repo-1", path: "/path", name: "repo-1" }],
+      repositories: [{ id: "repo-1", path: "/path", name: "repo-1", defaultBranch: "main" }],
       issueTracker: {
         provider: "azure" as const,
         azure: { orgUrl: "https://dev.azure.com/org", project: "proj" },
@@ -408,7 +408,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
   });
 
   it("pending Azure PR + no matching PR -> create once", async () => {
-    const { db, operationLedgerRepo, commandRepo, runRepo, run } = setupTest();
+    const { db, operationLedgerRepo, runRepo, run } = setupTest();
 
     const project = {
       id: "proj-1",
@@ -417,7 +417,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       repositoryPath: "/path",
       defaultBranch: "main",
       testCommand: "bun test",
-      repositories: [{ id: "repo-1", path: "/path", name: "repo-1" }],
+      repositories: [{ id: "repo-1", path: "/path", name: "repo-1", defaultBranch: "main" }],
       issueTracker: {
         provider: "azure" as const,
         azure: { orgUrl: "https://dev.azure.com/org", project: "proj" },

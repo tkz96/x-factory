@@ -1,6 +1,6 @@
 // src/github.ts — GitHub CLI integration for delivery and pull request creation.
 
-import { execStrict } from "./proc.js";
+import { execStrict, execCommand } from "./proc.js";
 
 export interface ExistingGitHubPullRequest {
   url: string;
@@ -17,25 +17,33 @@ export async function findExistingPullRequest(
   worktreePath: string,
   headBranch: string,
 ): Promise<ExistingGitHubPullRequest | null> {
+  const result = await execCommand(
+    "gh",
+    [
+      "pr",
+      "view",
+      headBranch,
+      "--json",
+      "url,headRefName,headRefOid,baseRefName,state",
+    ],
+    { cwd: worktreePath },
+  );
+
+  if (result.exitCode !== 0) {
+    if (result.stderr.includes("no pull requests found")) {
+      return null;
+    }
+    throw new Error(`GitHub PR lookup failed: exit code ${result.exitCode}. Error: ${result.stderr}`);
+  }
+
   try {
-    const result = await execStrict(
-      "gh",
-      [
-        "pr",
-        "view",
-        headBranch,
-        "--json",
-        "url,headRefName,headRefOid,baseRefName,state",
-      ],
-      { cwd: worktreePath },
-    );
     const data = JSON.parse(result.stdout) as ExistingGitHubPullRequest;
     if (data && data.url) {
       return data;
     }
     return null;
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error(`GitHub PR lookup failed (invalid JSON): ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
