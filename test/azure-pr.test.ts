@@ -215,25 +215,27 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
   });
 
   describe("findExistingAzurePullRequest", () => {
-    it("returns null if required parameters are missing", async () => {
-      const res = await findExistingAzurePullRequest({
-        orgUrl: "",
-        project: "",
-        repoIdOrName: "",
-        sourceBranch: "feat/1",
-        pat: "token",
-      });
-      assert.equal(res, null);
+    it("throws if required parameters are missing", async () => {
+      await assert.rejects(
+        findExistingAzurePullRequest({
+          orgUrl: "",
+          project: "",
+          repoIdOrName: "",
+          sourceBranch: "feat/1",
+          pat: "token",
+        }),
+      );
     });
 
-    it("returns null if auth header cannot be resolved", async () => {
-      const res = await findExistingAzurePullRequest({
-        orgUrl: "https://dev.azure.com/myorg",
-        project: "myproject",
-        repoIdOrName: "my-repo",
-        sourceBranch: "feat/1",
-      });
-      assert.equal(res, null);
+    it("throws if auth header cannot be resolved", async () => {
+      await assert.rejects(
+        findExistingAzurePullRequest({
+          orgUrl: "https://dev.azure.com/myorg",
+          project: "myproject",
+          repoIdOrName: "my-repo",
+          sourceBranch: "feat/1",
+        }),
+      );
     });
 
     it("returns PR web link if active PR is found", async () => {
@@ -311,7 +313,27 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
       );
     });
 
-    it("returns null if API returns non-200 or empty value array", async () => {
+    it("throws if API returns non-200", async () => {
+      const mockFetcher = (async () => {
+        return new Response("Unauthorized", {
+          status: 401,
+          headers: { "Content-Type": "text/plain" },
+        });
+      }) as unknown as typeof fetch;
+
+      await assert.rejects(
+        findExistingAzurePullRequest({
+          orgUrl: "https://dev.azure.com/myorg",
+          project: "myproject",
+          repoIdOrName: "my-repo",
+          sourceBranch: "feat/1",
+          pat: "token",
+          fetchFn: mockFetcher,
+        }),
+      );
+    });
+
+    it("returns null if API returns empty value array", async () => {
       const mockFetcher = (async () => {
         return new Response(JSON.stringify({ value: [] }), {
           status: 200,
@@ -331,21 +353,21 @@ describe("Azure DevOps PR Creation (src/azure/pr.ts)", () => {
       assert.equal(res, null);
     });
 
-    it("returns null on network error", async () => {
+    it("throws on network error", async () => {
       const mockFetcher = (async () => {
         throw new Error("Connection failed");
       }) as unknown as typeof fetch;
 
-      const res = await findExistingAzurePullRequest({
-        orgUrl: "https://dev.azure.com/myorg",
-        project: "myproject",
-        repoIdOrName: "my-repo",
-        sourceBranch: "feat/1",
-        pat: "token",
-        fetchFn: mockFetcher,
-      });
-
-      assert.equal(res, null);
+      await assert.rejects(
+        findExistingAzurePullRequest({
+          orgUrl: "https://dev.azure.com/myorg",
+          project: "myproject",
+          repoIdOrName: "my-repo",
+          sourceBranch: "feat/1",
+          pat: "token",
+          fetchFn: mockFetcher,
+        }),
+      );
     });
   });
 });

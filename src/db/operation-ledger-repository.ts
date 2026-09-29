@@ -163,8 +163,9 @@ export class OperationLedgerRepository {
     runId: string,
     operation: string,
     error: string,
+    result?: unknown,
   ): OperationLedgerRecord {
-    return this.upsertEntry(runId, operation, "failed", { error });
+    return this.upsertEntry(runId, operation, "failed", { error, result });
   }
 
   /**
@@ -190,23 +191,28 @@ export class OperationLedgerRepository {
       return existing.result as T;
     }
 
-    if (existing && existing.status === "pending" && reconcile) {
-      // pending + reconciliation confirms success -> mark completed
-      // pending + reconciliation says not present -> return null, perform mutation
-      // pending + reconciliation cannot determine state -> fail closed (throw) -> do not perform the mutation
-      const recovered = await reconcile(existing.result);
-      if (recovered) {
-        this.recordCompleted(
-          runId,
-          operation,
-          recovered.externalId,
-          recovered.result,
-        );
-        return recovered.result;
+    let contextData: unknown;
+    if (existing && existing.status === "pending") {
+      if (reconcile) {
+        // pending + reconciliation confirms success -> mark completed
+        // pending + reconciliation says not present -> return null, perform mutation
+        // pending + reconciliation cannot determine state -> fail closed (throw) -> do not perform the mutation
+        const recovered = await reconcile(existing.result);
+        if (recovered) {
+          this.recordCompleted(
+            runId,
+            operation,
+            recovered.externalId,
+            recovered.result,
+          );
+          return recovered.result;
+        }
       }
+      contextData = existing.result; // PRESERVE existing context data
+    } else {
+      contextData = prepareContext ? await prepareContext() : undefined;
     }
 
-    const contextData = prepareContext ? await prepareContext() : undefined;
     this.recordPending(runId, operation, contextData);
 
     try {
@@ -220,7 +226,7 @@ export class OperationLedgerRepository {
       return outcome.result;
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      this.recordFailed(runId, operation, errorMsg);
+      this.recordFailed(runId, operation, errorMsg, contextData);
       throw err;
     }
   }

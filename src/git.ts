@@ -280,6 +280,43 @@ export async function getHeadMessage(repoPath: string): Promise<string> {
 }
 
 /**
+ * Searches Git history for a commit with the exact message and a specific parent SHA.
+ * Returns the matched commit SHA, or null if not found.
+ */
+export async function findCommitByMessageAndParent(
+  repoPath: string,
+  message: string,
+  parentSha: string,
+): Promise<string | null> {
+  const result = await execCommand(
+    "git",
+    ["log", "--all", "--format=%H %P", "--grep", message, "--fixed-strings"],
+    { cwd: repoPath },
+  );
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Failed to search git history: exit code ${result.exitCode}. Error: ${result.stderr}`,
+    );
+  }
+
+  const lines = result.stdout.trim().split("\n");
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const parts = line.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const sha = parts[0];
+      const parents = parts.slice(1);
+      if (parents.includes(parentSha)) {
+        return sha;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Get remote branch SHA if it exists.
  */
 export async function getRemoteBranchSha(
@@ -296,7 +333,7 @@ export async function getRemoteBranchSha(
   );
   if (result.exitCode !== 0) {
     throw new Error(
-      `Git lookup failed for remote branch ${branchName}: exit code ${result.exitCode}. Error: ${result.stderr}`
+      `Git lookup failed for remote branch ${branchName}: exit code ${result.exitCode}. Error: ${result.stderr}`,
     );
   }
   if (!result.stdout.trim()) {

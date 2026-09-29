@@ -100,6 +100,7 @@ export interface DeliverDependencies {
   getHeadSha: typeof git.getHeadSha;
   getParentSha: typeof git.getParentSha;
   getRemoteBranchSha: typeof git.getRemoteBranchSha;
+  findCommitByMessageAndParent: typeof git.findCommitByMessageAndParent;
 }
 
 export const defaultDeliverDeps: DeliverDependencies = {
@@ -114,6 +115,7 @@ export const defaultDeliverDeps: DeliverDependencies = {
   getHeadSha: git.getHeadSha,
   getParentSha: git.getParentSha,
   getRemoteBranchSha: git.getRemoteBranchSha,
+  findCommitByMessageAndParent: git.findCommitByMessageAndParent,
 };
 
 export class DeliverExecutor implements StageExecutor {
@@ -179,7 +181,25 @@ export class DeliverExecutor implements StageExecutor {
             result: { committed: true, message: commitMsg },
           };
         }
-        return null; // Not matching -> allow mutation
+        const matchedSha = await this.deps.findCommitByMessageAndParent(
+          worktree,
+          commitMsg,
+          preCommitSha,
+        );
+        if (matchedSha) {
+          return {
+            externalId: commitMsg,
+            result: { committed: true, message: commitMsg },
+          };
+        }
+
+        if (headSha !== preCommitSha) {
+          throw new Error(
+            "Git HEAD has advanced since git_commit was prepared. Failing closed to prevent duplicate commits.",
+          );
+        }
+
+        return null; // Not matching and HEAD hasn't advanced -> allow mutation
       },
       async () => {
         const preCommitSha = await this.deps.getHeadSha(worktree);

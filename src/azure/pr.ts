@@ -175,7 +175,9 @@ export async function findExistingAzurePullRequest(
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Azure PR lookup failed with status ${res.status}: ${errText}`);
+      throw new Error(
+        `Azure PR lookup failed with status ${res.status}: ${errText}`,
+      );
     }
 
     const data = (await res.json()) as {
@@ -212,6 +214,8 @@ export async function findExistingAzurePullRequest(
 
     return null;
   } catch (err) {
-    throw new Error(`Azure PR lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(
+      `Azure PR lookup failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
