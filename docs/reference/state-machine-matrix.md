@@ -13,7 +13,9 @@ WorkflowStage = logical workflow stage
 Job = durable schedulable unit of work
 ```
 
-Clarify that `execute` and `review` are workflow stages, while `verifying` is **not** a `WorkflowStage` or `RunStatus`. It is an internal activity of execution.
+`execute` and `review` are workflow stages. `verifying` is not a `WorkflowStage` or `RunStatus`; deterministic verification is an internal activity of the `execute` stage.
+
+`recovery_required` has no fixed `WorkflowStage`. Recovery resumes the interrupted workflow stage according to the persisted recovery/checkpoint information.
 
 ## State to Stage/Job Mapping
 
@@ -31,7 +33,7 @@ executing                      review             automated review activity
 awaiting_review                —                  human checkpoint
 ready_for_pr                   deliver            delivery command/job
 pr_created                     —                  terminal
-recovery_required              depends            recovery/resume activity
+recovery_required              —                  recovery/resume activity
 failed                         —                  terminal
 stopped                        —                  terminal
 ```
