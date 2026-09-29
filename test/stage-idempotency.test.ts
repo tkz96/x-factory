@@ -164,6 +164,12 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
           apiCalls++;
           return "https://github.com/org/repo/pull/123";
         },
+        getHeadSha: async () => "sha-head",
+        getParentSha: async () => "sha-parent",
+        getHeadMessage: async () => "msg",
+        findExistingAzurePullRequest: async () => null,
+        findExistingPullRequest: async () => null,
+        getRemoteBranchSha: async () => null,
       });
 
       // First run: calls API and creates PR

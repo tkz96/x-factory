@@ -132,6 +132,14 @@ export async function createAzurePullRequest(
   }
 }
 
+export interface ExistingAzurePullRequest {
+  url: string;
+  sourceRefName: string;
+  targetRefName: string;
+  status: string;
+  lastMergeSourceCommit?: string;
+}
+
 /**
  * Query active PRs in Azure DevOps to discover an existing PR for the source branch.
  */
@@ -140,7 +148,7 @@ export async function findExistingAzurePullRequest(
     CreateAzurePullRequestOptions,
     "orgUrl" | "project" | "repoIdOrName" | "sourceBranch" | "pat" | "fetchFn"
   >,
-): Promise<string | null> {
+): Promise<ExistingAzurePullRequest | null> {
   const { fetcher, orgUrl, project, repo } = parseAzureRepoCoords(options);
 
   if (!orgUrl || !project || !repo) return null;
@@ -168,19 +176,31 @@ export async function findExistingAzurePullRequest(
         pullRequestId?: number;
         url?: string;
         _links?: { web?: { href?: string } };
+        sourceRefName?: string;
+        targetRefName?: string;
+        status?: string;
+        lastMergeSourceCommit?: { commitId?: string };
       }>;
     };
 
     const pr = data.value?.[0];
     if (pr) {
-      return (
+      const url =
         pr._links?.web?.href ||
         pr.url ||
         (pr.pullRequestId
           ? `${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${pr.pullRequestId}`
-          : null) ||
-        null
-      );
+          : "");
+
+      if (url) {
+        return {
+          url,
+          sourceRefName: pr.sourceRefName || "",
+          targetRefName: pr.targetRefName || "",
+          status: pr.status || "",
+          lastMergeSourceCommit: pr.lastMergeSourceCommit?.commitId || "",
+        };
+      }
     }
 
     return null;

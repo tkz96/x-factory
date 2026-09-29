@@ -421,7 +421,9 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     });
 
     // Simulate crash after mutations but before ledger completion
-    operationLedgerRepo.recordPending(run.id, "git_commit");
+    operationLedgerRepo.recordPending(run.id, "git_commit", {
+      preCommitSha: "sha-parent",
+    });
     operationLedgerRepo.recordPending(run.id, "git_push");
     operationLedgerRepo.recordPending(run.id, "create_pr");
 
@@ -447,9 +449,15 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       // Mock the reconcile helpers to simulate that the external state already matches
       getHeadMessage: async () => "[X-Factory] D-2: Deliver Pending Test",
       getHeadSha: async () => "sha-12345",
+      getParentSha: async () => "sha-parent",
       getRemoteBranchSha: async () => "sha-12345",
-      findExistingPullRequest: async () =>
-        "https://github.com/org/repo/pull/101",
+      findExistingPullRequest: async () => ({
+        url: "https://github.com/org/repo/pull/101",
+        headRefName: "factory/D-2",
+        headRefOid: "sha-12345",
+        baseRefName: "main",
+        state: "OPEN",
+      }),
     });
 
     const commandRepo = new CommandRepository(db);

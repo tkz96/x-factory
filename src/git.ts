@@ -260,6 +260,16 @@ export async function getHeadSha(repoPath: string): Promise<string> {
 }
 
 /**
+ * Get parent commit SHA of HEAD.
+ */
+export async function getParentSha(repoPath: string): Promise<string> {
+  const result = await execStrict("git", ["log", "-1", "--format=%P"], {
+    cwd: repoPath,
+  });
+  return result.stdout.trim().split(" ")[0] || "";
+}
+
+/**
  * Get current commit message at HEAD.
  */
 export async function getHeadMessage(repoPath: string): Promise<string> {
