@@ -32,7 +32,7 @@ describe("Ralph Loop Script", () => {
   });
 
   async function createMockAgent(behaviorScript: string) {
-    const mockAgentPath = join(binDir, "pi");
+    const mockAgentPath = join(binDir, "sbx");
     const script = `#!/usr/bin/env bash\n${behaviorScript}\n`;
     await writeFile(mockAgentPath, script);
     await chmod(mockAgentPath, 0o755);
@@ -187,17 +187,18 @@ describe("Ralph Loop Script", () => {
     expect(exitCode).not.toBe(0);
   });
 
-  it("missing agent execution support produces failure", async () => {
+  it("missing sandbox fails closed", async () => {
     const tasks = ["- [ ] Task 1"].join("\n");
     await writeFile(join(workDir, ".agent", "tasks.md"), tasks);
 
     // DO NOT create mock agent to simulate missing execution mechanism
 
-    const { stderr, exitCode } = await runRalph(["-n", "1"]);
+    const { stderr, stdout, exitCode } = await runRalph(["-n", "1"]);
 
     expect(stderr).toContain(
-      "Error: No usable execution mechanism exists for agent pi.",
+      "Error: Sandbox execution environment (sbx) is required but not found.",
     );
     expect(exitCode).not.toBe(0);
+    expect(stdout).not.toContain("Agent executed");
   });
 });

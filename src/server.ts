@@ -119,7 +119,14 @@ export function startServer(
         ) {
           const relPath = url.pathname === "/" ? "" : url.pathname.slice(1);
           const staticCandidate = path.normalize(path.join(publicDir, relPath));
-          if (!relPath || !existsSync(staticCandidate)) {
+          const isReferenceRoute = ["reference", "scalar", "api-docs"].includes(
+            relPath.replace(/\/$/, ""),
+          );
+          const hasStaticFile =
+            existsSync(staticCandidate) ||
+            existsSync(staticCandidate + ".html") ||
+            isReferenceRoute;
+          if (!relPath || !hasStaticFile) {
             const ext = path.extname(url.pathname);
             if (!ext || ext === ".html") {
               return new Response(

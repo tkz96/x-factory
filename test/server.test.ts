@@ -45,6 +45,18 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.ok(res.headers.get("Content-Type")?.includes("text/css"));
   });
 
+  it("serves /reference without Vite redirect in dev mode", async () => {
+    const res = await fetch(`${baseUrl}/reference`, { redirect: "manual" });
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("Content-Type")?.includes("text/html"));
+  });
+
+  it("serves /scalar without Vite redirect in dev mode", async () => {
+    const res = await fetch(`${baseUrl}/scalar`, { redirect: "manual" });
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("Content-Type")?.includes("text/html"));
+  });
+
   it("returns 404 for unknown static file", async () => {
     const res = await fetch(`${baseUrl}/this-file-does-not-exist.xyz`);
     assert.equal(res.status, 404);

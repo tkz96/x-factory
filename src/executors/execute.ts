@@ -52,20 +52,15 @@ done
 
 echo "Starting Ralph Loop: agent=$AGENT, iterations=$ITERATIONS"
 
+if ! command -v sbx &>/dev/null; then
+  echo "Error: Sandbox execution environment (sbx) is required but not found." >&2
+  exit 1
+fi
+
 for (( i=1; i<=ITERATIONS; i++ )); do
   echo "Iteration $i of $ITERATIONS"
 
-  if command -v sbx &>/dev/null; then
-    sbx run --name "ralph-\${AGENT}-$\${RANDOM}" "\${AGENT}" .
-  else
-    echo "Executing iteration with \${AGENT}..."
-    if command -v pi &>/dev/null; then
-      pi --prompt "$(< .agent/PROMPT.md)"
-    else
-      echo "Error: No usable execution mechanism exists for agent \${AGENT}." >&2
-      exit 1
-    fi
-  fi
+  sbx run --name "ralph-\${AGENT}-$\${RANDOM}" "\${AGENT}" .
 
   if [[ -f .agent/tasks.md ]]; then
     if ! grep -q '\\- \\[ \\]' .agent/tasks.md; then
@@ -315,6 +310,12 @@ export class ExecuteExecutor implements StageExecutor {
     let timedOut = false;
     const timeoutMs = 15 * 60 * 1000; // 15 minutes execution timeout
 
+    const settings = await this.deps.loadSettings();
+    const provider =
+      settings.models?.sessionB?.provider ||
+      settings.models?.sessionA?.provider ||
+      "anthropic";
+
     const allowedEnvKeys = [
       "PATH",
       "HOME",
@@ -322,13 +323,11 @@ export class ExecuteExecutor implements StageExecutor {
       "LANG",
       "LC_ALL",
       "PI_API_KEY",
-      "ANTHROPIC_API_KEY",
-      "OPENAI_API_KEY",
-      "GEMINI_API_KEY",
-      "HTTP_PROXY",
-      "HTTPS_PROXY",
-      "NO_PROXY",
     ];
+
+    if (provider === "anthropic") allowedEnvKeys.push("ANTHROPIC_API_KEY");
+    if (provider === "openai") allowedEnvKeys.push("OPENAI_API_KEY");
+    if (provider === "google") allowedEnvKeys.push("GEMINI_API_KEY");
 
     const sanitizedEnv: Record<string, string> = {};
     for (const key of allowedEnvKeys) {
