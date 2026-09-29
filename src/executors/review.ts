@@ -34,6 +34,15 @@ export class ReviewExecutor implements StageExecutor {
       text: "Conducting automated code review…",
     });
 
+    if (!run.verification) {
+      return {
+        status: "failed",
+        nextRunStatus: "failed",
+        error:
+          "Deterministic verification is missing. ReviewExecutor cannot fabricate a successful result.",
+      };
+    }
+
     const settings = await this.deps.loadSettings(false);
     const rResult = await this.deps.reviewRun({
       projectId: context.project.id,
@@ -42,22 +51,7 @@ export class ReviewExecutor implements StageExecutor {
       ticket: run.ticket,
       plan: run.plan,
       diff: run.diff || "",
-      verification: run.verification || {
-        passed: true,
-        repairAttempt: 0,
-        tests: {
-          command: "test",
-          exitCode: 0,
-          stdout: "",
-          stderr: "",
-          passed: true,
-          durationMs: 0,
-        },
-        diff: "",
-        filesChanged: [],
-        hasPollution: false,
-        summary: "No verification result",
-      },
+      verification: run.verification,
       modelConfig: settings.models?.sessionB,
     });
 

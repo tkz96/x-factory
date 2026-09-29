@@ -164,8 +164,30 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
   });
 
   describe("ReviewExecutor (XFM-28)", () => {
+    const mockVerification = {
+      passed: true,
+      repairAttempt: 0,
+      tests: {
+        command: "test",
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        passed: true,
+        durationMs: 0,
+      },
+      diff: "",
+      filesChanged: [],
+      hasPollution: false,
+      summary: "Verification passed",
+    };
+
     it("routes to deliver stage when review is approved", async () => {
-      const { context, runRepo } = setupTestContext("review");
+      const { context, runRepo, db } = setupTestContext("review");
+      runRepo.update(context.run.id, { verification: mockVerification }, db);
+      const updatedRunForTest = runRepo.get(context.run.id, db);
+      if (updatedRunForTest) {
+        context.run = updatedRunForTest;
+      }
 
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
@@ -189,7 +211,12 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     });
 
     it("fails when review is rejected", async () => {
-      const { context } = setupTestContext("review");
+      const { context, runRepo, db } = setupTestContext("review");
+      runRepo.update(context.run.id, { verification: mockVerification }, db);
+      const updatedRunForTest = runRepo.get(context.run.id, db);
+      if (updatedRunForTest) {
+        context.run = updatedRunForTest;
+      }
 
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
@@ -207,6 +234,32 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(result.status).toBe("failed");
       expect(result.nextRunStatus).toBe("failed");
       expect(result.error).toContain("Code review was not approved");
+    });
+
+    it("fails immediately without calling reviewRun if verification is missing", async () => {
+      const { context } = setupTestContext("review");
+      let reviewRunCalled = false;
+
+      const executor = new ReviewExecutor({
+        loadSettings: async () => ({}),
+        reviewRun: async () => {
+          reviewRunCalled = true;
+          return {
+            passed: true,
+            findings: [],
+            criteriaChecked: [],
+            summary: "Should not be called",
+          };
+        },
+        writeFile: async () => {},
+      });
+
+      const result = await executor.execute(context);
+
+      expect(result.status).toBe("failed");
+      expect(result.nextRunStatus).toBe("failed");
+      expect(result.error).toContain("Deterministic verification is missing");
+      expect(reviewRunCalled).toBe(false);
     });
   });
 

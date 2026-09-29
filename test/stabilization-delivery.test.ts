@@ -42,6 +42,25 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   it("pauses at awaiting_review on review approval without creating deliver job", async () => {
     const { db, runRepo, jobRepo, run } = setupTest();
 
+    runRepo.update(run.id, {
+      verification: {
+        passed: true,
+        repairAttempt: 0,
+        tests: {
+          command: "test",
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          passed: true,
+          durationMs: 0,
+        },
+        diff: "",
+        filesChanged: [],
+        hasPollution: false,
+        summary: "Verification passed",
+      },
+    });
+
     const job = jobRepo.createJob({
       runId: run.id,
       stage: "review",
