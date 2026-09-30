@@ -1,27 +1,26 @@
 /// <reference lib="dom" />
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
-import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test";
-import React from "react";
-import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
+import { describe, expect, it, mock, beforeEach } from "bun:test";
+import { render, act, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { OnboardingWizardModal } from "../src/frontend/components/modals/OnboardingWizardModal.js";
-import { api } from "../src/frontend/lib/api-client.js";
+
 
 // We'll import userEvent dynamically to ensure it runs AFTER GlobalRegistrator sets up window/document
 let userEvent: any;
 
 // Mock the API client
-const mockDiscoverRepositories = mock(async () => {
+const mockDiscoverRepositories = mock<any>(async () => {
   return { repositories: [] };
 });
-const mockTestAzureScopes = mock(async () => {
+const mockTestAzureScopes = mock<any>(async () => {
   return { ok: true, overPrivileged: false, scopes: {} };
 });
 // Mock fetch for createProject
-const mockFetch = mock(async () => {
+const mockFetch = mock<any>(async () => {
   return new Response(JSON.stringify({ id: "test-id" }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 global.fetch = mockFetch as any;
@@ -29,7 +28,6 @@ global.fetch = mockFetch as any;
 mock.module("../src/frontend/lib/api-client.js", () => {
   return {
     api: {
-      discoverRepositories: mockDiscoverRepositories,
       discoverRepositories: mockDiscoverRepositories,
       testAzureScopes: mockTestAzureScopes,
     },
@@ -128,7 +126,8 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
     });
 
     // Verify correct payload
-    expect(mockDiscoverRepositories.mock.calls[0][0]).toEqual({
+    const callArg = (mockDiscoverRepositories.mock.calls[0] as any)[0];
+    expect(callArg).toEqual({
       provider: "azure",
       orgUrl: "https://dev.azure.com/xynotech",
       project: "Converso",
@@ -312,7 +311,7 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
 
     // Check createProject payload
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const callArgs = mockFetch.mock.calls[0];
+    const callArgs = mockFetch.mock.calls[0] as any;
     expect(callArgs[0]).toBe("/api/projects");
     const payload = JSON.parse(callArgs[1].body);
     
