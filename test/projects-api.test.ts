@@ -118,33 +118,36 @@ describe("Project Onboarding & Management APIs", () => {
 
   it("POST /api/projects fails if configuration file is malformed", async () => {
     const currentProjects = await readFile(projectsJsonPath, "utf-8");
-    await writeFile(projectsJsonPath, "malformed {", "utf-8");
-    const res = await fetch(`${baseUrl}/api/projects`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: "proj-malformed-test",
-        name: "Malformed Product",
-        workspacePath: tempDir,
-        repositories: [
-          {
-            id: `proj-malformed-test-repo`,
-            name: "repo",
-            path: path.join(tempDir, "repo"),
-            defaultBranch: "main",
-            role: "frontend",
-          },
-        ],
-      }),
-    });
-    assert.equal(res.status, 500);
-    const body = (await res.json()) as { error: string };
-    assert.ok(
-      body.error.includes("Invalid JSON") ||
-        body.error.includes("Unexpected token"),
-    );
-    // Restore previous projects file for rest of tests
-    await writeFile(projectsJsonPath, currentProjects, "utf-8");
+    try {
+      await writeFile(projectsJsonPath, "malformed {", "utf-8");
+      const res = await fetch(`${baseUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: "proj-malformed-test",
+          name: "Malformed Product",
+          workspacePath: tempDir,
+          repositories: [
+            {
+              id: `proj-malformed-test-repo`,
+              name: "repo",
+              path: path.join(tempDir, "repo"),
+              defaultBranch: "main",
+              role: "frontend",
+            },
+          ],
+        }),
+      });
+      assert.equal(res.status, 500);
+      const body = (await res.json()) as { error: string };
+      assert.ok(
+        body.error.includes("Invalid JSON") ||
+          body.error.includes("Unexpected token"),
+      );
+    } finally {
+      // Restore previous projects file for rest of tests
+      await writeFile(projectsJsonPath, currentProjects, "utf-8");
+    }
   });
 
   it("GET /api/projects/:id returns project and readiness", async () => {

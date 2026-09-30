@@ -96,8 +96,6 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       fireEvent.click(step1Next);
     });
 
-    console.log(container.innerHTML); // DEBUG
-
     // Step 2
     const orgInput = container.querySelector(
       "#onboard-azure-org-url",
@@ -277,6 +275,58 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Configure Repositories");
     });
+
+    // Verify repositories and metadata are rendered in Step 4
+    expect(container.textContent).toContain("ai-engine (remote1)");
+    expect(container.textContent).toContain("Converso-Front-End (remote5)");
+    expect(container.textContent).toContain("converso-infra (remote14)");
+  });
+
+  it("handles discovery failure, prevents next step, and recovers on retry", async () => {
+    // 1. Mock rejection
+    mockDiscoverRepositories.mockRejectedValueOnce(new Error("Network Error"));
+    const { container } = render(<TestWrapper />);
+    
+    // Step 1 & 2
+    await advanceToStep3(container);
+    
+    // 2 & 3. Request fails and Loading ends
+    await waitFor(() => {
+      expect(mockDiscoverRepositories).toHaveBeenCalledTimes(1);
+      expect(container.textContent).toContain("Discovery failed: Network Error");
+    });
+    
+    // 4. Error message is shown
+    expect(container.textContent).toContain("Discovery failed: Network Error");
+    
+    // 5. Continue button is disabled
+    const step3Next = container.querySelector("#btn-step-3-next") as HTMLButtonElement;
+    expect(step3Next.disabled).toBe(true);
+    
+    // 6. Retry is available
+    const retryBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === "Retry",
+    );
+    expect(retryBtn).toBeDefined();
+    
+    // 7. Clicking Retry performs exactly one new discovery request
+    mockDiscoverRepositories.mockResolvedValueOnce({
+      repositories: [{ id: "1", name: "ai-engine" }],
+    });
+    
+    await act(async () => {
+      fireEvent.click(retryBtn!);
+    });
+    
+    // 8. Successful retry clears error and shows new discovery result
+    await waitFor(() => {
+      expect(mockDiscoverRepositories).toHaveBeenCalledTimes(2);
+      expect(container.textContent).not.toContain("Discovery failed");
+      expect(container.textContent).toContain("1 repositories discovered");
+    });
+    
+    // Next button should be enabled
+    expect(step3Next.disabled).toBe(false);
   });
 
   it("handles empty discovery results properly", async () => {
@@ -407,6 +457,67 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
     fireEvent.click(step3Next);
 
     expect(container.textContent).toContain("Configure Repositories");
+  });
+
+  it("invalidates discovery when the PAT changes", async () => {
+    mockDiscoverRepositories.mockResolvedValueOnce({
+      repositories: [{ id: "1", name: "repo1" }],
+    });
+
+    const { container } = render(<TestWrapper />);
+    await advanceToStep3(container);
+
+    await waitFor(() => {
+      expect(mockDiscoverRepositories).toHaveBeenCalledTimes(1);
+    });
+
+    expect(container.textContent).toContain("1 repositories discovered");
+
+    // Go back to Step 2
+    const step3Actions = container.querySelector(
+      "#onboard-step-3 .modal-actions",
+    ) as HTMLElement;
+    const backBtn = step3Actions.querySelector(
+      ".btn-secondary",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(backBtn);
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector("#btn-step-2-next")).not.toBeNull();
+    });
+
+    // Change the PAT
+    const patInput = container.querySelector(
+      "#onboard-azure-pat",
+    ) as HTMLInputElement;
+    await act(async () => {
+      await userEvent.clear(patInput);
+      await userEvent.type(patInput, "new-pat");
+    });
+
+    // Mock next discovery
+    mockDiscoverRepositories.mockResolvedValueOnce({
+      repositories: [{ id: "2", name: "repo2" }],
+    });
+
+    // Go to Step 3
+    const step2Next = container.querySelector(
+      "#btn-step-2-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step2Next);
+    });
+
+    // Discovery should be called again because the PAT change invalidated the state
+    await waitFor(() => {
+      expect(mockDiscoverRepositories).toHaveBeenCalledTimes(2);
+    });
+
+    // Verify it sent the new PAT
+    const callArg2 = (mockDiscoverRepositories.mock.calls[1] as any)[0];
+    expect(callArg2.pat).toBe("new-pat");
   });
 
   it("ensures PAT is not stored in final creation payload", async () => {

@@ -509,6 +509,13 @@ interface Step4RepositoriesProps {
   workspacePath: string;
   projectId: string;
   quickUrl: string;
+  discoveredRepositories: Array<{
+    id: string;
+    name: string;
+    remote?: string;
+    defaultBranch?: string;
+    webUrl?: string;
+  }>;
   onBack: () => void;
   onNext: () => void;
 }
@@ -517,6 +524,7 @@ function Step4Repositories({
   workspacePath,
   projectId,
   quickUrl,
+  discoveredRepositories,
   onBack,
   onNext,
 }: Step4RepositoriesProps) {
@@ -537,6 +545,18 @@ function Step4Repositories({
           </p>
         )}
       </div>
+      {discoveredRepositories.length > 0 && (
+        <div className="mt-4">
+          <h4>Discovered Repositories</h4>
+          <ul id="discovered-repos-list" className="text-footnote text-muted">
+            {discoveredRepositories.map((repo) => (
+              <li key={repo.id} data-repo-name={repo.name}>
+                {repo.name} ({repo.remote || "no-remote"})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
@@ -1033,7 +1053,13 @@ export function OnboardingWizardModal() {
               onGitHostChange={setGitHost}
               onTrackerProjectChange={setTrackerProject}
               onTrackerOrgUrlChange={setTrackerOrgUrl}
-              onTrackerPatChange={setTrackerPat}
+              onTrackerPatChange={(pat) => {
+                setTrackerPat(pat);
+                setHasDiscovered(false);
+                setDiscoveredRepositories([]);
+                setDiscoveryError(null);
+                setLastDiscoveryInputs("");
+              }}
               onVerifyPat={handleVerifyPat}
               onAckChange={setLeastPrivilegeAck}
               onBack={() => goToStep(1)}
@@ -1059,6 +1085,7 @@ export function OnboardingWizardModal() {
               workspacePath={workspacePath}
               projectId={projectId}
               quickUrl={quickUrl}
+              discoveredRepositories={discoveredRepositories}
               onBack={() => goToStep(3)}
               onNext={() => goToStep(5)}
             />
