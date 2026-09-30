@@ -191,6 +191,60 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
   });
 
   describe("ExecuteExecutor (Autonomous Ralph Loop)", () => {
+    const baseExecuteMocks = {
+      mkdir: async () => {},
+      access: async () => {},
+      chmod: async () => {},
+      writeFile: async () => {},
+      readFile: async () => "{}",
+      resolveWorktreeBaseline: async () => ({
+        trackedFiles: new Set(),
+        untrackedFiles: new Set(),
+      }),
+      recordBaseline: async () => ({
+        trackedFiles: new Set(),
+        untrackedFiles: new Set(),
+      }),
+      runVerification: async () => ({
+        passed: true,
+        repairAttempt: 1,
+        tests: {
+          command: "test",
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          passed: true,
+          durationMs: 0,
+        },
+        filesChanged: [],
+        hasPollution: false,
+        summary: "All good",
+        diff: "",
+      }),
+      buildRepairPrompt: () => "repair prompt",
+      reviewExecutor: {
+        stage: "review",
+        execute: async () => ({
+          status: "success",
+          nextRunStatus: "awaiting_review",
+          output: { passed: true, summary: "LGTM" },
+        }),
+      },
+      getDiff: async () => ({ diff: "", filesChanged: [] }),
+      MAX_REPAIR_ATTEMPTS: 3,
+      spawn: ((_cmd: string, _args?: readonly string[]) => {
+        const mockChild = new EventEmitter() as unknown as ChildProcess;
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        mockChild.stdout = new EventEmitter() as any;
+        mockChild.stderr = new EventEmitter();
+        mockChild.kill = () => {};
+        setTimeout(() => {
+          mockChild.emit("close", 0);
+        }, 10);
+        return mockChild;
+      }) as unknown as typeof spawn,
+    };
+
     it("generates artifacts, spawns ./ralph.sh, streams events, and pauses at awaiting_review", async () => {
       const { context, runRepo, eventRepo } = setupTestContext("execute");
       const writtenFiles: Record<string, string> = {};
@@ -214,6 +268,41 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         writeFile: async (filePath, content) => {
           writtenFiles[filePath.toString()] = content.toString();
         },
+        readFile: async () => "{}",
+        resolveWorktreeBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        recordBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        runVerification: async () => ({
+          passed: true,
+          repairAttempt: 1,
+          tests: {
+            command: "test",
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+            passed: true,
+            durationMs: 0,
+          },
+          filesChanged: ["src/index.ts"],
+          hasPollution: false,
+          summary: "All good",
+          diff: "diff --git a/src/index.ts b/src/index.ts\n+console.log('hello');",
+        }),
+        buildRepairPrompt: () => "repair prompt",
+        reviewExecutor: {
+          stage: "review",
+          execute: async (_ctx) => ({
+            status: "success",
+            nextRunStatus: "awaiting_review",
+            output: { passed: true, summary: "LGTM" },
+          }),
+        },
+        MAX_REPAIR_ATTEMPTS: 3,
         spawn: ((_cmd: string, args?: readonly string[]) => {
           spawnCalled = true;
           spawnArgs = [...(args || [])];
@@ -284,6 +373,41 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
+        readFile: async () => "{}",
+        resolveWorktreeBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        recordBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        runVerification: async () => ({
+          passed: true,
+          repairAttempt: 1,
+          tests: {
+            command: "test",
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+            passed: true,
+            durationMs: 0,
+          },
+          filesChanged: [],
+          hasPollution: false,
+          summary: "All good",
+          diff: "",
+        }),
+        buildRepairPrompt: () => "repair prompt",
+        reviewExecutor: {
+          stage: "review",
+          execute: async () => ({
+            status: "success",
+            nextRunStatus: "awaiting_review",
+            output: { passed: true, summary: "LGTM" },
+          }),
+        },
+        MAX_REPAIR_ATTEMPTS: 3,
         spawn: (() => {
           setTimeout(() => {
             mockChild.stderr.emit(
@@ -320,6 +444,41 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
+        readFile: async () => "{}",
+        resolveWorktreeBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        recordBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        runVerification: async () => ({
+          passed: true,
+          repairAttempt: 1,
+          tests: {
+            command: "test",
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+            passed: true,
+            durationMs: 0,
+          },
+          filesChanged: [],
+          hasPollution: false,
+          summary: "All good",
+          diff: "",
+        }),
+        buildRepairPrompt: () => "repair prompt",
+        reviewExecutor: {
+          stage: "review",
+          execute: async () => ({
+            status: "success",
+            nextRunStatus: "awaiting_review",
+            output: { passed: true, summary: "LGTM" },
+          }),
+        },
+        MAX_REPAIR_ATTEMPTS: 3,
         spawn: (() => {
           setTimeout(() => {
             mockChild.emit("error", new Error("ENOENT: ralph.sh not found"));
@@ -363,6 +522,41 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
+        readFile: async () => "{}",
+        resolveWorktreeBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        recordBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        runVerification: async () => ({
+          passed: true,
+          repairAttempt: 1,
+          tests: {
+            command: "test",
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+            passed: true,
+            durationMs: 0,
+          },
+          filesChanged: [],
+          hasPollution: false,
+          summary: "All good",
+          diff: "",
+        }),
+        buildRepairPrompt: () => "repair prompt",
+        reviewExecutor: {
+          stage: "review",
+          execute: async () => ({
+            status: "success",
+            nextRunStatus: "awaiting_review",
+            output: { passed: true, summary: "LGTM" },
+          }),
+        },
+        MAX_REPAIR_ATTEMPTS: 3,
         loadSettings: async () =>
           ({
             models: { sessionA: { provider: "openai" } },
@@ -419,6 +613,188 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       delete process.env.OPENAI_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
       delete process.env.GEMINI_API_KEY;
+    });
+
+    it("Full success path (Loop -> Verify -> Review -> awaiting_review)", async () => {
+      const { context } = setupTestContext("execute");
+      const executor = new ExecuteExecutor(baseExecuteMocks);
+
+      const result = await executor.execute(context);
+
+      expect(result.status).toBe("success");
+      expect(result.nextRunStatus).toBe("awaiting_review");
+    });
+
+    it("Verification failure -> Repair success -> Review -> awaiting_review", async () => {
+      const { context } = setupTestContext("execute");
+      let verificationCalls = 0;
+
+      const executor = new ExecuteExecutor({
+        ...baseExecuteMocks,
+        runVerification: async () => {
+          verificationCalls++;
+          if (verificationCalls === 1) {
+            return {
+              passed: false,
+              repairAttempt: 1,
+              tests: {
+                command: "test",
+                exitCode: 1,
+                stdout: "",
+                stderr: "error",
+                passed: false,
+                durationMs: 0,
+              },
+              filesChanged: ["src/index.ts"],
+              hasPollution: false,
+              summary: "Failed test",
+              diff: "some diff",
+            };
+          }
+          return {
+            passed: true,
+            repairAttempt: 2,
+            tests: {
+              command: "test",
+              exitCode: 0,
+              stdout: "",
+              stderr: "",
+              passed: true,
+              durationMs: 0,
+            },
+            filesChanged: ["src/index.ts"],
+            hasPollution: false,
+            summary: "Fixed",
+            diff: "some diff",
+          };
+        },
+      });
+
+      const result = await executor.execute(context);
+
+      expect(verificationCalls).toBe(2);
+      expect(result.status).toBe("success");
+      expect(result.nextRunStatus).toBe("awaiting_review");
+    });
+
+    it("Verification failure -> Repair exhaustion -> Failure (no review)", async () => {
+      const { context } = setupTestContext("execute");
+      let reviewCalled = false;
+
+      const executor = new ExecuteExecutor({
+        ...baseExecuteMocks,
+        runVerification: async () => ({
+          passed: false,
+          repairAttempt: 1,
+          tests: {
+            command: "test",
+            exitCode: 1,
+            stdout: "",
+            stderr: "error",
+            passed: false,
+            durationMs: 0,
+          },
+          filesChanged: ["src/index.ts"],
+          hasPollution: false,
+          summary: "Failed test",
+          diff: "some diff",
+        }),
+        reviewExecutor: {
+          stage: "review",
+          execute: async () => {
+            reviewCalled = true;
+            return { status: "success", nextRunStatus: "awaiting_review" };
+          },
+        },
+        MAX_REPAIR_ATTEMPTS: 2,
+      });
+
+      const result = await executor.execute(context);
+
+      expect(result.status).toBe("failed");
+      expect(result.error).toContain(
+        "Verification did not pass after bounded repairs",
+      );
+      expect(reviewCalled).toBe(false);
+    });
+
+    it("Review failure -> No awaiting_review request", async () => {
+      const { context } = setupTestContext("execute");
+
+      const executor = new ExecuteExecutor({
+        ...baseExecuteMocks,
+        reviewExecutor: {
+          stage: "review",
+          execute: async () => ({
+            status: "failed",
+            error: "Review failed",
+          }),
+        },
+      });
+
+      const result = await executor.execute(context);
+
+      expect(result.status).toBe("failed");
+      expect(result.error).toContain("Review failed");
+      expect(result.nextRunStatus).toBeUndefined();
+    });
+
+    it("Review success -> Receive exact verification result & Verification persisted before review", async () => {
+      const { context, runRepo } = setupTestContext("execute");
+      let receivedCtx: unknown = null;
+      let runDiffBeforeReview: string | null | undefined = null;
+      let runVerifBeforeReview: unknown = null;
+
+      const verificationResult = {
+        passed: true,
+        repairAttempt: 1,
+        tests: {
+          command: "test",
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          passed: true,
+          durationMs: 0,
+        },
+        filesChanged: ["src/index.ts"],
+        hasPollution: false,
+        summary: "All good",
+        diff: "diff --git a/file",
+      };
+
+      const executor = new ExecuteExecutor({
+        ...baseExecuteMocks,
+        getDiff: async () => ({
+          diff: "diff --git a/file",
+          filesChanged: ["src/index.ts"],
+        }),
+        runVerification: async () => verificationResult,
+        reviewExecutor: {
+          stage: "review",
+          execute: async (ctx) => {
+            receivedCtx = ctx;
+            const run = runRepo.get(ctx.run.id);
+            runDiffBeforeReview = run?.diff;
+            runVerifBeforeReview = run?.verification;
+            return {
+              status: "success",
+              nextRunStatus: "awaiting_review",
+              output: { passed: true, summary: "LGTM" },
+            };
+          },
+        },
+      });
+
+      const result = await executor.execute(context);
+
+      expect(result.status).toBe("success");
+
+      // Verification persisted before review
+      expect(runDiffBeforeReview).toBe("diff --git a/file");
+      expect(runVerifBeforeReview).toEqual(verificationResult);
+
+      // Receive exact verification result
+      expect(receivedCtx.run.verification).toEqual(verificationResult);
     });
   });
 });

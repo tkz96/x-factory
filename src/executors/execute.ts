@@ -1,11 +1,18 @@
 // src/executors/execute.ts — ExecuteExecutor: Autonomous Ralph Loop execution (Ticket 02).
 
 import { spawn } from "node:child_process";
-import { access, chmod, mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as git from "../git.js";
 import { loadSettings } from "../settings.js";
-import type { Project, Ticket } from "../shared/types.js";
+import type { Project, Ticket, VerificationResult } from "../shared/types.js";
+import {
+  buildRepairPrompt,
+  MAX_REPAIR_ATTEMPTS,
+  runVerification,
+} from "../verification.js";
+import { resolveWorktreeBaseline } from "./baseline.js";
+import { ReviewExecutor } from "./review.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
 export interface ExecuteDependencies {
@@ -16,6 +23,13 @@ export interface ExecuteDependencies {
   access: typeof access;
   chmod: typeof chmod;
   loadSettings: typeof loadSettings;
+  readFile: typeof readFile;
+  resolveWorktreeBaseline: typeof resolveWorktreeBaseline;
+  recordBaseline: typeof git.recordBaseline;
+  runVerification: typeof runVerification;
+  buildRepairPrompt: typeof buildRepairPrompt;
+  reviewExecutor: StageExecutor;
+  MAX_REPAIR_ATTEMPTS: number;
 }
 
 export const defaultExecuteDeps: ExecuteDependencies = {
@@ -26,6 +40,15 @@ export const defaultExecuteDeps: ExecuteDependencies = {
   access,
   chmod,
   loadSettings,
+  readFile,
+  resolveWorktreeBaseline,
+  recordBaseline: git.recordBaseline,
+  runVerification,
+  buildRepairPrompt,
+  get reviewExecutor() {
+    return new ReviewExecutor();
+  },
+  MAX_REPAIR_ATTEMPTS,
 };
 
 export const DEFAULT_RALPH_SCRIPT = `#!/usr/bin/env bash
@@ -294,191 +317,269 @@ export class ExecuteExecutor implements StageExecutor {
       }
     }
 
-    const iterations = 25;
-    context.eventRepo.appendEvent(run.id, "status", {
-      status: "executing",
-      text: `Spawning Ralph Loop (${iterations} iterations) with Pi agent…`,
-    });
+    const baselineJsonPath = path.join(run.artifactsDir, "baseline.json");
+    const baseline = await this.deps.resolveWorktreeBaseline(
+      baselineJsonPath,
+      worktreePath,
+      this.deps.readFile,
+      this.deps.recordBaseline,
+      this.deps.writeFile,
+    );
 
-    context.eventRepo.appendEvent(run.id, "ralph_progress", {
-      text: `Ralph Loop started with ${iterations} iterations`,
-      iteration: 1,
-    });
+    let attempt = 1;
+    let verification: VerificationResult | null = null;
+    let finalDiff: { diff: string; filesChanged: string[] } = {
+      diff: "",
+      filesChanged: [],
+    };
 
-    let stdoutAccumulator = "";
-    let stderrAccumulator = "";
-    let timedOut = false;
-    const timeoutMs = 15 * 60 * 1000; // 15 minutes execution timeout
-
-    const settings = await this.deps.loadSettings();
-    const provider =
-      settings.models?.sessionB?.provider ||
-      settings.models?.sessionA?.provider ||
-      "anthropic";
-
-    const allowedEnvKeys = [
-      "PATH",
-      "HOME",
-      "USER",
-      "LANG",
-      "LC_ALL",
-      "PI_API_KEY",
-    ];
-
-    if (provider === "anthropic") allowedEnvKeys.push("ANTHROPIC_API_KEY");
-    if (provider === "openai") allowedEnvKeys.push("OPENAI_API_KEY");
-    if (provider === "google") allowedEnvKeys.push("GEMINI_API_KEY");
-
-    const sanitizedEnv: Record<string, string> = {};
-    for (const key of allowedEnvKeys) {
-      const val = process.env[key];
-      if (val !== undefined) {
-        sanitizedEnv[key] = val;
+    while (attempt <= this.deps.MAX_REPAIR_ATTEMPTS) {
+      if (attempt > 1) {
+        context.eventRepo.appendEvent(run.id, "info", {
+          text: `Starting repair attempt ${attempt} of ${this.deps.MAX_REPAIR_ATTEMPTS}…`,
+        });
       }
+
+      const iterations = attempt === 1 ? 25 : 10;
+      context.eventRepo.appendEvent(run.id, "status", {
+        status: "executing",
+        text:
+          attempt === 1
+            ? `Spawning Ralph Loop (${iterations} iterations) with Pi agent…`
+            : `Spawning Repair Loop (${iterations} iterations)…`,
+      });
+
+      context.eventRepo.appendEvent(run.id, "ralph_progress", {
+        text:
+          attempt === 1
+            ? `Ralph Loop started with ${iterations} iterations`
+            : `Repair Loop started with ${iterations} iterations`,
+        iteration: 1,
+      });
+
+      let stdoutAccumulator = "";
+      let stderrAccumulator = "";
+      let timedOut = false;
+      const timeoutMs = 15 * 60 * 1000; // 15 minutes execution timeout
+
+      const settings = await this.deps.loadSettings();
+      const provider =
+        settings.models?.sessionB?.provider ||
+        settings.models?.sessionA?.provider ||
+        "anthropic";
+
+      const allowedEnvKeys = [
+        "PATH",
+        "HOME",
+        "USER",
+        "LANG",
+        "LC_ALL",
+        "PI_API_KEY",
+      ];
+
+      if (provider === "anthropic") allowedEnvKeys.push("ANTHROPIC_API_KEY");
+      if (provider === "openai") allowedEnvKeys.push("OPENAI_API_KEY");
+      if (provider === "google") allowedEnvKeys.push("GEMINI_API_KEY");
+
+      const sanitizedEnv: Record<string, string> = {};
+      for (const key of allowedEnvKeys) {
+        const val = process.env[key];
+        if (val !== undefined) {
+          sanitizedEnv[key] = val;
+        }
+      }
+
+      try {
+        const child = this.deps.spawn(
+          "./ralph.sh",
+          ["--agent", "pi", "-n", String(iterations)],
+          {
+            cwd: worktreePath,
+            env: sanitizedEnv,
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+
+        const timeoutTimer = setTimeout(() => {
+          timedOut = true;
+          try {
+            child.kill("SIGTERM");
+            setTimeout(() => {
+              try {
+                child.kill("SIGKILL");
+              } catch {
+                // Ignore kill errors
+              }
+            }, 1000);
+          } catch {
+            // Ignore kill errors
+          }
+        }, timeoutMs);
+
+        const abortHandler = () => {
+          try {
+            child.kill("SIGTERM");
+            setTimeout(() => {
+              try {
+                child.kill("SIGKILL");
+              } catch {
+                // Ignore kill errors
+              }
+            }, 1000);
+          } catch {
+            // Ignore kill errors
+          }
+        };
+
+        if (signal) {
+          signal.addEventListener("abort", abortHandler, { once: true });
+        }
+
+        child.stdout?.on("data", (chunk: Buffer) => {
+          const text = chunk.toString("utf-8");
+          stdoutAccumulator += text;
+
+          // Parse any Ralph progress lines
+          const lines = text.split("\n");
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+            if (
+              trimmedLine.includes("Starting Ralph Loop") ||
+              trimmedLine.includes("Task") ||
+              trimmedLine.includes("Iteration")
+            ) {
+              context.eventRepo.appendEvent(run.id, "ralph_progress", {
+                text: trimmedLine,
+              });
+            }
+          }
+
+          // Stream output as chunks
+          context.eventRepo.appendEvent(run.id, "pi_output_chunk", {
+            role: "ralph",
+            text,
+          });
+        });
+
+        child.stderr?.on("data", (chunk: Buffer) => {
+          const text = chunk.toString("utf-8");
+          stderrAccumulator += text;
+        });
+
+        const exitCode = await new Promise<number>((resolve, reject) => {
+          child.on("error", (err) => {
+            clearTimeout(timeoutTimer);
+            reject(err);
+          });
+          child.on("close", (code) => {
+            clearTimeout(timeoutTimer);
+            resolve(code ?? 0);
+          });
+        });
+
+        if (signal) {
+          signal.removeEventListener("abort", abortHandler);
+        }
+
+        if (timedOut) {
+          return {
+            status: "failed",
+            error: `Ralph Loop execution timed out after ${timeoutMs}ms`,
+          };
+        }
+
+        if (exitCode !== 0) {
+          context.eventRepo.appendEvent(run.id, "error", {
+            message: `Ralph Loop failed with exit code ${exitCode}`,
+          });
+          return {
+            status: "failed",
+            error: `Ralph Loop exited with code ${exitCode}: ${
+              stderrAccumulator.trim() ||
+              stdoutAccumulator.trim() ||
+              "Unknown error"
+            }`,
+          };
+        }
+
+        // Run Verification
+        context.eventRepo.appendEvent(run.id, "info", {
+          text: `Running deterministic verification (attempt ${attempt})…`,
+        });
+
+        verification = await this.deps.runVerification(
+          worktreePath,
+          project,
+          baseline,
+          attempt,
+        );
+
+        finalDiff = await this.deps.getDiff(worktreePath);
+
+        const currentRun = context.runRepo.get(run.id);
+        const expectedRevision = currentRun
+          ? currentRun.revision
+          : run.revision;
+
+        context.runRepo.update(run.id, {
+          diff: finalDiff.diff,
+          verification,
+          expectedRevision: expectedRevision,
+        });
+
+        context.eventRepo.appendEvent(run.id, "verification", {
+          result: verification,
+        });
+
+        if (verification.passed) {
+          break;
+        }
+
+        if (attempt < this.deps.MAX_REPAIR_ATTEMPTS) {
+          // Write repair prompt for next attempt
+          const repairPrompt = this.deps.buildRepairPrompt(
+            run.ticket,
+            run.plan || "",
+            verification,
+            attempt,
+          );
+          await this.deps.writeFile(
+            path.join(agentDir, "PROMPT.md"),
+            repairPrompt,
+            "utf-8",
+          );
+        }
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return {
+          status: "failed",
+          error: `Ralph Loop execution failed: ${errorMsg}`,
+        };
+      }
+      attempt++;
     }
 
-    try {
-      const child = this.deps.spawn(
-        "./ralph.sh",
-        ["--agent", "pi", "-n", String(iterations)],
-        {
-          cwd: worktreePath,
-          env: sanitizedEnv,
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      );
-
-      const timeoutTimer = setTimeout(() => {
-        timedOut = true;
-        try {
-          child.kill("SIGTERM");
-          setTimeout(() => {
-            try {
-              child.kill("SIGKILL");
-            } catch {
-              // Ignore kill errors
-            }
-          }, 1000);
-        } catch {
-          // Ignore kill errors
-        }
-      }, timeoutMs);
-
-      const abortHandler = () => {
-        try {
-          child.kill("SIGTERM");
-          setTimeout(() => {
-            try {
-              child.kill("SIGKILL");
-            } catch {
-              // Ignore kill errors
-            }
-          }, 1000);
-        } catch {
-          // Ignore kill errors
-        }
-      };
-
-      if (signal) {
-        signal.addEventListener("abort", abortHandler, { once: true });
-      }
-
-      child.stdout?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString("utf-8");
-        stdoutAccumulator += text;
-
-        // Parse any Ralph progress lines
-        const lines = text.split("\n");
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          if (
-            trimmedLine.includes("Starting Ralph Loop") ||
-            trimmedLine.includes("Task") ||
-            trimmedLine.includes("Iteration")
-          ) {
-            context.eventRepo.appendEvent(run.id, "ralph_progress", {
-              text: trimmedLine,
-            });
-          }
-        }
-
-        // Stream output as chunks
-        context.eventRepo.appendEvent(run.id, "pi_output_chunk", {
-          role: "ralph",
-          text,
-        });
+    if (!verification?.passed) {
+      context.eventRepo.appendEvent(run.id, "error", {
+        message: `Deterministic verification failed after ${this.deps.MAX_REPAIR_ATTEMPTS} attempts.`,
       });
-
-      child.stderr?.on("data", (chunk: Buffer) => {
-        const text = chunk.toString("utf-8");
-        stderrAccumulator += text;
-      });
-
-      const exitCode = await new Promise<number>((resolve, reject) => {
-        child.on("error", (err) => {
-          clearTimeout(timeoutTimer);
-          reject(err);
-        });
-        child.on("close", (code) => {
-          clearTimeout(timeoutTimer);
-          resolve(code ?? 0);
-        });
-      });
-
-      if (signal) {
-        signal.removeEventListener("abort", abortHandler);
-      }
-
-      if (timedOut) {
-        return {
-          status: "failed",
-          error: `Ralph Loop execution timed out after ${timeoutMs}ms`,
-        };
-      }
-
-      if (exitCode !== 0) {
-        context.eventRepo.appendEvent(run.id, "error", {
-          message: `Ralph Loop failed with exit code ${exitCode}`,
-        });
-        return {
-          status: "failed",
-          error: `Ralph Loop exited with code ${exitCode}: ${
-            stderrAccumulator.trim() ||
-            stdoutAccumulator.trim() ||
-            "Unknown error"
-          }`,
-        };
-      }
-
-      // Inspect diff in the worktree
-      const diff = await this.deps.getDiff(worktreePath);
-
-      context.runRepo.update(run.id, {
-        diff: diff.diff,
-        expectedRevision: run.revision,
-      });
-
-      context.eventRepo.appendEvent(run.id, "stage_evidence", {
-        stage: "execute",
-        evidence: `Ralph Loop completed; ${diff.filesChanged.length} files modified.`,
-      });
-
-      return {
-        status: "success",
-        nextStage: undefined,
-        nextRunStatus: "awaiting_review",
-        output: {
-          filesChanged: diff.filesChanged.length,
-          iterations,
-        },
-      };
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
       return {
         status: "failed",
-        error: `Ralph Loop execution failed: ${errorMsg}`,
+        error: `Execution failed: Verification did not pass after bounded repairs. Summary: ${verification?.summary}`,
       };
     }
+
+    context.eventRepo.appendEvent(run.id, "stage_evidence", {
+      stage: "execute",
+      evidence: `Ralph Loop completed and verified; ${finalDiff.filesChanged.length} files modified.`,
+    });
+
+    // Delegate to ReviewExecutor now that execution is verified
+    // We update context.run to contain verification and diff so review uses it
+    context.run.verification = verification;
+    context.run.diff = finalDiff.diff;
+
+    return this.deps.reviewExecutor.execute(context);
   }
 }
