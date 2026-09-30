@@ -84,6 +84,38 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.repositories.length, 1);
   });
 
+  it("POST /api/projects rejects duplicate project creation with 409 Conflict", async () => {
+    const payload = {
+      id: testProjectId,
+      name: "Duplicate Product",
+      workspacePath: tempDir,
+      repositories: [
+        {
+          id: `${testProjectId}-web`,
+          name: "web",
+          path: path.join(tempDir, "web"),
+          defaultBranch: "main",
+          role: "frontend",
+        },
+      ],
+    };
+
+    const res = await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    assert.equal(res.status, 409);
+    const body = (await res.json()) as { error: string };
+    assert.ok(body.error.includes("already exists"));
+
+    // Verify existing project was not overwritten
+    const checkRes = await fetch(`${baseUrl}/api/projects/${testProjectId}`);
+    const checkBody = (await checkRes.json()) as { name: string };
+    assert.equal(checkBody.name, "Test Product"); // Original name
+  });
+
   it("GET /api/projects/:id returns project and readiness", async () => {
     const res = await fetch(`${baseUrl}/api/projects/${testProjectId}`);
     assert.equal(res.status, 200);

@@ -411,12 +411,26 @@ function Step2Tracker({
 
 interface Step3DiscoveryProps {
   workspacePath: string;
+  isDiscovering: boolean;
+  discoveryError: string | null;
+  discoveredRepositories: Array<{
+    id: string;
+    name: string;
+    remote?: string;
+    defaultBranch?: string;
+    webUrl?: string;
+  }>;
+  onRetry: () => void;
   onBack: () => void;
   onNext: () => void;
 }
 
 function Step3Discovery({
   workspacePath,
+  isDiscovering,
+  discoveryError,
+  discoveredRepositories,
+  onRetry,
   onBack,
   onNext,
 }: Step3DiscoveryProps) {
@@ -428,9 +442,26 @@ function Step3Discovery({
         matching this project.
       </p>
       <div className="card mt-4 p-4">
-        <p className="m-0">
-          Ready to discover repositories in workspace directory.
-        </p>
+        {isDiscovering ? (
+          <p className="m-0">Discovering...</p>
+        ) : discoveryError ? (
+          <div>
+            <p className="m-0 text-error">Discovery failed: {discoveryError}</p>
+            <button
+              type="button"
+              className="btn-secondary btn-sm mt-2"
+              onClick={onRetry}
+            >
+              Retry
+            </button>
+          </div>
+        ) : discoveredRepositories.length === 0 ? (
+          <p className="m-0">No repositories found.</p>
+        ) : (
+          <p className="m-0 text-success">
+            {discoveredRepositories.length} repositories discovered
+          </p>
+        )}
       </div>
       <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
@@ -441,6 +472,11 @@ function Step3Discovery({
           id="btn-step-3-next"
           className="btn-primary"
           onClick={onNext}
+          disabled={
+            isDiscovering ||
+            !!discoveryError ||
+            discoveredRepositories.length === 0
+          }
         >
           Continue to Repositories →
         </button>
@@ -651,6 +687,20 @@ export function OnboardingWizardModal() {
   );
   const [leastPrivilegeAck, setLeastPrivilegeAck] = useState(false);
 
+  // Discovery state
+  const [discoveredRepositories, setDiscoveredRepositories] = useState<
+    Array<{
+      id: string;
+      name: string;
+      remote?: string;
+      defaultBranch?: string;
+      webUrl?: string;
+    }>
+  >([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [lastDiscoveryInputs, setLastDiscoveryInputs] = useState<string>("");
+
   // Submitting
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -757,6 +807,47 @@ export function OnboardingWizardModal() {
     }
     setStep(next);
     if (next > maxStep) setMaxStep(next);
+
+    if (next === 3) {
+      void runDiscovery();
+    }
+  };
+
+  const runDiscovery = async (force = false) => {
+    const currentInputs = JSON.stringify({
+      tracker,
+      trackerOrgUrl,
+      trackerProject,
+      trackerPat,
+      workspacePath,
+    });
+    if (
+      !force &&
+      lastDiscoveryInputs === currentInputs &&
+      (discoveredRepositories.length > 0 || discoveryError)
+    ) {
+      return;
+    }
+
+    setLastDiscoveryInputs(currentInputs);
+    setIsDiscovering(true);
+    setDiscoveryError(null);
+    setDiscoveredRepositories([]);
+
+    try {
+      const res = await api.discoverRepositories({
+        provider: tracker,
+        orgUrl: trackerOrgUrl,
+        project: trackerProject,
+        pat: trackerPat,
+        workspacePath,
+      });
+      setDiscoveredRepositories(res.repositories);
+    } catch (err) {
+      setDiscoveryError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsDiscovering(false);
+    }
   };
 
   const handleCompleteOnboard = async () => {
@@ -924,6 +1015,10 @@ export function OnboardingWizardModal() {
           {step === 3 && (
             <Step3Discovery
               workspacePath={workspacePath}
+              isDiscovering={isDiscovering}
+              discoveryError={discoveryError}
+              discoveredRepositories={discoveredRepositories}
+              onRetry={() => runDiscovery(true)}
               onBack={() => goToStep(2)}
               onNext={() => goToStep(4)}
             />

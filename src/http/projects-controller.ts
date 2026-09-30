@@ -4,6 +4,7 @@ import { stat } from "node:fs/promises";
 import { testAzureConnection } from "../azure/connection.js";
 import { testAzurePatScopes } from "../azure/scopes.js";
 import {
+  createProject,
   deleteProject,
   getProject,
   loadProjects,
@@ -54,7 +55,7 @@ async function handleCreateProject(req: Request): Promise<Response> {
     SaveProjectBodySchema,
     (body) =>
       catchHttpErrors(async () => {
-        const saved = await saveProject(body);
+        const saved = await createProject(body);
         return jsonResponse(saved, 201);
       }),
     "Invalid JSON for project creation.",

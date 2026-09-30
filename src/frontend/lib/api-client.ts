@@ -75,6 +75,30 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  async discoverRepositories(payload: {
+    provider: string;
+    orgUrl?: string;
+    project?: string;
+    pat?: string;
+    workspacePath?: string;
+  }): Promise<{
+    provider: string;
+    repositories: Array<{
+      id: string;
+      name: string;
+      remote?: string;
+      defaultBranch?: string;
+      webUrl?: string;
+    }>;
+  }> {
+    const res = await fetch("/api/projects/discover-repositories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
   // Tickets / Queue
   async getTickets(projectId: string): Promise<Ticket[]> {
     const res = await fetch(

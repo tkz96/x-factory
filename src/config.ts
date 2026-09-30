@@ -3,7 +3,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
-import { NotFoundError } from "./errors.js";
+import { ConflictError, NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
 import type { Project, ProjectRepository } from "./types.js";
 
@@ -130,6 +130,33 @@ async function saveProjects(
     `${JSON.stringify({ projects: cleanProjects }, null, 2)}\n`,
     "utf-8",
   );
+}
+
+/**
+ * Create a new project. Throws ConflictError if a project with the same ID already exists.
+ */
+export async function createProject(
+  projectInput: unknown,
+  configPath: string = DEFAULT_CONFIG_PATH,
+): Promise<Project> {
+  const validated = validateProjectInput(projectInput);
+  let projects: Project[] = [];
+  try {
+    projects = await loadProjects(configPath);
+  } catch {
+    projects = [];
+  }
+
+  const existingIndex = projects.findIndex((p) => p.id === validated.id);
+  if (existingIndex >= 0) {
+    throw new ConflictError(
+      `Project with ID "${validated.id}" already exists.`,
+    );
+  }
+
+  projects.push(validated);
+  await saveProjects(projects, configPath);
+  return validated;
 }
 
 /**
