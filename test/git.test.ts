@@ -296,3 +296,79 @@ describe("Git Metadata and External Directory Safety", () => {
     await git.removeWorktree(fixtureRepo, wtPath);
   });
 });
+
+describe("findCommitByMessageAndParent", () => {
+  it("returns SHA when commit exists in current HEAD ancestry", async () => {
+    await git.createBranch(fixtureRepo, "wt-branch-find-1", "main");
+    const wtPath = await git.createWorktree(
+      fixtureRepo,
+      "wt-branch-find-1",
+      "proj-1",
+      "run-find-1",
+    );
+    const parentSha = await git.getHeadSha(wtPath);
+
+    await writeFile(path.join(wtPath, "file1.txt"), "hello");
+    const baseline = await git.recordBaseline(wtPath);
+    await git.safeCommitAll(wtPath, "[X-Factory] Test Commit", baseline);
+    const commitSha = await git.getHeadSha(wtPath);
+
+    const foundSha = await git.findCommitByMessageAndParent(
+      wtPath,
+      "[X-Factory] Test Commit",
+      parentSha,
+    );
+    assert.equal(foundSha, commitSha);
+
+    await git.removeWorktree(fixtureRepo, wtPath);
+  });
+
+  it("returns null when commit exists only on another branch (not in current HEAD history)", async () => {
+    await git.createBranch(fixtureRepo, "wt-branch-find-2-base", "main");
+    const wtPathBase = await git.createWorktree(
+      fixtureRepo,
+      "wt-branch-find-2-base",
+      "proj-1",
+      "run-find-2",
+    );
+    const parentSha = await git.getHeadSha(wtPathBase);
+
+    await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
+    const baseline = await git.recordBaseline(wtPathBase);
+    await git.safeCommitAll(wtPathBase, "[X-Factory] Target Commit", baseline);
+
+    await git.createBranch(fixtureRepo, "wt-branch-find-2-other", "main");
+    const wtPathOther = await git.createWorktree(
+      fixtureRepo,
+      "wt-branch-find-2-other",
+      "proj-1",
+      "run-find-3",
+    );
+
+    const foundSha = await git.findCommitByMessageAndParent(
+      wtPathOther,
+      "[X-Factory] Target Commit",
+      parentSha,
+    );
+    assert.equal(
+      foundSha,
+      null,
+      "Should return null because commit is not in current HEAD history",
+    );
+
+    await git.removeWorktree(fixtureRepo, wtPathBase);
+    await git.removeWorktree(fixtureRepo, wtPathOther);
+  });
+
+  it("throws when git history lookup fails", async () => {
+    await assert.rejects(
+      () =>
+        git.findCommitByMessageAndParent(
+          "/invalid/path/that/does/not/exist",
+          "Some message",
+          "some-sha",
+        ),
+      /Failed to search git history/,
+    );
+  });
+});

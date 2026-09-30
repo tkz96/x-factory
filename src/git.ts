@@ -290,7 +290,7 @@ export async function findCommitByMessageAndParent(
 ): Promise<string | null> {
   const result = await execCommand(
     "git",
-    ["log", "--all", "--format=%H %P", "--grep", message, "--fixed-strings"],
+    ["log", "--format=%H %P", "--grep", message, "--fixed-strings"],
     { cwd: repoPath },
   );
 
