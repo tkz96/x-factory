@@ -2,7 +2,7 @@
 
 import "./OnboardingWizardModal.css";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
@@ -412,6 +412,7 @@ function Step2Tracker({
 interface Step3DiscoveryProps {
   workspacePath: string;
   isDiscovering: boolean;
+  hasDiscovered: boolean;
   discoveryError: string | null;
   discoveredRepositories: Array<{
     id: string;
@@ -428,6 +429,7 @@ interface Step3DiscoveryProps {
 function Step3Discovery({
   workspacePath,
   isDiscovering,
+  hasDiscovered,
   discoveryError,
   discoveredRepositories,
   onRetry,
@@ -456,11 +458,29 @@ function Step3Discovery({
             </button>
           </div>
         ) : discoveredRepositories.length === 0 ? (
-          <p className="m-0">No repositories found.</p>
+          <div>
+            <p className="m-0">No repositories found.</p>
+            <button
+              type="button"
+              className="btn-secondary btn-sm mt-2"
+              onClick={onRetry}
+            >
+              Retry Discovery
+            </button>
+          </div>
         ) : (
-          <p className="m-0 text-success">
-            {discoveredRepositories.length} repositories discovered
-          </p>
+          <div>
+            <p className="m-0 text-success">
+              {discoveredRepositories.length} repositories discovered
+            </p>
+            <button
+              type="button"
+              className="btn-secondary btn-sm mt-2"
+              onClick={onRetry}
+            >
+              Re-scan
+            </button>
+          </div>
         )}
       </div>
       <div className="modal-actions mt-6">
@@ -475,7 +495,7 @@ function Step3Discovery({
           disabled={
             isDiscovering ||
             !!discoveryError ||
-            discoveredRepositories.length === 0
+            !hasDiscovered
           }
         >
           Continue to Repositories →
@@ -698,8 +718,10 @@ export function OnboardingWizardModal() {
     }>
   >([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [hasDiscovered, setHasDiscovered] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [lastDiscoveryInputs, setLastDiscoveryInputs] = useState<string>("");
+  const discoveryGenerationRef = useRef(0);
 
   // Submitting
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -824,15 +846,19 @@ export function OnboardingWizardModal() {
     if (
       !force &&
       lastDiscoveryInputs === currentInputs &&
-      (discoveredRepositories.length > 0 || discoveryError)
+      (hasDiscovered || discoveryError)
     ) {
       return;
     }
 
     setLastDiscoveryInputs(currentInputs);
     setIsDiscovering(true);
+    setHasDiscovered(false);
     setDiscoveryError(null);
     setDiscoveredRepositories([]);
+
+    discoveryGenerationRef.current += 1;
+    const currentGeneration = discoveryGenerationRef.current;
 
     try {
       const res = await api.discoverRepositories({
@@ -842,11 +868,19 @@ export function OnboardingWizardModal() {
         pat: trackerPat,
         workspacePath,
       });
-      setDiscoveredRepositories(res.repositories);
+      
+      if (currentGeneration === discoveryGenerationRef.current) {
+        setDiscoveredRepositories(res.repositories);
+        setHasDiscovered(true);
+      }
     } catch (err) {
-      setDiscoveryError(err instanceof Error ? err.message : String(err));
+      if (currentGeneration === discoveryGenerationRef.current) {
+        setDiscoveryError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
-      setIsDiscovering(false);
+      if (currentGeneration === discoveryGenerationRef.current) {
+        setIsDiscovering(false);
+      }
     }
   };
 
@@ -1016,6 +1050,7 @@ export function OnboardingWizardModal() {
             <Step3Discovery
               workspacePath={workspacePath}
               isDiscovering={isDiscovering}
+              hasDiscovered={hasDiscovered}
               discoveryError={discoveryError}
               discoveredRepositories={discoveredRepositories}
               onRetry={() => runDiscovery(true)}

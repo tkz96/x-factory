@@ -140,12 +140,7 @@ export async function createProject(
   configPath: string = DEFAULT_CONFIG_PATH,
 ): Promise<Project> {
   const validated = validateProjectInput(projectInput);
-  let projects: Project[] = [];
-  try {
-    projects = await loadProjects(configPath);
-  } catch {
-    projects = [];
-  }
+  const projects = await loadProjects(configPath);
 
   const existingIndex = projects.findIndex((p) => p.id === validated.id);
   if (existingIndex >= 0) {

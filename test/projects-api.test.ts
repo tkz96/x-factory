@@ -116,6 +116,25 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(checkBody.name, "Test Product"); // Original name
   });
 
+  it("POST /api/projects fails if configuration file is malformed", async () => {
+    await writeFile(projectsJsonPath, "malformed {", "utf-8");
+    const res = await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "proj-malformed-test",
+        name: "Malformed Product",
+        workspacePath: tempDir,
+        repositories: [],
+      }),
+    });
+    assert.equal(res.status, 500);
+    const body = (await res.json()) as { error: string };
+    assert.ok(body.error.includes("Invalid JSON"));
+    // Restore empty projects file for rest of tests
+    await writeFile(projectsJsonPath, '{"projects":[]}', "utf-8");
+  });
+
   it("GET /api/projects/:id returns project and readiness", async () => {
     const res = await fetch(`${baseUrl}/api/projects/${testProjectId}`);
     assert.equal(res.status, 200);
