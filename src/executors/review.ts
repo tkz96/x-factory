@@ -36,14 +36,7 @@ export class ReviewExecutor implements StageExecutor {
     });
 
     const currentRun = context.runRepo.get(run.id);
-    if (currentRun) {
-      if (!currentRun.verification && run.verification) {
-        currentRun.verification = run.verification;
-      }
-      context.run = currentRun;
-    }
-
-    if (!context.run.verification) {
+    if (!currentRun?.verification) {
       return {
         status: "failed",
         nextRunStatus: "failed",
@@ -51,6 +44,7 @@ export class ReviewExecutor implements StageExecutor {
           "Deterministic verification is missing. ReviewExecutor cannot fabricate a successful result.",
       };
     }
+    context.run = currentRun;
 
     const settings = await this.deps.loadSettings(false);
     const rResult = await this.deps.reviewRun({
@@ -60,7 +54,7 @@ export class ReviewExecutor implements StageExecutor {
       ticket: context.run.ticket,
       plan: context.run.plan,
       diff: context.run.diff || "",
-      verification: context.run.verification,
+      verification: currentRun.verification,
       modelConfig: settings.models?.sessionB,
     });
 

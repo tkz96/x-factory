@@ -267,10 +267,9 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     });
 
     it("passes the exact verification object unchanged to reviewRun", async () => {
-      const { context } = setupTestContext("review");
+      const { context, runRepo, db } = setupTestContext("review");
 
-      // Inject mockVerification directly to verify reference identity
-      context.run.verification = mockVerification;
+      runRepo.update(context.run.id, { verification: mockVerification }, db);
 
       let receivedVerification: VerificationResult | undefined;
 
@@ -290,7 +289,39 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       await executor.execute(context);
 
-      expect(receivedVerification).toBe(mockVerification);
+      expect(receivedVerification).toEqual(mockVerification);
+    });
+
+    it("fails when context.run.verification exists in memory but SQLite verification is missing", async () => {
+      const { context, runRepo } = setupTestContext("review");
+      // Set only in-memory context.run.verification without persisting to SQLite
+      context.run.verification = mockVerification;
+      // Ensure SQLite has null verification
+      const sqliteRun = runRepo.get(context.run.id);
+      expect(sqliteRun?.verification).toBeNull();
+
+      let reviewRunCalled = false;
+      const executor = new ReviewExecutor({
+        loadSettings: async () => ({}),
+        reviewRun: async () => {
+          reviewRunCalled = true;
+          return {
+            passed: true,
+            findings: [],
+            criteriaChecked: [],
+            summary: "Should not be called",
+          };
+        },
+        writeFile: async () => {},
+      });
+
+      const result = await executor.execute(context);
+
+      expect(result.status).toBe("failed");
+      expect(result.nextRunStatus).toBe("failed");
+      expect(result.nextRunStatus).not.toBe("awaiting_review");
+      expect(result.error).toContain("Deterministic verification is missing");
+      expect(reviewRunCalled).toBe(false);
     });
   });
 
