@@ -283,8 +283,10 @@ async function handleChatMessage(
 }
 
 async function handleStopRun(runId: string): Promise<Response> {
-  await runs.stopRun(runId);
-  return jsonResponse({ ok: true });
+  return catchHttpErrors(async () => {
+    await runs.stopRun(runId);
+    return jsonResponse({ ok: true });
+  });
 }
 
 async function handleTransitions(
@@ -308,18 +310,24 @@ async function handleTransitions(
 }
 
 async function handleCreatePR(runId: string): Promise<Response> {
-  const result = await runs.createPR(runId);
-  return jsonResponse(result);
+  return catchHttpErrors(async () => {
+    const result = await runs.createPR(runId);
+    return jsonResponse(result);
+  });
 }
 
 async function handleResumeRun(runId: string): Promise<Response> {
-  const run = await runs.resumeRun(runId);
-  return jsonResponse({ ok: true, run });
+  return catchHttpErrors(async () => {
+    const run = await runs.resumeRun(runId);
+    return jsonResponse({ ok: true, run });
+  });
 }
 
 async function handleAbandonRun(runId: string): Promise<Response> {
-  const run = await runs.abandonRun(runId);
-  return jsonResponse({ ok: true, run });
+  return catchHttpErrors(async () => {
+    const run = await runs.abandonRun(runId);
+    return jsonResponse({ ok: true, run });
+  });
 }
 
 async function handleRunAction(

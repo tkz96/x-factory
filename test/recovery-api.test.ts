@@ -66,7 +66,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
       });
       const res = await handleApi(req, new URL(req.url));
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(409);
       const data = (await res.json()) as { error: string };
       expect(data.error).toContain('must be in "recovery_required"');
     });
@@ -115,7 +115,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
       });
       const res = await handleApi(req, new URL(req.url));
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(409);
       const data = (await res.json()) as { error: string };
       expect(data.error).toContain('must be in "recovery_required"');
     });

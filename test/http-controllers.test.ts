@@ -93,16 +93,21 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("handles unexpected controller errors with 500 status", async () => {
-      const req = new Request(
-        "http://localhost/api/runs/nonexistent-run-999/pr",
-        {
-          method: "POST",
-        },
-      );
+      const runsController = await import("../src/http/runs-controller.js");
+      const spy = spyOn(
+        runsController,
+        "handleRunsRoute",
+      ).mockImplementationOnce(() => {
+        throw new Error("Catastrophic database failure");
+      });
+      const req = new Request("http://localhost/api/runs", {
+        method: "GET",
+      });
       const res = await handleApi(req, new URL(req.url));
       assert.equal(res.status, 500);
       const body = await res.json();
-      assert.ok(body.error.includes("not found"));
+      assert.ok(body.error.includes("Catastrophic database failure"));
+      spy.mockRestore();
     });
   });
 

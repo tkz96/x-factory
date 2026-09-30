@@ -18,7 +18,7 @@ import {
   type StageAttemptRecord,
   StageAttemptRepository,
 } from "./db/stage-attempt-repository.js";
-import { NotFoundError } from "./errors.js";
+import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
@@ -335,7 +335,7 @@ export async function stopRun(
     }
 
     if (!STOPPABLE_RUN_STATUSES.has(run.status)) {
-      throw new Error(`Cannot stop in status "${run.status}".`);
+      throw new ConflictError(`Cannot stop in status "${run.status}".`);
     }
 
     // Capture active job before cancellation clears worker_id
@@ -404,7 +404,7 @@ function verifyRecoveryRequired(
   const dbRun = runRepo.get(id, db);
   if (!dbRun) throw new NotFoundError(`Run ${id} not found.`);
   if (dbRun.status !== "recovery_required") {
-    throw new Error(
+    throw new ConflictError(
       `Cannot ${action} run in status "${dbRun.status}". Run must be in "recovery_required".`,
     );
   }
@@ -455,7 +455,7 @@ export async function createPR(
     }
 
     if (run.status !== "ready_for_pr") {
-      throw new Error(
+      throw new ConflictError(
         `Cannot create PR in status "${run.status}". Run must be in "ready_for_pr".`,
       );
     }

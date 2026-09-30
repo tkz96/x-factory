@@ -182,7 +182,7 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     const res = await fetch(`${baseUrl}/api/runs/nonexistent-run/stop`, {
       method: "POST",
     });
-    assert.equal(res.status, 500);
+    assert.equal(res.status, 404);
     const data = await res.json();
     assert.ok(data.error.includes("not found"));
   });
@@ -191,7 +191,7 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     const res = await fetch(`${baseUrl}/api/runs/nonexistent-run/pr`, {
       method: "POST",
     });
-    assert.equal(res.status, 500);
+    assert.equal(res.status, 404);
     const data = await res.json();
     assert.ok(data.error.includes("not found"));
   });
