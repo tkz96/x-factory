@@ -522,11 +522,13 @@ export class ExecuteExecutor implements StageExecutor {
           ? currentRun.revision
           : run.revision;
 
-        context.runRepo.update(run.id, {
+        const updatedRun = context.runRepo.update(run.id, {
           diff: finalDiff.diff,
           verification,
           expectedRevision: expectedRevision,
         });
+
+        context.run = updatedRun;
 
         context.eventRepo.appendEvent(run.id, "verification", {
           result: verification,
@@ -576,10 +578,6 @@ export class ExecuteExecutor implements StageExecutor {
     });
 
     // Delegate to ReviewExecutor now that execution is verified
-    // We update context.run to contain verification and diff so review uses it
-    context.run.verification = verification;
-    context.run.diff = finalDiff.diff;
-
     return this.deps.reviewExecutor.execute(context);
   }
 }

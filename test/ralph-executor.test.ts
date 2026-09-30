@@ -17,6 +17,7 @@ import {
   formatTasksMarkdown,
 } from "../src/executors/execute.js";
 import { PlanExecutor } from "../src/executors/plan.js";
+import { ReviewExecutor } from "../src/executors/review.js";
 import type { StageContext } from "../src/executors/types.js";
 import type { loadSettings } from "../src/settings.js";
 import type { Project } from "../src/shared/types.js";
@@ -749,8 +750,6 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
     it("Review success -> Receive exact verification result & Verification persisted before review", async () => {
       const { context, runRepo } = setupTestContext("execute");
       // biome-ignore lint/suspicious/noExplicitAny: test
-      let receivedCtx: any = null;
-      // biome-ignore lint/suspicious/noExplicitAny: test
       let runDiffBeforeReview: any = null;
       let runVerifBeforeReview: unknown = null;
 
@@ -778,32 +777,40 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
           filesChanged: ["src/index.ts"],
         }),
         runVerification: async () => verificationResult,
-        reviewExecutor: {
-          stage: "review",
-          execute: async (ctx) => {
-            receivedCtx = ctx;
-            const run = runRepo.get(ctx.run.id);
-            runDiffBeforeReview = run?.diff;
-            runVerifBeforeReview = run?.verification;
+        reviewExecutor: new ReviewExecutor({
+          reviewRun: async (input) => {
+            const dbRun = runRepo.get(input.runId);
+            runDiffBeforeReview = dbRun?.diff;
+            runVerifBeforeReview = dbRun?.verification;
             return {
-              status: "success",
-              nextRunStatus: "awaiting_review",
-              output: { passed: true, summary: "LGTM" },
+              passed: true,
+              summary: "LGTM",
+              findings: [],
+              criteriaChecked: [],
             };
           },
-        },
+          loadSettings: async () => ({ anthropicApiKey: "test-key" }) as any,
+          writeFile: async () => {},
+        }),
       });
 
       const result = await executor.execute(context);
 
       expect(result.status).toBe("success");
+      expect(result.nextRunStatus).toBe("awaiting_review");
 
       // Verification persisted before review
       expect(runDiffBeforeReview).toBe("diff --git a/file");
       expect(runVerifBeforeReview).toEqual(verificationResult);
 
-      // Receive exact verification result
-      expect(receivedCtx.run.verification).toEqual(verificationResult);
+      // Review result is persisted successfully after verification
+      const finalDbRun = runRepo.get(context.run.id);
+      expect(finalDbRun?.review).toEqual({
+        passed: true,
+        summary: "LGTM",
+        findings: [],
+        criteriaChecked: [],
+      });
     });
   });
 });
