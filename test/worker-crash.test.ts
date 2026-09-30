@@ -500,4 +500,104 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     const prOp = operationLedgerRepo.getOperation(run.id, "create_pr");
     expect(prOp?.status).toBe("completed");
   });
+
+  it("verifies genuine worker crash and command lease expiration allows reclaim", async () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+
+    const runRepo = new RunRepository(db);
+    const commandRepo = new CommandRepository(db);
+
+    const run = runRepo.create({
+      id: "run-deliver-crash",
+      projectId: "proj-crash",
+      projectName: "Project Crash",
+      ticket: {
+        id: "D-3",
+        title: "Deliver Crash Test",
+        acceptanceCriteria: [],
+      },
+      plan: "Plan",
+      branch: "factory/D-3",
+      status: "ready_for_pr",
+      artifactsDir: "/tmp/artifacts-d3",
+      worktreePath: "/tmp/worktrees-d3",
+    });
+
+    const cmd = commandRepo.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+      payload: {},
+    });
+
+    let executorAStarted = false;
+    let executorHalt = false;
+
+    // Worker A: claims and crashes
+    const workerA = new Worker({
+      workerId: "worker-A-crasher",
+      db,
+      commandLeaseDurationMs: 150,
+      commandHeartbeatIntervalMs: 50,
+      deliverExecutor: {
+        async execute(_ctx: StageContext): Promise<StageResult> {
+          executorAStarted = true;
+          while (!executorHalt) {
+            await new Promise((r) => setTimeout(r, 10));
+          }
+          return { status: "success", output: { prUrl: "url" } };
+        },
+      },
+    });
+
+    const p = workerA.stepCommandOnce();
+
+    while (!executorAStarted) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    // Terminate Worker A's execution/process without calling its normal shutdown path
+    // Clear the heartbeat timer and mark not running so it doesn't pollute the DB further
+    clearInterval(
+      (
+        workerA as unknown as {
+          commandHeartbeatTimer: ReturnType<typeof setInterval>;
+        }
+      ).commandHeartbeatTimer,
+    );
+    (workerA as unknown as { isRunning: boolean }).isRunning = false;
+
+    // Wait for the lease to expire (commandLeaseDurationMs is 150)
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Worker B: starts up and reclaims
+    let executorBStarted = false;
+    const workerB = new Worker({
+      workerId: "worker-B-reclaimer",
+      db,
+      commandLeaseDurationMs: 150,
+      commandHeartbeatIntervalMs: 50,
+      deliverExecutor: {
+        async execute(_ctx: StageContext): Promise<StageResult> {
+          executorBStarted = true;
+          return { status: "success", output: { prUrl: "url" } };
+        },
+      },
+    });
+
+    const claimedByB = await workerB.stepCommandOnce();
+    expect(claimedByB.length).toBe(1);
+    expect(claimedByB[0]?.id).toBe(cmd.id);
+
+    // Process B's command
+    if (claimedByB[0]) await workerB.processCommand(claimedByB[0]);
+
+    expect(executorBStarted).toBe(true);
+
+    const completedCmd = commandRepo.getCommand(cmd.id);
+    expect(completedCmd?.status).toBe("completed");
+
+    executorHalt = true; // allow A to exit
+    await p;
+  });
 });

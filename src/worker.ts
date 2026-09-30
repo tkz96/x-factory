@@ -128,11 +128,11 @@ export class Worker {
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
     this.commandPollIntervalMs = options?.commandPollIntervalMs ?? 500;
     this.leaseDurationMs = options?.leaseDurationMs ?? 30000;
-    this.commandLeaseDurationMs = options?.commandLeaseDurationMs ?? 30000;
+    this.commandLeaseDurationMs = options?.commandLeaseDurationMs ?? 300000;
     this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 10000;
     this.commandHeartbeatIntervalMs =
       options?.commandHeartbeatIntervalMs ??
-      Math.max(1000, Math.floor(this.commandLeaseDurationMs / 3));
+      Math.floor(this.commandLeaseDurationMs / 3);
     this.shutdownTimeoutMs = options?.shutdownTimeoutMs ?? 5000;
     this.onLog = options?.onLog;
   }
