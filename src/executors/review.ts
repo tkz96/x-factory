@@ -2,6 +2,7 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { RunRecord } from "../db/run-repository.js";
 import { reviewRun } from "../review.js";
 import { loadSettings } from "../settings.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
@@ -34,7 +35,15 @@ export class ReviewExecutor implements StageExecutor {
       text: "Conducting automated code review…",
     });
 
-    if (!run.verification) {
+    const currentRun = context.runRepo.get(run.id);
+    if (currentRun) {
+      if (!currentRun.verification && run.verification) {
+        currentRun.verification = run.verification;
+      }
+      context.run = currentRun;
+    }
+
+    if (!context.run.verification) {
       return {
         status: "failed",
         nextRunStatus: "failed",
@@ -48,10 +57,10 @@ export class ReviewExecutor implements StageExecutor {
       projectId: context.project.id,
       runId: run.id,
       worktreePath,
-      ticket: run.ticket,
-      plan: run.plan,
-      diff: run.diff || "",
-      verification: run.verification,
+      ticket: context.run.ticket,
+      plan: context.run.plan,
+      diff: context.run.diff || "",
+      verification: context.run.verification,
       modelConfig: settings.models?.sessionB,
     });
 
@@ -63,12 +72,13 @@ export class ReviewExecutor implements StageExecutor {
     );
 
     // Atomically update review record and append events (Phase 2, Section 31)
+    let updatedRun: RunRecord | undefined;
     const tx = context.db.transaction(() => {
-      context.runRepo.update(
+      updatedRun = context.runRepo.update(
         run.id,
         {
           review: rResult,
-          expectedRevision: run.revision,
+          expectedRevision: context.run.revision,
         },
         context.db,
       );
@@ -93,6 +103,10 @@ export class ReviewExecutor implements StageExecutor {
       );
     });
     tx();
+
+    if (updatedRun) {
+      context.run = updatedRun;
+    }
 
     if (rResult.passed) {
       return {

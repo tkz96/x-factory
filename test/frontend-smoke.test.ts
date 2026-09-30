@@ -18,6 +18,7 @@ import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBa
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
 import { EventLogViewer } from "../src/frontend/components/runs/EventLogViewer.js";
+import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
@@ -347,6 +348,35 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     it("ModalContainer renders modal dialog portal target", () => {
       const html = renderWithProviders(React.createElement(ModalContainer));
       expect(html).toBeDefined();
+    });
+
+    it("HumanCheckpointSection renders checkpoint heading and evidence sections cleanly", () => {
+      const mockRun = {
+        id: "run-smoke-1",
+        project: { id: "p1", name: "Smoke Proj" },
+        ticket: { id: "T-1", title: "Smoke Ticket", acceptanceCriteria: [] },
+        plan: "plan",
+        branch: "factory/smoke",
+        status: "ready_for_pr" as const,
+        events: [],
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        implementationContext: null,
+        verification: null,
+        review: null,
+        artifacts: [],
+        diff: null,
+        pullRequest: null,
+        repairAttempts: 0,
+        artifactsDir: "/tmp",
+        worktreePath: "/tmp",
+      };
+      const html = renderWithProviders(
+        React.createElement(HumanCheckpointSection, { run: mockRun }),
+      );
+      expect(html).toContain("Human Checkpoint &amp; Evidence");
+      expect(html).toContain("Deterministic Verification");
+      expect(html).toContain("Independent Review");
     });
   });
 

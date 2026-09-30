@@ -1,7 +1,7 @@
 // src/frontend/hooks/useRunSSE.ts — Real-time SSE subscriber patching TanStack Query cache directly (XFM-42).
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   PullRequest,
   ReviewResult,
@@ -9,7 +9,7 @@ import type {
   RunStatus,
   VerificationResult,
 } from "../../shared/types.js";
-import { patchRunCache } from "../lib/query-client.js";
+import { invalidateRun, patchRunCache } from "../lib/query-client.js";
 
 const TERMINAL_STATUSES = new Set<RunStatus>([
   "pr_created",
@@ -28,11 +28,15 @@ export function useRunSSE(run: Run | undefined | null) {
   const queryClient = useQueryClient();
   const [events, setEvents] = useState<CanonicalWireEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const seenEventIdsRef = useRef<Set<number>>(new Set());
 
   const runId = run?.id;
   const isTerminal = run ? TERMINAL_STATUSES.has(run.status) : false;
 
   useEffect(() => {
+    seenEventIdsRef.current.clear();
+    setEvents([]);
+
     if (!runId || isTerminal) {
       setConnected(false);
       return;
@@ -53,12 +57,12 @@ export function useRunSSE(run: Run | undefined | null) {
           return;
         }
 
-        setEvents((prev) => {
-          if (prev.some((item) => item.id === wireEvent.id)) {
-            return prev;
-          }
-          return [...prev, wireEvent];
-        });
+        if (seenEventIdsRef.current.has(wireEvent.id)) {
+          return;
+        }
+        seenEventIdsRef.current.add(wireEvent.id);
+
+        setEvents((prev) => [...prev, wireEvent]);
 
         if (wireEvent.type === "status") {
           const payload = wireEvent.payload as {
@@ -80,19 +84,29 @@ export function useRunSSE(run: Run | undefined | null) {
             } else {
               patchRunCache(runId, { status: payload.status }, queryClient);
             }
-            queryClient.invalidateQueries({ queryKey: ["run", runId] });
+            void invalidateRun(runId, queryClient);
           }
         } else if (wireEvent.type === "verification") {
           const payload = wireEvent.payload as {
             result?: VerificationResult;
           } | null;
           if (payload?.result) {
-            patchRunCache(runId, { verification: payload.result }, queryClient);
+            patchRunCache(
+              runId,
+              {
+                verification: payload.result,
+                ...(payload.result.diff ? { diff: payload.result.diff } : {}),
+                repairAttempts: payload.result.repairAttempt,
+              },
+              queryClient,
+            );
+            void invalidateRun(runId, queryClient);
           }
         } else if (wireEvent.type === "review") {
           const payload = wireEvent.payload as { result?: ReviewResult } | null;
           if (payload?.result) {
             patchRunCache(runId, { review: payload.result }, queryClient);
+            void invalidateRun(runId, queryClient);
           }
         }
       } catch {

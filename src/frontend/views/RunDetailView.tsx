@@ -144,9 +144,15 @@ export function RunDetailView() {
           />
 
           {/* Human Checkpoint & Delivery */}
-          {(isReadyForPr || run.status === "pr_created") && (
+          {(isReadyForPr ||
+            run.status === "pr_created" ||
+            run.status === "awaiting_review") && (
             <div className="checkpoint-container">
-              <HumanCheckpointSection run={run} />
+              <HumanCheckpointSection
+                run={run}
+                onApprove={handleApprove}
+                onReject={() => handleRequeue("Rejected from human checkpoint")}
+              />
             </div>
           )}
         </div>

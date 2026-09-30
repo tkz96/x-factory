@@ -1,6 +1,14 @@
-// src/github.ts — GitHub CLI integration for delivery and pull request creation.
-
 import { execCommand, execStrict } from "./proc.js";
+
+export interface GitHubDeps {
+  execCommand: typeof execCommand;
+  execStrict: typeof execStrict;
+}
+
+export const defaultGitHubDeps: GitHubDeps = {
+  execCommand,
+  execStrict,
+};
 
 export interface ExistingGitHubPullRequest {
   url: string;
@@ -16,8 +24,9 @@ export interface ExistingGitHubPullRequest {
 export async function findExistingPullRequest(
   worktreePath: string,
   headBranch: string,
+  deps: GitHubDeps = defaultGitHubDeps,
 ): Promise<ExistingGitHubPullRequest | null> {
-  const result = await execCommand(
+  const result = await deps.execCommand(
     "gh",
     [
       "pr",
@@ -40,7 +49,7 @@ export async function findExistingPullRequest(
 
   try {
     const data = JSON.parse(result.stdout) as ExistingGitHubPullRequest;
-    if (data && data.url) {
+    if (data?.url) {
       return data;
     }
     return null;
@@ -59,8 +68,9 @@ export async function createPullRequest(
   title: string,
   body: string,
   baseBranch: string,
+  deps: GitHubDeps = defaultGitHubDeps,
 ): Promise<string> {
-  const result = await execStrict(
+  const result = await deps.execStrict(
     "gh",
     ["pr", "create", "--title", title, "--body", body, "--base", baseBranch],
     { cwd: worktreePath },
