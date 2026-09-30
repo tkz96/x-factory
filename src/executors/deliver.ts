@@ -55,7 +55,7 @@ export async function createPullRequestWithFallback(
       repoIdOrName: repoName,
       sourceBranch: branch,
     });
-    if (existing && existing.url) {
+    if (existing?.url) {
       return existing.url;
     }
 
@@ -76,7 +76,7 @@ export async function createPullRequestWithFallback(
 
   // External PR Crash Recovery: check for existing PR first
   const existing = await deps.findExistingPullRequest(worktree, branch);
-  if (existing && existing.url) {
+  if (existing?.url) {
     return existing.url;
   }
 

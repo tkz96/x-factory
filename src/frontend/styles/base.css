@@ -10,7 +10,7 @@
 
 /* WHATWG HTML5 Spec: [hidden] attribute enforcement ensures hidden state cannot be overridden by display properties */
 [hidden] {
-  display: none !important;
+  display: none;
 }
 
 html {

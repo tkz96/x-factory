@@ -1,9 +1,9 @@
 // test/worker-crash.test.ts — Comprehensive worker crash & restart recovery tests across all 6 stages (XFM-57).
 
 import { describe, expect, it } from "bun:test";
-import { spawn } from "child_process";
-import fs from "fs";
-import path from "path";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";

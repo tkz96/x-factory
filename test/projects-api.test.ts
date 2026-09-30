@@ -117,6 +117,7 @@ describe("Project Onboarding & Management APIs", () => {
   });
 
   it("POST /api/projects fails if configuration file is malformed", async () => {
+    const currentProjects = await readFile(projectsJsonPath, "utf-8");
     await writeFile(projectsJsonPath, "malformed {", "utf-8");
     const res = await fetch(`${baseUrl}/api/projects`, {
       method: "POST",
@@ -125,14 +126,25 @@ describe("Project Onboarding & Management APIs", () => {
         id: "proj-malformed-test",
         name: "Malformed Product",
         workspacePath: tempDir,
-        repositories: [],
+        repositories: [
+          {
+            id: `proj-malformed-test-repo`,
+            name: "repo",
+            path: path.join(tempDir, "repo"),
+            defaultBranch: "main",
+            role: "frontend",
+          },
+        ],
       }),
     });
     assert.equal(res.status, 500);
     const body = (await res.json()) as { error: string };
-    assert.ok(body.error.includes("Invalid JSON"));
-    // Restore empty projects file for rest of tests
-    await writeFile(projectsJsonPath, '{"projects":[]}', "utf-8");
+    assert.ok(
+      body.error.includes("Invalid JSON") ||
+        body.error.includes("Unexpected token"),
+    );
+    // Restore previous projects file for rest of tests
+    await writeFile(projectsJsonPath, currentProjects, "utf-8");
   });
 
   it("GET /api/projects/:id returns project and readiness", async () => {

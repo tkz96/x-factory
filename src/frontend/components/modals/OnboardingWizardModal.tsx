@@ -492,11 +492,7 @@ function Step3Discovery({
           id="btn-step-3-next"
           className="btn-primary"
           onClick={onNext}
-          disabled={
-            isDiscovering ||
-            !!discoveryError ||
-            !hasDiscovered
-          }
+          disabled={isDiscovering || !!discoveryError || !hasDiscovered}
         >
           Continue to Repositories →
         </button>
@@ -840,7 +836,6 @@ export function OnboardingWizardModal() {
       tracker,
       trackerOrgUrl,
       trackerProject,
-      trackerPat,
       workspacePath,
     });
     if (
@@ -868,7 +863,7 @@ export function OnboardingWizardModal() {
         pat: trackerPat,
         workspacePath,
       });
-      
+
       if (currentGeneration === discoveryGenerationRef.current) {
         setDiscoveredRepositories(res.repositories);
         setHasDiscovered(true);

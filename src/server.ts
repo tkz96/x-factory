@@ -124,7 +124,7 @@ export function startServer(
           );
           const hasStaticFile =
             existsSync(staticCandidate) ||
-            existsSync(staticCandidate + ".html") ||
+            existsSync(`${staticCandidate}.html`) ||
             isReferenceRoute;
           if (!relPath || !hasStaticFile) {
             const ext = path.extname(url.pathname);
