@@ -3,6 +3,7 @@
 import { spawn } from "node:child_process";
 import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { RunRecord } from "../db/run-repository.js";
 import * as git from "../git.js";
 import { loadSettings } from "../settings.js";
 import type { Project, Ticket, VerificationResult } from "../shared/types.js";
@@ -266,6 +267,171 @@ For EVERY task in \`.agent/tasks.md\`:
 `;
 }
 
+function resolveSanitizedEnv(provider: string): Record<string, string> {
+  const allowedEnvKeys = [
+    "PATH",
+    "HOME",
+    "USER",
+    "LANG",
+    "LC_ALL",
+    "PI_API_KEY",
+  ];
+
+  if (provider === "anthropic") allowedEnvKeys.push("ANTHROPIC_API_KEY");
+  if (provider === "openai") allowedEnvKeys.push("OPENAI_API_KEY");
+  if (provider === "google") allowedEnvKeys.push("GEMINI_API_KEY");
+
+  const sanitizedEnv: Record<string, string> = {};
+  for (const key of allowedEnvKeys) {
+    const val = process.env[key];
+    if (val !== undefined) {
+      sanitizedEnv[key] = val;
+    }
+  }
+  return sanitizedEnv;
+}
+
+interface RalphLoopExecutionResult {
+  exitCode: number;
+  timedOut: boolean;
+  errorOutput: string;
+}
+
+async function runRalphLoopChild(
+  spawnFn: typeof spawn,
+  worktreePath: string,
+  iterations: number,
+  sanitizedEnv: Record<string, string>,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+  onProgress: (line: string) => void,
+  onOutputChunk: (chunk: string) => void,
+): Promise<RalphLoopExecutionResult> {
+  let stdoutAccumulator = "";
+  let stderrAccumulator = "";
+  let timedOut = false;
+
+  const child = spawnFn(
+    "./ralph.sh",
+    ["--agent", "pi", "-n", String(iterations)],
+    {
+      cwd: worktreePath,
+      env: sanitizedEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  const killChild = () => {
+    try {
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // Ignore kill errors
+        }
+      }, 1000);
+    } catch {
+      // Ignore kill errors
+    }
+  };
+
+  const timeoutTimer = setTimeout(() => {
+    timedOut = true;
+    killChild();
+  }, timeoutMs);
+
+  const abortHandler = () => {
+    killChild();
+  };
+
+  if (signal) {
+    signal.addEventListener("abort", abortHandler, { once: true });
+  }
+
+  child.stdout?.on("data", (chunk: Buffer) => {
+    const text = chunk.toString("utf-8");
+    stdoutAccumulator += text;
+
+    const lines = text.split("\n");
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
+      if (
+        trimmedLine.includes("Starting Ralph Loop") ||
+        trimmedLine.includes("Task") ||
+        trimmedLine.includes("Iteration")
+      ) {
+        onProgress(trimmedLine);
+      }
+    }
+
+    onOutputChunk(text);
+  });
+
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderrAccumulator += chunk.toString("utf-8");
+  });
+
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    child.on("error", (err) => {
+      clearTimeout(timeoutTimer);
+      reject(err);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeoutTimer);
+      resolve(code ?? 0);
+    });
+  });
+
+  if (signal) {
+    signal.removeEventListener("abort", abortHandler);
+  }
+
+  return {
+    exitCode,
+    timedOut,
+    errorOutput:
+      stderrAccumulator.trim() || stdoutAccumulator.trim() || "Unknown error",
+  };
+}
+
+function persistVerificationResult(
+  context: StageContext,
+  diff: string,
+  verification: VerificationResult,
+): RunRecord {
+  const currentRun = context.runRepo.get(context.run.id, context.db);
+  const expectedRevision = currentRun
+    ? currentRun.revision
+    : context.run.revision;
+
+  let updatedRun: RunRecord | undefined;
+  const tx = context.db.transaction(() => {
+    updatedRun = context.runRepo.update(
+      context.run.id,
+      {
+        diff,
+        verification,
+        expectedRevision,
+      },
+      context.db,
+    );
+
+    context.eventRepo.appendEvent(
+      context.run.id,
+      "verification",
+      {
+        result: verification,
+      },
+      context.db,
+    );
+  });
+  tx();
+
+  return updatedRun ?? context.run;
+}
+
 export class ExecuteExecutor implements StageExecutor {
   readonly stage = "execute";
   private deps: ExecuteDependencies;
@@ -357,130 +523,32 @@ export class ExecuteExecutor implements StageExecutor {
         iteration: 1,
       });
 
-      let stdoutAccumulator = "";
-      let stderrAccumulator = "";
-      let timedOut = false;
       const timeoutMs = 15 * 60 * 1000; // 15 minutes execution timeout
-
       const settings = await this.deps.loadSettings();
       const provider =
         settings.models?.sessionB?.provider ||
         settings.models?.sessionA?.provider ||
         "anthropic";
-
-      const allowedEnvKeys = [
-        "PATH",
-        "HOME",
-        "USER",
-        "LANG",
-        "LC_ALL",
-        "PI_API_KEY",
-      ];
-
-      if (provider === "anthropic") allowedEnvKeys.push("ANTHROPIC_API_KEY");
-      if (provider === "openai") allowedEnvKeys.push("OPENAI_API_KEY");
-      if (provider === "google") allowedEnvKeys.push("GEMINI_API_KEY");
-
-      const sanitizedEnv: Record<string, string> = {};
-      for (const key of allowedEnvKeys) {
-        const val = process.env[key];
-        if (val !== undefined) {
-          sanitizedEnv[key] = val;
-        }
-      }
+      const sanitizedEnv = resolveSanitizedEnv(provider);
 
       try {
-        const child = this.deps.spawn(
-          "./ralph.sh",
-          ["--agent", "pi", "-n", String(iterations)],
-          {
-            cwd: worktreePath,
-            env: sanitizedEnv,
-            stdio: ["ignore", "pipe", "pipe"],
-          },
+        const { exitCode, timedOut, errorOutput } = await runRalphLoopChild(
+          this.deps.spawn,
+          worktreePath,
+          iterations,
+          sanitizedEnv,
+          signal,
+          timeoutMs,
+          (line) =>
+            context.eventRepo.appendEvent(run.id, "ralph_progress", {
+              text: line,
+            }),
+          (text) =>
+            context.eventRepo.appendEvent(run.id, "pi_output_chunk", {
+              role: "ralph",
+              text,
+            }),
         );
-
-        const timeoutTimer = setTimeout(() => {
-          timedOut = true;
-          try {
-            child.kill("SIGTERM");
-            setTimeout(() => {
-              try {
-                child.kill("SIGKILL");
-              } catch {
-                // Ignore kill errors
-              }
-            }, 1000);
-          } catch {
-            // Ignore kill errors
-          }
-        }, timeoutMs);
-
-        const abortHandler = () => {
-          try {
-            child.kill("SIGTERM");
-            setTimeout(() => {
-              try {
-                child.kill("SIGKILL");
-              } catch {
-                // Ignore kill errors
-              }
-            }, 1000);
-          } catch {
-            // Ignore kill errors
-          }
-        };
-
-        if (signal) {
-          signal.addEventListener("abort", abortHandler, { once: true });
-        }
-
-        child.stdout?.on("data", (chunk: Buffer) => {
-          const text = chunk.toString("utf-8");
-          stdoutAccumulator += text;
-
-          // Parse any Ralph progress lines
-          const lines = text.split("\n");
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
-            if (
-              trimmedLine.includes("Starting Ralph Loop") ||
-              trimmedLine.includes("Task") ||
-              trimmedLine.includes("Iteration")
-            ) {
-              context.eventRepo.appendEvent(run.id, "ralph_progress", {
-                text: trimmedLine,
-              });
-            }
-          }
-
-          // Stream output as chunks
-          context.eventRepo.appendEvent(run.id, "pi_output_chunk", {
-            role: "ralph",
-            text,
-          });
-        });
-
-        child.stderr?.on("data", (chunk: Buffer) => {
-          const text = chunk.toString("utf-8");
-          stderrAccumulator += text;
-        });
-
-        const exitCode = await new Promise<number>((resolve, reject) => {
-          child.on("error", (err) => {
-            clearTimeout(timeoutTimer);
-            reject(err);
-          });
-          child.on("close", (code) => {
-            clearTimeout(timeoutTimer);
-            resolve(code ?? 0);
-          });
-        });
-
-        if (signal) {
-          signal.removeEventListener("abort", abortHandler);
-        }
 
         if (timedOut) {
           return {
@@ -495,11 +563,7 @@ export class ExecuteExecutor implements StageExecutor {
           });
           return {
             status: "failed",
-            error: `Ralph Loop exited with code ${exitCode}: ${
-              stderrAccumulator.trim() ||
-              stdoutAccumulator.trim() ||
-              "Unknown error"
-            }`,
+            error: `Ralph Loop exited with code ${exitCode}: ${errorOutput}`,
           };
         }
 
@@ -517,22 +581,11 @@ export class ExecuteExecutor implements StageExecutor {
 
         finalDiff = await this.deps.getDiff(worktreePath);
 
-        const currentRun = context.runRepo.get(run.id);
-        const expectedRevision = currentRun
-          ? currentRun.revision
-          : run.revision;
-
-        const updatedRun = context.runRepo.update(run.id, {
-          diff: finalDiff.diff,
+        context.run = persistVerificationResult(
+          context,
+          finalDiff.diff,
           verification,
-          expectedRevision: expectedRevision,
-        });
-
-        context.run = updatedRun;
-
-        context.eventRepo.appendEvent(run.id, "verification", {
-          result: verification,
-        });
+        );
 
         if (verification.passed) {
           break;

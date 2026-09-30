@@ -87,25 +87,39 @@ export function useRunSSE(run: Run | undefined | null) {
             void invalidateRun(runId, queryClient);
           }
         } else if (wireEvent.type === "verification") {
-          const payload = wireEvent.payload as {
-            result?: VerificationResult;
-          } | null;
-          if (payload?.result) {
+          const raw = wireEvent.payload as
+            | { result?: VerificationResult }
+            | VerificationResult
+            | null;
+          const result =
+            raw && typeof raw === "object" && "result" in raw && raw.result
+              ? raw.result
+              : (raw as VerificationResult | null);
+
+          if (result && typeof result.passed === "boolean") {
             patchRunCache(
               runId,
               {
-                verification: payload.result,
-                ...(payload.result.diff ? { diff: payload.result.diff } : {}),
-                repairAttempts: payload.result.repairAttempt,
+                verification: result,
+                ...(result.diff ? { diff: result.diff } : {}),
+                repairAttempts: result.repairAttempt,
               },
               queryClient,
             );
             void invalidateRun(runId, queryClient);
           }
         } else if (wireEvent.type === "review") {
-          const payload = wireEvent.payload as { result?: ReviewResult } | null;
-          if (payload?.result) {
-            patchRunCache(runId, { review: payload.result }, queryClient);
+          const raw = wireEvent.payload as
+            | { result?: ReviewResult }
+            | ReviewResult
+            | null;
+          const result =
+            raw && typeof raw === "object" && "result" in raw && raw.result
+              ? raw.result
+              : (raw as ReviewResult | null);
+
+          if (result && typeof result.passed === "boolean") {
+            patchRunCache(runId, { review: result }, queryClient);
             void invalidateRun(runId, queryClient);
           }
         }

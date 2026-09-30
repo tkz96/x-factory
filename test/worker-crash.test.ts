@@ -605,7 +605,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
   });
 
   it("verifies real subprocess crash and command lease expiration allows reclaim", async () => {
-    const dbDir = path.join(process.cwd(), "scratch");
+    const dbDir = path.join(process.cwd(), ".scratch");
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
     const dbPath = path.join(dbDir, `crash-test-${Date.now()}.sqlite`);
@@ -696,6 +696,8 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     expect(completedCmd?.workerId).toBe("worker-B-reclaimer");
 
     // Clean up
-    fs.unlinkSync(dbPath);
+    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+    if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
+    if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
   });
 });
