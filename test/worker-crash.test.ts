@@ -1,6 +1,9 @@
 // test/worker-crash.test.ts — Comprehensive worker crash & restart recovery tests across all 6 stages (XFM-57).
 
 import { describe, expect, it } from "bun:test";
+import { spawn } from "child_process";
+import fs from "fs";
+import path from "path";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -501,7 +504,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     expect(prOp?.status).toBe("completed");
   });
 
-  it("verifies genuine worker crash and command lease expiration allows reclaim", async () => {
+  it("verifies in-process command lease expiration allows reclaim", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
 
@@ -599,5 +602,100 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
 
     executorHalt = true; // allow A to exit
     await p;
+  });
+
+  it("verifies real subprocess crash and command lease expiration allows reclaim", async () => {
+    const dbDir = path.join(process.cwd(), "scratch");
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+    const dbPath = path.join(dbDir, `crash-test-${Date.now()}.sqlite`);
+    const db = createDatabase({ path: dbPath });
+    runMigrations(db);
+
+    const runRepo = new RunRepository(db);
+    const commandRepo = new CommandRepository(db);
+
+    const run = runRepo.create({
+      id: "run-deliver-subproc-crash",
+      projectId: "proj-crash",
+      projectName: "Project Crash",
+      ticket: {
+        id: "D-4",
+        title: "Subproc Crash Test",
+        acceptanceCriteria: [],
+      },
+      plan: "Plan",
+      branch: "factory/D-4",
+      status: "ready_for_pr",
+      artifactsDir: "/tmp/artifacts-d4",
+      worktreePath: "/tmp/worktrees-d4",
+    });
+
+    const cmd = commandRepo.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+      payload: {},
+    });
+
+    // 1. Spawn Worker A as a separate Bun process
+    const child = spawn("bun", ["test/crashing-subprocess-worker.ts", dbPath], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let executorAStarted = false;
+    child.stdout.on("data", (data: Buffer) => {
+      if (data.toString().includes("EXECUTOR_STARTED")) {
+        executorAStarted = true;
+      }
+    });
+
+    // Wait until the child process outputs EXECUTOR_STARTED
+    while (!executorAStarted) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    // Double check that Worker A has claimed it
+    const claimedCmd = commandRepo.getCommand(cmd.id);
+    expect(claimedCmd?.status).toBe("claimed");
+    expect(claimedCmd?.workerId).toBe("worker-subprocess-crasher");
+
+    // 2. Terminate Worker A abruptly (SIGKILL)
+    child.kill("SIGKILL");
+
+    // Wait for process to exit and lease to expire
+    // commandLeaseDurationMs is 150 in the child process
+    await new Promise((r) => setTimeout(r, 250));
+
+    // 3. Worker B reclaims the command
+    let executorBStarted = false;
+    const workerB = new Worker({
+      workerId: "worker-B-reclaimer",
+      db,
+      commandLeaseDurationMs: 150,
+      deliverExecutor: {
+        async execute(): Promise<StageResult> {
+          executorBStarted = true;
+          return { status: "success", output: { prUrl: "url" } } as StageResult;
+        },
+      },
+    });
+
+    const claimedByB = await workerB.stepCommandOnce();
+    expect(claimedByB.length).toBe(1);
+    expect(claimedByB[0]?.id).toBe(cmd.id);
+    expect(claimedByB[0]?.workerId).toBe("worker-B-reclaimer");
+
+    if (claimedByB[0]) await workerB.processCommand(claimedByB[0]);
+
+    expect(executorBStarted).toBe(true);
+
+    const completedCmd = commandRepo.getCommand(cmd.id);
+    expect(completedCmd?.status).toBe("completed");
+
+    // Assert Worker A did not perform normal completion (e.g. output is from Worker B)
+    expect(completedCmd?.workerId).toBe("worker-B-reclaimer");
+
+    // Clean up
+    fs.unlinkSync(dbPath);
   });
 });
