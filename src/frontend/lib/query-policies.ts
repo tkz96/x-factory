@@ -3,9 +3,9 @@
 export const queryKeys = {
   projects: (options?: { includeArchived?: boolean }) =>
     options?.includeArchived
-      ? (["projects", "all"] as const)
-      : (["projects"] as const),
-  project: (id: string) => ["projects", id] as const,
+      ? (["projects", "list", { archived: true }] as const)
+      : (["projects", "list"] as const),
+  project: (id: string) => ["projects", "detail", id] as const,
   tickets: (projectId: string) => ["tickets", projectId] as const,
   runs: () => ["runs"] as const,
   run: (runId: string) => ["runs", runId] as const,

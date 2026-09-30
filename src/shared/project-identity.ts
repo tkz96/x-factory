@@ -1,35 +1,21 @@
 // src/frontend/lib/project-identity.ts — Deterministic identity matching for duplicate project detection (XFM-46)
 
-import type { Project } from "../../shared/types.js";
+import { normalizeGitRemoteUrl } from "./git-remote.js";
+import {
+  normalizeAzureOrganization,
+  normalizeAzureProject,
+  normalizeGitHubRepository,
+  normalizeProjectId,
+} from "./normalization.js";
 
-export function normalizeProjectId(id: string): string {
-  return id
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "")
-    .replace(/^-+|-+$/g, "");
-}
+export {
+  normalizeAzureOrganization,
+  normalizeAzureProject,
+  normalizeGitHubRepository,
+  normalizeProjectId,
+};
 
-export function normalizeAzureOrganization(url: string): string {
-  try {
-    let lower = url.toLowerCase().trim();
-    if (!lower.startsWith("http")) {
-      lower = `https://${lower}`;
-    }
-    const parsed = new URL(lower);
-    // Remove trailing slashes and common dev.azure.com path normalization
-    return parsed.origin + parsed.pathname.replace(/\/+$/, "");
-  } catch {
-    return url.toLowerCase().trim().replace(/\/+$/, "");
-  }
-}
-
-export function normalizeAzureProject(name: string): string {
-  return name.toLowerCase().trim();
-}
-
-export function normalizeGitHubRepository(repo: string): string {
-  return repo.toLowerCase().trim();
-}
+import type { Project } from "./types.js";
 
 export interface DuplicateDetectionResult {
   isDuplicate: boolean;
@@ -43,6 +29,7 @@ export function findDuplicateProject(
   newProvider: string,
   newTrackerOrgUrl: string,
   newTrackerProject: string,
+  discoveredRepositories: Array<{ remote?: string | undefined }> = [],
 ): DuplicateDetectionResult {
   const normId = normalizeProjectId(newId);
 
@@ -88,6 +75,25 @@ export function findDuplicateProject(
           type: "external_identity",
           existingProject: p,
         };
+      }
+    }
+  }
+
+  // 3. Match discovered repository remotes
+  for (const repo of discoveredRepositories) {
+    if (!repo.remote) continue;
+    const normalizedNewRemote = normalizeGitRemoteUrl(repo.remote);
+
+    for (const p of projects) {
+      for (const pRepo of p.repositories) {
+        if (!pRepo.remote) continue;
+        if (normalizeGitRemoteUrl(pRepo.remote) === normalizedNewRemote) {
+          return {
+            isDuplicate: true,
+            type: "external_identity",
+            existingProject: p,
+          };
+        }
       }
     }
   }

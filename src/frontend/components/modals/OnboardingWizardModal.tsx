@@ -3,13 +3,14 @@
 import "./OnboardingWizardModal.css";
 
 import { useRef, useState } from "react";
-import { useModal } from "../../context/ModalContext.js";
-import { useProjects } from "../../hooks/useQueries.js";
-import { api } from "../../lib/api-client.js";
 import {
   type DuplicateDetectionResult,
   findDuplicateProject,
-} from "../../lib/project-identity.js";
+  normalizeProjectId,
+} from "../../../shared/project-identity.js";
+import { useModal } from "../../context/ModalContext.js";
+import { useProjects } from "../../hooks/useQueries.js";
+import { api } from "../../lib/api-client.js";
 import { invalidateProjects } from "../../lib/query-client.js";
 import { parseQuickUrl } from "../../lib/wizard-url.js";
 
@@ -653,10 +654,7 @@ function Step6Review({
       </p>
 
       {isDuplicate && existingProject && (
-        <div
-          className="card mt-4 p-4 error-message"
-          style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
-        >
+        <div className="card mt-4 p-4 error-message duplicate-warning-card">
           {type === "id_collision" ? (
             <strong className="text-error">
               Project ID "{projectId}" is already in use.
@@ -819,24 +817,14 @@ export function OnboardingWizardModal() {
     setQuickUrlStatus("detected");
     if (parsed.provider === "azure") {
       setProjectName(parsed.project);
-      setProjectId(
-        parsed.project
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, ""),
-      );
+      setProjectId(normalizeProjectId(parsed.project));
       setTracker("azure");
       setGitHost("azure");
       setTrackerProject(parsed.project);
       setTrackerOrgUrl(parsed.orgUrl);
     } else {
       setProjectName(parsed.repo);
-      setProjectId(
-        parsed.repo
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, ""),
-      );
+      setProjectId(normalizeProjectId(parsed.repo));
       setTracker("github");
       setGitHost("github");
       setTrackerProject(`${parsed.owner}/${parsed.repo}`);
@@ -845,11 +833,8 @@ export function OnboardingWizardModal() {
 
   const handleNameChange = (val: string) => {
     setProjectName(val);
-    if (
-      !projectId ||
-      projectId === projectName.toLowerCase().replace(/[^a-z0-9]/g, "")
-    ) {
-      setProjectId(val.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    if (!projectId || projectId === normalizeProjectId(projectName)) {
+      setProjectId(normalizeProjectId(val));
     }
   };
 
@@ -963,6 +948,7 @@ export function OnboardingWizardModal() {
     tracker,
     trackerOrgUrl,
     trackerProject,
+    discoveredRepositories,
   );
 
   const handleCompleteOnboard = async () => {

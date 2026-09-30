@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   findDuplicateProject,
   normalizeAzureOrganization,
-} from "../src/frontend/lib/project-identity.js";
+} from "../src/shared/project-identity.js";
 import type { Project } from "../src/shared/types.js";
 
 function createMockProject(

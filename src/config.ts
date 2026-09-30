@@ -5,6 +5,7 @@ import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
+import { findDuplicateProject } from "./shared/project-identity.js";
 import type { Project, ProjectRepository } from "./types.js";
 
 export { validateProjectInput as validateProject } from "./config-schema.js";
@@ -142,11 +143,33 @@ export async function createProject(
   const validated = validateProjectInput(projectInput);
   const projects = await loadProjects(configPath);
 
-  const existingIndex = projects.findIndex((p) => p.id === validated.id);
-  if (existingIndex >= 0) {
-    throw new ConflictError(
-      `Project with ID "${validated.id}" already exists.`,
-    );
+  const newProvider = validated.issueTracker.provider;
+  const newTrackerOrgUrl =
+    validated.issueTracker.azure?.orgUrl ||
+    validated.issueTracker.github?.repo ||
+    "";
+  const newTrackerProject = validated.issueTracker.azure?.project || "";
+  const discoveredRepositories = validated.repositories;
+
+  const duplicateCheck = findDuplicateProject(
+    projects,
+    validated.id,
+    newProvider,
+    newTrackerOrgUrl,
+    newTrackerProject,
+    discoveredRepositories,
+  );
+
+  if (duplicateCheck.isDuplicate) {
+    if (duplicateCheck.type === "id_collision") {
+      throw new ConflictError(
+        `Project with ID "${validated.id}" already exists.`,
+      );
+    } else {
+      throw new ConflictError(
+        `Project already exists as "${duplicateCheck.existingProject?.id}".`,
+      );
+    }
   }
 
   projects.push(validated);
