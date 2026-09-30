@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { ConflictError, NotFoundError, ValidationError } from "../errors.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -23,22 +24,34 @@ export class HttpError extends Error {
   }
 }
 
-export class NotFoundError extends HttpError {
-  constructor(message = "Not found") {
-    super(404, message);
+/**
+ * Translates domain/application errors into presentation-layer HTTP responses.
+ */
+export function translateDomainErrorToHttpResponse(
+  err: unknown,
+): Response | null {
+  if (
+    err instanceof NotFoundError ||
+    (err instanceof Error && err.name === "NotFoundError")
+  ) {
+    return errorResponse(err.message, 404);
   }
-}
-
-export class InternalServerError extends HttpError {
-  constructor(message = "Internal Server Error") {
-    super(500, message);
+  if (
+    err instanceof ValidationError ||
+    (err instanceof Error && err.name === "ValidationError")
+  ) {
+    return errorResponse(err.message, 400);
   }
-}
-
-export class BadRequestError extends HttpError {
-  constructor(message = "Bad Request") {
-    super(400, message);
+  if (
+    err instanceof ConflictError ||
+    (err instanceof Error && err.name === "ConflictError")
+  ) {
+    return errorResponse(err.message, 409);
   }
+  if (err instanceof HttpError) {
+    return errorResponse(err.message, err.status);
+  }
+  return null;
 }
 
 export async function parseJsonBody(
@@ -109,8 +122,9 @@ export async function catchHttpErrors(
   try {
     return await action();
   } catch (err: unknown) {
-    if (err instanceof HttpError) {
-      return errorResponse(err.message, err.status);
+    const mapped = translateDomainErrorToHttpResponse(err);
+    if (mapped) {
+      return mapped;
     }
     const msg = err instanceof Error ? err.message : String(err);
     return errorResponse(msg, 500);

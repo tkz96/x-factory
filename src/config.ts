@@ -3,8 +3,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
+import { NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
-import { NotFoundError } from "./http/responses.js";
 import type { Project, ProjectRepository } from "./types.js";
 
 export { validateProjectInput as validateProject } from "./config-schema.js";

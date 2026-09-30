@@ -1,6 +1,7 @@
 // src/db/run-repository.ts — SQLite-backed authoritative repository for workflow runs.
 
 import type { Database } from "bun:sqlite";
+import { ConflictError, NotFoundError } from "../errors.js";
 import type {
   ImplementationContext,
   PullRequest,
@@ -17,7 +18,7 @@ import {
   rowToEventRecord,
 } from "./event-repository.js";
 
-export class RunNotFoundError extends Error {
+export class RunNotFoundError extends NotFoundError {
   readonly runId: string;
   constructor(runId: string) {
     super(`Run "${runId}" not found.`);
@@ -26,7 +27,7 @@ export class RunNotFoundError extends Error {
   }
 }
 
-export class StaleRevisionError extends Error {
+export class StaleRevisionError extends ConflictError {
   readonly runId: string;
   readonly expectedRevision: number;
   readonly actualRevision: number;
@@ -41,7 +42,7 @@ export class StaleRevisionError extends Error {
   }
 }
 
-export class IllegalStateTransitionError extends Error {
+export class IllegalStateTransitionError extends ConflictError {
   readonly fromState: RunStatus;
   readonly toState: RunStatus;
   constructor(fromState: RunStatus, toState: RunStatus) {

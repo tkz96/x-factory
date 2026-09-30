@@ -18,8 +18,8 @@ import {
   type StageAttemptRecord,
   StageAttemptRepository,
 } from "./db/stage-attempt-repository.js";
+import { NotFoundError } from "./errors.js";
 import * as git from "./git.js";
-import { NotFoundError } from "./http/responses.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
 import { STOPPABLE_RUN_STATUSES } from "./state-machine.js";
