@@ -65,7 +65,9 @@ export interface WorkerOptions {
   pollIntervalMs?: number | undefined;
   commandPollIntervalMs?: number | undefined;
   leaseDurationMs?: number | undefined;
+  commandLeaseDurationMs?: number | undefined;
   heartbeatIntervalMs?: number | undefined;
+  commandHeartbeatIntervalMs?: number | undefined;
   shutdownTimeoutMs?: number | undefined;
   onLog?: ((entry: WorkerLogEntry) => void) | undefined;
   getStageExecutor?: ((stage: string) => StageExecutor) | undefined;
@@ -97,7 +99,9 @@ export class Worker {
   private pollIntervalMs: number;
   private commandPollIntervalMs: number;
   private leaseDurationMs: number;
+  private commandLeaseDurationMs: number;
   private heartbeatIntervalMs: number;
+  private commandHeartbeatIntervalMs: number;
   private shutdownTimeoutMs: number;
   private onLog?: ((entry: WorkerLogEntry) => void) | undefined;
   private isRunning = false;
@@ -106,6 +110,7 @@ export class Worker {
   private activeProcessingPromise: Promise<void> | null = null;
   private currentAbortController: AbortController | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private commandHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(options?: WorkerOptions) {
     this.workerId =
@@ -123,7 +128,11 @@ export class Worker {
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
     this.commandPollIntervalMs = options?.commandPollIntervalMs ?? 500;
     this.leaseDurationMs = options?.leaseDurationMs ?? 30000;
+    this.commandLeaseDurationMs = options?.commandLeaseDurationMs ?? 30000;
     this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 10000;
+    this.commandHeartbeatIntervalMs =
+      options?.commandHeartbeatIntervalMs ??
+      Math.max(1000, Math.floor(this.commandLeaseDurationMs / 3));
     this.shutdownTimeoutMs = options?.shutdownTimeoutMs ?? 5000;
     this.onLog = options?.onLog;
   }
@@ -371,6 +380,7 @@ export class Worker {
     this.isRunning = false;
     this.log("Stopping worker cleanly...");
     this.stopHeartbeat();
+    this.stopCommandHeartbeat();
 
     // Signal cancellation to any actively executing stage
     if (this.currentAbortController) {
@@ -454,6 +464,50 @@ export class Worker {
     }
   }
 
+  private startCommandHeartbeat(
+    commandId: string,
+    leaseDurationMs: number,
+  ): void {
+    this.stopCommandHeartbeat();
+    const intervalMs = this.commandHeartbeatIntervalMs;
+
+    this.commandHeartbeatTimer = setInterval(() => {
+      try {
+        this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+
+        const ok = this.commandRepo.renewLease(
+          commandId,
+          this.workerId,
+          leaseDurationMs,
+        );
+        if (!ok) {
+          this.emitStructuredLog({
+            result: "heartbeat_lost",
+            message: `Command lease renewal failed for command ${commandId}. Worker may have lost lease.`,
+          });
+          this.stopCommandHeartbeat();
+        } else {
+          this.emitStructuredLog({
+            result: "renewed",
+            message: `Command ${commandId} lease renewed successfully`,
+          });
+        }
+      } catch (err: unknown) {
+        this.error(
+          `Heartbeat error renewing lease for command ${commandId}`,
+          err,
+        );
+      }
+    }, intervalMs);
+  }
+
+  private stopCommandHeartbeat(): void {
+    if (this.commandHeartbeatTimer) {
+      clearInterval(this.commandHeartbeatTimer);
+      this.commandHeartbeatTimer = null;
+    }
+  }
+
   /**
    * Command polling loop running concurrently with job execution (Phase 1, Section 10, 17, 23, 48).
    */
@@ -462,7 +516,8 @@ export class Worker {
       try {
         const commands = this.commandRepo.claimPendingCommands(
           this.workerId,
-          this.leaseDurationMs,
+          this.commandLeaseDurationMs,
+          30000,
         );
 
         for (const command of commands) {
@@ -585,6 +640,7 @@ export class Worker {
     };
 
     const attempt = this.stageAttemptRepo.recordStart(run.id, "deliver", 1);
+    this.startCommandHeartbeat(command.id, this.commandLeaseDurationMs);
 
     try {
       const deliverExecutor = this.deliverExecutor ?? new DeliverExecutor();
@@ -649,6 +705,8 @@ export class Worker {
       });
       this.error(`Deliver command ${command.id} failed: ${errorMsg}`, err);
       this.commandRepo.failCommand(command.id, this.workerId, errorMsg);
+    } finally {
+      this.stopCommandHeartbeat();
     }
   }
 
@@ -734,7 +792,8 @@ export class Worker {
   async stepCommandOnce(): Promise<CommandRecord[]> {
     const commands = this.commandRepo.claimPendingCommands(
       this.workerId,
-      this.leaseDurationMs,
+      this.commandLeaseDurationMs,
+      30000,
     );
 
     for (const command of commands) {

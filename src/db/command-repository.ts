@@ -238,8 +238,6 @@ export class CommandRepository {
       }
     }
 
-    const deliverLeaseUntil = new Date(nowMs + 300000).toISOString();
-
     // 2. Claim claimable commands:
     // Either target_worker_id is null OR matches this worker.
     // Also include expired claimed commands (except steer which is at-most-once and fails on expiry).
@@ -247,7 +245,7 @@ export class CommandRepository {
       UPDATE run_commands
       SET status = 'claimed',
           worker_id = $workerId,
-          lease_until = CASE WHEN command = 'deliver' THEN $deliverLeaseUntil ELSE $leaseUntil END,
+          lease_until = $leaseUntil,
           attempts = attempts + 1
       WHERE id IN (
         SELECT id FROM run_commands
@@ -267,14 +265,12 @@ export class CommandRepository {
         {
           $workerId: string;
           $leaseUntil: string;
-          $deliverLeaseUntil: string;
           $now: string;
         }
       >(claimQuery)
       .all({
         $workerId: workerId,
         $leaseUntil: leaseUntil,
-        $deliverLeaseUntil: deliverLeaseUntil,
         $now: now,
       });
 
@@ -363,6 +359,33 @@ export class CommandRepository {
         $workerId: workerId,
         $error: error,
         $now: now,
+      });
+    return res.changes > 0;
+  }
+
+  /**
+   * Renews the lease on a claimed command.
+   */
+  renewLease(
+    id: string,
+    workerId: string,
+    leaseDurationMs: number,
+    txDb?: Database,
+  ): boolean {
+    const conn = txDb || this.db;
+    const nowMs = Date.now();
+    const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
+
+    const res = conn
+      .prepare(`
+        UPDATE run_commands
+        SET lease_until = $leaseUntil
+        WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
+      `)
+      .run({
+        $id: id,
+        $workerId: workerId,
+        $leaseUntil: leaseUntil,
       });
     return res.changes > 0;
   }
