@@ -16,10 +16,10 @@ import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
 
 // ─── Query Hooks ─────────────────────────────────────────────────────────────
 
-export function useProjects() {
+export function useProjects(options?: { includeArchived?: boolean }) {
   return useQuery<Project[]>({
-    queryKey: queryKeys.projects(),
-    queryFn: () => api.getProjects(),
+    queryKey: queryKeys.projects(options),
+    queryFn: () => api.getProjects(options),
     ...QUERY_POLICIES.projects,
   });
 }

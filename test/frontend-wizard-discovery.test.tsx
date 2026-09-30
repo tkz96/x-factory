@@ -286,45 +286,49 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
     // 1. Mock rejection
     mockDiscoverRepositories.mockRejectedValueOnce(new Error("Network Error"));
     const { container } = render(<TestWrapper />);
-    
+
     // Step 1 & 2
     await advanceToStep3(container);
-    
+
     // 2 & 3. Request fails and Loading ends
     await waitFor(() => {
       expect(mockDiscoverRepositories).toHaveBeenCalledTimes(1);
-      expect(container.textContent).toContain("Discovery failed: Network Error");
+      expect(container.textContent).toContain(
+        "Discovery failed: Network Error",
+      );
     });
-    
+
     // 4. Error message is shown
     expect(container.textContent).toContain("Discovery failed: Network Error");
-    
+
     // 5. Continue button is disabled
-    const step3Next = container.querySelector("#btn-step-3-next") as HTMLButtonElement;
+    const step3Next = container.querySelector(
+      "#btn-step-3-next",
+    ) as HTMLButtonElement;
     expect(step3Next.disabled).toBe(true);
-    
+
     // 6. Retry is available
     const retryBtn = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent === "Retry",
     );
     expect(retryBtn).toBeDefined();
-    
+
     // 7. Clicking Retry performs exactly one new discovery request
     mockDiscoverRepositories.mockResolvedValueOnce({
       repositories: [{ id: "1", name: "ai-engine" }],
     });
-    
+
     await act(async () => {
       fireEvent.click(retryBtn!);
     });
-    
+
     // 8. Successful retry clears error and shows new discovery result
     await waitFor(() => {
       expect(mockDiscoverRepositories).toHaveBeenCalledTimes(2);
       expect(container.textContent).not.toContain("Discovery failed");
       expect(container.textContent).toContain("1 repositories discovered");
     });
-    
+
     // Next button should be enabled
     expect(step3Next.disabled).toBe(false);
   });

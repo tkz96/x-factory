@@ -6,6 +6,10 @@ import { useRef, useState } from "react";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
+import {
+  type DuplicateDetectionResult,
+  findDuplicateProject,
+} from "../../lib/project-identity.js";
 import { invalidateProjects } from "../../lib/query-client.js";
 import { parseQuickUrl } from "../../lib/wizard-url.js";
 
@@ -622,6 +626,7 @@ interface Step6ReviewProps {
   tracker: string;
   quickUrl: string;
   isSubmitting: boolean;
+  duplicateStatus: DuplicateDetectionResult;
   onBack: () => void;
   onSubmit: () => void;
 }
@@ -633,15 +638,66 @@ function Step6Review({
   tracker,
   quickUrl,
   isSubmitting,
+  duplicateStatus,
   onBack,
   onSubmit,
 }: Step6ReviewProps) {
+  const { isDuplicate, type, existingProject } = duplicateStatus;
+  const blocked = isDuplicate || isSubmitting;
+
   return (
     <div id="onboard-step-6" className="wizard-pane active">
       <h3>Review &amp; Create Project</h3>
       <p className="text-muted">
         Review configuration before creating project.
       </p>
+
+      {isDuplicate && existingProject && (
+        <div
+          className="card mt-4 p-4 error-message"
+          style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
+        >
+          {type === "id_collision" ? (
+            <strong className="text-error">
+              Project ID "{projectId}" is already in use.
+            </strong>
+          ) : (
+            <strong className="text-error">
+              This project is already onboarded.
+            </strong>
+          )}
+          <div className="text-muted">
+            Existing project: <strong>{existingProject.name}</strong>
+            {existingProject.archived && " (Archived)"}
+            {type === "external_identity" &&
+              tracker === "azure" &&
+              existingProject.issueTracker.azure && (
+                <div>
+                  Azure DevOps:{" "}
+                  {existingProject.issueTracker.azure.orgUrl
+                    .replace(/^https?:\/\//, "")
+                    .replace(/\/$/, "")}{" "}
+                  / {existingProject.issueTracker.azure.project}
+                </div>
+              )}
+            {type === "external_identity" &&
+              tracker === "github" &&
+              existingProject.issueTracker.github && (
+                <div>GitHub: {existingProject.issueTracker.github.repo}</div>
+              )}
+          </div>
+          <div className="mt-2">
+            <a
+              href={`/projects/${existingProject.id}`}
+              className="btn-secondary btn-sm"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open Existing Project
+            </a>
+          </div>
+        </div>
+      )}
 
       <div className="project-detail-meta-grid card mt-4">
         <div className="project-meta-item">
@@ -682,7 +738,7 @@ function Step6Review({
           id="btn-onboard-submit"
           className="btn-primary"
           onClick={onSubmit}
-          disabled={isSubmitting}
+          disabled={blocked}
         >
           {isSubmitting ? "Creating Project…" : "Create & Connect Project"}
         </button>
@@ -697,7 +753,9 @@ function Step6Review({
 
 export function OnboardingWizardModal() {
   const { isOnboardingOpen, closeOnboardingModal } = useModal();
-  const { refetch: refetchProjects } = useProjects();
+  const { data: allProjects = [], refetch: refetchProjects } = useProjects({
+    includeArchived: true,
+  });
 
   const [step, setStep] = useState<WizardStep>(1);
   const [maxStep, setMaxStep] = useState<WizardStep>(1);
@@ -899,7 +957,19 @@ export function OnboardingWizardModal() {
     }
   };
 
+  const duplicateStatus = findDuplicateProject(
+    allProjects,
+    projectId,
+    tracker,
+    trackerOrgUrl,
+    trackerProject,
+  );
+
   const handleCompleteOnboard = async () => {
+    if (duplicateStatus.isDuplicate) {
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
     try {
@@ -1106,6 +1176,7 @@ export function OnboardingWizardModal() {
               tracker={tracker}
               quickUrl={quickUrl}
               isSubmitting={isSubmitting}
+              duplicateStatus={duplicateStatus}
               onBack={() => goToStep(5)}
               onSubmit={handleCompleteOnboard}
             />
