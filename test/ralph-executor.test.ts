@@ -191,7 +191,8 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
   });
 
   describe("ExecuteExecutor (Autonomous Ralph Loop)", () => {
-    const baseExecuteMocks = {
+    // biome-ignore lint/suspicious/noExplicitAny: mock
+    const baseExecuteMocks: any = {
       mkdir: async () => {},
       access: async () => {},
       chmod: async () => {},
@@ -236,8 +237,10 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         const mockChild = new EventEmitter() as unknown as ChildProcess;
         // biome-ignore lint/suspicious/noExplicitAny: mock
         mockChild.stdout = new EventEmitter() as any;
-        mockChild.stderr = new EventEmitter();
-        mockChild.kill = () => {};
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        mockChild.stderr = new EventEmitter() as any;
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        mockChild.kill = (() => true) as any;
         setTimeout(() => {
           mockChild.emit("close", 0);
         }, 10);
@@ -268,7 +271,8 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         writeFile: async (filePath, content) => {
           writtenFiles[filePath.toString()] = content.toString();
         },
-        readFile: async () => "{}",
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        readFile: (async () => "{}") as any,
         resolveWorktreeBaseline: async () => ({
           trackedFiles: new Set(),
           untrackedFiles: new Set(),
@@ -373,7 +377,8 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
-        readFile: async () => "{}",
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        readFile: (async () => "{}") as any,
         resolveWorktreeBaseline: async () => ({
           trackedFiles: new Set(),
           untrackedFiles: new Set(),
@@ -444,7 +449,8 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
-        readFile: async () => "{}",
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        readFile: (async () => "{}") as any,
         resolveWorktreeBaseline: async () => ({
           trackedFiles: new Set(),
           untrackedFiles: new Set(),
@@ -522,7 +528,8 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         access: async () => {},
         chmod: async () => {},
         writeFile: async () => {},
-        readFile: async () => "{}",
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        readFile: (async () => "{}") as any,
         resolveWorktreeBaseline: async () => ({
           trackedFiles: new Set(),
           untrackedFiles: new Set(),
@@ -741,8 +748,10 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
 
     it("Review success -> Receive exact verification result & Verification persisted before review", async () => {
       const { context, runRepo } = setupTestContext("execute");
-      let receivedCtx: unknown = null;
-      let runDiffBeforeReview: string | null | undefined = null;
+      // biome-ignore lint/suspicious/noExplicitAny: test
+      let receivedCtx: any = null;
+      // biome-ignore lint/suspicious/noExplicitAny: test
+      let runDiffBeforeReview: any = null;
       let runVerifBeforeReview: unknown = null;
 
       const verificationResult = {
