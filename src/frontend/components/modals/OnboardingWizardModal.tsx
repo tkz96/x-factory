@@ -9,10 +9,7 @@ import {
   findDuplicateProject,
   normalizeProjectId,
 } from "../../../shared/project-identity.js";
-import type {
-  ProjectRepository,
-  RepositoryRole,
-} from "../../../shared/types.js";
+import type { RepositoryRole } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
@@ -20,7 +17,6 @@ import { invalidateProjects } from "../../lib/query-client.js";
 import {
   type DiscoveredRepositoryLike,
   deduplicateDiscoveredRepositories,
-  deriveConfiguredRepositories,
   getEffectiveRepoConfig,
   getInitialPrimaryRepoId,
   getInitialRepoConfigs,
@@ -1137,24 +1133,6 @@ export function OnboardingWizardModal() {
     Record<string, RepoItemConfig>
   >({});
   const [primaryRepoId, setPrimaryRepoId] = useState<string | null>(null);
-
-  // Synchronously derive configured repository array in primary-first order (consumed by #113 / #114)
-  const configuredRepositories = useMemo<ProjectRepository[]>(() => {
-    return deriveConfiguredRepositories({
-      discoveredRepositories,
-      repoConfigs,
-      primaryRepoId,
-      workspacePath,
-      projectId,
-    });
-  }, [
-    discoveredRepositories,
-    repoConfigs,
-    primaryRepoId,
-    workspacePath,
-    projectId,
-  ]);
-  void configuredRepositories;
 
   // Submitting
   const [isSubmitting, setIsSubmitting] = useState(false);
