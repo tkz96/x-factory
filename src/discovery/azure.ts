@@ -152,6 +152,99 @@ function mapAzureRepoItem(repo: AzureGitRepoItem): DiscoveredRepository {
   };
 }
 
+function isHtmlResponse(contentType: string, text: string): boolean {
+  if (contentType.toLowerCase().includes("text/html")) {
+    return true;
+  }
+  const trimmed = text.trimStart().toLowerCase();
+  if (
+    trimmed.startsWith("<!doctype html") ||
+    trimmed.startsWith("<html") ||
+    trimmed.startsWith("<head") ||
+    trimmed.startsWith("<body")
+  ) {
+    return true;
+  }
+  return /<(?:!doctype\s+html|html|head|body)[^>]*>/i.test(text);
+}
+
+function isHtmlOrXml(text: string): boolean {
+  if (isHtmlResponse("", text)) return true;
+  return /<[a-z!/][^>]*>/i.test(text);
+}
+
+function getStatusPhrase(status: number, statusText?: string): string {
+  if (statusText?.trim() && statusText !== "OK") {
+    return statusText.trim();
+  }
+  switch (status) {
+    case 400:
+      return "Bad Request";
+    case 401:
+      return "Unauthorized";
+    case 403:
+      return "Forbidden";
+    case 404:
+      return "Not Found";
+    case 408:
+      return "Request Timeout";
+    case 429:
+      return "Too Many Requests";
+    case 500:
+      return "Internal Server Error";
+    case 502:
+      return "Bad Gateway";
+    case 503:
+      return "Service Unavailable";
+    case 504:
+      return "Gateway Timeout";
+    default:
+      return "Request failed";
+  }
+}
+
+function sanitizeHttpError(
+  status: number,
+  statusText: string,
+  bodyText: string,
+  contentType: string,
+): string {
+  const fallback = getStatusPhrase(status, statusText);
+  const trimmed = bodyText.trim();
+
+  if (
+    !trimmed ||
+    isHtmlResponse(contentType, trimmed) ||
+    isHtmlOrXml(trimmed)
+  ) {
+    return `Azure DevOps API error (${status}): ${fallback}`;
+  }
+
+  try {
+    const data = JSON.parse(trimmed);
+    if (data && typeof data === "object") {
+      const msg = typeof data.message === "string" ? data.message.trim() : "";
+      if (msg && !isHtmlOrXml(msg)) {
+        const cleanMsg = msg.replace(/\s+/g, " ").slice(0, 200);
+        return `Azure DevOps API error (${status}): ${cleanMsg}`;
+      }
+    }
+  } catch {
+    // Not JSON
+  }
+
+  if (
+    !trimmed.includes("<") &&
+    !trimmed.includes(">") &&
+    !trimmed.includes("\n") &&
+    trimmed.length <= 150
+  ) {
+    return `Azure DevOps API error (${status}): ${trimmed}`;
+  }
+
+  return `Azure DevOps API error (${status}): ${fallback}`;
+}
+
 async function fetchAzureApiRepos(
   orgUrl: string,
   project: string,
@@ -175,13 +268,37 @@ async function fetchAzureApiRepos(
       `Azure DevOps project "${project}" was not found at ${orgUrl}.`,
     );
   }
+
+  const contentType = res.headers.get("content-type") || "";
+  const bodyText = await res.text();
+
   if (!res.ok) {
     throw new Error(
-      `Azure DevOps API error (${res.status}): ${await res.text()}`,
+      sanitizeHttpError(res.status, res.statusText, bodyText, contentType),
     );
   }
 
-  const raw = await res.json();
+  // Handle HTML login/redirect response on 2xx or 203 (e.g. unauthenticated redirect)
+  if (
+    res.status === 203 ||
+    isHtmlResponse(contentType, bodyText) ||
+    (res.redirected &&
+      (res.url.includes("login") || res.url.includes("signin")))
+  ) {
+    throw new Error(
+      "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+    );
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(bodyText);
+  } catch {
+    throw new Error(
+      "Azure DevOps Repositories API response validation failed: Malformed JSON response.",
+    );
+  }
+
   const parsed = AzureRepoListSchema.safeParse(raw);
   if (!parsed.success) {
     throw new Error(

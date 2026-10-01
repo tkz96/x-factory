@@ -143,7 +143,7 @@ describe("Repository Discovery Providers", () => {
       }
     });
 
-    it("handles Azure DevOps error responses cleanly", async () => {
+    it("handles invalid PAT returning HTTP 401", async () => {
       const originalFetch = globalThis.fetch;
       try {
         globalThis.fetch = (async () =>
@@ -151,45 +151,326 @@ describe("Repository Discovery Providers", () => {
             status: 401,
           })) as unknown as typeof fetch;
         const provider = new AzureDevOpsRepositoryDiscovery();
-        await assert.rejects(
-          () =>
-            provider.listRepositories({
-              provider: "azure",
-              orgUrl: "https://dev.azure.com/org",
-              project: "p",
-              pat: "bad",
-            }),
-          /authentication failed/,
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/org",
+            project: "p",
+            pat: "bad-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
         );
+        assert.ok(!thrownError.message.includes("<html>"));
       } finally {
         globalThis.fetch = originalFetch;
       }
     });
 
-    it("handles Azure DevOps project not found cleanly", async () => {
+    it("handles invalid PAT returning HTTP 403", async () => {
       const originalFetch = globalThis.fetch;
       try {
         globalThis.fetch = (async () =>
-          new Response("Not Found", {
-            status: 404,
+          new Response("Forbidden", {
+            status: 403,
           })) as unknown as typeof fetch;
         const provider = new AzureDevOpsRepositoryDiscovery();
-        await assert.rejects(
-          () =>
-            provider.listRepositories({
-              provider: "azure",
-              orgUrl: "https://dev.azure.com/org",
-              project: "p",
-              pat: "p",
-            }),
-          /Azure DevOps project "p" was not found/,
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/org",
+            project: "p",
+            pat: "bad-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+        );
+        assert.ok(!thrownError.message.includes("<html>"));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles HTTP 401 with HTML login page and never exposes raw HTML", async () => {
+      const originalFetch = globalThis.fetch;
+      const htmlBody = `<!DOCTYPE html>
+<html>
+<head><title>Sign in to your account</title></head>
+<body>
+  <form method="post" action="https://login.microsoftonline.com">
+    <input type="text" name="loginfmt" />
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>`;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(htmlBody, {
+            status: 401,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          })) as unknown as typeof fetch;
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: "bad-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+        );
+        assert.ok(!thrownError.message.includes("<html>"));
+        assert.ok(!thrownError.message.includes("</html>"));
+        assert.ok(!thrownError.message.includes("<!DOCTYPE"));
+        assert.ok(!thrownError.message.includes("<body"));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles HTTP 403 with HTML login page and never exposes raw HTML", async () => {
+      const originalFetch = globalThis.fetch;
+      const htmlBody = `<html><head><title>Access Denied</title></head><body><h1>403 Forbidden</h1></body></html>`;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(htmlBody, {
+            status: 403,
+            headers: { "Content-Type": "text/html" },
+          })) as unknown as typeof fetch;
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: "bad-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+        );
+        assert.ok(!thrownError.message.includes("<html>"));
+        assert.ok(!thrownError.message.includes("</html>"));
+        assert.ok(!thrownError.message.includes("<body"));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles HTTP 404 project-not-found response containing project and organization", async () => {
+      const originalFetch = globalThis.fetch;
+      const htmlBody = `<html><body>Azure DevOps 404 Resource Not Found</body></html>`;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(htmlBody, {
+            status: 404,
+            headers: { "Content-Type": "text/html" },
+          })) as unknown as typeof fetch;
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: "valid-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          'Azure DevOps project "Converso" was not found at https://dev.azure.com/xynotech.',
+        );
+        assert.ok(!thrownError.message.includes("<html>"));
+        assert.ok(!thrownError.message.includes("</html>"));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles other HTTP failure such as 500 with HTML or text body without exposing raw HTML", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        // 500 with HTML body
+        const htmlBody = `<html><head><title>500 Internal Server Error</title></head><body><h1>Server Error</h1><p>Stack trace...</p></body></html>`;
+        globalThis.fetch = (async () =>
+          new Response(htmlBody, {
+            status: 500,
+            statusText: "Internal Server Error",
+            headers: { "Content-Type": "text/html" },
+          })) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let htmlError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: "valid-pat",
+          });
+        } catch (err) {
+          htmlError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(htmlError, "Should throw error");
+        assert.equal(
+          htmlError.message,
+          "Azure DevOps API error (500): Internal Server Error",
+        );
+        assert.ok(!htmlError.message.includes("<html>"));
+        assert.ok(!htmlError.message.includes("</html>"));
+        assert.ok(!htmlError.message.includes("Stack trace"));
+
+        // 500 with concise text body
+        globalThis.fetch = (async () =>
+          new Response("Database connection timed out", {
+            status: 500,
+            statusText: "Internal Server Error",
+            headers: { "Content-Type": "text/plain" },
+          })) as unknown as typeof fetch;
+
+        let textError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: "valid-pat",
+          });
+        } catch (err) {
+          textError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(textError, "Should throw error");
+        assert.equal(
+          textError.message,
+          "Azure DevOps API error (500): Database connection timed out",
+        );
+        assert.ok(!textError.message.includes("<html>"));
+
+        // 500 with JSON error body
+        globalThis.fetch = (async () =>
+          new Response(
+            JSON.stringify({ message: "TF400813: Resource unavailable" }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            },
+          )) as unknown as typeof fetch;
+
+        let jsonError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: "valid-pat",
+          });
+        } catch (err) {
+          jsonError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(jsonError, "Should throw error");
+        assert.equal(
+          jsonError.message,
+          "Azure DevOps API error (500): TF400813: Resource unavailable",
         );
       } finally {
         globalThis.fetch = originalFetch;
       }
     });
 
-    it("throws descriptive error on malformed Azure DevOps repository response", async () => {
+    it("handles 2xx with HTML login/redirect response and converts to clear authentication error", async () => {
+      const originalFetch = globalThis.fetch;
+      const htmlBody = `<!DOCTYPE html><html><head><title>Sign in to your account</title></head><body>Sign in to Azure DevOps</body></html>`;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(htmlBody, {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          })) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/org",
+            project: "proj",
+            pat: "secret-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+        );
+        assert.ok(!thrownError.message.includes("<html>"));
+        assert.ok(!thrownError.message.includes("</html>"));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("handles 2xx malformed JSON response with controlled validation error", async () => {
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = (async () =>
+          new Response("{ not valid json at all", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/org",
+            project: "proj",
+            pat: "secret-pat",
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps Repositories API response validation failed: Malformed JSON response.",
+        );
+        assert.ok(!thrownError.message.includes("SyntaxError"));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("throws descriptive error on 2xx JSON with invalid repository response shape", async () => {
       const originalFetch = globalThis.fetch;
       try {
         globalThis.fetch = (async () =>
@@ -209,6 +490,52 @@ describe("Repository Discovery Providers", () => {
             }),
           /Azure DevOps Repositories API response validation failed/,
         );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("successfully discovers 14-repository Azure/Converso case", async () => {
+      const originalFetch = globalThis.fetch;
+      const repos14 = Array.from({ length: 14 }, (_, i) => ({
+        id: `converso-repo-${i + 1}`,
+        name: `service-${i + 1}`,
+        remoteUrl: `https://dev.azure.com/xynotech/Converso/_git/service-${i + 1}`,
+        webUrl: `https://dev.azure.com/xynotech/Converso/_git/service-${i + 1}`,
+        defaultBranch: i % 2 === 0 ? "refs/heads/main" : "refs/heads/master",
+      }));
+
+      try {
+        globalThis.fetch = (async (url: string | URL | Request) => {
+          assert.ok(
+            String(url).includes(
+              "https://dev.azure.com/xynotech/Converso/_apis/git/repositories",
+            ),
+          );
+          return new Response(JSON.stringify({ value: repos14 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        const repos = await provider.listRepositories({
+          provider: "azure",
+          orgUrl: "https://dev.azure.com/xynotech",
+          project: "Converso",
+          pat: "valid-converso-pat",
+        });
+
+        assert.equal(repos.length, 14);
+        assert.equal(repos[0]?.id, "converso-repo-1");
+        assert.equal(repos[0]?.name, "service-1");
+        assert.equal(repos[0]?.defaultBranch, "main");
+        assert.equal(
+          repos[0]?.remote,
+          "https://dev.azure.com/xynotech/Converso/_git/service-1",
+        );
+        assert.equal(repos[1]?.defaultBranch, "master");
+        assert.equal(repos[13]?.name, "service-14");
       } finally {
         globalThis.fetch = originalFetch;
       }
