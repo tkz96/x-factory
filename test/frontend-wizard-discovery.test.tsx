@@ -7,7 +7,11 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { OnboardingWizardModal } from "../src/frontend/components/modals/OnboardingWizardModal.js";
+import {
+  OnboardingWizardModal,
+  Step4Repositories,
+} from "../src/frontend/components/modals/OnboardingWizardModal.js";
+import type { ProjectRepository } from "../src/shared/types.js";
 
 // We'll import userEvent dynamically to ensure it runs AFTER GlobalRegistrator sets up window/document
 let userEvent: any;
@@ -858,9 +862,7 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
   });
 
   it("Wizard blocks creation and disables button while all-projects query fails with error", async () => {
-    mockGetProjects.mockRejectedValue(
-      new Error("Database connection error"),
-    );
+    mockGetProjects.mockRejectedValue(new Error("Database connection error"));
 
     const { container } = render(<TestWrapper />);
     await advanceToStep6(container);
@@ -996,6 +998,445 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
 
     await waitFor(() => {
       expect(mockGetProjects).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("Wizard Step 4: Repository Selection and Configuration (#112)", () => {
+    it("infers initial repository roles correctly based on naming conventions", () => {
+      const repos = [
+        { id: "1", name: "app-frontend", remote: "r1" },
+        { id: "2", name: "core-api", remote: "r2" },
+        { id: "3", name: "data-worker", remote: "r3" },
+        { id: "4", name: "cloud-infra", remote: "r4" },
+        { id: "5", name: "docs-knowledge", remote: "r5" },
+        { id: "6", name: "general-tool", remote: "r6" },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      const getRole = (id: string) =>
+        (container.querySelector(`#repo-role-${id}`) as HTMLSelectElement)
+          .value;
+
+      expect(getRole("1")).toBe("frontend");
+      expect(getRole("2")).toBe("backend");
+      expect(getRole("3")).toBe("worker");
+      expect(getRole("4")).toBe("infrastructure");
+      expect(getRole("5")).toBe("knowledge");
+      expect(getRole("6")).toBe("other");
+
+      expect(latestConfig.find((r) => r.id === "1")?.role).toBe("frontend");
+      expect(latestConfig.find((r) => r.id === "2")?.role).toBe("backend");
+      expect(latestConfig.find((r) => r.id === "3")?.role).toBe("worker");
+    });
+
+    it("supports selecting and deselecting multiple repositories independently", async () => {
+      const repos = [
+        { id: "r1", name: "api", remote: "rem1" },
+        { id: "r2", name: "web", remote: "rem2" },
+        { id: "r3", name: "worker", remote: "rem3" },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      // Initially all 3 are selected
+      expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r2", "r3"]);
+
+      // Deselect r2
+      const select2 = container.querySelector(
+        "#repo-select-r2",
+      ) as HTMLInputElement;
+      expect(select2.checked).toBe(true);
+      await act(async () => {
+        fireEvent.click(select2);
+      });
+
+      expect(select2.checked).toBe(false);
+      expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r3"]);
+
+      // Deselect r3
+      const select3 = container.querySelector(
+        "#repo-select-r3",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(select3);
+      });
+
+      expect(select3.checked).toBe(false);
+      expect(latestConfig.map((r) => r.id)).toEqual(["r1"]);
+
+      // Re-select r2
+      await act(async () => {
+        fireEvent.click(select2);
+      });
+
+      expect(select2.checked).toBe(true);
+      expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r2"]);
+    });
+
+    it("places primary repository at index 0 and reorders when primary changes", async () => {
+      const repos = [
+        { id: "r1", name: "api", remote: "rem1" },
+        { id: "r2", name: "web", remote: "rem2" },
+        { id: "r3", name: "worker", remote: "rem3" },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      // Initial primary is r1 (index 0)
+      expect(latestConfig[0]?.id).toBe("r1");
+      expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r2", "r3"]);
+
+      // Change primary to r3
+      const primary3 = container.querySelector(
+        "#repo-primary-r3",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(primary3);
+      });
+
+      expect(primary3.checked).toBe(true);
+      expect(latestConfig[0]?.id).toBe("r3");
+      expect(latestConfig.map((r) => r.id)).toEqual(["r3", "r1", "r2"]);
+
+      // Change primary to r2
+      const primary2 = container.querySelector(
+        "#repo-primary-r2",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(primary2);
+      });
+
+      expect(primary2.checked).toBe(true);
+      expect(latestConfig[0]?.id).toBe("r2");
+      expect(latestConfig.map((r) => r.id)).toEqual(["r2", "r1", "r3"]);
+    });
+
+    it("ensures a primary repository cannot remain selected=false", async () => {
+      const repos = [
+        { id: "r1", name: "api", remote: "rem1" },
+        { id: "r2", name: "web", remote: "rem2" },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      // Deselect r2
+      const select2 = container.querySelector(
+        "#repo-select-r2",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(select2);
+      });
+      expect(select2.checked).toBe(false);
+
+      // Click primary on r2
+      const primary2 = container.querySelector(
+        "#repo-primary-r2",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(primary2);
+      });
+
+      // r2 is now primary AND r2 selection is now true
+      expect(primary2.checked).toBe(true);
+      expect(select2.checked).toBe(true);
+      expect(latestConfig[0]?.id).toBe("r2");
+    });
+
+    it("allows manual role change and preserves it", async () => {
+      const repos = [{ id: "r1", name: "api-service", remote: "rem1" }];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      const roleSelect = container.querySelector(
+        "#repo-role-r1",
+      ) as HTMLSelectElement;
+      expect(roleSelect.value).toBe("backend");
+
+      await act(async () => {
+        fireEvent.change(roleSelect, { target: { value: "infrastructure" } });
+      });
+
+      expect(roleSelect.value).toBe("infrastructure");
+      expect(latestConfig[0]?.role).toBe("infrastructure");
+    });
+
+    it("supports independent local paths and preserves them on selection toggle", async () => {
+      const repos = [
+        { id: "r1", name: "backend-api", remote: "rem1" },
+        { id: "r2", name: "frontend-ui", remote: "rem2" },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/custom/workspace"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      const path1 = container.querySelector(
+        "#repo-path-r1",
+      ) as HTMLInputElement;
+      const path2 = container.querySelector(
+        "#repo-path-r2",
+      ) as HTMLInputElement;
+
+      expect(path1.value).toBe("/custom/workspace/backend-api");
+      expect(path2.value).toBe("/custom/workspace/frontend-ui");
+
+      // Edit paths independently
+      await act(async () => {
+        await userEvent.clear(path1);
+        await userEvent.type(path1, "/opt/repos/my-api");
+        await userEvent.clear(path2);
+        await userEvent.type(path2, "/opt/repos/my-ui");
+      });
+
+      expect(path1.value).toBe("/opt/repos/my-api");
+      expect(path2.value).toBe("/opt/repos/my-ui");
+      expect(latestConfig.find((r) => r.id === "r1")?.path).toBe(
+        "/opt/repos/my-api",
+      );
+      expect(latestConfig.find((r) => r.id === "r2")?.path).toBe(
+        "/opt/repos/my-ui",
+      );
+
+      // Toggle selection of r2 off and then on
+      const select2 = container.querySelector(
+        "#repo-select-r2",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(select2);
+      });
+      expect(select2.checked).toBe(false);
+
+      await act(async () => {
+        fireEvent.click(select2);
+      });
+      expect(select2.checked).toBe(true);
+
+      // Path must be preserved!
+      expect(path2.value).toBe("/opt/repos/my-ui");
+      expect(latestConfig.find((r) => r.id === "r2")?.path).toBe(
+        "/opt/repos/my-ui",
+      );
+    });
+
+    it("preserves discovered id, name, remote, and defaultBranch exactly", () => {
+      const repos = [
+        {
+          id: "repo-999_SPECIAL",
+          name: "Special-Repo_Name",
+          remote: "git@github.com:my-org/Special-Repo_Name.git",
+          defaultBranch: "release/v3.2.1",
+        },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      expect(container.textContent).toContain("Special-Repo_Name");
+      expect(container.textContent).toContain(
+        "git@github.com:my-org/Special-Repo_Name.git",
+      );
+      expect(container.textContent).toContain("branch: release/v3.2.1");
+
+      const configured = latestConfig[0];
+      expect(configured?.id).toBe("repo-999_SPECIAL");
+      expect(configured?.name).toBe("Special-Repo_Name");
+      expect(configured?.remote).toBe(
+        "git@github.com:my-org/Special-Repo_Name.git",
+      );
+      expect(configured?.defaultBranch).toBe("release/v3.2.1");
+    });
+
+    it("validates zero-selection and blocks Continue", async () => {
+      const repos = [
+        { id: "r1", name: "repo1", remote: "rem1" },
+        { id: "r2", name: "repo2", remote: "rem2" },
+      ];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      const nextBtn = container.querySelector(
+        "#btn-step-4-next",
+      ) as HTMLButtonElement;
+      expect(nextBtn.disabled).toBe(false);
+
+      // Deselect both
+      const s1 = container.querySelector("#repo-select-r1") as HTMLInputElement;
+      const s2 = container.querySelector("#repo-select-r2") as HTMLInputElement;
+
+      await act(async () => {
+        fireEvent.click(s1);
+        fireEvent.click(s2);
+      });
+
+      expect(nextBtn.disabled).toBe(true);
+      const err = container.querySelector("#step-4-validation-error");
+      expect(err).not.toBeNull();
+      expect(err?.textContent).toContain(
+        "At least one repository must be selected",
+      );
+
+      // Re-select r1
+      await act(async () => {
+        fireEvent.click(s1);
+      });
+      expect(nextBtn.disabled).toBe(false);
+      expect(container.querySelector("#step-4-validation-error")).toBeNull();
+    });
+
+    it("validates invalid primary and blocks Continue when primary is unselected", async () => {
+      const repos = [
+        { id: "r1", name: "repo1", remote: "rem1" },
+        { id: "r2", name: "repo2", remote: "rem2" },
+      ];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={repos}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      const nextBtn = container.querySelector(
+        "#btn-step-4-next",
+      ) as HTMLButtonElement;
+      expect(nextBtn.disabled).toBe(false);
+
+      // r1 is primary. Uncheck r1.
+      const s1 = container.querySelector("#repo-select-r1") as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(s1);
+      });
+
+      expect(s1.checked).toBe(false);
+      expect(nextBtn.disabled).toBe(true);
+      const err = container.querySelector("#step-4-validation-error");
+      expect(err).not.toBeNull();
+      expect(err?.textContent).toContain(
+        "The primary repository must be selected",
+      );
+
+      // Fix by designating r2 as primary
+      const p2 = container.querySelector(
+        "#repo-primary-r2",
+      ) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(p2);
+      });
+
+      expect(nextBtn.disabled).toBe(false);
+      expect(container.querySelector("#step-4-validation-error")).toBeNull();
+    });
+
+    it("prevents duplicate repository IDs from entering configured list", () => {
+      const duplicateRepos = [
+        { id: "dup-id", name: "first-repo", remote: "rem1" },
+        { id: "dup-id", name: "second-repo", remote: "rem2" },
+        { id: "unique-id", name: "third-repo", remote: "rem3" },
+      ];
+      let latestConfig: ProjectRepository[] = [];
+      const { container } = render(
+        <Step4Repositories
+          workspacePath="/ws"
+          projectId="my-project"
+          discoveredRepositories={duplicateRepos}
+          onRepositoriesChange={(cfg) => {
+            latestConfig = cfg;
+          }}
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      // Should only have 2 configured repos (dup-id deduplicated)
+      expect(latestConfig.length).toBe(2);
+      expect(latestConfig.map((r) => r.id)).toEqual(["dup-id", "unique-id"]);
+      expect(container.querySelectorAll('[data-repo-id="dup-id"]').length).toBe(
+        1,
+      );
     });
   });
 });

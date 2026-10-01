@@ -2,18 +2,22 @@
 
 import "./OnboardingWizardModal.css";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   type DuplicateDetectionResult,
   findDuplicateProject,
   normalizeProjectId,
 } from "../../../shared/project-identity.js";
+import type {
+  ProjectRepository,
+  RepositoryRole,
+} from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
 import { invalidateProjects } from "../../lib/query-client.js";
-import { parseQuickUrl } from "../../lib/wizard-url.js";
+import { inferRepoRole, parseQuickUrl } from "../../lib/wizard-url.js";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -511,58 +515,409 @@ function Step3Discovery({
 // Step 4: Repositories
 // ---------------------------------------------------------------------------
 
-interface Step4RepositoriesProps {
+export const REPOSITORY_ROLES: readonly RepositoryRole[] = [
+  "frontend",
+  "backend",
+  "service",
+  "worker",
+  "mobile",
+  "infrastructure",
+  "documentation",
+  "knowledge",
+  "other",
+] as const;
+
+export interface RepoItemConfig {
+  selected: boolean;
+  path: string;
+  role: RepositoryRole;
+}
+
+export interface Step4RepositoriesProps {
   workspacePath: string;
   projectId: string;
-  quickUrl: string;
+  quickUrl?: string | undefined;
   discoveredRepositories: Array<{
     id: string;
     name: string;
-    remote?: string;
-    defaultBranch?: string;
-    webUrl?: string;
+    remote?: string | undefined;
+    defaultBranch?: string | undefined;
+    webUrl?: string | undefined;
   }>;
+  configuredRepositories?: ProjectRepository[] | undefined;
+  onRepositoriesChange?:
+    | ((repositories: ProjectRepository[]) => void)
+    | undefined;
+  repoConfigs?: Record<string, RepoItemConfig> | undefined;
+  onRepoConfigsChange?:
+    | React.Dispatch<React.SetStateAction<Record<string, RepoItemConfig>>>
+    | undefined;
+  primaryRepoId?: string | null | undefined;
+  onPrimaryRepoIdChange?: ((id: string | null) => void) | undefined;
   onBack: () => void;
   onNext: () => void;
 }
 
-function Step4Repositories({
+export function Step4Repositories({
   workspacePath,
   projectId,
-  quickUrl,
+  quickUrl: _quickUrl,
   discoveredRepositories,
+  configuredRepositories: _configuredRepositories,
+  onRepositoriesChange,
+  repoConfigs,
+  onRepoConfigsChange,
+  primaryRepoId,
+  onPrimaryRepoIdChange,
   onBack,
   onNext,
 }: Step4RepositoriesProps) {
+  // Deduplicate discovered repositories by id to prevent duplicate repository IDs
+  const uniqueDiscovered = useMemo(() => {
+    const seen = new Set<string>();
+    return discoveredRepositories.filter((repo) => {
+      if (!repo.id || seen.has(repo.id)) return false;
+      seen.add(repo.id);
+      return true;
+    });
+  }, [discoveredRepositories]);
+
+  const [internalConfigs, setInternalConfigs] = useState<
+    Record<string, RepoItemConfig>
+  >({});
+  const [internalPrimaryId, setInternalPrimaryId] = useState<string | null>(
+    null,
+  );
+
+  const currentConfigs = repoConfigs ?? internalConfigs;
+  const setConfigs = onRepoConfigsChange ?? setInternalConfigs;
+
+  const currentPrimaryId =
+    primaryRepoId !== undefined ? primaryRepoId : internalPrimaryId;
+  const setPrimaryId = (id: string | null) => {
+    if (onPrimaryRepoIdChange) {
+      onPrimaryRepoIdChange(id);
+    } else {
+      setInternalPrimaryId(id);
+    }
+  };
+
+  const getEffectiveConfig = useCallback(
+    (repo: { id: string; name: string }): RepoItemConfig => {
+      const existing = currentConfigs[repo.id];
+      if (existing) {
+        return existing;
+      }
+      const cleanWs = workspacePath.trim().replace(/\/+$/, "");
+      return {
+        selected: true,
+        path: cleanWs ? `${cleanWs}/${repo.name}` : `/${repo.name}`,
+        role: inferRepoRole(repo.name),
+      };
+    },
+    [currentConfigs, workspacePath],
+  );
+
+  const effectivePrimaryId = useMemo(() => {
+    if (
+      currentPrimaryId &&
+      uniqueDiscovered.some((r) => r.id === currentPrimaryId)
+    ) {
+      return currentPrimaryId;
+    }
+    const matching = uniqueDiscovered.find(
+      (r) =>
+        r.name.toLowerCase() === projectId.trim().toLowerCase() ||
+        r.id === projectId.trim(),
+    );
+    return matching?.id ?? uniqueDiscovered[0]?.id ?? null;
+  }, [currentPrimaryId, uniqueDiscovered, projectId]);
+
+  const selectedRepos = useMemo(() => {
+    return uniqueDiscovered.filter((r) => {
+      const cfg = getEffectiveConfig(r);
+      return cfg.selected;
+    });
+  }, [uniqueDiscovered, getEffectiveConfig]);
+
+  let validationError: string | null = null;
+  if (selectedRepos.length === 0) {
+    validationError = "At least one repository must be selected.";
+  } else if (!effectivePrimaryId) {
+    validationError = "A primary repository must be designated.";
+  } else {
+    const primarySelected = selectedRepos.some(
+      (r) => r.id === effectivePrimaryId,
+    );
+    if (!primarySelected) {
+      validationError = "The primary repository must be selected.";
+    }
+  }
+
+  // Build the configured repository array in primary-first order
+  const configuredList = useMemo<ProjectRepository[]>(() => {
+    if (validationError || !effectivePrimaryId) return [];
+    const primaryRepo = uniqueDiscovered.find(
+      (r) => r.id === effectivePrimaryId,
+    );
+    if (!primaryRepo) return [];
+    const primaryConfig = getEffectiveConfig(primaryRepo);
+    if (!primaryConfig.selected) return [];
+
+    const primaryItem: ProjectRepository = {
+      id: primaryRepo.id,
+      name: primaryRepo.name,
+      remote: primaryRepo.remote,
+      defaultBranch: primaryRepo.defaultBranch ?? "main",
+      path: primaryConfig.path,
+      role: primaryConfig.role,
+    };
+
+    const otherItems: ProjectRepository[] = selectedRepos
+      .filter((r) => r.id !== primaryRepo.id)
+      .map((r) => {
+        const cfg = getEffectiveConfig(r);
+        return {
+          id: r.id,
+          name: r.name,
+          remote: r.remote,
+          defaultBranch: r.defaultBranch ?? "main",
+          path: cfg.path,
+          role: cfg.role,
+        };
+      });
+
+    // Ensure strictly unique IDs in primary-first order
+    const seenIds = new Set<string>();
+    const result: ProjectRepository[] = [];
+    if (!seenIds.has(primaryItem.id)) {
+      seenIds.add(primaryItem.id);
+      result.push(primaryItem);
+    }
+    for (const item of otherItems) {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        result.push(item);
+      }
+    }
+    return result;
+  }, [
+    validationError,
+    effectivePrimaryId,
+    uniqueDiscovered,
+    selectedRepos,
+    getEffectiveConfig,
+  ]);
+
+  useEffect(() => {
+    if (!validationError && configuredList.length > 0) {
+      onRepositoriesChange?.(configuredList);
+    }
+  }, [configuredList, validationError, onRepositoriesChange]);
+
+  const handleToggleSelect = (repoId: string, selected: boolean) => {
+    const repo = uniqueDiscovered.find((r) => r.id === repoId);
+    if (!repo) return;
+    setConfigs((prev) => {
+      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      return {
+        ...prev,
+        [repoId]: {
+          selected,
+          path: base.path,
+          role: base.role,
+        },
+      };
+    });
+  };
+
+  const handleSetPrimary = (repoId: string) => {
+    const repo = uniqueDiscovered.find((r) => r.id === repoId);
+    if (!repo) return;
+    setPrimaryId(repoId);
+    setConfigs((prev) => {
+      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      return {
+        ...prev,
+        [repoId]: {
+          selected: true,
+          path: base.path,
+          role: base.role,
+        },
+      };
+    });
+  };
+
+  const handlePathChange = (repoId: string, path: string) => {
+    const repo = uniqueDiscovered.find((r) => r.id === repoId);
+    if (!repo) return;
+    setConfigs((prev) => {
+      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      return {
+        ...prev,
+        [repoId]: {
+          selected: base.selected,
+          path,
+          role: base.role,
+        },
+      };
+    });
+  };
+
+  const handleRoleChange = (repoId: string, role: RepositoryRole) => {
+    const repo = uniqueDiscovered.find((r) => r.id === repoId);
+    if (!repo) return;
+    setConfigs((prev) => {
+      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      return {
+        ...prev,
+        [repoId]: {
+          selected: base.selected,
+          path: base.path,
+          role,
+        },
+      };
+    });
+  };
+
+  const handleNext = () => {
+    if (validationError) return;
+    onRepositoriesChange?.(configuredList);
+    onNext();
+  };
+
   return (
     <div id="onboard-step-4" className="wizard-pane active">
       <h3>Configure Repositories</h3>
       <p className="text-muted">
-        Designate the primary repository and configure default branch.
+        Select repositories for this project, designate the primary repository,
+        and configure local paths and roles.
       </p>
-      <div className="card mt-4 p-4">
-        <strong>Primary Workspace Repository: {projectId || "primary"}</strong>
-        <p className="text-muted text-footnote mt-1">
-          Path: {workspacePath}/{projectId || "primary"} (branch: main)
-        </p>
-        {quickUrl && (
-          <p className="text-muted text-footnote mt-1">
-            Remote: <code>{quickUrl}</code>
-          </p>
-        )}
-      </div>
-      {discoveredRepositories.length > 0 && (
-        <div className="mt-4">
-          <h4>Discovered Repositories</h4>
-          <ul id="discovered-repos-list" className="text-footnote text-muted">
-            {discoveredRepositories.map((repo) => (
-              <li key={repo.id} data-repo-name={repo.name}>
-                {repo.name} ({repo.remote || "no-remote"})
-              </li>
-            ))}
-          </ul>
+
+      {validationError && (
+        <div
+          className="error-message mb-4"
+          id="step-4-validation-error"
+          role="alert"
+        >
+          {validationError}
         </div>
       )}
+
+      {uniqueDiscovered.length === 0 ? (
+        <div className="card mt-4 p-4">
+          <p className="m-0 text-muted">
+            No repositories discovered. Please return to Step 3 to scan your
+            workspace.
+          </p>
+        </div>
+      ) : (
+        <div className="repos-config-list mt-4" id="discovered-repos-list">
+          {uniqueDiscovered.map((repo) => {
+            const cfg = getEffectiveConfig(repo);
+            const isSelected = cfg.selected;
+            const isPrimary = repo.id === effectivePrimaryId;
+
+            return (
+              <div
+                key={repo.id}
+                className={`card repo-config-card ${
+                  isSelected ? "" : "repo-config-card-deselected"
+                }`}
+                data-repo-id={repo.id}
+                data-repo-name={repo.name}
+              >
+                <div className="repo-config-header">
+                  <div className="repo-config-title-group">
+                    <label
+                      className="repo-checkbox-label"
+                      htmlFor={`repo-select-${repo.id}`}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`repo-select-${repo.id}`}
+                        checked={isSelected}
+                        onChange={(e) =>
+                          handleToggleSelect(repo.id, e.target.checked)
+                        }
+                      />
+                      <span className="repo-name font-semibold">
+                        {repo.name}
+                      </span>{" "}
+                      <span className="text-muted text-footnote ml-1">
+                        ({repo.remote || "no-remote"})
+                      </span>
+                    </label>
+                    <div className="repo-meta-row text-footnote text-muted">
+                      <span className="badge badge-neutral mr-2">
+                        branch: {repo.defaultBranch || "main"}
+                      </span>
+                      {isPrimary && (
+                        <span className="badge badge-primary-repo">
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="repo-primary-group">
+                    <label
+                      className="repo-radio-label"
+                      htmlFor={`repo-primary-${repo.id}`}
+                    >
+                      <input
+                        type="radio"
+                        name="primaryRepo"
+                        id={`repo-primary-${repo.id}`}
+                        checked={isPrimary}
+                        onChange={() => handleSetPrimary(repo.id)}
+                      />
+                      <span>Primary</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="repo-config-fields-grid mt-3">
+                  <div className="form-group mb-0">
+                    <label htmlFor={`repo-path-${repo.id}`}>Local Path</label>
+                    <input
+                      type="text"
+                      id={`repo-path-${repo.id}`}
+                      className="form-input text-mono"
+                      value={cfg.path}
+                      onChange={(e) =>
+                        handlePathChange(repo.id, e.target.value)
+                      }
+                      aria-label={`Local path for ${repo.name}`}
+                    />
+                  </div>
+                  <div className="form-group mb-0">
+                    <label htmlFor={`repo-role-${repo.id}`}>Role</label>
+                    <select
+                      id={`repo-role-${repo.id}`}
+                      className="form-select"
+                      value={cfg.role}
+                      onChange={(e) =>
+                        handleRoleChange(
+                          repo.id,
+                          e.target.value as RepositoryRole,
+                        )
+                      }
+                      aria-label={`Role for ${repo.name}`}
+                    >
+                      {REPOSITORY_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
@@ -571,7 +926,8 @@ function Step4Repositories({
           type="button"
           id="btn-step-4-next"
           className="btn-primary"
-          onClick={onNext}
+          onClick={handleNext}
+          disabled={Boolean(validationError)}
         >
           Continue to Inspection →
         </button>
@@ -879,6 +1235,15 @@ export function OnboardingWizardModal() {
   const [lastDiscoveryInputs, setLastDiscoveryInputs] = useState<string>("");
   const discoveryGenerationRef = useRef(0);
 
+  // Step 4: Configured Repositories state
+  const [configuredRepositories, setConfiguredRepositories] = useState<
+    ProjectRepository[]
+  >([]);
+  const [repoConfigs, setRepoConfigs] = useState<
+    Record<string, { selected: boolean; path: string; role: RepositoryRole }>
+  >({});
+  const [primaryRepoId, setPrimaryRepoId] = useState<string | null>(null);
+
   // Submitting
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -976,6 +1341,35 @@ export function OnboardingWizardModal() {
     if (next === 3) {
       void runDiscovery();
     }
+
+    if (
+      next === 4 &&
+      Object.keys(repoConfigs).length === 0 &&
+      discoveredRepositories.length > 0
+    ) {
+      const initialConfigs: Record<
+        string,
+        { selected: boolean; path: string; role: RepositoryRole }
+      > = {};
+      const cleanWs = workspacePath.trim().replace(/\/+$/, "");
+      for (const repo of discoveredRepositories) {
+        initialConfigs[repo.id] = {
+          selected: true,
+          path: cleanWs ? `${cleanWs}/${repo.name}` : `/${repo.name}`,
+          role: inferRepoRole(repo.name),
+        };
+      }
+      setRepoConfigs(initialConfigs);
+      const matching = discoveredRepositories.find(
+        (r) =>
+          r.name.toLowerCase() === projectId.trim().toLowerCase() ||
+          r.id === projectId.trim(),
+      );
+      const initialPrimary = matching
+        ? matching.id
+        : (discoveredRepositories[0]?.id ?? null);
+      setPrimaryRepoId(initialPrimary);
+    }
   };
 
   const runDiscovery = async (force = false) => {
@@ -1014,6 +1408,29 @@ export function OnboardingWizardModal() {
       if (currentGeneration === discoveryGenerationRef.current) {
         setDiscoveredRepositories(res.repositories);
         setHasDiscovered(true);
+
+        const initialConfigs: Record<
+          string,
+          { selected: boolean; path: string; role: RepositoryRole }
+        > = {};
+        const cleanWs = workspacePath.trim().replace(/\/+$/, "");
+        for (const repo of res.repositories) {
+          initialConfigs[repo.id] = {
+            selected: true,
+            path: cleanWs ? `${cleanWs}/${repo.name}` : `/${repo.name}`,
+            role: inferRepoRole(repo.name),
+          };
+        }
+        setRepoConfigs(initialConfigs);
+        const matching = res.repositories.find(
+          (r) =>
+            r.name.toLowerCase() === projectId.trim().toLowerCase() ||
+            r.id === projectId.trim(),
+        );
+        const initialPrimary = matching
+          ? matching.id
+          : (res.repositories[0]?.id ?? null);
+        setPrimaryRepoId(initialPrimary);
       }
     } catch (err) {
       if (currentGeneration === discoveryGenerationRef.current) {
@@ -1202,6 +1619,9 @@ export function OnboardingWizardModal() {
                 setTrackerPat(pat);
                 setHasDiscovered(false);
                 setDiscoveredRepositories([]);
+                setConfiguredRepositories([]);
+                setRepoConfigs({});
+                setPrimaryRepoId(null);
                 setDiscoveryError(null);
                 setLastDiscoveryInputs("");
               }}
@@ -1231,6 +1651,12 @@ export function OnboardingWizardModal() {
               projectId={projectId}
               quickUrl={quickUrl}
               discoveredRepositories={discoveredRepositories}
+              configuredRepositories={configuredRepositories}
+              onRepositoriesChange={setConfiguredRepositories}
+              repoConfigs={repoConfigs}
+              onRepoConfigsChange={setRepoConfigs}
+              primaryRepoId={primaryRepoId}
+              onPrimaryRepoIdChange={setPrimaryRepoId}
               onBack={() => goToStep(3)}
               onNext={() => goToStep(5)}
             />
