@@ -487,6 +487,94 @@
   font-weight: 500;
 }
 
+/* ── Step 4 Repositories Configuration ───────────────────────────────── */
+
+.repos-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.repo-config-card {
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition);
+}
+
+.repo-config-card.deselected {
+  opacity: 0.55;
+  background: var(--bg-hover);
+}
+
+.repo-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.repo-config-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.repo-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.repo-primary-group {
+  display: flex;
+  align-items: center;
+}
+
+.repo-radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 0;
+}
+
+.repo-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.repo-config-fields-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.75rem;
+}
+
+.badge-primary-repo {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .repo-config-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Inspection Cards ────────────────────────────────────────────────── */
 
 .inspection-cards-list {
