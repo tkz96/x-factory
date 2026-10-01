@@ -1,11 +1,7 @@
 /// <reference lib="dom" />
-import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
-try {
-  GlobalRegistrator.register();
-} catch {
-  // already registered
-}
+registerHappyDom();
 
 import {
   afterAll,
@@ -110,7 +106,7 @@ function TestWrapper() {
 
 describe("Frontend Wizard Discovery (Step 3)", () => {
   afterAll(async () => {
-    await new Promise((r) => setTimeout(r, 100));
+    await unregisterHappyDom();
   });
 
   afterEach(() => {
@@ -119,10 +115,8 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
   });
 
   beforeEach(async () => {
-    if (!userEvent) {
-      const module = await import("@testing-library/user-event");
-      userEvent = module.default;
-    }
+    const module = await import("@testing-library/user-event");
+    userEvent = module.default.setup({ document: globalThis.document });
     mockProjects = [];
     mockGetProjects.mockClear();
     mockDiscoverRepositories.mockClear();
