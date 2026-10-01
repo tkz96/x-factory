@@ -21,6 +21,22 @@ export interface SettingsData {
   };
 }
 
+export interface InspectRepositoryResponse {
+  path: string;
+  exists: boolean;
+  isGitRepo: boolean;
+  remote?: string | undefined;
+  currentBranch?: string | undefined;
+  defaultBranch?: string | undefined;
+  role?: string | undefined;
+  detectedCommands: Record<string, string>;
+  detectedTooling: string[];
+  readiness: {
+    status: "ready" | "pending_setup" | "error";
+    message: string;
+  };
+}
+
 export interface ReadinessData {
   ready: boolean;
   checks: Array<{
@@ -100,6 +116,19 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return handleResponse(res);
+  },
+
+  async inspectRepository(payload: {
+    path: string;
+    remote?: string | undefined;
+    expectedRemote?: string | undefined;
+  }): Promise<InspectRepositoryResponse> {
+    const res = await fetch("/api/projects/inspect-repository", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<InspectRepositoryResponse>(res);
   },
 
   // Tickets / Queue

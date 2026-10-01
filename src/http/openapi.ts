@@ -501,6 +501,10 @@ export function getOpenApiSpec() {
                   required: ["path"],
                   properties: {
                     path: { type: "string", example: "~/code/x-factory" },
+                    remote: {
+                      type: "string",
+                      example: "https://github.com/my-org/my-repo",
+                    },
                   },
                 },
               },

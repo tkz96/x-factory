@@ -22,6 +22,7 @@ interface RepositoryInspectionResult {
   exists: boolean;
   isGitRepo: boolean;
   remote?: string | undefined;
+  currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: RepositoryRole | undefined;
   detectedCommands: RepositoryCommands;
@@ -31,6 +32,7 @@ interface RepositoryInspectionResult {
 async function resolveGitInfo(dir: string): Promise<{
   isGit: boolean;
   remote?: string | undefined;
+  currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
 }> {
   const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], {
@@ -55,12 +57,22 @@ async function resolveGitInfo(dir: string): Promise<{
     ["rev-parse", "--abbrev-ref", "HEAD"],
     { cwd: dir },
   );
-  const defaultBranch =
+  const currentBranch =
     branchResult.exitCode === 0 && branchResult.stdout.trim() !== "HEAD"
       ? branchResult.stdout.trim()
       : undefined;
 
-  return { isGit: true, remote, defaultBranch };
+  let defaultBranch: string | undefined;
+  const originHeadResult = await execCommand(
+    "git",
+    ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    { cwd: dir },
+  );
+  if (originHeadResult.exitCode === 0 && originHeadResult.stdout.trim()) {
+    defaultBranch = originHeadResult.stdout.trim().replace(/^origin\//, "");
+  }
+
+  return { isGit: true, remote, currentBranch, defaultBranch };
 }
 
 async function resolveRepoPackageName(
@@ -87,7 +99,7 @@ async function resolveRepoPackageName(
  */
 export async function inspectLocalRepository(
   repoPath: string,
-  expectedRemote?: string,
+  _expectedRemote?: string,
 ): Promise<RepositoryInspectionResult> {
   const resolved = path.resolve(repoPath);
   if (!(await fileExists(resolved))) {
@@ -100,7 +112,8 @@ export async function inspectLocalRepository(
     };
   }
 
-  const { isGit, remote, defaultBranch } = await resolveGitInfo(resolved);
+  const { isGit, remote, currentBranch, defaultBranch } =
+    await resolveGitInfo(resolved);
 
   let initialName = path.basename(resolved);
   if (
@@ -122,7 +135,8 @@ export async function inspectLocalRepository(
     path: resolved,
     exists: true,
     isGitRepo: isGit,
-    remote: remote || expectedRemote,
+    remote,
+    currentBranch,
     defaultBranch: defaultBranch || "main",
     role,
     detectedCommands: commands,
@@ -198,9 +212,9 @@ async function checkGitRemoteMatch(
     ["config", "--get", "remote.origin.url"],
     { cwd: repoPath },
   );
-  if (res.exitCode !== 0) return true;
+  if (res.exitCode !== 0) return false;
   const actual = res.stdout.trim();
-  if (!actual) return true;
+  if (!actual) return false;
   return (
     normalizeGitRemoteUrl(actual) === normalizeGitRemoteUrl(expectedRemote)
   );
@@ -227,7 +241,7 @@ function getReadinessOutcome(
 /**
  * Evaluate the readiness of an individual repository inside a project.
  */
-async function evaluateRepositoryReadiness(
+export async function evaluateRepositoryReadiness(
   repo: ProjectRepository,
 ): Promise<RepositoryReadiness> {
   if (!(await fileExists(repo.path))) {
@@ -265,8 +279,9 @@ async function evaluateRepositoryReadiness(
     ["rev-parse", "--abbrev-ref", "HEAD"],
     { cwd: repo.path },
   );
+  const branch = branchResult.stdout.trim();
   const branchDetected =
-    branchResult.exitCode === 0 && Boolean(branchResult.stdout.trim());
+    branchResult.exitCode === 0 && branch.length > 0 && branch !== "HEAD";
   const ready = remoteMatches && branchDetected;
   const outcome = getReadinessOutcome(ready, remoteMatches);
 

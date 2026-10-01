@@ -1,6 +1,7 @@
 // src/http/projects-controller.ts — Multi-repository project CRUD, onboarding, tracker secrets, and migration endpoints.
 
 import { stat } from "node:fs/promises";
+import path from "node:path";
 import { testAzureConnection } from "../azure/connection.js";
 import { testAzurePatScopes } from "../azure/scopes.js";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../discovery/index.js";
 import {
   checkProjectReadiness,
+  evaluateRepositoryReadiness,
   inspectLocalRepository,
 } from "../inspection/index.js";
 import { expandUserPath, scanGitSubdirectories } from "../paths.js";
@@ -116,30 +118,32 @@ async function handleDiscoverRepositories(req: Request): Promise<Response> {
 }
 
 async function handleInspectRepository(req: Request): Promise<Response> {
-  return withJsonBody<{ path?: string }>(
+  return withJsonBody<{
+    path?: string;
+    remote?: string;
+    expectedRemote?: string;
+  }>(
     req,
-    async ({ path: repoPath }) => {
+    async ({ path: repoPath, remote, expectedRemote }) => {
       if (!repoPath || typeof repoPath !== "string") {
         return errorResponse("Repository path is required.");
       }
+      const expandedPath = expandUserPath(repoPath);
+      const targetRemote = remote || expectedRemote;
       return catchHttpErrors(async () => {
-        const result = await inspectLocalRepository(repoPath);
-        const status = !result.exists
-          ? "error"
-          : !result.isGitRepo
-            ? "pending_setup"
-            : "ready";
-        const message =
-          result.exists && result.isGitRepo
-            ? "Ready"
-            : result.exists
-              ? "Pending Git init"
-              : "Directory missing";
+        const result = await inspectLocalRepository(expandedPath, targetRemote);
+        const readiness = await evaluateRepositoryReadiness({
+          id: "repo",
+          name: path.basename(expandedPath),
+          path: expandedPath,
+          remote: targetRemote,
+          defaultBranch: result.defaultBranch || "main",
+        });
         return jsonResponse({
           ...result,
           readiness: {
-            status,
-            message,
+            status: readiness.status,
+            message: readiness.message,
           },
         });
       });

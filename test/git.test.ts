@@ -372,3 +372,46 @@ describe("findCommitByMessageAndParent", () => {
     );
   });
 });
+
+describe("getParentSha and getHeadMessage", () => {
+  it("returns parent SHA and commit message of HEAD", async () => {
+    const headMsg = await git.getHeadMessage(fixtureRepo);
+    assert.equal(headMsg, "Initial commit");
+
+    // Create a commit
+    await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
+    const baseline = await git.recordBaseline(fixtureRepo);
+    const parentBefore = await git.getHeadSha(fixtureRepo);
+    await git.safeCommitAll(fixtureRepo, "second commit", baseline);
+
+    const parentAfter = await git.getParentSha(fixtureRepo);
+    assert.equal(parentAfter, parentBefore);
+
+    const newHeadMsg = await git.getHeadMessage(fixtureRepo);
+    assert.equal(newHeadMsg, "second commit");
+  });
+});
+
+describe("getRemoteBranchSha", () => {
+  it("resolves branch SHA from a local remote", async () => {
+    const sha = await git.getRemoteBranchSha(fixtureRepo, fixtureRepo, "main");
+    const headSha = await git.getHeadSha(fixtureRepo);
+    assert.equal(sha, headSha);
+  });
+
+  it("returns null for non-existent branch", async () => {
+    const sha = await git.getRemoteBranchSha(
+      fixtureRepo,
+      fixtureRepo,
+      "non-existent-branch-12345",
+    );
+    assert.equal(sha, null);
+  });
+
+  it("throws when remote lookup fails", async () => {
+    await assert.rejects(
+      () => git.getRemoteBranchSha("/invalid/path", "invalid-remote", "main"),
+      /Git lookup failed for remote branch/,
+    );
+  });
+});

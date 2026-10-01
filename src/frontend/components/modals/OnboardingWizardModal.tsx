@@ -9,14 +9,19 @@ import {
   findDuplicateProject,
   normalizeProjectId,
 } from "../../../shared/project-identity.js";
-import type { RepositoryRole } from "../../../shared/types.js";
+import type {
+  ProjectRepository,
+  RepositoryRole,
+} from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
+import { useRepositoryInspection } from "../../hooks/useRepositoryInspection.js";
 import { api } from "../../lib/api-client.js";
 import { invalidateProjects } from "../../lib/query-client.js";
 import {
   type DiscoveredRepositoryLike,
   deduplicateDiscoveredRepositories,
+  deriveConfiguredRepositories,
   getEffectiveRepoConfig,
   getInitialPrimaryRepoId,
   getInitialRepoConfigs,
@@ -25,6 +30,7 @@ import {
   validateRepositorySelection,
 } from "../../lib/wizard-repositories.js";
 import { parseQuickUrl } from "../../lib/wizard-url.js";
+import { InspectionCard, InspectionSummary } from "./InspectionComponents.js";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -833,22 +839,96 @@ export function Step4Repositories({
 // Step 5: Inspection
 // ---------------------------------------------------------------------------
 
-interface Step5InspectionProps {
+export interface Step5InspectionProps {
+  repositories: ProjectRepository[];
+  primaryRepoId?: string | null | undefined;
   onBack: () => void;
   onNext: () => void;
 }
 
-function Step5Inspection({ onBack, onNext }: Step5InspectionProps) {
+export function Step5Inspection({
+  repositories,
+  primaryRepoId,
+  onBack,
+  onNext,
+}: Step5InspectionProps) {
+  const effectivePrimaryId = primaryRepoId ?? repositories[0]?.id ?? null;
+  const {
+    results,
+    isInspecting,
+    hasInspecting,
+    hasApiError,
+    hasConfigError,
+    canAdvance,
+    handleRetrySingle,
+    handleReinspectAll,
+  } = useRepositoryInspection(repositories);
+
+  const isNextDisabled = repositories.length === 0 || !canAdvance;
+
   return (
     <div id="onboard-step-5" className="wizard-pane active">
-      <h3>Prerequisite &amp; Tooling Inspection</h3>
-      <p className="text-muted">
-        Verifying Git worktrees, test runners, and tooling health.
-      </p>
-      <div className="card ready mt-4 p-4">
-        <span className="status-dot online mr-2" />
-        <span>Prerequisites and Git worktree isolation verified.</span>
+      <div className="section-header-flex">
+        <div>
+          <h3>Prerequisite &amp; Tooling Inspection</h3>
+          <p className="text-muted">
+            Inspecting local checkouts, Git directories, and tooling for
+            selected repositories.
+          </p>
+        </div>
+        {repositories.length > 0 && (
+          <button
+            type="button"
+            id="btn-recheck-inspection"
+            className="btn-secondary btn-sm"
+            onClick={handleReinspectAll}
+            disabled={isInspecting}
+          >
+            <svg
+              className={`icon icon-sm ${isInspecting ? "spin" : ""}`}
+              aria-hidden="true"
+            >
+              <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
+            </svg>
+            <span>{isInspecting ? "Inspecting…" : "Re-inspect All"}</span>
+          </button>
+        )}
       </div>
+
+      <InspectionSummary
+        repositories={repositories}
+        results={results}
+        hasInspecting={hasInspecting}
+        hasApiError={hasApiError}
+        hasConfigError={hasConfigError}
+      />
+
+      {repositories.length === 0 ? (
+        <div
+          className="card mt-4 p-4"
+          role="alert"
+          id="inspection-no-repos-notice"
+        >
+          <p className="m-0 text-muted">
+            No repositories configured or selected. Please return to Step 4 to
+            select repositories.
+          </p>
+        </div>
+      ) : (
+        <div className="inspection-cards-list mt-4" id="inspection-repos-list">
+          {repositories.map((repo) => (
+            <InspectionCard
+              key={repo.id}
+              repo={repo}
+              result={results[repo.id]}
+              isPrimary={repo.id === effectivePrimaryId}
+              isInspecting={isInspecting}
+              onRetry={() => handleRetrySingle(repo)}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
@@ -858,6 +938,7 @@ function Step5Inspection({ onBack, onNext }: Step5InspectionProps) {
           id="btn-step-5-next"
           className="btn-primary"
           onClick={onNext}
+          disabled={isNextDisabled}
         >
           Continue to Review →
         </button>
@@ -1138,6 +1219,22 @@ export function OnboardingWizardModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const configuredRepositories = useMemo(() => {
+    return deriveConfiguredRepositories({
+      discoveredRepositories,
+      repoConfigs,
+      primaryRepoId,
+      workspacePath,
+      projectId,
+    });
+  }, [
+    discoveredRepositories,
+    repoConfigs,
+    primaryRepoId,
+    workspacePath,
+    projectId,
+  ]);
+
   if (!isOnboardingOpen) return null;
 
   const handleQuickUrlChange = (val: string) => {
@@ -1233,7 +1330,7 @@ export function OnboardingWizardModal() {
     }
 
     if (
-      next === 4 &&
+      (next === 4 || next === 5) &&
       Object.keys(repoConfigs).length === 0 &&
       discoveredRepositories.length > 0
     ) {
@@ -1513,6 +1610,8 @@ export function OnboardingWizardModal() {
 
           {step === 5 && (
             <Step5Inspection
+              repositories={configuredRepositories}
+              primaryRepoId={primaryRepoId}
               onBack={() => goToStep(4)}
               onNext={() => goToStep(6)}
             />
