@@ -111,6 +111,29 @@ const mockInspectRepository = mock(
   },
 );
 
+let invalidateProjectsHook: (() => Promise<void>) | null = null;
+const mockInvalidateProjects = mock(async () => {
+  if (invalidateProjectsHook) {
+    await invalidateProjectsHook();
+  }
+});
+
+mock.module("../src/frontend/lib/query-client.js", () => {
+  return {
+    queryClient: new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    }),
+    invalidateProjects: mockInvalidateProjects,
+    invalidateProject: mock(async () => {}),
+    invalidateTickets: mock(async () => {}),
+    invalidateRuns: mock(async () => {}),
+    invalidateRun: mock(async () => {}),
+    patchTicketInQueries: mock(() => {}),
+    patchRunInQueries: mock(() => {}),
+    applySsePatch: mock(() => {}),
+  };
+});
+
 mock.module("../src/frontend/lib/api-client.js", () => {
   return {
     api: {
@@ -180,6 +203,8 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
     mockDiscoverRepositories.mockClear();
     mockTestAzureScopes.mockClear();
     mockInspectRepository.mockClear();
+    invalidateProjectsHook = null;
+    mockInvalidateProjects.mockClear();
   });
 
   it("explicitly resets all onboarding state and clears sensitive PAT when modal closes and reopens", async () => {
@@ -616,5 +641,188 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       container.querySelector("#scope-status-pill")?.textContent?.trim(),
     ).toBe("Awaiting Verification");
     expect(container.querySelector("#scope-overprivileged-warning")).toBeNull();
+  });
+
+  it("ensures a pending submission across close and reopen cannot close or reset the new session", async () => {
+    const originalFetch = globalThis.fetch;
+    const mockFetch = mock(async (url: string, init?: RequestInit) => {
+      if (url === "/api/projects" && init?.method === "POST") {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+    let resolveInvalidate: () => void = () => {};
+    invalidateProjectsHook = () => {
+      return new Promise<void>((resolve) => {
+        resolveInvalidate = resolve;
+      });
+    };
+
+    try {
+      const { container } = renderApp();
+      const openBtn = container.querySelector(
+        "#ctrl-open-onboarding",
+      ) as HTMLButtonElement;
+
+      // 1. Open wizard and advance through steps to Step 6
+      await act(async () => {
+        fireEvent.click(openBtn);
+      });
+
+      // Fill Step 1
+      const nameInput = container.querySelector(
+        "#onboard-proj-name",
+      ) as HTMLInputElement;
+      await act(async () => {
+        await userEvent.type(nameInput, "Session 1 Project");
+      });
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector("#btn-step-1-next") as HTMLButtonElement,
+        );
+      });
+
+      // Step 2: enter org, project, PAT
+      await act(async () => {
+        await userEvent.type(
+          container.querySelector("#onboard-azure-org-url") as HTMLInputElement,
+          "https://dev.azure.com/xynotech",
+        );
+        await userEvent.type(
+          container.querySelector(
+            "#onboard-tracker-project",
+          ) as HTMLInputElement,
+          "Converso",
+        );
+        await userEvent.type(
+          container.querySelector("#onboard-azure-pat") as HTMLInputElement,
+          "pat-123",
+        );
+      });
+      // Verify PAT & acknowledge
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector("#btn-verify-azure-pat") as HTMLButtonElement,
+        );
+      });
+      await waitFor(() => {
+        expect(
+          container.querySelector("#chk-pat-least-privilege-ack"),
+        ).not.toBeNull();
+      });
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector(
+            "#chk-pat-least-privilege-ack",
+          ) as HTMLInputElement,
+        );
+      });
+      // Step 2 -> 3
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector("#btn-step-2-next") as HTMLButtonElement,
+        );
+      });
+      // Step 3 -> 4
+      await waitFor(() => {
+        expect(container.querySelector("#onboard-step-3")).not.toBeNull();
+      });
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector("#btn-step-3-next") as HTMLButtonElement,
+        );
+      });
+      // Step 4 -> 5
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector("#btn-step-4-next") as HTMLButtonElement,
+        );
+      });
+      // Step 5 -> 6
+      await waitFor(() => {
+        expect(mockInspectRepository).toHaveBeenCalled();
+      });
+      await act(async () => {
+        fireEvent.click(
+          container.querySelector("#btn-step-5-next") as HTMLButtonElement,
+        );
+      });
+
+      expect(container.querySelector("#onboard-step-6")).not.toBeNull();
+
+      // 2. Start submission (clicks submit button)
+      const submitBtn = container.querySelector(
+        "#btn-onboard-submit",
+      ) as HTMLButtonElement;
+      await act(async () => {
+        fireEvent.click(submitBtn);
+      });
+
+      // Fetch has been called, and invalidateProjects is now pending
+      expect(mockFetch).toHaveBeenCalled();
+      expect(mockInvalidateProjects).toHaveBeenCalled();
+
+      // 3. User closes the wizard while invalidateProjects is still pending
+      const closeBtn = container.querySelector(
+        "#btn-close-onboard-modal",
+      ) as HTMLButtonElement;
+      await act(async () => {
+        fireEvent.click(closeBtn);
+      });
+
+      // Wizard is closed
+      expect(container.querySelector("#modal-project-onboarding")).toBeNull();
+
+      // Reopen for Session 2
+      await act(async () => {
+        fireEvent.click(openBtn);
+      });
+
+      // Session 2 is open at Step 1
+      expect(
+        container.querySelector("#modal-project-onboarding"),
+      ).not.toBeNull();
+      expect(container.querySelector("#onboard-step-1")).not.toBeNull();
+
+      // User starts typing in Session 2
+      const freshNameInput = container.querySelector(
+        "#onboard-proj-name",
+      ) as HTMLInputElement;
+      await act(async () => {
+        await userEvent.type(freshNameInput, "Session 2 Project In Progress");
+      });
+      expect(freshNameInput.value).toBe("Session 2 Project In Progress");
+
+      // 4. Resolve the old invalidateProjects() from Session 1
+      await act(async () => {
+        resolveInvalidate();
+      });
+
+      // 5. Verify that the new session remains open
+      expect(
+        container.querySelector("#modal-project-onboarding"),
+      ).not.toBeNull();
+      expect(container.querySelector("#onboard-step-1")).not.toBeNull();
+
+      // 6. Verify that Session 2 state was NOT closed or reset by the stale submission
+      const currentNameInput = container.querySelector(
+        "#onboard-proj-name",
+      ) as HTMLInputElement;
+      expect(currentNameInput.value).toBe("Session 2 Project In Progress");
+      expect(container.querySelector("#ctrl-modal-status")?.textContent).toBe(
+        "open",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      invalidateProjectsHook = null;
+    }
   });
 });

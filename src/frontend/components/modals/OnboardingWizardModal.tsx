@@ -1370,8 +1370,6 @@ export function OnboardingWizardModal() {
   useEffect(() => {
     if (isOnboardingOpen && !prevIsOpenRef.current) {
       resetOnboardingState();
-    } else if (!isOnboardingOpen && prevIsOpenRef.current) {
-      resetOnboardingState();
     }
     prevIsOpenRef.current = isOnboardingOpen;
   }, [isOnboardingOpen, resetOnboardingState]);
@@ -1655,6 +1653,11 @@ export function OnboardingWizardModal() {
 
       if (currentGeneration === submitGenerationRef.current) {
         await invalidateProjects();
+
+        if (currentGeneration !== submitGenerationRef.current) {
+          return;
+        }
+
         void refetchProjects();
         handleClose();
       }
