@@ -438,6 +438,63 @@ describe("Repository Discovery Providers", () => {
       }
     });
 
+    it("handles followed HTTP redirect to login URL and converts to clear authentication error", async () => {
+      const originalFetch = globalThis.fetch;
+      const mockedPat = "mock-secret-pat-98765";
+      const loginHtmlBody = `<!DOCTYPE html>
+<html>
+<head><title>Sign in to your account</title></head>
+<body>
+  <form action="https://login.microsoftonline.com/common/oauth2/authorize">
+    <input type="text" name="loginfmt" />
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>`;
+
+      try {
+        globalThis.fetch = (async () => {
+          const res = new Response(loginHtmlBody, {
+            status: 200,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+          Object.defineProperty(res, "url", {
+            value: "https://login.microsoftonline.com/oauth2/v2.0/authorize",
+          });
+          Object.defineProperty(res, "redirected", {
+            value: true,
+          });
+          return res;
+        }) as unknown as typeof fetch;
+
+        const provider = new AzureDevOpsRepositoryDiscovery();
+        let thrownError: Error | undefined;
+        try {
+          await provider.listRepositories({
+            provider: "azure",
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+            pat: mockedPat,
+          });
+        } catch (err) {
+          thrownError = err instanceof Error ? err : new Error(String(err));
+        }
+
+        assert.ok(thrownError, "Should throw error");
+        assert.equal(
+          thrownError.message,
+          "Azure DevOps authentication failed. Verify your Personal Access Token (PAT).",
+        );
+        assert.ok(!thrownError.message.includes("<html>"));
+        assert.ok(!thrownError.message.includes("<!DOCTYPE"));
+        assert.ok(!thrownError.message.includes("Sign in to your account"));
+        assert.ok(!thrownError.message.includes("login.microsoftonline.com"));
+        assert.ok(!thrownError.message.includes(mockedPat));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it("handles 2xx malformed JSON response with controlled validation error", async () => {
       const originalFetch = globalThis.fetch;
       try {
