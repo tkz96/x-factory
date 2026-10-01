@@ -770,4 +770,334 @@ describe("Project Onboarding & Management APIs", () => {
     );
     assert.equal(testRes.status, 200);
   }, 15000);
+
+  it("POST /api/projects creates and persists a 14-repository Azure/Converso project with real metadata (#114)", async () => {
+    const fourteenRepoProjId = `proj-azure-converso-14-${Date.now()}`;
+    const workspaceRoot = path.join(tempDir, "converso-workspace");
+
+    // Exactly 14 repositories matching the Azure/Converso scenario
+    // Primary repository ("Converso") is at index 0 as sent by the wizard
+    const expectedFourteenRepos = [
+      {
+        id: "repo-12-converso",
+        name: "Converso",
+        path: path.join(workspaceRoot, "Converso"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/Converso",
+        role: "backend",
+      },
+      {
+        id: "repo-1-ai-engine",
+        name: "ai-engine",
+        path: path.join(workspaceRoot, "ai-engine"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/ai-engine",
+        role: "service",
+      },
+      {
+        id: "repo-2-vendifai-custom",
+        name: "Vendifai-Custom",
+        path: path.join(workspaceRoot, "Vendifai-Custom"),
+        defaultBranch: "master",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/Vendifai-Custom",
+        role: "service",
+      },
+      {
+        id: "repo-3-ai-docs",
+        name: "ai-docs",
+        path: path.join(workspaceRoot, "ai-docs"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/ai-docs",
+        role: "documentation",
+      },
+      {
+        id: "repo-4-shopify-plugin",
+        name: "Shopify-Plugin",
+        path: path.join(workspaceRoot, "Shopify-Plugin"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/Shopify-Plugin",
+        role: "service",
+      },
+      {
+        id: "repo-5-converso-frontend",
+        name: "Converso-Front-End",
+        path: path.join(workspaceRoot, "Converso-Front-End"),
+        defaultBranch: "main",
+        remote:
+          "https://dev.azure.com/xynotech/Converso/_git/Converso-Front-End",
+        role: "frontend",
+      },
+      {
+        id: "repo-6-vendifai-extension",
+        name: "VendifAi-Extension",
+        path: path.join(workspaceRoot, "VendifAi-Extension"),
+        defaultBranch: "main",
+        remote:
+          "https://dev.azure.com/xynotech/Converso/_git/VendifAi-Extension",
+        role: "frontend",
+      },
+      {
+        id: "repo-7-converso-infra-prod",
+        name: "converso-infra-prod",
+        path: path.join(workspaceRoot, "converso-infra-prod"),
+        defaultBranch: "main",
+        remote:
+          "https://dev.azure.com/xynotech/Converso/_git/converso-infra-prod",
+        role: "infrastructure",
+      },
+      {
+        id: "repo-8-converso-portal",
+        name: "converso-portal",
+        path: path.join(workspaceRoot, "converso-portal"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/converso-portal",
+        role: "frontend",
+      },
+      {
+        id: "repo-9-ticket-agent",
+        name: "ticket-agent",
+        path: path.join(workspaceRoot, "ticket-agent"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/ticket-agent",
+        role: "worker",
+      },
+      {
+        id: "repo-10-rbre",
+        name: "RBRE",
+        path: path.join(workspaceRoot, "RBRE"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/RBRE",
+        role: "service",
+      },
+      {
+        id: "repo-11-vendifai-pulse",
+        name: "Vendifai-pulse",
+        path: path.join(workspaceRoot, "Vendifai-pulse"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/Vendifai-pulse",
+        role: "service",
+      },
+      {
+        id: "repo-13-vendifiai-test-automation",
+        name: "vendifiai-test-automation",
+        path: path.join(workspaceRoot, "vendifiai-test-automation"),
+        defaultBranch: "main",
+        remote:
+          "https://dev.azure.com/xynotech/Converso/_git/vendifiai-test-automation",
+        role: "other",
+      },
+      {
+        id: "repo-14-converso-infra",
+        name: "converso-infra",
+        path: path.join(workspaceRoot, "converso-infra"),
+        defaultBranch: "main",
+        remote: "https://dev.azure.com/xynotech/Converso/_git/converso-infra",
+        role: "infrastructure",
+      },
+    ];
+
+    assert.equal(expectedFourteenRepos.length, 14);
+
+    const primaryExpected = expectedFourteenRepos[0];
+    assert.ok(primaryExpected);
+
+    // Exact payload structure matching the wizard Step 6 submission
+    // Notice: no PAT or credential fields are included in the payload
+    const payload = {
+      id: fourteenRepoProjId,
+      name: "Converso",
+      workspacePath: workspaceRoot,
+      repositoryPath: primaryExpected.path,
+      defaultBranch: primaryExpected.defaultBranch,
+      issueTracker: {
+        provider: "azure",
+        connectionId: "azure",
+        projectId: "Converso",
+        azure: {
+          orgUrl: "https://dev.azure.com/xynotech",
+          project: "Converso",
+        },
+      },
+      repositories: expectedFourteenRepos.map((repo) => ({
+        id: repo.id,
+        name: repo.name,
+        path: repo.path,
+        defaultBranch: repo.defaultBranch,
+        remote: repo.remote,
+        role: repo.role,
+      })),
+    };
+
+    // 1. Real HTTP POST /api/projects without mocking
+    const postRes = await fetch(`${baseUrl}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    assert.equal(postRes.status, 201);
+    const postBody = (await postRes.json()) as {
+      id: string;
+      name: string;
+      repositories: Array<{ id: string; name: string }>;
+    };
+    assert.equal(postBody.id, fourteenRepoProjId);
+    assert.equal(postBody.name, "Converso");
+    assert.equal(postBody.repositories.length, 14);
+
+    // 2. Real HTTP GET /api/projects/:id to read back created project
+    const getRes = await fetch(`${baseUrl}/api/projects/${fourteenRepoProjId}`);
+    assert.equal(getRes.status, 200);
+    const retrievedProject = (await getRes.json()) as {
+      id: string;
+      name: string;
+      workspacePath?: string;
+      repositoryPath: string;
+      defaultBranch: string;
+      issueTracker?: {
+        provider: string;
+        connectionId?: string;
+        projectId?: string;
+        azure?: {
+          orgUrl: string;
+          project: string;
+        };
+      };
+      repositories: Array<{
+        id: string;
+        name: string;
+        path: string;
+        defaultBranch: string;
+        remote?: string;
+        role?: string;
+      }>;
+    };
+
+    // 3. Assert exactly 14 repositories returned and order preserved
+    assert.equal(retrievedProject.repositories.length, 14);
+
+    // 4. Verify first repository is explicitly the primary repository
+    const primaryRepo = retrievedProject.repositories[0];
+    assert.ok(primaryRepo);
+    assert.equal(primaryRepo.id, "repo-12-converso");
+    assert.equal(primaryRepo.name, "Converso");
+    assert.equal(primaryRepo.path, path.resolve(primaryExpected.path));
+    assert.equal(primaryRepo.defaultBranch, "main");
+    assert.equal(primaryRepo.role, "backend");
+    assert.equal(
+      primaryRepo.remote,
+      "https://dev.azure.com/xynotech/Converso/_git/Converso",
+    );
+    // Project-level pointers match primary repository
+    assert.equal(retrievedProject.repositoryPath, primaryRepo.path);
+    assert.equal(retrievedProject.defaultBranch, primaryRepo.defaultBranch);
+
+    // 5. Verify all 14 repositories preserve their exact metadata and ordering
+    for (let i = 0; i < 14; i++) {
+      const actual = retrievedProject.repositories[i];
+      const expected = expectedFourteenRepos[i];
+      assert.ok(actual, `Repo index ${i} actual repo must exist`);
+      assert.ok(expected, `Repo index ${i} expected repo must exist`);
+      assert.equal(actual.id, expected.id, `Repo index ${i} ID mismatch`);
+      assert.equal(actual.name, expected.name, `Repo index ${i} name mismatch`);
+      assert.equal(
+        actual.path,
+        path.resolve(expected.path),
+        `Repo index ${i} path mismatch`,
+      );
+      assert.equal(
+        actual.defaultBranch,
+        expected.defaultBranch,
+        `Repo index ${i} branch mismatch`,
+      );
+      assert.equal(
+        actual.remote,
+        expected.remote,
+        `Repo index ${i} remote mismatch`,
+      );
+      assert.equal(actual.role, expected.role, `Repo index ${i} role mismatch`);
+    }
+
+    // 6. Verify actual disk persistence in projects.json (not just in-memory handler)
+    const rawDiskConfig = await readFile(projectsJsonPath, "utf-8");
+    const parsedConfig = JSON.parse(rawDiskConfig) as {
+      projects: Array<{
+        id: string;
+        name: string;
+        repositories: Array<{
+          id: string;
+          name: string;
+          path: string;
+          defaultBranch: string;
+          remote?: string;
+          role?: string;
+        }>;
+        issueTracker?: Record<string, unknown>;
+      }>;
+    };
+
+    const persistedProject = parsedConfig.projects.find(
+      (p) => p.id === fourteenRepoProjId,
+    );
+    assert.ok(
+      persistedProject,
+      "Project must be written and persisted to projects.json",
+    );
+    assert.equal(persistedProject.repositories.length, 14);
+
+    type PersistedRepo = {
+      id: string;
+      name: string;
+      path: string;
+      defaultBranch: string;
+      remote?: string;
+      role?: string;
+    };
+
+    for (let i = 0; i < 14; i++) {
+      const persistedRepo: PersistedRepo | undefined =
+        persistedProject.repositories[i];
+      const expected = expectedFourteenRepos[i];
+      assert.ok(persistedRepo);
+      assert.ok(expected);
+      assert.equal(persistedRepo.id, expected.id);
+      assert.equal(persistedRepo.name, expected.name);
+      assert.equal(persistedRepo.path, path.resolve(expected.path));
+      assert.equal(persistedRepo.defaultBranch, expected.defaultBranch);
+      assert.equal(persistedRepo.remote, expected.remote);
+      assert.equal(persistedRepo.role, expected.role);
+    }
+
+    // 7. Secret safety: verify NO PAT, token, password, or credentials leaked into persisted config
+    const secretKeys = [
+      "pat",
+      "token",
+      "password",
+      "secret",
+      "credentials",
+      "accesstoken",
+      "apikey",
+    ];
+
+    const verifyNoSecretKeys = (obj: unknown, prefix = ""): void => {
+      if (!obj || typeof obj !== "object") return;
+      for (const [key, value] of Object.entries(obj)) {
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        const lowerKey = key.toLowerCase();
+        for (const secret of secretKeys) {
+          assert.notEqual(
+            lowerKey,
+            secret,
+            `Persisted project contains sensitive key "${fullKey}"`,
+          );
+        }
+        if (typeof value === "object" && value !== null) {
+          verifyNoSecretKeys(value, fullKey);
+        }
+      }
+    };
+
+    verifyNoSecretKeys(persistedProject);
+    verifyNoSecretKeys(retrievedProject);
+  });
 });

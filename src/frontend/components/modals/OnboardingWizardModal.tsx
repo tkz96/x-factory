@@ -956,7 +956,11 @@ interface Step6ReviewProps {
   projectId: string;
   workspacePath: string;
   tracker: string;
+  provider?: string | undefined;
+  gitHost?: string | undefined;
   quickUrl: string;
+  repositories?: ProjectRepository[] | undefined;
+  primaryRepoId?: string | null | undefined;
   isSubmitting: boolean;
   duplicateStatus: DuplicateDetectionResult;
   isProjectsLoading?: boolean;
@@ -1060,12 +1064,16 @@ function Step6WarningBanner({
   return null;
 }
 
-function Step6Review({
+export function Step6Review({
   projectName,
   projectId,
   workspacePath,
   tracker,
+  provider,
+  gitHost,
   quickUrl,
+  repositories = [],
+  primaryRepoId,
   isSubmitting,
   duplicateStatus,
   isProjectsLoading,
@@ -1081,6 +1089,9 @@ function Step6Review({
     isSubmitting ||
     isChecking ||
     Boolean(isProjectsError);
+
+  const displayProvider = provider || gitHost || tracker;
+  const effectivePrimaryId = primaryRepoId ?? repositories[0]?.id ?? null;
 
   return (
     <div id="onboard-step-6" className="wizard-pane active">
@@ -1100,24 +1111,104 @@ function Step6Review({
       <div className="project-detail-meta-grid card mt-4">
         <div className="project-meta-item">
           <strong>Project Name</strong>
-          <span>{projectName}</span>
+          <span id="review-project-name">{projectName}</span>
         </div>
         <div className="project-meta-item">
           <strong>Project ID</strong>
-          <code>{projectId}</code>
+          <code id="review-project-id">{projectId}</code>
         </div>
         <div className="project-meta-item">
           <strong>Workspace</strong>
-          <code>{workspacePath}</code>
+          <code id="review-workspace-path">{workspacePath}</code>
+        </div>
+        <div className="project-meta-item">
+          <strong>Provider</strong>
+          <span id="review-provider">{displayProvider}</span>
         </div>
         <div className="project-meta-item">
           <strong>Tracker</strong>
-          <span>{tracker}</span>
+          <span id="review-tracker">{tracker}</span>
+        </div>
+        <div className="project-meta-item">
+          <strong>Repository Count</strong>
+          <span id="review-repository-count">{repositories.length}</span>
         </div>
         {quickUrl && (
           <div className="project-meta-item">
             <strong>Remote URL</strong>
-            <code>{quickUrl}</code>
+            <code id="review-remote-url">{quickUrl}</code>
+          </div>
+        )}
+      </div>
+
+      <div className="review-repositories-section mt-4">
+        <h4 className="mb-2">
+          Configured Repositories ({repositories.length})
+        </h4>
+        {repositories.length === 0 ? (
+          <div className="card p-4 text-muted" id="review-no-repos">
+            No repositories configured.
+          </div>
+        ) : (
+          <div className="review-repos-table-container">
+            <table className="review-repos-table" id="review-repos-table">
+              <thead>
+                <tr>
+                  <th>Repository</th>
+                  <th>Role</th>
+                  <th>Primary</th>
+                  <th>Local Path</th>
+                  <th>Default Branch</th>
+                  <th>Remote URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {repositories.map((repo) => {
+                  const isPrimary = repo.id === effectivePrimaryId;
+                  return (
+                    <tr
+                      key={repo.id}
+                      className={`review-repo-row ${isPrimary ? "primary" : ""}`}
+                      data-repo-id={repo.id}
+                      data-is-primary={isPrimary ? "true" : "false"}
+                    >
+                      <td>
+                        <span className="repo-name font-semibold">
+                          {repo.name}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge badge-neutral">
+                          {repo.role || "other"}
+                        </span>
+                      </td>
+                      <td>
+                        {isPrimary ? (
+                          <span className="badge badge-primary-repo">
+                            Primary
+                          </span>
+                        ) : (
+                          <span className="text-muted text-footnote">No</span>
+                        )}
+                      </td>
+                      <td>
+                        <code className="text-footnote">{repo.path}</code>
+                      </td>
+                      <td>
+                        <span className="badge badge-neutral">
+                          {repo.defaultBranch || "main"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="text-muted text-footnote code-text">
+                          {repo.remote || "no-remote"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -1330,7 +1421,7 @@ export function OnboardingWizardModal() {
     }
 
     if (
-      (next === 4 || next === 5) &&
+      (next === 4 || next === 5 || next === 6) &&
       Object.keys(repoConfigs).length === 0 &&
       discoveredRepositories.length > 0
     ) {
@@ -1417,14 +1508,18 @@ export function OnboardingWizardModal() {
       const trimmedProjectId = projectId.trim();
       const trimmedName = projectName.trim() || trimmedProjectId;
       const trimmedWs = workspacePath.trim();
-      const repoPath = `${trimmedWs.replace(/\/+$/, "")}/${trimmedProjectId}`;
+      const primaryRepo = configuredRepositories[0];
+      const repoPath =
+        primaryRepo?.path ||
+        `${trimmedWs.replace(/\/+$/, "")}/${trimmedProjectId}`;
+      const defaultBranch = primaryRepo?.defaultBranch || "main";
 
       const payload = {
         id: trimmedProjectId,
         name: trimmedName,
         workspacePath: trimmedWs || undefined,
         repositoryPath: repoPath,
-        defaultBranch: "main",
+        defaultBranch,
         issueTracker: {
           provider: tracker as "azure" | "github" | "jira",
           connectionId: tracker,
@@ -1444,20 +1539,14 @@ export function OnboardingWizardModal() {
                 }
               : undefined,
         },
-        repositories: [
-          {
-            id: trimmedProjectId,
-            name: trimmedProjectId,
-            path: repoPath,
-            defaultBranch: "main",
-            remote:
-              quickUrl.trim() ||
-              (tracker === "github" && trackerProject.trim()
-                ? `https://github.com/${trackerProject.trim()}`
-                : undefined),
-            role: "backend",
-          },
-        ],
+        repositories: configuredRepositories.map((repo) => ({
+          id: repo.id,
+          name: repo.name,
+          path: repo.path,
+          defaultBranch: repo.defaultBranch || "main",
+          remote: repo.remote,
+          role: repo.role,
+        })),
       };
 
       const res = await fetch("/api/projects", {
@@ -1622,8 +1711,12 @@ export function OnboardingWizardModal() {
               projectName={projectName}
               projectId={projectId}
               workspacePath={workspacePath}
+              provider={gitHost}
+              gitHost={gitHost}
               tracker={tracker}
               quickUrl={quickUrl}
+              repositories={configuredRepositories}
+              primaryRepoId={primaryRepoId}
               isSubmitting={isSubmitting}
               duplicateStatus={duplicateStatus}
               isProjectsLoading={isProjectsLoading}
