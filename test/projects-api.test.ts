@@ -459,6 +459,7 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.isGitRepo, true);
     assert.equal(body.currentBranch, undefined);
     assert.notEqual(body.currentBranch, "main");
+    assert.equal(body.readiness.status, "pending_setup");
   });
 
   it("POST /api/discovery/validate-path routes through discovery namespace", async () => {

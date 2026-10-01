@@ -279,8 +279,9 @@ export async function evaluateRepositoryReadiness(
     ["rev-parse", "--abbrev-ref", "HEAD"],
     { cwd: repo.path },
   );
+  const branch = branchResult.stdout.trim();
   const branchDetected =
-    branchResult.exitCode === 0 && Boolean(branchResult.stdout.trim());
+    branchResult.exitCode === 0 && branch.length > 0 && branch !== "HEAD";
   const ready = remoteMatches && branchDetected;
   const outcome = getReadinessOutcome(ready, remoteMatches);
 

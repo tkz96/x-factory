@@ -213,6 +213,34 @@ describe("Deterministic Inspection", () => {
         await rm(dir, { recursive: true, force: true });
       }
     });
+
+    it("returns pending_setup when checkout is in detached HEAD state", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-detached-"));
+      try {
+        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["config", "user.email", "test@test.com"], {
+          cwd: dir,
+        });
+        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await writeFile(path.join(dir, "README.md"), "# Detached\n");
+        await execStrict("git", ["add", "-A"], { cwd: dir });
+        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+        await execStrict("git", ["checkout", "--detach"], { cwd: dir });
+
+        const readiness = await evaluateRepositoryReadiness({
+          id: "repo-1",
+          name: "Repo 1",
+          path: dir,
+          defaultBranch: "main",
+        });
+
+        assert.equal(readiness.status, "pending_setup");
+        assert.equal(readiness.branchDetected, false);
+        assert.equal(readiness.message, "Repository requires local setup.");
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("checkProjectReadiness", () => {
