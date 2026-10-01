@@ -1109,6 +1109,9 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
 
       // Initially all 3 are selected
       expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r2", "r3"]);
+      const card2 = container.querySelector('[data-repo-id="r2"]');
+      expect(card2?.classList.contains("selected")).toBe(true);
+      expect(card2?.classList.contains("deselected")).toBe(false);
 
       // Deselect r2
       const select2 = container.querySelector(
@@ -1120,6 +1123,8 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       });
 
       expect(select2.checked).toBe(false);
+      expect(card2?.classList.contains("deselected")).toBe(true);
+      expect(card2?.classList.contains("selected")).toBe(false);
       expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r3"]);
 
       // Deselect r3
@@ -1139,6 +1144,8 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       });
 
       expect(select2.checked).toBe(true);
+      expect(card2?.classList.contains("selected")).toBe(true);
+      expect(card2?.classList.contains("deselected")).toBe(false);
       expect(latestConfig.map((r) => r.id)).toEqual(["r1", "r2"]);
     });
 

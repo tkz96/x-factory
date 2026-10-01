@@ -506,7 +506,7 @@
   transition: all var(--transition);
 }
 
-.repo-config-card.repo-config-card-deselected {
+.repo-config-card.deselected {
   opacity: 0.55;
   background: var(--bg-hover);
 }
