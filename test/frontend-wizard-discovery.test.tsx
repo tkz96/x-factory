@@ -1,6 +1,9 @@
 /// <reference lib="dom" />
-import "./setup-happy-dom.js";
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { GlobalRegistrator } from "@happy-dom/global-registrator";
+
+GlobalRegistrator.register();
+
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -17,6 +20,9 @@ const mockDiscoverRepositories = mock<any>(async () => {
 const mockTestAzureScopes = mock<any>(async () => {
   return { ok: true, overPrivileged: false, scopes: {} };
 });
+let mockProjects: any[] = [];
+const mockGetProjects = mock<any>(async () => mockProjects);
+
 // Mock fetch for createProject
 const mockFetch = mock<any>(async () => {
   return new Response(JSON.stringify({ id: "test-id" }), {
@@ -24,13 +30,13 @@ const mockFetch = mock<any>(async () => {
     headers: { "Content-Type": "application/json" },
   });
 });
-global.fetch = mockFetch as any;
 
 mock.module("../src/frontend/lib/api-client.js", () => {
   return {
     api: {
       discoverRepositories: mockDiscoverRepositories,
       testAzureScopes: mockTestAzureScopes,
+      getProjects: mockGetProjects,
     },
   };
 });
@@ -61,11 +67,17 @@ function TestWrapper() {
 }
 
 describe("Frontend Wizard Discovery (Step 3)", () => {
+  afterAll(() => {
+    GlobalRegistrator.unregister();
+  });
+
   beforeEach(async () => {
     if (!userEvent) {
       const module = await import("@testing-library/user-event");
       userEvent = module.default;
     }
+    mockProjects = [];
+    mockGetProjects.mockClear();
     mockDiscoverRepositories.mockClear();
     mockTestAzureScopes.mockClear();
     mockFetch.mockClear();
@@ -83,6 +95,7 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
 
     await act(async () => {
       await userEvent.type(nameInput, "Test Project");
+      await userEvent.clear(idInput);
       await userEvent.type(idInput, "test-project");
     });
 
@@ -576,18 +589,298 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
     const step6Next = container.querySelector(
       "#btn-onboard-submit",
     ) as HTMLButtonElement;
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch as any;
+    try {
+      await act(async () => {
+        fireEvent.click(step6Next);
+      });
+
+      // Check createProject payload
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const callArgs = mockFetch.mock.calls[0] as any;
+      expect(callArgs[0]).toBe("/api/projects");
+      const payload = JSON.parse(callArgs[1].body);
+
+      // PAT should NOT be in the issue tracker configuration
+      expect(payload.issueTracker?.azure?.pat).toBeUndefined();
+      expect(callArgs[1].body).not.toContain("fake-pat");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  async function advanceToStep6(container: HTMLElement) {
+    await advanceToStep3(container);
+
+    await waitFor(() => {
+      expect(container.querySelector("#btn-step-3-next")).not.toBeNull();
+    });
+    const step3Next = container.querySelector(
+      "#btn-step-3-next",
+    ) as HTMLButtonElement;
     await act(async () => {
-      fireEvent.click(step6Next);
+      fireEvent.click(step3Next);
     });
 
-    // Check createProject payload
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const callArgs = mockFetch.mock.calls[0] as any;
-    expect(callArgs[0]).toBe("/api/projects");
-    const payload = JSON.parse(callArgs[1].body);
+    await waitFor(() => {
+      expect(container.querySelector("#btn-step-4-next")).not.toBeNull();
+    });
+    const step4Next = container.querySelector(
+      "#btn-step-4-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step4Next);
+    });
 
-    // PAT should NOT be in the issue tracker configuration
-    expect(payload.issueTracker?.azure?.pat).toBeUndefined();
-    expect(callArgs[1].body).not.toContain("fake-pat");
+    await waitFor(() => {
+      expect(container.querySelector("#btn-step-5-next")).not.toBeNull();
+    });
+    const step5Next = container.querySelector(
+      "#btn-step-5-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step5Next);
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector("#btn-onboard-submit")).not.toBeNull();
+    });
+  }
+
+  it("Wizard UI disables Create for an ID collision and shows warning", async () => {
+    mockProjects = [
+      {
+        id: "test-project",
+        name: "Existing Test Project",
+        issueTracker: { provider: "azure" },
+        repositories: [],
+      },
+    ];
+
+    const { container } = render(<TestWrapper />);
+    await advanceToStep6(container);
+
+    await waitFor(() => {
+      const warningCard = container.querySelector(".duplicate-warning-card");
+      expect(warningCard).not.toBeNull();
+      expect(warningCard?.textContent).toContain(
+        'Project ID "test-project" is already in use.',
+      );
+      expect(warningCard?.textContent).toContain(
+        "Existing project: Existing Test Project",
+      );
+    });
+
+    const submitBtn = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(true);
+
+    const link = container.querySelector(
+      ".duplicate-warning-card a",
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute("href")).toBe("/projects/test-project");
+    expect(link.textContent).toContain("Open Existing Project");
+  });
+
+  it("Wizard UI disables Create for an external match, shows details, and renders existing project link", async () => {
+    mockProjects = [
+      {
+        id: "existing-converso-id",
+        name: "Converso Production",
+        archived: true,
+        issueTracker: {
+          provider: "azure",
+          azure: {
+            orgUrl: "https://dev.azure.com/xynotech",
+            project: "Converso",
+          },
+        },
+        repositories: [],
+      },
+    ];
+
+    const { container } = render(<TestWrapper />);
+    await advanceToStep6(container);
+
+    await waitFor(() => {
+      const warningCard = container.querySelector(".duplicate-warning-card");
+      expect(warningCard).not.toBeNull();
+      expect(warningCard?.textContent).toContain(
+        "This project is already onboarded.",
+      );
+      expect(warningCard?.textContent).toContain(
+        "Existing project: Converso Production",
+      );
+      expect(warningCard?.textContent).toContain("(Archived)");
+      expect(warningCard?.textContent).toContain(
+        "Azure DevOps: xynotech / Converso",
+      );
+    });
+
+    const submitBtn = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(true);
+
+    const link = container.querySelector(
+      ".duplicate-warning-card a",
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute("href")).toBe("/projects/existing-converso-id");
+    expect(link.textContent).toContain("Open Existing Project");
+  });
+
+  it("Changing ID clears previous duplicate warning in the wizard UI", async () => {
+    mockProjects = [
+      {
+        id: "test-project",
+        name: "Existing Test Project",
+        issueTracker: { provider: "github", github: { repo: "other/repo" } },
+        repositories: [],
+      },
+    ];
+
+    const { container } = render(<TestWrapper />);
+    await advanceToStep6(container);
+
+    await waitFor(() => {
+      expect(container.querySelector(".duplicate-warning-card")).not.toBeNull();
+    });
+    const submitBtn = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(true);
+
+    // Navigate back to Step 1
+    for (let i = 6; i >= 2; i--) {
+      const backBtn = Array.from(
+        container.querySelectorAll(".modal-actions button.btn-secondary"),
+      ).find((b) => b.textContent?.includes("Back")) as HTMLButtonElement;
+      expect(backBtn).toBeDefined();
+      await act(async () => {
+        fireEvent.click(backBtn);
+      });
+      await waitFor(() => {
+        expect(
+          container.querySelector(`#onboard-step-${i - 1}`),
+        ).not.toBeNull();
+      });
+    }
+
+    // Now on Step 1, change Project ID to something unique
+    const idInput = container.querySelector(
+      "#onboard-proj-id",
+    ) as HTMLInputElement;
+    await act(async () => {
+      await userEvent.clear(idInput);
+      await userEvent.type(idInput, "unique-new-project-id");
+    });
+
+    // Advance forward back to Step 6
+    const step1Next = container.querySelector(
+      "#btn-step-1-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step1Next);
+    });
+
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-2-next")).not.toBeNull(),
+    );
+    const step2Next = container.querySelector(
+      "#btn-step-2-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step2Next);
+    });
+
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-3-next")).not.toBeNull(),
+    );
+    const step3Next = container.querySelector(
+      "#btn-step-3-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step3Next);
+    });
+
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-4-next")).not.toBeNull(),
+    );
+    const step4Next = container.querySelector(
+      "#btn-step-4-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step4Next);
+    });
+
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-5-next")).not.toBeNull(),
+    );
+    const step5Next = container.querySelector(
+      "#btn-step-5-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step5Next);
+    });
+
+    // Step 6 reached
+    await waitFor(() => {
+      expect(container.querySelector("#btn-onboard-submit")).not.toBeNull();
+    });
+
+    // Warning card should be gone and submit button should be enabled
+    expect(container.querySelector(".duplicate-warning-card")).toBeNull();
+    const submitBtnFinal = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtnFinal.disabled).toBe(false);
+  });
+
+  it("Wizard blocks creation and disables button while all-projects query is loading", async () => {
+    mockGetProjects.mockImplementationOnce(() => new Promise(() => {}));
+
+    const { container } = render(<TestWrapper />);
+    await advanceToStep6(container);
+
+    await waitFor(() => {
+      const card = container.querySelector(".duplicate-warning-card");
+      expect(card).not.toBeNull();
+      expect(card?.textContent).toContain("Checking for existing projects…");
+    });
+
+    const submitBtn = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(true);
+  });
+
+  it("Wizard blocks creation and disables button while all-projects query fails with error", async () => {
+    mockGetProjects.mockRejectedValueOnce(
+      new Error("Database connection error"),
+    );
+
+    const { container } = render(<TestWrapper />);
+    await advanceToStep6(container);
+
+    await waitFor(() => {
+      const card = container.querySelector(".duplicate-warning-card");
+      expect(card).not.toBeNull();
+      expect(card?.textContent).toContain(
+        "Unable to verify project uniqueness.",
+      );
+      expect(card?.textContent).toContain(
+        "Failed to load existing projects. Please retry before creating.",
+      );
+    });
+
+    const submitBtn = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(true);
   });
 });

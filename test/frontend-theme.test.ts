@@ -39,20 +39,22 @@ describe("Theme Architecture & Persistence (useTheme)", () => {
       .localStorage;
 
     try {
-      Object.defineProperty(globalThis, "document", {
-        value: { documentElement: mockElement },
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(globalThis, "localStorage", {
-        value: {
-          setItem(k: string, v: string) {
-            mockStorage[k] = v;
-          },
+      (
+        globalThis as unknown as {
+          document: { documentElement: typeof mockElement };
+        }
+      ).document = {
+        documentElement: mockElement,
+      };
+      (
+        globalThis as unknown as {
+          localStorage: { setItem: (k: string, v: string) => void };
+        }
+      ).localStorage = {
+        setItem(k: string, v: string) {
+          mockStorage[k] = v;
         },
-        writable: true,
-        configurable: true,
-      });
+      };
 
       applyThemeToDocument("light");
       expect(mockElement.attributes["data-theme"]).toBe("light");
@@ -65,20 +67,12 @@ describe("Theme Architecture & Persistence (useTheme)", () => {
       if (originalDoc === undefined) {
         delete (globalThis as Record<string, unknown>).document;
       } else {
-        Object.defineProperty(globalThis, "document", {
-          value: originalDoc,
-          writable: true,
-          configurable: true,
-        });
+        (globalThis as Record<string, unknown>).document = originalDoc;
       }
       if (originalStorage === undefined) {
         delete (globalThis as Record<string, unknown>).localStorage;
       } else {
-        Object.defineProperty(globalThis, "localStorage", {
-          value: originalStorage,
-          writable: true,
-          configurable: true,
-        });
+        (globalThis as Record<string, unknown>).localStorage = originalStorage;
       }
     }
   });

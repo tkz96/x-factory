@@ -1,10 +1,16 @@
 export function matchAzureRemote(trimmed: string): string | null {
   // Azure DevOps SSH: git@ssh.dev.azure.com:v3/org/project/repo
   const azSsh = trimmed.match(
-    /^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i,
+    /^(?:(?:git@|ssh:\/\/git@))?ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+)/i,
   );
   if (azSsh?.[1] && azSsh[2] && azSsh[3]) {
-    return `azure:${azSsh[1].toLowerCase()}/${azSsh[2].toLowerCase()}/${azSsh[3].replace(/\.git$/, "").toLowerCase()}`;
+    const org = azSsh[1].toLowerCase();
+    const proj = azSsh[2].toLowerCase();
+    const repo = azSsh[3]
+      .replace(/\.git\/?$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    return `azure:${org}/${proj}/${repo}`;
   }
 
   // Azure DevOps HTTPS: https://(user@)?dev.azure.com/org/project/_git/repo
@@ -12,7 +18,13 @@ export function matchAzureRemote(trimmed: string): string | null {
     /^(?:https?:\/\/)?(?:[^@/]+@)?dev\.azure\.com\/([^/]+)\/([^/]+)(?:\/_git\/|\/)([^/]+)/i,
   );
   if (azHttps?.[1] && azHttps[2] && azHttps[3]) {
-    return `azure:${azHttps[1].toLowerCase()}/${azHttps[2].toLowerCase()}/${azHttps[3].replace(/\.git$/, "").toLowerCase()}`;
+    const org = azHttps[1].toLowerCase();
+    const proj = azHttps[2].toLowerCase();
+    const repo = azHttps[3]
+      .replace(/\.git\/?$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    return `azure:${org}/${proj}/${repo}`;
   }
 
   // Azure DevOps VisualStudio: https://(user@)?org.visualstudio.com/project/_git/repo
@@ -20,7 +32,13 @@ export function matchAzureRemote(trimmed: string): string | null {
     /^(?:https?:\/\/)?(?:[^@/]+@)?([^.]+)\.visualstudio\.com\/([^/]+)(?:\/_git\/|\/)([^/]+)/i,
   );
   if (azVs?.[1] && azVs[2] && azVs[3]) {
-    return `azure:${azVs[1].toLowerCase()}/${azVs[2].toLowerCase()}/${azVs[3].replace(/\.git$/, "").toLowerCase()}`;
+    const org = azVs[1].toLowerCase();
+    const proj = azVs[2].toLowerCase();
+    const repo = azVs[3]
+      .replace(/\.git\/?$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    return `azure:${org}/${proj}/${repo}`;
   }
 
   return null;
@@ -28,10 +46,15 @@ export function matchAzureRemote(trimmed: string): string | null {
 
 export function matchGitHubRemote(trimmed: string): string | null {
   const ghMatch = trimmed.match(
-    /^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|(?:git@)?github\.com:)([^/]+)\/([^/]+)/i,
+    /^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com\/|(?:git@)?github\.com:)([^/]+)\/([^/]+)/i,
   );
   if (ghMatch?.[1] && ghMatch[2]) {
-    return `github:${ghMatch[1].toLowerCase()}/${ghMatch[2].replace(/\.git$/, "").toLowerCase()}`;
+    const owner = ghMatch[1].toLowerCase();
+    const repo = ghMatch[2]
+      .replace(/\.git\/?$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    return `github:${owner}/${repo}`;
   }
   return null;
 }
@@ -41,13 +64,13 @@ export function cleanGenericRemote(trimmed: string): string {
     .replace(/^(?:https?|ssh|git):\/\//i, "")
     .replace(/^[^@/]+@/, "")
     .replace(/:/g, "/")
-    .replace(/\.git$/, "")
+    .replace(/\.git\/?$/, "")
     .replace(/\/+$/, "")
     .toLowerCase();
 }
 
 export function normalizeGitRemoteUrl(url?: string): string {
-  if (!url) return "";
+  if (!url || typeof url !== "string") return "";
   const trimmed = url.trim();
   return (
     matchAzureRemote(trimmed) ||

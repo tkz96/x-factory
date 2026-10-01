@@ -2,12 +2,6 @@
 
 import path from "node:path";
 import { z } from "zod/v4";
-import {
-  normalizeAzureOrganization,
-  normalizeAzureProject,
-  normalizeGitHubRepository,
-  normalizeProjectId,
-} from "./shared/normalization.js";
 import type {
   AzureTrackerConfig,
   GitHubTrackerConfig,
@@ -302,7 +296,7 @@ function _parseLegacy(obj: Record<string, unknown>): Project {
   const issueTracker = _parseIssueTracker(d.issueTracker, d.id);
 
   return {
-    id: normalizeProjectId(d.id),
+    id: d.id,
     name: d.name,
     workspacePath: d.workspacePath,
     commandTimeoutMs: d.commandTimeoutMs,
@@ -361,7 +355,7 @@ function _parseModern(obj: Record<string, unknown>): Project {
   }
 
   return {
-    id: normalizeProjectId(d.id),
+    id: d.id,
     name: d.name,
     workspacePath: d.workspacePath,
     commandTimeoutMs: d.commandTimeoutMs,
@@ -400,12 +394,8 @@ function parseAzureTrackerConfig(
   if (t.azure && typeof t.azure === "object") {
     const a = t.azure as Record<string, unknown>;
     return {
-      orgUrl:
-        typeof a.orgUrl === "string"
-          ? normalizeAzureOrganization(a.orgUrl)
-          : "",
-      project:
-        typeof a.project === "string" ? normalizeAzureProject(a.project) : "",
+      orgUrl: typeof a.orgUrl === "string" ? a.orgUrl.trim() : "",
+      project: typeof a.project === "string" ? a.project.trim() : "",
       requiredLabel:
         typeof a.requiredLabel === "string" && a.requiredLabel.trim()
           ? a.requiredLabel.trim()
@@ -418,11 +408,8 @@ function parseAzureTrackerConfig(
     t.projectId.trim()
   ) {
     return {
-      orgUrl:
-        typeof t.orgUrl === "string"
-          ? normalizeAzureOrganization(t.orgUrl as string)
-          : "",
-      project: normalizeAzureProject(t.projectId as string),
+      orgUrl: typeof t.orgUrl === "string" ? (t.orgUrl as string).trim() : "",
+      project: t.projectId.trim(),
     };
   }
   return undefined;
@@ -452,7 +439,7 @@ function parseGitHubTrackerConfig(
   if (t.github && typeof t.github === "object") {
     const g = t.github as Record<string, unknown>;
     return {
-      repo: typeof g.repo === "string" ? normalizeGitHubRepository(g.repo) : "",
+      repo: typeof g.repo === "string" ? g.repo.trim() : "",
       requiredLabel:
         typeof g.requiredLabel === "string" && g.requiredLabel.trim()
           ? g.requiredLabel.trim()
@@ -470,17 +457,13 @@ function _parseIssueTracker(
     return { provider: "github", connectionId: "github" };
   }
   const t = raw as Record<string, unknown>;
-  const rawProvider = (
-    (typeof t.provider === "string" && t.provider.trim()
-      ? t.provider.trim()
-      : "") ||
+  const provider = ((typeof t.provider === "string" && t.provider.trim()
+    ? t.provider.trim()
+    : "") ||
     (typeof t.connectionId === "string" && t.connectionId.trim()
       ? t.connectionId.trim()
       : "") ||
-    "github"
-  ).toLowerCase();
-
-  const provider = rawProvider as IssueTrackerProvider;
+    "github") as IssueTrackerProvider;
 
   const result: ProjectIssueTracker = {
     provider,

@@ -23,6 +23,113 @@ export interface DuplicateDetectionResult {
   existingProject?: Project;
 }
 
+function checkLocalIdCollision(
+  projects: Project[],
+  newId: string,
+): Project | undefined {
+  const normId = normalizeProjectId(newId);
+  if (!normId) return undefined;
+  return projects.find((p) => p.id && normalizeProjectId(p.id) === normId);
+}
+
+function matchesAzureIdentity(
+  p: Project,
+  targetOrgUrl: string,
+  targetProject: string,
+): boolean {
+  if (!p.issueTracker?.azure) return false;
+  const existingOrg = normalizeAzureOrganization(
+    p.issueTracker.azure.orgUrl || "",
+  );
+  const existingProj = normalizeAzureProject(
+    p.issueTracker.azure.project || "",
+  );
+  const targetOrg = normalizeAzureOrganization(targetOrgUrl || "");
+  const targetProj = normalizeAzureProject(targetProject || "");
+
+  return Boolean(
+    existingOrg &&
+      existingProj &&
+      targetOrg &&
+      targetProj &&
+      existingOrg === targetOrg &&
+      existingProj === targetProj,
+  );
+}
+
+function matchesGitHubIdentity(
+  p: Project,
+  targetProject: string,
+  targetOrgUrl: string,
+): boolean {
+  if (!p.issueTracker?.github) return false;
+  const existingRepo = normalizeGitHubRepository(
+    p.issueTracker.github.repo || "",
+  );
+  const targetRepo = normalizeGitHubRepository(
+    targetProject || targetOrgUrl || "",
+  );
+
+  return Boolean(existingRepo && targetRepo && existingRepo === targetRepo);
+}
+
+function checkExternalProviderMatch(
+  projects: Project[],
+  newProvider: string,
+  newTrackerOrgUrl: string,
+  newTrackerProject: string,
+): Project | undefined {
+  const normProvider = (newProvider || "").toLowerCase().trim();
+  if (!normProvider) return undefined;
+
+  for (const p of projects) {
+    const existingProvider = (p.issueTracker?.provider || "")
+      .toLowerCase()
+      .trim();
+    if (existingProvider !== normProvider) continue;
+
+    if (
+      normProvider === "azure" &&
+      matchesAzureIdentity(p, newTrackerOrgUrl, newTrackerProject)
+    ) {
+      return p;
+    }
+    if (
+      normProvider === "github" &&
+      matchesGitHubIdentity(p, newTrackerProject, newTrackerOrgUrl)
+    ) {
+      return p;
+    }
+  }
+  return undefined;
+}
+
+function checkDiscoveredRemoteMatch(
+  projects: Project[],
+  discoveredRepositories: Array<{ remote?: string | undefined }>,
+): Project | undefined {
+  if (!discoveredRepositories || !Array.isArray(discoveredRepositories)) {
+    return undefined;
+  }
+
+  for (const repo of discoveredRepositories) {
+    if (!repo?.remote) continue;
+    const normalizedNewRemote = normalizeGitRemoteUrl(repo.remote);
+    if (!normalizedNewRemote) continue;
+
+    for (const p of projects) {
+      if (!p.repositories || !Array.isArray(p.repositories)) continue;
+      for (const pRepo of p.repositories) {
+        if (!pRepo?.remote) continue;
+        if (normalizeGitRemoteUrl(pRepo.remote) === normalizedNewRemote) {
+          return p;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 export function findDuplicateProject(
   projects: Project[],
   newId: string,
@@ -31,11 +138,8 @@ export function findDuplicateProject(
   newTrackerProject: string,
   discoveredRepositories: Array<{ remote?: string | undefined }> = [],
 ): DuplicateDetectionResult {
-  const normId = normalizeProjectId(newId);
-
   // 1. Exact local Project ID collision
-  const idCollision = projects.find((p) => normalizeProjectId(p.id) === normId);
-
+  const idCollision = checkLocalIdCollision(projects, newId);
   if (idCollision) {
     return {
       isDuplicate: true,
@@ -45,57 +149,31 @@ export function findDuplicateProject(
   }
 
   // 2. Same external project identity
-  for (const p of projects) {
-    if (p.issueTracker.provider !== newProvider) {
-      continue;
-    }
-
-    if (newProvider === "azure" && p.issueTracker.azure) {
-      if (
-        normalizeAzureOrganization(p.issueTracker.azure.orgUrl) ===
-          normalizeAzureOrganization(newTrackerOrgUrl) &&
-        normalizeAzureProject(p.issueTracker.azure.project) ===
-          normalizeAzureProject(newTrackerProject)
-      ) {
-        return {
-          isDuplicate: true,
-          type: "external_identity",
-          existingProject: p,
-        };
-      }
-    }
-
-    if (newProvider === "github" && p.issueTracker.github) {
-      if (
-        normalizeGitHubRepository(p.issueTracker.github.repo) ===
-        normalizeGitHubRepository(newTrackerProject)
-      ) {
-        return {
-          isDuplicate: true,
-          type: "external_identity",
-          existingProject: p,
-        };
-      }
-    }
+  const externalMatch = checkExternalProviderMatch(
+    projects,
+    newProvider,
+    newTrackerOrgUrl,
+    newTrackerProject,
+  );
+  if (externalMatch) {
+    return {
+      isDuplicate: true,
+      type: "external_identity",
+      existingProject: externalMatch,
+    };
   }
 
   // 3. Match discovered repository remotes
-  for (const repo of discoveredRepositories) {
-    if (!repo.remote) continue;
-    const normalizedNewRemote = normalizeGitRemoteUrl(repo.remote);
-
-    for (const p of projects) {
-      for (const pRepo of p.repositories) {
-        if (!pRepo.remote) continue;
-        if (normalizeGitRemoteUrl(pRepo.remote) === normalizedNewRemote) {
-          return {
-            isDuplicate: true,
-            type: "external_identity",
-            existingProject: p,
-          };
-        }
-      }
-    }
+  const remoteMatch = checkDiscoveredRemoteMatch(
+    projects,
+    discoveredRepositories,
+  );
+  if (remoteMatch) {
+    return {
+      isDuplicate: true,
+      type: "external_identity",
+      existingProject: remoteMatch,
+    };
   }
 
   return { isDuplicate: false };
