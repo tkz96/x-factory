@@ -125,16 +125,15 @@ async function handleInspectRepository(req: Request): Promise<Response> {
       return catchHttpErrors(async () => {
         const result = await inspectLocalRepository(repoPath);
         const status = !result.exists
-          ? "error"
+          ? "pending_setup"
           : !result.isGitRepo
-            ? "pending_setup"
+            ? "error"
             : "ready";
-        const message =
-          result.exists && result.isGitRepo
-            ? "Ready"
-            : result.exists
-              ? "Pending Git init"
-              : "Directory missing";
+        const message = !result.exists
+          ? `Local directory not found at ${repoPath}`
+          : !result.isGitRepo
+            ? "Directory exists but is not a Git repository."
+            : "Ready";
         return jsonResponse({
           ...result,
           readiness: {

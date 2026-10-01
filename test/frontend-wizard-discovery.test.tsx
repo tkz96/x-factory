@@ -1,11 +1,29 @@
 /// <reference lib="dom" />
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
-GlobalRegistrator.register();
+try {
+  GlobalRegistrator.register();
+} catch {
+  // already registered
+}
 
-import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import {
@@ -13,9 +31,9 @@ import {
   Step4Repositories,
 } from "../src/frontend/components/modals/OnboardingWizardModal.js";
 import {
-  type RepoItemConfig,
   type DiscoveredRepositoryLike,
   deriveConfiguredRepositories,
+  type RepoItemConfig,
   validateRepositorySelection,
 } from "../src/frontend/lib/wizard-repositories.js";
 import type { ProjectRepository } from "../src/shared/types.js";
@@ -41,12 +59,28 @@ const mockFetch = mock<any>(async () => {
   });
 });
 
+const mockInspectRepository = mock<any>(async ({ path }: { path: string }) => {
+  return {
+    path,
+    exists: true,
+    isGitRepo: true,
+    defaultBranch: "main",
+    detectedCommands: { test: "bun test" },
+    detectedTooling: ["bun"],
+    readiness: {
+      status: "ready",
+      message: "Ready",
+    },
+  };
+});
+
 mock.module("../src/frontend/lib/api-client.js", () => {
   return {
     api: {
       discoverRepositories: mockDiscoverRepositories,
       testAzureScopes: mockTestAzureScopes,
       getProjects: mockGetProjects,
+      inspectRepository: mockInspectRepository,
     },
   };
 });
@@ -77,7 +111,11 @@ function TestWrapper() {
 describe("Frontend Wizard Discovery (Step 3)", () => {
   afterAll(async () => {
     await new Promise((r) => setTimeout(r, 100));
-    GlobalRegistrator.unregister();
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.body.innerHTML = "";
   });
 
   beforeEach(async () => {
@@ -1535,9 +1573,7 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
 
       // Verify first-entry-wins for dup-repo-1:
       // The displayed name must be "core-backend" (NOT "core-duplicate-ignored")
-      const dupCard = container.querySelector(
-        '[data-repo-id="dup-repo-1"]',
-      );
+      const dupCard = container.querySelector('[data-repo-id="dup-repo-1"]');
       expect(dupCard).not.toBeNull();
       expect(dupCard?.textContent).toContain("core-backend");
       expect(dupCard?.textContent).not.toContain("core-duplicate-ignored");
@@ -1549,9 +1585,7 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       const pathInput = container.querySelector(
         "#repo-path-dup-repo-1",
       ) as HTMLInputElement;
-      expect(pathInput.value).toBe(
-        "/Users/talhazuberi/projects/core-backend",
-      );
+      expect(pathInput.value).toBe("/Users/talhazuberi/projects/core-backend");
 
       // Its initial role must be derived from the first entry ("core-backend" -> "backend")
       const roleSelect = container.querySelector(

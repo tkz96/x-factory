@@ -9,7 +9,10 @@ import {
   findDuplicateProject,
   normalizeProjectId,
 } from "../../../shared/project-identity.js";
-import type { RepositoryRole } from "../../../shared/types.js";
+import type {
+  ProjectRepository,
+  RepositoryRole,
+} from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
@@ -17,6 +20,7 @@ import { invalidateProjects } from "../../lib/query-client.js";
 import {
   type DiscoveredRepositoryLike,
   deduplicateDiscoveredRepositories,
+  deriveConfiguredRepositories,
   getEffectiveRepoConfig,
   getInitialPrimaryRepoId,
   getInitialRepoConfigs,
@@ -833,22 +837,493 @@ export function Step4Repositories({
 // Step 5: Inspection
 // ---------------------------------------------------------------------------
 
-interface Step5InspectionProps {
+export type RepoInspectionStatus =
+  | "idle"
+  | "inspecting"
+  | "ready"
+  | "pending_setup"
+  | "error"
+  | "api_error";
+
+export interface RepoInspectionResult {
+  repoId: string;
+  status: RepoInspectionStatus;
+  message?: string | undefined;
+  exists?: boolean | undefined;
+  isGitRepo?: boolean | undefined;
+  detectedCommands?: Record<string, string> | undefined;
+  detectedTooling?: string[] | undefined;
+  defaultBranch?: string | undefined;
+  apiError?: string | undefined;
+}
+
+export interface Step5InspectionProps {
+  repositories: ProjectRepository[];
+  primaryRepoId?: string | null | undefined;
   onBack: () => void;
   onNext: () => void;
 }
 
-function Step5Inspection({ onBack, onNext }: Step5InspectionProps) {
+export function Step5Inspection({
+  repositories,
+  primaryRepoId,
+  onBack,
+  onNext,
+}: Step5InspectionProps) {
+  const [results, setResults] = useState<Record<string, RepoInspectionResult>>(
+    {},
+  );
+  const [isInspecting, setIsInspecting] = useState(false);
+
+  const effectivePrimaryId = primaryRepoId ?? repositories[0]?.id ?? null;
+
+  const runAllInspections = async (targetRepos: ProjectRepository[]) => {
+    if (targetRepos.length === 0) {
+      setResults({});
+      setIsInspecting(false);
+      return;
+    }
+
+    setIsInspecting(true);
+    const initial: Record<string, RepoInspectionResult> = {};
+    for (const r of targetRepos) {
+      initial[r.id] = { repoId: r.id, status: "inspecting" };
+    }
+    setResults(initial);
+
+    const inspected = await Promise.all(
+      targetRepos.map(async (repo): Promise<RepoInspectionResult> => {
+        try {
+          const res = await api.inspectRepository({ path: repo.path });
+          return {
+            repoId: repo.id,
+            status: res.readiness.status,
+            message: res.readiness.message,
+            exists: res.exists,
+            isGitRepo: res.isGitRepo,
+            detectedCommands: res.detectedCommands,
+            detectedTooling: res.detectedTooling,
+            defaultBranch: res.defaultBranch,
+          };
+        } catch (err) {
+          return {
+            repoId: repo.id,
+            status: "api_error",
+            apiError: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }),
+    );
+
+    const next: Record<string, RepoInspectionResult> = {};
+    for (const item of inspected) {
+      next[item.repoId] = item;
+    }
+    setResults(next);
+    setIsInspecting(false);
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (repositories.length === 0) {
+      setResults({});
+      setIsInspecting(false);
+      return;
+    }
+
+    setIsInspecting(true);
+    const initial: Record<string, RepoInspectionResult> = {};
+    for (const r of repositories) {
+      initial[r.id] = { repoId: r.id, status: "inspecting" };
+    }
+    setResults(initial);
+
+    Promise.all(
+      repositories.map(async (repo): Promise<RepoInspectionResult> => {
+        try {
+          const res = await api.inspectRepository({ path: repo.path });
+          return {
+            repoId: repo.id,
+            status: res.readiness.status,
+            message: res.readiness.message,
+            exists: res.exists,
+            isGitRepo: res.isGitRepo,
+            detectedCommands: res.detectedCommands,
+            detectedTooling: res.detectedTooling,
+            defaultBranch: res.defaultBranch,
+          };
+        } catch (err) {
+          return {
+            repoId: repo.id,
+            status: "api_error",
+            apiError: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }),
+    ).then((inspected) => {
+      if (!active) return;
+      const next: Record<string, RepoInspectionResult> = {};
+      for (const item of inspected) {
+        next[item.repoId] = item;
+      }
+      setResults(next);
+      setIsInspecting(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [repositories]);
+
+  const handleRetrySingle = async (repo: ProjectRepository) => {
+    setResults((prev) => ({
+      ...prev,
+      [repo.id]: { repoId: repo.id, status: "inspecting" },
+    }));
+
+    try {
+      const res = await api.inspectRepository({ path: repo.path });
+      setResults((prev) => ({
+        ...prev,
+        [repo.id]: {
+          repoId: repo.id,
+          status: res.readiness.status,
+          message: res.readiness.message,
+          exists: res.exists,
+          isGitRepo: res.isGitRepo,
+          detectedCommands: res.detectedCommands,
+          detectedTooling: res.detectedTooling,
+          defaultBranch: res.defaultBranch,
+        },
+      }));
+    } catch (err) {
+      setResults((prev) => ({
+        ...prev,
+        [repo.id]: {
+          repoId: repo.id,
+          status: "api_error",
+          apiError: err instanceof Error ? err.message : String(err),
+        },
+      }));
+    }
+  };
+
+  const allResults = repositories.map((r) => results[r.id]);
+  const hasInspecting =
+    isInspecting ||
+    repositories.some((r) => {
+      const res = results[r.id];
+      return !res || res.status === "inspecting" || res.status === "idle";
+    });
+
+  const hasApiError = repositories.some(
+    (r) => results[r.id]?.status === "api_error",
+  );
+  const hasConfigError = repositories.some(
+    (r) => results[r.id]?.status === "error",
+  );
+  const allReady =
+    repositories.length > 0 &&
+    !hasInspecting &&
+    !hasApiError &&
+    !hasConfigError &&
+    allResults.every((res) => res?.status === "ready");
+  const hasPendingSetup =
+    !hasInspecting &&
+    !hasApiError &&
+    !hasConfigError &&
+    allResults.some((res) => res?.status === "pending_setup");
+
+  const isNextDisabled =
+    repositories.length === 0 || hasInspecting || hasApiError || hasConfigError;
+
   return (
     <div id="onboard-step-5" className="wizard-pane active">
-      <h3>Prerequisite &amp; Tooling Inspection</h3>
-      <p className="text-muted">
-        Verifying Git worktrees, test runners, and tooling health.
-      </p>
-      <div className="card ready mt-4 p-4">
-        <span className="status-dot online mr-2" />
-        <span>Prerequisites and Git worktree isolation verified.</span>
+      <div className="section-header-flex">
+        <div>
+          <h3>Prerequisite &amp; Tooling Inspection</h3>
+          <p className="text-muted">
+            Inspecting local checkouts, Git directories, and tooling for
+            selected repositories.
+          </p>
+        </div>
+        {repositories.length > 0 && (
+          <button
+            type="button"
+            id="btn-recheck-inspection"
+            className="btn-secondary btn-sm"
+            onClick={() => runAllInspections(repositories)}
+            disabled={isInspecting}
+          >
+            <svg
+              className={`icon icon-sm ${isInspecting ? "spin" : ""}`}
+              aria-hidden="true"
+            >
+              <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
+            </svg>
+            <span>{isInspecting ? "Inspecting…" : "Re-inspect All"}</span>
+          </button>
+        )}
       </div>
+
+      <div className="inspection-summary mb-4">
+        {hasInspecting && (
+          <div
+            className="card mt-4 p-4"
+            role="status"
+            id="inspection-loading-banner"
+          >
+            <span className="status-dot warning mr-2" />
+            <span>
+              Inspecting selected repositories and verifying local tooling…
+            </span>
+          </div>
+        )}
+
+        {!hasInspecting && hasApiError && (
+          <div
+            className="error-message mt-4"
+            role="alert"
+            id="inspection-api-error-alert"
+          >
+            <strong>Inspection Failed:</strong> One or more repository
+            inspections could not be completed due to an API or network error.
+            Please resolve the issue or retry before continuing.
+          </div>
+        )}
+
+        {!hasInspecting && !hasApiError && hasConfigError && (
+          <div
+            className="error-message mt-4"
+            role="alert"
+            id="inspection-config-error-alert"
+          >
+            <strong>Configuration Error:</strong> One or more selected
+            repositories point to a directory that is not a valid Git
+            repository. Return to Step 4 to correct the local path.
+          </div>
+        )}
+
+        {!hasInspecting &&
+          !hasApiError &&
+          !hasConfigError &&
+          hasPendingSetup && (
+            <div
+              className="card pending mt-4 p-4"
+              role="status"
+              id="inspection-pending-setup-notice"
+            >
+              <span className="status-dot warning mr-2" />
+              <span>
+                One or more repositories require local checkout setup. This does
+                not block project onboarding; you may continue to review.
+              </span>
+            </div>
+          )}
+
+        {!hasInspecting && !hasApiError && !hasConfigError && allReady && (
+          <div
+            className="card ready mt-4 p-4"
+            role="status"
+            id="inspection-all-ready-notice"
+          >
+            <span className="status-dot online mr-2" />
+            <span>
+              All selected repositories and prerequisites are verified and
+              ready.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {repositories.length === 0 ? (
+        <div
+          className="card mt-4 p-4"
+          role="alert"
+          id="inspection-no-repos-notice"
+        >
+          <p className="m-0 text-muted">
+            No repositories configured or selected. Please return to Step 4 to
+            select repositories.
+          </p>
+        </div>
+      ) : (
+        <div className="inspection-cards-list mt-4" id="inspection-repos-list">
+          {repositories.map((repo) => {
+            const res = results[repo.id];
+            const isPrimary = repo.id === effectivePrimaryId;
+            const cardStateClass =
+              res?.status === "ready"
+                ? "ready"
+                : res?.status === "pending_setup"
+                  ? "pending"
+                  : res?.status === "error" || res?.status === "api_error"
+                    ? "error"
+                    : "";
+
+            return (
+              <div
+                key={repo.id}
+                className={`inspection-card ${cardStateClass}`}
+                id={`inspection-card-${repo.id}`}
+                data-testid={`inspection-card-${repo.id}`}
+              >
+                <div className="inspection-header">
+                  <div className="repo-config-title-group">
+                    <div className="repo-meta-row">
+                      <strong>{repo.name}</strong>
+                      {repo.role && (
+                        <span className="role-badge">{repo.role}</span>
+                      )}
+                      {isPrimary && (
+                        <span className="primary-badge">primary</span>
+                      )}
+                    </div>
+                    <span className="text-muted text-xs code-text">
+                      {repo.path}
+                    </span>
+                  </div>
+
+                  <div>
+                    {(!res ||
+                      res.status === "inspecting" ||
+                      res.status === "idle") && (
+                      <span
+                        className="badge badge-neutral"
+                        data-testid={`status-${repo.id}`}
+                      >
+                        Inspecting…
+                      </span>
+                    )}
+                    {res?.status === "ready" && (
+                      <span
+                        className="status-pill ready"
+                        data-testid={`status-${repo.id}`}
+                      >
+                        <span className="status-dot online" />
+                        Ready
+                      </span>
+                    )}
+                    {res?.status === "pending_setup" && (
+                      <span
+                        className="status-pill pending"
+                        data-testid={`status-${repo.id}`}
+                      >
+                        <span className="status-dot warning" />
+                        Pending Setup
+                      </span>
+                    )}
+                    {res?.status === "error" && (
+                      <span
+                        className="status-pill error"
+                        data-testid={`status-${repo.id}`}
+                      >
+                        <span className="status-dot offline" />
+                        Invalid Directory
+                      </span>
+                    )}
+                    {res?.status === "api_error" && (
+                      <span
+                        className="badge badge-error"
+                        data-testid={`status-${repo.id}`}
+                      >
+                        Inspection Failed
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="inspection-details mt-2">
+                  {res?.status === "ready" && (
+                    <div>
+                      <p className="text-success text-sm m-0">
+                        ✓ {res.message || "Repository verified and ready."}
+                      </p>
+                      {res.defaultBranch && (
+                        <div className="text-muted text-xs mt-1">
+                          Default branch: <code>{res.defaultBranch}</code>
+                        </div>
+                      )}
+                      {res.detectedCommands &&
+                        Object.keys(res.detectedCommands).length > 0 && (
+                          <div className="inspection-commands-grid mt-2">
+                            {Object.entries(res.detectedCommands).map(
+                              ([cmdKey, cmdVal]) => (
+                                <div key={cmdKey} className="command-pill">
+                                  <span className="cmd-label">{cmdKey}:</span>{" "}
+                                  <code className="cmd-code">{cmdVal}</code>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        )}
+                      {res.detectedTooling &&
+                        res.detectedTooling.length > 0 && (
+                          <div className="text-muted text-xs mt-1">
+                            Detected tooling: {res.detectedTooling.join(", ")}
+                          </div>
+                        )}
+                    </div>
+                  )}
+
+                  {res?.status === "pending_setup" && (
+                    <div>
+                      <p className="text-warning text-sm m-0">
+                        ⏳{" "}
+                        {res.message ||
+                          `Local directory not found at ${repo.path}`}
+                      </p>
+                      <p className="text-muted text-xs mt-1 m-0">
+                        Local checkout not found. This repository must be cloned
+                        or initialized before running workflows, but project
+                        creation can proceed.
+                      </p>
+                    </div>
+                  )}
+
+                  {res?.status === "error" && (
+                    <div>
+                      <p className="text-danger text-sm m-0">
+                        ✕{" "}
+                        {res.message ||
+                          "Directory exists but is not a Git repository."}
+                      </p>
+                      <p className="text-muted text-xs mt-1 m-0">
+                        A non-Git directory cannot be used for this repository.
+                        Please return to Step 4 and update the local path.
+                      </p>
+                    </div>
+                  )}
+
+                  {res?.status === "api_error" && (
+                    <div>
+                      <p className="text-danger text-sm m-0">
+                        ⚠ Inspection API error:{" "}
+                        {res.apiError ||
+                          "Could not connect to inspection endpoint."}
+                      </p>
+                      <p className="text-muted text-xs mt-1 m-0">
+                        Inspection failure is not a repository readiness status.
+                        Please check server status or retry.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm mt-2"
+                        data-testid={`btn-retry-${repo.id}`}
+                        onClick={() => handleRetrySingle(repo)}
+                        disabled={isInspecting}
+                      >
+                        Retry Inspection
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="modal-actions mt-6">
         <button type="button" className="btn-secondary" onClick={onBack}>
           ← Back
@@ -858,6 +1333,7 @@ function Step5Inspection({ onBack, onNext }: Step5InspectionProps) {
           id="btn-step-5-next"
           className="btn-primary"
           onClick={onNext}
+          disabled={isNextDisabled}
         >
           Continue to Review →
         </button>
@@ -1138,6 +1614,22 @@ export function OnboardingWizardModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const configuredRepositories = useMemo(() => {
+    return deriveConfiguredRepositories({
+      discoveredRepositories,
+      repoConfigs,
+      primaryRepoId,
+      workspacePath,
+      projectId,
+    });
+  }, [
+    discoveredRepositories,
+    repoConfigs,
+    primaryRepoId,
+    workspacePath,
+    projectId,
+  ]);
+
   if (!isOnboardingOpen) return null;
 
   const handleQuickUrlChange = (val: string) => {
@@ -1233,7 +1725,7 @@ export function OnboardingWizardModal() {
     }
 
     if (
-      next === 4 &&
+      (next === 4 || next === 5) &&
       Object.keys(repoConfigs).length === 0 &&
       discoveredRepositories.length > 0
     ) {
@@ -1513,6 +2005,8 @@ export function OnboardingWizardModal() {
 
           {step === 5 && (
             <Step5Inspection
+              repositories={configuredRepositories}
+              primaryRepoId={primaryRepoId}
               onBack={() => goToStep(4)}
               onNext={() => goToStep(6)}
             />
