@@ -52,8 +52,8 @@ async function inspectSingleRepo(
       isGitRepo: res.isGitRepo,
       detectedCommands: res.detectedCommands,
       detectedTooling: res.detectedTooling,
-      currentBranch: res.currentBranch || res.defaultBranch,
-      defaultBranch: res.defaultBranch || res.currentBranch,
+      currentBranch: res.currentBranch,
+      defaultBranch: res.defaultBranch,
     };
   } catch (err) {
     return {

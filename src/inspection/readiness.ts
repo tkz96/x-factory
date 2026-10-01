@@ -99,7 +99,7 @@ async function resolveRepoPackageName(
  */
 export async function inspectLocalRepository(
   repoPath: string,
-  expectedRemote?: string,
+  _expectedRemote?: string,
 ): Promise<RepositoryInspectionResult> {
   const resolved = path.resolve(repoPath);
   if (!(await fileExists(resolved))) {
@@ -135,9 +135,9 @@ export async function inspectLocalRepository(
     path: resolved,
     exists: true,
     isGitRepo: isGit,
-    remote: remote || expectedRemote,
-    currentBranch: currentBranch || defaultBranch || "main",
-    defaultBranch: defaultBranch || currentBranch || "main",
+    remote,
+    currentBranch,
+    defaultBranch: defaultBranch || "main",
     role,
     detectedCommands: commands,
     detectedTooling: tooling,
@@ -212,9 +212,9 @@ async function checkGitRemoteMatch(
     ["config", "--get", "remote.origin.url"],
     { cwd: repoPath },
   );
-  if (res.exitCode !== 0) return true;
+  if (res.exitCode !== 0) return false;
   const actual = res.stdout.trim();
-  if (!actual) return true;
+  if (!actual) return false;
   return (
     normalizeGitRemoteUrl(actual) === normalizeGitRemoteUrl(expectedRemote)
   );

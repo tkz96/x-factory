@@ -55,6 +55,7 @@ const mockInspectRepository = mock(
       path,
       exists: true,
       isGitRepo: true,
+      currentBranch: "main",
       defaultBranch: "main",
       detectedCommands: { test: "bun test" },
       detectedTooling: ["bun"],
@@ -129,6 +130,7 @@ describe("Wizard Step 5: Repository Inspection and Readiness (#113)", () => {
         path: "/code/repo-1",
         exists: true,
         isGitRepo: true,
+        currentBranch: "main",
         defaultBranch: "main",
         detectedCommands: { test: "bun test", lint: "biome check" },
         detectedTooling: ["bun", "biome"],
@@ -738,6 +740,7 @@ describe("Wizard Step 5: Repository Inspection and Readiness (#113)", () => {
         path: "/code/full-repo",
         exists: true,
         isGitRepo: true,
+        currentBranch: "develop",
         defaultBranch: "develop",
         detectedCommands: {
           test: "bun test",
@@ -893,6 +896,96 @@ describe("Wizard Step 5: Repository Inspection and Readiness (#113)", () => {
         );
       });
       expect(container.textContent).not.toContain("Default branch:");
+    });
+
+    it("reports current branch as 'unavailable' when HEAD is detached and does not fall back to default branch", async () => {
+      mockInspectRepository.mockResolvedValueOnce({
+        path: "/code/detached-repo",
+        exists: true,
+        isGitRepo: true,
+        currentBranch: undefined,
+        defaultBranch: "main",
+        detectedCommands: { test: "bun test" },
+        detectedTooling: ["bun"],
+        readiness: {
+          status: "ready",
+          message: "Repository verified and ready.",
+        },
+      });
+
+      const repos: ProjectRepository[] = [
+        {
+          id: "detached-repo",
+          name: "detached-repo",
+          path: "/code/detached-repo",
+          defaultBranch: "main",
+          role: "backend",
+        },
+      ];
+
+      const { container } = render(
+        <Step5Inspection
+          repositories={repos}
+          primaryRepoId="detached-repo"
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(container.textContent).toContain("Current branch: unavailable");
+      });
+      expect(container.textContent).not.toContain("Current branch: main");
+      expect(container.textContent).not.toContain("Default branch:");
+    });
+
+    it("handles missing local remote when expectedRemote is configured as pending_setup", async () => {
+      mockInspectRepository.mockResolvedValueOnce({
+        path: "/code/pending-remote-repo",
+        exists: true,
+        isGitRepo: true,
+        remote: undefined,
+        defaultBranch: "main",
+        detectedCommands: {},
+        detectedTooling: [],
+        readiness: {
+          status: "pending_setup",
+          message: "Local Git remote URL does not match configured remote.",
+        },
+      });
+
+      const repos: ProjectRepository[] = [
+        {
+          id: "pending-remote-repo",
+          name: "pending-remote-repo",
+          path: "/code/pending-remote-repo",
+          remote: "https://github.com/my-org/my-repo.git",
+          defaultBranch: "main",
+          role: "backend",
+        },
+      ];
+
+      const { container } = render(
+        <Step5Inspection
+          repositories={repos}
+          primaryRepoId="pending-remote-repo"
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(container.textContent).toContain(
+          "Local Git remote URL does not match configured remote.",
+        );
+      });
+      expect(container.textContent).not.toContain(
+        "Repository verified and ready.",
+      );
+      const nextBtn = container.querySelector(
+        "#btn-step-5-next",
+      ) as HTMLButtonElement;
+      expect(nextBtn.disabled).toBe(false);
     });
 
     it("disables Re-inspect All while a single-repository retry is in progress", async () => {

@@ -10,6 +10,7 @@ import {
   checkProjectReadiness,
   detectRepositoryCommands,
   detectRepositoryRole,
+  evaluateRepositoryReadiness,
   inspectLocalRepository,
 } from "../src/inspection/index.js";
 import { execStrict } from "../src/proc.js";
@@ -135,6 +136,82 @@ describe("Deterministic Inspection", () => {
       const result = await inspectLocalRepository("/nonexistent/path/12345");
       assert.equal(result.exists, false);
       assert.equal(result.isGitRepo, false);
+    });
+
+    it("does not report expectedRemote when local remote is missing", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "xf-inspect-no-remote-"));
+      try {
+        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["config", "user.email", "test@test.com"], {
+          cwd: dir,
+        });
+        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await writeFile(path.join(dir, "README.md"), "# Init\n");
+        await execStrict("git", ["add", "-A"], { cwd: dir });
+        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+
+        const result = await inspectLocalRepository(
+          dir,
+          "https://github.com/my-org/expected.git",
+        );
+        assert.equal(result.remote, undefined);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns currentBranch as undefined on detached HEAD without falling back to default branch", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "xf-inspect-detached-"));
+      try {
+        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["config", "user.email", "test@test.com"], {
+          cwd: dir,
+        });
+        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await writeFile(path.join(dir, "README.md"), "# Detached\n");
+        await execStrict("git", ["add", "-A"], { cwd: dir });
+        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+        await execStrict("git", ["checkout", "--detach"], { cwd: dir });
+
+        const result = await inspectLocalRepository(dir);
+        assert.equal(result.currentBranch, undefined);
+        assert.notEqual(result.currentBranch, "main");
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("evaluateRepositoryReadiness", () => {
+    it("returns pending_setup when expectedRemote is configured but local repo has no remote", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-no-remote-"));
+      try {
+        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["config", "user.email", "test@test.com"], {
+          cwd: dir,
+        });
+        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await writeFile(path.join(dir, "README.md"), "# Test\n");
+        await execStrict("git", ["add", "-A"], { cwd: dir });
+        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+
+        const readiness = await evaluateRepositoryReadiness({
+          id: "repo-1",
+          name: "Repo 1",
+          path: dir,
+          remote: "https://github.com/my-org/expected.git",
+          defaultBranch: "main",
+        });
+
+        assert.equal(readiness.status, "pending_setup");
+        assert.equal(readiness.remoteMatches, false);
+        assert.equal(
+          readiness.message,
+          "Local Git remote URL does not match configured remote.",
+        );
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
     });
   });
 

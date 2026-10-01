@@ -204,12 +204,10 @@ export function InspectionCard({
             <p className="text-success text-sm m-0">
               ✓ {result.message || "Repository verified and ready."}
             </p>
-            {(result.currentBranch || result.defaultBranch) && (
-              <div className="text-muted text-xs mt-1">
-                Current branch:{" "}
-                <code>{result.currentBranch || result.defaultBranch}</code>
-              </div>
-            )}
+            <div className="text-muted text-xs mt-1">
+              Current branch:{" "}
+              <code>{result.currentBranch || "unavailable"}</code>
+            </div>
             {result.detectedCommands &&
               Object.keys(result.detectedCommands).length > 0 && (
                 <div className="inspection-commands-grid mt-2">
