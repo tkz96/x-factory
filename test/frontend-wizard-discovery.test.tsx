@@ -8,7 +8,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { OnboardingWizardModal } from "../src/frontend/components/modals/OnboardingWizardModal.js";
-import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 
 // We'll import userEvent dynamically to ensure it runs AFTER GlobalRegistrator sets up window/document
 let userEvent: any;
@@ -57,17 +56,16 @@ function TestWrapper() {
   });
   return (
     <QueryClientProvider client={queryClient}>
-      <ProjectProvider>
-        <MemoryRouter>
-          <OnboardingWizardModal />
-        </MemoryRouter>
-      </ProjectProvider>
+      <MemoryRouter>
+        <OnboardingWizardModal />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
 
 describe("Frontend Wizard Discovery (Step 3)", () => {
-  afterAll(() => {
+  afterAll(async () => {
+    await new Promise((r) => setTimeout(r, 100));
     GlobalRegistrator.unregister();
   });
 
@@ -860,7 +858,7 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
   });
 
   it("Wizard blocks creation and disables button while all-projects query fails with error", async () => {
-    mockGetProjects.mockRejectedValueOnce(
+    mockGetProjects.mockRejectedValue(
       new Error("Database connection error"),
     );
 
@@ -882,5 +880,122 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       "#btn-onboard-submit",
     ) as HTMLButtonElement;
     expect(submitBtn.disabled).toBe(true);
+  });
+
+  it("triggers project-list refetch when entering Step 6, blocks Create while fetching, and uses refreshed duplicates", async () => {
+    // 1. Initial project query resolves with no duplicate projects
+    mockProjects = [];
+    let resolveRefetch: ((data: any) => void) | undefined;
+    const refetchPromise = new Promise((resolve) => {
+      resolveRefetch = resolve;
+    });
+
+    const { container } = render(<TestWrapper />);
+
+    // Advance through steps to Step 5
+    await advanceToStep3(container);
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-3-next")).not.toBeNull(),
+    );
+    const step3Next = container.querySelector(
+      "#btn-step-3-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step3Next);
+    });
+
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-4-next")).not.toBeNull(),
+    );
+    const step4Next = container.querySelector(
+      "#btn-step-4-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step4Next);
+    });
+
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-5-next")).not.toBeNull(),
+    );
+
+    // Initial getProjects call occurred on mount
+    expect(mockGetProjects).toHaveBeenCalledTimes(1);
+
+    // Prepare mockGetProjects to return a pending promise when refetched on Step 6 transition
+    mockGetProjects.mockImplementationOnce(() => refetchPromise);
+
+    // Click Next on Step 5 to transition into Step 6
+    const step5Next = container.querySelector(
+      "#btn-step-5-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step5Next);
+    });
+
+    // 2. Entering Step 6 triggers refetchProjects()
+    await waitFor(() => {
+      expect(mockGetProjects).toHaveBeenCalledTimes(2);
+    });
+
+    // 3. Create remains disabled and "Checking for existing projects…" is shown while fetching
+    const submitBtn = container.querySelector(
+      "#btn-onboard-submit",
+    ) as HTMLButtonElement;
+    expect(submitBtn).not.toBeNull();
+    expect(submitBtn.disabled).toBe(true);
+
+    const checkingCard = container.querySelector(".duplicate-warning-card");
+    expect(checkingCard).not.toBeNull();
+    expect(checkingCard?.textContent).toContain(
+      "Checking for existing projects…",
+    );
+
+    // 4. Resolve the refetch promise with a newly-added duplicate project (created concurrently)
+    await act(async () => {
+      resolveRefetch!([
+        {
+          id: "test-project",
+          name: "Concurrent Test Project",
+          issueTracker: { provider: "azure" },
+          repositories: [],
+        },
+      ]);
+    });
+
+    // 5. Refreshed project data produces the duplicate warning, keeping Create blocked
+    await waitFor(() => {
+      const card = container.querySelector(".duplicate-warning-card");
+      expect(card).not.toBeNull();
+      expect(card?.textContent).toContain(
+        'Project ID "test-project" is already in use.',
+      );
+      expect(card?.textContent).toContain(
+        "Existing project: Concurrent Test Project",
+      );
+    });
+
+    expect(submitBtn.disabled).toBe(true);
+
+    // 6. Returning to Step 6 after editing triggers refetch again
+    const backBtn = Array.from(
+      container.querySelectorAll(".modal-actions button.btn-secondary"),
+    ).find((b) => b.textContent?.includes("Back")) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(backBtn);
+    });
+    await waitFor(() =>
+      expect(container.querySelector("#btn-step-5-next")).not.toBeNull(),
+    );
+
+    const step5NextAgain = container.querySelector(
+      "#btn-step-5-next",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(step5NextAgain);
+    });
+
+    await waitFor(() => {
+      expect(mockGetProjects).toHaveBeenCalledTimes(3);
+    });
   });
 });

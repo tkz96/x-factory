@@ -2,7 +2,7 @@
 
 import "./OnboardingWizardModal.css";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   type DuplicateDetectionResult,
@@ -630,10 +630,104 @@ interface Step6ReviewProps {
   isSubmitting: boolean;
   duplicateStatus: DuplicateDetectionResult;
   isProjectsLoading?: boolean;
+  isProjectsFetching?: boolean;
   isProjectsError?: boolean;
   onBack: () => void;
   onSubmit: () => void;
   onClose?: () => void;
+}
+
+function formatAzureOrg(url: string): string {
+  const stripped = url
+    .replace(/^https?:\/\//, "")
+    .replace(/^dev\.azure\.com\//, "")
+    .replace(/\.visualstudio\.com.*$/, "")
+    .replace(/\/$/, "");
+  return stripped || url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+interface Step6WarningBannerProps {
+  isChecking: boolean;
+  isError: boolean;
+  duplicateStatus: DuplicateDetectionResult;
+  projectId: string;
+  onClose?: (() => void) | undefined;
+}
+
+function Step6WarningBanner({
+  isChecking,
+  isError,
+  duplicateStatus,
+  projectId,
+  onClose,
+}: Step6WarningBannerProps) {
+  const { isDuplicate, type, existingProject } = duplicateStatus;
+
+  if (isChecking) {
+    return (
+      <div className="card mt-4 p-4 duplicate-warning-card">
+        <div className="text-muted">Checking for existing projects…</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="card mt-4 p-4 error-message duplicate-warning-card">
+        <strong className="text-error">
+          Unable to verify project uniqueness.
+        </strong>
+        <div className="text-muted">
+          Failed to load existing projects. Please retry before creating.
+        </div>
+      </div>
+    );
+  }
+
+  if (isDuplicate && existingProject) {
+    return (
+      <div className="card mt-4 p-4 error-message duplicate-warning-card">
+        {type === "id_collision" ? (
+          <strong className="text-error">
+            Project ID "{projectId}" is already in use.
+          </strong>
+        ) : (
+          <strong className="text-error">
+            This project is already onboarded.
+          </strong>
+        )}
+        <div className="text-muted">
+          Existing project: <strong>{existingProject.name}</strong>
+          {existingProject.archived && " (Archived)"}
+          {type === "external_identity" &&
+            existingProject.issueTracker?.provider === "azure" &&
+            existingProject.issueTracker.azure && (
+              <div>
+                Azure DevOps:{" "}
+                {formatAzureOrg(existingProject.issueTracker.azure.orgUrl)} /{" "}
+                {existingProject.issueTracker.azure.project}
+              </div>
+            )}
+          {type === "external_identity" &&
+            existingProject.issueTracker?.provider === "github" &&
+            existingProject.issueTracker.github && (
+              <div>GitHub: {existingProject.issueTracker.github.repo}</div>
+            )}
+        </div>
+        <div className="mt-2">
+          <Link
+            to={`/projects/${existingProject.id}`}
+            className="btn-secondary btn-sm"
+            onClick={onClose}
+          >
+            Open Existing Project
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function Step6Review({
@@ -645,26 +739,18 @@ function Step6Review({
   isSubmitting,
   duplicateStatus,
   isProjectsLoading,
+  isProjectsFetching,
   isProjectsError,
   onBack,
   onSubmit,
   onClose,
 }: Step6ReviewProps) {
-  const { isDuplicate, type, existingProject } = duplicateStatus;
+  const isChecking = Boolean(isProjectsLoading || isProjectsFetching);
   const blocked =
-    Boolean(isDuplicate) ||
+    Boolean(duplicateStatus.isDuplicate) ||
     isSubmitting ||
-    Boolean(isProjectsLoading) ||
+    isChecking ||
     Boolean(isProjectsError);
-
-  const formatAzureOrg = (url: string) => {
-    const stripped = url
-      .replace(/^https?:\/\//, "")
-      .replace(/^dev\.azure\.com\//, "")
-      .replace(/\.visualstudio\.com.*$/, "")
-      .replace(/\/$/, "");
-    return stripped || url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  };
 
   return (
     <div id="onboard-step-6" className="wizard-pane active">
@@ -673,66 +759,13 @@ function Step6Review({
         Review configuration before creating project.
       </p>
 
-      {isProjectsLoading && (
-        <div className="card mt-4 p-4 duplicate-warning-card">
-          <div className="text-muted">Checking for existing projects…</div>
-        </div>
-      )}
-
-      {isProjectsError && (
-        <div className="card mt-4 p-4 error-message duplicate-warning-card">
-          <strong className="text-error">
-            Unable to verify project uniqueness.
-          </strong>
-          <div className="text-muted">
-            Failed to load existing projects. Please retry before creating.
-          </div>
-        </div>
-      )}
-
-      {!isProjectsLoading &&
-        !isProjectsError &&
-        isDuplicate &&
-        existingProject && (
-          <div className="card mt-4 p-4 error-message duplicate-warning-card">
-            {type === "id_collision" ? (
-              <strong className="text-error">
-                Project ID "{projectId}" is already in use.
-              </strong>
-            ) : (
-              <strong className="text-error">
-                This project is already onboarded.
-              </strong>
-            )}
-            <div className="text-muted">
-              Existing project: <strong>{existingProject.name}</strong>
-              {existingProject.archived && " (Archived)"}
-              {type === "external_identity" &&
-                existingProject.issueTracker?.provider === "azure" &&
-                existingProject.issueTracker.azure && (
-                  <div>
-                    Azure DevOps:{" "}
-                    {formatAzureOrg(existingProject.issueTracker.azure.orgUrl)}{" "}
-                    / {existingProject.issueTracker.azure.project}
-                  </div>
-                )}
-              {type === "external_identity" &&
-                existingProject.issueTracker?.provider === "github" &&
-                existingProject.issueTracker.github && (
-                  <div>GitHub: {existingProject.issueTracker.github.repo}</div>
-                )}
-            </div>
-            <div className="mt-2">
-              <Link
-                to={`/projects/${existingProject.id}`}
-                className="btn-secondary btn-sm"
-                onClick={onClose}
-              >
-                Open Existing Project
-              </Link>
-            </div>
-          </div>
-        )}
+      <Step6WarningBanner
+        isChecking={isChecking}
+        isError={Boolean(isProjectsError)}
+        duplicateStatus={duplicateStatus}
+        projectId={projectId}
+        onClose={onClose}
+      />
 
       <div className="project-detail-meta-grid card mt-4">
         <div className="project-meta-item">
@@ -791,6 +824,7 @@ export function OnboardingWizardModal() {
   const {
     data: allProjects = [],
     isLoading: isProjectsLoading,
+    isFetching: isProjectsFetching,
     isError: isProjectsError,
     refetch: refetchProjects,
   } = useProjects({
@@ -799,6 +833,14 @@ export function OnboardingWizardModal() {
 
   const [step, setStep] = useState<WizardStep>(1);
   const [maxStep, setMaxStep] = useState<WizardStep>(1);
+  const prevStepRef = useRef<WizardStep>(step);
+
+  useEffect(() => {
+    if (step === 6 && prevStepRef.current !== 6) {
+      void refetchProjects();
+    }
+    prevStepRef.current = step;
+  }, [step, refetchProjects]);
 
   // Form state
   const [quickUrl, setQuickUrl] = useState("");
@@ -994,7 +1036,12 @@ export function OnboardingWizardModal() {
   );
 
   const handleCompleteOnboard = async () => {
-    if (duplicateStatus.isDuplicate || isProjectsLoading || isProjectsError) {
+    if (
+      duplicateStatus.isDuplicate ||
+      isProjectsLoading ||
+      isProjectsFetching ||
+      isProjectsError
+    ) {
       return;
     }
 
@@ -1206,6 +1253,7 @@ export function OnboardingWizardModal() {
               isSubmitting={isSubmitting}
               duplicateStatus={duplicateStatus}
               isProjectsLoading={isProjectsLoading}
+              isProjectsFetching={isProjectsFetching}
               isProjectsError={isProjectsError}
               onBack={() => goToStep(5)}
               onSubmit={handleCompleteOnboard}
