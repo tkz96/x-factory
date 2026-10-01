@@ -6,11 +6,18 @@ GlobalRegistrator.register();
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { useEffect, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import {
   OnboardingWizardModal,
   Step4Repositories,
 } from "../src/frontend/components/modals/OnboardingWizardModal.js";
+import {
+  type RepoItemConfig,
+  type DiscoveredRepositoryLike,
+  deriveConfiguredRepositories,
+  validateRepositorySelection,
+} from "../src/frontend/lib/wizard-repositories.js";
 import type { ProjectRepository } from "../src/shared/types.js";
 
 // We'll import userEvent dynamically to ensure it runs AFTER GlobalRegistrator sets up window/document
@@ -1002,6 +1009,49 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
   });
 
   describe("Wizard Step 4: Repository Selection and Configuration (#112)", () => {
+    function TestStep4Wrapper({
+      workspacePath = "/ws",
+      projectId = "my-project",
+      discoveredRepositories,
+      onConfiguredChange,
+    }: {
+      workspacePath?: string;
+      projectId?: string;
+      discoveredRepositories: DiscoveredRepositoryLike[];
+      onConfiguredChange?: (configured: ProjectRepository[]) => void;
+    }) {
+      const [repoConfigs, setRepoConfigs] = useState<
+        Record<string, RepoItemConfig>
+      >({});
+      const [primaryRepoId, setPrimaryRepoId] = useState<string | null>(null);
+
+      const configured = deriveConfiguredRepositories({
+        discoveredRepositories,
+        repoConfigs,
+        primaryRepoId,
+        workspacePath,
+        projectId,
+      });
+
+      useEffect(() => {
+        onConfiguredChange?.(configured);
+      }, [configured, onConfiguredChange]);
+
+      return (
+        <Step4Repositories
+          workspacePath={workspacePath}
+          projectId={projectId}
+          discoveredRepositories={discoveredRepositories}
+          repoConfigs={repoConfigs}
+          onRepoConfigsChange={setRepoConfigs}
+          primaryRepoId={primaryRepoId}
+          onPrimaryRepoIdChange={setPrimaryRepoId}
+          onBack={() => {}}
+          onNext={() => {}}
+        />
+      );
+    }
+
     it("infers initial repository roles correctly based on naming conventions", () => {
       const repos = [
         { id: "1", name: "app-frontend", remote: "r1" },
@@ -1013,15 +1063,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1049,15 +1097,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1104,15 +1150,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1152,15 +1196,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1191,15 +1233,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       const repos = [{ id: "r1", name: "api-service", remote: "rem1" }];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1223,15 +1263,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/custom/workspace"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1294,15 +1332,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1327,12 +1363,10 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
         { id: "r2", name: "repo2", remote: "rem2" },
       ];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1371,12 +1405,10 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
         { id: "r2", name: "repo2", remote: "rem2" },
       ];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={repos}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1409,6 +1441,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
 
       expect(nextBtn.disabled).toBe(false);
       expect(container.querySelector("#step-4-validation-error")).toBeNull();
+
+      expect(
+        validateRepositorySelection({
+          selectedRepos: [{ id: "r1", name: "repo1" }],
+          primaryRepoId: null,
+        }),
+      ).toBe("A primary repository must be designated.");
     });
 
     it("prevents duplicate repository IDs from entering configured list", () => {
@@ -1419,15 +1458,13 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       ];
       let latestConfig: ProjectRepository[] = [];
       const { container } = render(
-        <Step4Repositories
+        <TestStep4Wrapper
           workspacePath="/ws"
           projectId="my-project"
           discoveredRepositories={duplicateRepos}
-          onRepositoriesChange={(cfg) => {
+          onConfiguredChange={(cfg) => {
             latestConfig = cfg;
           }}
-          onBack={() => {}}
-          onNext={() => {}}
         />,
       );
 
@@ -1437,6 +1474,83 @@ describe("Frontend Wizard Discovery (Step 3)", () => {
       expect(container.querySelectorAll('[data-repo-id="dup-id"]').length).toBe(
         1,
       );
+    });
+
+    it("deduplicates discovered repositories by exact ID on first-entry-wins through parent discovery path", async () => {
+      const duplicateDiscoveryRepos = [
+        {
+          id: "dup-repo-1",
+          name: "core-backend",
+          defaultBranch: "main",
+          remote: "https://git.example.com/core-backend.git",
+        },
+        {
+          id: "dup-repo-1",
+          name: "core-duplicate-ignored",
+          defaultBranch: "develop",
+          remote: "https://git.example.com/duplicate.git",
+        },
+        {
+          id: "unique-repo-2",
+          name: "web-frontend",
+          defaultBranch: "main",
+          remote: "https://git.example.com/web-frontend.git",
+        },
+      ];
+
+      mockDiscoverRepositories.mockResolvedValueOnce({
+        repositories: duplicateDiscoveryRepos,
+      });
+
+      const { container } = render(<TestWrapper />);
+      await advanceToStep3(container);
+
+      // Discovery finishes on Step 3
+      await waitFor(() => {
+        expect(container.textContent).toContain("discovered");
+      });
+
+      // Advance from Step 3 to Step 4
+      const step3Next = container.querySelector(
+        "#btn-step-3-next",
+      ) as HTMLButtonElement;
+      await act(async () => {
+        fireEvent.click(step3Next);
+      });
+
+      // On Step 4, only 2 cards should be rendered
+      await waitFor(() => {
+        expect(container.querySelector("#onboard-step-4")).not.toBeNull();
+      });
+
+      const cards = container.querySelectorAll(".repo-config-card");
+      expect(cards.length).toBe(2);
+
+      // Verify first-entry-wins for dup-repo-1:
+      // The displayed name must be "core-backend" (NOT "core-duplicate-ignored")
+      const dupCard = container.querySelector(
+        '[data-repo-id="dup-repo-1"]',
+      );
+      expect(dupCard).not.toBeNull();
+      expect(dupCard?.textContent).toContain("core-backend");
+      expect(dupCard?.textContent).not.toContain("core-duplicate-ignored");
+      expect(dupCard?.textContent).toContain(
+        "https://git.example.com/core-backend.git",
+      );
+
+      // Its initial path input must be derived from the first entry
+      const pathInput = container.querySelector(
+        "#repo-path-dup-repo-1",
+      ) as HTMLInputElement;
+      expect(pathInput.value).toBe(
+        "/Users/talhazuberi/projects/core-backend",
+      );
+
+      // Its initial role must be derived from the first entry ("core-backend" -> "backend")
+      const roleSelect = container.querySelector(
+        "#repo-role-dup-repo-1",
+      ) as HTMLSelectElement;
+      expect(roleSelect.value).toBe("backend");
     });
   });
 });

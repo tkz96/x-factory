@@ -2,7 +2,7 @@
 
 import "./OnboardingWizardModal.css";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   type DuplicateDetectionResult,
@@ -17,7 +17,18 @@ import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
 import { api } from "../../lib/api-client.js";
 import { invalidateProjects } from "../../lib/query-client.js";
-import { inferRepoRole, parseQuickUrl } from "../../lib/wizard-url.js";
+import {
+  type DiscoveredRepositoryLike,
+  deduplicateDiscoveredRepositories,
+  deriveConfiguredRepositories,
+  getEffectiveRepoConfig,
+  getInitialPrimaryRepoId,
+  getInitialRepoConfigs,
+  REPOSITORY_ROLES,
+  type RepoItemConfig,
+  validateRepositorySelection,
+} from "../../lib/wizard-repositories.js";
+import { parseQuickUrl } from "../../lib/wizard-url.js";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -515,39 +526,113 @@ function Step3Discovery({
 // Step 4: Repositories
 // ---------------------------------------------------------------------------
 
-export const REPOSITORY_ROLES: readonly RepositoryRole[] = [
-  "frontend",
-  "backend",
-  "service",
-  "worker",
-  "mobile",
-  "infrastructure",
-  "documentation",
-  "knowledge",
-  "other",
-] as const;
+interface RepoConfigCardProps {
+  repo: DiscoveredRepositoryLike;
+  config: RepoItemConfig;
+  isPrimary: boolean;
+  onToggleSelect: (repoId: string, selected: boolean) => void;
+  onSetPrimary: (repoId: string) => void;
+  onPathChange: (repoId: string, path: string) => void;
+  onRoleChange: (repoId: string, role: RepositoryRole) => void;
+}
 
-export interface RepoItemConfig {
-  selected: boolean;
-  path: string;
-  role: RepositoryRole;
+function RepoConfigCard({
+  repo,
+  config,
+  isPrimary,
+  onToggleSelect,
+  onSetPrimary,
+  onPathChange,
+  onRoleChange,
+}: RepoConfigCardProps) {
+  return (
+    <div
+      className={`repo-config-card ${config.selected ? "selected" : "deselected"}`}
+      data-repo-id={repo.id}
+    >
+      <div className="repo-config-header">
+        <div className="repo-info-col">
+          <label
+            className="repo-checkbox-label"
+            htmlFor={`repo-select-${repo.id}`}
+          >
+            <input
+              type="checkbox"
+              id={`repo-select-${repo.id}`}
+              checked={config.selected}
+              onChange={(e) => onToggleSelect(repo.id, e.target.checked)}
+            />
+            <span className="repo-name font-semibold">{repo.name}</span>{" "}
+            <span className="text-muted text-footnote ml-1">
+              ({repo.remote || "no-remote"})
+            </span>
+          </label>
+          <div className="repo-meta-row text-footnote text-muted">
+            <span className="badge badge-neutral mr-2">
+              branch: {repo.defaultBranch || "main"}
+            </span>
+            {isPrimary && (
+              <span className="badge badge-primary-repo">Primary</span>
+            )}
+          </div>
+        </div>
+        <div className="repo-primary-group">
+          <label
+            className="repo-radio-label"
+            htmlFor={`repo-primary-${repo.id}`}
+          >
+            <input
+              type="radio"
+              name="primaryRepo"
+              id={`repo-primary-${repo.id}`}
+              checked={isPrimary}
+              onChange={() => onSetPrimary(repo.id)}
+            />
+            <span>Primary</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="repo-config-fields-grid mt-3">
+        <div className="form-group mb-0">
+          <label htmlFor={`repo-path-${repo.id}`}>Local Path</label>
+          <input
+            type="text"
+            id={`repo-path-${repo.id}`}
+            className="form-input text-mono"
+            value={config.path}
+            onChange={(e) => onPathChange(repo.id, e.target.value)}
+            aria-label={`Local path for ${repo.name}`}
+          />
+        </div>
+        <div className="form-group mb-0">
+          <label htmlFor={`repo-role-${repo.id}`}>Role</label>
+          <select
+            id={`repo-role-${repo.id}`}
+            className="form-select"
+            value={config.role}
+            onChange={(e) =>
+              onRoleChange(repo.id, e.target.value as RepositoryRole)
+            }
+            aria-label={`Role for ${repo.name}`}
+          >
+            {REPOSITORY_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export interface Step4RepositoriesProps {
   workspacePath: string;
   projectId: string;
   quickUrl?: string | undefined;
-  discoveredRepositories: Array<{
-    id: string;
-    name: string;
-    remote?: string | undefined;
-    defaultBranch?: string | undefined;
-    webUrl?: string | undefined;
-  }>;
-  configuredRepositories?: ProjectRepository[] | undefined;
-  onRepositoriesChange?:
-    | ((repositories: ProjectRepository[]) => void)
-    | undefined;
+  discoveredRepositories: readonly DiscoveredRepositoryLike[];
   repoConfigs?: Record<string, RepoItemConfig> | undefined;
   onRepoConfigsChange?:
     | React.Dispatch<React.SetStateAction<Record<string, RepoItemConfig>>>
@@ -563,8 +648,6 @@ export function Step4Repositories({
   projectId,
   quickUrl: _quickUrl,
   discoveredRepositories,
-  configuredRepositories: _configuredRepositories,
-  onRepositoriesChange,
   repoConfigs,
   onRepoConfigsChange,
   primaryRepoId,
@@ -572,14 +655,8 @@ export function Step4Repositories({
   onBack,
   onNext,
 }: Step4RepositoriesProps) {
-  // Deduplicate discovered repositories by id to prevent duplicate repository IDs
   const uniqueDiscovered = useMemo(() => {
-    const seen = new Set<string>();
-    return discoveredRepositories.filter((repo) => {
-      if (!repo.id || seen.has(repo.id)) return false;
-      seen.add(repo.id);
-      return true;
-    });
+    return deduplicateDiscoveredRepositories(discoveredRepositories);
   }, [discoveredRepositories]);
 
   const [internalConfigs, setInternalConfigs] = useState<
@@ -594,29 +671,7 @@ export function Step4Repositories({
 
   const currentPrimaryId =
     primaryRepoId !== undefined ? primaryRepoId : internalPrimaryId;
-  const setPrimaryId = (id: string | null) => {
-    if (onPrimaryRepoIdChange) {
-      onPrimaryRepoIdChange(id);
-    } else {
-      setInternalPrimaryId(id);
-    }
-  };
-
-  const getEffectiveConfig = useCallback(
-    (repo: { id: string; name: string }): RepoItemConfig => {
-      const existing = currentConfigs[repo.id];
-      if (existing) {
-        return existing;
-      }
-      const cleanWs = workspacePath.trim().replace(/\/+$/, "");
-      return {
-        selected: true,
-        path: cleanWs ? `${cleanWs}/${repo.name}` : `/${repo.name}`,
-        role: inferRepoRole(repo.name),
-      };
-    },
-    [currentConfigs, workspacePath],
-  );
+  const setPrimaryId = onPrimaryRepoIdChange ?? setInternalPrimaryId;
 
   const effectivePrimaryId = useMemo(() => {
     if (
@@ -625,101 +680,27 @@ export function Step4Repositories({
     ) {
       return currentPrimaryId;
     }
-    const matching = uniqueDiscovered.find(
-      (r) =>
-        r.name.toLowerCase() === projectId.trim().toLowerCase() ||
-        r.id === projectId.trim(),
-    );
-    return matching?.id ?? uniqueDiscovered[0]?.id ?? null;
+    return getInitialPrimaryRepoId(uniqueDiscovered, projectId);
   }, [currentPrimaryId, uniqueDiscovered, projectId]);
 
   const selectedRepos = useMemo(() => {
     return uniqueDiscovered.filter((r) => {
-      const cfg = getEffectiveConfig(r);
+      const cfg = getEffectiveRepoConfig(r, currentConfigs, workspacePath);
       return cfg.selected;
     });
-  }, [uniqueDiscovered, getEffectiveConfig]);
+  }, [uniqueDiscovered, currentConfigs, workspacePath]);
 
-  let validationError: string | null = null;
-  if (selectedRepos.length === 0) {
-    validationError = "At least one repository must be selected.";
-  } else if (!effectivePrimaryId) {
-    validationError = "A primary repository must be designated.";
-  } else {
-    const primarySelected = selectedRepos.some(
-      (r) => r.id === effectivePrimaryId,
-    );
-    if (!primarySelected) {
-      validationError = "The primary repository must be selected.";
-    }
-  }
-
-  // Build the configured repository array in primary-first order
-  const configuredList = useMemo<ProjectRepository[]>(() => {
-    if (validationError || !effectivePrimaryId) return [];
-    const primaryRepo = uniqueDiscovered.find(
-      (r) => r.id === effectivePrimaryId,
-    );
-    if (!primaryRepo) return [];
-    const primaryConfig = getEffectiveConfig(primaryRepo);
-    if (!primaryConfig.selected) return [];
-
-    const primaryItem: ProjectRepository = {
-      id: primaryRepo.id,
-      name: primaryRepo.name,
-      remote: primaryRepo.remote,
-      defaultBranch: primaryRepo.defaultBranch ?? "main",
-      path: primaryConfig.path,
-      role: primaryConfig.role,
-    };
-
-    const otherItems: ProjectRepository[] = selectedRepos
-      .filter((r) => r.id !== primaryRepo.id)
-      .map((r) => {
-        const cfg = getEffectiveConfig(r);
-        return {
-          id: r.id,
-          name: r.name,
-          remote: r.remote,
-          defaultBranch: r.defaultBranch ?? "main",
-          path: cfg.path,
-          role: cfg.role,
-        };
-      });
-
-    // Ensure strictly unique IDs in primary-first order
-    const seenIds = new Set<string>();
-    const result: ProjectRepository[] = [];
-    if (!seenIds.has(primaryItem.id)) {
-      seenIds.add(primaryItem.id);
-      result.push(primaryItem);
-    }
-    for (const item of otherItems) {
-      if (!seenIds.has(item.id)) {
-        seenIds.add(item.id);
-        result.push(item);
-      }
-    }
-    return result;
-  }, [
-    validationError,
-    effectivePrimaryId,
-    uniqueDiscovered,
+  const validationError = validateRepositorySelection({
     selectedRepos,
-    getEffectiveConfig,
-  ]);
-
-  useEffect(() => {
-    if (!validationError && configuredList.length > 0) {
-      onRepositoriesChange?.(configuredList);
-    }
-  }, [configuredList, validationError, onRepositoriesChange]);
+    primaryRepoId: effectivePrimaryId,
+  });
 
   const handleToggleSelect = (repoId: string, selected: boolean) => {
     const repo = uniqueDiscovered.find((r) => r.id === repoId);
     if (!repo) return;
     setConfigs((prev) => {
-      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      const base =
+        prev[repoId] ?? getEffectiveRepoConfig(repo, prev, workspacePath);
       return {
         ...prev,
         [repoId]: {
@@ -736,7 +717,8 @@ export function Step4Repositories({
     if (!repo) return;
     setPrimaryId(repoId);
     setConfigs((prev) => {
-      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      const base =
+        prev[repoId] ?? getEffectiveRepoConfig(repo, prev, workspacePath);
       return {
         ...prev,
         [repoId]: {
@@ -752,7 +734,8 @@ export function Step4Repositories({
     const repo = uniqueDiscovered.find((r) => r.id === repoId);
     if (!repo) return;
     setConfigs((prev) => {
-      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      const base =
+        prev[repoId] ?? getEffectiveRepoConfig(repo, prev, workspacePath);
       return {
         ...prev,
         [repoId]: {
@@ -768,7 +751,8 @@ export function Step4Repositories({
     const repo = uniqueDiscovered.find((r) => r.id === repoId);
     if (!repo) return;
     setConfigs((prev) => {
-      const base = prev[repoId] ?? getEffectiveConfig(repo);
+      const base =
+        prev[repoId] ?? getEffectiveRepoConfig(repo, prev, workspacePath);
       return {
         ...prev,
         [repoId]: {
@@ -778,12 +762,6 @@ export function Step4Repositories({
         },
       };
     });
-  };
-
-  const handleNext = () => {
-    if (validationError) return;
-    onRepositoriesChange?.(configuredList);
-    onNext();
   };
 
   return (
@@ -814,105 +792,24 @@ export function Step4Repositories({
       ) : (
         <div className="repos-config-list mt-4" id="discovered-repos-list">
           {uniqueDiscovered.map((repo) => {
-            const cfg = getEffectiveConfig(repo);
-            const isSelected = cfg.selected;
+            const cfg = getEffectiveRepoConfig(
+              repo,
+              currentConfigs,
+              workspacePath,
+            );
             const isPrimary = repo.id === effectivePrimaryId;
 
             return (
-              <div
+              <RepoConfigCard
                 key={repo.id}
-                className={`card repo-config-card ${
-                  isSelected ? "" : "repo-config-card-deselected"
-                }`}
-                data-repo-id={repo.id}
-                data-repo-name={repo.name}
-              >
-                <div className="repo-config-header">
-                  <div className="repo-config-title-group">
-                    <label
-                      className="repo-checkbox-label"
-                      htmlFor={`repo-select-${repo.id}`}
-                    >
-                      <input
-                        type="checkbox"
-                        id={`repo-select-${repo.id}`}
-                        checked={isSelected}
-                        onChange={(e) =>
-                          handleToggleSelect(repo.id, e.target.checked)
-                        }
-                      />
-                      <span className="repo-name font-semibold">
-                        {repo.name}
-                      </span>{" "}
-                      <span className="text-muted text-footnote ml-1">
-                        ({repo.remote || "no-remote"})
-                      </span>
-                    </label>
-                    <div className="repo-meta-row text-footnote text-muted">
-                      <span className="badge badge-neutral mr-2">
-                        branch: {repo.defaultBranch || "main"}
-                      </span>
-                      {isPrimary && (
-                        <span className="badge badge-primary-repo">
-                          Primary
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="repo-primary-group">
-                    <label
-                      className="repo-radio-label"
-                      htmlFor={`repo-primary-${repo.id}`}
-                    >
-                      <input
-                        type="radio"
-                        name="primaryRepo"
-                        id={`repo-primary-${repo.id}`}
-                        checked={isPrimary}
-                        onChange={() => handleSetPrimary(repo.id)}
-                      />
-                      <span>Primary</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="repo-config-fields-grid mt-3">
-                  <div className="form-group mb-0">
-                    <label htmlFor={`repo-path-${repo.id}`}>Local Path</label>
-                    <input
-                      type="text"
-                      id={`repo-path-${repo.id}`}
-                      className="form-input text-mono"
-                      value={cfg.path}
-                      onChange={(e) =>
-                        handlePathChange(repo.id, e.target.value)
-                      }
-                      aria-label={`Local path for ${repo.name}`}
-                    />
-                  </div>
-                  <div className="form-group mb-0">
-                    <label htmlFor={`repo-role-${repo.id}`}>Role</label>
-                    <select
-                      id={`repo-role-${repo.id}`}
-                      className="form-select"
-                      value={cfg.role}
-                      onChange={(e) =>
-                        handleRoleChange(
-                          repo.id,
-                          e.target.value as RepositoryRole,
-                        )
-                      }
-                      aria-label={`Role for ${repo.name}`}
-                    >
-                      {REPOSITORY_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
+                repo={repo}
+                config={cfg}
+                isPrimary={isPrimary}
+                onToggleSelect={handleToggleSelect}
+                onSetPrimary={handleSetPrimary}
+                onPathChange={handlePathChange}
+                onRoleChange={handleRoleChange}
+              />
             );
           })}
         </div>
@@ -926,7 +823,7 @@ export function Step4Repositories({
           type="button"
           id="btn-step-4-next"
           className="btn-primary"
-          onClick={handleNext}
+          onClick={onNext}
           disabled={Boolean(validationError)}
         >
           Continue to Inspection →
@@ -1236,13 +1133,28 @@ export function OnboardingWizardModal() {
   const discoveryGenerationRef = useRef(0);
 
   // Step 4: Configured Repositories state
-  const [configuredRepositories, setConfiguredRepositories] = useState<
-    ProjectRepository[]
-  >([]);
   const [repoConfigs, setRepoConfigs] = useState<
-    Record<string, { selected: boolean; path: string; role: RepositoryRole }>
+    Record<string, RepoItemConfig>
   >({});
   const [primaryRepoId, setPrimaryRepoId] = useState<string | null>(null);
+
+  // Synchronously derive configured repository array in primary-first order (consumed by #113 / #114)
+  const configuredRepositories = useMemo<ProjectRepository[]>(() => {
+    return deriveConfiguredRepositories({
+      discoveredRepositories,
+      repoConfigs,
+      primaryRepoId,
+      workspacePath,
+      projectId,
+    });
+  }, [
+    discoveredRepositories,
+    repoConfigs,
+    primaryRepoId,
+    workspacePath,
+    projectId,
+  ]);
+  void configuredRepositories;
 
   // Submitting
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1347,28 +1259,9 @@ export function OnboardingWizardModal() {
       Object.keys(repoConfigs).length === 0 &&
       discoveredRepositories.length > 0
     ) {
-      const initialConfigs: Record<
-        string,
-        { selected: boolean; path: string; role: RepositoryRole }
-      > = {};
-      const cleanWs = workspacePath.trim().replace(/\/+$/, "");
-      for (const repo of discoveredRepositories) {
-        initialConfigs[repo.id] = {
-          selected: true,
-          path: cleanWs ? `${cleanWs}/${repo.name}` : `/${repo.name}`,
-          role: inferRepoRole(repo.name),
-        };
-      }
-      setRepoConfigs(initialConfigs);
-      const matching = discoveredRepositories.find(
-        (r) =>
-          r.name.toLowerCase() === projectId.trim().toLowerCase() ||
-          r.id === projectId.trim(),
-      );
-      const initialPrimary = matching
-        ? matching.id
-        : (discoveredRepositories[0]?.id ?? null);
-      setPrimaryRepoId(initialPrimary);
+      const unique = deduplicateDiscoveredRepositories(discoveredRepositories);
+      setRepoConfigs(getInitialRepoConfigs(unique, workspacePath));
+      setPrimaryRepoId(getInitialPrimaryRepoId(unique, projectId));
     }
   };
 
@@ -1406,31 +1299,12 @@ export function OnboardingWizardModal() {
       });
 
       if (currentGeneration === discoveryGenerationRef.current) {
-        setDiscoveredRepositories(res.repositories);
+        const unique = deduplicateDiscoveredRepositories(res.repositories);
+        setDiscoveredRepositories(unique);
         setHasDiscovered(true);
 
-        const initialConfigs: Record<
-          string,
-          { selected: boolean; path: string; role: RepositoryRole }
-        > = {};
-        const cleanWs = workspacePath.trim().replace(/\/+$/, "");
-        for (const repo of res.repositories) {
-          initialConfigs[repo.id] = {
-            selected: true,
-            path: cleanWs ? `${cleanWs}/${repo.name}` : `/${repo.name}`,
-            role: inferRepoRole(repo.name),
-          };
-        }
-        setRepoConfigs(initialConfigs);
-        const matching = res.repositories.find(
-          (r) =>
-            r.name.toLowerCase() === projectId.trim().toLowerCase() ||
-            r.id === projectId.trim(),
-        );
-        const initialPrimary = matching
-          ? matching.id
-          : (res.repositories[0]?.id ?? null);
-        setPrimaryRepoId(initialPrimary);
+        setRepoConfigs(getInitialRepoConfigs(unique, workspacePath));
+        setPrimaryRepoId(getInitialPrimaryRepoId(unique, projectId));
       }
     } catch (err) {
       if (currentGeneration === discoveryGenerationRef.current) {
@@ -1619,7 +1493,6 @@ export function OnboardingWizardModal() {
                 setTrackerPat(pat);
                 setHasDiscovered(false);
                 setDiscoveredRepositories([]);
-                setConfiguredRepositories([]);
                 setRepoConfigs({});
                 setPrimaryRepoId(null);
                 setDiscoveryError(null);
@@ -1651,8 +1524,6 @@ export function OnboardingWizardModal() {
               projectId={projectId}
               quickUrl={quickUrl}
               discoveredRepositories={discoveredRepositories}
-              configuredRepositories={configuredRepositories}
-              onRepositoriesChange={setConfiguredRepositories}
               repoConfigs={repoConfigs}
               onRepoConfigsChange={setRepoConfigs}
               primaryRepoId={primaryRepoId}
