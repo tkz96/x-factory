@@ -599,6 +599,12 @@
 
 /* ── Review Summary ──────────────────────────────────────────────────── */
 
+.duplicate-warning-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .review-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

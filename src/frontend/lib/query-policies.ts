@@ -1,8 +1,11 @@
 // src/frontend/lib/query-policies.ts — Explicit TanStack Query freshness policies (XFM-41).
 
 export const queryKeys = {
-  projects: () => ["projects"] as const,
-  project: (id: string) => ["projects", id] as const,
+  projects: (options?: { includeArchived?: boolean }) =>
+    options?.includeArchived
+      ? (["projects", "list", { archived: true }] as const)
+      : (["projects", "list"] as const),
+  project: (id: string) => ["projects", "detail", id] as const,
   tickets: (projectId: string) => ["tickets", projectId] as const,
   runs: () => ["runs"] as const,
   run: (runId: string) => ["runs", runId] as const,

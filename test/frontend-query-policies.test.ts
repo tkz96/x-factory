@@ -47,8 +47,8 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
   });
 
   it("provides deterministic query key factories", () => {
-    expect(queryKeys.projects()).toEqual(["projects"]);
-    expect(queryKeys.project("p1")).toEqual(["projects", "p1"]);
+    expect(queryKeys.projects()).toEqual(["projects", "list"]);
+    expect(queryKeys.project("p1")).toEqual(["projects", "detail", "p1"]);
     expect(queryKeys.tickets("p1")).toEqual(["tickets", "p1"]);
     expect(queryKeys.runs()).toEqual(["runs"]);
     expect(queryKeys.run("r1")).toEqual(["runs", "r1"]);

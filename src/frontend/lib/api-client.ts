@@ -65,8 +65,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   // Projects
-  async getProjects(): Promise<Project[]> {
-    const res = await fetch("/api/projects");
+  async getProjects(options?: {
+    includeArchived?: boolean;
+  }): Promise<Project[]> {
+    const query = options?.includeArchived ? "?includeArchived=true" : "";
+    const res = await fetch(`/api/projects${query}`);
     return handleResponse<Project[]>(res);
   },
 
