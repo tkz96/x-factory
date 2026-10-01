@@ -2,7 +2,7 @@
 
 import "./OnboardingWizardModal.css";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   type DuplicateDetectionResult,
@@ -31,6 +31,8 @@ import {
 } from "../../lib/wizard-repositories.js";
 import { parseQuickUrl } from "../../lib/wizard-url.js";
 import { InspectionCard, InspectionSummary } from "./InspectionComponents.js";
+
+export const DEFAULT_WORKSPACE_PATH = "/Users/talhazuberi/projects";
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -174,7 +176,12 @@ function Step1Basics({
       </div>
 
       <div className="modal-actions mt-6">
-        <button type="button" className="btn-secondary" onClick={onCancel}>
+        <button
+          type="button"
+          id="btn-step-1-cancel"
+          className="btn-secondary"
+          onClick={onCancel}
+        >
           Cancel
         </button>
         <button
@@ -1256,13 +1263,6 @@ export function OnboardingWizardModal() {
   const [maxStep, setMaxStep] = useState<WizardStep>(1);
   const prevStepRef = useRef<WizardStep>(step);
 
-  useEffect(() => {
-    if (step === 6 && prevStepRef.current !== 6) {
-      void refetchProjects();
-    }
-    prevStepRef.current = step;
-  }, [step, refetchProjects]);
-
   // Form state
   const [quickUrl, setQuickUrl] = useState("");
   const [quickUrlStatus, setQuickUrlStatus] = useState<
@@ -1270,9 +1270,7 @@ export function OnboardingWizardModal() {
   >(null);
   const [projectName, setProjectName] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [workspacePath, setWorkspacePath] = useState(
-    "/Users/talhazuberi/projects",
-  );
+  const [workspacePath, setWorkspacePath] = useState(DEFAULT_WORKSPACE_PATH);
   const [tracker, setTracker] = useState("azure");
   const [gitHost, setGitHost] = useState("azure");
   const [trackerProject, setTrackerProject] = useState("");
@@ -1283,6 +1281,7 @@ export function OnboardingWizardModal() {
     null,
   );
   const [leastPrivilegeAck, setLeastPrivilegeAck] = useState(false);
+  const verifyPatGenerationRef = useRef(0);
 
   // Discovery state
   const [discoveredRepositories, setDiscoveredRepositories] = useState<
@@ -1306,9 +1305,89 @@ export function OnboardingWizardModal() {
   >({});
   const [primaryRepoId, setPrimaryRepoId] = useState<string | null>(null);
 
+  // Step 5: Inspection session state
+  const [inspectionSessionId, setInspectionSessionId] = useState(0);
+
   // Submitting
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitGenerationRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
+
+  const resetOnboardingState = useCallback(() => {
+    // Invalidate in-flight asynchronous operations
+    discoveryGenerationRef.current += 1;
+    verifyPatGenerationRef.current += 1;
+    submitGenerationRef.current += 1;
+    prevStepRef.current = 1;
+
+    // Reset step progression
+    setStep(1);
+    setMaxStep(1);
+
+    // Reset basics & identity
+    setQuickUrl("");
+    setQuickUrlStatus(null);
+    setProjectName("");
+    setProjectId("");
+    setWorkspacePath(DEFAULT_WORKSPACE_PATH);
+
+    // Reset tracker, credentials & sensitive fields
+    setTracker("azure");
+    setGitHost("azure");
+    setTrackerProject("");
+    setTrackerOrgUrl("");
+    setTrackerPat("");
+    setIsVerifyingPat(false);
+    setPatScopeResult(null);
+    setLeastPrivilegeAck(false);
+
+    // Reset discovery state
+    setDiscoveredRepositories([]);
+    setIsDiscovering(false);
+    setHasDiscovered(false);
+    setDiscoveryError(null);
+    setLastDiscoveryInputs("");
+
+    // Reset repository configurations
+    setRepoConfigs({});
+    setPrimaryRepoId(null);
+
+    // Reset inspection session state
+    setInspectionSessionId((id) => id + 1);
+
+    // Reset submission & error state
+    setIsSubmitting(false);
+    setError(null);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    resetOnboardingState();
+    closeOnboardingModal();
+  }, [closeOnboardingModal, resetOnboardingState]);
+
+  const prevIsOpenRef = useRef(isOnboardingOpen);
+
+  useEffect(() => {
+    if (isOnboardingOpen && !prevIsOpenRef.current) {
+      resetOnboardingState();
+    }
+    prevIsOpenRef.current = isOnboardingOpen;
+  }, [isOnboardingOpen, resetOnboardingState]);
+
+  useEffect(() => {
+    return () => {
+      discoveryGenerationRef.current += 1;
+      verifyPatGenerationRef.current += 1;
+      submitGenerationRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (step === 6 && prevStepRef.current !== 6) {
+      void refetchProjects();
+    }
+    prevStepRef.current = step;
+  }, [step, refetchProjects]);
 
   const configuredRepositories = useMemo(() => {
     return deriveConfiguredRepositories({
@@ -1370,6 +1449,8 @@ export function OnboardingWizardModal() {
       setError("Please fill in Organization URL, Project, and PAT first.");
       return;
     }
+    verifyPatGenerationRef.current += 1;
+    const currentGeneration = verifyPatGenerationRef.current;
     setIsVerifyingPat(true);
     setError(null);
     try {
@@ -1378,11 +1459,17 @@ export function OnboardingWizardModal() {
         project: trackerProject,
         pat: trackerPat,
       });
-      setPatScopeResult(res as ScopeResult);
+      if (currentGeneration === verifyPatGenerationRef.current) {
+        setPatScopeResult(res as ScopeResult);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (currentGeneration === verifyPatGenerationRef.current) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
-      setIsVerifyingPat(false);
+      if (currentGeneration === verifyPatGenerationRef.current) {
+        setIsVerifyingPat(false);
+      }
     }
   };
 
@@ -1502,6 +1589,8 @@ export function OnboardingWizardModal() {
       return;
     }
 
+    submitGenerationRef.current += 1;
+    const currentGeneration = submitGenerationRef.current;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -1562,13 +1651,24 @@ export function OnboardingWizardModal() {
         );
       }
 
-      await invalidateProjects();
-      void refetchProjects();
-      closeOnboardingModal();
+      if (currentGeneration === submitGenerationRef.current) {
+        await invalidateProjects();
+
+        if (currentGeneration !== submitGenerationRef.current) {
+          return;
+        }
+
+        void refetchProjects();
+        handleClose();
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (currentGeneration === submitGenerationRef.current) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
-      setIsSubmitting(false);
+      if (currentGeneration === submitGenerationRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -1593,7 +1693,7 @@ export function OnboardingWizardModal() {
             id="btn-close-onboard-modal"
             className="btn-close"
             aria-label="Close dialog"
-            onClick={closeOnboardingModal}
+            onClick={handleClose}
           >
             <svg className="icon icon-xs" aria-hidden="true">
               <use href="/assets/icons/sprite.svg#icon-x" />
@@ -1634,7 +1734,7 @@ export function OnboardingWizardModal() {
               onNameChange={handleNameChange}
               onIdChange={setProjectId}
               onWorkspacePathChange={setWorkspacePath}
-              onCancel={closeOnboardingModal}
+              onCancel={handleClose}
               onNext={() => goToStep(2)}
             />
           )}
@@ -1654,7 +1754,11 @@ export function OnboardingWizardModal() {
               onTrackerProjectChange={setTrackerProject}
               onTrackerOrgUrlChange={setTrackerOrgUrl}
               onTrackerPatChange={(pat) => {
+                verifyPatGenerationRef.current += 1;
                 setTrackerPat(pat);
+                setIsVerifyingPat(false);
+                setPatScopeResult(null);
+                setLeastPrivilegeAck(false);
                 setHasDiscovered(false);
                 setDiscoveredRepositories([]);
                 setRepoConfigs({});
@@ -1699,6 +1803,7 @@ export function OnboardingWizardModal() {
 
           {step === 5 && (
             <Step5Inspection
+              key={`inspection-${inspectionSessionId}`}
               repositories={configuredRepositories}
               primaryRepoId={primaryRepoId}
               onBack={() => goToStep(4)}
@@ -1724,7 +1829,7 @@ export function OnboardingWizardModal() {
               isProjectsError={isProjectsError}
               onBack={() => goToStep(5)}
               onSubmit={handleCompleteOnboard}
-              onClose={closeOnboardingModal}
+              onClose={handleClose}
             />
           )}
         </div>
