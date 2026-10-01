@@ -22,6 +22,7 @@ interface RepositoryInspectionResult {
   exists: boolean;
   isGitRepo: boolean;
   remote?: string | undefined;
+  currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: RepositoryRole | undefined;
   detectedCommands: RepositoryCommands;
@@ -31,6 +32,7 @@ interface RepositoryInspectionResult {
 async function resolveGitInfo(dir: string): Promise<{
   isGit: boolean;
   remote?: string | undefined;
+  currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
 }> {
   const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], {
@@ -55,12 +57,22 @@ async function resolveGitInfo(dir: string): Promise<{
     ["rev-parse", "--abbrev-ref", "HEAD"],
     { cwd: dir },
   );
-  const defaultBranch =
+  const currentBranch =
     branchResult.exitCode === 0 && branchResult.stdout.trim() !== "HEAD"
       ? branchResult.stdout.trim()
       : undefined;
 
-  return { isGit: true, remote, defaultBranch };
+  let defaultBranch: string | undefined;
+  const originHeadResult = await execCommand(
+    "git",
+    ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    { cwd: dir },
+  );
+  if (originHeadResult.exitCode === 0 && originHeadResult.stdout.trim()) {
+    defaultBranch = originHeadResult.stdout.trim().replace(/^origin\//, "");
+  }
+
+  return { isGit: true, remote, currentBranch, defaultBranch };
 }
 
 async function resolveRepoPackageName(
@@ -100,7 +112,8 @@ export async function inspectLocalRepository(
     };
   }
 
-  const { isGit, remote, defaultBranch } = await resolveGitInfo(resolved);
+  const { isGit, remote, currentBranch, defaultBranch } =
+    await resolveGitInfo(resolved);
 
   let initialName = path.basename(resolved);
   if (
@@ -123,7 +136,8 @@ export async function inspectLocalRepository(
     exists: true,
     isGitRepo: isGit,
     remote: remote || expectedRemote,
-    defaultBranch: defaultBranch || "main",
+    currentBranch: currentBranch || defaultBranch || "main",
+    defaultBranch: defaultBranch || currentBranch || "main",
     role,
     detectedCommands: commands,
     detectedTooling: tooling,
@@ -227,7 +241,7 @@ function getReadinessOutcome(
 /**
  * Evaluate the readiness of an individual repository inside a project.
  */
-async function evaluateRepositoryReadiness(
+export async function evaluateRepositoryReadiness(
   repo: ProjectRepository,
 ): Promise<RepositoryReadiness> {
   if (!(await fileExists(repo.path))) {

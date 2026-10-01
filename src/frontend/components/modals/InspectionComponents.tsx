@@ -204,9 +204,10 @@ export function InspectionCard({
             <p className="text-success text-sm m-0">
               ✓ {result.message || "Repository verified and ready."}
             </p>
-            {result.defaultBranch && (
+            {(result.currentBranch || result.defaultBranch) && (
               <div className="text-muted text-xs mt-1">
-                Default branch: <code>{result.defaultBranch}</code>
+                Current branch:{" "}
+                <code>{result.currentBranch || result.defaultBranch}</code>
               </div>
             )}
             {result.detectedCommands &&

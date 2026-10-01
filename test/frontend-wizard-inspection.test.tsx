@@ -18,13 +18,16 @@ import {
   cleanup,
   fireEvent,
   render,
+  renderHook,
   waitFor,
 } from "@testing-library/react";
+import type userEventLib from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import {
   OnboardingWizardModal,
   Step5Inspection,
 } from "../src/frontend/components/modals/OnboardingWizardModal.js";
+import { useRepositoryInspection } from "../src/frontend/hooks/useRepositoryInspection.js";
 import type { InspectRepositoryResponse } from "../src/frontend/lib/api-client.js";
 import type { ProjectRepository } from "../src/shared/types.js";
 
@@ -99,7 +102,7 @@ function TestWrapper() {
   );
 }
 
-let userEvent: any;
+let userEvent: ReturnType<typeof userEventLib.setup>;
 
 describe("Wizard Step 5: Repository Inspection and Readiness (#113)", () => {
   afterAll(async () => {
@@ -177,7 +180,8 @@ describe("Wizard Step 5: Repository Inspection and Readiness (#113)", () => {
 
       // Verify explanation and details
       expect(container.textContent).toContain("Repository verified and ready.");
-      expect(container.textContent).toContain("Default branch: main");
+      expect(container.textContent).toContain("Current branch: main");
+      expect(container.textContent).not.toContain("Default branch:");
       expect(container.textContent).toContain("test: bun test");
       expect(container.textContent).toContain("lint: biome check");
       expect(container.textContent).toContain(
@@ -772,8 +776,291 @@ describe("Wizard Step 5: Repository Inspection and Readiness (#113)", () => {
       expect(container.textContent).toContain(
         "Detected tooling: bun, vite, typescript",
       );
-      expect(container.textContent).toContain("Default branch: develop");
+      expect(container.textContent).toContain("Current branch: develop");
+      expect(container.textContent).not.toContain("Default branch:");
       expect(container.querySelectorAll(".command-pill").length).toBe(3);
+    });
+
+    it("handles repository with mismatched local remote as 'pending_setup' without blocking navigation", async () => {
+      mockInspectRepository.mockResolvedValueOnce({
+        path: "/code/mismatched-repo",
+        exists: true,
+        isGitRepo: true,
+        currentBranch: "main",
+        defaultBranch: "main",
+        detectedCommands: { test: "bun test" },
+        detectedTooling: ["bun"],
+        readiness: {
+          status: "pending_setup",
+          message: "Local Git remote URL does not match configured remote.",
+        },
+      });
+
+      const repos: ProjectRepository[] = [
+        {
+          id: "mismatched-repo",
+          name: "mismatched-repo",
+          path: "/code/mismatched-repo",
+          remote: "https://github.com/my-org/configured-remote.git",
+          defaultBranch: "main",
+          role: "backend",
+        },
+      ];
+
+      const onBack = mock(() => {});
+      const onNext = mock(() => {});
+
+      const { container } = render(
+        <Step5Inspection
+          repositories={repos}
+          primaryRepoId="mismatched-repo"
+          onBack={onBack}
+          onNext={onNext}
+        />,
+      );
+
+      // Verify inspectRepository received both path and remote
+      await waitFor(() => {
+        expect(mockInspectRepository).toHaveBeenCalledTimes(1);
+        expect(mockInspectRepository).toHaveBeenCalledWith({
+          path: "/code/mismatched-repo",
+          remote: "https://github.com/my-org/configured-remote.git",
+        });
+      });
+
+      // Verify status badge shows Pending Setup, NOT Ready
+      await waitFor(() => {
+        const statusBadge = container.querySelector(
+          '[data-testid="status-mismatched-repo"]',
+        );
+        expect(statusBadge?.textContent).toContain("Pending Setup");
+        expect(statusBadge?.textContent).not.toContain("Ready");
+        expect(statusBadge?.className).toContain("pending");
+      });
+
+      // Verify message rendered
+      expect(container.textContent).toContain(
+        "Local Git remote URL does not match configured remote.",
+      );
+
+      // Verify navigation is allowed (pending_setup does not block)
+      const nextBtn = container.querySelector(
+        "#btn-step-5-next",
+      ) as HTMLButtonElement;
+      expect(nextBtn.disabled).toBe(false);
+
+      fireEvent.click(nextBtn);
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders checkout branch as 'Current branch' and does not display 'Default branch'", async () => {
+      mockInspectRepository.mockResolvedValueOnce({
+        path: "/code/checkout-repo",
+        exists: true,
+        isGitRepo: true,
+        currentBranch: "feature/checkout-test",
+        defaultBranch: "main",
+        detectedCommands: { test: "bun test" },
+        detectedTooling: ["bun"],
+        readiness: {
+          status: "ready",
+          message: "Repository verified and ready.",
+        },
+      });
+
+      const repos: ProjectRepository[] = [
+        {
+          id: "checkout-repo",
+          name: "checkout-repo",
+          path: "/code/checkout-repo",
+          defaultBranch: "main",
+          role: "backend",
+        },
+      ];
+
+      const { container } = render(
+        <Step5Inspection
+          repositories={repos}
+          primaryRepoId="checkout-repo"
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(container.textContent).toContain(
+          "Current branch: feature/checkout-test",
+        );
+      });
+      expect(container.textContent).not.toContain("Default branch:");
+    });
+
+    it("disables Re-inspect All while a single-repository retry is in progress", async () => {
+      let resolveSlowRetry:
+        | ((val: InspectRepositoryResponse) => void)
+        | undefined;
+      const slowRetryPromise = new Promise<InspectRepositoryResponse>((res) => {
+        resolveSlowRetry = res;
+      });
+
+      // Initial inspection fails with API error
+      mockInspectRepository.mockRejectedValueOnce(
+        new Error("Network timeout on initial inspection"),
+      );
+
+      const repos: ProjectRepository[] = [
+        {
+          id: "repo-race",
+          name: "repo-race",
+          path: "/code/repo-race",
+          defaultBranch: "main",
+          role: "backend",
+        },
+      ];
+
+      const { container } = render(
+        <Step5Inspection
+          repositories={repos}
+          primaryRepoId="repo-race"
+          onBack={() => {}}
+          onNext={() => {}}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(container.textContent).toContain("Inspection API error");
+      });
+
+      // User clicks Retry
+      mockInspectRepository.mockImplementationOnce(() => slowRetryPromise);
+      const retryBtn = container.querySelector(
+        '[data-testid="btn-retry-repo-race"]',
+      ) as HTMLButtonElement;
+      fireEvent.click(retryBtn);
+
+      // Verify that while inspecting, Re-inspect All is disabled
+      await waitFor(() => {
+        const reinspectBtn = container.querySelector(
+          "#btn-recheck-inspection",
+        ) as HTMLButtonElement;
+        expect(reinspectBtn.disabled).toBe(true);
+      });
+
+      // Resolve retry
+      act(() => {
+        resolveSlowRetry?.({
+          path: "/code/repo-race",
+          exists: true,
+          isGitRepo: true,
+          currentBranch: "main",
+          defaultBranch: "main",
+          detectedCommands: {},
+          detectedTooling: [],
+          readiness: {
+            status: "ready",
+            message: "Ready",
+          },
+        });
+      });
+
+      await waitFor(() => {
+        const reinspectBtn = container.querySelector(
+          "#btn-recheck-inspection",
+        ) as HTMLButtonElement;
+        expect(reinspectBtn.disabled).toBe(false);
+      });
+    });
+
+    it("race safety: a stale single-repository retry never overwrites a newer full inspection result", async () => {
+      let resolveSlowRetry:
+        | ((val: InspectRepositoryResponse) => void)
+        | undefined;
+      const slowRetryPromise = new Promise<InspectRepositoryResponse>((res) => {
+        resolveSlowRetry = res;
+      });
+
+      // Initial inspection fails
+      mockInspectRepository.mockRejectedValueOnce(
+        new Error("Network timeout on initial inspection"),
+      );
+
+      const repos: ProjectRepository[] = [
+        {
+          id: "repo-race",
+          name: "repo-race",
+          path: "/code/repo-race",
+          defaultBranch: "main",
+          role: "backend",
+        },
+      ];
+
+      const { result } = renderHook(() => useRepositoryInspection(repos));
+
+      // Wait for initial failure
+      await waitFor(() => {
+        expect(result.current.results["repo-race"]?.status).toBe("api_error");
+      });
+
+      // Start slow single retry
+      mockInspectRepository.mockImplementationOnce(() => slowRetryPromise);
+      let retryPromise: Promise<void> | undefined;
+      act(() => {
+        retryPromise = result.current.handleRetrySingle(
+          repos[0] as ProjectRepository,
+        );
+      });
+
+      expect(result.current.isInspecting).toBe(true);
+
+      // Fast full inspection triggered while retry is in-flight
+      mockInspectRepository.mockResolvedValueOnce({
+        path: "/code/repo-race",
+        exists: true,
+        isGitRepo: true,
+        currentBranch: "main",
+        defaultBranch: "main",
+        detectedCommands: { test: "bun test" },
+        detectedTooling: ["bun"],
+        readiness: {
+          status: "ready",
+          message: "Verified by full inspection",
+        },
+      });
+
+      await act(async () => {
+        await result.current.handleReinspectAll();
+      });
+
+      // Full inspection set status to ready
+      expect(result.current.results["repo-race"]?.status).toBe("ready");
+      expect(result.current.results["repo-race"]?.message).toBe(
+        "Verified by full inspection",
+      );
+
+      // Now stale retry finally resolves with an outdated status
+      await act(async () => {
+        resolveSlowRetry?.({
+          path: "/code/repo-race",
+          exists: true,
+          isGitRepo: true,
+          currentBranch: "main",
+          defaultBranch: "main",
+          detectedCommands: {},
+          detectedTooling: [],
+          readiness: {
+            status: "pending_setup",
+            message: "Stale retry result should be ignored",
+          },
+        });
+        await retryPromise;
+      });
+
+      // The status must STILL be ready and not overwritten by the stale retry
+      expect(result.current.results["repo-race"]?.status).toBe("ready");
+      expect(result.current.results["repo-race"]?.message).toBe(
+        "Verified by full inspection",
+      );
+      expect(result.current.canAdvance).toBe(true);
     });
   });
 

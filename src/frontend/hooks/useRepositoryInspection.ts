@@ -20,6 +20,7 @@ export interface RepoInspectionResult {
   isGitRepo?: boolean | undefined;
   detectedCommands?: Record<string, string> | undefined;
   detectedTooling?: string[] | undefined;
+  currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   apiError?: string | undefined;
 }
@@ -39,7 +40,10 @@ async function inspectSingleRepo(
   repo: ProjectRepository,
 ): Promise<RepoInspectionResult> {
   try {
-    const res = await api.inspectRepository({ path: repo.path });
+    const res = await api.inspectRepository({
+      path: repo.path,
+      remote: repo.remote,
+    });
     return {
       repoId: repo.id,
       status: res.readiness.status,
@@ -48,7 +52,8 @@ async function inspectSingleRepo(
       isGitRepo: res.isGitRepo,
       detectedCommands: res.detectedCommands,
       detectedTooling: res.detectedTooling,
-      defaultBranch: res.defaultBranch,
+      currentBranch: res.currentBranch || res.defaultBranch,
+      defaultBranch: res.defaultBranch || res.currentBranch,
     };
   } catch (err) {
     return {
@@ -67,16 +72,19 @@ export function useRepositoryInspection(
   );
   const [isInspecting, setIsInspecting] = useState(false);
   const activeInspectionGenRef = useRef(0);
+  const isInspectingRef = useRef(false);
 
   const runFullInspection = useCallback(
     async (targetRepos: ProjectRepository[], gen: number) => {
       if (targetRepos.length === 0) {
         setResults({});
         setIsInspecting(false);
+        isInspectingRef.current = false;
         return;
       }
 
       setIsInspecting(true);
+      isInspectingRef.current = true;
       const initial: Record<string, RepoInspectionResult> = {};
       for (const r of targetRepos) {
         initial[r.id] = { repoId: r.id, status: "inspecting" };
@@ -97,6 +105,7 @@ export function useRepositoryInspection(
       }
       setResults(next);
       setIsInspecting(false);
+      isInspectingRef.current = false;
     },
     [],
   );
@@ -110,23 +119,40 @@ export function useRepositoryInspection(
     };
   }, [repositories, runFullInspection]);
 
-  const handleRetrySingle = async (repo: ProjectRepository) => {
+  const handleRetrySingle = useCallback(async (repo: ProjectRepository) => {
+    if (isInspectingRef.current) {
+      return;
+    }
+    const gen = activeInspectionGenRef.current;
+    setIsInspecting(true);
+    isInspectingRef.current = true;
+
     setResults((prev) => ({
       ...prev,
       [repo.id]: { repoId: repo.id, status: "inspecting" },
     }));
 
-    const result = await inspectSingleRepo(repo);
-    setResults((prev) => ({
-      ...prev,
-      [repo.id]: result,
-    }));
-  };
+    try {
+      const result = await inspectSingleRepo(repo);
+      if (activeInspectionGenRef.current !== gen) {
+        return;
+      }
+      setResults((prev) => ({
+        ...prev,
+        [repo.id]: result,
+      }));
+    } finally {
+      if (activeInspectionGenRef.current === gen) {
+        setIsInspecting(false);
+        isInspectingRef.current = false;
+      }
+    }
+  }, []);
 
-  const handleReinspectAll = async () => {
+  const handleReinspectAll = useCallback(async () => {
     const currentGen = ++activeInspectionGenRef.current;
     await runFullInspection(repositories, currentGen);
-  };
+  }, [repositories, runFullInspection]);
 
   const hasInspecting =
     isInspecting ||

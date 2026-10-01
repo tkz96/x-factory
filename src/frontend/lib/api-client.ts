@@ -26,6 +26,7 @@ export interface InspectRepositoryResponse {
   exists: boolean;
   isGitRepo: boolean;
   remote?: string | undefined;
+  currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: string | undefined;
   detectedCommands: Record<string, string>;
@@ -119,6 +120,8 @@ export const api = {
 
   async inspectRepository(payload: {
     path: string;
+    remote?: string | undefined;
+    expectedRemote?: string | undefined;
   }): Promise<InspectRepositoryResponse> {
     const res = await fetch("/api/projects/inspect-repository", {
       method: "POST",

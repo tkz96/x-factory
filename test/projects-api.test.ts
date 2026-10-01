@@ -319,6 +319,80 @@ describe("Project Onboarding & Management APIs", () => {
     );
   });
 
+  it("POST /api/projects/inspect-repository returns pending_setup when local remote does not match configured remote", async () => {
+    const repoDir = path.join(tempDir, "wrong-remote-repo");
+    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      cwd: repoDir,
+    });
+    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await execStrict(
+      "git",
+      ["remote", "add", "origin", "https://github.com/my-org/local-repo.git"],
+      { cwd: repoDir },
+    );
+    await writeFile(path.join(repoDir, "README.md"), "# Test\n");
+    await execStrict("git", ["add", "."], { cwd: repoDir });
+    await execStrict("git", ["commit", "-m", "initial"], { cwd: repoDir });
+
+    const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: repoDir,
+        remote: "https://github.com/my-org/different-remote.git",
+      }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      exists: boolean;
+      isGitRepo: boolean;
+      readiness: { status: string; message: string };
+    };
+    assert.equal(body.exists, true);
+    assert.equal(body.isGitRepo, true);
+    assert.equal(body.readiness.status, "pending_setup");
+    assert.equal(
+      body.readiness.message,
+      "Local Git remote URL does not match configured remote.",
+    );
+  });
+
+  it("POST /api/projects/inspect-repository returns current checkout branch as currentBranch", async () => {
+    const repoDir = path.join(tempDir, "branch-check-repo");
+    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      cwd: repoDir,
+    });
+    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await writeFile(path.join(repoDir, "README.md"), "# Branch\n");
+    await execStrict("git", ["add", "."], { cwd: repoDir });
+    await execStrict("git", ["commit", "-m", "initial"], { cwd: repoDir });
+    await execStrict(
+      "git",
+      ["checkout", "-b", "feature/inspection-terminology"],
+      { cwd: repoDir },
+    );
+
+    const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: repoDir }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      exists: boolean;
+      isGitRepo: boolean;
+      currentBranch: string;
+      readiness: { status: string; message: string };
+    };
+    assert.equal(body.exists, true);
+    assert.equal(body.isGitRepo, true);
+    assert.equal(body.currentBranch, "feature/inspection-terminology");
+  });
+
   it("POST /api/discovery/validate-path routes through discovery namespace", async () => {
     const res = await fetch(`${baseUrl}/api/discovery/validate-path`, {
       method: "POST",
