@@ -790,6 +790,17 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.review-repos-table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.review-repo-row.primary {
+  background: rgba(94, 92, 230, 0.05);
+}
+
 /* ── Settings Responsive (moved from AppShell mobile) ────────────────── */
 
 @media (max-width: 768px) {
