@@ -10,7 +10,6 @@ import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/frontend/App.js";
 import { AppShell } from "../src/frontend/components/AppShell.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
-import { EmptyStateCard } from "../src/frontend/components/EmptyStateCard.js";
 import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
@@ -241,26 +240,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(diffModalHtml).toContain("diff-row-del");
     });
 
-    it("EmptyStateCard renders loading, error, and empty states cleanly", () => {
-      const emptyHtml = renderToString(
-        React.createElement(EmptyStateCard, {
-          title: "Nothing Here",
-          message: "No items match current criteria.",
-        }),
-      );
-      expect(emptyHtml).toContain("empty-state");
-      expect(emptyHtml).toContain("Nothing Here");
-
-      const loadingHtml = renderToString(
-        React.createElement(EmptyStateCard, {
-          type: "loading",
-          title: "Loading Data…",
-        }),
-      );
-      expect(loadingHtml).toContain("spinner-sm");
-      expect(loadingHtml).toContain("Loading Data…");
-    });
-
     it("ProjectCard renders project name, tracker badge, and action links", () => {
       const html = renderWithProviders(
         React.createElement(ProjectCard, {
@@ -479,7 +458,6 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
    * here; entries leave this list when their absorbing ticket deletes them.
    */
   const LEGACY_ADHOC_FEEDBACK_FILES = new Set([
-    "src/frontend/components/EmptyStateCard.tsx", // absorbed + deleted across all consumers (spec #133)
     "src/frontend/components/docs/DocsSidebarNav.tsx",
     "src/frontend/views/ProjectDetailView.tsx",
     "src/frontend/views/QueueView.tsx",

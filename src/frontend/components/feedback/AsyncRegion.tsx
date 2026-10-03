@@ -31,6 +31,9 @@ export interface AsyncRegionProps {
   failedParts?: readonly string[];
   /** Overrides the canonical empty guidance for this region. */
   emptyCopy?: string;
+  /** The empty state's optional call-to-action (e.g. the onboard button). */
+  emptyAction?: ReactNode;
+  /** Region content — rendered in ready, partial, and stale. */
   children?: ReactNode;
 }
 
@@ -39,6 +42,7 @@ export function AsyncRegion({
   onRetry,
   failedParts,
   emptyCopy,
+  emptyAction,
   children,
 }: AsyncRegionProps) {
   const retryAfterMs = isNormalizedError(derived.error)
@@ -89,7 +93,9 @@ export function AsyncRegion({
           <use href="/assets/icons/sprite.svg#icon-info" />
         </svg>
         <p className="async-region-hint">{emptyCopy ?? STATE_COPY.empty}</p>
-        {children}
+        {emptyAction !== undefined && (
+          <div className="async-region-actions">{emptyAction}</div>
+        )}
       </div>
     );
   }

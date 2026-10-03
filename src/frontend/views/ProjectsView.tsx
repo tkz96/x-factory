@@ -1,18 +1,28 @@
 // src/frontend/views/ProjectsView.tsx — Projects catalog view with active & archived tabs (XFM-38, XFM-40, XFM-48).
 
 import { useState } from "react";
-import { EmptyStateCard } from "../components/EmptyStateCard.js";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { ProjectCard } from "../components/projects/ProjectCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useProjects } from "../hooks/useQueries.js";
 
 export function ProjectsView() {
-  const { data: projects = [], isLoading, error } = useProjects();
+  const projectsQuery = useProjects();
+  const projects = projectsQuery.data ?? [];
   const { openOnboardingModal } = useModal();
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
 
   const activeProjects = projects.filter((p) => !p.archived);
   const archivedProjects = projects.filter((p) => Boolean(p.archived));
+  const visibleProjects =
+    activeTab === "active" ? activeProjects : archivedProjects;
+
+  // One read region over the projects query. "Empty" is per selected tab —
+  // the visible tab is the region the user is looking at (#136).
+  const derived = deriveAsyncState(projectsQuery, {
+    isEmpty: () => visibleProjects.length === 0,
+  });
 
   return (
     <section id="area-projects" className="area-view active">
@@ -74,45 +84,45 @@ export function ProjectsView() {
           </div>
         </div>
 
-        {isLoading ? (
-          <EmptyStateCard type="loading" title="Loading Projects…" />
-        ) : error ? (
-          <EmptyStateCard
-            type="error"
-            title="Unable to Load Projects"
-            message={String(error)}
-          />
-        ) : activeTab === "active" ? (
-          <div id="projects-container" className="projects-grid">
-            {activeProjects.length === 0 ? (
-              <EmptyStateCard
-                icon="icon-folder"
-                title="No Active Projects"
-                message="Click Onboard Project to connect a workspace repository."
-                actionText="Onboard Project"
-                onAction={openOnboardingModal}
-                className="col-span-full"
-              />
-            ) : (
-              activeProjects.map((p) => <ProjectCard key={p.id} project={p} />)
-            )}
-          </div>
-        ) : (
-          <div id="archived-projects-section">
-            <div id="archived-projects-container" className="projects-grid">
-              {archivedProjects.length === 0 ? (
-                <EmptyStateCard
-                  message="No archived projects found."
-                  className="col-span-full"
-                />
-              ) : (
-                archivedProjects.map((p) => (
-                  <ProjectCard key={p.id} project={p} isArchived />
-                ))
-              )}
+        <AsyncRegion
+          derived={derived}
+          onRetry={() => void projectsQuery.refetch()}
+          emptyCopy={
+            activeTab === "active"
+              ? "Click Onboard Project to connect a workspace repository."
+              : "No archived projects found."
+          }
+          emptyAction={
+            activeTab === "active" ? (
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                onClick={openOnboardingModal}
+              >
+                <svg className="icon icon-sm" aria-hidden="true">
+                  <use href="/assets/icons/sprite.svg#icon-plus" />
+                </svg>
+                <span>Onboard Project</span>
+              </button>
+            ) : undefined
+          }
+        >
+          {activeTab === "active" ? (
+            <div id="projects-container" className="projects-grid">
+              {activeProjects.map((p) => (
+                <ProjectCard key={p.id} project={p} />
+              ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div id="archived-projects-section">
+              <div id="archived-projects-container" className="projects-grid">
+                {archivedProjects.map((p) => (
+                  <ProjectCard key={p.id} project={p} isArchived />
+                ))}
+              </div>
+            </div>
+          )}
+        </AsyncRegion>
       </div>
     </section>
   );

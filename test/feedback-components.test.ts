@@ -103,6 +103,22 @@ describe("AsyncRegion — five-state taxonomy", () => {
     expect(custom).not.toContain("Nothing here yet.");
   });
 
+  it("renders the empty state's optional call-to-action", () => {
+    const html = render(
+      React.createElement(AsyncRegion, {
+        derived: derived("empty"),
+        emptyCopy: "No projects yet.",
+        emptyAction: React.createElement(
+          "button",
+          { type: "button", className: "btn-primary btn-sm" },
+          "Onboard Project",
+        ),
+      }),
+    );
+    expect(html).toContain("async-region-actions");
+    expect(html).toContain("Onboard Project");
+  });
+
   it("renders ready content with no feedback chrome", () => {
     const html = render(
       React.createElement(

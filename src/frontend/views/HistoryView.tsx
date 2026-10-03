@@ -1,7 +1,8 @@
 // src/frontend/views/HistoryView.tsx — Historical completed and active runs view (XFM-38, XFM-40, XFM-49).
 
 import { useMemo, useState } from "react";
-import { EmptyStateCard } from "../components/EmptyStateCard.js";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RunHistoryCard } from "../components/history/RunHistoryCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
@@ -10,7 +11,8 @@ import "./HistoryView.css";
 type StatusFilter = "all" | "completed" | "active" | "failed";
 
 export function HistoryView() {
-  const { data: runs = [], isLoading, error } = useRuns();
+  const runsQuery = useRuns();
+  const runs = runsQuery.data ?? [];
   const { openNewRunModal } = useModal();
   const [filter, setFilter] = useState<StatusFilter>("all");
 
@@ -33,6 +35,13 @@ export function HistoryView() {
         return runs;
     }
   }, [runs, filter]);
+
+  // One read region over the runs query. "Empty" covers both empty cases:
+  // no runs at all (with a launch CTA) and a filter that matches nothing.
+  const derived = deriveAsyncState(runsQuery, {
+    isEmpty: () => filteredRuns.length === 0,
+  });
+  const noRunsAtAll = runs.length === 0;
 
   return (
     <section id="area-history" className="area-view active">
@@ -79,28 +88,33 @@ export function HistoryView() {
         </div>
 
         <div id="history-runs-container">
-          {isLoading ? (
-            <EmptyStateCard type="loading" message="Loading run history…" />
-          ) : error ? (
-            <EmptyStateCard
-              type="error"
-              title="Unable to Load History"
-              message={String(error)}
-            />
-          ) : runs.length === 0 ? (
-            <EmptyStateCard
-              icon="icon-clock"
-              message="No factory runs found. Launch your first run to populate history."
-              actionText="Launch New Run"
-              onAction={() => openNewRunModal()}
-            />
-          ) : filteredRuns.length === 0 ? (
-            <EmptyStateCard
-              message={`No runs matching the “${filter}” filter.`}
-            />
-          ) : (
-            filteredRuns.map((run) => <RunHistoryCard key={run.id} run={run} />)
-          )}
+          <AsyncRegion
+            derived={derived}
+            onRetry={() => void runsQuery.refetch()}
+            emptyCopy={
+              noRunsAtAll
+                ? "No factory runs found. Launch your first run to populate history."
+                : `No runs matching the “${filter}” filter.`
+            }
+            emptyAction={
+              noRunsAtAll ? (
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  onClick={() => openNewRunModal()}
+                >
+                  <svg className="icon icon-sm" aria-hidden="true">
+                    <use href="/assets/icons/sprite.svg#icon-plus" />
+                  </svg>
+                  <span>Launch New Run</span>
+                </button>
+              ) : undefined
+            }
+          >
+            {filteredRuns.map((run) => (
+              <RunHistoryCard key={run.id} run={run} />
+            ))}
+          </AsyncRegion>
         </div>
       </div>
     </section>
