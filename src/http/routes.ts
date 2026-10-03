@@ -4,6 +4,7 @@ import {
   emitStructuredLog,
   extractRequestId,
 } from "../diagnostics/correlation.js";
+import type { ProviderRegistry } from "../providers/registry.js";
 import {
   handleDiagnosticsRoute,
   handleHealthRoute,
@@ -13,6 +14,7 @@ import {
 import { handleDocsRoute } from "./docs-controller.js";
 import { getOpenApiSpec } from "./openapi.js";
 import { handleProjectsRoute } from "./projects-controller.js";
+import { handleProvidersRoute } from "./providers-controller.js";
 import { errorResponse, jsonResponse } from "./responses.js";
 import { handleRunsRoute } from "./runs-controller.js";
 import { handleSettingsRoute } from "./settings-controller.js";
@@ -21,6 +23,7 @@ async function routeApiRequest(
   method: string,
   parts: string[],
   req: Request,
+  customRegistry?: ProviderRegistry,
 ): Promise<Response | null> {
   const [resource, id, action, subaction] = parts;
 
@@ -76,10 +79,25 @@ async function routeApiRequest(
     return handleSettingsRoute(method, req);
   }
 
+  if (resource === "providers") {
+    const url = new URL(req.url);
+    return handleProvidersRoute(
+      method,
+      parts.slice(1),
+      req,
+      url,
+      customRegistry,
+    );
+  }
+
   return null;
 }
 
-export async function handleApi(req: Request, url: URL): Promise<Response> {
+export async function handleApi(
+  req: Request,
+  url: URL,
+  customRegistry?: ProviderRegistry,
+): Promise<Response> {
   const method = req.method;
   const requestId = extractRequestId(req);
   const parts = url.pathname
@@ -89,7 +107,7 @@ export async function handleApi(req: Request, url: URL): Promise<Response> {
 
   try {
     const response =
-      (await routeApiRequest(method, parts, req)) ||
+      (await routeApiRequest(method, parts, req, customRegistry)) ||
       errorResponse("Endpoint not found.", 404);
 
     // Propagate standard correlation ID in HTTP headers (XFM-73)

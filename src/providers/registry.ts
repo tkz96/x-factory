@@ -7,6 +7,7 @@
 // Tests inject alternative registries through the optional `registry`
 // parameter instead of mutating this one.
 
+import { azureProvider } from "./azure-module.js";
 import type { Provider, ProviderId } from "./contract.js";
 
 /**
@@ -22,7 +23,7 @@ export type ProviderRegistry = ReadonlyMap<string, Provider>;
 /** Built-in providers. The three real providers land in their own tickets. */
 const BUILT_INS: readonly Provider<ProviderId>[] = [
   // github — added with the github provider module
-  // azure — added with the azure provider module
+  azureProvider,
   // jira — added with the jira provider module
 ];
 

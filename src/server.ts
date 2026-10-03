@@ -18,6 +18,7 @@ import { jsonResponse } from "./http/responses.js";
 import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
+import type { ProviderRegistry } from "./providers/registry.js";
 import * as runs from "./runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,7 @@ export function startServer(
   port = PORT,
   customPublicDir?: string,
   customDb?: Database,
+  customProviderRegistry?: ProviderRegistry,
 ): ServerInstance {
   const publicDir = customPublicDir ?? getPublicDir();
   let db: Database;
@@ -108,7 +110,7 @@ export function startServer(
       inFlightRequests++;
       try {
         if (url.pathname.startsWith("/api/")) {
-          return await handleApi(req, url);
+          return await handleApi(req, url, customProviderRegistry);
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());
