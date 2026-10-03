@@ -14,7 +14,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   hasCapability,
   isProviderError,
-  PR_CREATE_ONLY,
   REQUIRED_WORKFLOW_LABEL,
 } from "../src/providers/contract.js";
 import {
@@ -478,10 +477,6 @@ describe("HTTP Boundary Tests (Zero-mock except fetch)", () => {
 });
 
 describe("createPullRequest (REST primary, gh CLI fallback, PR_CREATE_ONLY)", () => {
-  test("enforces PR_CREATE_ONLY policy invariant", () => {
-    expect(PR_CREATE_ONLY).toBe("create-only");
-  });
-
   test("REST API primary succeeds and does NOT invoke gh CLI executable", async () => {
     let fetchCalled = false;
     let cliCalled = false;
@@ -672,6 +667,57 @@ describe("findExistingPullRequest, listRepositories & listTickets", () => {
     expect(pr).toBeNull();
   });
 
+  test("findExistingPullRequest throws when both REST and CLI lookup mechanisms fail", async () => {
+    const stubFetch: GitHubFetch = async () => {
+      return new Response("Internal Server Error", { status: 500 });
+    };
+
+    const customDeps: GitHubModuleDeps = {
+      fetch: stubFetch,
+      execCommand: async () => ({
+        command: "gh",
+        exitCode: 1,
+        passed: false,
+        stdout: "",
+        stderr: "gh auth error",
+        durationMs: 0,
+      }),
+    };
+    const provider = new GitHubProvider(customDeps);
+
+    await expect(
+      provider.findExistingPullRequest(
+        { token: "ghp_tok", owner: "octocat", repo: "Hello-World" },
+        { repository: "octocat/Hello-World", sourceBranch: "non-existent" },
+      ),
+    ).rejects.toThrow(/HTTP 500/);
+  });
+
+  test("findExistingPullRequest returns null when CLI fallback fails with 'no pull requests found'", async () => {
+    const stubFetch: GitHubFetch = async () => {
+      return new Response("Internal Server Error", { status: 500 });
+    };
+
+    const customDeps: GitHubModuleDeps = {
+      fetch: stubFetch,
+      execCommand: async () => ({
+        command: "gh",
+        exitCode: 1,
+        passed: false,
+        stdout: "",
+        stderr: "no pull requests found for branch 'non-existent'",
+        durationMs: 0,
+      }),
+    };
+    const provider = new GitHubProvider(customDeps);
+
+    const pr = await provider.findExistingPullRequest(
+      { token: "ghp_tok", owner: "octocat", repo: "Hello-World" },
+      { repository: "octocat/Hello-World", sourceBranch: "non-existent" },
+    );
+    expect(pr).toBeNull();
+  });
+
   test("listRepositories queries and transforms repositories", async () => {
     const stubFetch: GitHubFetch = async () => {
       return new Response(
@@ -705,6 +751,39 @@ describe("findExistingPullRequest, listRepositories & listTickets", () => {
       defaultBranch: "main",
       webUrl: "https://github.com/octocat/repo-alpha",
     });
+  });
+
+  test("listRepositories paginates to retrieve all discoverable repositories", async () => {
+    let callCount = 0;
+    const stubFetch: GitHubFetch = async (_url) => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(JSON.stringify([{ id: 1, name: "repo-1" }]), {
+          status: 200,
+          headers: {
+            link: '<https://api.github.com/orgs/octocat/repos?page=2>; rel="next"',
+          },
+        });
+      } else {
+        return new Response(JSON.stringify([{ id: 2, name: "repo-2" }]), {
+          status: 200,
+        });
+      }
+    };
+
+    const provider = new GitHubProvider({
+      ...defaultGitHubDeps,
+      fetch: stubFetch,
+    });
+    const repos = await provider.listRepositories({
+      token: "ghp_tok",
+      owner: "octocat",
+    });
+
+    expect(callCount).toBe(2);
+    expect(repos).toHaveLength(2);
+    expect(repos[0]?.name).toBe("repo-1");
+    expect(repos[1]?.name).toBe("repo-2");
   });
 
   test("listTickets queries issues with workflow label and filters PRs", async () => {

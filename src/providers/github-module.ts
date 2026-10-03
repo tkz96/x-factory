@@ -642,10 +642,12 @@ export class GitHubProvider implements Provider<"github"> {
     config: ProviderConfig,
     input: FindPullRequestInput,
   ): Promise<ProviderPullRequest | null> {
-    const { owner, repo, token } = parseOwnerAndRepo(config, input.repository);
+    const { owner, repo, token } = resolveGitHubConfig(config);
     if (!owner || !repo) {
       return null;
     }
+
+    let lookupError: unknown = null;
     if (token) {
       try {
         const res = await this.fetch(
@@ -672,11 +674,17 @@ export class GitHubProvider implements Provider<"github"> {
                 : {}),
             };
           }
-          return null;
+          return null; // successful lookup + no match -> null
         }
-      } catch {
-        // Fallback to CLI
+        lookupError = createHttpError(
+          `GitHub PR lookup failed with HTTP ${res.status}`,
+          res,
+        );
+      } catch (err) {
+        lookupError = err;
       }
+    } else {
+      lookupError = new Error("No GitHub token configured for REST API.");
     }
 
     // Fallback: gh CLI
@@ -715,7 +723,20 @@ export class GitHubProvider implements Provider<"github"> {
       }
     }
 
-    return null;
+    // If CLI failed with "no pull requests found", return null!
+    if (
+      !cliResult.passed &&
+      cliResult.stderr &&
+      cliResult.stderr.includes("no pull requests found")
+    ) {
+      return null;
+    }
+
+    // Both failed, throw!
+    if (lookupError) {
+      throw lookupError;
+    }
+    throw new Error(`GitHub PR lookup failed. CLI stderr: ${cliResult.stderr}`);
   }
 
   /**
@@ -727,32 +748,46 @@ export class GitHubProvider implements Provider<"github"> {
     const resolved = resolveGitHubConfig(config);
     const headers = makeHeaders(resolved.token);
 
-    const url = resolved.owner
+    const initialUrl = resolved.owner
       ? `https://api.github.com/orgs/${encodeURIComponent(resolved.owner)}/repos?per_page=100&type=all`
       : "https://api.github.com/user/repos?per_page=100&affiliation=owner,collaborator,organization_member";
 
-    let res = await this.fetch(url, { headers });
-    if (res.status === 404 && resolved.owner) {
-      res = await this.fetch(
-        `https://api.github.com/users/${encodeURIComponent(resolved.owner)}/repos?per_page=100`,
-        { headers },
-      );
-    }
-
-    if (!res.ok) {
-      throw createHttpError(
-        `GitHub repository discovery failed with HTTP ${res.status}`,
-        res,
-      );
-    }
-
-    const repos = (await res.json()) as Array<{
+    let repos: Array<{
       id: number | string;
       name: string;
       clone_url?: string;
       html_url?: string;
       default_branch?: string;
-    }>;
+    }> = [];
+
+    let currentUrl: string | null = initialUrl;
+    while (currentUrl) {
+      let res = await this.fetch(currentUrl, { headers });
+      if (res.status === 404 && resolved.owner && currentUrl === initialUrl) {
+        currentUrl = `https://api.github.com/users/${encodeURIComponent(resolved.owner)}/repos?per_page=100`;
+        res = await this.fetch(currentUrl, { headers });
+      }
+
+      if (!res.ok) {
+        throw createHttpError(
+          `GitHub repository discovery failed with HTTP ${res.status}`,
+          res,
+        );
+      }
+
+      const pageRepos = (await res.json()) as typeof repos;
+      repos = repos.concat(pageRepos);
+
+      // Extract next page from Link header if present
+      const linkHeader = res.headers.get("link");
+      currentUrl = null;
+      if (linkHeader) {
+        const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        if (match) {
+          currentUrl = match[1] as string;
+        }
+      }
+    }
 
     return repos.map((repo) => ({
       id: String(repo.id),
