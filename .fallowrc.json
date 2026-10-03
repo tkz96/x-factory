@@ -38,7 +38,8 @@
           "src/trackers/**",
           "src/discovery/**",
           "src/inspection/**",
-          "src/agents/**"
+          "src/agents/**",
+          "src/providers/**"
         ]
       },
       {

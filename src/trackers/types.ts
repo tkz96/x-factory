@@ -1,17 +1,16 @@
-// src/trackers/types.ts — Interfaces and constants for issue tracker integrations.
+// src/trackers/types.ts — Legacy tracker types.
+//
+// The canonical provider contract now lives in src/providers/contract.ts
+// (wayfinder #127). This module re-exports the shared shapes so existing
+// consumers keep working until the absorb-and-delete migration removes it.
 
-import type { Ticket } from "../types.js";
+import type { ProviderId } from "../providers/contract.js";
+import { REQUIRED_WORKFLOW_LABEL } from "../providers/contract.js";
 
-export const REQUIRED_WORKFLOW_LABEL = "agentic-workflow";
+export type { TrackerTicket } from "../providers/contract.js";
+export { REQUIRED_WORKFLOW_LABEL };
 
-type TrackerProvider = "github" | "jira" | "azure";
-
-export interface TrackerTicket extends Ticket {
-  labels: string[];
-  url: string;
-  provider: TrackerProvider;
-  updatedAt?: string;
-}
+export type TrackerProvider = ProviderId;
 
 export interface TrackerOptions {
   provider?: TrackerProvider | undefined;
