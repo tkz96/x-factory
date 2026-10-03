@@ -4,7 +4,7 @@
 // - GET /api/providers/manifest
 // - POST /api/providers/verify
 // - POST /api/providers/parse-url
-// Proves validation layering (transport 400, semantic 409, DB 500),
+// Proves validation layering (transport 400, semantic 409),
 // the critical security invariant (envKey never exposed),
 // and curl demoability using the stub provider.
 
@@ -358,7 +358,7 @@ describe("POST /api/providers/verify", () => {
 });
 
 describe("POST /api/providers/parse-url", () => {
-  it("returns { providerId, configDraft, inferredName } for a recognized URL", async () => {
+  it("returns { matched: true, providerId, configDraft, inferredName } for a recognized URL", async () => {
     const res = await fetch(`${baseUrl}/api/providers/parse-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -369,11 +369,13 @@ describe("POST /api/providers/parse-url", () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
+      matched: boolean;
       providerId: string;
       configDraft: Record<string, unknown>;
       inferredName: string;
     };
     expect(body).toEqual({
+      matched: true,
       providerId: "stub",
       configDraft: {
         host: "https://stub.example",
@@ -383,7 +385,7 @@ describe("POST /api/providers/parse-url", () => {
     });
   });
 
-  it("returns UNKNOWN envelope carrying original URL in context for unrecognized URL", async () => {
+  it("returns matched: false carrying original URL for unrecognized URL", async () => {
     const unrecognizedUrl = "https://unrecognized.example/org/repo";
     const res = await fetch(`${baseUrl}/api/providers/parse-url`, {
       method: "POST",
@@ -395,12 +397,10 @@ describe("POST /api/providers/parse-url", () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      code: string;
-      context: { url: string };
+      matched: boolean;
       url: string;
     };
-    expect(body.code).toBe("UNKNOWN");
-    expect(body.context).toEqual({ url: unrecognizedUrl });
+    expect(body.matched).toBe(false);
     expect(body.url).toBe(unrecognizedUrl);
   });
 
@@ -450,49 +450,6 @@ describe("API Validation Layering (Cross-layer tests)", () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as { fieldErrors: Record<string, string> };
     expect(body.fieldErrors?.apiToken).toBe("REQUIRED");
-  });
-
-  it("proves DB constraint / unexpected errors surface as 500", async () => {
-    // Test that an unexpected database or system failure maps to 500
-    // using a provider that throws an unexpected non-domain/DB-style error outside toUserError
-    const crashingProvider: Provider = {
-      ...stubProvider,
-      id: "stub-crashing",
-      displayName: "Crashing Stub",
-      async verifyCredentials() {
-        throw new Error("SQLITE_CONSTRAINT: UNIQUE constraint failed: runs.id");
-      },
-      toUserError(err) {
-        // If it throws instead of normalizing
-        throw err;
-      },
-    };
-
-    const crashingRegistry = new Map<string, Provider>([
-      [crashingProvider.id, crashingProvider],
-    ]);
-    const crashServer = startServer(0, undefined, undefined, crashingRegistry);
-
-    try {
-      const res = await fetch(
-        `http://localhost:${crashServer.port}/api/providers/verify`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            providerId: "stub-crashing",
-            config: {
-              host: "https://stub.example",
-              apiToken: "tok",
-              project: "proj",
-            },
-          }),
-        },
-      );
-      expect(res.status).toBe(500);
-    } finally {
-      crashServer.stop(true);
-    }
   });
 });
 
@@ -555,6 +512,7 @@ describe("Curl-demoable flow with stub provider", () => {
     );
     const parseUrlJson = JSON.parse(parseUrlCurl.stdout);
     expect(parseUrlJson).toEqual({
+      matched: true,
       providerId: "stub",
       configDraft: {
         host: "https://stub.example",

@@ -1,4 +1,3 @@
-import { queryClient } from "../src/frontend/lib/query-client.js";
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
@@ -193,7 +192,6 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
 
   afterEach(() => {
     cleanup();
-    queryClient.clear();
     document.body.innerHTML = "";
   });
 
@@ -220,8 +218,8 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(openBtn);
     });
 
-    expect(container.querySelector("#modal-project-onboarding") !== null).toBe(true);
-    expect(container.querySelector("#onboard-step-1") !== null).toBe(true);
+    expect(container.querySelector("#modal-project-onboarding")).not.toBeNull();
+    expect(container.querySelector("#onboard-step-1")).not.toBeNull();
 
     // 2. Fill project name, ID, and custom workspace path
     const nameInput = container.querySelector(
@@ -254,7 +252,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(step1Next);
     });
 
-    expect(container.querySelector("#onboard-step-2") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-2")).not.toBeNull();
 
     // 3. Enter Azure organization/project & 4. Enter fake PAT
     const orgInput = container.querySelector(
@@ -308,7 +306,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
     });
 
     // 6. Populate discovery state
-    expect(container.querySelector("#onboard-step-3") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-3")).not.toBeNull();
     await waitFor(() => {
       expect(mockDiscoverRepositories).toHaveBeenCalledTimes(1);
     });
@@ -321,8 +319,8 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(step3Next);
     });
 
-    expect(container.querySelector("#onboard-step-4") !== null).toBe(true);
-    expect(container.querySelector("#discovered-repos-list") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-4")).not.toBeNull();
+    expect(container.querySelector("#discovered-repos-list")).not.toBeNull();
 
     // 8. Reach later wizard steps (Step 5 Inspection, then Step 6 Review)
     const step4Next = container.querySelector(
@@ -332,7 +330,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(step4Next);
     });
 
-    expect(container.querySelector("#onboard-step-5") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-5")).not.toBeNull();
     await waitFor(() => {
       expect(mockInspectRepository).toHaveBeenCalled();
     });
@@ -344,7 +342,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(step5Next);
     });
 
-    expect(container.querySelector("#onboard-step-6") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-6")).not.toBeNull();
     expect(container.querySelector("#review-project-name")?.textContent).toBe(
       "Alpha Project",
     );
@@ -358,7 +356,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
     });
 
     // Modal is closed
-    expect(container.querySelector("#modal-project-onboarding") === null).toBe(true);
+    expect(container.querySelector("#modal-project-onboarding")).toBeNull();
     expect(container.querySelector("#ctrl-modal-status")?.textContent).toBe(
       "closed",
     );
@@ -368,12 +366,12 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(openBtn);
     });
 
-    expect(container.querySelector("#modal-project-onboarding") !== null).toBe(true);
+    expect(container.querySelector("#modal-project-onboarding")).not.toBeNull();
 
     // 11. Verify the wizard starts at Step 1
-    expect(container.querySelector("#onboard-step-1") !== null).toBe(true);
-    expect(container.querySelector("#onboard-step-6") === null).toBe(true);
-    expect(container.querySelector("#onboard-step-2") === null).toBe(true);
+    expect(container.querySelector("#onboard-step-1")).not.toBeNull();
+    expect(container.querySelector("#onboard-step-6")).toBeNull();
+    expect(container.querySelector("#onboard-step-2")).toBeNull();
 
     // 12. Verify every onboarding field is back to its initial value
     const freshNameInput = container.querySelector(
@@ -405,7 +403,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(freshStep1Next);
     });
 
-    expect(container.querySelector("#onboard-step-2") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-2")).not.toBeNull();
 
     const freshOrgInput = container.querySelector(
       "#onboard-azure-org-url",
@@ -426,8 +424,8 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
     expect(
       container.querySelector("#scope-status-pill")?.textContent?.trim(),
     ).toBe("Awaiting Verification");
-    expect(container.querySelector("#scope-overprivileged-warning") === null).toBe(true);
-    expect(container.querySelector("#chk-pat-least-privilege-ack") === null).toBe(true);
+    expect(container.querySelector("#scope-overprivileged-warning")).toBeNull();
+    expect(container.querySelector("#chk-pat-least-privilege-ack")).toBeNull();
 
     // 15 & 16. Verify discovery, repository configs, and inspection states are reset
     // Advance to Step 3 with minimal inputs
@@ -443,7 +441,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(freshStep2Next);
     });
 
-    expect(container.querySelector("#onboard-step-3") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-3")).not.toBeNull();
     // Discovery runs anew for fresh session
     await waitFor(() => {
       expect(mockDiscoverRepositories).toHaveBeenCalledTimes(2);
@@ -481,7 +479,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(cancelBtn);
     });
 
-    expect(container.querySelector("#modal-project-onboarding") === null).toBe(true);
+    expect(container.querySelector("#modal-project-onboarding")).toBeNull();
 
     // Reopen
     await act(async () => {
@@ -572,7 +570,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(step2Next);
     });
 
-    expect(container.querySelector("#onboard-step-3") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-3")).not.toBeNull();
 
     // While both operations are in-flight, user closes the wizard
     const closeBtn = container.querySelector(
@@ -582,14 +580,14 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       fireEvent.click(closeBtn);
     });
 
-    expect(container.querySelector("#modal-project-onboarding") === null).toBe(true);
+    expect(container.querySelector("#modal-project-onboarding")).toBeNull();
 
     // Reopen for Session 2
     await act(async () => {
       fireEvent.click(openBtn);
     });
 
-    expect(container.querySelector("#onboard-step-1") !== null).toBe(true);
+    expect(container.querySelector("#onboard-step-1")).not.toBeNull();
 
     // Now Session 1's pending PAT verification promise and discovery promise resolve!
     await act(async () => {
@@ -642,7 +640,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
     expect(
       container.querySelector("#scope-status-pill")?.textContent?.trim(),
     ).toBe("Awaiting Verification");
-    expect(container.querySelector("#scope-overprivileged-warning") === null).toBe(true);
+    expect(container.querySelector("#scope-overprivileged-warning")).toBeNull();
   });
 
   it("ensures a pending submission across close and reopen cannot close or reset the new session", async () => {
@@ -735,7 +733,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       });
       // Step 3 -> 4
       await waitFor(() => {
-        expect(container.querySelector("#onboard-step-3") !== null).toBe(true);
+        expect(container.querySelector("#onboard-step-3")).not.toBeNull();
       });
       await act(async () => {
         fireEvent.click(
@@ -758,7 +756,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
         );
       });
 
-      expect(container.querySelector("#onboard-step-6") !== null).toBe(true);
+      expect(container.querySelector("#onboard-step-6")).not.toBeNull();
 
       // 2. Start submission (clicks submit button)
       const submitBtn = container.querySelector(
@@ -781,7 +779,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       });
 
       // Wizard is closed
-      expect(container.querySelector("#modal-project-onboarding") === null).toBe(true);
+      expect(container.querySelector("#modal-project-onboarding")).toBeNull();
 
       // Reopen for Session 2
       await act(async () => {
@@ -792,7 +790,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       expect(
         container.querySelector("#modal-project-onboarding"),
       ).not.toBeNull();
-      expect(container.querySelector("#onboard-step-1") !== null).toBe(true);
+      expect(container.querySelector("#onboard-step-1")).not.toBeNull();
 
       // User starts typing in Session 2
       const freshNameInput = container.querySelector(
@@ -812,7 +810,7 @@ describe("Wizard Explicit State Reset & Sensitive Fields (#116)", () => {
       expect(
         container.querySelector("#modal-project-onboarding"),
       ).not.toBeNull();
-      expect(container.querySelector("#onboard-step-1") !== null).toBe(true);
+      expect(container.querySelector("#onboard-step-1")).not.toBeNull();
 
       // 6. Verify that Session 2 state was NOT closed or reset by the stale submission
       const currentNameInput = container.querySelector(

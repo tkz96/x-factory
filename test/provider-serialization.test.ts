@@ -205,7 +205,7 @@ describe("serializeProviderConfigSchema", () => {
         .meta({ label: "Custom", uiType: "text" }),
     });
     expect(() => serializeProviderConfigSchema(schemaWithRefine)).toThrow(
-      /unsupported refinement/,
+      /unsupported check "custom"/,
     );
 
     const schemaWithTransform = z.object({
@@ -216,6 +216,16 @@ describe("serializeProviderConfigSchema", () => {
     });
     expect(() => serializeProviderConfigSchema(schemaWithTransform)).toThrow(
       /unsupported type "pipe"|unsupported pipe or transform/,
+    );
+
+    const schemaWithRegex = z.object({
+      regexField: z
+        .string()
+        .regex(/^[a-z]+$/)
+        .meta({ label: "Regex", uiType: "text" }),
+    });
+    expect(() => serializeProviderConfigSchema(schemaWithRegex)).toThrow(
+      /unsupported string format "regex"/,
     );
   });
 

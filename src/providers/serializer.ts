@@ -83,9 +83,12 @@ const ALLOWED_METADATA_KEYS = new Set([
 interface ZodCheckLike {
   type?: string;
   check?: string;
-  _zod?: { def?: { type?: string; check?: string; fn?: unknown } };
-  _def?: { type?: string; check?: string; fn?: unknown };
+  _zod?: {
+    def?: { type?: string; check?: string; fn?: unknown; format?: string };
+  };
+  _def?: { type?: string; check?: string; fn?: unknown; format?: string };
   fn?: unknown;
+  format?: string;
 }
 
 interface ZodFieldLike {
@@ -203,6 +206,31 @@ export function serializeProviderConfigSchema(
       for (const check of checks) {
         const checkDef = check?._zod?.def ?? check?._def ?? check;
         const checkType = checkDef?.check ?? checkDef?.type ?? check?.type;
+        const allowedChecks = [
+          "min_length",
+          "max_length",
+          "string_format",
+          "overwrite",
+        ];
+
+        if (
+          typeof checkType === "string" &&
+          !allowedChecks.includes(checkType)
+        ) {
+          throw new SchemaSerializationError(
+            `Field "${name}" contains unsupported check "${checkType}". Only min, max, url, email, trim are allowed.`,
+          );
+        }
+
+        if (checkType === "string_format") {
+          const format = checkDef?.format;
+          if (format !== "url" && format !== "email") {
+            throw new SchemaSerializationError(
+              `Field "${name}" contains unsupported string format "${format}". Only url and email are allowed.`,
+            );
+          }
+        }
+
         if (checkType === "custom" || typeof checkDef?.fn === "function") {
           throw new SchemaSerializationError(
             `Field "${name}" contains unsupported refinement. Custom refinements cannot be serialized.`,

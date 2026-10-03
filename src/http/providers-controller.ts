@@ -187,6 +187,7 @@ export async function handleParseUrlRoute(
       if (draft !== null) {
         return jsonResponse(
           {
+            matched: true,
             providerId: provider.id,
             configDraft: draft.configDraft,
             ...(draft.inferredName !== undefined
@@ -201,10 +202,7 @@ export async function handleParseUrlRoute(
 
   return jsonResponse(
     {
-      code: "UNKNOWN",
-      context: {
-        url: urlStr,
-      },
+      matched: false,
       url: urlStr,
     },
     200,

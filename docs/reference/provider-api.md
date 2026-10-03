@@ -118,7 +118,7 @@ Verifies connection credentials for a provider and role.
 #### Request Body
 ```json
 {
-  "providerId": "stub",
+  "matched": true, "providerId": "stub",
   "role": "tracker",
   "config": {
     "host": "https://stub.example",
@@ -156,7 +156,7 @@ Parses a repository or tracker URL into a configuration draft.
 - **Recognized URL (`200 OK`)**:
   ```json
   {
-    "providerId": "stub",
+    "matched": true, "providerId": "stub",
     "configDraft": {
       "host": "https://stub.example",
       "project": "rocket"
@@ -190,7 +190,7 @@ curl -s "http://localhost:3777/api/providers/manifest?role=git-host"
 curl -s -X POST http://localhost:3777/api/providers/verify \
   -H "Content-Type: application/json" \
   -d '{
-    "providerId": "stub",
+    "matched": true, "providerId": "stub",
     "role": "tracker",
     "config": {
       "host": "https://stub.example",
