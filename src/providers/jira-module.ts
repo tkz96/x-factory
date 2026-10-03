@@ -438,68 +438,85 @@ export const jiraProvider: Provider<"jira"> = {
       typeof parsed.project === "string" && parsed.project.trim().length > 0
         ? parsed.project.trim()
         : undefined;
-    const limit = 50;
-
-    // Remediated JQL query using the modern /rest/api/3/search/jql endpoint
-    const jql = `labels = "${label}"${project ? ` AND project = "${project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
-    const searchUrl = `https://${host}${SEARCH_JQL_ENDPOINT}?jql=${encodeURIComponent(jql)}&maxResults=${limit}`;
-
-    const res = await fetch(searchUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      let body: unknown;
-      try {
-        body = await res.json();
-      } catch {
-        // non-JSON body
-      }
-      throw new JiraHttpError(
-        `Jira search/jql failed: HTTP ${res.status}`,
-        res.status,
-        res.headers,
-        body,
-      );
+    if (project && !/^[A-Za-z][A-Za-z0-9]+$/.test(project)) {
+      throw new Error(`Invalid Jira project key format: ${project}`);
     }
 
-    const raw = (await res.json()) as {
-      issues?: Array<{
-        key: string;
-        fields?: {
-          summary?: string;
-          description?: unknown;
-          labels?: string[];
-        };
-      }>;
-    };
+    const maxResults = 50;
+    const jql = `labels = "${label}"${project ? ` AND project = "${project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
 
-    const issues = raw.issues ?? [];
-    return issues.map((issue) => {
-      let desc = "";
-      if (typeof issue.fields?.description === "string") {
-        desc = issue.fields.description;
-      } else if (issue.fields?.description) {
-        desc = parseAdfToText(issue.fields.description);
+    const allTickets: TrackerTicket[] = [];
+    let nextPageToken: string | undefined;
+
+    do {
+      let searchUrl = `https://${host}${SEARCH_JQL_ENDPOINT}?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`;
+      if (nextPageToken) {
+        searchUrl += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
       }
 
-      const labels = Array.isArray(issue.fields?.labels)
-        ? issue.fields.labels
-        : [];
-      return {
-        id: issue.key,
-        title: issue.fields?.summary || "",
-        description: desc,
-        acceptanceCriteria: extractCriteria(desc),
-        labels,
-        url: `https://${host}/browse/${issue.key}`,
-        provider: "jira" as const,
+      const res = await fetch(searchUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {
+          // non-JSON body
+        }
+        throw new JiraHttpError(
+          `Jira search/jql failed: HTTP ${res.status}`,
+          res.status,
+          res.headers,
+          body,
+        );
+      }
+
+      const raw = (await res.json()) as {
+        nextPageToken?: string;
+        issues?: Array<{
+          key: string;
+          fields?: {
+            summary?: string;
+            description?: unknown;
+            labels?: string[];
+          };
+        }>;
       };
-    });
+
+      const issues = raw.issues ?? [];
+      for (const issue of issues) {
+        let desc = "";
+        if (typeof issue.fields?.description === "string") {
+          desc = issue.fields.description;
+        } else if (issue.fields?.description) {
+          desc = parseAdfToText(issue.fields.description);
+        }
+
+        const labels = Array.isArray(issue.fields?.labels)
+          ? issue.fields.labels
+          : [];
+
+        allTickets.push({
+          id: issue.key,
+          title: issue.fields?.summary || "",
+          description: desc,
+          acceptanceCriteria: extractCriteria(desc),
+          labels,
+          url: `https://${host}/browse/${issue.key}`,
+          provider: "jira" as const,
+        });
+      }
+
+      nextPageToken = raw.nextPageToken;
+    } while (nextPageToken);
+
+    return allTickets;
   },
 
   parseQuickUrl(url: string): QuickUrlDraft | null {

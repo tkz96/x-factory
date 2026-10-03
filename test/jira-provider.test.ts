@@ -571,6 +571,61 @@ describe("Jira provider module (#140)", () => {
       );
     });
 
+    it("rejects project key containing invalid JQL syntax", async () => {
+      await expect(
+        jiraProvider.listTickets?.(
+          {
+            host: "https://acme.atlassian.net",
+            email: "bot@acme.com",
+            apiToken: "bot-token",
+            project: 'PROJ" OR project = "OTHER',
+          },
+          { requiredLabel: "custom-label" },
+        ),
+      ).rejects.toThrow(/Invalid Jira project key format/);
+    });
+
+    it("supports search/jql pagination with nextPageToken", async () => {
+      let pageCount = 0;
+      globalThis.fetch = (async (_input: RequestInfo | URL) => {
+        pageCount++;
+        if (pageCount === 1) {
+          return new Response(
+            JSON.stringify({
+              nextPageToken: "page2",
+              issues: [{ key: "T-1", fields: { summary: "First" } }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        } else {
+          return new Response(
+            JSON.stringify({
+              issues: [{ key: "T-2", fields: { summary: "Second" } }],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+      }) as unknown as typeof fetch;
+
+      const tickets = await jiraProvider.listTickets?.(
+        {
+          host: "https://acme.atlassian.net",
+          email: "bot@acme.com",
+          apiToken: "bot-token",
+        },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+      );
+
+      if (!tickets) {
+        throw new Error("tickets should be defined");
+      }
+
+      expect(tickets).toHaveLength(2);
+      expect(tickets[0]?.id).toBe("T-1");
+      expect(tickets[1]?.id).toBe("T-2");
+      expect(pageCount).toBe(2);
+    });
+
     it("throws JiraHttpError on HTTP failure", async () => {
       globalThis.fetch = (async () => {
         return new Response("Unauthorized", {
