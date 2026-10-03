@@ -441,3 +441,132 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
     });
   });
 });
+
+// ─── Feedback System Enforcement (spec #133, ticket #135) ─────────────────
+
+describe("Frontend Smoke — Feedback System Enforcement", () => {
+  const FRONTEND_DIR = path.join(ROOT_DIR, "src/frontend");
+  const FEEDBACK_DIR = path.join(FRONTEND_DIR, "components", "feedback");
+
+  function getSourceFiles(dir: string, extensions: string[]): string[] {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const files: string[] = [];
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...getSourceFiles(fullPath, extensions));
+      } else if (extensions.some((ext) => entry.name.endsWith(ext))) {
+        files.push(fullPath);
+      }
+    }
+    return files;
+  }
+
+  /**
+   * Known anti-patterns for loading/error feedback. Honest scope per
+   * docs/reference/state-coverage.md: this scan DETECTS known anti-patterns,
+   * it does not PROVE coverage — behavioral tests are the real enforcement.
+   */
+  const ANTI_PATTERNS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+    { name: "ad-hoc spinner markup", pattern: /className="[^"]*spinner/i },
+    { name: "ad-hoc generic error copy", pattern: /something went wrong/i },
+    { name: "toast system", pattern: /\btoast\b/i },
+  ];
+
+  /**
+   * Legacy files that still construct ad-hoc loading/error markup, pending
+   * absorption by the wizard rebuild (spec #133). New files must never land
+   * here; entries leave this list when their absorbing ticket deletes them.
+   */
+  const LEGACY_ADHOC_FEEDBACK_FILES = new Set([
+    "src/frontend/components/EmptyStateCard.tsx", // absorbed + deleted across all consumers (spec #133)
+    "src/frontend/components/docs/DocsSidebarNav.tsx",
+    "src/frontend/views/ProjectDetailView.tsx",
+    "src/frontend/views/QueueView.tsx",
+    "src/frontend/views/RunDetailView.tsx",
+    "src/frontend/views/RunsView.tsx",
+  ]);
+
+  it("scans for known ad-hoc loading/error markup outside the feedback family", () => {
+    const sourceFiles = getSourceFiles(FRONTEND_DIR, [".ts", ".tsx"]).filter(
+      (filePath) => !filePath.startsWith(FEEDBACK_DIR),
+    );
+    const violations: Array<{
+      file: string;
+      line: number;
+      pattern: string;
+      text: string;
+    }> = [];
+
+    for (const filePath of sourceFiles) {
+      const relative = path.relative(ROOT_DIR, filePath);
+      if (LEGACY_ADHOC_FEEDBACK_FILES.has(relative)) {
+        continue;
+      }
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        for (const { name, pattern } of ANTI_PATTERNS) {
+          if (pattern.test(line)) {
+            violations.push({
+              file: relative,
+              line: i + 1,
+              pattern: name,
+              text: line.trim(),
+            });
+          }
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("enforces the feedback family import rule: feedback/ imports nothing screen-specific", () => {
+    const feedbackFiles = getSourceFiles(FEEDBACK_DIR, [".ts", ".tsx"]);
+    expect(feedbackFiles.length).toBeGreaterThan(0);
+
+    const importPattern = /from\s+"(\.[^"]*)"/g;
+    const violations: Array<{ file: string; line: number; text: string }> = [];
+
+    for (const filePath of feedbackFiles) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        for (const match of line.matchAll(importPattern)) {
+          // A relative import starting with "../" escapes the feedback family.
+          if ((match[1] ?? "").startsWith("..")) {
+            violations.push({
+              file: path.relative(ROOT_DIR, filePath),
+              line: i + 1,
+              text: line.trim(),
+            });
+          }
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("verifies the feedback family stays presentation-only (no query machinery)", async () => {
+    // The known anti-pattern: query objects or query hooks crossing the
+    // feedback boundary. AsyncRegion takes the derived state enum; nothing in
+    // the family may import query machinery.
+    const asyncRegionSource = await Bun.file(
+      path.join(FEEDBACK_DIR, "AsyncRegion.tsx"),
+    ).text();
+    expect(asyncRegionSource).not.toContain("@tanstack/react-query");
+    expect(asyncRegionSource).not.toContain("useQuery");
+
+    const deriveSource = await Bun.file(
+      path.join(FEEDBACK_DIR, "derive-async-state.ts"),
+    ).text();
+    expect(deriveSource).not.toContain("@tanstack/react-query");
+    // Input staleness is the caller's predicate — never TanStack's own
+    // cache-freshness flag.
+    expect(deriveSource).not.toContain("isStale: boolean");
+  });
+});

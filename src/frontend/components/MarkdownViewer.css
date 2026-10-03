@@ -180,8 +180,8 @@
 
 .md-alert-warning,
 .md-alert-important {
-  border-left: 4px solid var(--yellow);
-  background: rgba(245, 158, 11, 0.08);
+  border-left: 4px solid var(--orange);
+  background: var(--orange-dim);
 }
 
 .md-alert-caution {
@@ -207,7 +207,7 @@
 }
 .md-alert-warning .md-alert-title,
 .md-alert-important .md-alert-title {
-  color: var(--yellow);
+  color: var(--orange);
 }
 .md-alert-caution .md-alert-title {
   color: var(--red);

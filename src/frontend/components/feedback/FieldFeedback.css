@@ -1,0 +1,30 @@
+/* ── FieldFeedback — inline input state feedback ────────────────────────── */
+
+.field-feedback {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-footnote);
+}
+
+/* The icon carries the state color; the message stays high-contrast text —
+   state hues alone do not meet the 4.5:1 body-text minimum (DESIGN.md §9). */
+.field-feedback-message {
+  color: var(--text);
+}
+
+.field-feedback--valid .icon {
+  color: var(--green);
+}
+
+.field-feedback--invalid .icon {
+  color: var(--red);
+}
+
+.field-feedback--warning .icon {
+  color: var(--orange);
+}
+
+.field-feedback--indeterminate .icon {
+  color: var(--text-muted);
+}

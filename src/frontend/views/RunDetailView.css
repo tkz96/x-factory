@@ -240,7 +240,7 @@
   border-left-color: var(--red);
 }
 .finding-item.finding-warning {
-  border-left-color: var(--yellow);
+  border-left-color: var(--orange);
 }
 .finding-item.finding-info {
   border-left-color: var(--accent);

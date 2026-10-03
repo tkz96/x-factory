@@ -17,11 +17,17 @@
   border: 1px solid var(--green);
 }
 
-.readiness-banner.pending,
-.readiness-banner.warning {
+.readiness-banner.pending {
   background: var(--yellow-dim);
   color: var(--yellow);
   border: 1px solid var(--yellow);
+}
+
+/* Warning semantics always use --orange — never --yellow (#132). */
+.readiness-banner.warning {
+  background: var(--orange-dim);
+  color: var(--orange);
+  border: 1px solid var(--orange);
 }
 
 .readiness-content {

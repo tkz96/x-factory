@@ -186,15 +186,15 @@
 .docs-callout-warning {
   margin-top: var(--space-6);
   padding: var(--space-5);
-  background: rgba(245, 158, 11, 0.1);
+  background: var(--orange-dim);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--yellow);
+  border: 1px solid var(--orange);
   font-size: var(--text-footnote);
   line-height: 1.6;
 }
 
 .docs-callout-warning strong {
-  color: var(--yellow);
+  color: var(--orange);
 }
 
 .docs-callout-guardrail {

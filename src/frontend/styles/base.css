@@ -26,6 +26,7 @@ html {
   :root {
     --transition-fast: 0ms;
     --transition: 0ms;
+    --transition-slow: 0ms;
   }
   *,
   *::before,

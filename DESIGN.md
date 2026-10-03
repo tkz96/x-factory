@@ -66,6 +66,8 @@ Use Apple's semantic system colors as the base palette — they're accessible by
 
 Never hardcode a hex value for a semantic role. Use `label` / `secondaryLabel` / `tertiaryLabel` for text, and `systemBackground` / `secondarySystemBackground` for surfaces — these are the tokens that make dark mode free instead of a rewrite.
 
+**Warnings are always `var(--orange)` (`systemOrange`) and its `--orange-dim` tint — never `var(--yellow)`.** `--yellow` is reserved for non-warning accents only (favorites/stars, in-progress status pills and badges, event-type accents). The full state-coverage contract behind this lives in `docs/reference/state-coverage.md`.
+
 ### Typography
 HIG: `/design/human-interface-guidelines/typography`
 Apple's default type scale (SF Pro, Dynamic Type "Large" size):
@@ -168,6 +170,7 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --color-destructive: #ff3b30;
   --color-success: #34c759;
   --color-warning: #ff9500;
+  --color-warning-dim: rgba(255, 149, 0, 0.14);
 
   /* Spacing — 8pt grid, 4pt sub-grid */
   --space-1: 4px; --space-2: 8px; --space-3: 12px;
@@ -182,10 +185,11 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   /* Radius */
   --radius-sm: 8px; --radius-md: 12px; --radius-lg: 20px;
 
-  /* Motion */
-  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-fast: 150ms; --duration-standard: 250ms; --duration-slow: 400ms;
+  /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve */
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: 160ms var(--spring);
+  --transition: 220ms var(--spring);
+  --transition-slow: 300ms var(--spring);
 
   /* Fonts — web path; see Section 3 for the licensing reasoning */
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
@@ -202,11 +206,12 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --color-destructive: #ff453a;
   --color-success: #30d158;
   --color-warning: #ff9f0a;
+  --color-warning-dim: rgba(255, 159, 10, 0.15);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --duration-fast: 0ms; --duration-standard: 0ms; --duration-slow: 0ms;
+    --transition-fast: 0ms; --transition: 0ms; --transition-slow: 0ms;
   }
 }
 ```

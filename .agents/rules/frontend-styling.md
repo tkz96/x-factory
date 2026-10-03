@@ -20,7 +20,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
    - Spacing: 8pt grid (`--space-1` to `--space-8`).
    - Radii: Apple squircle standard (`--radius-sm` to `--radius-xl`).
    - Typography: HIG scale (`--text-large-title` to `--text-caption-2`).
-   - Colors: Functional tokens (`--text`, `--text-muted`, `--accent`, `--green`, `--red`, `--yellow`, `--border`, etc.) with light & dark theme definitions.
+   - Colors: Functional tokens (`--text`, `--text-muted`, `--accent`, `--green`, `--red`, `--yellow`, `--orange`, `--border`, etc.) with light & dark theme definitions. Warnings always use `--orange` / `--orange-dim` — never `--yellow` (see `docs/reference/state-coverage.md`).
 2. **Base (`src/frontend/styles/base.css`)**:
    - Modern CSS resets, root font configuration (Inter / SF Pro text), custom scrollbars.
 3. **Shared Components (`src/frontend/styles/shared/*.css`)**:

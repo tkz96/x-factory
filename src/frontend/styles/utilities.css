@@ -209,7 +209,7 @@
 }
 .color-warning,
 .text-warning {
-  color: var(--yellow);
+  color: var(--orange);
 }
 
 /* ── Error Message ──────────────────────────────────────────────────── */

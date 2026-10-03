@@ -93,6 +93,9 @@
   --red-dim: rgba(255, 69, 58, 0.15);
   --yellow: #ffd60a;
   --yellow-dim: rgba(255, 214, 10, 0.15);
+  /* The canonical warning color (#132): warning semantics never use --yellow. */
+  --orange: #ff9f0a;
+  --orange-dim: rgba(255, 159, 10, 0.15);
   --purple: #bf5af2;
   --purple-dim: rgba(191, 90, 242, 0.15);
   --radius-pill: 980px;
@@ -123,8 +126,10 @@
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65);
   --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Motion ladder (#132): fast 160ms / standard 220ms / slow 300ms + spring. */
   --transition: 220ms cubic-bezier(0.16, 1, 0.3, 1);
   --transition-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-slow: 300ms cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Spacing — 8pt grid, 4pt sub-grid */
   --space-1: 4px;
@@ -178,6 +183,8 @@
   --red-dim: rgba(255, 59, 48, 0.14);
   --yellow: #ff9500;
   --yellow-dim: rgba(255, 149, 0, 0.14);
+  --orange: #ff9500;
+  --orange-dim: rgba(255, 149, 0, 0.14);
   --purple: #af52de;
   --purple-dim: rgba(175, 82, 222, 0.14);
   --bg-circle-btn: #e5e5ea;
@@ -216,6 +223,7 @@ html {
   :root {
     --transition-fast: 0ms;
     --transition: 0ms;
+    --transition-slow: 0ms;
   }
   *,
   *::before,
@@ -931,8 +939,8 @@ button:active,
   color: var(--accent);
 }
 .badge-warning {
-  background: var(--yellow-dim);
-  color: var(--yellow);
+  background: var(--orange-dim);
+  color: var(--orange);
 }
 .badge-error {
   background: var(--red-dim);
@@ -1159,7 +1167,7 @@ button:active,
   border-left-color: var(--red);
 }
 .finding-item.finding-warning {
-  border-left-color: var(--yellow);
+  border-left-color: var(--orange);
 }
 .finding-item.finding-info {
   border-left-color: var(--accent);
@@ -2659,27 +2667,9 @@ button:active,
   align-self: flex-start;
 }
 
-.readiness-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.9rem 1.2rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1.2rem;
-  font-size: 0.88rem;
-}
-
-.readiness-banner.ready {
-  background: var(--green-dim);
-  color: var(--green);
-  border: 1px solid var(--green);
-}
-
-.readiness-banner.pending {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-  border: 1px solid var(--yellow);
-}
+/* Readiness-banner styles live in src/frontend/components/projects/
+   ReadinessBanner.css (bundled by Vite); the stale copy here was removed
+   during the warning-token migration (ticket 135). */
 
 .repos-table-container {
   overflow-x: auto;
@@ -2878,9 +2868,9 @@ button.btn.btn-danger-hover:hover,
 }
 
 .info-banner.warning {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-  border-color: rgba(255, 214, 10, 0.3);
+  background: var(--orange-dim);
+  color: var(--orange);
+  border-color: var(--orange);
 }
 
 /* Path validation feedback */
@@ -2900,7 +2890,7 @@ button.btn.btn-danger-hover:hover,
 }
 
 .path-feedback-item.warn {
-  color: var(--yellow);
+  color: var(--orange);
 }
 
 .quick-path-btn {
@@ -3067,8 +3057,8 @@ button.btn.btn-danger-hover:hover,
 }
 
 .scope-item-row.warning {
-  border-left: 3px solid var(--yellow);
-  background: var(--yellow-dim);
+  border-left: 3px solid var(--orange);
+  background: var(--orange-dim);
 }
 
 .scope-item-row .scope-icon {
@@ -3151,7 +3141,7 @@ button.btn.btn-danger-hover:hover,
 }
 
 .icon-status-warning {
-  color: var(--yellow);
+  color: var(--orange);
 }
 
 .icon-status-pending {

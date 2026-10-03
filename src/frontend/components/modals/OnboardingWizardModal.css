@@ -419,9 +419,9 @@
 }
 
 .info-banner.warning {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-  border-color: rgba(255, 214, 10, 0.3);
+  background: var(--orange-dim);
+  color: var(--orange);
+  border-color: var(--orange);
 }
 
 /* ── Path Validation ─────────────────────────────────────────────────── */
@@ -442,7 +442,7 @@
 }
 
 .path-feedback-item.warn {
-  color: var(--yellow);
+  color: var(--orange);
 }
 
 .quick-path-btn {
@@ -712,8 +712,8 @@
 }
 
 .scope-item-row.warning {
-  border-left: 3px solid var(--yellow);
-  background: var(--yellow-dim);
+  border-left: 3px solid var(--orange);
+  background: var(--orange-dim);
 }
 
 .scope-item-row .scope-icon {

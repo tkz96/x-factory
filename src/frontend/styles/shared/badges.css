@@ -57,8 +57,8 @@
   color: var(--accent);
 }
 .badge-warning {
-  background: var(--yellow-dim);
-  color: var(--yellow);
+  background: var(--orange-dim);
+  color: var(--orange);
 }
 .badge-error {
   background: var(--red-dim);

@@ -60,7 +60,7 @@
 }
 
 .icon-status-warning {
-  color: var(--yellow);
+  color: var(--orange);
 }
 
 .icon-status-pending {

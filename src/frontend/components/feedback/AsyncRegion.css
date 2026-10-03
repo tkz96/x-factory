@@ -1,0 +1,89 @@
+/* ── AsyncRegion — the five-state taxonomy renderer ─────────────────────── */
+
+.async-region {
+  display: block;
+}
+
+/* Loading: indeterminate spinner in a reserved region — no layout shift.
+   Loading is neutral per spec #133 (state colors: loading/stale→neutral). */
+.async-region--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: calc(var(--space-8) * 3);
+  color: var(--text-muted);
+}
+
+.async-region--error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.async-region--error .icon {
+  color: var(--red);
+}
+
+.async-region--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.async-region--empty .icon {
+  color: var(--text-dim);
+}
+
+.async-region-hint {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  max-width: var(--space-8);
+  line-height: 1.5;
+}
+
+.async-region-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Stale: the visible out-of-date badge + refresh (#132).
+   Stale is neutral per spec #133 (state colors: loading/stale→neutral). */
+.async-region-stale {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.async-region-stale-badge {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  padding: var(--space-1) var(--space-3);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+/* Suppressed diagnostics render inline below the content they belong to. */
+.async-region-suppressed {
+  margin-top: var(--space-3);
+}
+
+.async-region .feedback-banner {
+  margin-top: var(--space-3);
+}
