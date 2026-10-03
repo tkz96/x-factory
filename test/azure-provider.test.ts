@@ -113,7 +113,7 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       const patField = fields.find((f) => f.name === "pat");
       expect(patField).toBeDefined();
       expect(patField?.type).toBe("secret");
-      expect(patField?.required).toBe(false);
+      expect(patField?.required).toBe(true);
       // envKey must be stripped by the serializer gate
       expect(patField).not.toHaveProperty("envKey");
     });
@@ -123,7 +123,7 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         orgUrl: "https://dev.azure.com/myorg",
         project: "MyProject",
       });
-      expect(validWithoutPat.success).toBe(true);
+      expect(validWithoutPat.success).toBe(false);
 
       const validWithPat = azureConfigSchema.safeParse({
         orgUrl: "https://dev.azure.com/myorg",

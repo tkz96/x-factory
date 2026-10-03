@@ -12,14 +12,6 @@
 
 import { z } from "zod/v4";
 import {
-  type CliCommandExecutor,
-  formatAzureAuthHeader,
-  getAzureCliAuthHeader,
-} from "../azure/auth.js";
-import { normalizeGitRef } from "../azure/pr.js";
-import { fetchAzureTickets } from "../trackers/azure.js";
-import type { TrackerTicket } from "../trackers/index.js";
-import {
   type CreatePullRequestInput,
   type FindPullRequestInput,
   PR_CREATE_ONLY,
@@ -29,9 +21,11 @@ import {
   type ProviderErrorContext,
   type ProviderPullRequest,
   type ProviderRepository,
+  REQUIRED_WORKFLOW_LABEL,
   type ScopeFinding,
   type ScopeVerificationReport,
   type TicketQueryOptions,
+  type TrackerTicket,
   type VerificationResult,
   type VerificationWarning,
 } from "./contract.js";
@@ -40,30 +34,28 @@ import {
 export const AZURE_PR_POLICY = PR_CREATE_ONLY;
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
-export const azureConfigSchema = z
-  .object({
-    orgUrl: z.string().url().meta({
-      label: "Organization URL",
-      uiType: "url",
-      placeholder: "https://dev.azure.com/organization",
-      help: "Azure DevOps organization URL (e.g. https://dev.azure.com/your-org)",
-    }),
-    project: z.string().min(1).meta({
-      label: "Project",
-      uiType: "text",
-      placeholder: "MyProject",
-      help: "Azure DevOps project name",
-    }),
-    pat: z.string().optional().meta({
-      label: "Personal Access Token",
-      uiType: "secret",
-      secret: true,
-      envKey: "AZURE_DEVOPS_PAT",
-      placeholder: "••••••••",
-      help: "Personal Access Token with Code and Work Items scopes (optional if logged in via Azure CLI)",
-    }),
-  })
-  .passthrough();
+export const azureConfigSchema = z.object({
+  orgUrl: z.string().url().meta({
+    label: "Organization URL",
+    uiType: "url",
+    placeholder: "https://dev.azure.com/organization",
+    help: "Azure DevOps organization URL (e.g. https://dev.azure.com/your-org)",
+  }),
+  project: z.string().min(1).meta({
+    label: "Project",
+    uiType: "text",
+    placeholder: "MyProject",
+    help: "Azure DevOps project name",
+  }),
+  pat: z.string().min(1).meta({
+    label: "Personal Access Token",
+    uiType: "secret",
+    secret: true,
+    envKey: "AZURE_DEVOPS_PAT",
+    placeholder: "••••••••",
+    help: "Personal Access Token with Code and Work Items scopes",
+  }),
+});
 
 /**
  * Provider-internal API error class preserving HTTP status, headers, and classification.
@@ -355,12 +347,32 @@ export function toUserError(
     message = raw;
   }
 
+  // 1. Semantic Status Classification (Highest Precedence)
+  if (status === 401 || status === 203 || isHtml) {
+    return { code: "AUTH_INVALID", context };
+  }
+  if (status === 403) {
+    return { code: "PERMISSION", context };
+  }
+  if (status === 404) {
+    return { code: "NOT_FOUND", context };
+  }
+  if (status === 429 || isRateLimit) {
+    return {
+      code: "RATE_LIMITED",
+      context,
+      ...(typeof retryAfterMs === "number" && retryAfterMs > 0
+        ? { retryAfterMs }
+        : {}),
+    };
+  }
+
+  // 2. Message Heuristics Fallback
+  const lowerMsg = message.toLowerCase();
   if (
-    status === 429 ||
-    isRateLimit ||
-    message.includes("TF400733") ||
-    message.toLowerCase().includes("rate limit") ||
-    message.toLowerCase().includes("too many requests")
+    lowerMsg.includes("tf400733") ||
+    lowerMsg.includes("rate limit") ||
+    lowerMsg.includes("too many requests")
   ) {
     return {
       code: "RATE_LIMITED",
@@ -372,39 +384,26 @@ export function toUserError(
   }
 
   if (
-    status === 401 ||
-    status === 203 ||
-    isHtml ||
-    message.toLowerCase().includes("auth") ||
-    message.toLowerCase().includes("token") ||
-    message.toLowerCase().includes("pat") ||
-    message.toLowerCase().includes("sign-in") ||
-    message.toLowerCase().includes("unauthorized") ||
-    message.toLowerCase().includes("html response")
+    lowerMsg.includes("auth") ||
+    lowerMsg.includes("token") ||
+    lowerMsg.includes("pat") ||
+    lowerMsg.includes("sign-in") ||
+    lowerMsg.includes("unauthorized") ||
+    lowerMsg.includes("html response")
   ) {
-    return {
-      code: "AUTH_INVALID",
-      context,
-    };
+    return { code: "AUTH_INVALID", context };
   }
 
   if (
-    status === 403 ||
-    message.toLowerCase().includes("forbidden") ||
-    message.toLowerCase().includes("permission") ||
-    message.includes("TF401027")
+    lowerMsg.includes("forbidden") ||
+    lowerMsg.includes("permission") ||
+    lowerMsg.includes("tf401027")
   ) {
-    return {
-      code: "PERMISSION",
-      context,
-    };
+    return { code: "PERMISSION", context };
   }
 
-  if (status === 404 || message.toLowerCase().includes("not found")) {
-    return {
-      code: "NOT_FOUND",
-      context,
-    };
+  if (lowerMsg.includes("not found")) {
+    return { code: "NOT_FOUND", context };
   }
 
   return {
@@ -459,7 +458,7 @@ async function prepareAzureContext(
 export function createAzureProvider(
   deps: AzureProviderDependencies = {},
 ): Provider<"azure"> {
-  const fetcher = deps.fetchFn || globalThis.fetch;
+  const getFetcher = () => deps.fetchFn || globalThis.fetch;
   const executor = deps.executor;
 
   return {
@@ -487,36 +486,50 @@ export function createAzureProvider(
       // 4. Probe 1: Repositories read (authoritative check for project & repos)
       let repos: Array<{ id: string; name: string }> = [];
       const reposUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories?api-version=7.1`;
-      const reposRes = await azureFetch(reposUrl, {
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/json",
-        },
-        fetchFn: fetcher,
-        signal: AbortSignal.timeout(6000),
-      });
 
-      const reposPayload = reposRes.data as
-        | { value?: unknown[] }
-        | null
-        | undefined;
-      if (Array.isArray(reposPayload?.value)) {
-        repos = reposPayload.value.map((r: unknown) => {
-          const item = (r && typeof r === "object" ? r : {}) as Record<
-            string,
-            unknown
-          >;
-          return {
-            id: String(item.id ?? ""),
-            name: String(item.name ?? ""),
-          };
+      try {
+        const reposRes = await azureFetch(reposUrl, {
+          headers: {
+            Authorization: authHeader,
+            Accept: "application/json",
+          },
+          fetchFn: getFetcher(),
+          signal: AbortSignal.timeout(6000),
+        });
+
+        const reposPayload = reposRes.data as
+          | { value?: unknown[] }
+          | null
+          | undefined;
+        if (Array.isArray(reposPayload?.value)) {
+          repos = reposPayload.value.map((r: unknown) => {
+            const item = (r && typeof r === "object" ? r : {}) as Record<
+              string,
+              unknown
+            >;
+            return {
+              id: String(item.id ?? ""),
+              name: String(item.name ?? ""),
+            };
+          });
+        }
+      } catch (err) {
+        if (
+          err instanceof AzureApiError &&
+          (err.status === 401 || err.isHtml)
+        ) {
+          throw err;
+        }
+        warnings.push({
+          kind: "CAPABILITY_UNCONFIRMED",
+          capability: "listRepositories",
         });
       }
 
       // 5. Probe 2: Work Items read (WIQL probe for tickets capability)
       try {
         const wiqlUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/wiql?api-version=7.1`;
-        const wiqlRes = await fetcher(wiqlUrl, {
+        const wiqlRes = await getFetcher()(wiqlUrl, {
           method: "POST",
           headers: {
             Authorization: authHeader,
@@ -565,7 +578,7 @@ export function createAzureProvider(
       } else {
         try {
           const prProbeUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories/${encodeURIComponent(targetRepo)}/pullrequests?api-version=7.1`;
-          const prRes = await fetcher(prProbeUrl, {
+          const prRes = await getFetcher()(prProbeUrl, {
             method: "POST",
             headers: {
               Authorization: authHeader,
@@ -625,7 +638,7 @@ export function createAzureProvider(
       // 1. Tickets (Work Items) read
       try {
         const wiqlUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/wiql?api-version=7.1`;
-        const res = await fetcher(wiqlUrl, {
+        const res = await getFetcher()(wiqlUrl, {
           method: "POST",
           headers: {
             Authorization: authHeader,
@@ -653,7 +666,7 @@ export function createAzureProvider(
       let firstRepoIdOrName: string | undefined;
       try {
         const reposUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories?api-version=7.1`;
-        const res = await fetcher(reposUrl, {
+        const res = await getFetcher()(reposUrl, {
           headers: { Authorization: authHeader, Accept: "application/json" },
         });
         if (res.status === 200) {
@@ -682,7 +695,7 @@ export function createAzureProvider(
       if (firstRepoIdOrName) {
         try {
           const prProbeUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories/${encodeURIComponent(firstRepoIdOrName)}/pullrequests?api-version=7.1`;
-          const res = await fetcher(prProbeUrl, {
+          const res = await getFetcher()(prProbeUrl, {
             method: "POST",
             headers: {
               Authorization: authHeader,
@@ -720,7 +733,7 @@ export function createAzureProvider(
       // 4. Overprivilege checks: recycle bin (Code: Full) and work item write
       try {
         const binUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/recycleBin/repositories?api-version=7.1`;
-        const res = await fetcher(binUrl, {
+        const res = await getFetcher()(binUrl, {
           headers: { Authorization: authHeader, Accept: "application/json" },
         });
         if (res.status === 200) {
@@ -732,7 +745,7 @@ export function createAzureProvider(
 
       try {
         const writeProbeUrl = `${cleanOrgUrl}/_apis/wit/workitems/-1?api-version=7.1`;
-        const res = await fetcher(writeProbeUrl, {
+        const res = await getFetcher()(writeProbeUrl, {
           method: "PATCH",
           headers: {
             Authorization: authHeader,
@@ -838,7 +851,7 @@ export function createAzureProvider(
           Authorization: authHeader,
           Accept: "application/json",
         },
-        fetchFn: fetcher,
+        fetchFn: getFetcher(),
       });
 
       const rawData = res.data as { value?: unknown[] } | null | undefined;
@@ -865,17 +878,83 @@ export function createAzureProvider(
       config: ProviderConfig,
       options: TicketQueryOptions,
     ): Promise<TrackerTicket[]> {
-      const parsed = azureConfigSchema.safeParse(config);
-      if (!parsed.success) {
-        throw new Error(`Invalid Azure configuration: ${parsed.error.message}`);
-      }
+      const { cleanOrgUrl, encodedProject, authHeader } =
+        await prepareAzureContext(
+          config,
+          undefined,
+          "Azure DevOps authentication required.",
+        );
 
-      const { orgUrl, project, pat } = parsed.data;
-      return fetchAzureTickets({
-        orgUrl,
-        project,
-        pat,
-        requiredLabel: options.requiredLabel,
+      const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
+      const escapedLabel = label.replace(/'/g, "''");
+      const wiqlUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/wiql?api-version=7.1`;
+      const query = `SELECT [System.Id] FROM WorkItems WHERE [System.Tags] CONTAINS '${escapedLabel}' AND [System.State] <> 'Closed' AND [System.State] <> 'Done' ORDER BY [System.ChangedDate] DESC`;
+
+      const res = await azureFetch(wiqlUrl, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query }),
+        fetchFn: getFetcher(),
+      });
+
+      const raw = res.data as { workItems?: Array<{ id: number }> };
+      if (!raw || !Array.isArray(raw.workItems) || raw.workItems.length === 0)
+        return [];
+
+      const ids = raw.workItems.map((w) => w.id).slice(0, 50);
+      if (ids.length === 0) return [];
+
+      const itemsUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/workitems?ids=${ids.join(",")}&api-version=7.1`;
+      const itemsRes = await azureFetch(itemsUrl, {
+        headers: { Authorization: authHeader, Accept: "application/json" },
+        fetchFn: getFetcher(),
+      });
+
+      const itemsRaw = itemsRes.data as {
+        value?: Array<Record<string, unknown>>;
+      };
+      const items = Array.isArray(itemsRaw?.value) ? itemsRaw.value : [];
+
+      return items.map((item: Record<string, unknown>) => {
+        const fields = (item.fields as Record<string, unknown>) || {};
+        const title = String(fields["System.Title"] || "");
+        const rawDesc = String(fields["System.Description"] || "");
+        const rawCriteria = String(
+          fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "",
+        );
+        const desc = stripHtml(rawDesc);
+        const criteriaText = rawCriteria ? stripHtml(rawCriteria) : desc;
+        let criteria = extractCriteria(criteriaText);
+        if (criteria.length === 0 && rawCriteria) {
+          const stripped = stripHtml(rawCriteria).trim();
+          if (stripped) {
+            criteria = stripped
+              .split(/\r?\n/)
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+          }
+        }
+        const tags = String(fields["System.Tags"] || "")
+          .split(";")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+
+        const fallbackUrl = `${cleanOrgUrl}/${encodedProject}/_workitems/edit/${item.id}`;
+
+        return {
+          id: `AZ-${item.id}`,
+          title,
+          description: desc,
+          acceptanceCriteria: criteria,
+          labels: tags,
+          url:
+            (item._links as { html?: { href?: string } })?.html?.href ||
+            fallbackUrl,
+          provider: "azure" as const,
+        };
       });
     },
 
@@ -908,7 +987,7 @@ export function createAzureProvider(
           Accept: "application/json",
         },
         body: JSON.stringify(payload),
-        fetchFn: fetcher,
+        fetchFn: getFetcher(),
       });
 
       const data = (
@@ -918,7 +997,7 @@ export function createAzureProvider(
         ? String(data.pullRequestId)
         : "";
       const links = data._links as { web?: { href?: string } } | undefined;
-      let webUrl = links?.web?.href || "";
+      let webUrl = typeof links?.web?.href === "string" ? links.web.href : "";
       if (!webUrl && pullRequestId) {
         webUrl = `${cleanOrgUrl}/${encodedProject}/_git/${encodeURIComponent(input.repository)}/pullrequest/${pullRequestId}`;
       }
@@ -953,7 +1032,7 @@ export function createAzureProvider(
           Authorization: authHeader,
           Accept: "application/json",
         },
-        fetchFn: fetcher,
+        fetchFn: getFetcher(),
       });
 
       const prsPayload = res.data as { value?: unknown[] } | null | undefined;
@@ -997,3 +1076,110 @@ export function createAzureProvider(
 
 /** Production Azure DevOps provider singleton */
 export const azureProvider: Provider<"azure"> = createAzureProvider();
+export type CliCommandExecutor = (
+  cmd: string,
+  args: string[],
+  options?: { timeoutMs?: number },
+) => Promise<{ passed: boolean; stdout: string }>;
+
+export function formatAzureAuthHeader(pat: string): string {
+  const trimmed = pat.trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith("eyJ")
+    ? `Bearer ${trimmed}`
+    : `Basic ${Buffer.from(`:${trimmed}`).toString("base64")}`;
+}
+
+export async function getAzureCliAuthHeader(
+  executor?: CliCommandExecutor,
+): Promise<string> {
+  if (process.env.NODE_ENV === "test" && !executor) return "";
+  try {
+    const exec = executor || (await import("../proc.js")).execCommand;
+    const res = await exec(
+      "az",
+      [
+        "account",
+        "get-access-token",
+        "--resource",
+        "499b84ac-1321-427f-aa17-267ca6975798",
+        "--query",
+        "accessToken",
+        "-o",
+        "tsv",
+      ],
+      { timeoutMs: 15000 },
+    );
+    if (res.passed && res.stdout.trim()) {
+      return `Bearer ${res.stdout.trim()}`;
+    }
+  } catch {
+    // az CLI not available or not logged in
+  }
+  return "";
+}
+
+export function normalizeGitRef(branch: string): string {
+  const trimmed = branch.trim();
+  if (trimmed.startsWith("refs/heads/")) {
+    return trimmed;
+  }
+  return `refs/heads/${trimmed}`;
+}
+
+function isSectionHeader(line: string): boolean {
+  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
+    line,
+  );
+}
+
+function sanitizeLine(line: string): string {
+  return line
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_`]/g, "")
+    .trim();
+}
+
+function parseBulletLine(line: string): string | null {
+  const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
+  return match?.[1] ? sanitizeLine(match[1]) : null;
+}
+
+export function extractCriteria(text: string): string[] {
+  if (!text || typeof text !== "string") return [];
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const headerIdx = lines.findIndex(isSectionHeader);
+  if (headerIdx >= 0) {
+    const sectionLines: string[] = [];
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const currentLine = lines[i];
+      if (!currentLine) continue;
+      if (/^#+\s+/.test(currentLine)) break;
+      const bullet = parseBulletLine(currentLine);
+      if (bullet) sectionLines.push(bullet);
+      else if (currentLine.length > 5)
+        sectionLines.push(sanitizeLine(currentLine));
+    }
+    return sectionLines;
+  }
+  return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
+}
+
+export function stripHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<li>/gi, "- ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .trim();
+}

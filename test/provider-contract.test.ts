@@ -16,12 +16,7 @@ import {
   REQUIRED_WORKFLOW_LABEL,
   type VerificationResult,
 } from "../src/providers/contract.js";
-import {
-  getProvider,
-  listProviders,
-  PROVIDER_REGISTRY,
-  requireProvider,
-} from "../src/providers/registry.js";
+import { getProvider, requireProvider } from "../src/providers/registry.js";
 import { stubConfigSchema, stubProvider } from "./fixtures/stub-provider.js";
 
 describe("provider contract", () => {
@@ -114,13 +109,6 @@ describe("provider error envelope", () => {
 });
 
 describe("static registry", () => {
-  test("is empty during prefactoring; real providers land in their own tickets", () => {
-    // Adding a provider = one new directory + one BUILT_INS entry (#138–#140).
-    expect(listProviders()).toEqual([]);
-    expect(getProvider("github")).toBeUndefined();
-    expect(PROVIDER_REGISTRY.size).toBe(0);
-  });
-
   test("requireProvider throws a normalized error for unknown ids", () => {
     expect(() => requireProvider("does-not-exist")).toThrow(/Unknown provider/);
   });
