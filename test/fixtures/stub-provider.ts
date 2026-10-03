@@ -17,6 +17,7 @@ const apiTokenMeta: ProviderConfigFieldMeta = {
   label: "API token",
   uiType: "secret",
   secret: true,
+  envKey: "STUB_API_TOKEN",
   help: "Stored in per-project environment storage.",
 };
 const projectMeta: ProviderConfigFieldMeta = {

@@ -9,6 +9,13 @@
 
 import type { Provider, ProviderId } from "./contract.js";
 
+/**
+ * Provider lookup id: `ProviderId` literals get editor autocomplete while
+ * `string & {}` keeps registry injection open to test providers with ids
+ * outside the production union.
+ */
+export type ProviderLookupId = ProviderId | (string & {});
+
 /** A set of providers keyed by id. Injectable so tests can use stubs. */
 export type ProviderRegistry = ReadonlyMap<string, Provider>;
 
@@ -33,7 +40,7 @@ export function listProviders(
 
 /** Resolves a provider by id, or `undefined` when not registered. */
 export function getProvider(
-  id: string,
+  id: ProviderLookupId,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Provider | undefined {
   return registry.get(id);
@@ -41,7 +48,7 @@ export function getProvider(
 
 /** Resolves a provider by id; throws for unknown ids. */
 export function requireProvider(
-  id: string,
+  id: ProviderLookupId,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Provider {
   const provider = registry.get(id);

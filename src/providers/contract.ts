@@ -55,29 +55,42 @@ export interface TicketQueryOptions {
 // Error envelope (#129)
 // ---------------------------------------------------------------------------
 
-const PROVIDER_ERROR_CODES = [
+/**
+ * Declares one of the contract's closed string sets from a single literal
+ * list: a readonly tuple whose members derive the union via
+ * `(typeof set.values)[number]`, plus the runtime membership set — the two
+ * can never drift apart.
+ */
+function defineContractValues<const T extends readonly string[]>(
+  ...values: T
+): Readonly<{ values: T; set: ReadonlySet<string> }> {
+  return { values, set: new Set<string>(values) };
+}
+
+const PROVIDER_ERROR_CODES = defineContractValues(
   "AUTH_INVALID", // credential rejected (bad token, 401)
   "AUTH_LOCKED", // auth temporarily blocked (e.g. Jira CAPTCHA) — different remediation
   "NOT_FOUND", // resource doesn't exist or isn't visible to the token
   "RATE_LIMITED", // provider throttling (incl. GitHub 403 + x-ratelimit-remaining: 0)
   "PERMISSION", // authenticated but unauthorized (scopes)
   "UNKNOWN",
-] as const;
+);
 
-export type ProviderErrorCode = (typeof PROVIDER_ERROR_CODES)[number];
+export type ProviderErrorCode = (typeof PROVIDER_ERROR_CODES.values)[number];
 
-const PROVIDER_ERROR_CONTEXTS = [
+const PROVIDER_ERROR_CONTEXTS = defineContractValues(
   "VERIFY",
   "DISCOVERY",
   "TICKETS",
   "PR",
-] as const;
+);
 
 /** The failed operation. Required — there is no fallback context. */
-export type ProviderErrorContext = (typeof PROVIDER_ERROR_CONTEXTS)[number];
+export type ProviderErrorContext =
+  (typeof PROVIDER_ERROR_CONTEXTS.values)[number];
 
 /**
- * Structured error envelope. `retryAfterMs` is provider-computed
+ * Structured error envelope. `retryAfterMs` is provider-computed, positive,
  * milliseconds and is present only when actually known.
  */
 export interface ProviderError {
@@ -85,13 +98,6 @@ export interface ProviderError {
   context: ProviderErrorContext;
   retryAfterMs?: number;
 }
-
-const PROVIDER_ERROR_CODE_SET: ReadonlySet<string> = new Set(
-  PROVIDER_ERROR_CODES,
-);
-const PROVIDER_ERROR_CONTEXT_SET: ReadonlySet<string> = new Set(
-  PROVIDER_ERROR_CONTEXTS,
-);
 
 /** Runtime guard for values crossing the API boundary as error envelopes. */
 export function isProviderError(value: unknown): value is ProviderError {
@@ -102,10 +108,11 @@ export function isProviderError(value: unknown): value is ProviderError {
   return (
     typeof candidate.code === "string" &&
     typeof candidate.context === "string" &&
-    PROVIDER_ERROR_CODE_SET.has(candidate.code) &&
-    PROVIDER_ERROR_CONTEXT_SET.has(candidate.context) &&
+    PROVIDER_ERROR_CODES.set.has(candidate.code) &&
+    PROVIDER_ERROR_CONTEXTS.set.has(candidate.context) &&
     (candidate.retryAfterMs === undefined ||
-      typeof candidate.retryAfterMs === "number")
+      (typeof candidate.retryAfterMs === "number" &&
+        candidate.retryAfterMs > 0))
   );
 }
 
@@ -179,6 +186,12 @@ export type ProviderConfigFieldMeta = {
   uiType: ProviderConfigUiType;
   /** `true` marks a secret: rendered as a password input, routed to env storage. */
   secret?: boolean;
+  /**
+   * Environment variable key used to route secret values into per-project
+   * env storage (#131). Server/provider metadata only — never serialized
+   * into the client-facing manifest (#137).
+   */
+  envKey?: string;
   placeholder?: string;
   help?: string;
   /** Restricts the field to specific connection roles; defaults to all roles. */

@@ -87,6 +87,20 @@ describe("provider error envelope", () => {
         retryAfterMs: "soon",
       }),
     ).toBe(false);
+    expect(
+      isProviderError({
+        code: "RATE_LIMITED",
+        context: "DISCOVERY",
+        retryAfterMs: 0,
+      }),
+    ).toBe(false);
+    expect(
+      isProviderError({
+        code: "RATE_LIMITED",
+        context: "DISCOVERY",
+        retryAfterMs: -5,
+      }),
+    ).toBe(false);
   });
 
   test("accepts retryAfterMs when actually known", () => {
@@ -148,6 +162,12 @@ describe("registry-injection extensibility gate (#127 acceptance a)", () => {
 
   test("stub config schema declares secret-field metadata", () => {
     const token = stubConfigSchema.shape.apiToken;
-    expect(token.meta()).toMatchObject({ secret: true, uiType: "secret" });
+    expect(token.meta()).toMatchObject({
+      secret: true,
+      uiType: "secret",
+      envKey: "STUB_API_TOKEN",
+    });
+    // envKey is secret-routing metadata only — non-secret fields never carry it.
+    expect(stubConfigSchema.shape.host.meta()).not.toHaveProperty("envKey");
   });
 });
