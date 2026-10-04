@@ -37,7 +37,7 @@ export const githubConfigSchema = z.object({
       uiType: "text",
       placeholder: "hello-world",
       help: "Target repository name. Leave empty to discover repositories across the organization.",
-      roles: ["gitHost"],
+      roles: ["tracker"],
     }),
 });
 

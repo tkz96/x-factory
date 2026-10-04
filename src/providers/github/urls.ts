@@ -109,16 +109,6 @@ export function parseGitHubQuickUrl(url: string): QuickUrlDraft | null {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
 
-  // Quick exclusion for other known providers
-  if (
-    trimmed.includes("atlassian.net") ||
-    trimmed.includes("dev.azure.com") ||
-    trimmed.includes("visualstudio.com") ||
-    trimmed.includes("gitlab.com")
-  ) {
-    return null;
-  }
-
   const extracted = extractFromGitHubUrl(trimmed);
   if (!extracted?.owner) {
     return null;

@@ -31,8 +31,15 @@ function parsePullRequestResponse(
   const head = pr.head || {};
   const base = pr.base || {};
 
+  const prUrl = typeof pr.html_url === "string" ? pr.html_url.trim() : "";
+  if (!prUrl) {
+    throw new Error(
+      "GitHub pull request creation succeeded but the response did not include a valid PR URL (html_url missing or empty). The PR may exist — check the repository.",
+    );
+  }
+
   return {
-    url: String(pr.html_url || ""),
+    url: prUrl,
     status: typeof pr.state === "string" ? pr.state : "open",
     sourceBranch: typeof head.ref === "string" ? head.ref : input.sourceBranch,
     targetBranch: typeof base.ref === "string" ? base.ref : input.targetBranch,

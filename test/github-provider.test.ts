@@ -5,7 +5,7 @@
 // 2. Repository discovery works with wizard-shaped inputs (nested provider config, not flat env)
 // 3. toUserError maps rate-limited 403s distinctly from permission 403s (with retryAfterMs)
 // 4. parseQuickUrl recognizes github.com/owner/repo URLs, returning git-host config draft + inferred name
-// 5. PR create/lookup via REST primarily, with gh CLI fallback; gh runtime dropped from ticket-write path
+// 5. PR create/lookup via REST exclusively using explicit credentials; no CLI fallback or ambient auth
 // 6. PR capabilities enforce create-only safety invariant via shared contract type-guard
 // 7. configSchema is Zod with secret-field metadata; serializes through generic serializer
 // 8. Zero-mock tests except at the HTTP boundary
@@ -111,6 +111,27 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(repoField).toBeDefined();
       expect(repoField?.type).toBe("text");
       expect(repoField?.required).toBe(false);
+    });
+
+    it("filters schema fields by role: tracker includes repository, gitHost excludes repository, dual-role includes once", () => {
+      const trackerDesc = serializeProvider(githubProvider, "tracker");
+      expect(trackerDesc).not.toBeNull();
+      expect(
+        trackerDesc?.configFields.some((f) => f.name === "repository"),
+      ).toBe(true);
+
+      const gitHostDesc = serializeProvider(githubProvider, "gitHost");
+      expect(gitHostDesc).not.toBeNull();
+      expect(
+        gitHostDesc?.configFields.some((f) => f.name === "repository"),
+      ).toBe(false);
+
+      const dualRoleDesc = serializeProvider(githubProvider);
+      expect(dualRoleDesc).not.toBeNull();
+      const repoFields = dualRoleDesc?.configFields.filter(
+        (f) => f.name === "repository",
+      );
+      expect(repoFields).toHaveLength(1);
     });
 
     it("NEVER exposes envKey in serialized client-facing descriptors", () => {
@@ -554,6 +575,41 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(parseGitHubQuickUrl("")).toBeNull();
       expect(parseGitHubQuickUrl("not-a-valid-url")).toBeNull();
     });
+
+    it("accepts valid GitHub URLs when repository or path contains strings like gitlab.com or atlassian.net", () => {
+      const gitlabRepo = parseGitHubQuickUrl(
+        "https://github.com/my-org/gitlab.com-migration",
+      );
+      expect(gitlabRepo).toEqual({
+        configDraft: {
+          repoOwner: "my-org",
+          repository: "gitlab.com-migration",
+        },
+        inferredName: "gitlab.com-migration",
+      });
+
+      const atlassianRepo = parseGitHubQuickUrl(
+        "https://github.com/my-org/atlassian.net-sync",
+      );
+      expect(atlassianRepo).toEqual({
+        configDraft: {
+          repoOwner: "my-org",
+          repository: "atlassian.net-sync",
+        },
+        inferredName: "atlassian.net-sync",
+      });
+
+      const azureRepo = parseGitHubQuickUrl(
+        "https://github.com/my-org/dev.azure.com-mirror",
+      );
+      expect(azureRepo).toEqual({
+        configDraft: {
+          repoOwner: "my-org",
+          repository: "dev.azure.com-mirror",
+        },
+        inferredName: "dev.azure.com-mirror",
+      });
+    });
   });
 
   describe("Repository Discovery (listRepositories)", () => {
@@ -710,6 +766,90 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(repos).toHaveLength(2);
       expect(repos?.map((r) => r.name)).toEqual(["repo-page-1", "repo-page-2"]);
     });
+
+    it("follows pagination beyond 10 pages and returns all repositories across at least 11 pages", async () => {
+      const TOTAL_PAGES = 12;
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        const match = urlStr.match(/[?&]page=(\d+)/);
+        const currentPage = match?.[1] ? Number.parseInt(match[1], 10) : 1;
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (currentPage < TOTAL_PAGES) {
+          headers.Link = `<https://api.github.com/orgs/myorg/repos?page=${currentPage + 1}>; rel="next"`;
+        }
+
+        return new Response(
+          JSON.stringify([
+            {
+              id: currentPage,
+              name: `repo-page-${currentPage}`,
+              default_branch: "main",
+            },
+          ]),
+          { status: 200, headers },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const repos = await provider.listRepositories?.({
+        token: "ghp_token",
+        repoOwner: "myorg",
+      });
+
+      expect(repos).toHaveLength(TOTAL_PAGES);
+      expect(repos?.map((r) => r.name)).toEqual(
+        Array.from({ length: TOTAL_PAGES }, (_, i) => `repo-page-${i + 1}`),
+      );
+    });
+
+    it("terminates safely when a pagination Link header repeats a previously visited URL", async () => {
+      const calls: string[] = [];
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        calls.push(urlStr);
+
+        if (urlStr.includes("page=2")) {
+          return new Response(
+            JSON.stringify([
+              { id: 2, name: "repo-page-2", default_branch: "main" },
+            ]),
+            {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                Link: '<https://api.github.com/orgs/myorg/repos?page=2>; rel="next"',
+              },
+            },
+          );
+        }
+
+        return new Response(
+          JSON.stringify([
+            { id: 1, name: "repo-page-1", default_branch: "main" },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              Link: '<https://api.github.com/orgs/myorg/repos?page=2>; rel="next"',
+            },
+          },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const repos = await provider.listRepositories?.({
+        token: "ghp_token",
+        repoOwner: "myorg",
+      });
+
+      expect(calls.length).toBe(2);
+      expect(repos).toHaveLength(2);
+      expect(repos?.map((r) => r.name)).toEqual(["repo-page-1", "repo-page-2"]);
+    });
   });
 
   describe("Pull Request Lifecycle (createPullRequest & findExistingPullRequest)", () => {
@@ -778,7 +918,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       });
     });
 
-    it("proves API failure throws directly without invoking any CLI, requiring no gh executable", async () => {
+    it("propagates REST API failure directly without fallback on pull request creation", async () => {
       const failingFetch: typeof fetch = (async () => {
         return new Response(
           JSON.stringify({ message: "Must have push access to repository" }),
@@ -797,7 +937,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           {
             repository: "hello-world",
             title: "fix: failing PR",
-            description: "Should not invoke CLI",
+            description: "API failure propagation test",
             sourceBranch: "fix-branch",
             targetBranch: "main",
           },
@@ -811,6 +951,48 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const userErr = provider.toUserError(caughtError, "PR");
       expect(userErr).toEqual({
         code: "PERMISSION",
+        context: "PR",
+      });
+      expect(isProviderError(userErr)).toBe(true);
+    });
+
+    it("throws provider error and normalizes without leaking when 201 response lacks html_url", async () => {
+      const malformedFetch: typeof fetch = (async () => {
+        return new Response(
+          JSON.stringify({
+            id: 999,
+            state: "open",
+            head: { ref: "feature-branch" },
+            base: { ref: "main" },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: malformedFetch });
+      let caughtError: unknown = null;
+      try {
+        await provider.createPullRequest?.(
+          { token: "ghp_secret_token", repoOwner: "octocat" },
+          {
+            repository: "hello-world",
+            title: "feat: add feature",
+            description: "Some desc",
+            sourceBranch: "feature-branch",
+            targetBranch: "main",
+          },
+        );
+      } catch (err) {
+        caughtError = err;
+      }
+
+      expect(caughtError).toBeDefined();
+      expect(caughtError instanceof Error).toBe(true);
+      expect((caughtError as Error).message).toContain("html_url");
+
+      const userErr = provider.toUserError(caughtError, "PR");
+      expect(userErr).toEqual({
+        code: "UNKNOWN",
         context: "PR",
       });
       expect(isProviderError(userErr)).toBe(true);
@@ -1039,6 +1221,44 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const first = tickets?.[0];
       expect(first?.id).toBe("GH-20");
       expect(first?.title).toBe("Open issue");
+    });
+
+    it("works with a tracker configuration containing repository", async () => {
+      let capturedUrl = "";
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        capturedUrl = String(url);
+        return new Response(
+          JSON.stringify([
+            {
+              number: 30,
+              title: "Tracker issue",
+              body: "Acceptance Criteria:\n- Done",
+              state: "open",
+              labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+              html_url: "https://github.com/octocat/tracker-repo/issues/30",
+            },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const tickets = await provider.listTickets?.(
+        {
+          tracker: {
+            token: "ghp_tracker_token",
+            repoOwner: "octocat",
+            repository: "tracker-repo",
+          },
+        },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+      );
+
+      expect(capturedUrl).toContain("/repos/octocat/tracker-repo/issues");
+      expect(tickets).toHaveLength(1);
+      const first = tickets?.[0];
+      expect(first?.id).toBe("GH-30");
+      expect(first?.title).toBe("Tracker issue");
     });
   });
 

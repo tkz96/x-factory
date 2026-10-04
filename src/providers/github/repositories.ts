@@ -77,13 +77,15 @@ export async function listGitHubRepositories(
 
   const allRepos: ProviderRepository[] = [];
   const seenIds = new Set<string>();
+  const visitedUrls = new Set<string>();
 
   let nextUrl: string | null = initialUrl;
-  let pageCount = 0;
-  const MAX_PAGES = 10;
 
-  while (nextUrl && pageCount < MAX_PAGES) {
-    pageCount++;
+  while (nextUrl) {
+    // Guard against malformed/repeating pagination links
+    if (visitedUrls.has(nextUrl)) break;
+    visitedUrls.add(nextUrl);
+
     let res: { status: number; headers: Headers; data: unknown };
 
     try {
@@ -91,7 +93,7 @@ export async function listGitHubRepositories(
     } catch (err) {
       // If org probe failed with 404 on page 1, fallback to user endpoint
       if (
-        pageCount === 1 &&
+        visitedUrls.size === 1 &&
         owner &&
         typeof err === "object" &&
         err !== null &&
