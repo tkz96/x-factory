@@ -9,6 +9,7 @@
 
 import { azureProvider } from "./azure-module.js";
 import type { Provider, ProviderId } from "./contract.js";
+import { githubProvider } from "./github-module.js";
 import { jiraProvider } from "./jira-module.js";
 
 /**
@@ -23,7 +24,7 @@ export type ProviderRegistry = ReadonlyMap<string, Provider>;
 
 /** Built-in providers. The three real providers land in their own tickets. */
 const BUILT_INS: readonly Provider<ProviderId>[] = [
-  // github — added with the github provider module
+  githubProvider,
   azureProvider,
   jiraProvider,
 ];
