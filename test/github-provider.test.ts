@@ -231,7 +231,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
     it("detects and rejects conflicting repository values across nested objects (#129)", () => {
       const conflictingRepo = {
         repository: "repo-one",
-        tracker: {
+        gitHost: {
           repo: "repo-two",
         },
       };
@@ -256,6 +256,92 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const resolved = resolveGitHubConfig(consistent);
       expect(resolved.owner).toBe("my-org");
       expect(resolved.token).toBe("ghp_token_123");
+    });
+
+    it("resolves mixed GitHub + Jira configuration without false mismatch (#131 / #138)", () => {
+      const mixedConfig = {
+        gitHost: {
+          providerId: "github",
+          repoOwner: "acme-corp",
+          repository: "core-repo",
+          token: "ghp_github_secret_token",
+        },
+        tracker: {
+          providerId: "jira",
+          host: "https://acme.atlassian.net",
+          project: "CORE",
+          apiToken: "jira_secret_api_token",
+          email: "dev@acme.com",
+        },
+      };
+
+      const check = detectGitHubConfigMismatch(mixedConfig);
+      expect(check.mismatch).toBe(false);
+
+      const resolved = resolveGitHubConfig(mixedConfig);
+      expect(resolved.owner).toBe("acme-corp");
+      expect(resolved.repo).toBe("core-repo");
+      expect(resolved.token).toBe("ghp_github_secret_token");
+    });
+
+    it("resolves mixed-provider connections array payload without false mismatch (#131)", () => {
+      const mixedConnections = {
+        connections: [
+          {
+            providerId: "github",
+            roles: ["gitHost"],
+            config: {
+              repoOwner: "enterprise-org",
+              repository: "service-repo",
+              token: "ghp_conn_token",
+            },
+          },
+          {
+            providerId: "jira",
+            roles: ["tracker"],
+            config: {
+              host: "https://enterprise.atlassian.net",
+              project: "PROJ",
+              apiToken: "jira_different_token",
+            },
+          },
+        ],
+      };
+
+      const check = detectGitHubConfigMismatch(mixedConnections);
+      expect(check.mismatch).toBe(false);
+
+      const resolved = resolveGitHubConfig(mixedConnections);
+      expect(resolved.owner).toBe("enterprise-org");
+      expect(resolved.repo).toBe("service-repo");
+      expect(resolved.token).toBe("ghp_conn_token");
+    });
+
+    it("still fails closed when genuine conflicting GitHub values are present alongside Jira (#138)", () => {
+      const conflictingMixed = {
+        gitHost: {
+          providerId: "github",
+          repoOwner: "acme-corp",
+          token: "ghp_tok_1",
+        },
+        github: {
+          repoOwner: "competing-corp",
+          token: "ghp_tok_2",
+        },
+        tracker: {
+          providerId: "jira",
+          host: "https://acme.atlassian.net",
+          project: "CORE",
+          apiToken: "jira_secret_token",
+        },
+      };
+
+      const check = detectGitHubConfigMismatch(conflictingMixed);
+      expect(check.mismatch).toBe(true);
+      expect(check.error).toContain("Configuration mismatch");
+      expect(() => resolveGitHubConfig(conflictingMixed)).toThrow(
+        /Configuration mismatch/,
+      );
     });
   });
 
@@ -370,7 +456,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const err = new GitHubHttpError("Fatal upstream dump", {
         status: 500,
         headers: new Headers({ "x-github-request-id": "secret-req-id" }),
-        responseBody: sensitiveBody,
+        bodyText: JSON.stringify(sensitiveBody),
       });
       const normalized = toGitHubUserError(err, "PR");
       const json = JSON.stringify(normalized);
@@ -627,13 +713,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
   });
 
   describe("Pull Request Lifecycle (createPullRequest & findExistingPullRequest)", () => {
-    it("creates pull request using REST API primarily with zero CLI dependency", async () => {
-      let cliCalled = false;
-      const mockExecutor = async () => {
-        cliCalled = true;
-        return { passed: true, stdout: "" };
-      };
-
+    it("creates pull request using GitHub REST API with explicit provider credentials", async () => {
       let capturedPayload: unknown = null;
       let capturedAuth = "";
       const fakeFetch: typeof fetch = (async (
@@ -644,10 +724,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           "https://api.github.com/repos/octocat/hello-world/pulls",
         );
         expect(init?.method).toBe("POST");
-        capturedPayload = JSON.parse(String(init?.body || "{}"));
-        capturedAuth = String(
-          (init?.headers as Record<string, string>)?.Authorization || "",
-        );
+        const h = init?.headers;
+        if (h instanceof Headers) {
+          capturedAuth = h.get("authorization") || "";
+        } else {
+          capturedAuth = String(
+            (h as Record<string, string>)?.Authorization || "",
+          );
+        }
+        if (init?.body) {
+          capturedPayload = JSON.parse(String(init.body));
+        }
 
         return new Response(
           JSON.stringify({
@@ -662,7 +749,6 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       const provider = createGithubProvider({
         fetchFn: fakeFetch,
-        executor: mockExecutor,
       });
 
       const pr = await provider.createPullRequest?.(
@@ -690,51 +776,44 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         targetBranch: "main",
         lastMergeSourceCommit: "commit-sha-abc123",
       });
-      expect(cliCalled).toBe(false);
     });
 
-    it("falls back to gh CLI executable only when REST API fails", async () => {
-      let cliInvoked = false;
-      const mockExecutor = async (cmd: string, args: string[]) => {
-        cliInvoked = true;
-        expect(cmd).toBe("gh");
-        expect(args).toContain("pr");
-        expect(args).toContain("create");
-        expect(args).toContain("--repo");
-        expect(args).toContain("octocat/hello-world");
-        return {
-          passed: true,
-          stdout: "https://github.com/octocat/hello-world/pull/99\n",
-        };
-      };
-
+    it("proves API failure throws directly without invoking any CLI, requiring no gh executable", async () => {
       const failingFetch: typeof fetch = (async () => {
         return new Response(
-          JSON.stringify({ message: "Network gateway failure" }),
-          { status: 502, headers: { "Content-Type": "application/json" } },
+          JSON.stringify({ message: "Must have push access to repository" }),
+          { status: 403, headers: { "Content-Type": "application/json" } },
         );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({
         fetchFn: failingFetch,
-        executor: mockExecutor,
       });
 
-      const pr = await provider.createPullRequest?.(
-        { token: "ghp_token", repoOwner: "octocat" },
-        {
-          repository: "hello-world",
-          title: "fix: fallback feature",
-          description: "Fallback via gh CLI",
-          sourceBranch: "fix-branch",
-          targetBranch: "main",
-        },
-      );
+      let caughtError: unknown = null;
+      try {
+        await provider.createPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          {
+            repository: "hello-world",
+            title: "fix: failing PR",
+            description: "Should not invoke CLI",
+            sourceBranch: "fix-branch",
+            targetBranch: "main",
+          },
+        );
+      } catch (err) {
+        caughtError = err;
+      }
 
-      expect(cliInvoked).toBe(true);
-      expect(pr?.url).toBe("https://github.com/octocat/hello-world/pull/99");
-      expect(pr?.status).toBe("open");
-      expect(pr?.sourceBranch).toBe("fix-branch");
+      expect(caughtError).toBeDefined();
+      expect((caughtError as GitHubHttpError).status).toBe(403);
+      const userErr = provider.toUserError(caughtError, "PR");
+      expect(userErr).toEqual({
+        code: "PERMISSION",
+        context: "PR",
+      });
+      expect(isProviderError(userErr)).toBe(true);
     });
 
     it("finds existing pull request using REST API and returns null when not found", async () => {
