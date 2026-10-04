@@ -117,9 +117,12 @@ describe("static registry", () => {
   test("registers built-in providers (#138–#140)", () => {
     // Adding a provider = one new directory + one BUILT_INS entry (#138–#140).
     const providers = listProviders();
+    expect(providers.map((p) => p.id)).toContain("azure");
     expect(providers.map((p) => p.id)).toContain("jira");
+    expect(getProvider("azure")).toBeDefined();
     expect(getProvider("jira")).toBeDefined();
     expect(getProvider("github")).toBeUndefined();
+    expect(PROVIDER_REGISTRY.has("azure")).toBe(true);
     expect(PROVIDER_REGISTRY.has("jira")).toBe(true);
   });
 
