@@ -139,24 +139,13 @@ export async function findExistingGitHubPullRequest(
   const root = baseUrl || "https://api.github.com";
   const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(effectiveRepo)}/pulls?head=${encodeURIComponent(`${owner}:${input.sourceBranch}`)}&state=all`;
 
-  let res: Awaited<ReturnType<typeof githubFetch>>;
-  try {
-    res = await githubFetch(endpoint, {
-      headers: resolveGitHubHeaders(token),
-      fetchFn,
-    });
-  } catch (err: unknown) {
-    if (
-      (err instanceof GitHubHttpError && err.status === 404) ||
-      (typeof err === "object" &&
-        err !== null &&
-        "status" in err &&
-        (err as { status: unknown }).status === 404)
-    ) {
-      return null;
-    }
-    throw err;
-  }
+  // All API errors propagate — including 404, which for GET /pulls means the
+  // repository could not be resolved (bad config), not "no PR exists".
+  // Only 200 + no matching item in the response list returns null.
+  const res = await githubFetch(endpoint, {
+    headers: resolveGitHubHeaders(token),
+    fetchFn,
+  });
 
   const pulls = (Array.isArray(res.data) ? res.data : []) as RawPullRequest[];
   const match = pulls.find((p) => p.head?.ref === input.sourceBranch);

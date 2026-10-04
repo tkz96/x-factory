@@ -919,7 +919,10 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect((caught as GitHubHttpError).status).toBe(500);
     });
 
-    it("returns null on 404 from findExistingPullRequest (endpoint-level no-resource)", async () => {
+    it("throws on 404 from findExistingPullRequest (repository not found, not 'no PR')", async () => {
+      // GET /repos/{owner}/{repo}/pulls returning 404 means the repository
+      // cannot be resolved — bad owner/repo config. It does NOT mean "no PR exists".
+      // The correct response is to throw so the caller can surface the config error.
       const notFoundFetch: typeof fetch = (async () => {
         return new Response(JSON.stringify({ message: "Not Found" }), {
           status: 404,
@@ -928,12 +931,20 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: notFoundFetch });
-      const result = await provider.findExistingPullRequest?.(
-        { token: "ghp_token", repoOwner: "octocat" },
-        { repository: "hello-world", sourceBranch: "my-branch" },
-      );
+      let caught: unknown;
+      try {
+        await provider.findExistingPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "my-branch" },
+        );
+      } catch (err) {
+        caught = err;
+      }
 
-      expect(result).toBeNull();
+      expect(caught).toBeDefined();
+      expect((caught as GitHubHttpError).status).toBe(404);
+      const userErr = provider.toUserError(caught, "PR");
+      expect(userErr.code).toBe("NOT_FOUND");
     });
   });
 
@@ -996,7 +1007,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       let capturedUrl = "";
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         capturedUrl = String(url);
-        // Return both an open and a closed issue — the closed one must be excluded by the URL filter
+        // Fake API honours state=open like the real GitHub API:
+        // only the open issue is returned; the closed one is absent.
         return new Response(
           JSON.stringify([
             {
@@ -1006,14 +1018,6 @@ describe("GitHub Provider Module (Ticket #138)", () => {
               state: "open",
               labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
               html_url: "https://github.com/octocat/hello-world/issues/20",
-            },
-            {
-              number: 21,
-              title: "Closed issue",
-              body: "Already done",
-              state: "closed",
-              labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
-              html_url: "https://github.com/octocat/hello-world/issues/21",
             },
           ]),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -1026,15 +1030,15 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         { requiredLabel: REQUIRED_WORKFLOW_LABEL },
       );
 
-      // The URL must use state=open, never state=all
+      // The URL must request open issues only
       expect(capturedUrl).toContain("state=open");
       expect(capturedUrl).not.toContain("state=all");
 
-      // GitHub's API honors state=open server-side, but our fixture returns both states.
-      // Prove the client does not re-filter by state (it trusts the API filter),
-      // so the count reflects whatever the API returned.
-      // The critical assertion is the URL: we asked for open only.
-      expect(tickets).toBeDefined();
+      // Only the open issue is in the result — the closed one is excluded
+      expect(tickets).toHaveLength(1);
+      const first = tickets?.[0];
+      expect(first?.id).toBe("GH-20");
+      expect(first?.title).toBe("Open issue");
     });
   });
 
