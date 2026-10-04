@@ -52,6 +52,11 @@ export function getOpenApiSpec() {
         description:
           "Global workbench configuration and LLM provider credentials",
       },
+      {
+        name: "Providers",
+        description:
+          "Provider manifest discovery, credential verification, and Quick-URL resolution",
+      },
     ],
     paths: {
       "/api/health": {
@@ -961,6 +966,138 @@ export function getOpenApiSpec() {
           },
         },
       },
+      "/api/providers/manifest": {
+        get: {
+          tags: ["Providers"],
+          summary: "Get Provider Manifest",
+          description:
+            "Returns registered provider descriptors and config field schemas with optional role filtering.",
+          operationId: "getProviderManifest",
+          parameters: [
+            {
+              name: "role",
+              in: "query",
+              description: "Filter providers and fields by role",
+              required: false,
+              schema: {
+                type: "string",
+                enum: ["tracker", "git-host", "gitHost"],
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Array of provider descriptors",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: {
+                      $ref: "#/components/schemas/ProviderDescriptor",
+                    },
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+          },
+        },
+      },
+      "/api/providers/verify": {
+        post: {
+          tags: ["Providers"],
+          summary: "Verify Provider Credentials",
+          description:
+            "Verifies credentials for a selected provider, role, and configuration.",
+          operationId: "verifyProvider",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ProviderVerifyInput",
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description:
+                "Verification result or normalized provider error envelope",
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: [
+                      { $ref: "#/components/schemas/VerificationResult" },
+                      { $ref: "#/components/schemas/ProviderError" },
+                    ],
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure (field errors or incompatible role)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ProviderSemanticValidationError",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/providers/parse-url": {
+        post: {
+          tags: ["Providers"],
+          summary: "Parse Quick URL",
+          description:
+            "Parses a provider URL into a configuration draft or returns matched: false.",
+          operationId: "parseProviderUrl",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["url"],
+                  properties: {
+                    url: { type: "string", description: "URL to parse" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description:
+                "Parsed URL configuration draft (matched: true) or unrecognized URL fallback (matched: false)",
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: [
+                      { $ref: "#/components/schemas/QuickUrlRecognizedResult" },
+                      {
+                        $ref: "#/components/schemas/QuickUrlUnrecognizedResult",
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+          },
+        },
+      },
     },
     components: {
       responses: {
@@ -1297,6 +1434,165 @@ export function getOpenApiSpec() {
             anthropicApiKey: { type: "string", example: "••••••••" },
             openaiApiKey: { type: "string", example: "••••••••" },
             geminiApiKey: { type: "string", example: "••••••••" },
+          },
+        },
+        ProviderConfigFieldDescriptor: {
+          type: "object",
+          required: ["name", "label", "type", "required"],
+          properties: {
+            name: { type: "string", example: "host" },
+            label: { type: "string", example: "Host URL" },
+            type: {
+              type: "string",
+              enum: ["text", "secret", "url", "email"],
+              example: "url",
+            },
+            required: { type: "boolean", example: true },
+            secret: { type: "boolean", example: false },
+            placeholder: { type: "string", example: "https://example.com" },
+            help: { type: "string", example: "Base URL of the provider." },
+            roles: {
+              type: "array",
+              items: { type: "string", enum: ["tracker", "gitHost"] },
+            },
+          },
+        },
+        ProviderDescriptor: {
+          type: "object",
+          required: [
+            "id",
+            "displayName",
+            "roles",
+            "iconRef",
+            "capabilities",
+            "configFields",
+          ],
+          properties: {
+            id: { type: "string", example: "stub" },
+            displayName: { type: "string", example: "Stub Provider" },
+            roles: {
+              type: "array",
+              items: { type: "string", enum: ["tracker", "gitHost"] },
+            },
+            iconRef: { type: "string", example: "provider-stub" },
+            capabilities: {
+              type: "array",
+              items: { type: "string" },
+              example: ["verifyScopes", "parseQuickUrl"],
+            },
+            configFields: {
+              type: "array",
+              items: {
+                $ref: "#/components/schemas/ProviderConfigFieldDescriptor",
+              },
+            },
+          },
+        },
+        ProviderVerifyInput: {
+          type: "object",
+          required: ["providerId", "config"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            role: {
+              type: "string",
+              enum: ["tracker", "gitHost", "git-host"],
+              example: "tracker",
+            },
+            config: {
+              type: "object",
+              additionalProperties: true,
+              example: { host: "https://stub.example", apiToken: "token" },
+            },
+          },
+        },
+        VerificationWarning: {
+          type: "object",
+          required: ["kind", "capability"],
+          properties: {
+            kind: {
+              type: "string",
+              enum: ["CAPABILITY_UNCONFIRMED"],
+              example: "CAPABILITY_UNCONFIRMED",
+            },
+            capability: { type: "string", example: "verifyScopes" },
+          },
+        },
+        VerificationResult: {
+          type: "object",
+          required: ["status", "warnings"],
+          properties: {
+            status: {
+              type: "string",
+              enum: ["ok", "degraded"],
+              example: "ok",
+            },
+            warnings: {
+              type: "array",
+              items: {
+                $ref: "#/components/schemas/VerificationWarning",
+              },
+            },
+          },
+        },
+        ProviderError: {
+          type: "object",
+          required: ["code", "context"],
+          properties: {
+            code: {
+              type: "string",
+              enum: [
+                "AUTH_INVALID",
+                "AUTH_LOCKED",
+                "NOT_FOUND",
+                "RATE_LIMITED",
+                "PERMISSION",
+                "UNKNOWN",
+              ],
+              example: "AUTH_INVALID",
+            },
+            context: {
+              type: "string",
+              enum: ["VERIFY", "DISCOVERY", "TICKETS", "PR"],
+              example: "VERIFY",
+            },
+            retryAfterMs: { type: "number", example: 30000 },
+          },
+        },
+        ProviderSemanticValidationError: {
+          type: "object",
+          properties: {
+            fieldErrors: {
+              type: "object",
+              additionalProperties: { type: "string" },
+              example: { apiToken: "REQUIRED" },
+            },
+            formErrors: {
+              type: "array",
+              items: { type: "string" },
+              example: ["INCOMPATIBLE_CONFIGURATION"],
+            },
+          },
+        },
+        QuickUrlRecognizedResult: {
+          type: "object",
+          required: ["matched", "providerId", "configDraft"],
+          properties: {
+            matched: { type: "boolean", enum: [true] },
+            providerId: { type: "string", example: "stub" },
+            configDraft: {
+              type: "object",
+              additionalProperties: true,
+              example: { host: "https://stub.example", project: "rocket" },
+            },
+            inferredName: { type: "string", example: "rocket" },
+          },
+        },
+        QuickUrlUnrecognizedResult: {
+          type: "object",
+          required: ["matched", "url"],
+          properties: {
+            matched: { type: "boolean", enum: [false] },
+            url: { type: "string", example: "https://unrecognized.example" },
           },
         },
       },
