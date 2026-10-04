@@ -364,6 +364,36 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         /Configuration mismatch/,
       );
     });
+
+    it("accepts identical nested baseUrl values including trailing-slash differences", () => {
+      const identicalBaseUrl = {
+        baseUrl: "https://api.github.com",
+        gitHost: {
+          baseUrl: "https://api.github.com/",
+        },
+      };
+      const check = detectGitHubConfigMismatch(identicalBaseUrl);
+      expect(check.mismatch).toBe(false);
+      const resolved = resolveGitHubConfig(identicalBaseUrl);
+      expect(resolved.baseUrl).toBe("https://api.github.com");
+    });
+
+    it("detects and rejects conflicting nested baseUrl values and throws through resolveGitHubConfig", () => {
+      const conflictingBaseUrl = {
+        baseUrl: "https://api.github.com",
+        gitHost: {
+          baseUrl: "https://ghe.company.internal/api/v3",
+        },
+      };
+      const check = detectGitHubConfigMismatch(conflictingBaseUrl);
+      expect(check.mismatch).toBe(true);
+      expect(check.error).toContain("Configuration mismatch");
+      expect(check.error).toContain("baseUrl");
+
+      expect(() => resolveGitHubConfig(conflictingBaseUrl)).toThrow(
+        /Configuration mismatch.*baseUrl/,
+      );
+    });
   });
 
   describe("Error Normalization (toUserError)", () => {
@@ -1050,6 +1080,79 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(notFound).toBeNull();
     });
 
+    it("throws when findExistingPullRequest receives a non-array 200 response body", async () => {
+      const nonArrayFetch: typeof fetch = (async () => {
+        return new Response(
+          JSON.stringify({ message: "Malformed response, not an array" }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: nonArrayFetch });
+      await expect(
+        provider.findExistingPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "my-branch" },
+        ),
+      ).rejects.toThrow(/expected an array of pull requests/);
+    });
+
+    it("throws when findExistingPullRequest matches a PR missing html_url", async () => {
+      const missingUrlFetch: typeof fetch = (async () => {
+        return new Response(
+          JSON.stringify([
+            {
+              state: "open",
+              head: { ref: "feature-branch" },
+              base: { ref: "main" },
+            },
+          ]),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: missingUrlFetch });
+      await expect(
+        provider.findExistingPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "feature-branch" },
+        ),
+      ).rejects.toThrow(/html_url missing or empty/);
+    });
+
+    it("throws when findExistingPullRequest matches a PR whose html_url is empty", async () => {
+      const emptyUrlFetch: typeof fetch = (async () => {
+        return new Response(
+          JSON.stringify([
+            {
+              html_url: "   ",
+              state: "open",
+              head: { ref: "feature-branch" },
+              base: { ref: "main" },
+            },
+          ]),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: emptyUrlFetch });
+      await expect(
+        provider.findExistingPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "feature-branch" },
+        ),
+      ).rejects.toThrow(/html_url missing or empty/);
+    });
+
     it("throws on 403 from findExistingPullRequest instead of returning null", async () => {
       const forbiddenFetch: typeof fetch = (async () => {
         return new Response(JSON.stringify({ message: "Forbidden" }), {
@@ -1404,6 +1507,52 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         capability: "createPullRequest",
         status: "unconfirmed",
       });
+    });
+
+    it("verifyScopes explicitly fails closed on ambiguous/conflicting configuration without calling HTTP boundary", async () => {
+      let httpCalls = 0;
+      const fakeFetch: typeof fetch = (async () => {
+        httpCalls++;
+        return new Response(JSON.stringify({ login: "user" }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "x-oauth-scopes": "repo",
+          },
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+
+      // Conflicting nested token
+      const conflictingToken = {
+        token: "ghp_token_one",
+        gitHost: { token: "ghp_token_two" },
+      };
+      await expect(provider.verifyScopes?.(conflictingToken)).rejects.toThrow(
+        /conflicting token values/,
+      );
+      expect(httpCalls).toBe(0);
+
+      // Conflicting nested owner
+      const conflictingOwner = {
+        token: "ghp_valid_token",
+        repoOwner: "org-alpha",
+        github: { repoOwner: "org-beta" },
+      };
+      await expect(provider.verifyScopes?.(conflictingOwner)).rejects.toThrow(
+        /Configuration mismatch/,
+      );
+      expect(httpCalls).toBe(0);
+
+      // Consistent nested configuration works
+      const consistent = {
+        token: "ghp_valid_token",
+        github: { token: "ghp_valid_token" },
+      };
+      const report = await provider.verifyScopes?.(consistent);
+      expect(report).toBeDefined();
+      expect(httpCalls).toBe(1);
     });
 
     it("throws 404 when configured owner is not found during verifyCredentials", async () => {

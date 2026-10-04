@@ -202,6 +202,11 @@ export async function verifyGitHubScopes(
   config: ProviderConfig,
   fetchFn?: typeof fetch,
 ): Promise<ScopeVerificationReport> {
+  const mismatch = detectGitHubConfigMismatch(config);
+  if (mismatch.mismatch) {
+    throw new Error(mismatch.error);
+  }
+
   const { token, baseUrl } = resolveGitHubConfig(config);
   const root = baseUrl || "https://api.github.com";
 

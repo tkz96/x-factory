@@ -154,14 +154,28 @@ export async function findExistingGitHubPullRequest(
     fetchFn,
   });
 
-  const pulls = (Array.isArray(res.data) ? res.data : []) as RawPullRequest[];
+  if (!Array.isArray(res.data)) {
+    throw new Error(
+      "GitHub pull request lookup failed: expected an array of pull requests from the API response.",
+    );
+  }
+
+  const pulls = res.data as RawPullRequest[];
   const match = pulls.find((p) => p.head?.ref === input.sourceBranch);
 
   if (match) {
+    const prUrl =
+      typeof match.html_url === "string" ? match.html_url.trim() : "";
+    if (!prUrl) {
+      throw new Error(
+        "GitHub pull request lookup matched a pull request but the response did not include a valid PR URL (html_url missing or empty).",
+      );
+    }
+
     const head = match.head || {};
     const base = match.base || {};
     return {
-      url: String(match.html_url || ""),
+      url: prUrl,
       status: match.state || "open",
       sourceBranch: head.ref || input.sourceBranch,
       targetBranch: base.ref || "main",

@@ -263,6 +263,42 @@ function gatherGitHubCandidates(config: ProviderConfig): ExtractionTargets {
   return targets;
 }
 
+function normalizeBaseUrl(val: string): string {
+  const trimmed = val.trim();
+  try {
+    const parsed = new URL(trimmed);
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.protocol}//${parsed.host.toLowerCase()}${pathname}`;
+  } catch {
+    return trimmed.replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+function checkBaseUrlDisagreements(candidates: CandidateValue[]): {
+  mismatch: boolean;
+  error?: string;
+} {
+  if (candidates.length <= 1) {
+    return { mismatch: false };
+  }
+  const first = candidates[0];
+  if (!first) return { mismatch: false };
+  const firstNormalized = normalizeBaseUrl(first.value);
+
+  for (let i = 1; i < candidates.length; i++) {
+    const next = candidates[i];
+    if (!next) continue;
+    const nextNormalized = normalizeBaseUrl(next.value);
+    if (firstNormalized !== nextNormalized) {
+      return {
+        mismatch: true,
+        error: `Configuration mismatch: configured ${first.source} "${first.value}" and ${next.source} "${next.value}" are distinct baseUrl configurations and cannot be conflated.`,
+      };
+    }
+  }
+  return { mismatch: false };
+}
+
 /**
  * Detects whether configuration input contains conflicting GitHub values.
  * Ignores configurations that belong to other providers (Jira, Azure, etc.).
@@ -271,7 +307,7 @@ export function detectGitHubConfigMismatch(config: ProviderConfig): {
   mismatch: boolean;
   error?: string;
 } {
-  const { candidateOrgs, candidateTokens, candidateRepos } =
+  const { candidateOrgs, candidateTokens, candidateRepos, candidateBaseUrls } =
     gatherGitHubCandidates(config);
 
   const orgCheck = checkDisagreements(candidateOrgs, true, "organization");
@@ -282,6 +318,9 @@ export function detectGitHubConfigMismatch(config: ProviderConfig): {
 
   const repoCheck = checkDisagreements(candidateRepos, true, "repository");
   if (repoCheck.mismatch) return repoCheck;
+
+  const baseUrlCheck = checkBaseUrlDisagreements(candidateBaseUrls);
+  if (baseUrlCheck.mismatch) return baseUrlCheck;
 
   return { mismatch: false };
 }
