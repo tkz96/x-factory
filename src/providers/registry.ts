@@ -8,6 +8,7 @@
 // parameter instead of mutating this one.
 
 import type { Provider, ProviderId } from "./contract.js";
+import { jiraProvider } from "./jira-module.js";
 
 /**
  * Provider lookup id: `ProviderId` literals get editor autocomplete while
@@ -23,7 +24,7 @@ export type ProviderRegistry = ReadonlyMap<string, Provider>;
 const BUILT_INS: readonly Provider<ProviderId>[] = [
   // github — added with the github provider module
   // azure — added with the azure provider module
-  // jira — added with the jira provider module
+  jiraProvider,
 ];
 
 /** The static registry used by production code. */

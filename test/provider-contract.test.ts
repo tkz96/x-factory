@@ -114,11 +114,13 @@ describe("provider error envelope", () => {
 });
 
 describe("static registry", () => {
-  test("is empty during prefactoring; real providers land in their own tickets", () => {
+  test("registers built-in providers (#138–#140)", () => {
     // Adding a provider = one new directory + one BUILT_INS entry (#138–#140).
-    expect(listProviders()).toEqual([]);
+    const providers = listProviders();
+    expect(providers.map((p) => p.id)).toContain("jira");
+    expect(getProvider("jira")).toBeDefined();
     expect(getProvider("github")).toBeUndefined();
-    expect(PROVIDER_REGISTRY.size).toBe(0);
+    expect(PROVIDER_REGISTRY.has("jira")).toBe(true);
   });
 
   test("requireProvider throws a normalized error for unknown ids", () => {
