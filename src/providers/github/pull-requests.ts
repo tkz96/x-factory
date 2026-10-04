@@ -120,35 +120,57 @@ export async function findExistingGitHubPullRequest(
   const { owner, repo } = resolveRepoCoordinates(input.repository, configOwner);
   const effectiveRepo = repo || configRepo;
 
-  if (!owner || !effectiveRepo || !token) {
-    return null;
+  if (!token) {
+    throw new GitHubHttpError(
+      "GitHub authentication failed: personal access token is required for pull requests.",
+      {
+        status: 401,
+        headers: new Headers(),
+      },
+    );
+  }
+
+  if (!owner || !effectiveRepo) {
+    throw new Error(
+      `Unable to determine owner/repo for pull request: owner="${owner}", repo="${effectiveRepo}".`,
+    );
   }
 
   const root = baseUrl || "https://api.github.com";
   const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(effectiveRepo)}/pulls?head=${encodeURIComponent(`${owner}:${input.sourceBranch}`)}&state=all`;
 
+  let res: Awaited<ReturnType<typeof githubFetch>>;
   try {
-    const res = await githubFetch(endpoint, {
+    res = await githubFetch(endpoint, {
       headers: resolveGitHubHeaders(token),
       fetchFn,
     });
-
-    const pulls = (Array.isArray(res.data) ? res.data : []) as RawPullRequest[];
-    const match = pulls.find((p) => p.head?.ref === input.sourceBranch);
-
-    if (match) {
-      const head = match.head || {};
-      const base = match.base || {};
-      return {
-        url: String(match.html_url || ""),
-        status: match.state || "open",
-        sourceBranch: head.ref || input.sourceBranch,
-        targetBranch: base.ref || "main",
-        ...(head.sha ? { lastMergeSourceCommit: String(head.sha) } : {}),
-      };
+  } catch (err: unknown) {
+    if (
+      (err instanceof GitHubHttpError && err.status === 404) ||
+      (typeof err === "object" &&
+        err !== null &&
+        "status" in err &&
+        (err as { status: unknown }).status === 404)
+    ) {
+      return null;
     }
-  } catch {
-    // 404 or other lookup failure
+    throw err;
+  }
+
+  const pulls = (Array.isArray(res.data) ? res.data : []) as RawPullRequest[];
+  const match = pulls.find((p) => p.head?.ref === input.sourceBranch);
+
+  if (match) {
+    const head = match.head || {};
+    const base = match.base || {};
+    return {
+      url: String(match.html_url || ""),
+      status: match.state || "open",
+      sourceBranch: head.ref || input.sourceBranch,
+      targetBranch: base.ref || "main",
+      ...(head.sha ? { lastMergeSourceCommit: String(head.sha) } : {}),
+    };
   }
 
   return null;

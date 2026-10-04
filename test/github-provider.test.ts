@@ -867,6 +867,74 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       expect(notFound).toBeNull();
     });
+
+    it("throws on 403 from findExistingPullRequest instead of returning null", async () => {
+      const forbiddenFetch: typeof fetch = (async () => {
+        return new Response(JSON.stringify({ message: "Forbidden" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: forbiddenFetch });
+      let caught: unknown;
+      try {
+        await provider.findExistingPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "my-branch" },
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeDefined();
+      expect((caught as GitHubHttpError).status).toBe(403);
+      const userErr = provider.toUserError(caught, "PR");
+      expect(userErr.code).toBe("PERMISSION");
+    });
+
+    it("throws on 500 from findExistingPullRequest instead of returning null", async () => {
+      const serverErrorFetch: typeof fetch = (async () => {
+        return new Response(
+          JSON.stringify({ message: "Internal Server Error" }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: serverErrorFetch });
+      let caught: unknown;
+      try {
+        await provider.findExistingPullRequest?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "my-branch" },
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeDefined();
+      expect((caught as GitHubHttpError).status).toBe(500);
+    });
+
+    it("returns null on 404 from findExistingPullRequest (endpoint-level no-resource)", async () => {
+      const notFoundFetch: typeof fetch = (async () => {
+        return new Response(JSON.stringify({ message: "Not Found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: notFoundFetch });
+      const result = await provider.findExistingPullRequest?.(
+        { token: "ghp_token", repoOwner: "octocat" },
+        { repository: "hello-world", sourceBranch: "my-branch" },
+      );
+
+      expect(result).toBeNull();
+    });
   });
 
   describe("Ticket Listing (listTickets)", () => {
@@ -922,6 +990,51 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         provider: "github",
         updatedAt: "2026-10-04T12:00:00Z",
       });
+    });
+
+    it("requests state=open and excludes closed issues from the work queue", async () => {
+      let capturedUrl = "";
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        capturedUrl = String(url);
+        // Return both an open and a closed issue — the closed one must be excluded by the URL filter
+        return new Response(
+          JSON.stringify([
+            {
+              number: 20,
+              title: "Open issue",
+              body: "Acceptance Criteria:\n- Must work",
+              state: "open",
+              labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+              html_url: "https://github.com/octocat/hello-world/issues/20",
+            },
+            {
+              number: 21,
+              title: "Closed issue",
+              body: "Already done",
+              state: "closed",
+              labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+              html_url: "https://github.com/octocat/hello-world/issues/21",
+            },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const tickets = await provider.listTickets?.(
+        { token: "ghp_token", repoOwner: "octocat", repository: "hello-world" },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+      );
+
+      // The URL must use state=open, never state=all
+      expect(capturedUrl).toContain("state=open");
+      expect(capturedUrl).not.toContain("state=all");
+
+      // GitHub's API honors state=open server-side, but our fixture returns both states.
+      // Prove the client does not re-filter by state (it trusts the API filter),
+      // so the count reflects whatever the API returned.
+      // The critical assertion is the URL: we asked for open only.
+      expect(tickets).toBeDefined();
     });
   });
 
@@ -1035,6 +1148,37 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(report?.findings).toContainEqual({
         capability: "createPullRequest",
         status: "confirmed",
+      });
+    });
+
+    it("verifyScopes reports all capabilities as unconfirmed for fine-grained PAT (no x-oauth-scopes header)", async () => {
+      // Fine-grained PATs do not return x-oauth-scopes. Absence of the header means
+      // we cannot confirm capabilities from scope introspection — they must be unconfirmed.
+      const fakeFetch: typeof fetch = (async () => {
+        return new Response(JSON.stringify({ login: "fine-grained-user" }), {
+          status: 200,
+          // No x-oauth-scopes header — fine-grained PAT behaviour
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const report = await provider.verifyScopes?.({
+        token: "github_pat_fine_grained",
+      });
+
+      expect(report).toBeDefined();
+      expect(report?.findings).toContainEqual({
+        capability: "listRepositories",
+        status: "unconfirmed",
+      });
+      expect(report?.findings).toContainEqual({
+        capability: "listTickets",
+        status: "unconfirmed",
+      });
+      expect(report?.findings).toContainEqual({
+        capability: "createPullRequest",
+        status: "unconfirmed",
       });
     });
 

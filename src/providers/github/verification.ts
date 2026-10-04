@@ -249,9 +249,9 @@ export async function verifyGitHubScopes(
       status: scopes.includes("repo") ? "confirmed" : "unconfirmed",
     });
   } else {
-    // Fine-grained PAT
-    findings.push({ capability: "listRepositories", status: "confirmed" });
-    findings.push({ capability: "listTickets", status: "confirmed" });
+    // Fine-grained PAT: absence of x-oauth-scopes header means capabilities cannot be confirmed from scope introspection.
+    findings.push({ capability: "listRepositories", status: "unconfirmed" });
+    findings.push({ capability: "listTickets", status: "unconfirmed" });
     findings.push({ capability: "createPullRequest", status: "unconfirmed" });
   }
 

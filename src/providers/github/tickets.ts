@@ -107,7 +107,7 @@ export async function listGitHubTickets(
   const { owner, repo } = resolveRepoCoordinates(repoCoordinate, configOwner);
   const root = baseUrl || "https://api.github.com";
 
-  let url = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=all&per_page=100`;
+  let url = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&per_page=100`;
   if (options.requiredLabel) {
     url += `&labels=${encodeURIComponent(options.requiredLabel)}`;
   }
