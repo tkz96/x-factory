@@ -103,7 +103,12 @@ function isConnectionRoleState(value: unknown): boolean {
     isRecord(value.config) &&
     (value.verified === undefined || typeof value.verified === "boolean") &&
     (value.degradedAccepted === undefined ||
-      typeof value.degradedAccepted === "boolean")
+      typeof value.degradedAccepted === "boolean") &&
+    (value.unconfirmedCapabilities === undefined ||
+      (Array.isArray(value.unconfirmedCapabilities) &&
+        value.unconfirmedCapabilities.every(
+          (capability) => typeof capability === "string",
+        )))
   );
 }
 
@@ -116,11 +121,17 @@ function isConnectState(value: unknown): boolean {
   );
 }
 
-/** Per-repository configuration value: `{ role, localPath?, primary? }`. */
+/**
+ * Per-repository configuration value:
+ * `{ role, roles?, localPath?, primary? }`.
+ */
 function isRepoConfigValue(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.role === "string" &&
+    (value.roles === undefined ||
+      (Array.isArray(value.roles) &&
+        value.roles.every((role) => typeof role === "string"))) &&
     (value.localPath === undefined || typeof value.localPath === "string") &&
     (value.primary === undefined || typeof value.primary === "boolean")
   );
@@ -133,7 +144,10 @@ function isRepositoriesState(value: unknown): boolean {
     value.selectedRepoIds.every((id) => typeof id === "string") &&
     (value.primaryRepoId === null || typeof value.primaryRepoId === "string") &&
     isRecord(value.repoConfigs) &&
-    Object.values(value.repoConfigs).every(isRepoConfigValue)
+    Object.values(value.repoConfigs).every(isRepoConfigValue) &&
+    (value.selectionFingerprint === undefined ||
+      value.selectionFingerprint === null ||
+      typeof value.selectionFingerprint === "string")
   );
 }
 

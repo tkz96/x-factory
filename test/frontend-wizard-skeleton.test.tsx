@@ -105,6 +105,17 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
       matched: false as const,
       url: "",
     }));
+    api.providers.listRepositories = mock(async () => ({
+      providerId: "stub-provider",
+      roles: ["gitHost"],
+      repositories: [
+        {
+          id: "repo-1",
+          name: "titan-app",
+          remote: "https://git.example.com/acme/titan-app.git",
+        },
+      ],
+    }));
   });
 
   afterEach(() => {
@@ -207,6 +218,12 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     // Advance to Step 3: Repositories
     fireEvent.click(getEl("btn-step-2-next"));
     expect(document.getElementById("onboard-step-3")).not.toBeNull();
+
+    // Step 3 requires a discovered, selected application repository (#144).
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.click(getEl("repo-select-repo-1"));
 
     // Advance to Step 4: Inspection
     fireEvent.click(getEl("btn-step-3-next"));

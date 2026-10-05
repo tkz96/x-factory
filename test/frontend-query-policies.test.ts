@@ -44,6 +44,15 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
 
     // Readiness: 60s
     expect(QUERY_POLICIES.readiness.staleTime).toBe(60000);
+
+    // Repository discovery (#144): 60s, no background refetching — a
+    // connection-config edit changes the KEY instead, which fetches afresh.
+    expect(QUERY_POLICIES.providerRepositories.staleTime).toBe(60000);
+    expect(QUERY_POLICIES.providerRepositories.refetchOnWindowFocus).toBe(
+      false,
+    );
+    expect(QUERY_POLICIES.providerRepositories.refetchOnReconnect).toBe(false);
+    expect(QUERY_POLICIES.providerRepositories.refetchOnMount).toBe(false);
   });
 
   it("provides deterministic query key factories", () => {
@@ -54,6 +63,36 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
     expect(queryKeys.run("r1")).toEqual(["runs", "r1"]);
     expect(queryKeys.settings()).toEqual(["settings"]);
     expect(queryKeys.readiness()).toEqual(["readiness"]);
+  });
+
+  it("keys repository discovery by the git-host connection, so a config edit is a new fetch (#144)", () => {
+    const base = queryKeys.providerRepositories("generic-githost", {
+      gitUrl: "https://git.example.com",
+      token: "tok-a",
+    });
+    const reordered = queryKeys.providerRepositories("generic-githost", {
+      token: "tok-a",
+      gitUrl: "https://git.example.com",
+    });
+    const edited = queryKeys.providerRepositories("generic-githost", {
+      gitUrl: "https://git.example.com",
+      token: "tok-b",
+    });
+    const otherProvider = queryKeys.providerRepositories("another-githost", {
+      gitUrl: "https://git.example.com",
+      token: "tok-a",
+    });
+
+    expect(base[0]).toBe("providers");
+    expect(base[1]).toBe("repositories");
+    // Key order is irrelevant — the same configuration is the same key...
+    expect(base).toEqual(reordered);
+    // ...while any provider or value change is a different key, and therefore a
+    // fresh fetch instead of the previous configuration's results.
+    expect(base).not.toEqual(edited);
+    expect(base).not.toEqual(otherProvider);
+    // The key never carries a credential: it holds a non-reversible digest.
+    expect(JSON.stringify(base)).not.toContain("tok-a");
   });
 });
 

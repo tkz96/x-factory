@@ -33,6 +33,24 @@ Two recorded refinements:
 
 Required test coverage for every read region: loading, empty, partial, error, stale.
 
+## Implemented read regions
+
+| Region | Module | What the five states mean there |
+|---|---|---|
+| Connect — provider manifest | `wizard/steps/useConnectStep.ts` | loading = manifest in flight; error = manifest unavailable; retry refetches. |
+| Repositories — git-host discovery (`#144`) | `wizard/steps/useRepositoryDiscovery.ts` | loading = discovery in flight in the reserved region; empty = the connection lists no repositories (guidance copy); partial = the connection's verification could not confirm `listRepositories` (banner names the capability); error = the provider call failed (normalized copy + retry); stale = the displayed results or the recorded selection were produced from a git-host connection configuration that is no longer current. |
+
+**Repositories staleness (`#144`).** The step records the fingerprint of the
+git-host connection (provider id + config values, in
+`lib/connection-fingerprint.ts`) that produced the current selection. The
+selection is stale the moment that fingerprint no longer matches the connection
+as it stands — a provider or config edit, or a restored draft whose credentials
+were stripped. A stale selection shows the badge and the refresh affordance,
+and blocks the step: the reducer's `NEXT_STEP` guard refuses to move past step 3
+while it holds, so a project can never be created from a selection made under a
+connection that has since changed. Report/Review stale-blocking (#146/#147)
+builds on the same rule.
+
 ## Mutation regions — pending / success / error
 
 Mutations (project creation, credential verification submits, pull-request creation) render through the same family: `pending` disables the invoking action (never a spinner takeover), `success` renders inline confirmation, `error` renders a `FeedbackBanner` (error tone) with copy-map copy and `RetryAction`. Rate-limited errors (`RATE_LIMITED` with `retryAfterMs`) disable the retry behind countdown guidance that ticks down once per second inside the banner (`use-retry-countdown`) — the retry un-disables itself, so the user never hammers the provider (spec user story 26).

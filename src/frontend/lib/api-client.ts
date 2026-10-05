@@ -1,8 +1,10 @@
 import type { Project, Run, Ticket } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
+  DiscoverRepositoriesPayload,
   ParseUrlResult,
   ProviderDescriptor,
+  RepositoriesEnvelope,
   VerificationResult,
   VerifyCredentialsPayload,
 } from "../connection/types.js";
@@ -113,6 +115,22 @@ export const api = {
         body: JSON.stringify({ url }),
       });
       return handleResponse<ParseUrlResult>(res);
+    },
+
+    /**
+     * Repository discovery for a git-host connection (ticket #144). Resolves to
+     * the provider-agnostic envelope, or to a normalized error envelope when
+     * the provider call failed; a raw provider message never arrives here.
+     */
+    async listRepositories(
+      payload: DiscoverRepositoriesPayload,
+    ): Promise<RepositoriesEnvelope | NormalizedError> {
+      const res = await fetch("/api/providers/repositories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<RepositoriesEnvelope | NormalizedError>(res);
     },
   },
 

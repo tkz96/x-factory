@@ -99,6 +99,37 @@ export const STATE_COPY = {
 } as const;
 
 /**
+ * Repositories step copy (#144). Feedback strings CANNOT be inlined in the
+ * step: the partial banner names the capability in contract terms, the empty
+ * state gives guidance, and the stale state explains that a connection change
+ * invalidated the selection.
+ */
+export const REPOSITORIES_COPY = {
+  title: "Select Repositories",
+  subtitle:
+    "Repositories discovered from your Git Host connection. Choose at least one application repository to work in.",
+  /** Empty: guidance when the connection lists zero repositories (story 29). */
+  empty:
+    "No repositories were found for this connection. Check that your token can see them, then refresh.",
+  /** Partial: the capability that could not be confirmed, in contract terms. */
+  discoveryUnconfirmed: "Repository discovery could not be confirmed.",
+  /** Stale: the selection belongs to a connection that has since changed. */
+  staleSelection:
+    "The Git Host connection changed after these repositories were listed, so this selection is out of date.",
+  /** Stale: the action that clears the out-of-date selection. */
+  staleSelectionAction: "Start the selection again",
+  /** Row label for a repository listed under the git-host role. */
+  applicationRoleLabel: "Application repository",
+  /** Row label for a repository listed only in another role. */
+  noApplicationRoleLabel: "Not usable as an application repository",
+  /** Live count of the current selection. */
+  selectionSummary: (count: number) =>
+    count === 1 ? "1 repository selected" : `${count} repositories selected`,
+  previous: "Back",
+  next: "Continue to Inspection",
+} as const;
+
+/**
  * Canonical copy for server validation error codes returned in 409 envelopes.
  * Field errors format the field's human label; form errors provide form-level guidance.
  */

@@ -25,6 +25,13 @@ export interface WizardConnectionRoleState {
   config: Record<string, unknown>;
   verified?: boolean;
   degradedAccepted?: boolean;
+  /**
+   * Contract capability names the last verification could not confirm
+   * (`VerificationWarning.kind === "CAPABILITY_UNCONFIRMED"`). Persisted so a
+   * downstream step can render the degraded evidence for its own capability —
+   * for example the Repositories step naming `listRepositories` (#144).
+   */
+  unconfirmedCapabilities?: string[];
 }
 
 export interface WizardConnectState {
@@ -36,10 +43,29 @@ export interface WizardConnectState {
 export interface WizardRepositoriesState {
   selectedRepoIds: string[];
   primaryRepoId: string | null;
-  repoConfigs: Record<
-    string,
-    { role: string; localPath?: string; primary?: boolean }
-  >;
+  repoConfigs: Record<string, WizardRepoConfig>;
+  /**
+   * Fingerprint of the git-host connection configuration the current selection
+   * was discovered from (`connectionConfigFingerprint`, a non-reversible
+   * digest — never the config itself, which carries credentials). A selection
+   * whose fingerprint no longer matches the current connection is out of date:
+   * it must be re-made before the step can advance (spec #133 stale rule).
+   */
+  selectionFingerprint?: string | null;
+}
+
+/** One selected repository's role tags and per-repository settings. */
+export interface WizardRepoConfig {
+  /** The role tag carried into the creation payload (first listing role). */
+  role: string;
+  /**
+   * Every connection role the repository was listed under (e.g. `gitHost` for
+   * an application repository, `tracker` when the same connection also serves
+   * as the issue tracker). Plain serialisable.
+   */
+  roles?: string[];
+  localPath?: string;
+  primary?: boolean;
 }
 
 export interface WizardInspectionState {

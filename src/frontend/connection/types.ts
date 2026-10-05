@@ -50,3 +50,30 @@ export interface VerifyCredentialsPayload {
   role: "tracker" | "gitHost";
   config: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// Repository discovery (spec #133, ticket #144)
+// ---------------------------------------------------------------------------
+
+/** One repository as discovered by the git-host provider. */
+export interface ProviderRepository {
+  id: string;
+  name: string;
+  remote: string;
+  defaultBranch?: string;
+  webUrl?: string;
+}
+
+/** Provider-agnostic discovery envelope returned by the providers API. */
+export interface RepositoriesEnvelope {
+  providerId: string;
+  /** Connection roles the repositories were listed under. */
+  roles: string[];
+  repositories: ProviderRepository[];
+}
+
+export interface DiscoverRepositoriesPayload {
+  providerId: string;
+  role: "tracker" | "gitHost";
+  config: Record<string, unknown>;
+}

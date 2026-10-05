@@ -5,6 +5,7 @@ import type {
   WizardSourceState,
   WizardStepNumber,
 } from "../types.js";
+import { canAdvanceFromRepositories } from "./repositoryRules.js";
 
 export function createInitialWizardState(): WizardSourceState {
   return {
@@ -35,6 +36,7 @@ export function createInitialWizardState(): WizardSourceState {
       selectedRepoIds: [],
       primaryRepoId: null,
       repoConfigs: {},
+      selectionFingerprint: null,
     },
     inspection: {
       acknowledged: false,
@@ -66,6 +68,12 @@ export function wizardReducer(
 
     case "NEXT_STEP": {
       if (state.step >= 5) {
+        return state;
+      }
+      // Step 3 guards the state machine itself (#144): no application
+      // repository selected — or a selection made under a connection that has
+      // since changed — means the journey cannot move on.
+      if (state.step === 3 && !canAdvanceFromRepositories(state)) {
         return state;
       }
       const nextStep = (state.step + 1) as WizardStepNumber;
