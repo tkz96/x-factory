@@ -529,4 +529,133 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
     // Reading the resolved record into state never re-triggers the read.
     expect(inspectRepository).toHaveBeenCalledTimes(2);
   });
+
+  // ── Smoothness #4 and #6 (#148): the stale badge, and re-entry ─────────────
+  describe("Smoothness — stale badges re-check, and re-entry does not re-read (#148)", () => {
+    /** One repository selected at `/work/rocket`, with the identity resolved. */
+    async function openResolvedStepFour() {
+      inspectRepository = mock(async (payload: { path: string }) =>
+        inspectionResponse(payload.path, IDENTITY),
+      );
+      api.inspectRepository = inspectRepository as never;
+      openInspectionStep();
+      await flush();
+      expect(getEl("inspection-identity-name").textContent).toBe("Repo Owner");
+      expect(inspectRepository).toHaveBeenCalledTimes(1);
+    }
+
+    /** Moves the workspace root, which makes the recorded identity stale. */
+    async function moveWorkspaceRoot(to: string) {
+      fireEvent.click(getEl("step-nav-basics"));
+      await typeInput(getEl("onboard-workspace-path"), to);
+      fireEvent.click(getEl("btn-step-1-next"));
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-all"));
+      });
+      fireEvent.click(getEl("btn-step-2-next"));
+      fireEvent.click(getEl("btn-step-3-next"));
+      expect(document.getElementById("onboard-step-4")).not.toBeNull();
+    }
+
+    it("SMOOTHNESS #4: the stale badge honours its refresh and clears only on a genuinely newer result", async () => {
+      await openResolvedStepFour();
+
+      // The read for the moved root FAILS — the stale value stays on screen.
+      inspectRepository = mock(async () => {
+        throw new TypeError("Failed to fetch");
+      });
+      api.inspectRepository = inspectRepository as never;
+      await moveWorkspaceRoot("/work/other");
+      await flush();
+
+      const region = inspectionRegion();
+      const badge = () =>
+        inspectionRegion().querySelector(".async-region-stale-badge");
+      // The identity on screen was resolved for the OLD root: stale, visible.
+      expect(badge()?.textContent).toBe(STATE_COPY.stale);
+      expect(getEl("inspection-identity-name").textContent).toBe("Repo Owner");
+      const refresh = region.querySelector(
+        ".async-region-stale .retry-action",
+      ) as HTMLButtonElement;
+      expect(refresh.textContent).toContain(STATE_COPY.refresh);
+
+      // The refresh ran and FAILED: stale-ness is not cleared by an attempt,
+      // and the failure is not swallowed — it rides along as a diagnostic.
+      expect(inspectRepository).toHaveBeenCalledTimes(1);
+      const banner = inspectionRegion().querySelector(
+        ".feedback-banner--error",
+      );
+      expect(banner).not.toBeNull();
+      expect(banner?.querySelector(".retry-action")).not.toBeNull();
+
+      // ...and again, from the failure's own retry: still stale while the
+      // failure stands.
+      await act(async () => {
+        fireEvent.click(
+          banner?.querySelector(".retry-action") as HTMLButtonElement,
+        );
+      });
+      await flush();
+      expect(inspectRepository).toHaveBeenCalledTimes(2);
+      expect(badge()?.textContent).toBe(STATE_COPY.stale);
+      expect(getEl("inspection-identity-name").textContent).toBe("Repo Owner");
+
+      // A genuinely newer result lands: now — and only now — the badge clears.
+      inspectRepository = mock(async (payload: { path: string }) =>
+        inspectionResponse(payload.path, {
+          name: "Second Owner",
+          email: "second@example.com",
+        }),
+      );
+      api.inspectRepository = inspectRepository as never;
+      await act(async () => {
+        fireEvent.click(
+          inspectionRegion().querySelector(
+            ".async-region-stale .retry-action",
+          ) as HTMLButtonElement,
+        );
+      });
+      await flush();
+
+      expect(
+        inspectionRegion().querySelector(".async-region-stale-badge"),
+      ).toBeNull();
+      expect(
+        inspectionRegion().querySelector(".feedback-banner--error"),
+      ).toBeNull();
+      expect(getEl("inspection-identity-name").textContent).toBe(
+        "Second Owner",
+      );
+      expect(getEl("inspection-identity-email").textContent).toBe(
+        "second@example.com",
+      );
+    });
+
+    it("SMOOTHNESS #6: going back to Inspection and forward again does not fire a second read, while a changed input still does", async () => {
+      await openResolvedStepFour();
+
+      // Review → Inspection → Review: the identity already on screen was
+      // resolved for exactly the current inputs, so nothing is fetched again.
+      fireEvent.click(getEl("btn-step-4-next"));
+      expect(document.getElementById("onboard-step-5")).not.toBeNull();
+      fireEvent.click(getEl("step-nav-inspection"));
+      expect(document.getElementById("onboard-step-4")).not.toBeNull();
+      await flush();
+      expect(inspectRepository).toHaveBeenCalledTimes(1);
+      // Same step, same region, same identity — nothing was rebuilt from zero.
+      expect(getEl("inspection-identity-name").textContent).toBe("Repo Owner");
+      expect(
+        inspectionRegion().querySelector(".async-region--loading"),
+      ).toBeNull();
+
+      // The skip is guarded by the fingerprint, not by a blanket rule: moving
+      // the root still re-reads.
+      await moveWorkspaceRoot("/work/moved");
+      await flush();
+      expect(inspectRepository).toHaveBeenCalledTimes(2);
+      expect(inspectRepository.mock.calls[1]?.[0]).toEqual({
+        path: "/work/moved",
+      });
+    });
+  });
 });

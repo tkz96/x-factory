@@ -13,14 +13,16 @@ import { useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
+import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
-import { ConnectionComboLine } from "./ConnectionComboLine.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
   applyConnectionIntegrity,
+  comboSlots,
+  comboTone,
   connectionDisplayValues,
   deriveConnectionIntegrity,
   resolveProviderLabel,
@@ -111,7 +113,8 @@ export function TrackerSection({ project }: TrackerSectionProps) {
       </div>
 
       <ConnectionComboLine
-        integrity={integrity}
+        slots={comboSlots(integrity)}
+        tone={comboTone(integrity)}
         descriptors={descriptors}
         roles={["tracker"]}
       />

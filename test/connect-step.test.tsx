@@ -161,11 +161,19 @@ function Harness() {
   );
 }
 
-function renderWizard(manifestData = genericManifestFixture) {
+/**
+ * Renders the harness. `manifestData === null` leaves the manifest cache empty,
+ * so the step has to fetch it — the read region's own states.
+ */
+function renderWizard(
+  manifestData: ProviderDescriptor[] | null = genericManifestFixture,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
-  queryClient.setQueryData(queryKeys.providers(), manifestData);
+  if (manifestData !== null) {
+    queryClient.setQueryData(queryKeys.providers(), manifestData);
+  }
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -1510,6 +1518,233 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       const raw = window.localStorage.getItem("xf_wizard_draft_v1");
       const parsed = JSON.parse(raw || "{}");
       expect(parsed.state.maxStepVisited).toBe(4);
+    });
+  });
+
+  // ── Smoothness #1 (#148): verification completion stays local to its card ──
+  //
+  // The criterion is "no full modal re-render on verification completion".
+  // What a user can actually observe is a REMOUNT: nodes are replaced, the
+  // other card's entered values and focus are rebuilt from scratch, and the
+  // step flashes. That is what these assertions detect — a MutationObserver
+  // over the step reports which regions were structurally rebuilt, and node
+  // identity proves the rest was not. A pure re-render that produces identical
+  // DOM is invisible to the user by definition; it is not what this detects and
+  // is not claimed.
+  describe("Smoothness #1: verifying one role stays local to its card (#148)", () => {
+    it("SMOOTHNESS #1: completing one role's verification rebuilds only that card — the other card, its entered values and the step are untouched", async () => {
+      let resolveTracker!: (value: VerificationResult) => void;
+      const verify = mock(
+        (payload: {
+          providerId: string;
+          role: string;
+          config: Record<string, unknown>;
+        }) =>
+          payload.role === "tracker"
+            ? new Promise<VerificationResult>((resolve) => {
+                resolveTracker = resolve;
+              })
+            : Promise.resolve({ status: "ok" as const, warnings: [] }),
+      );
+      api.providers.verify = verify as never;
+
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+      await typeInput(
+        getEl("tracker-endpointHost"),
+        "https://tracker.example.com",
+      );
+      await typeInput(getEl("gitHost-gitUrl"), "https://git.example.com");
+      await typeInput(getEl("gitHost-token"), "tok-plaintext-secret");
+
+      const step = getEl("onboard-step-2");
+      const verifiedCard = getEl("connection-card-tracker");
+      const otherCard = getEl("connection-card-gitHost");
+      const otherInput = getEl<HTMLInputElement>("gitHost-gitUrl");
+      const otherSelect = getEl<HTMLSelectElement>("select-gitHost-provider");
+      const verifyAllRow = step.querySelector(
+        ".connect-verify-all-row",
+      ) as HTMLElement;
+
+      // Only structural churn matters: a replaced node is a remount.
+      const structural: MutationRecord[] = [];
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === "childList") structural.push(record);
+        }
+      });
+      observer.observe(step, { childList: true, subtree: true });
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+      });
+      await act(async () => {
+        resolveTracker({ status: "ok", warnings: [] });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      observer.disconnect();
+
+      // The verified role reports its outcome.
+      expect(verifiedCard.dataset.role).toBe("tracker");
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "Verified",
+      );
+
+      // Nothing outside the card whose evidence changed (and the verify-all row
+      // that reports the batch) was structurally rebuilt: no remount of the
+      // other card, no remount of the step.
+      const rebuilt = structural.map((record) => record.target);
+      expect(
+        rebuilt.every(
+          (target) =>
+            verifiedCard.contains(target) || verifyAllRow.contains(target),
+        ),
+      ).toBe(true);
+
+      // Node identity: the step, the other card, and the other card's field and
+      // select are the very same nodes as before the verification completed.
+      expect(getEl("onboard-step-2")).toBe(step);
+      expect(getEl("connection-card-tracker")).toBe(verifiedCard);
+      expect(getEl("connection-card-gitHost")).toBe(otherCard);
+      expect(getEl("gitHost-gitUrl")).toBe(otherInput);
+      expect(getEl("select-gitHost-provider")).toBe(otherSelect);
+
+      // And the other card's work is intact — not re-entered, not lost.
+      expect(getEl<HTMLInputElement>("gitHost-gitUrl").value).toBe(
+        "https://git.example.com",
+      );
+      expect(getEl<HTMLInputElement>("gitHost-token").value).toBe(
+        "tok-plaintext-secret",
+      );
+
+      // The other role was never verified on the back of this one.
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(verify.mock.calls[0]?.[0]).toEqual({
+        providerId: "generic-tracker",
+        role: "tracker",
+        config: { endpointHost: "https://tracker.example.com" },
+      });
+    });
+  });
+
+  // ── Connect's own read region: the provider manifest (#148 audit) ──────────
+  //
+  // The contract (docs/reference/state-coverage.md) requires every read region
+  // to be tested in its states. The Connect step's manifest region is asserted
+  // here: loading (in flight), error (unavailable, with a working retry), and
+  // empty (no provider registered — the step still renders, nothing selected).
+  describe("Connect — the provider manifest read region (#148)", () => {
+    /** The manifest read is a query: its state lands a tick after it settles. */
+    async function flushManifest(): Promise<void> {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
+
+    it("LOADING: the step reserves its region while the manifest is in flight, and the cards land in the same step", async () => {
+      let resolveManifest!: (value: ProviderDescriptor[]) => void;
+      const getManifest = mock(
+        () =>
+          new Promise<ProviderDescriptor[]>((resolve) => {
+            resolveManifest = resolve;
+          }),
+      );
+      api.providers.getManifest = getManifest as never;
+
+      setupStep2Draft();
+      renderWizard(null);
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      const step = getEl("onboard-step-2");
+      const loading = step.querySelector(".async-region--loading");
+      expect(loading).not.toBeNull();
+      expect(loading?.getAttribute("role")).toBe("status");
+      expect(getManifest).toHaveBeenCalledTimes(1);
+      // Nothing to configure yet: the cards are not rendered behind the region.
+      expect(document.getElementById("connection-card-tracker")).toBeNull();
+
+      await act(async () => {
+        resolveManifest(genericManifestFixture);
+      });
+      await flushManifest();
+
+      // Same step element, and the provider choices are the manifest's.
+      expect(getEl("onboard-step-2")).toBe(step);
+      const options = [
+        ...getEl<HTMLSelectElement>("select-tracker-provider").options,
+      ]
+        .map((option) => option.value)
+        .filter((value) => value !== "");
+      expect(options).toEqual(["generic-tracker", "dual-service"]);
+      expect(getManifest).toHaveBeenCalledTimes(1);
+    });
+
+    it("ERROR: an unavailable manifest renders canonical copy with a working retry, never the transport message", async () => {
+      let attempts = 0;
+      const getManifest = mock(async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new TypeError("Failed to fetch");
+        }
+        return genericManifestFixture;
+      });
+      api.providers.getManifest = getManifest as never;
+
+      setupStep2Draft();
+      renderWizard(null);
+      fireEvent.click(getEl("btn-open-wizard"));
+      await flushManifest();
+
+      const step = getEl("onboard-step-2");
+      const errorRegion = step.querySelector(".async-region--error");
+      expect(errorRegion).not.toBeNull();
+      expect(errorRegion?.textContent).toContain(STATE_COPY.errorFallback);
+      expect(errorRegion?.textContent).not.toContain("Failed to fetch");
+
+      // The retry re-invokes the read in place: same step, cards now present.
+      const retry = errorRegion?.querySelector(
+        ".retry-action",
+      ) as HTMLButtonElement;
+      expect(retry.textContent).toContain(STATE_COPY.retry);
+      await act(async () => {
+        fireEvent.click(retry);
+      });
+      await flushManifest();
+      expect(getManifest).toHaveBeenCalledTimes(2);
+      expect(getEl("onboard-step-2")).toBe(step);
+      expect(document.getElementById("connection-card-tracker")).not.toBeNull();
+    });
+
+    it("EMPTY: a registry with no providers renders the step, preselects nothing, and keeps the gate closed", async () => {
+      setupStep2Draft();
+      renderWizard([]);
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // The step is not blank and not an error: both cards are there, with no
+      // provider to choose.
+      expect(document.getElementById("connection-card-tracker")).not.toBeNull();
+      expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe(
+        "",
+      );
+      expect(getEl<HTMLSelectElement>("select-gitHost-provider").value).toBe(
+        "",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+      expect(
+        document
+          .getElementById("onboard-step-2")
+          ?.querySelector(".async-region--error"),
+      ).toBeNull();
     });
   });
 });

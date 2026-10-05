@@ -30,7 +30,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionsProjectInputSchema } from "../src/config-schema.js";
 import {
-  CONNECTION_STATE_COPY,
+  CONNECTIONS_COPY,
   REVIEW_COPY,
   resolveFieldValidationError,
   resolveFormValidationError,
@@ -376,10 +376,10 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       "Generic Git Host Service",
     );
     expect(getEl("combo-tracker-state").textContent).toBe(
-      CONNECTION_STATE_COPY.connected,
+      CONNECTIONS_COPY.stateLabel.connected,
     );
     expect(getEl("combo-gitHost-state").textContent).toBe(
-      CONNECTION_STATE_COPY.connected,
+      CONNECTIONS_COPY.stateLabel.connected,
     );
     expect(getEl("combo-summary").textContent).not.toContain("generic-githost");
 
@@ -658,7 +658,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     await flush();
     expect(document.getElementById("onboard-step-5")).not.toBeNull();
     expect(getEl("combo-tracker-state").textContent).toBe(
-      CONNECTION_STATE_COPY.degradedAccepted,
+      CONNECTIONS_COPY.stateLabel.degradedAccepted,
     );
     expect(getEl("combo-tracker-state").dataset.connectionState).toBe(
       "degraded",
@@ -827,5 +827,78 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     await flush();
     expect(createProject).toHaveBeenCalledTimes(2);
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
+  });
+
+  // ── Smoothness #5 and #6 (#148): completion, and back-navigation ──────────
+  describe("Smoothness — completion closes the flow, and back-navigation never re-requests (#148)", () => {
+    it("SMOOTHNESS #5: success closes the flow — nothing asks the user to re-enter it", async () => {
+      await runToReview();
+      await act(async () => {
+        fireEvent.click(getEl("btn-step-5-submit"));
+      });
+      await flush();
+
+      // The flow completed: closed, draft cleared, project present.
+      expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
+      expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
+      expect(getEl("probe-projects").textContent).toBe("rocket");
+
+      // Nothing invites the user back into the finished flow: no live wizard
+      // surface, and no "re-enter"/"resume" prompt of any kind.
+      expect(
+        document.getElementById("onboarding-wizard-modal-overlay"),
+      ).toBeNull();
+      expect(document.getElementById("onboard-step-5")).toBeNull();
+
+      // Reopening starts a fresh onboarding — not a re-entry, not a resume of
+      // the submitted flow.
+      fireEvent.click(getEl("btn-open-wizard"));
+      expect(document.getElementById("onboard-step-1")).not.toBeNull();
+      expect(document.getElementById("onboard-step-5")).toBeNull();
+      expect(getEl<HTMLInputElement>("onboard-proj-name").value).toBe("");
+      expect(getEl<HTMLInputElement>("onboard-workspace-path").value).not.toBe(
+        "/work/rocket",
+      );
+    });
+
+    it("SMOOTHNESS #6: Review → Repositories → Review and Review → Inspection → Review fire no second identical request", async () => {
+      await runToReview();
+
+      const listRepositories = api.providers.listRepositories as ReturnType<
+        typeof mock
+      >;
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+      expect(inspectRepository).toHaveBeenCalledTimes(1);
+
+      // Back to Repositories and forward again: the discovered list is already
+      // in the cache for this very connection.
+      fireEvent.click(getEl("step-nav-repositories"));
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+      await flush();
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+      fireEvent.click(getEl("btn-step-3-next"));
+      expect(document.getElementById("onboard-step-4")).not.toBeNull();
+      fireEvent.click(getEl("btn-step-4-next"));
+      expect(document.getElementById("onboard-step-5")).not.toBeNull();
+      await flush();
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+
+      // Back to Inspection and forward again: the identity on screen was
+      // resolved for exactly these inputs.
+      fireEvent.click(getEl("step-nav-inspection"));
+      expect(document.getElementById("onboard-step-4")).not.toBeNull();
+      await flush();
+      expect(inspectRepository).toHaveBeenCalledTimes(1);
+      expect(getEl("inspection-identity-name").textContent).toBe(IDENTITY.name);
+      fireEvent.click(getEl("btn-step-4-next"));
+      expect(document.getElementById("onboard-step-5")).not.toBeNull();
+      await flush();
+
+      // Same values, no re-entry of anything, and still one request each.
+      expect(getEl("review-identity-name").textContent).toBe(IDENTITY.name);
+      expect(document.getElementById("review-blocked")).toBeNull();
+      expect(inspectRepository).toHaveBeenCalledTimes(1);
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+    });
   });
 });

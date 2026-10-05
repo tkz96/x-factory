@@ -44,6 +44,29 @@ The API process serves concurrent read queries without waiting for active worker
 SQLite commits changes atomically to disk.
 If a worker process crashes, SQLite rolls back uncommitted transactions and preserves database integrity.
 
+## Onboarding Sits Behind the Same Boundary
+
+Project creation obeys the boundary rather than bending it. The wizard runs
+entirely in the browser: it drafts itself to `localStorage`, holds credentials in
+memory, and resolves providers by asking the API process
+(`/api/providers/manifest`, `/parse-url`, `/verify`, `/repositories`). Nothing in
+the browser reaches a provider directly, and no provider module is imported by
+frontend code.
+
+The API process then performs the creation as an ordered write: validate the
+whole request in memory (transport shape → the provider's own config schema →
+role/capability compatibility → duplicate id), write the secrets to per-project
+env storage, and append the project record last as the commit point. A crash
+before the record is appended leaves an orphaned env file and no project, so a
+project can never exist without its secrets, and a retry converges because the
+secret write is idempotent. The worker is not involved: onboarding is
+persistence, not execution.
+
+The registry is the extensibility point in both directions. Providers are
+registered statically (`src/providers/registry.ts`) and injected into the HTTP
+layer, which is what lets a test — or a future provider — be added without
+touching the API process's routing, the wizard, or the payload contract.
+
 ## The Worker Lease Model
 
 Multiple workers can run concurrently against the shared SQLite database.

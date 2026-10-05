@@ -36,14 +36,18 @@ import {
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
 import {
   CONNECTIONS_COPY,
   PROJECT_CARD_COPY,
   PROJECT_DETAIL_COPY,
   QUEUE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
-import { ConnectionComboLine } from "../src/frontend/components/projects/ConnectionComboLine.js";
-import { deriveConnectionIntegrity } from "../src/frontend/components/projects/connection-integrity.js";
+import {
+  comboSlots,
+  comboTone,
+  deriveConnectionIntegrity,
+} from "../src/frontend/components/projects/connection-integrity.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -211,7 +215,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const integrity = deriveConnectionIntegrity(makeProject(), MANIFEST);
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -238,7 +243,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     );
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -262,7 +268,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     );
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -307,7 +314,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     );
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: [gitlab],
       }),
       makeClient(),
@@ -321,9 +329,9 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const integrity = deriveConnectionIntegrity(makeProject(), MANIFEST);
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity, ["tracker"]),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
-        roles: ["tracker"],
       }),
       makeClient(),
     );
@@ -365,6 +373,119 @@ function renderDetail(project: Project, client: QueryClient) {
 }
 
 describe("Project detail surface — combo line and tracker card", () => {
+  // The surface's own read region (docs/reference/state-coverage.md): the
+  // projects catalog in flight, its failure, and an id the catalog does not
+  // contain (#148 coverage audit).
+  it("LOADING: the catalog in flight reserves the region instead of rendering a broken project", async () => {
+    let resolveProjects!: (value: Project[]) => void;
+    api.getProjects = mock(
+      () =>
+        new Promise<Project[]>((resolve) => {
+          resolveProjects = resolve;
+        }),
+    ) as never;
+    const client = makeClient();
+
+    // No seeded catalog: the view has to read it.
+    const { container } = renderUi(
+      React.createElement(
+        Routes,
+        null,
+        React.createElement(Route, {
+          path: "/projects/:id",
+          element: React.createElement(ProjectDetailView),
+        }),
+      ),
+      client,
+      ["/projects/proj-1"],
+    );
+
+    expect(container.querySelector(".async-region--loading")).not.toBeNull();
+    expect(document.getElementById("project-connections-combo")).toBeNull();
+
+    // The read lands and the surface renders in place.
+    await act(async () => {
+      resolveProjects([makeProject()]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.querySelector(".async-region--loading")).toBeNull();
+    expect(document.getElementById("project-connections-combo")).not.toBeNull();
+  });
+
+  it("ERROR: a failed catalog renders canonical copy with a working retry, never the transport message", async () => {
+    let attempts = 0;
+    const getProjects = mock(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new TypeError("Failed to fetch");
+      }
+      return [makeProject()];
+    });
+    api.getProjects = getProjects as never;
+
+    const { container } = renderUi(
+      React.createElement(
+        Routes,
+        null,
+        React.createElement(Route, {
+          path: "/projects/:id",
+          element: React.createElement(ProjectDetailView),
+        }),
+      ),
+      makeClient(),
+      ["/projects/proj-1"],
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector(".async-region--error")).not.toBeNull();
+    });
+    const errorRegion = container.querySelector(".async-region--error");
+    expect(errorRegion?.textContent).not.toContain("Failed to fetch");
+
+    const retry =
+      errorRegion?.querySelector<HTMLButtonElement>(".retry-action");
+    expect(retry).not.toBeNull();
+    await act(async () => {
+      retry?.click();
+    });
+    await waitFor(() => {
+      expect(
+        document.getElementById("project-connections-combo"),
+      ).not.toBeNull();
+    });
+  });
+
+  it("EMPTY: an id the loaded catalog does not contain says so, and offers the way back", async () => {
+    api.getProjects = mock(async () => []) as never;
+
+    const { container } = renderUi(
+      React.createElement(
+        Routes,
+        null,
+        React.createElement(Route, {
+          path: "/projects/:id",
+          element: React.createElement(ProjectDetailView),
+        }),
+        React.createElement(Route, {
+          path: "/projects",
+          element: React.createElement("div", { id: "projects-route" }),
+        }),
+      ),
+      makeClient(),
+      ["/projects/proj-1"],
+    );
+
+    await waitFor(() => {
+      expect(
+        container.textContent?.includes(PROJECT_DETAIL_COPY.notFound("proj-1")),
+      ).toBe(true);
+    });
+    // Not an integrity failure and not a blank page: guidance plus a way back.
+    expect(document.getElementById("project-connections-combo")).toBeNull();
+    expect(container.querySelector(".async-region--error")).toBeNull();
+    expect(container.textContent).toContain(PROJECT_DETAIL_COPY.backToProjects);
+  });
+
   it("HEALTHY: renders the combo line in the header with both manifest names", () => {
     const { container } = renderDetail(makeProject(), makeClient());
 
