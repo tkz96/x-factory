@@ -9,6 +9,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import type { Project } from "../../../shared/types.js";
 import type { ProjectCreationPayload } from "../../lib/api-client.js";
 import { ApiError, api } from "../../lib/api-client.js";
 import { queryKeys } from "../../lib/query-policies.js";
@@ -29,8 +30,8 @@ export function useReviewSubmit(onCreated: () => void): ReviewSubmit {
     onSuccess: (project) => {
       // The project appears through the query cache — no full-page reload and
       // no re-entry: the draft is cleared and the wizard closes.
-      queryClient.setQueryData<unknown[]>(queryKeys.projects(), (previous) => [
-        ...(Array.isArray(previous) ? previous : []),
+      queryClient.setQueryData<Project[]>(queryKeys.projects(), (previous) => [
+        ...(previous ?? []),
         project,
       ]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
