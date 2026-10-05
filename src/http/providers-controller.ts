@@ -12,6 +12,8 @@
 import { z } from "zod/v4";
 import { parseProviderConfig } from "../providers/config-validation.js";
 import type {
+  Provider,
+  ProviderConfig,
   ProviderError,
   ProviderRole,
   VerificationResult,
@@ -32,11 +34,76 @@ import {
   withValidatedBody,
 } from "./responses.js";
 
-const VerifyBodySchema = z.object({
+/**
+ * Request shape shared by every provider route that takes one connection
+ * config: credential verification (`/verify`) and repository discovery
+ * (`/repositories`). One shape means the two routes can never drift apart.
+ */
+const ProviderConfigBodySchema = z.object({
   providerId: z.string().min(1, "providerId is required"),
   role: z.enum(["tracker", "gitHost", "git-host"]).optional(),
   config: z.record(z.string(), z.unknown()),
 });
+
+/** Outcome of the semantic validation ladder every provider route runs. */
+type ProviderRoutePrelude =
+  | { readonly ok: false; readonly response: Response }
+  | {
+      readonly ok: true;
+      readonly provider: Provider;
+      readonly config: ProviderConfig;
+      /** The normalized role the connection was resolved under, or null. */
+      readonly role: ProviderRole | null;
+    };
+
+/**
+ * The semantic ladder every provider connection route runs before executing a
+ * capability: provider lookup -> role compatibility -> server-authoritative
+ * config parsing. Extracted so `/verify` and `/repositories` can never
+ * validate differently (#129: transport failures are 400, semantic failures
+ * are 409, and every failure carries codes only — never a message).
+ */
+function resolveProviderRoutePrelude(
+  registry: ProviderRegistry,
+  body: {
+    providerId: string;
+    role?: string | undefined;
+    config: Record<string, unknown>;
+  },
+): ProviderRoutePrelude {
+  const provider = registry.get(body.providerId);
+  if (!provider) {
+    return {
+      ok: false,
+      response: jsonResponse({ formErrors: ["UNKNOWN_PROVIDER"] }, 409),
+    };
+  }
+
+  let role: ProviderRole | null = null;
+  if (body.role) {
+    const normalizedRole = normalizeRole(body.role);
+    if (!normalizedRole || !provider.roles.includes(normalizedRole)) {
+      return {
+        ok: false,
+        response: jsonResponse(
+          { formErrors: ["INCOMPATIBLE_CONFIGURATION"] },
+          409,
+        ),
+      };
+    }
+    role = normalizedRole;
+  }
+
+  const parsed = parseProviderConfig(provider.configSchema, body.config);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      response: jsonResponse({ fieldErrors: parsed.fieldErrors }, 409),
+    };
+  }
+
+  return { ok: true, provider, config: parsed.config, role };
+}
 
 /**
  * Normalizes role filter strings ("git-host" -> "gitHost").
@@ -93,48 +160,21 @@ export async function handleVerifyRoute(
   req: Request,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<Response> {
-  return withValidatedBody(req, VerifyBodySchema, async (body) => {
-    // 1. Semantic validation: Provider lookup
-    const provider = registry.get(body.providerId);
-    if (!provider) {
-      return jsonResponse(
-        {
-          formErrors: ["UNKNOWN_PROVIDER"],
-        },
-        409,
-      );
+  return withValidatedBody(req, ProviderConfigBodySchema, async (body) => {
+    const prelude = resolveProviderRoutePrelude(registry, body);
+    if (!prelude.ok) {
+      return prelude.response;
     }
 
-    // 2. Semantic validation: Role compatibility
-    if (body.role) {
-      const normalizedRole = normalizeRole(body.role);
-      if (!normalizedRole || !provider.roles.includes(normalizedRole)) {
-        return jsonResponse(
-          {
-            formErrors: ["INCOMPATIBLE_CONFIGURATION"],
-          },
-          409,
-        );
-      }
-    }
-
-    // 3. Semantic validation: Config schema validation
-    const parsedConfig = parseProviderConfig(
-      provider.configSchema,
-      body.config,
-    );
-    if (!parsedConfig.ok) {
-      return jsonResponse({ fieldErrors: parsedConfig.fieldErrors }, 409);
-    }
-
-    // 4. Verification execution
     try {
-      const verification: VerificationResult = await provider.verifyCredentials(
-        parsedConfig.config,
-      );
+      const verification: VerificationResult =
+        await prelude.provider.verifyCredentials(prelude.config);
       return jsonResponse(verification, 200);
     } catch (err: unknown) {
-      const userError: ProviderError = provider.toUserError(err, "VERIFY");
+      const userError: ProviderError = prelude.provider.toUserError(
+        err,
+        "VERIFY",
+      );
       return jsonResponse(userError, 200);
     }
   });
@@ -200,12 +240,6 @@ export async function handleParseUrlRoute(
   );
 }
 
-const RepositoriesBodySchema = z.object({
-  providerId: z.string().min(1, "providerId is required"),
-  role: z.enum(["tracker", "gitHost", "git-host"]).optional(),
-  config: z.record(z.string(), z.unknown()),
-});
-
 /**
  * POST /api/providers/repositories
  * Repository discovery for a git-host connection. Layering mirrors
@@ -217,47 +251,26 @@ export async function handleRepositoriesRoute(
   req: Request,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<Response> {
-  return withValidatedBody(req, RepositoriesBodySchema, async (body) => {
-    // 1. Semantic validation: Provider lookup
-    const provider = registry.get(body.providerId);
-    if (!provider) {
-      return jsonResponse({ formErrors: ["UNKNOWN_PROVIDER"] }, 409);
+  return withValidatedBody(req, ProviderConfigBodySchema, async (body) => {
+    const prelude = resolveProviderRoutePrelude(registry, body);
+    if (!prelude.ok) {
+      return prelude.response;
     }
 
-    // 2. Semantic validation: Role compatibility
-    let listedUnderRoles: string[] = [];
-    if (body.role) {
-      const normalizedRole = normalizeRole(body.role);
-      if (!normalizedRole || !provider.roles.includes(normalizedRole)) {
-        return jsonResponse(
-          { formErrors: ["INCOMPATIBLE_CONFIGURATION"] },
-          409,
-        );
-      }
-      listedUnderRoles = [normalizedRole];
-    }
+    const { provider, config, role } = prelude;
 
-    // 3. Semantic validation: Config schema validation
-    const parsedConfig = parseProviderConfig(
-      provider.configSchema,
-      body.config,
-    );
-    if (!parsedConfig.ok) {
-      return jsonResponse({ fieldErrors: parsedConfig.fieldErrors }, 409);
-    }
-
-    // 4. Capability compatibility: the provider must be able to discover
+    // Capability compatibility: the provider must be able to discover.
     if (!hasCapability(provider, "listRepositories")) {
       return jsonResponse({ formErrors: ["INCAPABLE_PROVIDER"] }, 409);
     }
 
-    // 5. Discovery execution
+    // Discovery execution
     try {
-      const repositories = await provider.listRepositories(parsedConfig.config);
+      const repositories = await provider.listRepositories(config);
       return jsonResponse(
         {
           providerId: provider.id,
-          roles: listedUnderRoles,
+          roles: role === null ? [] : [role],
           repositories,
         },
         200,
