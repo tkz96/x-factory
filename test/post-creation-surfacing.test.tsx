@@ -376,6 +376,12 @@ describe("Project detail surface — combo line and tracker card", () => {
     expect(combo?.textContent).toContain("Git Host One");
     expect(combo?.textContent).not.toContain("tracker-one");
 
+    // The tracker card renders the recorded configuration with manifest
+    // labels, plus the workflow label the queue ingests on.
+    expect(container.textContent).toContain("https://tracker.example");
+    expect(container.textContent).toContain(CONNECTIONS_COPY.ingestionLabel);
+    expect(container.textContent).toContain(CONNECTIONS_COPY.workflowLabel);
+
     // No degraded warning, no integrity failure, no repair path.
     expect(container.textContent).toContain(PROJECT_DETAIL_COPY.projectId);
     expect(container.querySelector(".feedback-banner--warning")).toBeNull();
