@@ -363,6 +363,8 @@ export const VALIDATION_FORM_ERROR_COPY: Readonly<Record<string, string>> = {
     "Incompatible configuration for the selected provider role.",
   MISSING_TRACKER_CONNECTION:
     "An issue tracker connection is required. Add one on the Connect step — X-Factory does not create tracker-less projects.",
+  MISSING_GIT_HOST_CONNECTION:
+    "A git host connection is required. Add one on the Connect step — X-Factory does not create projects without a git host.",
 };
 
 export const VALIDATION_FALLBACK_COPY = {

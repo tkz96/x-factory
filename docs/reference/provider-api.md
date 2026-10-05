@@ -343,12 +343,17 @@ Review (#146):
 - A dual-role provider (`tracker` **and** `gitHost`) is **one** connection
   carrying both roles; two providers are two connections. Two connections of the
   same provider are rejected (`INCOMPATIBLE_CONFIGURATION`) rather than merged.
-- **Both connections are mandatory at creation** (#133): a payload whose
-  connections carry no `tracker` role is rejected with 409
-  `MISSING_TRACKER_CONNECTION` before any write, so a project that the
-  post-creation integrity surface would immediately flag as broken cannot be
-  created in the first place. The legacy configuration path is unaffected — it
-  accepts a body with `issueTracker` and no `connections`.
+- **Both connection roles are mandatory** (#133): a connection set is accepted
+  only when it covers `tracker` **and** `gitHost` — supplied either as two
+  connections or as one dual-role connection. A set covering only one role is
+  rejected before any write with the code(s) for the uncovered role:
+  `MISSING_TRACKER_CONNECTION` and/or `MISSING_GIT_HOST_CONNECTION` (both codes at
+  once when both roles are missing, so one rejection teaches both gaps). A
+  project the post-creation integrity surface would immediately flag as broken
+  therefore cannot be created in the first place. The same rule applies to a
+  connection update, checked against the **merged** result. The legacy
+  configuration path is unaffected — it accepts a body with `issueTracker` and no
+  `connections`.
 - `gitIdentity` is a project-level field — never nested inside a connection.
 - Secret values ride inline in `config` exactly once. The response, the events,
   the diagnostics and the structured logs never echo them, and the stored project
@@ -397,6 +402,7 @@ failure during (2) leaves neither. A project can never exist without its secrets
 | Unknown provider id | 409 | `{ formErrors: ["UNKNOWN_PROVIDER"] }` |
 | Provider config schema | 409 | `{ fieldErrors: { field: "REQUIRED" \| "INVALID" } }` |
 | Role/capability mismatch, duplicate provider, knowledge-only repositories | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
+| Connection set covers only one role (create), or the merged set would after an update | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
 
@@ -415,6 +421,11 @@ contract:
   applied **before** validation, so clearing a required secret correctly fails
   with `{ fieldErrors: { <field>: "REQUIRED" } }` and writes nothing.
 - Unknown `clearSecrets` names fail with `{ fieldErrors: { <name>: "INVALID" } }`.
+- The **merged** connection set (the project's existing connections plus the
+  update, which replaces a connection wholesale) must still cover both roles: an
+  update that would leave the project without a tracker or without a git host is
+  rejected with the same `formErrors` codes as creation, before any secret is
+  written.
 
 ### Known limitation
 

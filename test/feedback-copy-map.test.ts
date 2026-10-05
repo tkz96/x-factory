@@ -8,7 +8,9 @@ import {
   getErrorCopy,
   isNormalizedError,
   resolveErrorCopy,
+  resolveFormValidationError,
   STATE_COPY,
+  VALIDATION_FALLBACK_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type {
   FeedbackErrorCode,
@@ -145,5 +147,20 @@ describe("feedback copy map", () => {
     expect(formatRetryCountdown(30_000)).toBe("Retry available in 30s");
     expect(formatRetryCountdown(1500)).toBe("Retry available in 2s");
     expect(formatRetryCountdown(1)).toBe("Retry available in 1s");
+  });
+
+  it("resolves both missing-role creation codes to their own guidance, never to the fallback", () => {
+    // Both codes can arrive in one 409 envelope (#133), and the wizard renders
+    // one banner item per code — a code without copy would fall back to the
+    // generic line and tell the user nothing about which connection is missing.
+    const tracker = resolveFormValidationError("MISSING_TRACKER_CONNECTION");
+    const gitHost = resolveFormValidationError("MISSING_GIT_HOST_CONNECTION");
+
+    for (const copy of [tracker, gitHost]) {
+      expect(copy).not.toBe(VALIDATION_FALLBACK_COPY.form);
+      expect(copy.length).toBeGreaterThan(0);
+      expect(copy).not.toContain("MISSING_");
+    }
+    expect(tracker).not.toBe(gitHost);
   });
 });

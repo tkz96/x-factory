@@ -8,8 +8,9 @@
 // benign orphaned env file, and a project can never exist without its secrets.
 //
 // Layering (all before any write): transport shape (zod, in the controller) →
-// provider config schema → role/capability compatibility → duplicate id →
-// persistence. Codes only — messages never cross the API boundary.
+// provider config schema → role/capability compatibility → required-role
+// coverage → duplicate id → persistence. Codes only — messages never cross the
+// API boundary.
 
 import path from "node:path";
 import {
@@ -18,9 +19,10 @@ import {
   loadProjects,
   saveProject,
 } from "../config.js";
-import type {
-  ConnectionsProjectInput,
-  ProjectConnectionInput,
+import {
+  type ConnectionsProjectInput,
+  missingConnectionRoleCodes,
+  type ProjectConnectionInput,
 } from "../config-schema.js";
 import { emitStructuredLog } from "../diagnostics/correlation.js";
 import { ConflictError, SemanticValidationError } from "../errors.js";
@@ -146,6 +148,30 @@ function prepareConnection(
 }
 
 /**
+ * The role-coverage gate (#133/CORR-1): a connection set is valid only when it
+ * covers BOTH required roles — as two connections, one per role, or as one
+ * dual-role connection. It runs inside the PRE-WRITE validation ladder of both
+ * creation and update (for an update, against the MERGED result), so no secret
+ * is ever written for a set that will be rejected.
+ *
+ * It returns the connection carrying each role, so the record builder derives
+ * the legacy tracker mirror from the same lookup that proved the role exists —
+ * never from a second, weaker check.
+ */
+function assertConnectionRoleCoverage<
+  T extends { roles: readonly ProviderRole[] },
+>(connections: readonly T[]): { tracker: T; gitHost: T } {
+  const tracker = connections.find((c) => c.roles.includes("tracker"));
+  const gitHost = connections.find((c) => c.roles.includes("gitHost"));
+  if (!tracker || !gitHost) {
+    throw new SemanticValidationError({
+      formErrors: missingConnectionRoleCodes(connections),
+    });
+  }
+  return { tracker, gitHost };
+}
+
+/**
  * Merges the routed secrets of every connection. Distinct providers declaring
  * the same env key with different values is a configuration conflict, never a
  * silent overwrite.
@@ -201,26 +227,23 @@ function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
  * tracker through that legacy view, and #133 leaves legacy config migration an
  * open question, so the mirror is what keeps the pre-#145 runtime working for a
  * #145-created project. It is always DERIVED from the tracker connection
- * (`deriveIssueTracker`), never supplied, and never the default: a payload with
- * no tracker-role connection is rejected below, because both connections are
- * mandatory at creation (#133).
+ * (`deriveIssueTracker`), never supplied, and never the default.
+ *
+ * `trackerConnection` is the carrier the role-coverage gate already proved
+ * exists (#133): both connections are mandatory at creation, so this builder
+ * has no "no tracker" branch to fall back to — the gate rejects such a payload
+ * before any write.
  */
 function buildProjectRecord(
   input: ConnectionsProjectInput,
   prepared: readonly PreparedConnection[],
+  trackerConnection: PreparedConnection,
 ): Project {
   const built = buildRepositories(input);
   const primary = built.find((r) => r.primary) ?? built[0];
   if (!primary) {
     // The transport schema already requires at least one repository.
     throw incompatibleConfiguration();
-  }
-
-  const trackerConnection = prepared.find((c) => c.roles.includes("tracker"));
-  if (!trackerConnection) {
-    throw new SemanticValidationError({
-      formErrors: ["MISSING_TRACKER_CONNECTION"],
-    });
   }
 
   const issueTracker = deriveIssueTracker(
@@ -263,8 +286,11 @@ export async function createProjectFromConnections(
   const prepared = input.connections.map((connection) =>
     prepareConnection(connection, registry),
   );
+  // Both roles must be covered before ANY write: a tracker-only or git-host-only
+  // connection set must never reach the secret store (#133).
+  const coverage = assertConnectionRoleCoverage(prepared);
   const secrets = mergeConnectionSecrets(prepared);
-  const record = buildProjectRecord(input, prepared);
+  const record = buildProjectRecord(input, prepared, coverage.tracker);
 
   const existing = await loadProjects(configPath);
   if (existing.some((p) => p.id === input.id)) {
@@ -403,7 +429,10 @@ function mergeConnections(
  *
  * `clearSecrets` is applied before validation; a missing or empty secret means
  * keep (an empty string never means delete); clearing a required secret fails
- * with `fieldErrors`. Secrets are written first, the project record last.
+ * with `fieldErrors`. The MERGED connection set is then checked for required
+ * role coverage — an update that would leave the project without a tracker or
+ * without a git host is rejected with `formErrors` before any secret is
+ * written. Secrets are written first, the project record last.
  */
 export async function updateProjectConnections(
   project: Project,
@@ -446,6 +475,15 @@ export async function updateProjectConnections(
     ),
   );
 
+  // The MERGED result must still cover both roles: an update that would leave
+  // the project without a tracker or without a git host is rejected here, before
+  // any secret is written (#133).
+  const connections = mergeConnections(
+    project.connections,
+    updates.map((update) => update.connection),
+  );
+  const coverage = assertConnectionRoleCoverage(connections);
+
   const secrets: Record<string, string> = {};
   const clearedKeys: string[] = [];
   for (const update of updates) {
@@ -457,26 +495,16 @@ export async function updateProjectConnections(
   await saveProjectEnv(project.id, secrets);
   await deleteProjectEnvKeys(project.id, clearedKeys);
 
-  const connections = mergeConnections(
-    project.connections,
-    updates.map((update) => update.connection),
-  );
-  const trackerConnection = connections.find((c) =>
-    c.roles.includes("tracker"),
-  );
-
   const next: Project = {
     ...project,
     name: input.name?.trim() || project.name,
     workspacePath: input.workspacePath?.trim() || project.workspacePath,
     gitIdentity: input.gitIdentity ?? project.gitIdentity,
     connections,
-    issueTracker: trackerConnection
-      ? deriveIssueTracker(
-          trackerConnection.providerId,
-          trackerConnection.config,
-        )
-      : project.issueTracker,
+    issueTracker: deriveIssueTracker(
+      coverage.tracker.providerId,
+      coverage.tracker.config,
+    ),
   };
 
   const saved = await saveProject(next, configPath);
