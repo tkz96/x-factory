@@ -99,8 +99,9 @@ export function useRoleConnection(
         // Degraded verification is evidence, not an error: persist exactly
         // which contract capabilities could not be confirmed so downstream
         // steps can name the capability they depend on (#129, #144). The
-        // verified flag is what survives a step change: the credentials were
-        // accepted, and a later step can only re-verify it, never re-invent it.
+        // verified flag is what survives a step change: the provider accepted
+        // the credentials, and a later step can only re-verify it, never
+        // re-invent it.
         dispatch({
           type: "UPDATE_CONNECT",
           patch: {
