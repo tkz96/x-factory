@@ -44,7 +44,15 @@ const IssueTrackerInputSchema = z
         .optional(),
       github: z
         .object({
-          repo: z.string(),
+          // A legacy record wrote the flat `repo` ("org/repo"). The normalized
+          // payload (#131) carries the provider's OWN configuration field
+          // names, and `deriveIssueTracker` copies them verbatim, so the view
+          // accepts both. Requiring `repo` alone made every project onboarded
+          // through the wizard — whose field is `repository` — unloadable
+          // (fixed in #148: `loadProjects` threw for the created project).
+          repo: z.string().optional(),
+          repoOwner: z.string().optional(),
+          repository: z.string().optional(),
           requiredLabel: z.string().optional(),
         })
         .optional(),
