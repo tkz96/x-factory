@@ -32,11 +32,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
+import { comboTone } from "../src/frontend/components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import {
   comboSlots,
-  comboTone,
   deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
 } from "../src/frontend/components/projects/connection-integrity.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -528,7 +529,7 @@ function journeyTests(fixture: JourneyFixture): void {
     const { container } = render(
       <ConnectionComboLine
         slots={comboSlots(integrity)}
-        tone={comboTone(integrity)}
+        tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
         descriptors={descriptors}
       />,
     );

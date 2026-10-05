@@ -24,9 +24,7 @@ import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import {
   type ConnectionComboSlot,
-  type ConnectionComboTone,
   type ConnectionState,
-  comboTone as comboToneForSlots,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
@@ -246,30 +244,21 @@ function buildSlot(
   };
 }
 
-/** Every role in `ROLES` has exactly one slot: found BY ROLE, never by index. */
-function slotForRole(
-  slots: readonly ConnectionSlot[],
-  role: ProjectConnectionRole,
-): ConnectionSlot {
-  const slot = slots.find((candidate) => candidate.role === role);
-  if (!slot) {
-    throw new Error(`No connection slot was derived for the "${role}" role.`);
-  }
-  return slot;
-}
-
 /**
  * Derives the whole project's connection wiring for display. Pure: the same
  * project and manifest always produce the same integrity.
+ *
+ * Each slot is built FOR ITS OWN ROLE (never read back by position), and the
+ * render order is the line's own order: tracker first, then git host.
  */
 export function deriveConnectionIntegrity(
   project: Project,
   descriptors: readonly ProviderDescriptor[] = [],
 ): ConnectionIntegrity {
   const connections = deriveConnections(project);
-  const slots = ROLES.map((role) => buildSlot(role, connections, descriptors));
-  const tracker = slotForRole(slots, "tracker");
-  const gitHost = slotForRole(slots, "gitHost");
+  const tracker = buildSlot("tracker", connections, descriptors);
+  const gitHost = buildSlot("gitHost", connections, descriptors);
+  const slots = [tracker, gitHost];
   const warnings = slots.flatMap((slot) => slot.warnings);
   const hasIntegrityFailure = tracker.state === "disconnected";
 
@@ -309,18 +298,14 @@ export function comboSlots(
  * integrity failure (#133: both connections are mandatory at creation); an
  * absent git host is a pre-#145 project's recorded-as-missing wiring, which is
  * surfaced as a warning rather than invented.
+ *
+ * Surfaces pass this to the ONE tone rule with their line's slots
+ * (`comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)`); there is no
+ * second implementation of the rule here.
  */
 export const REQUIRED_CONNECTION_ROLES: readonly ProjectConnectionRole[] = [
   "tracker",
 ];
-
-/**
- * The line's tone for a persisted project. The rule itself lives once, in
- * `comboTone` (#148); this only states which roles THIS line requires.
- */
-export function comboTone(integrity: ConnectionIntegrity): ConnectionComboTone {
-  return comboToneForSlots(integrity.slots, REQUIRED_CONNECTION_ROLES);
-}
 
 /**
  * The human display name for a provider id: the manifest's `displayName`, or

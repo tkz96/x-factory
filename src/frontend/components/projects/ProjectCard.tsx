@@ -13,6 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
+import { comboTone } from "../connections/connection-state.js";
 import {
   CONNECTIONS_COPY,
   PROJECT_CARD_COPY,
@@ -21,8 +22,8 @@ import {
 import { RetryAction } from "../feedback/RetryAction.js";
 import {
   comboSlots,
-  comboTone,
   deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
 } from "./connection-integrity.js";
 
 interface ProjectCardProps {
@@ -69,7 +70,7 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
 
         <ConnectionComboLine
           slots={comboSlots(integrity)}
-          tone={comboTone(integrity)}
+          tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
           descriptors={descriptors}
           className="connection-combo-line--compact"
         />

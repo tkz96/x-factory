@@ -10,13 +10,14 @@ import "./ProjectDetailView.css";
 
 import { useNavigate, useParams } from "react-router-dom";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
+import { comboTone } from "../components/connections/connection-state.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { PROJECT_DETAIL_COPY } from "../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import {
   comboSlots,
-  comboTone,
   deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
 } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
@@ -95,7 +96,7 @@ export function ProjectDetailView() {
         <ConnectionComboLine
           id="project-connections-combo"
           slots={comboSlots(integrity)}
-          tone={comboTone(integrity)}
+          tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
           descriptors={descriptors}
         />
 

@@ -14,6 +14,7 @@ import type { Project } from "../../../shared/types.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
+import { comboTone } from "../connections/connection-state.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
@@ -22,9 +23,9 @@ import { formatConnectionWarnings } from "./connection-copy.js";
 import {
   applyConnectionIntegrity,
   comboSlots,
-  comboTone,
   connectionDisplayValues,
   deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
   resolveProviderLabel,
 } from "./connection-integrity.js";
 import "./TrackerSection.css";
@@ -114,7 +115,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
       <ConnectionComboLine
         slots={comboSlots(integrity)}
-        tone={comboTone(integrity)}
+        tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
         descriptors={descriptors}
         roles={["tracker"]}
       />
