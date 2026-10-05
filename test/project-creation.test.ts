@@ -525,6 +525,51 @@ describe("POST /api/projects with a connections payload", () => {
       expect(await readStoredProject(id)).toBeUndefined();
     });
 
+    it("rejects a payload with no tracker connection with 409 MISSING_TRACKER_CONNECTION before any write", async () => {
+      const id = baseId();
+
+      // A git-host connection and nothing else: both connections are mandatory
+      // at creation (#133), so this is not a project X-Factory will hold.
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "git-host-only",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["MISSING_TRACKER_CONNECTION"] });
+
+      // Rejected before ANY write: no record, and not even the project's env
+      // storage directory was created.
+      expect(await readStoredProject(id)).toBeUndefined();
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+    });
+
+    it("mirrors issueTracker from the tracker connection, never from the default", async () => {
+      const id = baseId();
+
+      // The tracker connection is the stub, NOT github (the default tracker
+      // provider): a mirror taken from DEFAULT_ISSUE_TRACKER would read
+      // `provider: "github"` and be wrong.
+      const { status, body } = await createProject(minimalPayload(id));
+      expect(status).toBe(201);
+
+      const issueTracker = body.issueTracker as { provider?: string };
+      expect(issueTracker.provider).toBe("stub-capable");
+
+      const stored = await readStoredProject(id);
+      expect(stored?.issueTracker?.provider as string).toBe("stub-capable");
+    });
+
     it("rejects a role the provider cannot serve with 409 INCOMPATIBLE_CONFIGURATION", async () => {
       const { status, body } = await createProject({
         ...minimalPayload(baseId()),

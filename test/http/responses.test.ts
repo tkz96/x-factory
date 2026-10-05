@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   ConflictError,
   NotFoundError,
+  SemanticValidationError,
   ValidationError,
 } from "../../src/errors.js";
 import {
@@ -69,5 +70,48 @@ describe("translateDomainErrorToHttpResponse", () => {
     const res = translateDomainErrorToHttpResponse(customNotFound);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
+  });
+
+  it("returns a 409 empty envelope — never throws — for a name-only semantic error missing its members", async () => {
+    // A cross-realm / duck-typed error that matches by name but carries none of
+    // the structured members. The translator must not escalate an intended 409
+    // into an unhandled failure by reading members that are not there.
+    const impostor = new Error("semantic");
+    impostor.name = "SemanticValidationError";
+
+    const res = catchHttpErrors(async () => {
+      throw impostor;
+    });
+    await expect(res).resolves.toBeInstanceOf(Response);
+
+    const translated = await res;
+    expect(translated.status).toBe(409);
+    expect(await translated.json()).toEqual({});
+  });
+
+  it("keeps the structured members of a real SemanticValidationError in its 409 envelope", async () => {
+    const res = catchHttpErrors(async () => {
+      throw new SemanticValidationError({
+        formErrors: ["MISSING_TRACKER_CONNECTION"],
+        fieldErrors: { host: "REQUIRED" },
+      });
+    });
+    const translated = await res;
+    expect(translated.status).toBe(409);
+    expect(await translated.json()).toEqual({
+      fieldErrors: { host: "REQUIRED" },
+      formErrors: ["MISSING_TRACKER_CONNECTION"],
+    });
+  });
+
+  it("drops a non-array formErrors rather than throwing on it", async () => {
+    const impostor = new Error("semantic");
+    impostor.name = "SemanticValidationError";
+    (impostor as unknown as { formErrors: unknown }).formErrors =
+      "not-an-array";
+
+    const translated = translateDomainErrorToHttpResponse(impostor);
+    expect(translated?.status).toBe(409);
+    expect(await translated?.json()).toEqual({});
   });
 });

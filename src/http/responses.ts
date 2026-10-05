@@ -1,10 +1,4 @@
 import { z } from "zod/v4";
-import {
-  ConflictError,
-  NotFoundError,
-  SemanticValidationError,
-  ValidationError,
-} from "../errors.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -30,42 +24,69 @@ export class HttpError extends Error {
 }
 
 /**
+ * The name a domain error is matched against.
+ *
+ * Matching is by NAME, not by class identity: an error that crossed a realm
+ * boundary (worker, VM, another module registry) still carries the right name
+ * but would fail `instanceof`. Anything that is not an `Error` has no name.
+ */
+function domainErrorName(err: unknown): string | undefined {
+  return err instanceof Error ? err.name : undefined;
+}
+
+/**
+ * The 409 envelope for a semantic validation error: codes only, never messages.
+ *
+ * The members are read defensively because matching is by name: a duck-typed
+ * error may carry neither, and a translator that throws would turn an intended
+ * 409 into an unhandled failure.
+ */
+function semanticErrorEnvelope(err: unknown): Record<string, unknown> {
+  const source = err as {
+    fieldErrors?: unknown;
+    formErrors?: unknown;
+  };
+  const fieldErrors =
+    source.fieldErrors && typeof source.fieldErrors === "object"
+      ? (source.fieldErrors as Record<string, string>)
+      : {};
+  const formErrors = Array.isArray(source.formErrors)
+    ? (source.formErrors as string[])
+    : [];
+
+  const body: Record<string, unknown> = {};
+  if (Object.keys(fieldErrors).length > 0) {
+    body.fieldErrors = fieldErrors;
+  }
+  if (formErrors.length > 0) {
+    body.formErrors = formErrors;
+  }
+  return body;
+}
+
+/**
  * Translates domain/application errors into presentation-layer HTTP responses.
+ *
+ * One name → status ladder, consulted once: the fallback idiom for a
+ * non-`instanceof`-able error exists in exactly one place.
  */
 export function translateDomainErrorToHttpResponse(
   err: unknown,
 ): Response | null {
-  if (
-    err instanceof NotFoundError ||
-    (err instanceof Error && err.name === "NotFoundError")
-  ) {
-    return errorResponse(err.message, 404);
+  const name = domainErrorName(err);
+  const message = err instanceof Error ? err.message : "";
+
+  if (name === "NotFoundError") {
+    return errorResponse(message, 404);
   }
-  if (
-    err instanceof ValidationError ||
-    (err instanceof Error && err.name === "ValidationError")
-  ) {
-    return errorResponse(err.message, 400);
+  if (name === "ValidationError") {
+    return errorResponse(message, 400);
   }
-  if (
-    err instanceof ConflictError ||
-    (err instanceof Error && err.name === "ConflictError")
-  ) {
-    return errorResponse(err.message, 409);
+  if (name === "ConflictError") {
+    return errorResponse(message, 409);
   }
-  if (
-    err instanceof SemanticValidationError ||
-    (err instanceof Error && err.name === "SemanticValidationError")
-  ) {
-    const semantic = err as SemanticValidationError;
-    const body: Record<string, unknown> = {};
-    if (Object.keys(semantic.fieldErrors).length > 0) {
-      body.fieldErrors = semantic.fieldErrors;
-    }
-    if (semantic.formErrors.length > 0) {
-      body.formErrors = semantic.formErrors;
-    }
-    return jsonResponse(body, 409);
+  if (name === "SemanticValidationError") {
+    return jsonResponse(semanticErrorEnvelope(err), 409);
   }
   if (err instanceof HttpError) {
     return errorResponse(err.message, err.status);

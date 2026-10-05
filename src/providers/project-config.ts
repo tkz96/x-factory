@@ -29,8 +29,10 @@ export function resolveProjectProvider(
   env: Record<string, string> = {},
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ResolvedProjectProvider {
+  // A hand-written (or pre-#145) record without a tracker keeps the legacy
+  // default, which is also the constant the runtime resolves here.
   const providerId = (project.issueTracker?.provider ||
-    "github") as IssueTrackerProvider;
+    DEFAULT_ISSUE_TRACKER.provider) as IssueTrackerProvider;
   const provider = requireProvider(providerId, registry);
 
   const primaryRepo =
@@ -94,7 +96,9 @@ export function resolveProjectProvider(
 /**
  * The legacy tracker view for a project that has no tracker connection: the
  * pre-existing default `_parseIssueTracker` applies, preserved so the runtime
- * still resolves something for hand-written records.
+ * still resolves something for hand-written records. Resolved by
+ * `resolveProjectProvider` for exactly that case; the creation path never uses
+ * it, because a tracker connection is mandatory at creation (#133).
  */
 export const DEFAULT_ISSUE_TRACKER: ProjectIssueTracker = {
   provider: "github",

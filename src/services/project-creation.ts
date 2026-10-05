@@ -36,10 +36,7 @@ import {
   type ProviderCapability,
   type ProviderRole,
 } from "../providers/contract.js";
-import {
-  DEFAULT_ISSUE_TRACKER,
-  deriveIssueTracker,
-} from "../providers/project-config.js";
+import { deriveIssueTracker } from "../providers/project-config.js";
 import { redactConfigForProvider } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,
@@ -221,6 +218,11 @@ function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
  * Builds the project record: the normalized connections plus every legacy field
  * the runtime still resolves (issueTracker, repositoryPath, defaultBranch,
  * testCommand), so queue/deliver/readiness keep working unchanged.
+ *
+ * Both connections are mandatory at creation (#133) — no tracker-less projects
+ * and no "set up later" — so a payload with no `tracker`-role connection is
+ * rejected here, before any write, rather than falling back to the default
+ * tracker (which is what the legacy hand-written-record path uses).
  */
 function buildProjectRecord(
   input: ConnectionsProjectInput,
@@ -234,12 +236,16 @@ function buildProjectRecord(
   }
 
   const trackerConnection = prepared.find((c) => c.roles.includes("tracker"));
-  const issueTracker = trackerConnection
-    ? deriveIssueTracker(
-        trackerConnection.providerId,
-        trackerConnection.connection.config,
-      )
-    : DEFAULT_ISSUE_TRACKER;
+  if (!trackerConnection) {
+    throw new SemanticValidationError({
+      formErrors: ["MISSING_TRACKER_CONNECTION"],
+    });
+  }
+
+  const issueTracker = deriveIssueTracker(
+    trackerConnection.providerId,
+    trackerConnection.connection.config,
+  );
 
   return {
     id: input.id,
