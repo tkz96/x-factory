@@ -65,6 +65,10 @@ function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
       },
     },
     inspection: {
+      // The resolved identity and its provenance are DROPPED, exactly like the
+      // verification results above: a restored draft must be re-inspected, so
+      // apparently-valid old evidence can never survive a credential or
+      // repository change (#133 stale rule, #146).
       acknowledged: false,
     },
     review: {
@@ -152,6 +156,46 @@ function isRepositoriesState(value: unknown): boolean {
 }
 
 /**
+ * Validates the inspection section of a restored draft as untrusted input: the
+ * recorded identity, the repositories it could not resolve, the directory it
+ * was read from, and the fingerprint of the inputs it belongs to. Anything
+ * malformed fails the whole draft.
+ */
+function isInspectionState(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.acknowledged !== "boolean") {
+    return false;
+  }
+  const identity = value.gitIdentity;
+  if (
+    identity !== undefined &&
+    (!isRecord(identity) ||
+      typeof identity.name !== "string" ||
+      typeof identity.email !== "string")
+  ) {
+    return false;
+  }
+  const unresolved = value.unresolvedRepoIds;
+  if (
+    unresolved !== undefined &&
+    (!Array.isArray(unresolved) ||
+      !unresolved.every((id) => typeof id === "string"))
+  ) {
+    return false;
+  }
+  if (
+    value.inspectedPath !== undefined &&
+    typeof value.inspectedPath !== "string"
+  ) {
+    return false;
+  }
+  return (
+    value.inputsFingerprint === undefined ||
+    value.inputsFingerprint === null ||
+    typeof value.inputsFingerprint === "string"
+  );
+}
+
+/**
  * Validates persisted draft state as untrusted input. Only a structurally
  * complete `WizardSourceState` is accepted; anything else (missing sections,
  * wrong types, malformed nested structures) is discarded by the caller.
@@ -173,8 +217,7 @@ function isValidWizardState(value: unknown): value is WizardSourceState {
     isBasicsState(value.basics) &&
     isConnectState(value.connect) &&
     isRepositoriesState(value.repositories) &&
-    isRecord(value.inspection) &&
-    typeof value.inspection.acknowledged === "boolean" &&
+    isInspectionState(value.inspection) &&
     isRecord(value.review) &&
     typeof value.review.confirmed === "boolean"
   );

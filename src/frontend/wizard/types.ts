@@ -1,5 +1,7 @@
 // src/frontend/wizard/types.ts — Shared types, constants, and envelopes for the onboarding wizard (spec #133, #142).
 
+import type { GitIdentity } from "../../shared/types.js";
+
 export const WIZARD_SCHEMA_VERSION = 1;
 
 export const WIZARD_STEPS = [
@@ -70,6 +72,28 @@ export interface WizardRepoConfig {
 
 export interface WizardInspectionState {
   acknowledged: boolean;
+  /**
+   * The git identity resolved for the project (#131 — project-level, never
+   * nested in a connection), plain-serialisable. Absent when no complete
+   * identity is configured for the inspected directory: the agent would have
+   * none either, so nothing is fabricated here.
+   */
+  gitIdentity?: GitIdentity | undefined;
+  /**
+   * Selected repositories whose inspected directory resolved no identity. They
+   * cannot author a commit, so a run that leaves any behind is a PARTIAL
+   * resolution rather than a complete one.
+   */
+  unresolvedRepoIds?: string[] | undefined;
+  /** The directory the identity was read from (provenance, shown at Review). */
+  inspectedPath?: string | undefined;
+  /**
+   * Fingerprint of the inputs (selection + workspace root) the recorded
+   * identity was resolved from — a non-reversible digest, never the config.
+   * A different fingerprint means the record is out of date and the identity
+   * must be re-inspected (spec #133 stale rule).
+   */
+  inputsFingerprint?: string | null | undefined;
 }
 
 export interface WizardReviewState {
