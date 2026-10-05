@@ -10,8 +10,8 @@ import "./ProjectDetailView.css";
 
 import { useNavigate, useParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
-import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { PROJECT_DETAIL_COPY } from "../components/feedback/copy-map.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { ConnectionComboLine } from "../components/projects/ConnectionComboLine.js";
 import { deriveConnectionIntegrity } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";

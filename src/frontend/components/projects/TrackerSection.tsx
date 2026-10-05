@@ -11,12 +11,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
-import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
-import { AsyncRegion } from "../feedback/AsyncRegion.js";
-import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
-import type { DerivedAsyncState } from "../feedback/types.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
+import { AsyncRegion } from "../feedback/AsyncRegion.js";
+import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
+import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
+import type { DerivedAsyncState } from "../feedback/types.js";
 import { ConnectionComboLine } from "./ConnectionComboLine.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
@@ -98,9 +98,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
     <div id="project-tracker-section" className="project-tracker-card card">
       <div className="tracker-section-header">
         <div>
-          <h3 className="tracker-title">
-            {CONNECTIONS_COPY.trackerCardTitle}
-          </h3>
+          <h3 className="tracker-title">{CONNECTIONS_COPY.trackerCardTitle}</h3>
           <p className="text-muted tracker-subtitle">
             {CONNECTIONS_COPY.trackerCardSubtitle}
           </p>

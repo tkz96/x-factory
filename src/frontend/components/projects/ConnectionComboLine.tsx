@@ -83,7 +83,9 @@ export function ConnectionComboLine({
             <span className="connection-combo-value">
               {slotValue(slot, descriptors)}
             </span>
-            <span className="connection-combo-state">
+            <span
+              className={`connection-combo-state connection-combo-state--${slot.state}`}
+            >
               {CONNECTIONS_COPY.stateLabel[slot.state]}
             </span>
           </span>

@@ -39,7 +39,6 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ConnectionComboLine } from "../src/frontend/components/projects/ConnectionComboLine.js";
 import { deriveConnectionIntegrity } from "../src/frontend/components/projects/connection-integrity.js";
-import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
   ModalProvider,
@@ -47,6 +46,7 @@ import {
 } from "../src/frontend/context/ModalContext.js";
 import { api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
 import type { Project } from "../src/shared/types.js";
 
 afterAll(async () => {
@@ -338,7 +338,11 @@ function renderDetail(project: Project, client: QueryClient) {
       }),
       React.createElement(Route, {
         path: "/settings",
-        element: React.createElement("div", { id: "settings-route" }, "Connections"),
+        element: React.createElement(
+          "div",
+          { id: "settings-route" },
+          "Connections",
+        ),
       }),
     ),
     client,
@@ -351,9 +355,9 @@ describe("Project detail surface — combo line and tracker card", () => {
     const { container } = renderDetail(makeProject(), makeClient());
 
     const combo = container.querySelector("#project-connections-combo");
-    expect(
-      combo?.classList.contains("connection-combo-line--connected"),
-    ).toBe(true);
+    expect(combo?.classList.contains("connection-combo-line--connected")).toBe(
+      true,
+    );
     expect(combo?.textContent).toContain("Tracker One");
     expect(combo?.textContent).toContain("Git Host One");
     expect(combo?.textContent).not.toContain("tracker-one");
@@ -447,9 +451,7 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
     expect(testScopes).toHaveBeenCalledTimes(1);
     expect(testScopes.mock.calls[0]?.[0]).toEqual({ projectId: "proj-1" });
     await waitFor(() => {
-      if (
-        !container.textContent?.includes(CONNECTIONS_COPY.verifyScopesOk)
-      ) {
+      if (!container.textContent?.includes(CONNECTIONS_COPY.verifyScopesOk)) {
         throw new Error("verification result missing");
       }
     });
