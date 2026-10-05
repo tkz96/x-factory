@@ -41,6 +41,10 @@ export function useRoleConnection(
         [role]: {
           providerId,
           config: {},
+          // A different provider is unverified evidence until it is verified:
+          // committing a project on the previous provider's verification would
+          // be exactly the stale value the wizard must never carry forward.
+          verified: false,
           degradedAccepted: false,
         },
       },
@@ -62,6 +66,8 @@ export function useRoleConnection(
             ...roleState.config,
             [fieldName]: value,
           },
+          // Editing what was verified invalidates the verification.
+          verified: false,
           degradedAccepted: false,
         },
       },
@@ -95,18 +101,21 @@ export function useRoleConnection(
         setVerification(null);
         dispatch({
           type: "UPDATE_CONNECT",
-          patch: { [role]: { unconfirmedCapabilities: [] } },
+          patch: { [role]: { verified: false, unconfirmedCapabilities: [] } },
         });
       } else {
         setVerification(res);
         setError(null);
         // Degraded verification is evidence, not an error: persist exactly
         // which contract capabilities could not be confirmed so downstream
-        // steps can name the capability they depend on (#129, #144).
+        // steps can name the capability they depend on (#129, #144). The
+        // verified flag is what survives a step change: the credentials were
+        // accepted, and a later step can only re-verify it, never re-invent it.
         dispatch({
           type: "UPDATE_CONNECT",
           patch: {
             [role]: {
+              verified: true,
               unconfirmedCapabilities:
                 res.status === "degraded"
                   ? res.warnings
@@ -125,7 +134,7 @@ export function useRoleConnection(
       setVerification(null);
       dispatch({
         type: "UPDATE_CONNECT",
-        patch: { [role]: { unconfirmedCapabilities: [] } },
+        patch: { [role]: { verified: false, unconfirmedCapabilities: [] } },
       });
     } finally {
       if (currentGen === generationRef.current) {

@@ -181,6 +181,68 @@ export const INSPECTION_COPY = {
 } as const;
 
 /**
+ * Review step copy (#146). The step is the single gate before creation: it
+ * shows what was configured, and — when something downstream is no longer
+ * current — explains exactly what, with no dismissal path (#133 stale rule).
+ */
+export const REVIEW_COPY = {
+  title: "Review Project Setup",
+  subtitle:
+    "Confirm the configuration. Creating the project uses your connections and the resolved git identity.",
+  projectSectionTitle: "Project",
+  nameLabel: "Project Name",
+  identifierLabel: "Identifier",
+  descriptionLabel: "Description",
+  workspacePathLabel: "Workspace Path",
+  identitySectionTitle: "Git identity",
+  identityNameLabel: "Name",
+  identityEmailLabel: "Email",
+  repositoriesSectionTitle: "Repositories",
+  repositoryRolesLabel: "Listed as",
+  primaryBadge: "Primary",
+  unsetName: "Untitled",
+  unsetValue: "—",
+  defaultWorkspacePath: "(Default)",
+  /** The blocked banner's title; the reasons are listed as its items. */
+  blockedTitle: "This project cannot be created yet.",
+  blocked: {
+    trackerUnverified:
+      "The issue tracker connection is not verified. Verify it on the Connect step.",
+    trackerDegradedUnaccepted:
+      "The issue tracker connection could not confirm every capability. Accept the warnings on the Connect step to continue.",
+    gitHostUnverified:
+      "The Git host connection is not verified. Verify it on the Connect step.",
+    gitHostDegradedUnaccepted:
+      "The Git host connection could not confirm every capability. Accept the warnings on the Connect step to continue.",
+    noApplicationRepository:
+      "No application repository is selected. Choose at least one on the Repositories step.",
+    selectionStale:
+      "The repository selection was made for a different connection configuration. Select the repositories again.",
+    inspectionMissing:
+      "The git identity has not been inspected for this selection yet. Inspect it on the Inspection step.",
+    inspectionStale:
+      "The git identity was resolved for a different repository selection or workspace root. Inspect it again.",
+    identityUnresolved:
+      "No git identity could be resolved for the selected repositories: both a user.name and a user.email are required, and none will be invented.",
+    identityPartial:
+      "No git identity could be resolved for every selected repository. Configure one, or deselect the ones that have none.",
+  },
+  submit: "Create Project",
+  submitting: "Creating project…",
+  previous: "Back",
+  /** The 409 envelope's own codes carry the detail as banner items. */
+  conflictTitle: "The project could not be created.",
+  /** Any other rejected request (400, 5xx): the request itself was refused. */
+  requestRejectedTitle: "The request was rejected.",
+  requestRejectedDetail:
+    "The project was not created and nothing was saved. Check the configuration and try again.",
+  /** The request never reached the server. */
+  networkErrorTitle: "The server could not be reached.",
+  networkErrorDetail:
+    "The project was not created. Check your connection and try again.",
+} as const;
+
+/**
  * Canonical copy for server validation error codes returned in 409 envelopes.
  * Field errors format the field's human label; form errors provide form-level guidance.
  */
