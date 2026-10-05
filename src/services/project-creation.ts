@@ -36,11 +36,8 @@ import {
   type ProviderCapability,
   type ProviderRole,
 } from "../providers/contract.js";
-import {
-  DEFAULT_ISSUE_TRACKER,
-  deriveIssueTracker,
-} from "../providers/project-config.js";
-import { redactConfigForProvider } from "../providers/redaction.js";
+import { deriveIssueTracker } from "../providers/project-config.js";
+import { redactConnections } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,
   type ProviderRegistry,
@@ -61,29 +58,6 @@ const ROLE_CAPABILITIES: Record<ProviderRole, readonly ProviderCapability[]> = {
   tracker: ["listTickets"],
   gitHost: ["listRepositories", "createPullRequest", "findExistingPullRequest"],
 };
-
-/** The creation/update connections as they arrive, with secrets masked. */
-function redactIncomingConnections(
-  connections: readonly {
-    providerId: string;
-    roles: readonly ProviderRole[];
-    config: Record<string, unknown>;
-  }[],
-  registry: ProviderRegistry,
-): Array<{
-  providerId: string;
-  roles: readonly ProviderRole[];
-  config: Record<string, unknown>;
-}> {
-  return connections.map((connection) => ({
-    providerId: connection.providerId,
-    roles: connection.roles,
-    config: redactConfigForProvider(
-      registry.get(connection.providerId),
-      connection.config,
-    ),
-  }));
-}
 
 /** 409 `formErrors` code for a role/capability or connection-shape mismatch. */
 function incompatibleConfiguration(): SemanticValidationError {
@@ -221,6 +195,15 @@ function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
  * Builds the project record: the normalized connections plus every legacy field
  * the runtime still resolves (issueTracker, repositoryPath, defaultBranch,
  * testCommand), so queue/deliver/readiness keep working unchanged.
+ *
+ * The legacy `issueTracker` mirror is written on EVERY new record on purpose
+ * (#145): the queue, delivery and readiness runtime still resolves a project's
+ * tracker through that legacy view, and #133 leaves legacy config migration an
+ * open question, so the mirror is what keeps the pre-#145 runtime working for a
+ * #145-created project. It is always DERIVED from the tracker connection
+ * (`deriveIssueTracker`), never supplied, and never the default: a payload with
+ * no tracker-role connection is rejected below, because both connections are
+ * mandatory at creation (#133).
  */
 function buildProjectRecord(
   input: ConnectionsProjectInput,
@@ -234,12 +217,16 @@ function buildProjectRecord(
   }
 
   const trackerConnection = prepared.find((c) => c.roles.includes("tracker"));
-  const issueTracker = trackerConnection
-    ? deriveIssueTracker(
-        trackerConnection.providerId,
-        trackerConnection.connection.config,
-      )
-    : DEFAULT_ISSUE_TRACKER;
+  if (!trackerConnection) {
+    throw new SemanticValidationError({
+      formErrors: ["MISSING_TRACKER_CONNECTION"],
+    });
+  }
+
+  const issueTracker = deriveIssueTracker(
+    trackerConnection.providerId,
+    trackerConnection.connection.config,
+  );
 
   return {
     id: input.id,
@@ -298,7 +285,7 @@ export async function createProjectFromConnections(
       project_id: saved.id,
       // Redaction before serialization: the incoming configuration is logged
       // with every declared secret masked, never as received.
-      connections: redactIncomingConnections(input.connections, registry),
+      connections: redactConnections(input.connections, registry),
     },
   );
 
@@ -501,7 +488,7 @@ export async function updateProjectConnections(
     {
       project_id: saved.id,
       // Redacted before serialization, as on creation.
-      connections: redactIncomingConnections(input.connections, registry),
+      connections: redactConnections(input.connections, registry),
     },
   );
 

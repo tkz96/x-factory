@@ -60,9 +60,6 @@ export const UpdateProjectConnectionsBodySchema = z
   })
   .passthrough();
 
-/** Request body schema for updating projects */
-export const UpdateProjectBodySchema = z.record(z.string(), z.unknown());
-
 /** Request body schema for POST /api/runs/:id/transitions */
 export const TransitionRunBodySchema = z
   .object({

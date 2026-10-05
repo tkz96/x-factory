@@ -12,10 +12,11 @@
 // exactly once, in this request body.
 
 import { useQuery } from "@tanstack/react-query";
+import type { ProjectConnectionRole } from "../../../shared/types.js";
 import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
 import {
-  comboEvidenceTone,
   comboSlotFromEvidence,
+  comboTone,
 } from "../../components/connections/connection-state.js";
 import {
   REVIEW_COPY,
@@ -138,11 +139,14 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   }));
 
   // The combo line reads the SAME draft evidence the gate reads (#148): one
-  // model, one rendering, shared with the post-creation surfaces.
+  // model, one rendering, one tone rule, shared with the post-creation
+  // surfaces. Review is the creation gate, so BOTH roles are required here —
+  // a role with no verified connection is an error, never a warning (#133).
   const comboSlots = [
     comboSlotFromEvidence("tracker", state.connect.tracker),
     comboSlotFromEvidence("gitHost", state.connect.gitHost),
   ];
+  const requiredRoles: ProjectConnectionRole[] = ["tracker", "gitHost"];
 
   const handleSubmit = () => {
     if (!ready || !identity || submitState.isSubmitting) return;
@@ -172,7 +176,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       <ConnectionComboLine
         id="combo-summary"
         slots={comboSlots}
-        tone={comboEvidenceTone(comboSlots)}
+        tone={comboTone(comboSlots, requiredRoles)}
         descriptors={manifest}
       />
 

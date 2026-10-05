@@ -318,7 +318,10 @@ state filter must extend the contract input, not the query behind it.
 ## 6. Project Creation with the Normalized Connections Payload (#131/#145)
 
 `POST /api/projects` accepts either the legacy configuration body or the
-normalized onboarding payload. The payload is the contract the wizard submits at
+normalized onboarding payload. The validated input union's own discrimination
+decides the path (`isConnectionsProjectInput`): a body that satisfies the
+normalized connections branch creates through it, and every other body keeps the
+legacy configuration path. The payload is the contract the wizard submits at
 Review (#146):
 
 ```jsonc
@@ -340,6 +343,12 @@ Review (#146):
 - A dual-role provider (`tracker` **and** `gitHost`) is **one** connection
   carrying both roles; two providers are two connections. Two connections of the
   same provider are rejected (`INCOMPATIBLE_CONFIGURATION`) rather than merged.
+- **Both connections are mandatory at creation** (#133): a payload whose
+  connections carry no `tracker` role is rejected with 409
+  `MISSING_TRACKER_CONNECTION` before any write, so a project that the
+  post-creation integrity surface would immediately flag as broken cannot be
+  created in the first place. The legacy configuration path is unaffected — it
+  accepts a body with `issueTracker` and no `connections`.
 - `gitIdentity` is a project-level field — never nested inside a connection.
 - Secret values ride inline in `config` exactly once. The response, the events,
   the diagnostics and the structured logs never echo them, and the stored project

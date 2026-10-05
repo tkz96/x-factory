@@ -32,11 +32,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
+import { comboTone } from "../src/frontend/components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import {
   comboSlots,
-  comboTone,
   deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
 } from "../src/frontend/components/projects/connection-integrity.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -359,20 +360,18 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   });
   await flush();
 
-  // ── Connect: degraded evidence is accepted explicitly, never assumed ─────
+  // ── Connect: degraded evidence is shown, and NEVER blocks progression ────
   if (fixture.degraded !== null) {
     const { role, capability } = fixture.degraded;
     const card = getEl(`connection-card-${role}`);
     // The card names the capability that could not be confirmed, in contract
-    // terms, and reports the connection as degraded rather than verified.
+    // terms, in the partial state — never in provider scope terminology.
     expect(card.textContent).toContain(capability);
     expect(card.textContent).toContain("Degraded");
-    // Still not usable until the user accepts the real evidence.
-    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
-    await act(async () => {
-      fireEvent.click(getEl(`btn-accept-degraded-${role}`));
-    });
-    expect(getEl(`connection-card-${role}`).textContent).toContain("accepted");
+    // A degraded verification is usable (#133: "degraded renders the partial
+    // state, never blocks progression"): there is no acknowledgement to make.
+    expect(document.getElementById(`btn-accept-degraded-${role}`)).toBeNull();
+    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
   }
   expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
   fireEvent.click(getEl("btn-step-2-next"));
@@ -530,7 +529,7 @@ function journeyTests(fixture: JourneyFixture): void {
     const { container } = render(
       <ConnectionComboLine
         slots={comboSlots(integrity)}
-        tone={comboTone(integrity)}
+        tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
         descriptors={descriptors}
       />,
     );

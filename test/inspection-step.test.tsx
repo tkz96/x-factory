@@ -142,13 +142,11 @@ function setupStepFourDraft(options: StepFourDraftOptions = {}) {
         providerId: "generic-tracker",
         config: {},
         verified: true,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: "generic-githost",
         config: GIT_HOST_CONFIG,
         verified: true,
-        degradedAccepted: false,
       },
     },
     repositories: {

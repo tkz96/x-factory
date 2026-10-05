@@ -3,9 +3,8 @@
 // #148).
 //
 // Presentational only. It is handed the slots to render (per role: the provider
-// id, one of the three states, and — for draft evidence — whether a degraded
-// result's warnings were accepted), a tone, and the providers manifest. It
-// reads no wizard state, holds no provider knowledge, and never branches on a
+// id and one of the three states), a tone, and the providers manifest. It reads
+// no wizard state, holds no provider knowledge, and never branches on a
 // provider id: display names come from the manifest's `displayName`, so a
 // provider added by registry registration alone renders correctly here.
 //
@@ -37,11 +36,8 @@ export interface ConnectionComboLineProps {
   className?: string;
 }
 
-/** The slot's state label: a degraded slot distinguishes accepted from outstanding. */
+/** The slot's state label — one label per state, for every producer. */
 function stateLabel(slot: ConnectionComboSlot): string {
-  if (slot.state === "degraded" && slot.accepted === true) {
-    return CONNECTIONS_COPY.stateLabel.degradedAccepted;
-  }
   return CONNECTIONS_COPY.stateLabel[slot.state];
 }
 

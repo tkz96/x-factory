@@ -19,8 +19,8 @@ import { cleanup, render } from "@testing-library/react";
 import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
 import {
   type ConnectionEvidence,
-  comboEvidenceTone,
   comboSlotFromEvidence,
+  comboTone,
 } from "../src/frontend/components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
@@ -64,7 +64,6 @@ function evidence(
 ): ConnectionEvidence {
   return {
     verified: true,
-    degradedAccepted: false,
     unconfirmedCapabilities: [],
     ...overrides,
   };
@@ -89,7 +88,7 @@ function renderCombo(overrides: {
     <ConnectionComboLine
       id="combo-summary"
       slots={slots}
-      tone={comboEvidenceTone(slots)}
+      tone={comboTone(slots, ["tracker", "gitHost"])}
       descriptors={MANIFEST}
     />,
   );
@@ -121,12 +120,11 @@ describe("ConnectionComboLine — one line, three states per role", () => {
     expect(getEl("combo-summary").textContent).not.toContain("nimbus-forge");
   });
 
-  it("reports a verified connection with warnings as DEGRADED, distinguishing accepted from outstanding", () => {
+  it("reports a verified connection with warnings as DEGRADED, with no accepted sub-state", () => {
     renderCombo({
       gitHost: {
         providerId: "tandem",
         verified: true,
-        degradedAccepted: false,
         unconfirmedCapabilities: ["listRepositories"],
       },
     });
@@ -140,21 +138,34 @@ describe("ConnectionComboLine — one line, three states per role", () => {
     );
   });
 
-  it("reports a degraded connection whose warnings were accepted as accepted", () => {
+  it("labels a degraded role identically with or without unconfirmed capabilities listed the same way", () => {
     renderCombo({
       tracker: {
         providerId: "tandem",
         verified: true,
-        degradedAccepted: true,
         unconfirmedCapabilities: ["listTickets"],
       },
     });
 
+    // One label per state, for every producer: no acknowledged/unacknowledged
+    // split, because a degraded connection is never gated on an acknowledgement.
     expect(getEl("combo-tracker-state").textContent).toBe(
-      CONNECTIONS_COPY.stateLabel.degradedAccepted,
+      CONNECTIONS_COPY.stateLabel.degraded,
     );
     expect(getEl("combo-tracker-state").dataset.connectionState).toBe(
       "degraded",
+    );
+  });
+
+  it("tones a degraded line as a warning, and a disconnected line as an error", () => {
+    renderCombo({
+      gitHost: { providerId: "nimbus-forge", verified: false },
+    });
+
+    const line = getEl("combo-summary");
+    expect(line.classList.contains("connection-combo-line--error")).toBe(true);
+    expect(line.classList.contains("connection-combo-line--warning")).toBe(
+      false,
     );
   });
 
@@ -189,7 +200,6 @@ describe("ConnectionComboLine — one line, three states per role", () => {
       gitHost: {
         providerId: "tandem",
         verified: true,
-        degradedAccepted: false,
         unconfirmedCapabilities: ["listRepositories"],
       },
     });
@@ -223,7 +233,7 @@ describe("ConnectionComboLine — one line, three states per role", () => {
     render(
       <ConnectionComboLine
         slots={slots}
-        tone={comboEvidenceTone(slots)}
+        tone={comboTone(slots, ["tracker", "gitHost"])}
         descriptors={[unseen]}
       />,
     );
@@ -246,7 +256,7 @@ describe("ConnectionComboLine — one line, three states per role", () => {
     render(
       <ConnectionComboLine
         slots={slots}
-        tone={comboEvidenceTone(slots)}
+        tone={comboTone(slots, ["tracker", "gitHost"])}
         descriptors={MANIFEST}
         roles={["tracker"]}
       />,

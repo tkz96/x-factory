@@ -62,12 +62,27 @@ from — the workspace root, the selection and its order, and each selected
 repository's role tags and local path (`inspectionRules.ts`, same digest
 technique). The record is stale the moment any of those moves. Review derives
 `isReviewReady` per render (never stored, #126) and is blocked while ANY value
-downstream is not current: an unusable connection, a selection that is not an
+downstream is not current: an unverified connection, a selection that is not an
 application selection under the current connection, an identity that was never
 resolved, an identity whose inputs moved, or an identity that resolved for only
 some of the selected repositories. There is no dismissal path — only a fresh
 verification (Connect) or a fresh inspection (Inspection) clears a blocked
 reason, and Review lists every outstanding reason through the copy map.
+
+**Degraded is usable, and never blocks (`#133`).** A verification result of
+`degraded` is a VERIFIED connection with warnings, so it renders the partial
+state and never withholds anything: #133 line 125 says "`degraded` → the partial
+state (warning banner on the card), progression never blocked", line 136 repeats
+"degraded renders the partial state, never blocks", and user story 19 asks for
+"a warning on the card but never block progression". `isConnectionUsable` is
+therefore true for `connected` and `degraded` alike, and there is no
+acknowledgement to collect — the wizard carries no `degradedAccepted` field, and
+`CONNECTIONS_COPY.stateLabel` has exactly one label per state. The warnings stay
+VISIBLE in three places: the Connect card's partial banner (naming each
+unconfirmed capability, with retry), the combo line's `degraded` state at Review
+and on the post-creation surfaces, and the post-creation warning banner. This is
+deliberately narrower than the staleness rule above: a STALE value still blocks,
+and only re-verification clears it.
 
 ## Connection surfacing — the combo line and the integrity failure (#146/#147/#148)
 
@@ -76,15 +91,15 @@ one implementation:
 
 - `components/connections/ConnectionComboLine.tsx` — THE presentational combo
   line (spec #133 story 48). It takes the slots to render (per role: a provider
-  id, one of the three states, and — for draft evidence — whether a degraded
-  result's warnings were accepted), the line's tone, and the providers manifest.
+  id and one of the three states), the line's tone, and the providers manifest.
   Display names come from the manifest's `displayName`, so no surface carries a
   provider id branch or a hardcoded id→name table, and a provider added by
   registry registration alone renders correctly.
 - `components/connections/connection-state.ts` — the combo-line model
   (`ConnectionComboSlot`, `ConnectionComboTone`), the three-state derivation
-  (`deriveConnectionState`), the usability predicate the Review gate reads, and
-  `resolveProviderLabel`. Both producers of a line meet here.
+  (`deriveConnectionState`), the usability predicate the Review gate reads, the
+  ONE tone rule (`comboTone`), and `resolveProviderLabel`. Both producers of a
+  line meet here.
 - `components/projects/connection-integrity.ts` — the persisted-connections
   producer (`deriveConnectionIntegrity`) plus the combo-line mapping
   (`comboSlots`, `comboTone`), `connectionDisplayValues`, and
@@ -93,15 +108,19 @@ one implementation:
   copy-map message. The strings themselves live in `CONNECTIONS_COPY`.
 
 **One implementation, one vocabulary (#148).** `ConnectionComboLine` is the only
-rendering of the three-distinction combo line. The wizard's Review step renders
-it from draft verification evidence (`comboSlotFromEvidence` +
-`comboEvidenceTone`); the post-creation surfaces render it from a project's
-persisted `connections` (`comboSlots` + `comboTone`). The two combo-line
+rendering of the three-distinction combo line, and `comboTone` is its only tone
+rule: the worst slot decides the tone, and a warning never takes the error tone.
+The wizard's Review step renders the line from draft verification evidence
+(`comboSlotFromEvidence` + `comboTone(slots, ["tracker", "gitHost"])` — Review
+is the creation gate, so both roles are required); the post-creation surfaces
+render it from a project's persisted `connections` (`comboSlots` +
+`comboTone(integrity)`, which requires the tracker alone — a pre-#145 project's
+absent git host is a warning, never an invented error). The two combo-line
 renderings and the two copy structures that #146 and #147 produced in parallel
 were collapsed into this one: `ComboSummary` and `CONNECTION_STATE_COPY` are
-deleted, and `CONNECTIONS_COPY` is the single vocabulary — with
-`stateLabel.degraded` (warnings outstanding) and `stateLabel.degradedAccepted`
-(warnings explicitly accepted, draft evidence only) as the two degraded labels.
+deleted, and `CONNECTIONS_COPY` is the single vocabulary — with one label per
+slot state (`connected`, `degraded`, `disconnected`), because a degraded
+connection is never gated on an acknowledgement.
 
 **The three distinctions.** A role's slot is `connected` (the ideal),
 `degraded` (warnings present — warning tone, never the error tone) or
@@ -139,6 +158,22 @@ legacy project with no usable `issueTracker` is an integrity failure like any
 other. Legacy descriptors are never reported as incomplete: their
 configuration shape predates the normalized payload (spec #133 keeps legacy
 config migration an open question).
+
+**Known deviation — no composite connection identifier (recorded, not silent).**
+Spec #133 story 34's example renders a connection as a provider name plus an
+identifying configuration value ("Tracker: Jira (site.acme.net) · Git host:
+GitHub (owner/repo)"). The combo line renders the provider's manifest
+`displayName` and the role's state, and deliberately does NOT render the
+parenthesised identifier. Rendering it needs provider-owned knowledge of which
+config field identifies a connection — that is a new provider-contract
+capability (`describeConnection`) plus a server-derived per-connection label on
+the wire — which would amend the closed #137 provider contract and the #145
+connection payload. Neither #146's nor #147's acceptance criteria require the
+identifier; both require the git host and the tracker with the
+degraded/disconnected distinctions, which this line implements. The gap is
+recorded here as a deviation from the story's EXAMPLE, to be closed by a
+provider-contract ticket if the capability is ever wanted — never by teaching
+the UI which config field identifies a provider.
 
 **Repair path wiring.** The repair affordance is the copy-map `reconnect`
 label. On the project detail surface, the project cards, and the Work Queue it

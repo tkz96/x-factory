@@ -3,9 +3,10 @@
 //
 // `isReviewReady` is a PURE derived predicate computed during render (#126):
 // never stored in state, never synced in an effect. It is true only when every
-// downstream value is current — both roles usable, an application selection
-// made under the current connection, and a git identity resolved for exactly
-// those inputs.
+// downstream value is current — both roles verified (a degraded-but-verified
+// connection IS usable: #133 says degraded renders the partial state and never
+// blocks), an application selection made under the current connection, and a
+// git identity resolved for exactly those inputs.
 //
 // There is NO dismissal or skip path. A reason clears only by re-verifying the
 // connection or re-inspecting the repository selection; `reviewBlockedReasons`
@@ -13,7 +14,6 @@
 
 import {
   type ConnectionEvidence,
-  deriveConnectionState,
   isConnectionUsable,
 } from "../../components/connections/connection-state.js";
 import type { WizardSourceState } from "../types.js";
@@ -26,9 +26,7 @@ import {
 /** Why the Review submit is blocked. Rendered through the copy map. */
 export type ReviewBlockedReason =
   | "trackerUnverified"
-  | "trackerDegradedUnaccepted"
   | "gitHostUnverified"
-  | "gitHostDegradedUnaccepted"
   | "noApplicationRepository"
   | "selectionStale"
   | "inspectionMissing"
@@ -40,13 +38,10 @@ function roleReason(
   role: "tracker" | "gitHost",
   evidence: ConnectionEvidence,
 ): ReviewBlockedReason | null {
-  const prefix = role === "tracker" ? "tracker" : "gitHost";
   if (isConnectionUsable(evidence)) {
     return null;
   }
-  return deriveConnectionState(evidence) === "degraded"
-    ? `${prefix}DegradedUnaccepted`
-    : `${prefix}Unverified`;
+  return role === "tracker" ? "trackerUnverified" : "gitHostUnverified";
 }
 
 /**

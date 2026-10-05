@@ -45,13 +45,11 @@ function stepFiveState(): WizardSourceState {
         providerId: "generic-tracker",
         config: {},
         verified: true,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: "generic-githost",
         config: { gitUrl: "https://git.example.com", token: "tok-secret" },
         verified: true,
-        degradedAccepted: false,
       },
     },
     repositories: {

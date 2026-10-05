@@ -55,13 +55,11 @@ function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
         providerId: state.connect.tracker.providerId,
         config: sanitizeConfig(state.connect.tracker.config || {}),
         verified: false,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: state.connect.gitHost.providerId,
         config: sanitizeConfig(state.connect.gitHost.config || {}),
         verified: false,
-        degradedAccepted: false,
       },
     },
     inspection: {
@@ -106,8 +104,6 @@ function isConnectionRoleState(value: unknown): boolean {
     (typeof value.providerId === "string" || value.providerId === null) &&
     isRecord(value.config) &&
     (value.verified === undefined || typeof value.verified === "boolean") &&
-    (value.degradedAccepted === undefined ||
-      typeof value.degradedAccepted === "boolean") &&
     (value.unconfirmedCapabilities === undefined ||
       (Array.isArray(value.unconfirmedCapabilities) &&
         value.unconfirmedCapabilities.every(

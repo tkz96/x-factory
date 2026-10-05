@@ -7,7 +7,13 @@
 // disagree about whether a connection is usable.
 //
 // Provider-agnostic: this module knows a connection's *evidence* (provider id,
-// verification outcome, accepted warnings), never a provider.
+// verification outcome, unconfirmed capabilities), never a provider.
+//
+// A DEGRADED connection is USABLE. #133 is explicit and repeated: "degraded →
+// the partial state (warning banner on the card), progression never blocked",
+// "degraded renders the partial state, never blocks", and story 19 "show a
+// warning on the card but never block progression" (line 125, line 136). The
+// warnings stay VISIBLE; they are never an acknowledgement to collect.
 
 import type { ProjectConnectionRole } from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
@@ -24,15 +30,13 @@ export interface ConnectionEvidence {
   providerId: string | null;
   /** Set by the verification call: the credentials were accepted. */
   verified?: boolean | undefined;
-  /** The user explicitly accepted the degraded result's warnings. */
-  degradedAccepted?: boolean | undefined;
   /** Capabilities the verification could not confirm (degraded evidence). */
   unconfirmedCapabilities?: readonly string[] | undefined;
 }
 
 /**
  * `connected` — verified with nothing outstanding.
- * `degraded` — verified, but with warnings (accepted or not).
+ * `degraded` — verified, but with warnings.
  * `disconnected` — no provider selected, or not verified in this session. A
  * restored draft always lands here: verification results are never persisted.
  */
@@ -42,24 +46,19 @@ export function deriveConnectionState(
   if (evidence.providerId === null || evidence.verified !== true) {
     return "disconnected";
   }
-  const hasWarnings =
-    evidence.degradedAccepted === true ||
-    (evidence.unconfirmedCapabilities?.length ?? 0) > 0;
-  return hasWarnings ? "degraded" : "connected";
+  return (evidence.unconfirmedCapabilities?.length ?? 0) > 0
+    ? "degraded"
+    : "connected";
 }
 
 /**
- * True when a project may be created with this connection: fully connected, or
- * degraded WITH the warnings explicitly accepted. Never a dismissal — only a
- * fresh verification (or an explicit acceptance of real evidence) can make it
- * true.
+ * True when a project may be created with this connection: verified. A degraded
+ * verification IS usable — its warnings are surfaced, never a gate — and only a
+ * fresh verification can turn an unverified connection usable, so there is no
+ * dismissal or skip path.
  */
 export function isConnectionUsable(evidence: ConnectionEvidence): boolean {
-  const state = deriveConnectionState(evidence);
-  return (
-    state === "connected" ||
-    (state === "degraded" && evidence.degradedAccepted === true)
-  );
+  return deriveConnectionState(evidence) !== "disconnected";
 }
 
 // ---------------------------------------------------------------------------
@@ -71,8 +70,7 @@ export type ConnectionComboTone = "connected" | "warning" | "error";
 
 /**
  * One role's slot as the combo line renders it: which provider serves the role,
- * in which of the three states, and — for draft evidence only — whether a
- * degraded result's warnings were explicitly accepted.
+ * and in which of the three states.
  *
  * The wizard produces these from verification evidence
  * (`comboSlotFromEvidence`); the post-creation surfaces produce them from a
@@ -84,8 +82,6 @@ export interface ConnectionComboSlot {
   readonly role: ProjectConnectionRole;
   readonly state: ConnectionState;
   readonly providerId: string | null;
-  /** Degraded with the warnings explicitly accepted (draft evidence only). */
-  readonly accepted?: boolean | undefined;
 }
 
 /** One role's slot, derived from the verification evidence the wizard holds. */
@@ -97,21 +93,38 @@ export function comboSlotFromEvidence(
     role,
     state: deriveConnectionState(evidence),
     providerId: evidence.providerId,
-    accepted: evidence.degradedAccepted === true,
   };
 }
 
+/** What the tone rule needs of a slot: its role, and its state. */
+export type ComboToneSlot = Pick<ConnectionComboSlot, "role" | "state">;
+
 /**
- * The tone of a line built from draft verification evidence: a role that is not
- * connected is the error tone (Review is a gate), a degraded role is the
- * warning tone, and everything else reads as connected.
+ * The line's tone — THE rule, for every producer (#148: one combo line, one
+ * vocabulary). The worst slot decides it, and a warning never takes the error
+ * tone.
+ *
+ * `requiredRoles` is the ONE producer-specific input, and it is a statement
+ * about the LINE, not about a provider: a slot with no connection is the error
+ * tone when the line requires that role and a warning otherwise. The wizard's
+ * Review line gates creation on both roles (#133: both connections are
+ * mandatory), while on a persisted project an absent git host is a pre-#145
+ * project's recorded-as-missing wiring — surfaced, never invented.
  */
-export function comboEvidenceTone(
-  slots: readonly ConnectionComboSlot[],
+export function comboTone(
+  slots: readonly ComboToneSlot[],
+  requiredRoles: readonly ProjectConnectionRole[],
 ): ConnectionComboTone {
-  if (slots.some((slot) => slot.state === "disconnected")) return "error";
-  if (slots.some((slot) => slot.state === "degraded")) return "warning";
-  return "connected";
+  const isError = slots.some(
+    (slot) =>
+      slot.state === "disconnected" && requiredRoles.includes(slot.role),
+  );
+  if (isError) return "error";
+
+  const isWarning = slots.some(
+    (slot) => slot.state === "degraded" || slot.state === "disconnected",
+  );
+  return isWarning ? "warning" : "connected";
 }
 
 /**

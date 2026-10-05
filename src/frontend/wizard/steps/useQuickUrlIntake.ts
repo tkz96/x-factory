@@ -89,7 +89,6 @@ export function useQuickUrlIntake({
             result.providerId,
             result.configDraft,
           ),
-          degradedAccepted: false,
         };
       }
       if (descriptor.roles.includes("gitHost")) {
@@ -101,7 +100,6 @@ export function useQuickUrlIntake({
             result.providerId,
             result.configDraft,
           ),
-          degradedAccepted: false,
         };
       }
 

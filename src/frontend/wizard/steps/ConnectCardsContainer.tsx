@@ -39,8 +39,6 @@ export function ConnectCardsContainer({
         verificationError={trackerConn.error}
         fieldErrors={trackerConn.fieldErrors}
         formErrors={trackerConn.formErrors}
-        degradedAccepted={trackerConn.degradedAccepted}
-        onAcceptDegraded={trackerConn.acceptDegraded}
         disabled={disabled}
       />
 
@@ -58,8 +56,6 @@ export function ConnectCardsContainer({
         verificationError={gitHostConn.error}
         fieldErrors={gitHostConn.fieldErrors}
         formErrors={gitHostConn.formErrors}
-        degradedAccepted={gitHostConn.degradedAccepted}
-        onAcceptDegraded={gitHostConn.acceptDegraded}
         disabled={disabled}
       />
     </div>

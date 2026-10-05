@@ -24,7 +24,6 @@ import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import {
   type ConnectionComboSlot,
-  type ConnectionComboTone,
   type ConnectionState,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
@@ -248,15 +247,18 @@ function buildSlot(
 /**
  * Derives the whole project's connection wiring for display. Pure: the same
  * project and manifest always produce the same integrity.
+ *
+ * Each slot is built FOR ITS OWN ROLE (never read back by position), and the
+ * render order is the line's own order: tracker first, then git host.
  */
 export function deriveConnectionIntegrity(
   project: Project,
   descriptors: readonly ProviderDescriptor[] = [],
 ): ConnectionIntegrity {
   const connections = deriveConnections(project);
-  const slots = ROLES.map((role) => buildSlot(role, connections, descriptors));
-  const tracker = slots[0] as ConnectionSlot;
-  const gitHost = slots[1] as ConnectionSlot;
+  const tracker = buildSlot("tracker", connections, descriptors);
+  const gitHost = buildSlot("gitHost", connections, descriptors);
+  const slots = [tracker, gitHost];
   const warnings = slots.flatMap((slot) => slot.warnings);
   const hasIntegrityFailure = tracker.state === "disconnected";
 
@@ -292,14 +294,18 @@ export function comboSlots(
 }
 
 /**
- * The line's tone for a persisted project: the integrity failure is the error
- * tone, warnings are the warning tone (never error), everything else reads as
- * connected.
+ * The roles a POST-CREATION line requires. A project with no tracker is the
+ * integrity failure (#133: both connections are mandatory at creation); an
+ * absent git host is a pre-#145 project's recorded-as-missing wiring, which is
+ * surfaced as a warning rather than invented.
+ *
+ * Surfaces pass this to the ONE tone rule with their line's slots
+ * (`comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)`); there is no
+ * second implementation of the rule here.
  */
-export function comboTone(integrity: ConnectionIntegrity): ConnectionComboTone {
-  if (integrity.hasIntegrityFailure) return "error";
-  return integrity.isDegraded ? "warning" : "connected";
-}
+export const REQUIRED_CONNECTION_ROLES: readonly ProjectConnectionRole[] = [
+  "tracker",
+];
 
 /**
  * The human display name for a provider id: the manifest's `displayName`, or

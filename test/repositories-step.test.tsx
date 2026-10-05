@@ -176,7 +176,6 @@ function gitHostState(
     providerId: "generic-githost",
     config,
     verified: true,
-    degradedAccepted: false,
     ...extra,
   };
 }
@@ -202,7 +201,6 @@ function setupStep3Draft(
         providerId: "generic-tracker",
         config: {},
         verified: true,
-        degradedAccepted: false,
       },
       gitHost: gitHostState(
         (overrides.gitHost?.config as Record<string, unknown> | undefined) ??
@@ -238,13 +236,11 @@ function setupStep2Draft() {
         providerId: null,
         config: {},
         verified: false,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: null,
         config: {},
         verified: false,
-        degradedAccepted: false,
       },
     },
     repositories: {
@@ -476,9 +472,9 @@ describe("Repositories Step — degraded, error, stale & gate states (spec #133,
     });
 
     await verifyBothConnections();
-    await act(async () => {
-      fireEvent.click(getEl("btn-accept-degraded-gitHost"));
-    });
+    // A degraded git host is verified: the partial state is shown and the step
+    // moves on with no acknowledgement to give (#133 story 19).
+    expect(document.getElementById("btn-accept-degraded-gitHost")).toBeNull();
     fireEvent.click(getEl("btn-step-2-next"));
     expect(document.getElementById("onboard-step-3")).not.toBeNull();
     await flushDiscovery();

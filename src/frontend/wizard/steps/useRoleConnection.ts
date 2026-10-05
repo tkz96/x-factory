@@ -45,7 +45,6 @@ export function useRoleConnection(
           // committing a project on the previous provider's verification would
           // be exactly the stale value the wizard must never carry forward.
           verified: false,
-          degradedAccepted: false,
         },
       },
     });
@@ -68,7 +67,6 @@ export function useRoleConnection(
           },
           // Editing what was verified invalidates the verification.
           verified: false,
-          degradedAccepted: false,
         },
       },
     });
@@ -79,14 +77,6 @@ export function useRoleConnection(
     const currentGen = ++generationRef.current;
     setIsPending(true);
     setError(null);
-    dispatch({
-      type: "UPDATE_CONNECT",
-      patch: {
-        [role]: {
-          degradedAccepted: false,
-        },
-      },
-    });
     try {
       const res = await api.providers.verify({
         providerId: roleState.providerId,
@@ -109,8 +99,9 @@ export function useRoleConnection(
         // Degraded verification is evidence, not an error: persist exactly
         // which contract capabilities could not be confirmed so downstream
         // steps can name the capability they depend on (#129, #144). The
-        // verified flag is what survives a step change: the credentials were
-        // accepted, and a later step can only re-verify it, never re-invent it.
+        // verified flag is what survives a step change: the provider accepted
+        // the credentials, and a later step can only re-verify it, never
+        // re-invent it.
         dispatch({
           type: "UPDATE_CONNECT",
           patch: {
@@ -143,17 +134,6 @@ export function useRoleConnection(
     }
   };
 
-  const acceptDegraded = () => {
-    dispatch({
-      type: "UPDATE_CONNECT",
-      patch: {
-        [role]: {
-          degradedAccepted: true,
-        },
-      },
-    });
-  };
-
   const resetVerification = () => {
     generationRef.current += 1;
     setVerification(null);
@@ -163,10 +143,11 @@ export function useRoleConnection(
 
   const status = deriveVerificationStatus(isPending, verification, error);
   const { fieldErrors, formErrors } = extractApiErrors(error);
+  // A degraded verification IS a verified connection (#133): its warnings are
+  // surfaced on the card, never collected as an acknowledgement, and never a
+  // reason to withhold anything.
   const isVerified =
-    Boolean(roleState.providerId) &&
-    (status === "ok" ||
-      (status === "degraded" && Boolean(roleState.degradedAccepted)));
+    Boolean(roleState.providerId) && (status === "ok" || status === "degraded");
 
   return {
     verification,
@@ -176,11 +157,9 @@ export function useRoleConnection(
     fieldErrors,
     formErrors,
     isVerified,
-    degradedAccepted: Boolean(roleState.degradedAccepted),
     selectProvider,
     updateConfig,
     verify,
-    acceptDegraded,
     resetVerification,
   };
 }
