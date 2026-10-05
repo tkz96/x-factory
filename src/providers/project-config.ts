@@ -92,6 +92,16 @@ export function resolveProjectProvider(
 }
 
 /**
+ * The legacy tracker view for a project that has no tracker connection: the
+ * pre-existing default `_parseIssueTracker` applies, preserved so the runtime
+ * still resolves something for hand-written records.
+ */
+export const DEFAULT_ISSUE_TRACKER: ProjectIssueTracker = {
+  provider: "github",
+  connectionId: "github",
+};
+
+/**
  * Derives the legacy `ProjectIssueTracker` view from the connection that
  * carries the `tracker` role (#145).
  *

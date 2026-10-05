@@ -36,7 +36,10 @@ import {
   type ProviderCapability,
   type ProviderRole,
 } from "../providers/contract.js";
-import { deriveIssueTracker } from "../providers/project-config.js";
+import {
+  DEFAULT_ISSUE_TRACKER,
+  deriveIssueTracker,
+} from "../providers/project-config.js";
 import { redactConnections } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,
@@ -213,7 +216,7 @@ function buildProjectRecord(
         trackerConnection.providerId,
         trackerConnection.connection.config,
       )
-    : { provider: "github" as const, connectionId: "github" };
+    : DEFAULT_ISSUE_TRACKER;
 
   return {
     id: input.id,
