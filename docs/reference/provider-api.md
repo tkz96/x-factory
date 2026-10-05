@@ -244,3 +244,101 @@ retro-sanctioned on #138).
 tickets only — the inspection flow consumes actionable tickets; closed tickets
 are deliberately excluded. Providers that gain a consumer needing a different
 state filter must extend the contract input, not the query behind it.
+
+---
+
+## 6. Project Creation with the Normalized Connections Payload (#131/#145)
+
+`POST /api/projects` accepts either the legacy configuration body or the
+normalized onboarding payload. The payload is the contract the wizard submits at
+Review (#146):
+
+```jsonc
+{
+  "id": "my-project",
+  "name": "My Project",
+  "workspacePath": "/Users/dev/code",
+  "gitIdentity": { "name": "Ada Lovelace", "email": "ada@example.com" },
+  "connections": [
+    { "providerId": "jira",   "roles": ["tracker"], "config": { "host": "…", "email": "…", "apiToken": "…", "project": "PROJ" } },
+    { "providerId": "github", "roles": ["gitHost"], "config": { "token": "…", "repoOwner": "acme", "repository": "web" } }
+  ],
+  "repositories": [
+    { "id": "my-project-web", "name": "web", "remote": "…", "defaultBranch": "main", "localPath": "/Users/dev/code/web", "role": "frontend", "primary": true }
+  ]
+}
+```
+
+- A dual-role provider (`tracker` **and** `gitHost`) is **one** connection
+  carrying both roles; two providers are two connections. Two connections of the
+  same provider are rejected (`INCOMPATIBLE_CONFIGURATION`) rather than merged.
+- `gitIdentity` is a project-level field — never nested inside a connection.
+- Secret values ride inline in `config` exactly once. The response, the events,
+  the diagnostics and the structured logs never echo them, and the stored project
+  record holds only the provider's non-secret configuration.
+- `connections` is **additive** to the legacy `issueTracker`/`repositoryPath`/
+  `defaultBranch`/`testCommand` fields, which stay populated so queue, deliver
+  and readiness keep resolving. No runtime redesign, no config migration of
+  existing projects (#133 open question 2).
+
+### Secret routing (server-authoritative)
+
+The server derives which fields are secrets, and where they are stored, from the
+registered provider's own schema metadata (`.meta({ secret: true, envKey })`).
+Client metadata is never trusted; `envKey` never appears in a client-facing
+descriptor or the manifest. The writer strips every declared secret field from
+the config and stores its value in per-project env storage
+(`~/.x-factory/projects/<projectId>/.env`, mode `0600`) under the declared key.
+No provider conditional exists in this path.
+
+### Ordered writes (crash safety)
+
+1. Validate the complete request in memory: transport shape (zod) → provider
+   config schema → role/capability compatibility → duplicate id.
+2. Write secrets to env storage (`saveProjectEnv`, idempotent — a retry
+   converges by overwriting).
+3. Append the project record last, as the commit point.
+
+A crash between (2) and (3) leaves a benign orphaned env file and no project; a
+failure during (2) leaves neither. A project can never exist without its secrets.
+
+### Error channels
+
+| Failure | Status | Body |
+| --- | --- | --- |
+| Transport shape (zod) | 400 | `{ error, details }` |
+| Unknown provider id | 409 | `{ formErrors: ["UNKNOWN_PROVIDER"] }` |
+| Provider config schema | 409 | `{ fieldErrors: { field: "REQUIRED" \| "INVALID" } }` |
+| Role/capability mismatch, duplicate provider, knowledge-only repositories | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
+| Duplicate project id (create-only) | 409 | `{ error }` |
+| Persistence failure | 500 | `{ error }` |
+
+Codes only — provider and zod messages never cross the boundary. Upstream
+failures use the separate `ProviderError` envelope.
+
+### Secret update semantics
+
+`PATCH`/`PUT /api/projects/:id` with a `connections` array follows the same
+contract:
+
+- A missing or empty secret field **keeps** the stored secret (an empty string is
+  never overloaded to mean delete).
+- A non-empty value **replaces** it.
+- An explicit sibling `clearSecrets: fieldName[]` removes stored secrets. It is
+  applied **before** validation, so clearing a required secret correctly fails
+  with `{ fieldErrors: { <field>: "REQUIRED" } }` and writes nothing.
+- Unknown `clearSecrets` names fail with `{ fieldErrors: { <name>: "INVALID" } }`.
+
+### Known limitation
+
+The legacy tracker summary (`GET /api/projects/:id/tracker`) returns
+`secretKey` — the project's env variable *name* — which predates this contract
+and is asserted by `test/projects-api.test.ts`. It carries no secret value; the
+redaction invariant covers every response, and the env-key invariant covers the
+surfaces this contract owns plus the manifest.
+
+### Test seam
+
+`X_FACTORY_CONFIG_PATH` overrides the projects configuration file path (the same
+injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`), so tests can point
+both the project record and the env storage at a temp directory.
