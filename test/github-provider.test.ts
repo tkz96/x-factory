@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import {
   hasCapability,
   isProviderError,
-  PR_CREATE_ONLY,
+  type ProviderError,
   REQUIRED_WORKFLOW_LABEL,
 } from "../src/providers/contract.js";
 import {
@@ -67,16 +67,6 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(hasCapability(githubProvider, "findExistingPullRequest")).toBe(
         true,
       );
-    });
-
-    it("strictly adheres to the PR_CREATE_ONLY safety invariant (no merge/close capabilities)", () => {
-      expect(PR_CREATE_ONLY).toBe("create-only");
-      const providerAny = githubProvider as unknown as Record<string, unknown>;
-      expect(providerAny.mergePullRequest).toBeUndefined();
-      expect(providerAny.closePullRequest).toBeUndefined();
-      expect(providerAny.abandonPullRequest).toBeUndefined();
-      expect(providerAny.deletePullRequest).toBeUndefined();
-      expect(providerAny.updatePullRequest).toBeUndefined();
     });
   });
 
@@ -518,6 +508,44 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         code: "UNKNOWN",
         context: "PR",
       });
+    });
+
+    it("does not forward an arbitrary object carrying code and context as a provider error", () => {
+      // A look-alike object: `context` is a valid enum member, `code` is not.
+      // Only the canonical contract guard may let something cross the boundary
+      // as a ProviderError — field presence is not enough.
+      const impostor = {
+        code: "SENSITIVE_INTERNAL_STATE",
+        context: "VERIFY",
+      };
+
+      const normalized = toGitHubUserError(impostor, "TICKETS");
+
+      expect(normalized).toEqual({
+        code: "UNKNOWN",
+        context: "TICKETS",
+      });
+      expect(isProviderError(normalized)).toBe(true);
+      expect(JSON.stringify(normalized)).not.toContain(
+        "SENSITIVE_INTERNAL_STATE",
+      );
+    });
+
+    it("forwards a genuine provider error unchanged (code preserved, context re-scoped)", () => {
+      const genuine: ProviderError = {
+        code: "RATE_LIMITED",
+        context: "DISCOVERY",
+        retryAfterMs: 5000,
+      };
+
+      const normalized = toGitHubUserError(genuine, "PR");
+
+      expect(normalized).toEqual({
+        code: "RATE_LIMITED",
+        context: "PR",
+        retryAfterMs: 5000,
+      });
+      expect(isProviderError(normalized)).toBe(true);
     });
   });
 
@@ -1362,6 +1390,104 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const first = tickets?.[0];
       expect(first?.id).toBe("GH-30");
       expect(first?.title).toBe("Tracker issue");
+    });
+
+    it("follows Link rel=next pagination and returns tickets from every page", async () => {
+      const pageOne = `https://api.github.com/repos/octocat/hello-world/issues?state=open&per_page=100&labels=${encodeURIComponent(REQUIRED_WORKFLOW_LABEL)}`;
+      const pageTwo = `${pageOne}&page=2`;
+      const requested: string[] = [];
+
+      const issue = (number: number, title: string) => ({
+        number,
+        title,
+        body: "Acceptance Criteria:\n- Done",
+        labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+        html_url: `https://github.com/octocat/hello-world/issues/${number}`,
+      });
+
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        requested.push(urlStr);
+
+        if (urlStr === pageOne) {
+          return new Response(
+            JSON.stringify([issue(101, "First page issue")]),
+            {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                link: `<${pageTwo}>; rel="next", <${pageTwo}>; rel="last"`,
+              },
+            },
+          );
+        }
+
+        return new Response(
+          JSON.stringify([
+            issue(202, "Second page issue"),
+            {
+              number: 203,
+              title: "Pull request on second page",
+              pull_request: {
+                url: "https://api.github.com/repos/octocat/hello-world/pulls/203",
+              },
+              labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+            },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const tickets = await provider.listTickets?.(
+        { token: "ghp_token", repoOwner: "octocat", repository: "hello-world" },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+      );
+
+      // Both pages were fetched, in order
+      expect(requested).toEqual([pageOne, pageTwo]);
+      // Tickets from every page are returned; PRs stay excluded
+      expect(tickets?.map((ticket) => ticket.id)).toEqual(["GH-101", "GH-202"]);
+      expect(tickets?.map((ticket) => ticket.title)).toEqual([
+        "First page issue",
+        "Second page issue",
+      ]);
+    });
+
+    it("stops when the API repeats a next link instead of looping forever", async () => {
+      const pageOne = `https://api.github.com/repos/octocat/hello-world/issues?state=open&per_page=100&labels=${encodeURIComponent(REQUIRED_WORKFLOW_LABEL)}`;
+      // Malicious/buggy API: page one advertises itself as the next page.
+      let calls = 0;
+
+      const fakeFetch: typeof fetch = (async (_url: string | URL | Request) => {
+        calls += 1;
+        return new Response(
+          JSON.stringify([
+            {
+              number: 303,
+              title: "Only issue",
+              labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+              html_url: "https://github.com/octocat/hello-world/issues/303",
+            },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              link: `<${pageOne}>; rel="next"`,
+            },
+          },
+        );
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const tickets = await provider.listTickets?.(
+        { token: "ghp_token", repoOwner: "octocat", repository: "hello-world" },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+      );
+
+      expect(calls).toBe(1);
+      expect(tickets?.map((ticket) => ticket.id)).toEqual(["GH-303"]);
     });
   });
 

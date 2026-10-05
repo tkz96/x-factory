@@ -96,6 +96,152 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
   });
 
+  it("discards drafts whose nested sections are structurally malformed", () => {
+    const valid = createInitialWizardState();
+    const malformedStates: Array<[string, unknown]> = [
+      ["connect section missing", { ...valid, connect: null }],
+      [
+        "connect.tracker missing",
+        { ...valid, connect: { ...valid.connect, tracker: null } },
+      ],
+      [
+        "connect.gitHost.providerId wrong type",
+        {
+          ...valid,
+          connect: {
+            ...valid.connect,
+            gitHost: { providerId: 42, config: {} },
+          },
+        },
+      ],
+      [
+        "connect.tracker.config wrong type",
+        {
+          ...valid,
+          connect: {
+            ...valid.connect,
+            tracker: { providerId: "github", config: "not-an-object" },
+          },
+        },
+      ],
+      ["repositories section missing", { ...valid, repositories: undefined }],
+      [
+        "repositories.selectedRepoIds wrong type",
+        {
+          ...valid,
+          repositories: { ...valid.repositories, selectedRepoIds: "repo-1" },
+        },
+      ],
+      [
+        "repositories.selectedRepoIds holds non-strings",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            selectedRepoIds: [1, 2],
+          },
+        },
+      ],
+      [
+        "basics.name wrong type",
+        { ...valid, basics: { ...valid.basics, name: 42 } },
+      ],
+      ["basics missing", { ...valid, basics: undefined }],
+      ["step out of range", { ...valid, step: 9 }],
+      ["step not a number", { ...valid, step: "two" }],
+      [
+        "step beyond maxStepVisited (5 > 1)",
+        { ...valid, step: 5, maxStepVisited: 1 },
+      ],
+      [
+        "step beyond maxStepVisited (3 > 2)",
+        { ...valid, step: 3, maxStepVisited: 2 },
+      ],
+      ["maxStepVisited out of range", { ...valid, maxStepVisited: 0 }],
+      [
+        "connect.tracker.verified wrong type",
+        {
+          ...valid,
+          connect: {
+            ...valid.connect,
+            tracker: { ...valid.connect.tracker, verified: "yes" },
+          },
+        },
+      ],
+      [
+        "connect.gitHost.verified wrong type",
+        {
+          ...valid,
+          connect: {
+            ...valid.connect,
+            gitHost: { ...valid.connect.gitHost, verified: 1 },
+          },
+        },
+      ],
+      [
+        "repoConfigs value is not an object",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": 123 },
+          },
+        },
+      ],
+      [
+        "repoConfigs value missing role",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": { localPath: "/work/repo-1" } },
+          },
+        },
+      ],
+      [
+        "repoConfigs value has wrong localPath type",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": { role: "primary", localPath: 42 } },
+          },
+        },
+      ],
+      [
+        "repoConfigs value has wrong primary type",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": { role: "primary", primary: "true" } },
+          },
+        },
+      ],
+      [
+        "inspection.acknowledged wrong type",
+        { ...valid, inspection: { acknowledged: "yes" } },
+      ],
+    ];
+
+    for (const [label, state] of malformedStates) {
+      window.localStorage.setItem(
+        "xf_wizard_draft_v1",
+        JSON.stringify({
+          version: WIZARD_SCHEMA_VERSION,
+          savedAt: new Date().toISOString(),
+          state,
+        }),
+      );
+
+      expect(loadWizardDraft(), `should discard draft: ${label}`).toBeNull();
+      expect(
+        window.localStorage.getItem("xf_wizard_draft_v1"),
+        `should remove stored draft: ${label}`,
+      ).toBeNull();
+    }
+  });
+
   it("clears the draft on clearWizardDraft()", () => {
     const state = createInitialWizardState();
     saveWizardDraft(state);
@@ -163,5 +309,119 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     // Verification flags must be restored as unverified/stale per #130 stale rule
     expect(loaded.connect.tracker.verified).toBe(false);
     expect(loaded.connect.gitHost.verified).toBe(false);
+  });
+
+  it("accepts a draft whose optional nested structures are well-formed", () => {
+    const state: WizardSourceState = {
+      ...createInitialWizardState(),
+      step: 3,
+      maxStepVisited: 4,
+      connect: {
+        quickUrl: "https://dev.azure.com/myorg/myproj",
+        tracker: {
+          providerId: "azure",
+          config: { orgUrl: "https://dev.azure.com/myorg", project: "myproj" },
+          verified: true,
+        },
+        gitHost: {
+          providerId: "github",
+          config: { owner: "myorg", repo: "myrepo" },
+          verified: false,
+        },
+      },
+      repositories: {
+        selectedRepoIds: ["repo-1", "repo-2"],
+        primaryRepoId: "repo-1",
+        repoConfigs: {
+          "repo-1": {
+            role: "primary",
+            localPath: "/work/repo-1",
+            primary: true,
+          },
+          "repo-2": { role: "secondary" },
+        },
+      },
+    };
+
+    expect(saveWizardDraft(state)).toBe(true);
+
+    const loaded = loadWizardDraft();
+    expect(loaded).not.toBeNull();
+    if (!loaded) return;
+    expect(loaded.step).toBe(3);
+    expect(loaded.maxStepVisited).toBe(4);
+    // Verified flags are intentionally reset to stale on restore (#130 rule)
+    expect(loaded.connect.tracker.verified).toBe(false);
+    expect(loaded.repositories.selectedRepoIds).toEqual(["repo-1", "repo-2"]);
+    expect(loaded.repositories.primaryRepoId).toBe("repo-1");
+    expect(loaded.repositories.repoConfigs["repo-1"]).toEqual({
+      role: "primary",
+      localPath: "/work/repo-1",
+      primary: true,
+    });
+    expect(loaded.repositories.repoConfigs["repo-2"]).toEqual({
+      role: "secondary",
+    });
+  });
+
+  it("SECURITY: strips secrets nested inside arrays and deep objects", () => {
+    const state: WizardSourceState = {
+      ...createInitialWizardState(),
+      connect: {
+        quickUrl: "https://dev.azure.com/myorg/myproj",
+        tracker: {
+          providerId: "azure",
+          config: {
+            orgUrl: "https://dev.azure.com/myorg",
+            // Sensitive-looking keys nested inside an ARRAY of objects
+            endpoints: [
+              {
+                signingKey: "zz-nested-signing-material-42",
+                label: "primary",
+              },
+              { clientSecret: "zz-nested-client-secret-42", label: "failover" },
+            ],
+            // ...and inside a deeper object
+            layers: {
+              inner: { privateCredential: "zz-deep-credential-42" },
+            },
+          },
+          verified: true,
+        },
+        gitHost: {
+          providerId: "github",
+          config: { owner: "myorg", repo: "myrepo" },
+          verified: true,
+        },
+      },
+    };
+
+    saveWizardDraft(state);
+
+    const raw = window.localStorage.getItem("xf_wizard_draft_v1") || "";
+
+    // No secret VALUE survives, at any depth
+    expect(raw).not.toContain("zz-nested-signing-material-42");
+    expect(raw).not.toContain("zz-nested-client-secret-42");
+    expect(raw).not.toContain("zz-deep-credential-42");
+    // No secret KEY survives either
+    expect(raw).not.toContain("signingKey");
+    expect(raw).not.toContain("clientSecret");
+    expect(raw).not.toContain("privateCredential");
+
+    // The surrounding non-secret structure (incl. the array itself) survives
+    const loaded = loadWizardDraft();
+    expect(loaded).not.toBeNull();
+    if (!loaded) return;
+    const endpoints = loaded.connect.tracker.config.endpoints as Array<
+      Record<string, unknown>
+    >;
+    expect(Array.isArray(endpoints)).toBe(true);
+    expect(endpoints).toHaveLength(2);
+    expect(endpoints[0]?.label).toBe("primary");
+    expect(endpoints[1]?.label).toBe("failover");
+    expect(
+      (loaded.connect.tracker.config.layers as Record<string, unknown>)?.inner,
+    ).toBeDefined();
   });
 });

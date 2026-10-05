@@ -1,9 +1,10 @@
 // src/providers/github/errors.ts — GitHub error normalization and HTTP error class (#138).
 
-import type {
-  ProviderError,
-  ProviderErrorCode,
-  ProviderErrorContext,
+import {
+  isProviderError,
+  type ProviderError,
+  type ProviderErrorCode,
+  type ProviderErrorContext,
 } from "../contract.js";
 
 /**
@@ -165,27 +166,26 @@ function resolveCodeFromMessage(message: string): ProviderErrorCode {
 
 /**
  * Normalizes an error into the canonical ProviderError shape.
+ *
+ * Only values that pass the contract's `isProviderError` guard may cross the
+ * boundary as provider errors — an arbitrary object carrying `code` and
+ * `context` fields is NOT a provider error and must not be forwarded as one
+ * (it could smuggle internal state or free-text across the API boundary).
  */
 function extractExistingProviderError(
   error: unknown,
   context: ProviderErrorContext,
 ): ProviderError | null {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    "context" in error
-  ) {
-    const existing = error as ProviderError;
-    return {
-      code: existing.code,
-      context,
-      ...(existing.retryAfterMs !== undefined
-        ? { retryAfterMs: existing.retryAfterMs }
-        : {}),
-    };
+  if (!isProviderError(error)) {
+    return null;
   }
-  return null;
+  return {
+    code: error.code,
+    context,
+    ...(error.retryAfterMs !== undefined
+      ? { retryAfterMs: error.retryAfterMs }
+      : {}),
+  };
 }
 
 function extractFromGitHubHttpError(
