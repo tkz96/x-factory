@@ -111,8 +111,6 @@ export const REPOSITORIES_COPY = {
   /** Empty: guidance when the connection lists zero repositories (story 29). */
   empty:
     "No repositories were found for this connection. Check that your token can see them, then refresh.",
-  /** Loading hint for the reserved discovery region. */
-  loading: "Loading repositories…",
   /** Partial: the capability that could not be confirmed, in contract terms. */
   discoveryUnconfirmed: "Repository discovery could not be confirmed.",
   /** Stale: the selection belongs to a connection that has since changed. */
