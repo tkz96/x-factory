@@ -14,7 +14,9 @@ export function StepNav() {
         const stepId: WizardStepId = stepItem.id;
         const isActive = state.step === stepItem.stepNumber;
         const isCompleted = state.step > stepItem.stepNumber;
-        const isAccessible = isStepAccessible(stepItem.stepNumber);
+        const isAccessible =
+          isStepAccessible(stepItem.stepNumber) &&
+          stepItem.stepNumber <= state.step;
 
         return (
           <div key={stepId} className="flex-1 flex items-center">

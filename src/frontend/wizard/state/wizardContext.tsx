@@ -103,7 +103,8 @@ export function WizardProvider({ children }: { children: ReactNode }) {
 
   const goToStep = useCallback(
     (targetStep: WizardStepNumber) => {
-      if (!isStepAccessible(targetStep)) return;
+      // Prevent forward navigation to bypass step validation
+      if (!isStepAccessible(targetStep) || targetStep > state.step) return;
       dispatch({ type: "SET_STEP", step: targetStep });
       saveWizardDraft({
         ...state,

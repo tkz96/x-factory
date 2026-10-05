@@ -1288,4 +1288,204 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       );
     });
   });
+
+  describe("StepNav Regression Tests", () => {
+    beforeEach(() => {
+      clearWizardDraft();
+      api.providers.getManifest = mock(async () => genericManifestFixture);
+      api.providers.verify = mock(async () => ({
+        status: "ok" as const,
+        warnings: [],
+      }));
+      api.providers.parseUrl = mock(async () => ({
+        matched: false as const,
+        url: "",
+      }));
+    });
+
+    afterEach(() => {
+      cleanup();
+      clearWizardDraft();
+    });
+
+    it("Verified connection becomes invalid", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // Select and verify both to enable Next
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+        fireEvent.click(getEl("btn-verify-gitHost"));
+      });
+
+      // Advance to Repositories
+      fireEvent.click(getEl("btn-step-2-next"));
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+
+      // Return to Connect
+      fireEvent.click(getEl("step-nav-connect"));
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
+
+      // Change a provider config field
+      const endpointInput = getEl<HTMLInputElement>("tracker-endpointHost");
+      await typeInput(endpointInput, "https://changed.example.com");
+
+      // Verify StepNav cannot navigate to Repositories
+      const repoBtn = getEl<HTMLButtonElement>("step-nav-repositories");
+      expect(repoBtn.disabled).toBe(true);
+
+      // Verify Connect Next remains blocked
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
+
+    it("Degraded acceptance becomes invalid", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // Select tracker and verify degraded
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+
+      api.providers.verify = mock(async (payload: { role: string }) => {
+        if (payload.role === "tracker") {
+          return {
+            status: "degraded" as const,
+            warnings: [
+              {
+                kind: "CAPABILITY_UNCONFIRMED" as const,
+                capability: "listTickets",
+              },
+            ],
+          };
+        }
+        return { status: "ok" as const, warnings: [] };
+      });
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+        fireEvent.click(getEl("btn-verify-gitHost"));
+      });
+
+      // Accept degraded
+      act(() => {
+        fireEvent.click(getEl("btn-accept-degraded-tracker"));
+      });
+
+      // Advance to Repositories
+      fireEvent.click(getEl("btn-step-2-next"));
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+
+      // Return to Connect
+      fireEvent.click(getEl("step-nav-connect"));
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
+
+      // Change provider
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "dual-service" },
+        });
+      });
+
+      // Confirm degraded acceptance is reset (Next is blocked)
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+
+      // Confirm StepNav cannot navigate to Repositories
+      const repoBtn = getEl<HTMLButtonElement>("step-nav-repositories");
+      expect(repoBtn.disabled).toBe(true);
+    });
+
+    it("Backward navigation still works", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // Advance to Repositories
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+        fireEvent.click(getEl("btn-verify-gitHost"));
+      });
+      fireEvent.click(getEl("btn-step-2-next"));
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+
+      // Advance to step 4
+      fireEvent.click(getEl("btn-step-3-next"));
+      expect(document.getElementById("onboard-step-4")).not.toBeNull();
+
+      // Ensure we can go back to Step 2 and Step 1 from Step 4
+      const step2Btn = getEl<HTMLButtonElement>("step-nav-connect");
+      expect(step2Btn.disabled).toBe(false);
+
+      fireEvent.click(step2Btn);
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
+
+      const step1Btn = getEl<HTMLButtonElement>("step-nav-basics");
+      expect(step1Btn.disabled).toBe(false);
+
+      fireEvent.click(step1Btn);
+      expect(document.getElementById("onboard-step-1")).not.toBeNull();
+    });
+
+    it("Previously visited forward step is not directly reachable", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // Set maxStepVisited to 4 by advancing
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+        fireEvent.click(getEl("btn-verify-gitHost"));
+      });
+      fireEvent.click(getEl("btn-step-2-next")); // To Step 3
+      fireEvent.click(getEl("btn-step-3-next")); // To Step 4
+      expect(document.getElementById("onboard-step-4")).not.toBeNull();
+
+      // Go back to Step 2
+      fireEvent.click(getEl("step-nav-connect"));
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
+
+      // Try to jump forward to Step 3 or 4 using StepNav
+      const step3Btn = getEl<HTMLButtonElement>("step-nav-repositories");
+      const step4Btn = getEl<HTMLButtonElement>("step-nav-inspection");
+
+      expect(step3Btn.disabled).toBe(true);
+      expect(step4Btn.disabled).toBe(true);
+
+      // MaxStepVisited semantics remain the same (still 4 in local storage or state)
+      const raw = window.localStorage.getItem("xf_wizard_draft_v1");
+      const parsed = JSON.parse(raw || "{}");
+      expect(parsed.state.maxStepVisited).toBe(4);
+    });
+  });
 });
