@@ -348,6 +348,16 @@ Review (#146):
   `defaultBranch`/`testCommand` fields, which stay populated so queue, deliver
   and readiness keep resolving. No runtime redesign, no config migration of
   existing projects (#133 open question 2).
+- The legacy view is **derived from the connection**, never re-typed by the
+  client: `deriveIssueTracker` namespaces the tracker connection's own (secret-free)
+  config under the provider id and mirrors the flat fields that share a config
+  field's name. The view's schema therefore has to accept the provider's real
+  field names, or a created project cannot be read back: `loadProjects` validates
+  every record, so a strict legacy view rejects the record the creation path just
+  wrote. `issueTracker.github` accepts both the legacy flat `repo` and the
+  canonical `repoOwner`/`repository` field names for exactly this reason (fixed
+  in #148, where the tri-provider journeys caught `loadProjects` throwing for a
+  project onboarded through the wizard).
 
 ### Secret routing (server-authoritative)
 

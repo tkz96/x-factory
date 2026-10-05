@@ -54,6 +54,54 @@ To maintain resilience against dropped connections, the client uses declarative 
 
 This layered approach guarantees that the user interface always reflects true system state.
 
+## Onboarding: the five-step wizard and its render-graph model
+
+Onboarding is a five-step modal wizard (`Basics → Connect → Repositories →
+Inspection → Review`) built on the provider contract. The invariants that
+matter to the rest of the UI:
+
+- **Two mandatory, decoupled connections.** The Connect step renders an issue
+  tracker card and a git host card, each configured from that provider's own
+  declarative schema (descriptors, not hand-written fields). Any provider may
+  serve either role; a provider serving both is ONE connection carrying both
+  roles in the creation payload, and the fast path is a single Quick-URL paste
+  that the SERVER resolves through the provider that owns the URL format
+  (`POST /api/providers/parse-url`) — the wizard knows no URL shape.
+- **Everything downstream is derived at render time.** Step validity, the
+  staleness of a selection or a resolution, and the Review gate are pure
+  functions of the reducer's plain state (`repositoryRules`, `inspectionRules`,
+  `reviewRules`). Nothing is stored that can be derived, and nothing is synced
+  through an effect.
+- **An input change is a new query key, never an imperative invalidation.**
+  Discovery and verification identity are digests of the inputs that produced
+  them, so the render graph re-keys and re-fetches on its own. The wizard never
+  reaches for `invalidateQueries` to express "the inputs changed"; this is
+  asserted, not assumed (`docs/reference/state-coverage.md` §Onboarding
+  smoothness).
+- **Evidence that is no longer current is never silent.** A restored draft drops
+  every verification result and every resolved identity, results produced from
+  superseded inputs keep their place on screen under an out-of-date badge, and
+  the Review gate refuses to create anything while any downstream value is not
+  current. There is no dismissal path — a reason clears only by re-verifying or
+  re-inspecting.
+- **Secrets live in memory for minutes.** They are held in wizard state, never
+  written to the localStorage draft, sent exactly once in the creation request,
+  and persisted to per-project env storage through ordered writes
+  (`docs/reference/provider-api.md` §Ordered writes). The draft a reload restores
+  is sanitized by key, so a credential cannot survive a reload in any nesting.
+- **Success closes the flow.** Creation completes the wizard: the draft is
+  cleared, the project appears through the query cache, and nothing asks the user
+  to re-enter what they just submitted.
+
+The interaction contract behind these rules — no remount when one card's
+verification completes, no re-fetch when a repository row is selected, stale
+badges that clear only on a newer result, and no duplicate requests when the
+user navigates backwards — is recorded with its enforcing test in
+`docs/reference/state-coverage.md` §Onboarding smoothness. Three end-to-end
+provider journeys (GitHub-only, Azure dual-role, Jira tracker-only) drive the
+real wizard against a real server, so the contract is proved against the
+shipped stack rather than a fixture-shaped stand-in.
+
 ## Optimistic Concurrency Control
 
 Multiple browser tabs or background processes can attempt to modify a run simultaneously.

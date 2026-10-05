@@ -69,34 +69,39 @@ some of the selected repositories. There is no dismissal path — only a fresh
 verification (Connect) or a fresh inspection (Inspection) clears a blocked
 reason, and Review lists every outstanding reason through the copy map.
 
-## Post-creation connection surfacing — the combo line and the integrity failure (#147)
+## Connection surfacing — the combo line and the integrity failure (#146/#147/#148)
 
 Every surface that renders how a project is wired renders the same thing, from
 one implementation:
 
-- `components/projects/ConnectionComboLine.tsx` — the presentational git host +
-  tracker combo line (spec #133 story 48). It is driven purely by
-  `Project.connections` (#145/#131) and the providers manifest; display names
-  come from the manifest's `displayName`, so no surface carries a provider id
-  branch or a hardcoded id→name table, and a provider added by registry
-  registration alone renders correctly.
-- `components/projects/connection-integrity.ts` — the pure derivation behind it
-  (`deriveConnectionIntegrity`), plus `resolveProviderLabel`,
-  `connectionDisplayValues` and `applyConnectionIntegrity`.
+- `components/connections/ConnectionComboLine.tsx` — THE presentational combo
+  line (spec #133 story 48). It takes the slots to render (per role: a provider
+  id, one of the three states, and — for draft evidence — whether a degraded
+  result's warnings were accepted), the line's tone, and the providers manifest.
+  Display names come from the manifest's `displayName`, so no surface carries a
+  provider id branch or a hardcoded id→name table, and a provider added by
+  registry registration alone renders correctly.
+- `components/connections/connection-state.ts` — the combo-line model
+  (`ConnectionComboSlot`, `ConnectionComboTone`), the three-state derivation
+  (`deriveConnectionState`), the usability predicate the Review gate reads, and
+  `resolveProviderLabel`. Both producers of a line meet here.
+- `components/projects/connection-integrity.ts` — the persisted-connections
+  producer (`deriveConnectionIntegrity`) plus the combo-line mapping
+  (`comboSlots`, `comboTone`), `connectionDisplayValues`, and
+  `applyConnectionIntegrity`.
 - `components/projects/connection-copy.ts` — resolves a derived warning to its
   copy-map message. The strings themselves live in `CONNECTIONS_COPY`.
 
-**One implementation.** `ConnectionComboLine` is the only rendering of the
-three-distinction combo line for persisted connections: it is presentational
-(props only — integrity plus manifest), imports nothing wizard- or
-screen-specific, and is importable from any surface, so the wizard's shared
-summary line can adopt it rather than grow a second rendering.
-`connection-integrity.ts` is the persisted-connections half of the state (the
-wizard's own line reports *draft verification evidence* instead, and its
-session-scoped rules belong to the wizard). If the wizard-side
-`components/connections/ComboSummary` work (#146) lands, the two collapse into
-one by mapping `ConnectionSlot` onto its `ConnectionEvidence` and deleting
-whichever renderer is left unused — never by keeping both.
+**One implementation, one vocabulary (#148).** `ConnectionComboLine` is the only
+rendering of the three-distinction combo line. The wizard's Review step renders
+it from draft verification evidence (`comboSlotFromEvidence` +
+`comboEvidenceTone`); the post-creation surfaces render it from a project's
+persisted `connections` (`comboSlots` + `comboTone`). The two combo-line
+renderings and the two copy structures that #146 and #147 produced in parallel
+were collapsed into this one: `ComboSummary` and `CONNECTION_STATE_COPY` are
+deleted, and `CONNECTIONS_COPY` is the single vocabulary — with
+`stateLabel.degraded` (warnings outstanding) and `stateLabel.degradedAccepted`
+(warnings explicitly accepted, draft evidence only) as the two degraded labels.
 
 **The three distinctions.** A role's slot is `connected` (the ideal),
 `degraded` (warnings present — warning tone, never the error tone) or
@@ -155,6 +160,36 @@ endpoint, which is outside #147's scope (the ticket owns the post-creation
 frontend surfaces). The card renders only canonical copy for the outcome — the
 raw provider scope payload is never rendered.
 
+## Onboarding smoothness — the six criteria (#148)
+
+The wizard's interaction contract, each rule with the test that fails if it
+regresses. The criteria were decided with the flow (#130) and hardened as a
+whole in #148; both framings are recorded because they describe the same
+observable behaviour.
+
+| # | Rule (ticket wording) | Spec #133 framing | Enforced by |
+|---|---|---|---|
+| 1 | No full modal re-render on verification completion: verifying one role rebuilds only that card | no remount on retry, form state preserved on failure, reserved-region spinners | `test/connect-step.test.tsx` — SMOOTHNESS #1 (a `MutationObserver` over the step reports which regions were structurally rebuilt; node identity proves the rest was not) |
+| 2 | No full re-render on repository selection: selecting a row updates only what depends on the selection | no layout shift on load | `test/repositories-step.test.tsx` — SMOOTHNESS #2 (the only structural change is the selection summary; the list, the region and the request count are untouched) |
+| 3 | Config-change invalidation is render-graph KEYING, never imperative query invalidation | stale data is never silent | `test/repositories-step.test.tsx` — SMOOTHNESS #3 (a new request for the new config, with the query client's `invalidateQueries`/`refetchQueries` watched) |
+| 4 | Stale badges always re-check and clear only on a genuinely newer result, including after a draft restore | stale data never silent; restore marks results stale and revalidates | `test/inspection-step.test.tsx` — SMOOTHNESS #4 (a failed refresh keeps the badge and rides along as a suppressed diagnostic) and `test/repositories-step.test.tsx` — STALE (restored draft) |
+| 5 | No wizard re-entry at Review completion: success closes the flow | no full-page flicker; nothing asks for re-entry | `test/review-step.test.tsx` — SMOOTHNESS #5 (reopening starts a fresh onboarding, never a resume of the submitted one) |
+| 6 | No duplicate network requests on back-navigation | — | `test/inspection-step.test.tsx` and `test/review-step.test.tsx` — SMOOTHNESS #6 (Review ⇄ Inspection, Review ⇄ Repositories, Repositories ⇄ Connect) |
+
+Two recordable consequences of the rules:
+
+1. **A config change is a new query key, not an invalidation.** The connection's
+   provider id and canonicalised config are digested into the query key
+   (`connectionConfigFingerprint`), so an edit produces a different key and a
+   fresh fetch, and the previous results are flagged out of date while it runs
+   (`keepPreviousData`). No imperative `invalidateQueries` expresses "the inputs
+   changed" anywhere in the wizard.
+2. **A record that is already current for the current inputs is not re-read.**
+   Entering Inspection again (a back-navigation, or a Review round trip) does not
+   re-issue an identical read of evidence already on screen; a stale or missing
+   record still re-reads, so the stale rule is unchanged. The skip is guarded by
+   the inputs fingerprint, never by a blanket "read once" flag.
+
 ## Mutation regions — pending / success / error
 
 Mutations (project creation, credential verification submits, pull-request creation) render through the same family: `pending` disables the invoking action (never a spinner takeover), `success` renders inline confirmation, `error` renders a `FeedbackBanner` (error tone) with copy-map copy and `RetryAction`. Rate-limited errors (`RATE_LIMITED` with `retryAfterMs`) disable the retry behind countdown guidance that ticks down once per second inside the banner (`use-retry-countdown`) — the retry un-disables itself, so the user never hammers the provider (spec user story 26).
@@ -172,6 +207,7 @@ Inputs render through `FieldFeedback`. The coverage contract requires testing `d
 ## Enforcement — honest scope
 
 - `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, and toast systems constructed outside `feedback/`. The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
+- Three end-to-end provider journeys (`test/provider-journeys.test.tsx`) run the REAL wizard against a REAL server with a registry injected through the provider contract's own seam: GitHub-only, Azure dual-role, and Jira tracker-only (degraded evidence plus a git host from another provider). They are written provider-agnostically — the provider under test is DATA (`test/fixtures/journey-providers.ts`), and the api-client transport is the only boundary that stands in — and they assert the created project's persisted connections, its role-tagged repository, its `gitIdentity`, and that no secret appears in any response.
 - The scan carries an explicit legacy allowlist (`LEGACY_ADHOC_FEEDBACK_FILES`) for files whose ad-hoc markup predates this contract and is scheduled for absorption by the wizard rebuild (spec #133). New files must never appear there, and entries leave the list when their absorbing ticket deletes them. `ProjectDetailView` and `QueueView` left it in #147.
 - The feedback-family import rule (nothing screen-specific) is enforced by the same smoke gate.
 
