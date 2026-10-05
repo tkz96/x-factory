@@ -576,10 +576,12 @@ describe("POST /api/projects with a connections payload", () => {
 
 describe("Ordered writes for crash safety (connections payload)", () => {
   let crashDir: string;
-  const originalDataDir = process.env.X_FACTORY_DATA_DIR;
-  const originalConfigPath = process.env.X_FACTORY_CONFIG_PATH;
+  let savedDataDir: string | undefined;
+  let savedConfigPath: string | undefined;
 
   beforeEach(async () => {
+    savedDataDir = process.env.X_FACTORY_DATA_DIR;
+    savedConfigPath = process.env.X_FACTORY_CONFIG_PATH;
     crashDir = await mkdtemp(path.join(tmpdir(), "xf-crash-"));
     process.env.X_FACTORY_DATA_DIR = path.join(crashDir, "data");
     process.env.X_FACTORY_CONFIG_PATH = path.join(crashDir, "projects.json");
@@ -587,8 +589,10 @@ describe("Ordered writes for crash safety (connections payload)", () => {
 
   afterEach(async () => {
     await chmod(process.env.X_FACTORY_CONFIG_PATH ?? "", 0o644).catch(() => {});
-    process.env.X_FACTORY_DATA_DIR = originalDataDir;
-    process.env.X_FACTORY_CONFIG_PATH = originalConfigPath;
+    if (savedDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
+    else process.env.X_FACTORY_DATA_DIR = savedDataDir;
+    if (savedConfigPath === undefined) delete process.env.X_FACTORY_CONFIG_PATH;
+    else process.env.X_FACTORY_CONFIG_PATH = savedConfigPath;
     await rm(crashDir, { recursive: true, force: true });
   });
 
@@ -676,5 +680,131 @@ describe("Ordered writes for crash safety (connections payload)", () => {
     expect(retry.status).toBe(201);
     expect(await storedIds()).toEqual([id]);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+  });
+});
+
+describe("Redaction before serialization (connections payload)", () => {
+  const marker = "synthetic-redaction-marker-4c8f";
+  const gitHostMarker = "synthetic-githost-marker-8d21";
+
+  function redactedPayload(
+    id: string,
+    connectionSecrets: { stub: string; github?: string },
+  ): ConnectionsPayload {
+    const connections: ConnectionsPayload["connections"] = [
+      {
+        providerId: "stub-capable",
+        roles: ["tracker"],
+        config: {
+          host: "https://stub.example",
+          apiToken: connectionSecrets.stub,
+          project: "redacted",
+        },
+      },
+    ];
+    if (connectionSecrets.github) {
+      connections.push({
+        providerId: "github",
+        roles: ["gitHost"],
+        config: {
+          token: connectionSecrets.github,
+          repoOwner: "acme",
+          repository: "web",
+        },
+      });
+    }
+    return {
+      id,
+      name: "Redacted",
+      workspacePath: tempDir,
+      connections,
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+          primary: true,
+        },
+      ],
+    };
+  }
+
+  /** Every response the API can emit for a project, as raw text. */
+  async function projectSurfaces(id: string): Promise<Array<[string, string]>> {
+    const paths = [
+      "/api/projects",
+      `/api/projects/${id}`,
+      `/api/projects/${id}/readiness`,
+      `/api/projects/${id}/tickets`,
+      // The legacy tracker summary is covered for secret *values* only: its
+      // `secretKey` field has always named the env variable (asserted in
+      // test/projects-api.test.ts) and is outside this ticket's surfaces.
+      `/api/projects/${id}/tracker`,
+      `/api/projects/${id}/env`,
+      "/api/providers/manifest",
+    ];
+    const surfaces: Array<[string, string]> = [];
+    for (const p of paths) {
+      const res = await fetch(`${baseUrl}${p}`);
+      surfaces.push([p, await res.text()]);
+    }
+    return surfaces;
+  }
+
+  it("never serializes a connection secret value in any response or the stored record", async () => {
+    const id = `redact-${Date.now()}`;
+    const { status } = await createProject(
+      redactedPayload(id, { stub: marker, github: gitHostMarker }),
+    );
+    expect(status).toBe(201);
+
+    for (const [surface, text] of await projectSurfaces(id)) {
+      expect(`${surface}:${text}`).not.toContain(marker);
+      expect(`${surface}:${text}`).not.toContain(gitHostMarker);
+    }
+
+    // The record on disk carries no secret value either.
+    const record = await readFile(configPath, "utf-8");
+    expect(record).toContain(id);
+    expect(record).not.toContain(marker);
+    expect(record).not.toContain(gitHostMarker);
+
+    // The secrets themselves are in env storage, under their declared keys.
+    const env = await loadProjectEnv(id);
+    expect(env.STUB_API_TOKEN).toBe(marker);
+    expect(env.GITHUB_TOKEN).toBe(gitHostMarker);
+  });
+
+  it("never exposes a secret envKey in the creation response, project surfaces, record or manifest", async () => {
+    const id = `redact-envkey-${Date.now()}`;
+    const { status, body } = await createProject(
+      redactedPayload(id, { stub: marker }),
+    );
+    expect(status).toBe(201);
+
+    expect(JSON.stringify(body)).not.toContain("STUB_API_TOKEN");
+
+    for (const [surface, text] of await projectSurfaces(id)) {
+      if (surface.endsWith("/tracker")) continue;
+      for (const envKey of [
+        "STUB_API_TOKEN",
+        "AZURE_DEVOPS_PAT",
+        "JIRA_API_TOKEN",
+        "GITHUB_TOKEN",
+      ]) {
+        expect(`${surface}:${text}`).not.toContain(envKey);
+      }
+    }
+
+    expect(await readFile(configPath, "utf-8")).not.toContain("STUB_API_TOKEN");
+
+    // The manifest declares the field as secret without its env target.
+    const manifestText = await (
+      await fetch(`${baseUrl}/api/providers/manifest`)
+    ).text();
+    expect(manifestText).not.toContain("envKey");
+    expect(manifestText).not.toContain("STUB_API_TOKEN");
+    expect(manifestText).toContain('"secret":true');
   });
 });
