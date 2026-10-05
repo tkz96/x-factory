@@ -26,23 +26,23 @@ export interface AsyncRegionProps {
   /** From `deriveAsyncState` — never a raw query. */
   derived: DerivedAsyncState;
   /** Wired to the query's refetch: retry for errors, refresh for stale. */
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
   /** Partial banner detail: exactly which parts failed (spec user story 31). */
-  failedParts?: readonly string[];
+  failedParts?: readonly string[] | undefined;
   /**
    * Overrides the canonical error guidance for this region — for a failure
    * whose cause the region knows (e.g. a project with no tracker connection,
    * #147). The raw payload is still never rendered.
    */
-  errorCopy?: string;
+  errorCopy?: string | undefined;
   /** Overrides the error region's retry label (e.g. the repair path, #147). */
-  retryLabel?: string;
+  retryLabel?: string | undefined;
   /** Overrides the canonical empty guidance for this region. */
-  emptyCopy?: string;
+  emptyCopy?: string | undefined;
   /** The empty state's optional call-to-action (e.g. the onboard button). */
-  emptyAction?: ReactNode;
+  emptyAction?: ReactNode | undefined;
   /** Region content — rendered in ready, partial, and stale. */
-  children?: ReactNode;
+  children?: ReactNode | undefined;
 }
 
 export function AsyncRegion({

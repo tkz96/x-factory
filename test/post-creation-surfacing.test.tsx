@@ -444,7 +444,7 @@ describe("Project detail surface — combo line and tracker card", () => {
 
 describe("Tracker card — capability-driven diagnostics (#147)", () => {
   it("renders the scope diagnostic when the connection declares the capability", async () => {
-    const testScopes = mock(async () => ({
+    const testScopes = mock(async (_payload: { projectId?: string }) => ({
       ok: true,
       overPrivileged: true,
       scopes: { listTickets: true },
@@ -474,7 +474,9 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
   });
 
   it("renders no capability-driven action when the connection declares none", () => {
-    const testScopes = mock(async () => ({ ok: true }));
+    const testScopes = mock(async (_payload: { projectId?: string }) => ({
+      ok: true,
+    }));
     api.testAzureScopes = testScopes as never;
 
     const { container } = renderDetail(
