@@ -39,6 +39,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ConnectionComboLine } from "../src/frontend/components/projects/ConnectionComboLine.js";
 import { deriveConnectionIntegrity } from "../src/frontend/components/projects/connection-integrity.js";
+import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
   ModalProvider,
@@ -488,5 +489,96 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
       ),
     ).toBe(false);
     expect(testScopes).toHaveBeenCalledTimes(0);
+  });
+});
+
+// ─── Project cards ──────────────────────────────────────────────────────────
+
+function renderCard(project: Project, isArchived = false) {
+  return renderUi(
+    React.createElement(ProjectCard, { project, isArchived }),
+    makeClient(),
+    ["/projects"],
+  );
+}
+
+describe("Project card — combo line and integrity failure", () => {
+  it("HEALTHY: renders the combo line with manifest display names", () => {
+    const { container } = renderCard(makeProject());
+
+    const combo = container.querySelector(".connection-combo-line");
+    expect(combo?.classList.contains("connection-combo-line--connected")).toBe(
+      true,
+    );
+    expect(combo?.textContent).toContain("Tracker One");
+    expect(combo?.textContent).toContain("Git Host One");
+    // The provider id is never the label when the manifest names the provider.
+    expect(combo?.textContent).not.toContain("tracker-one");
+    expect(container.querySelector("button.retry-action")).toBeNull();
+  });
+
+  it("DEGRADED: renders the warning tone and no repair path", () => {
+    const { container } = renderCard(
+      makeProject({ connections: DEGRADED_CONNECTIONS }),
+    );
+
+    expect(
+      container
+        .querySelector(".connection-combo-line")
+        ?.classList.contains("connection-combo-line--warning"),
+    ).toBe(true);
+    expect(container.querySelector(".connection-combo-line--error")).toBeNull();
+    expect(container.querySelector(".async-region--error")).toBeNull();
+  });
+
+  it("INTEGRITY FAILURE: renders the error tone with the repair path", () => {
+    const { container } = renderCard(
+      makeProject({ connections: NO_TRACKER_CONNECTIONS }),
+    );
+
+    expect(
+      container
+        .querySelector(".connection-combo-line")
+        ?.classList.contains("connection-combo-line--error"),
+    ).toBe(true);
+    const repair = container.querySelector("button.retry-action");
+    expect(repair?.textContent).toContain(CONNECTIONS_COPY.reconnect);
+    expect(container.querySelector(".async-region--empty")).toBeNull();
+  });
+
+  it("INTEGRITY FAILURE: the repair path never nests inside the card's link", () => {
+    const { container } = renderCard(
+      makeProject({ connections: NO_TRACKER_CONNECTIONS }),
+    );
+
+    const repair = container.querySelector("button.retry-action");
+    if (!(repair instanceof HTMLElement)) {
+      throw new Error("repair action missing");
+    }
+    // An interactive element inside the card's anchor would be invalid HTML.
+    expect(repair.closest("a")).toBeNull();
+    expect(
+      container.querySelector('a[href="/projects/proj-1"]'),
+    ).not.toBeNull();
+  });
+
+  it("LEGACY: a pre-#145 project still renders a combo line", () => {
+    const { container } = renderCard(
+      makeProject({
+        connections: undefined,
+        issueTracker: {
+          provider: "tracker-one",
+          "tracker-one": { host: "https://legacy.example" },
+        } as unknown as Project["issueTracker"],
+      }),
+    );
+
+    const combo = container.querySelector(".connection-combo-line");
+    expect(combo).not.toBeNull();
+    // Git host unknown is shown as not recorded, never invented.
+    expect(combo?.textContent).toContain(CONNECTIONS_COPY.notRecorded);
+    expect(combo?.classList.contains("connection-combo-line--warning")).toBe(
+      true,
+    );
   });
 });
