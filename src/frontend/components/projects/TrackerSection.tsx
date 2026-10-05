@@ -81,6 +81,10 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
   const canVerifyScopes = tracker.capabilities.includes("verifyScopes");
 
+  // The action is gated on the connection's DECLARED CAPABILITY, never on a
+  // provider id: a provider that adds `verifyScopes` gets the action with no
+  // change here. The wire route behind the call is provider-named (a recorded
+  // #141-era limitation — see docs/reference/state-coverage.md).
   const handleVerifyScopes = async () => {
     setTesting(true);
     setTestResult(null);
