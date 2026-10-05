@@ -338,4 +338,222 @@ describe("POST /api/projects with a connections payload", () => {
       MARKER_STUB_TOKEN,
     );
   });
+
+  describe("Validation layering on POST /api/projects (connections payload)", () => {
+    const baseId = () =>
+      `layers-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+    function minimalPayload(
+      id: string,
+      connection: {
+        providerId?: string;
+        roles?: string[];
+        config?: Record<string, unknown>;
+      } = {},
+    ): ConnectionsPayload {
+      return {
+        id,
+        name: "Layered",
+        workspacePath: tempDir,
+        connections: [
+          {
+            providerId: connection.providerId ?? "stub-capable",
+            roles: connection.roles ?? ["tracker"],
+            config: connection.config ?? {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "layered",
+            },
+          },
+        ],
+        repositories: [
+          {
+            id: `${id}-web`,
+            name: "web",
+            localPath: path.join(tempDir, "web"),
+            role: "backend",
+          },
+        ],
+      };
+    }
+
+    it("rejects transport-invalid payloads with 400", async () => {
+      const id = baseId();
+
+      // Missing connections entirely (a legacy payload cannot satisfy the
+      // normalized shape either).
+      const missing = await createProject({
+        id,
+        name: "Nope",
+        repositories: [{ id: "r", name: "r", role: "backend" }],
+      });
+      expect(missing.status).toBe(400);
+
+      // No repositories.
+      const noRepos = await createProject({
+        ...minimalPayload(id),
+        repositories: [],
+      });
+      expect(noRepos.status).toBe(400);
+
+      // A connection with no roles.
+      const noRoles = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: [],
+            config: { host: "https://stub.example" },
+          },
+        ],
+      });
+      expect(noRoles.status).toBe(400);
+
+      // Wrong types.
+      const wrongTypes = await createProject({
+        ...minimalPayload(id),
+        connections: "not-an-array",
+      });
+      expect(wrongTypes.status).toBe(400);
+
+      // Knowledge-only repositories are not application repositories.
+      const knowledgeOnly = await createProject({
+        ...minimalPayload(id),
+        repositories: [{ id: "k", name: "knowledge", role: "knowledge" }],
+      });
+      expect(knowledgeOnly.status).toBe(400);
+    });
+
+    it("rejects an unknown provider with 409 UNKNOWN_PROVIDER", async () => {
+      const id = baseId();
+      const { status, body } = await createProject(
+        minimalPayload(id, { providerId: "no-such-provider" }),
+      );
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["UNKNOWN_PROVIDER"] });
+      expect(await readStoredProject(id)).toBeUndefined();
+    });
+
+    it("rejects a provider config that fails the provider's own schema with fieldErrors codes", async () => {
+      const id = baseId();
+      // `apiToken` is required by the stub schema and absent here.
+      const { status, body } = await createProject(
+        minimalPayload(id, {
+          config: { host: "https://stub.example", project: "layered" },
+        }),
+      );
+      expect(status).toBe(409);
+      expect(body).toEqual({ fieldErrors: { apiToken: "REQUIRED" } });
+
+      // An empty required value is REQUIRED, not a stored empty secret.
+      const invalid = await createProject(
+        minimalPayload(baseId(), {
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            project: "",
+          },
+        }),
+      );
+      expect(invalid.status).toBe(409);
+      expect(invalid.body).toEqual({ fieldErrors: { project: "REQUIRED" } });
+      expect(await readStoredProject(id)).toBeUndefined();
+    });
+
+    it("rejects a role the provider cannot serve with 409 INCOMPATIBLE_CONFIGURATION", async () => {
+      const { status, body } = await createProject({
+        ...minimalPayload(baseId()),
+        connections: [
+          {
+            providerId: "stub-tracker-only",
+            roles: ["gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "layered",
+            },
+          },
+        ],
+      });
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+    });
+
+    it("rejects a provider missing the capabilities its role requires", async () => {
+      const config = {
+        host: "https://stub.example",
+        apiToken: MARKER_STUB_TOKEN,
+        project: "layered",
+      };
+
+      const noTickets = await createProject({
+        ...minimalPayload(baseId()),
+        connections: [
+          { providerId: "stub-no-tickets", roles: ["tracker"], config },
+        ],
+      });
+      expect(noTickets.status).toBe(409);
+      expect(noTickets.body).toEqual({
+        formErrors: ["INCOMPATIBLE_CONFIGURATION"],
+      });
+
+      const noPrs = await createProject({
+        ...minimalPayload(baseId()),
+        connections: [
+          { providerId: "stub-no-prs", roles: ["gitHost"], config },
+        ],
+      });
+      expect(noPrs.status).toBe(409);
+      expect(noPrs.body).toEqual({
+        formErrors: ["INCOMPATIBLE_CONFIGURATION"],
+      });
+    });
+
+    it("rejects two connections of the same provider (no silent merges)", async () => {
+      const id = baseId();
+      const config = {
+        host: "https://stub.example",
+        apiToken: MARKER_STUB_TOKEN,
+        project: "layered",
+      };
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          { providerId: "stub-capable", roles: ["tracker"], config },
+          { providerId: "stub-capable", roles: ["gitHost"], config },
+        ],
+      });
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+      expect(await readStoredProject(id)).toBeUndefined();
+    });
+
+    it("rejects a duplicate project id with 409 (create-only) and does not overwrite", async () => {
+      const id = baseId();
+      const first = await createProject(minimalPayload(id));
+      expect(first.status).toBe(201);
+
+      const second = await createProject({
+        ...minimalPayload(id),
+        name: "Hijacked",
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: "synthetic-other-token-2b7e",
+              project: "hijack",
+            },
+          },
+        ],
+      });
+      expect(second.status).toBe(409);
+
+      // The existing project and its secret are untouched.
+      expect((await readStoredProject(id))?.name).toBe("Layered");
+      expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+    });
+  });
 });

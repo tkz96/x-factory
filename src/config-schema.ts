@@ -20,7 +20,10 @@ import type {
 const IssueTrackerInputSchema = z
   .union([
     z.object({
-      provider: z.enum(["azure", "jira", "github"]).optional(),
+      // The legacy tracker view is a compatibility field, not the provider
+      // registry: a non-empty id keeps records created by providers outside
+      // the current built-in set loadable (extensibility gate a, #127).
+      provider: z.string().min(1).optional(),
       connectionId: z.string().optional(),
       projectId: z.string().optional(),
       orgUrl: z.string().optional(),
