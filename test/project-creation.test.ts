@@ -525,6 +525,23 @@ describe("POST /api/projects with a connections payload", () => {
       expect(await readStoredProject(id)).toBeUndefined();
     });
 
+    it("takes the normalized path when a payload carries both a legacy issueTracker and connections", async () => {
+      const id = baseId();
+
+      // The validated union decides the path, and its normalized branch is what
+      // a payload with `connections` satisfies. The supplied legacy mirror must
+      // be ignored, never preferred: a hand-written issueTracker alongside real
+      // connections would otherwise silently become the project's tracker view.
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        issueTracker: { provider: "github", connectionId: "github" },
+      });
+      expect(status).toBe(201);
+
+      const issueTracker = body.issueTracker as { provider?: string };
+      expect(issueTracker.provider).toBe("stub-capable");
+    });
+
     it("rejects a payload with no tracker connection with 409 MISSING_TRACKER_CONNECTION before any write", async () => {
       const id = baseId();
 

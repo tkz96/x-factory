@@ -9,7 +9,7 @@ import {
   loadProjects,
   saveProject,
 } from "../config.js";
-import type { ConnectionsProjectInput } from "../config-schema.js";
+import { isConnectionsProjectInput } from "../config-schema.js";
 import {
   checkProjectReadiness,
   evaluateRepositoryReadiness,
@@ -53,7 +53,6 @@ import {
 } from "./responses.js";
 import {
   SaveProjectBodySchema,
-  UpdateProjectBodySchema,
   UpdateProjectConnectionsBodySchema,
 } from "./schemas.js";
 
@@ -76,13 +75,11 @@ async function handleCreateProject(
     SaveProjectBodySchema,
     (body) =>
       catchHttpErrors(async () => {
-        // A payload carrying `connections` takes the normalized creation path
-        // (#131); everything else keeps the legacy configuration path.
-        const saved = hasConnections(body)
-          ? await createProjectFromConnections(
-              body as unknown as ConnectionsProjectInput,
-              { registry },
-            )
+        // The validated union's own discrimination decides the path (#131):
+        // a payload that satisfies the normalized connections branch creates
+        // through it; everything else keeps the legacy configuration path.
+        const saved = isConnectionsProjectInput(body)
+          ? await createProjectFromConnections(body, { registry })
           : await createProject(body);
         return jsonResponse(saved, 201);
       }),
@@ -97,7 +94,11 @@ async function handleGetProject(projectId: string): Promise<Response> {
   return jsonResponse({ ...project, readiness });
 }
 
-/** A payload carrying a `connections` array takes the normalized path (#131). */
+/**
+ * The raw update body's discriminator: it is NOT validated against a union, so
+ * the presence of a `connections` array is the only signal available here. The
+ * create path never needs this — its validated union already decided.
+ */
 function hasConnections(body: unknown): boolean {
   return (
     typeof body === "object" &&
@@ -134,11 +135,13 @@ async function handleUpdateProject(
   }
 
   return catchHttpErrors(async () => {
-    const validated = validateAgainstSchema(raw, UpdateProjectBodySchema);
-    if (!validated.ok) return validated.response;
+    // The merge-and-save path: an update body that carries no `connections`
+    // array is merged onto the existing record as an open object — there is no
+    // schema left to reject it against, so nothing is validated here. (A schema
+    // that can never fail is not a validation step.)
     const merged = {
       ...project,
-      ...validated.data,
+      ...raw,
       id: projectId,
     };
     const saved = await saveProject(merged);

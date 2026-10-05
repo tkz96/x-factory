@@ -291,6 +291,17 @@ export const ProjectInputSchema = z.union([
   ConnectionsProjectInputSchema,
 ]);
 
+/**
+ * The union's own discriminator (#131): a payload that satisfies the normalized
+ * connections branch IS the connections payload. Declared next to the union it
+ * discriminates so the create path never hand-rolls a second, duck-typed check.
+ */
+export function isConnectionsProjectInput(
+  input: unknown,
+): input is ConnectionsProjectInput {
+  return ConnectionsProjectInputSchema.safeParse(input).success;
+}
+
 // ---------------------------------------------------------------------------
 // Unified project validator: handles both legacy and modern formats
 // ---------------------------------------------------------------------------
