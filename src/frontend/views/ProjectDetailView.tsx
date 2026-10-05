@@ -70,18 +70,20 @@ export function ProjectDetailView() {
               type="button"
               id="btn-back-to-projects-list"
               className="btn-secondary btn-sm"
-              title="Back to all projects"
-              aria-label="Back to all projects"
+              title={PROJECT_DETAIL_COPY.backToProjectsTitle}
+              aria-label={PROJECT_DETAIL_COPY.backToProjectsTitle}
               onClick={backToProjects}
             >
               <svg className="icon icon-sm" aria-hidden="true">
                 <use href="/assets/icons/sprite.svg#icon-arrow-left" />
               </svg>
-              <span>All Projects</span>
+              <span>{PROJECT_DETAIL_COPY.allProjects}</span>
             </button>
             <h2 id="project-detail-name">{project.name}</h2>
             {project.archived && (
-              <span className="role-badge role-badge-archived">Archived</span>
+              <span className="role-badge role-badge-archived">
+                {PROJECT_DETAIL_COPY.archived}
+              </span>
             )}
           </div>
         </div>
@@ -94,22 +96,29 @@ export function ProjectDetailView() {
 
         <div id="project-detail-meta" className="project-detail-meta-grid mt-4">
           <div className="project-meta-item">
-            <strong>Project ID</strong>
+            <strong>{PROJECT_DETAIL_COPY.projectId}</strong>
             <code>{project.id}</code>
           </div>
           <div className="project-meta-item">
-            <strong>Workspace Path</strong>
+            <strong>{PROJECT_DETAIL_COPY.workspacePath}</strong>
             <code>
-              {project.workspacePath || project.repositoryPath || "Default"}
+              {project.workspacePath ||
+                project.repositoryPath ||
+                PROJECT_DETAIL_COPY.defaultWorkspace}
             </code>
           </div>
           <div className="project-meta-item">
-            <strong>Default Branch</strong>
-            <span>{project.defaultBranch || "main"}</span>
+            <strong>{PROJECT_DETAIL_COPY.defaultBranch}</strong>
+            <span>
+              {project.defaultBranch ||
+                PROJECT_DETAIL_COPY.defaultBranchFallback}
+            </span>
           </div>
           <div className="project-meta-item">
-            <strong>Repositories</strong>
-            <span>{repos.length} connected</span>
+            <strong>{PROJECT_DETAIL_COPY.repositories}</strong>
+            <span>
+              {PROJECT_DETAIL_COPY.repositoriesConnected(repos.length)}
+            </span>
           </div>
         </div>
 
@@ -121,7 +130,7 @@ export function ProjectDetailView() {
 
         <div className="project-repos-section mt-6">
           <div className="section-header-flex mb-3">
-            <h3>Repositories</h3>
+            <h3>{PROJECT_DETAIL_COPY.repositories}</h3>
             <span id="project-detail-repo-count" className="nav-badge">
               {repos.length}
             </span>
@@ -133,16 +142,15 @@ export function ProjectDetailView() {
           >
             {repos.length === 0 ? (
               <p className="text-muted p-4">
-                No separate sub-repositories configured. Using primary workspace
-                repository.
+                {PROJECT_DETAIL_COPY.repositoriesEmpty}
               </p>
             ) : (
               <table className="repos-table">
                 <thead>
                   <tr>
-                    <th>Repository Name</th>
-                    <th>Path</th>
-                    <th>Default Branch</th>
+                    <th>{PROJECT_DETAIL_COPY.repositoryNameColumn}</th>
+                    <th>{PROJECT_DETAIL_COPY.repositoryPathColumn}</th>
+                    <th>{PROJECT_DETAIL_COPY.repositoryBranchColumn}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -151,7 +159,8 @@ export function ProjectDetailView() {
                       <td className="cell-name">{r.name}</td>
                       <td className="cell-truncate">{r.path}</td>
                       <td className="cell-branch">
-                        {r.defaultBranch || "main"}
+                        {r.defaultBranch ||
+                          PROJECT_DETAIL_COPY.defaultBranchFallback}
                       </td>
                     </tr>
                   ))}

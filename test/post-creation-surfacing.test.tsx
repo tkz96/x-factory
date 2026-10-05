@@ -38,6 +38,8 @@ import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import {
   CONNECTIONS_COPY,
+  PROJECT_CARD_COPY,
+  PROJECT_DETAIL_COPY,
   QUEUE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import { ConnectionComboLine } from "../src/frontend/components/projects/ConnectionComboLine.js";
@@ -375,6 +377,7 @@ describe("Project detail surface — combo line and tracker card", () => {
     expect(combo?.textContent).not.toContain("tracker-one");
 
     // No degraded warning, no integrity failure, no repair path.
+    expect(container.textContent).toContain(PROJECT_DETAIL_COPY.projectId);
     expect(container.querySelector(".feedback-banner--warning")).toBeNull();
     expect(container.querySelector(".async-region--error")).toBeNull();
     expect(container.querySelector("button.retry-action")).toBeNull();
@@ -526,6 +529,9 @@ describe("Project card — combo line and integrity failure", () => {
     // The provider id is never the label when the manifest names the provider.
     expect(combo?.textContent).not.toContain("tracker-one");
     expect(container.querySelector("button.retry-action")).toBeNull();
+    // Every string on the card comes from the copy map.
+    expect(container.textContent).toContain(PROJECT_CARD_COPY.viewDetails);
+    expect(container.textContent).toContain(PROJECT_CARD_COPY.id);
   });
 
   it("DEGRADED: renders the warning tone and no repair path", () => {

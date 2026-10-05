@@ -216,11 +216,38 @@ export const QUEUE_COPY = {
   manualRun: "Start Manual Run",
 } as const;
 
-/** Copy for the single-project detail read region (#147). */
+/** Copy for the single-project detail surface (#147). */
 export const PROJECT_DETAIL_COPY = {
   notFound: (projectId: string) =>
     `The project “${projectId}” does not exist or has been removed.`,
   backToProjects: "Back to Projects",
+  allProjects: "All Projects",
+  backToProjectsTitle: "Back to all projects",
+  archived: "Archived",
+  projectId: "Project ID",
+  workspacePath: "Workspace Path",
+  defaultWorkspace: "Default",
+  defaultBranch: "Default Branch",
+  defaultBranchFallback: "main",
+  repositories: "Repositories",
+  repositoriesConnected: (count: number) => `${count} connected`,
+  repositoriesEmpty:
+    "No separate sub-repositories configured. Using primary workspace repository.",
+  repositoryNameColumn: "Repository Name",
+  repositoryPathColumn: "Path",
+  repositoryBranchColumn: "Default Branch",
+} as const;
+
+/** Copy for the project cards (#147). */
+export const PROJECT_CARD_COPY = {
+  viewDetailsLabel: (projectName: string) =>
+    `View details for project ${projectName}`,
+  id: "ID",
+  workspace: "Workspace",
+  workspaceFallback: "Configured",
+  repositoryCount: (count: number) =>
+    count === 1 ? "1 repo" : `${count} repos`,
+  viewDetails: "View Details →",
 } as const;
 
 /**

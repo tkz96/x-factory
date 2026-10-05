@@ -12,7 +12,11 @@ import "./ProjectCard.css";
 import { Link, useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
-import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
+import {
+  CONNECTIONS_COPY,
+  PROJECT_CARD_COPY,
+  PROJECT_DETAIL_COPY,
+} from "../feedback/copy-map.js";
 import { RetryAction } from "../feedback/RetryAction.js";
 import { ConnectionComboLine } from "./ConnectionComboLine.js";
 import { deriveConnectionIntegrity } from "./connection-integrity.js";
@@ -29,29 +33,33 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
   const repoCount = (project.repositories || []).length;
   const integrity = deriveConnectionIntegrity(project, descriptors);
   const displayPath =
-    project.workspacePath || project.repositoryPath || "Configured";
+    project.workspacePath ||
+    project.repositoryPath ||
+    PROJECT_CARD_COPY.workspaceFallback;
 
   return (
     <div className={`project-card card ${isArchived ? "is-archived" : ""}`}>
       <Link
         to={`/projects/${project.id}`}
         className="project-card-link"
-        aria-label={`View details for project ${project.name}`}
+        aria-label={PROJECT_CARD_COPY.viewDetailsLabel(project.name)}
       >
         <div className="project-card-header">
           <h3 title={project.name}>{project.name}</h3>
           {isArchived && (
-            <span className="role-badge role-badge-archived">Archived</span>
+            <span className="role-badge role-badge-archived">
+              {PROJECT_DETAIL_COPY.archived}
+            </span>
           )}
         </div>
 
         <div className="project-card-meta">
-          <strong>ID</strong>
+          <strong>{PROJECT_CARD_COPY.id}</strong>
           <code title={project.id}>{project.id}</code>
         </div>
 
         <div className="project-card-meta">
-          <strong>Workspace</strong>
+          <strong>{PROJECT_CARD_COPY.workspace}</strong>
           <code title={displayPath}>{displayPath}</code>
         </div>
 
@@ -64,9 +72,11 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
         {!isArchived && (
           <div className="project-card-footer">
             <span className="nav-badge">
-              {repoCount} {repoCount === 1 ? "repo" : "repos"}
+              {PROJECT_CARD_COPY.repositoryCount(repoCount)}
             </span>
-            <span className="status-pill ready">View Details →</span>
+            <span className="status-pill ready">
+              {PROJECT_CARD_COPY.viewDetails}
+            </span>
           </div>
         )}
       </Link>
