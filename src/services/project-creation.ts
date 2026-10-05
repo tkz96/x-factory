@@ -40,7 +40,7 @@ import {
   DEFAULT_ISSUE_TRACKER,
   deriveIssueTracker,
 } from "../providers/project-config.js";
-import { redactConnections } from "../providers/redaction.js";
+import { redactConfigForProvider } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,
   type ProviderRegistry,
@@ -61,6 +61,29 @@ const ROLE_CAPABILITIES: Record<ProviderRole, readonly ProviderCapability[]> = {
   tracker: ["listTickets"],
   gitHost: ["listRepositories", "createPullRequest", "findExistingPullRequest"],
 };
+
+/** The creation/update connections as they arrive, with secrets masked. */
+function redactIncomingConnections(
+  connections: readonly {
+    providerId: string;
+    roles: readonly ProviderRole[];
+    config: Record<string, unknown>;
+  }[],
+  registry: ProviderRegistry,
+): Array<{
+  providerId: string;
+  roles: readonly ProviderRole[];
+  config: Record<string, unknown>;
+}> {
+  return connections.map((connection) => ({
+    providerId: connection.providerId,
+    roles: connection.roles,
+    config: redactConfigForProvider(
+      registry.get(connection.providerId),
+      connection.config,
+    ),
+  }));
+}
 
 /** 409 `formErrors` code for a role/capability or connection-shape mismatch. */
 function incompatibleConfiguration(): SemanticValidationError {
@@ -273,7 +296,9 @@ export async function createProjectFromConnections(
     {},
     {
       project_id: saved.id,
-      connections: redactConnections(saved.connections, registry),
+      // Redaction before serialization: the incoming configuration is logged
+      // with every declared secret masked, never as received.
+      connections: redactIncomingConnections(input.connections, registry),
     },
   );
 
@@ -475,7 +500,8 @@ export async function updateProjectConnections(
     {},
     {
       project_id: saved.id,
-      connections: redactConnections(saved.connections, registry),
+      // Redacted before serialization, as on creation.
+      connections: redactIncomingConnections(input.connections, registry),
     },
   );
 

@@ -1013,3 +1013,56 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(body).toEqual({ fieldErrors: { host: "INVALID" } });
   });
 });
+describe("Redaction before serialization — structured logs", () => {
+  it("logs the connection configuration with every declared secret masked", async () => {
+    const id = `log-${Date.now()}`;
+    const secret = "synthetic-log-marker-6b3d";
+    const captured: string[] = [];
+    const originalLog = console.log;
+    console.log = (message?: unknown, ...rest: unknown[]) => {
+      captured.push([message, ...rest].map(String).join(" "));
+    };
+
+    try {
+      const { status } = await createProject({
+        id,
+        name: "Logged",
+        workspacePath: tempDir,
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: secret,
+              project: "logged",
+            },
+          },
+        ],
+        repositories: [
+          {
+            id: `${id}-web`,
+            name: "web",
+            localPath: path.join(tempDir, "web"),
+            role: "backend",
+          },
+        ],
+      });
+      expect(status).toBe(201);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const creationLog = captured.find((line) =>
+      line.includes("Project created from connections"),
+    );
+    expect(creationLog).toBeDefined();
+    // The log really does carry the configuration (so the next assertion is
+    // not vacuous)…
+    expect(creationLog).toContain("https://stub.example");
+    expect(creationLog).toContain("logged");
+    // …with the declared secret masked, never as received.
+    expect(creationLog).toContain("••••••••");
+    expect(creationLog).not.toContain(secret);
+  });
+});
