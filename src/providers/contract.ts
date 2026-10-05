@@ -13,7 +13,7 @@
 // - Optional capabilities are detected only via the `hasCapability`
 //   type-guard, never via truthiness checks (#127).
 // - X-Factory never merges, closes, or abandons pull requests — the
-//   create-only safety invariant lives here (PR_CREATE_ONLY).
+//   create-only safety invariant lives here (assertCreateOnlyInvariant).
 
 import type { z } from "zod/v4";
 import type { Ticket } from "../types.js";
@@ -223,10 +223,9 @@ export interface ProviderRepository {
 /**
  * Safety invariant (#127 §7): X-Factory creates pull requests and posts
  * check statuses — it NEVER merges, closes, or abandons them. The contract
- * deliberately exposes no PR mutation capability; this constant makes the
- * policy explicit and testable.
+ * deliberately exposes no PR mutation capability; the invariant is enforced
+ * by `assertCreateOnlyInvariant` and proven at the registry level.
  */
-export const PR_CREATE_ONLY = "create-only" as const;
 
 export interface CreatePullRequestInput {
   /**
@@ -327,7 +326,7 @@ export function hasCapability<Capability extends ProviderCapability>(
 }
 
 /**
- * Verifies that a provider strictly adheres to the PR_CREATE_ONLY safety invariant.
+ * Verifies that a provider strictly adheres to the create-only safety invariant.
  * Returns true if no PR mutation methods (merge, close, abandon, delete, update) are exposed.
  */
 export function isCreateOnlyProvider(provider: Provider): boolean {
@@ -343,13 +342,13 @@ export function isCreateOnlyProvider(provider: Provider): boolean {
 }
 
 /**
- * Asserts that a provider adheres to the PR_CREATE_ONLY invariant, throwing if any
+ * Asserts that a provider adheres to the create-only invariant, throwing if any
  * forbidden PR mutation capabilities are defined.
  */
 export function assertCreateOnlyInvariant(provider: Provider): void {
   if (!isCreateOnlyProvider(provider)) {
     throw new Error(
-      "Provider violates PR_CREATE_ONLY invariant: pull request mutation methods are strictly forbidden.",
+      "Provider violates the create-only invariant: pull request mutation methods are strictly forbidden.",
     );
   }
 }

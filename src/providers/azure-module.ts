@@ -7,7 +7,7 @@
 // - Internal auth acquisition (PAT Basic, JWT Bearer, Azure CLI fallback)
 // - HTML-on-2xx normalization (auth wall detection)
 // - CAPABILITY_UNCONFIRMED degraded verification probes
-// - REST-primary PR creation conforming to PR_CREATE_ONLY
+// - REST-primary PR creation conforming to the create-only invariant
 // - parseQuickUrl pre-fills both tracker and git-host drafts
 
 import { z } from "zod/v4";

@@ -81,7 +81,56 @@ function normalizeLabels(rawLabels?: Array<string | RawGitHubLabel>): string[] {
 }
 
 /**
+ * Extracts the `rel="next"` URL from a GitHub `Link` response header, when present.
+ * GitHub paginates with `Link: <...>; rel="next", <...>; rel="last"`.
+ */
+function parseGitHubNextPageLink(
+  linkHeader: string | null | undefined,
+): string | undefined {
+  if (!linkHeader) return undefined;
+  for (const segment of linkHeader.split(",")) {
+    const match = segment.match(/<([^>]+)>\s*;\s*rel="next"/);
+    if (match?.[1]) return match[1];
+  }
+  return undefined;
+}
+
+/**
+ * Converts a raw GitHub issue into a normalized TrackerTicket, or null when the
+ * issue is a pull request or does not carry the required label.
+ */
+function toTrackerTicket(
+  issue: RawGitHubIssue,
+  requiredLabel: string | undefined,
+  issueBaseUrl: string,
+): TrackerTicket | null {
+  if (issue.pull_request) return null;
+
+  const labels = normalizeLabels(issue.labels);
+  if (requiredLabel && !labels.includes(requiredLabel)) {
+    return null;
+  }
+
+  const acceptanceCriteria = extractAcceptanceCriteria(issue.body);
+  return {
+    id: `GH-${issue.number}`,
+    title: issue.title,
+    description: issue.body || "",
+    acceptanceCriteria,
+    labels,
+    url: issue.html_url || `${issueBaseUrl}/${issue.number}`,
+    provider: "github",
+    ...(issue.updated_at ? { updatedAt: issue.updated_at } : {}),
+  };
+}
+
+/**
  * Lists tickets (issues) from a GitHub repository, filtering out pull requests.
+ *
+ * Follows every `Link: rel="next"` page so the full result set is collected;
+ * a visited-URL set breaks repeated-link loops. There is deliberately no
+ * page-count cap — pagination terminates when the API stops advertising a
+ * next page, or when a link repeats.
  */
 export async function listGitHubTickets(
   config: ProviderConfig,
@@ -114,43 +163,39 @@ export async function listGitHubTickets(
     return [];
   }
   if (!owner || !repo) return [];
-  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
 
-  let url = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&per_page=100`;
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
+  const issueBaseUrl = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues`;
+
+  let nextUrl: string | undefined = `${issueBaseUrl}?state=open&per_page=100`;
   if (options.requiredLabel) {
-    url += `&labels=${encodeURIComponent(options.requiredLabel)}`;
+    nextUrl += `&labels=${encodeURIComponent(options.requiredLabel)}`;
   }
 
-  const res = await githubFetch(url, {
-    headers: resolveGitHubHeaders(token),
-    fetchFn,
-  });
-
-  const rawIssues = (
-    Array.isArray(res.data) ? res.data : []
-  ) as RawGitHubIssue[];
-
-  // GitHub returns pull requests in the issues endpoint; exclude items with `pull_request` key
+  const headers = resolveGitHubHeaders(token);
+  const visited = new Set<string>();
   const tickets: TrackerTicket[] = [];
-  for (const issue of rawIssues) {
-    if (issue.pull_request) continue;
 
-    const labels = normalizeLabels(issue.labels);
-    if (options.requiredLabel && !labels.includes(options.requiredLabel)) {
-      continue;
+  while (nextUrl && !visited.has(nextUrl)) {
+    visited.add(nextUrl);
+
+    const res = await githubFetch(nextUrl, { headers, fetchFn });
+    const rawIssues = (
+      Array.isArray(res.data) ? res.data : []
+    ) as RawGitHubIssue[];
+
+    // GitHub returns pull requests in the issues endpoint;
+    // toTrackerTicket excludes them from the normalized output.
+    for (const issue of rawIssues) {
+      const ticket = toTrackerTicket(
+        issue,
+        options.requiredLabel,
+        issueBaseUrl,
+      );
+      if (ticket) tickets.push(ticket);
     }
 
-    const acceptanceCriteria = extractAcceptanceCriteria(issue.body);
-    tickets.push({
-      id: `GH-${issue.number}`,
-      title: issue.title,
-      description: issue.body || "",
-      acceptanceCriteria,
-      labels,
-      url: issue.html_url || `${root}/${owner}/${repo}/issues/${issue.number}`,
-      provider: "github",
-      ...(issue.updated_at ? { updatedAt: issue.updated_at } : {}),
-    });
+    nextUrl = parseGitHubNextPageLink(res.headers.get("link"));
   }
 
   return tickets;

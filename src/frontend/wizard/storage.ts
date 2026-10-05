@@ -19,13 +19,31 @@ function sanitizeConfig(
     if (SENSITIVE_KEY_PATTERN.test(key)) {
       continue;
     }
-    if (val && typeof val === "object" && !Array.isArray(val)) {
+    if (Array.isArray(val)) {
+      clean[key] = val.map(sanitizeNode);
+    } else if (val && typeof val === "object") {
       clean[key] = sanitizeConfig(val as Record<string, unknown>);
     } else {
       clean[key] = val;
     }
   }
   return clean;
+}
+
+/**
+ * Sanitizes an arbitrary nested value (object or array member) recursively:
+ * arrays are traversed element by element, objects key by key, scalars pass
+ * through. Secret-bearing keys are dropped at every depth, so a secret can
+ * never reach the draft by nesting it inside an array or a deeper object.
+ */
+function sanitizeNode(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeNode);
+  }
+  if (value && typeof value === "object") {
+    return sanitizeConfig(value as Record<string, unknown>);
+  }
+  return value;
 }
 
 function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
@@ -51,6 +69,76 @@ function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
       confirmed: false,
     },
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStepNumber(value: unknown): boolean {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 5
+  );
+}
+
+function isBasicsState(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    typeof value.id === "string" &&
+    typeof value.description === "string" &&
+    typeof value.workspacePath === "string"
+  );
+}
+
+function isConnectionRoleState(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (typeof value.providerId === "string" || value.providerId === null) &&
+    isRecord(value.config)
+  );
+}
+
+function isConnectState(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.quickUrl === "string" &&
+    isConnectionRoleState(value.tracker) &&
+    isConnectionRoleState(value.gitHost)
+  );
+}
+
+function isRepositoriesState(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.selectedRepoIds) &&
+    value.selectedRepoIds.every((id) => typeof id === "string") &&
+    (value.primaryRepoId === null || typeof value.primaryRepoId === "string") &&
+    isRecord(value.repoConfigs)
+  );
+}
+
+/**
+ * Validates persisted draft state as untrusted input. Only a structurally
+ * complete `WizardSourceState` is accepted; anything else (missing sections,
+ * wrong types, malformed nested structures) is discarded by the caller.
+ */
+function isValidWizardState(value: unknown): value is WizardSourceState {
+  if (!isRecord(value)) return false;
+  return (
+    isStepNumber(value.step) &&
+    isStepNumber(value.maxStepVisited) &&
+    isBasicsState(value.basics) &&
+    isConnectState(value.connect) &&
+    isRepositoriesState(value.repositories) &&
+    isRecord(value.inspection) &&
+    typeof value.inspection.acknowledged === "boolean" &&
+    isRecord(value.review) &&
+    typeof value.review.confirmed === "boolean"
+  );
 }
 
 export function saveWizardDraft(state: WizardSourceState): boolean {
@@ -93,13 +181,7 @@ export function loadWizardDraft(): WizardSourceState | null {
       return null;
     }
     const state = envelope.state;
-    if (
-      !state ||
-      typeof state !== "object" ||
-      !state.basics ||
-      typeof state.basics !== "object" ||
-      typeof state.basics.name !== "string"
-    ) {
+    if (!isValidWizardState(state)) {
       window.localStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
       return null;
     }

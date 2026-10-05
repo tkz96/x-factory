@@ -8,7 +8,7 @@
 // - HTML-on-2xx normalization (auth wall detection)
 // - Verification probes: ideal vs degraded (CAPABILITY_UNCONFIRMED)
 // - parseQuickUrl pre-fills both tracker and git-host roles
-// - REST-primary PR creation conforming to PR_CREATE_ONLY
+// - REST-primary PR creation conforming to the create-only invariant
 // - Zero mocks except at the HTTP/network boundary
 
 import { describe, expect, it } from "bun:test";
@@ -81,15 +81,6 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       expect(hasCapability(azureProvider, "findExistingPullRequest")).toBe(
         true,
       );
-    });
-
-    it("strictly adheres to the PR_CREATE_ONLY safety invariant (no merge/close capabilities)", () => {
-      // Verify no mutating methods leak onto the provider object
-      const providerAny = azureProvider as unknown as Record<string, unknown>;
-      expect(providerAny.mergePullRequest).toBeUndefined();
-      expect(providerAny.closePullRequest).toBeUndefined();
-      expect(providerAny.abandonPullRequest).toBeUndefined();
-      expect(providerAny.deletePullRequest).toBeUndefined();
     });
   });
 

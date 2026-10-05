@@ -8,9 +8,9 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  assertCreateOnlyInvariant,
   hasCapability,
   isProviderError,
-  PR_CREATE_ONLY,
   type Provider,
   type ProviderError,
   REQUIRED_WORKFLOW_LABEL,
@@ -24,13 +24,47 @@ import {
 } from "../src/providers/registry.js";
 import { stubConfigSchema, stubProvider } from "./fixtures/stub-provider.js";
 
+describe("PR create-only invariant (registry level)", () => {
+  test("every registered provider satisfies the create-only safety invariant", () => {
+    const providers = listProviders();
+    expect(providers.length).toBeGreaterThan(0);
+    for (const provider of providers) {
+      expect(
+        () => assertCreateOnlyInvariant(provider),
+        `provider "${provider.id}" exposes a forbidden PR mutation method`,
+      ).not.toThrow();
+    }
+  });
+
+  test("the same invariant governs providers injected through the registry seam", () => {
+    expect(() => assertCreateOnlyInvariant(stubProvider)).not.toThrow();
+  });
+
+  test("the invariant rejects every forbidden PR mutation capability", () => {
+    const forbiddenMutations = [
+      "mergePullRequest",
+      "closePullRequest",
+      "abandonPullRequest",
+      "deletePullRequest",
+      "updatePullRequest",
+    ] as const;
+
+    for (const mutation of forbiddenMutations) {
+      const mutatingProvider = {
+        ...stubProvider,
+        [mutation]: () => undefined,
+      } as unknown as Provider;
+      expect(
+        () => assertCreateOnlyInvariant(mutatingProvider),
+        `assertCreateOnlyInvariant must reject a provider exposing ${mutation}`,
+      ).toThrow();
+    }
+  });
+});
+
 describe("provider contract", () => {
   test("required workflow label stays the shared contract constant", () => {
     expect(REQUIRED_WORKFLOW_LABEL).toBe("agentic-workflow");
-  });
-
-  test("PR lifecycle policy is create-only", () => {
-    expect(PR_CREATE_ONLY).toBe("create-only");
   });
 
   test("capability detection uses type-guards, never truthiness", () => {
