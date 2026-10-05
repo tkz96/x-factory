@@ -40,6 +40,10 @@ Required test coverage for every read region: loading, empty, partial, error, st
 | Connect — provider manifest | `wizard/steps/useConnectStep.ts` | loading = manifest in flight; error = manifest unavailable; retry refetches. |
 | Repositories — git-host discovery (`#144`) | `wizard/steps/useRepositoryDiscovery.ts` | loading = discovery in flight in the reserved region; empty = the connection lists no repositories (guidance copy); partial = the connection's verification could not confirm `listRepositories` (banner names the capability); error = the provider call failed (normalized copy + retry); stale = the displayed results or the recorded selection were produced from a git-host connection configuration that is no longer current. |
 | Inspection — git identity (`#146`) | `wizard/steps/useInspection.ts` | loading = the identity read is in flight in the reserved region; empty = there is no directory to read a configuration in (nothing selected, or no local path at all — guidance names which); partial = the identity resolved for some selected repositories and not for others (the banner names each repository whose directory resolved none); error = the read failed (canonical copy + retry); stale = the record was resolved for a selection or workspace root that has since changed (badge + re-inspect). A record that resolved NO identity is not a failure of the region: the region renders normally and a banner states, with the directory named, that no `user.name`/`user.email` is configured and that none will be invented. |
+| Project detail (`#147`) | `views/ProjectDetailView.tsx`, `components/projects/TrackerSection.tsx` | loading = the projects catalog is in flight; error = the catalog failed (normalized copy + retry); empty = the catalog loaded without this id (not-found guidance + back action); ready = the project plus its combo line and tracker card. |
+| Settings — connections registry (`#147`) | `views/SettingsView.tsx` | The registry lists every project with its combo line. Its loading and empty rows are table rows, not regions: they carry copy only. |
+| Project cards (`#147`) | `components/projects/ProjectCard.tsx` | Not a region: each card renders its project's combo line and, on an integrity failure, the repair path. |
+| Work Queue (`#147`) | `views/QueueView.tsx` | loading = tickets in flight; error = the tickets call failed (normalized copy + retry, and the manual path stays open); empty = the tracker reports no tickets (guidance + the manual path) or the search matches none (guidance + clear filter); ready = the ticket cards. |
 
 **Repositories staleness (`#144`).** The step records the fingerprint of the
 git-host connection (provider id + config values, in
@@ -65,6 +69,92 @@ some of the selected repositories. There is no dismissal path — only a fresh
 verification (Connect) or a fresh inspection (Inspection) clears a blocked
 reason, and Review lists every outstanding reason through the copy map.
 
+## Post-creation connection surfacing — the combo line and the integrity failure (#147)
+
+Every surface that renders how a project is wired renders the same thing, from
+one implementation:
+
+- `components/projects/ConnectionComboLine.tsx` — the presentational git host +
+  tracker combo line (spec #133 story 48). It is driven purely by
+  `Project.connections` (#145/#131) and the providers manifest; display names
+  come from the manifest's `displayName`, so no surface carries a provider id
+  branch or a hardcoded id→name table, and a provider added by registry
+  registration alone renders correctly.
+- `components/projects/connection-integrity.ts` — the pure derivation behind it
+  (`deriveConnectionIntegrity`), plus `resolveProviderLabel`,
+  `connectionDisplayValues` and `applyConnectionIntegrity`.
+- `components/projects/connection-copy.ts` — resolves a derived warning to its
+  copy-map message. The strings themselves live in `CONNECTIONS_COPY`.
+
+**One implementation.** `ConnectionComboLine` is the only rendering of the
+three-distinction combo line for persisted connections: it is presentational
+(props only — integrity plus manifest), imports nothing wizard- or
+screen-specific, and is importable from any surface, so the wizard's shared
+summary line can adopt it rather than grow a second rendering.
+`connection-integrity.ts` is the persisted-connections half of the state (the
+wizard's own line reports *draft verification evidence* instead, and its
+session-scoped rules belong to the wizard). If the wizard-side
+`components/connections/ComboSummary` work (#146) lands, the two collapse into
+one by mapping `ConnectionSlot` onto its `ConnectionEvidence` and deleting
+whichever renderer is left unused — never by keeping both.
+
+**The three distinctions.** A role's slot is `connected` (the ideal),
+`degraded` (warnings present — warning tone, never the error tone) or
+`disconnected`. Warnings are derived generically: an unrecorded role
+(`ROLE_NOT_RECORDED`), a required non-secret configuration field the manifest
+declares but the connection does not record (`CONFIG_INCOMPLETE` — secret
+fields are never reported missing, since #131 strips them by design), or a
+provider id the loaded manifest does not register (`PROVIDER_UNKNOWN`).
+Nothing is reported before the manifest has loaded: an unloaded manifest must
+never masquerade as a broken connection.
+
+**The integrity failure.** `hasIntegrityFailure` holds exactly when no
+connection serves the `tracker` role. Both connections are mandatory at
+creation (#133 §Wizard flow & UX), so a project without a tracker is surfaced
+as a durable configuration error with a repair path — **never** as an
+empty state and never as a supported mode (spec #133 story 49). It renders on
+all four surfaces through the feedback family: `AsyncRegion` (error tone,
+`errorCopy` = the integrity copy, `retryLabel` = the repair label),
+`FeedbackBanner`, and `RetryAction` as the repair affordance. `errorCopy` and
+`retryLabel` are the region-level copy overrides added in #147, mirroring
+`emptyCopy` / `emptyAction`; the raw payload is still never rendered.
+
+**Precedence.** `applyConnectionIntegrity` promotes an integrity failure to the
+primary error state over any asynchronous condition, because it is not an
+asynchronous condition — the region cannot load at all. The derivation it
+replaced is preserved in `suppressed` (minus `ready`), so no diagnostic is
+silently dropped. On the Work Queue this is what keeps a tracker-less project
+from reading as a successfully-empty queue.
+
+**Legacy projects.** A project created before #145 has no `connections` array.
+`deriveConnectionIntegrity` derives a display-only tracker descriptor from
+`issueTracker` (looked up by the record's own provider id — not a provider
+branch) and shows the git host as not recorded rather than inventing one. A
+legacy project with no usable `issueTracker` is an integrity failure like any
+other. Legacy descriptors are never reported as incomplete: their
+configuration shape predates the normalized payload (spec #133 keeps legacy
+config migration an open question).
+
+**Repair path wiring.** The repair affordance is the copy-map `reconnect`
+label. On the project detail surface, the project cards, and the Work Queue it
+navigates to the settings connections surface; on that surface it opens the
+connection flow (`openOnboardingModal`). Wizard re-entry / edit mode for an
+existing project is out of scope for this spec (#133 §Further notes), so the
+repair path leads to the surfaces where connections are established rather
+than inventing a reconnect flow.
+
+**Recorded limitation — the scope diagnostic.** The tracker card renders its
+scope-verification action from the connection's *declared capabilities*
+(`verifyScopes` in the manifest), never from a provider id. The action itself
+still reaches `POST /api/projects/test-azure-scopes`, which resolves a
+hardcoded provider and takes the provider config from the request body: a
+client cannot supply the project's persisted secret (#131 keeps secrets
+server-side), so the diagnostic can only succeed for payloads the server can
+complete on its own. A provider-agnostic replacement needs a project-resolving
+endpoint, which is outside #147's scope (the ticket owns the post-creation
+frontend surfaces). The card renders only canonical copy for the outcome — the
+raw provider scope payload is never rendered.
+
 ## Mutation regions — pending / success / error
 
 Mutations (project creation, credential verification submits, pull-request creation) render through the same family: `pending` disables the invoking action (never a spinner takeover), `success` renders inline confirmation, `error` renders a `FeedbackBanner` (error tone) with copy-map copy and `RetryAction`. Rate-limited errors (`RATE_LIMITED` with `retryAfterMs`) disable the retry behind countdown guidance that ticks down once per second inside the banner (`use-retry-countdown`) — the retry un-disables itself, so the user never hammers the provider (spec user story 26).
@@ -82,7 +172,7 @@ Inputs render through `FieldFeedback`. The coverage contract requires testing `d
 ## Enforcement — honest scope
 
 - `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, and toast systems constructed outside `feedback/`. The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
-- The scan carries an explicit legacy allowlist (`LEGACY_ADHOC_FEEDBACK_FILES`) for files whose ad-hoc markup predates this contract and is scheduled for absorption by the wizard rebuild (spec #133). New files must never appear there, and entries leave the list when their absorbing ticket deletes them.
+- The scan carries an explicit legacy allowlist (`LEGACY_ADHOC_FEEDBACK_FILES`) for files whose ad-hoc markup predates this contract and is scheduled for absorption by the wizard rebuild (spec #133). New files must never appear there, and entries leave the list when their absorbing ticket deletes them. `ProjectDetailView` and `QueueView` left it in #147.
 - The feedback-family import rule (nothing screen-specific) is enforced by the same smoke gate.
 
 ## Adding a new region

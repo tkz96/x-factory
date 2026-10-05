@@ -130,6 +130,127 @@ export const REPOSITORIES_COPY = {
 } as const;
 
 /**
+ * Post-creation connection surfacing (#147). Every surface that shows how a
+ * project is wired renders the same three distinctions — connected, degraded
+ * (warnings present), disconnected — as the git host + tracker combo line, and
+ * the no-tracker INTEGRITY FAILURE (spec #133 story 49) as an error state with
+ * a repair path. Provider display names are never copy: they come from the
+ * providers manifest.
+ */
+export const CONNECTIONS_COPY = {
+  /** The two connection roles, in combo-line order. */
+  roleLabel: {
+    tracker: "Issue tracker",
+    gitHost: "Git host",
+  },
+  /** Slot states: connected is the ideal, degraded is a warning, disconnected drops out. */
+  stateLabel: {
+    connected: "Connected",
+    degraded: "Needs attention",
+    disconnected: "Not connected",
+  },
+  /** Shown for a role with no recorded connection at all. */
+  notRecorded: "Not recorded",
+  /**
+   * Degraded-slot warnings. `deriveConnectionIntegrity` supplies the detail
+   * (manifest field labels, the role, or a provider id) — never raw provider
+   * text.
+   */
+  warningMessage: {
+    ROLE_NOT_RECORDED: (role: string) =>
+      `No ${role.toLowerCase()} connection is recorded on this project.`,
+    CONFIG_INCOMPLETE: (fields: string) =>
+      `Required configuration is not recorded: ${fields}.`,
+    PROVIDER_UNKNOWN: (providerId: string) =>
+      `The connected provider “${providerId}” is no longer registered.`,
+  },
+  /** The integrity failure: a project with no tracker, which is not a mode. */
+  integrityFailure: {
+    title: "Issue tracker connection missing",
+    message:
+      "This project has no issue tracker connection, so tickets cannot load. Reconnect an issue tracker to repair the project.",
+  },
+  /** The repair path offered by every integrity failure. */
+  reconnect: "Reconnect",
+  /** The settings connections registry (spec #133 story 50 surface). */
+  registryTitle: "Tracker Connections",
+  registrySubtitle:
+    "Read-only registry of projects and their configured connections.",
+  registryColumnProject: "Project",
+  registryColumnConnections: "Connections",
+  registryColumnStatus: "Status",
+  registryColumnAction: "Action",
+  registryStatusActive: "Active",
+  registryStatusArchived: "Archived",
+  registryLoading: "Loading connections…",
+  registryEmpty: "No projects configured.",
+  registryAction: "View Project →",
+  onboardProject: "Onboard Project",
+  /** The tracker card on the project detail surface. */
+  trackerCardTitle: "Issue Tracker Connection",
+  trackerCardSubtitle: "Automated ticket ingestion and PR linking.",
+  /** Banner title when a connection's warnings leave it degraded. */
+  degradedTitle: "This connection needs attention.",
+  /** Ingestion: the workflow label tickets are picked up by. */
+  ingestionLabel: "Ingestion label",
+  workflowLabel: "agentic-workflow",
+  /**
+   * Scope verification diagnostics. The action is rendered from the
+   * connection's declared capabilities (spec #133 §Provider-agnosticism),
+   * never from a provider id.
+   */
+  verifyScopes: "Test Tracker Scopes",
+  verifyScopesPending: "Testing Scopes…",
+  verifyScopesOk: "Connection and permissions verified.",
+  verifyScopesFailed: "Verification failed. Review the required permissions.",
+  overPrivileged:
+    "Notice: the token has broader access than the recommended minimum.",
+} as const;
+
+/** Copy for the Work Queue read region (#147), including its integrity failure. */
+export const QUEUE_COPY = {
+  empty: "No tickets are waiting in this queue.",
+  noMatches: (query: string) => `No tickets matched “${query}”.`,
+  clearFilter: "Clear Filter",
+  /** The manual path that stays open when the tracker cannot be reached. */
+  manualRun: "Start Manual Run",
+} as const;
+
+/** Copy for the single-project detail surface (#147). */
+export const PROJECT_DETAIL_COPY = {
+  notFound: (projectId: string) =>
+    `The project “${projectId}” does not exist or has been removed.`,
+  backToProjects: "Back to Projects",
+  allProjects: "All Projects",
+  backToProjectsTitle: "Back to all projects",
+  archived: "Archived",
+  projectId: "Project ID",
+  workspacePath: "Workspace Path",
+  defaultWorkspace: "Default",
+  defaultBranch: "Default Branch",
+  defaultBranchFallback: "main",
+  repositories: "Repositories",
+  repositoriesConnected: (count: number) => `${count} connected`,
+  repositoriesEmpty:
+    "No separate sub-repositories configured. Using primary workspace repository.",
+  repositoryNameColumn: "Repository Name",
+  repositoryPathColumn: "Path",
+  repositoryBranchColumn: "Default Branch",
+} as const;
+
+/** Copy for the project cards (#147). */
+export const PROJECT_CARD_COPY = {
+  viewDetailsLabel: (projectName: string) =>
+    `View details for project ${projectName}`,
+  id: "ID",
+  workspace: "Workspace",
+  workspaceFallback: "Configured",
+  repositoryCount: (count: number) =>
+    count === 1 ? "1 repo" : `${count} repos`,
+  viewDetails: "View Details →",
+} as const;
+
+/**
  * The combo line's copy (#146): the two roles a project's connections serve,
  * and the three health states each can be in. Shared by every surface that
  * renders a project's connections — one line, one vocabulary.

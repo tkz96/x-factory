@@ -1,9 +1,25 @@
-// src/frontend/components/projects/ProjectCard.tsx — Project card component (XFM-48).
+// src/frontend/components/projects/ProjectCard.tsx — Project card component
+// (XFM-48; connections combo added in #147).
+//
+// The card shows the project's git host + tracker combo line (spec #133 story
+// 48) instead of a provider-conditional tracker badge, and renders the
+// integrity failure with its repair path when the project has no tracker. The
+// repair action sits outside the card's anchor: an interactive element nested
+// inside a link is invalid HTML.
 
 import "./ProjectCard.css";
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
+import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
+import {
+  CONNECTIONS_COPY,
+  PROJECT_CARD_COPY,
+  PROJECT_DETAIL_COPY,
+} from "../feedback/copy-map.js";
+import { RetryAction } from "../feedback/RetryAction.js";
+import { ConnectionComboLine } from "./ConnectionComboLine.js";
+import { deriveConnectionIntegrity } from "./connection-integrity.js";
 
 interface ProjectCardProps {
   project: Project;
@@ -11,56 +27,68 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, isArchived }: ProjectCardProps) {
+  const navigate = useNavigate();
+  const { data: descriptors = [] } = useProviderDescriptors();
+
   const repoCount = (project.repositories || []).length;
-  const trackerLabel =
-    project.issueTracker?.provider ||
-    project.issueTracker?.connectionId ||
-    "None";
+  const integrity = deriveConnectionIntegrity(project, descriptors);
   const displayPath =
-    project.workspacePath || project.repositoryPath || "Configured";
+    project.workspacePath ||
+    project.repositoryPath ||
+    PROJECT_CARD_COPY.workspaceFallback;
 
   return (
-    <Link
-      to={`/projects/${project.id}`}
-      className={`project-card card project-card-link ${
-        isArchived ? "is-archived" : ""
-      }`}
-      aria-label={`View details for project ${project.name}`}
-    >
-      <div className="project-card-header">
-        <h3 title={project.name}>{project.name}</h3>
-        {isArchived ? (
-          <span className="role-badge role-badge-archived">Archived</span>
-        ) : (
-          <span className="role-badge">{trackerLabel}</span>
-        )}
-      </div>
-
-      <div className="project-card-meta">
-        <strong>ID</strong>
-        <code title={project.id}>{project.id}</code>
-      </div>
-
-      <div className="project-card-meta">
-        <strong>Workspace</strong>
-        <code title={displayPath}>{displayPath}</code>
-      </div>
-
-      {isArchived ? (
-        <div className="project-card-meta">
-          <strong>Tracker</strong>
-          <span className="meta-val" title={`${trackerLabel} (Locked)`}>
-            {trackerLabel} (Locked)
-          </span>
+    <div className={`project-card card ${isArchived ? "is-archived" : ""}`}>
+      <Link
+        to={`/projects/${project.id}`}
+        className="project-card-link"
+        aria-label={PROJECT_CARD_COPY.viewDetailsLabel(project.name)}
+      >
+        <div className="project-card-header">
+          <h3 title={project.name}>{project.name}</h3>
+          {isArchived && (
+            <span className="role-badge role-badge-archived">
+              {PROJECT_DETAIL_COPY.archived}
+            </span>
+          )}
         </div>
-      ) : (
-        <div className="project-card-footer">
-          <span className="nav-badge">
-            {repoCount} {repoCount === 1 ? "repo" : "repos"}
-          </span>
-          <span className="status-pill ready">View Details →</span>
+
+        <div className="project-card-meta">
+          <strong>{PROJECT_CARD_COPY.id}</strong>
+          <code title={project.id}>{project.id}</code>
+        </div>
+
+        <div className="project-card-meta">
+          <strong>{PROJECT_CARD_COPY.workspace}</strong>
+          <code title={displayPath}>{displayPath}</code>
+        </div>
+
+        <ConnectionComboLine
+          integrity={integrity}
+          descriptors={descriptors}
+          className="connection-combo-line--compact"
+        />
+
+        {!isArchived && (
+          <div className="project-card-footer">
+            <span className="nav-badge">
+              {PROJECT_CARD_COPY.repositoryCount(repoCount)}
+            </span>
+            <span className="status-pill ready">
+              {PROJECT_CARD_COPY.viewDetails}
+            </span>
+          </div>
+        )}
+      </Link>
+
+      {integrity.hasIntegrityFailure && (
+        <div className="project-card-repair">
+          <RetryAction
+            label={CONNECTIONS_COPY.reconnect}
+            onRetry={() => navigate("/settings")}
+          />
         </div>
       )}
-    </Link>
+    </div>
   );
 }

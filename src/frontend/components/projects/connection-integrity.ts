@@ -1,0 +1,337 @@
+// src/frontend/components/projects/connection-integrity.ts — Post-creation
+// connection surfacing (spec #133, ticket #147).
+//
+// Turns a project's normalized `connections` payload (#145 / #131) into the
+// three-state descriptor every post-creation surface renders — connected,
+// degraded (warnings present), disconnected — plus the no-tracker INTEGRITY
+// FAILURE. Both connections are mandatory at creation (#133 §Wizard flow &
+// UX), so "a project with no tracker" is not a supported mode: it is a durable
+// configuration error with a repair path.
+//
+// Provider-agnosticism (spec #133, AGENTS.md): this module never branches on a
+// provider id. Display names come from the providers manifest, the
+// "configuration is incomplete" check is driven by the manifest's own field
+// descriptors (`required` + `secret` + `roles`), and the legacy pre-#145
+// fallback looks the provider's configuration up by its own id.
+//
+// LEGACY PROJECTS: a project created before #145 has no `connections` array
+// and only an `issueTracker` record. It still renders a combo line: the
+// tracker descriptor is derived (display-only) from `issueTracker`, and the
+// git host is shown as not recorded rather than invented. A legacy project
+// with no usable `issueTracker` is an integrity failure like any other.
+
+import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
+import type { ProviderDescriptor } from "../../connection/types.js";
+import type { DerivedAsyncState } from "../feedback/types.js";
+
+/** The three distinctions the combo line renders. */
+export type ConnectionSlotState = "connected" | "degraded" | "disconnected";
+
+/**
+ * Why a slot is degraded. `details` carries the human-readable identifiers the
+ * copy map interpolates: manifest configuration-field labels
+ * (`CONFIG_INCOMPLETE`), the role name (`ROLE_NOT_RECORDED`), or the
+ * unregistered provider id (`PROVIDER_UNKNOWN`).
+ */
+export type ConnectionWarningKind =
+  | "ROLE_NOT_RECORDED"
+  | "CONFIG_INCOMPLETE"
+  | "PROVIDER_UNKNOWN";
+
+export interface ConnectionWarning {
+  readonly kind: ConnectionWarningKind;
+  readonly role: ProjectConnectionRole;
+  readonly details: readonly string[];
+}
+
+/** One role's connection as the surfaces render it. */
+export interface ConnectionSlot {
+  readonly role: ProjectConnectionRole;
+  readonly state: ConnectionSlotState;
+  readonly providerId: string | undefined;
+  readonly config: Readonly<Record<string, unknown>>;
+  /** The provider's declared capabilities, from the manifest (empty if unknown). */
+  readonly capabilities: readonly string[];
+  readonly warnings: readonly ConnectionWarning[];
+}
+
+/** The whole project's wiring, as derived for display. */
+export interface ConnectionIntegrity {
+  /** Always tracker first, then git host. */
+  readonly slots: readonly ConnectionSlot[];
+  readonly tracker: ConnectionSlot;
+  readonly gitHost: ConnectionSlot;
+  /** No connection serves the `tracker` role — the integrity failure. */
+  readonly hasIntegrityFailure: boolean;
+  /** Warnings present and no integrity failure — warning tone, never error. */
+  readonly isDegraded: boolean;
+  readonly warnings: readonly ConnectionWarning[];
+}
+
+/** The roles in render order. The combo line always reads left to right. */
+const ROLES: readonly ProjectConnectionRole[] = ["tracker", "gitHost"];
+
+/** A connection record as it is derived (normalized or legacy). */
+interface DerivedConnection {
+  readonly providerId: string;
+  readonly roles: readonly ProjectConnectionRole[];
+  readonly config: Readonly<Record<string, unknown>>;
+  /**
+   * Legacy descriptors come from `issueTracker`; their configuration shape is
+   * pre-#145 and unverifiable, so they are never reported as incomplete
+   * (spec #133 keeps legacy config migration an open question).
+   */
+  readonly legacy: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asRoleList(roles: readonly string[]): ProjectConnectionRole[] {
+  return ROLES.filter((role) => roles.includes(role));
+}
+
+/**
+ * The project's connections, normalized or derived.
+ *
+ * A present `connections` array is authoritative, empty or not: the ticket's
+ * integrity failure is exactly "the normalized payload records no tracker".
+ */
+function deriveConnections(project: Project): DerivedConnection[] {
+  const declared = project.connections;
+  if (Array.isArray(declared)) {
+    return declared.map((connection) => ({
+      providerId: connection.providerId,
+      roles: asRoleList(connection.roles),
+      config: isRecord(connection.config) ? connection.config : {},
+      legacy: false,
+    }));
+  }
+
+  // Legacy project: derive a display-only tracker descriptor from
+  // `issueTracker`. The lookup is by the record's own provider id — the
+  // pre-#145 record namespaces its configuration under that key.
+  const legacy = project.issueTracker as unknown as
+    | Record<string, unknown>
+    | undefined;
+  const providerId =
+    typeof legacy?.provider === "string"
+      ? legacy.provider
+      : typeof legacy?.connectionId === "string"
+        ? legacy.connectionId
+        : "";
+
+  if (!providerId.trim()) {
+    return [];
+  }
+
+  const namespaced = legacy?.[providerId];
+  return [
+    {
+      providerId,
+      roles: ["tracker"],
+      config: isRecord(namespaced) ? namespaced : {},
+      legacy: true,
+    },
+  ];
+}
+
+/** The slot's connection: the first record that declares the role. */
+function connectionForRole(
+  connections: readonly DerivedConnection[],
+  role: ProjectConnectionRole,
+): DerivedConnection | undefined {
+  return connections.find((connection) => connection.roles.includes(role));
+}
+
+function descriptorFor(
+  providerId: string | undefined,
+  descriptors: readonly ProviderDescriptor[],
+): ProviderDescriptor | undefined {
+  if (!providerId) {
+    return undefined;
+  }
+  return descriptors.find((descriptor) => descriptor.id === providerId);
+}
+
+/** Fields that apply to the role: role-scoped or unscoped (#128). */
+function fieldsForRole(
+  descriptor: ProviderDescriptor,
+  role: ProjectConnectionRole,
+) {
+  return descriptor.configFields.filter(
+    (field) =>
+      field.roles === undefined ||
+      field.roles.length === 0 ||
+      field.roles.includes(role),
+  );
+}
+
+/**
+ * The slot's warnings. Nothing is reported before the manifest is loaded: an
+ * unloaded manifest must never masquerade as an incomplete configuration.
+ */
+function warningsFor(
+  role: ProjectConnectionRole,
+  connection: DerivedConnection | undefined,
+  descriptors: readonly ProviderDescriptor[],
+): ConnectionWarning[] {
+  if (!connection) {
+    return [{ kind: "ROLE_NOT_RECORDED", role, details: [role] }];
+  }
+
+  if (descriptors.length === 0) {
+    return [];
+  }
+
+  const descriptor = descriptorFor(connection.providerId, descriptors);
+
+  if (!descriptor) {
+    return [
+      { kind: "PROVIDER_UNKNOWN", role, details: [connection.providerId] },
+    ];
+  }
+
+  if (connection.legacy) {
+    return [];
+  }
+
+  const missing = fieldsForRole(descriptor, role)
+    .filter((field) => field.required && field.secret !== true)
+    .filter((field) => {
+      const value = connection.config[field.name];
+      return typeof value !== "string" || !value.trim();
+    })
+    .map((field) => field.label);
+
+  return missing.length > 0
+    ? [{ kind: "CONFIG_INCOMPLETE", role, details: missing }]
+    : [];
+}
+
+function slotState(
+  connection: DerivedConnection | undefined,
+  warnings: readonly ConnectionWarning[],
+): ConnectionSlotState {
+  if (!connection) {
+    return "disconnected";
+  }
+  return warnings.length > 0 ? "degraded" : "connected";
+}
+
+function buildSlot(
+  role: ProjectConnectionRole,
+  connections: readonly DerivedConnection[],
+  descriptors: readonly ProviderDescriptor[],
+): ConnectionSlot {
+  const connection = connectionForRole(connections, role);
+  const warnings = warningsFor(role, connection, descriptors);
+  return {
+    role,
+    state: slotState(connection, warnings),
+    providerId: connection?.providerId,
+    config: connection?.config ?? {},
+    capabilities: connection
+      ? (descriptorFor(connection.providerId, descriptors)?.capabilities ?? [])
+      : [],
+    warnings,
+  };
+}
+
+/**
+ * Derives the whole project's connection wiring for display. Pure: the same
+ * project and manifest always produce the same integrity.
+ */
+export function deriveConnectionIntegrity(
+  project: Project,
+  descriptors: readonly ProviderDescriptor[] = [],
+): ConnectionIntegrity {
+  const connections = deriveConnections(project);
+  const slots = ROLES.map((role) => buildSlot(role, connections, descriptors));
+  const tracker = slots[0] as ConnectionSlot;
+  const gitHost = slots[1] as ConnectionSlot;
+  const warnings = slots.flatMap((slot) => slot.warnings);
+  const hasIntegrityFailure = tracker.state === "disconnected";
+
+  return {
+    slots,
+    tracker,
+    gitHost,
+    hasIntegrityFailure,
+    isDegraded: !hasIntegrityFailure && warnings.length > 0,
+    warnings,
+  };
+}
+
+/**
+ * The human display name for a provider id: the manifest's `displayName`, or
+ * the id itself when the manifest has not loaded — never an invented name and
+ * never a hardcoded id→name table.
+ */
+export function resolveProviderLabel(
+  providerId: string,
+  descriptors: readonly ProviderDescriptor[],
+): string {
+  return descriptorFor(providerId, descriptors)?.displayName ?? providerId;
+}
+
+/**
+ * Promotes an integrity failure into the region state.
+ *
+ * The integrity failure is not an asynchronous condition — it is a durable
+ * configuration error, so it is primary over every derived state. The
+ * underlying derivation is preserved in `suppressed` (minus `ready`, which is
+ * not a diagnostic) so a diagnostic is never silently dropped.
+ */
+export function applyConnectionIntegrity(
+  derived: DerivedAsyncState,
+  integrity: ConnectionIntegrity | undefined,
+): DerivedAsyncState {
+  if (!integrity?.hasIntegrityFailure) {
+    return derived;
+  }
+
+  const suppressed = [derived.state, ...derived.suppressed].filter(
+    (state) => state !== "error" && state !== "ready",
+  );
+
+  return {
+    state: "error",
+    suppressed: [...new Set(suppressed)],
+    error: derived.error,
+  };
+}
+
+/** One recorded configuration value, ready to render. */
+export interface ConnectionDisplayValue {
+  readonly name: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * The connection's recorded configuration as display rows, using the
+ * manifest's field labels. Secret fields are never rendered (their values are
+ * never persisted — #131), and configuration keys the manifest does not
+ * declare are not rendered either: the manifest is the presentation contract.
+ */
+export function connectionDisplayValues(
+  slot: ConnectionSlot,
+  descriptors: readonly ProviderDescriptor[],
+): ConnectionDisplayValue[] {
+  const descriptor = descriptorFor(slot.providerId, descriptors);
+  if (!descriptor) {
+    return [];
+  }
+
+  return fieldsForRole(descriptor, slot.role)
+    .filter((field) => field.secret !== true)
+    .flatMap((field) => {
+      const value = slot.config[field.name];
+      if (typeof value !== "string" || !value.trim()) {
+        return [];
+      }
+      return [{ name: field.name, label: field.label, value: value.trim() }];
+    });
+}

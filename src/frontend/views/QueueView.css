@@ -4,3 +4,14 @@
   margin: var(--space-4) auto;
   max-width: 450px;
 }
+
+/* The manual path stays open when the queue cannot load (#147). */
+.queue-manual-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+
+.tickets-grid .feedback-banner {
+  grid-column: 1 / -1;
+}

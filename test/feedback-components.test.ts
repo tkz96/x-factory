@@ -86,6 +86,21 @@ describe("AsyncRegion — five-state taxonomy", () => {
     expect(html).not.toContain("raw provider body");
   });
 
+  it("overrides the error copy and retry label for a region-level failure (#147)", () => {
+    const html = render(
+      React.createElement(AsyncRegion, {
+        derived: derived("error", [], new Error("raw provider body")),
+        errorCopy: "This project has no issue tracker connection.",
+        retryLabel: "Reconnect",
+        onRetry: () => {},
+      }),
+    );
+    expect(html).toContain("This project has no issue tracker connection.");
+    expect(html).toContain(">Reconnect</button>");
+    expect(html).not.toContain("The request failed. Try again.");
+    expect(html).not.toContain("raw provider body");
+  });
+
   it("renders empty guidance, overridable per region", () => {
     const html = render(
       React.createElement(AsyncRegion, { derived: derived("empty") }),
