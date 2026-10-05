@@ -72,6 +72,18 @@ one implementation:
 - `components/projects/connection-copy.ts` — resolves a derived warning to its
   copy-map message. The strings themselves live in `CONNECTIONS_COPY`.
 
+**One implementation.** `ConnectionComboLine` is the only rendering of the
+three-distinction combo line for persisted connections: it is presentational
+(props only — integrity plus manifest), imports nothing wizard- or
+screen-specific, and is importable from any surface, so the wizard's shared
+summary line can adopt it rather than grow a second rendering.
+`connection-integrity.ts` is the persisted-connections half of the state (the
+wizard's own line reports *draft verification evidence* instead, and its
+session-scoped rules belong to the wizard). If the wizard-side
+`components/connections/ComboSummary` work (#146) lands, the two collapse into
+one by mapping `ConnectionSlot` onto its `ConnectionEvidence` and deleting
+whichever renderer is left unused — never by keeping both.
+
 **The three distinctions.** A role's slot is `connected` (the ideal),
 `degraded` (warnings present — warning tone, never the error tone) or
 `disconnected`. Warnings are derived generically: an unrecorded role
