@@ -51,6 +51,26 @@ function normalizeRole(raw: string): ProviderRole | null {
 }
 
 /**
+ * Maps a failed config-schema parse to the machine-readable field-error codes
+ * the client resolves through the copy map: `REQUIRED` when the raw value was
+ * absent or empty, `INVALID` otherwise. Shared by every provider route that
+ * parses provider config, so the mapping can never drift between them.
+ */
+function configFieldErrors(
+  issues: ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>,
+  rawConfig: Record<string, unknown>,
+): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of issues) {
+    const fieldName = issue.path.join(".") || "config";
+    const rawVal = rawConfig[issue.path[0] as string];
+    const isRequired = rawVal === undefined || rawVal === null || rawVal === "";
+    fieldErrors[fieldName] = isRequired ? "REQUIRED" : "INVALID";
+  }
+  return fieldErrors;
+}
+
+/**
  * GET /api/providers/manifest
  * Returns descriptors for all registered providers (or filtered by role).
  */
@@ -120,17 +140,12 @@ export async function handleVerifyRoute(
     // 3. Semantic validation: Config schema validation
     const parsedConfig = provider.configSchema.safeParse(body.config);
     if (!parsedConfig.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of parsedConfig.error.issues) {
-        const fieldName = issue.path.join(".") || "config";
-        const rawVal = body.config[issue.path[0] as string];
-        const isRequired =
-          rawVal === undefined || rawVal === null || rawVal === "";
-        fieldErrors[fieldName] = isRequired ? "REQUIRED" : "INVALID";
-      }
       return jsonResponse(
         {
-          fieldErrors,
+          fieldErrors: configFieldErrors(
+            parsedConfig.error.issues,
+            body.config,
+          ),
         },
         409,
       );
@@ -209,6 +224,80 @@ export async function handleParseUrlRoute(
   );
 }
 
+const RepositoriesBodySchema = z.object({
+  providerId: z.string().min(1, "providerId is required"),
+  role: z.enum(["tracker", "gitHost", "git-host"]).optional(),
+  config: z.record(z.string(), z.unknown()),
+});
+
+/**
+ * POST /api/providers/repositories
+ * Repository discovery for a git-host connection. Layering mirrors
+ * `handleVerifyRoute` exactly: transport (400) → semantics (409) → execution.
+ * A thrown provider error normalizes to the `DISCOVERY` envelope in a 200
+ * body; a provider-generated message never crosses this boundary.
+ */
+export async function handleRepositoriesRoute(
+  req: Request,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): Promise<Response> {
+  return withValidatedBody(req, RepositoriesBodySchema, async (body) => {
+    // 1. Semantic validation: Provider lookup
+    const provider = registry.get(body.providerId);
+    if (!provider) {
+      return jsonResponse({ formErrors: ["UNKNOWN_PROVIDER"] }, 409);
+    }
+
+    // 2. Semantic validation: Role compatibility
+    let listedUnderRoles: string[] = [];
+    if (body.role) {
+      const normalizedRole = normalizeRole(body.role);
+      if (!normalizedRole || !provider.roles.includes(normalizedRole)) {
+        return jsonResponse(
+          { formErrors: ["INCOMPATIBLE_CONFIGURATION"] },
+          409,
+        );
+      }
+      listedUnderRoles = [normalizedRole];
+    }
+
+    // 3. Semantic validation: Config schema validation
+    const parsedConfig = provider.configSchema.safeParse(body.config);
+    if (!parsedConfig.success) {
+      return jsonResponse(
+        {
+          fieldErrors: configFieldErrors(
+            parsedConfig.error.issues,
+            body.config,
+          ),
+        },
+        409,
+      );
+    }
+
+    // 4. Capability compatibility: the provider must be able to discover
+    if (!hasCapability(provider, "listRepositories")) {
+      return jsonResponse({ formErrors: ["INCAPABLE_PROVIDER"] }, 409);
+    }
+
+    // 5. Discovery execution
+    try {
+      const repositories = await provider.listRepositories(parsedConfig.data);
+      return jsonResponse(
+        {
+          providerId: provider.id,
+          roles: listedUnderRoles,
+          repositories,
+        },
+        200,
+      );
+    } catch (err: unknown) {
+      const userError: ProviderError = provider.toUserError(err, "DISCOVERY");
+      return jsonResponse(userError, 200);
+    }
+  });
+}
+
 /**
  * Dispatcher for all /api/providers/* routes.
  */
@@ -232,6 +321,10 @@ export async function handleProvidersRoute(
 
   if (method === "POST" && action === "parse-url") {
     return catchHttpErrors(() => handleParseUrlRoute(req, registry));
+  }
+
+  if (method === "POST" && action === "repositories") {
+    return catchHttpErrors(() => handleRepositoriesRoute(req, registry));
   }
 
   return errorResponse("Endpoint not found.", 404);

@@ -1098,6 +1098,57 @@ export function getOpenApiSpec() {
           },
         },
       },
+      "/api/providers/repositories": {
+        post: {
+          tags: ["Providers"],
+          summary: "Discover Provider Repositories",
+          description:
+            "Lists the repositories visible to a git-host connection's credentials. Returns a provider-agnostic envelope, or a normalized ProviderError envelope when the provider call fails. Provider-generated messages are never returned.",
+          operationId: "discoverProviderRepositories",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ProviderRepositoriesInput",
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description:
+                "Discovered repositories or normalized provider error envelope",
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: [
+                      {
+                        $ref: "#/components/schemas/ProviderRepositoriesResult",
+                      },
+                      { $ref: "#/components/schemas/ProviderError" },
+                    ],
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure (unknown provider, incompatible role, invalid config, or missing discovery capability)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ProviderSemanticValidationError",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     components: {
       responses: {
@@ -1556,6 +1607,60 @@ export function getOpenApiSpec() {
               example: "VERIFY",
             },
             retryAfterMs: { type: "number", example: 30000 },
+          },
+        },
+        ProviderRepositoriesInput: {
+          type: "object",
+          required: ["providerId", "config"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            role: {
+              type: "string",
+              enum: ["tracker", "gitHost", "git-host"],
+              description:
+                "The connection role the repositories are listed under; omitted means role-agnostic discovery.",
+              example: "gitHost",
+            },
+            config: {
+              type: "object",
+              additionalProperties: true,
+              example: { host: "https://stub.example", apiToken: "token" },
+            },
+          },
+        },
+        ProviderRepository: {
+          type: "object",
+          required: ["id", "name", "remote"],
+          properties: {
+            id: { type: "string", example: "repo-1" },
+            name: { type: "string", example: "rocket-app" },
+            remote: {
+              type: "string",
+              example: "https://stub.example/acme/rocket-app.git",
+            },
+            defaultBranch: { type: "string", example: "main" },
+            webUrl: {
+              type: "string",
+              example: "https://stub.example/acme/rocket-app",
+            },
+          },
+        },
+        ProviderRepositoriesResult: {
+          type: "object",
+          required: ["providerId", "roles", "repositories"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            roles: {
+              type: "array",
+              description:
+                "Connection roles the repositories were listed under.",
+              items: { type: "string", enum: ["tracker", "gitHost"] },
+              example: ["gitHost"],
+            },
+            repositories: {
+              type: "array",
+              items: { $ref: "#/components/schemas/ProviderRepository" },
+            },
           },
         },
         ProviderSemanticValidationError: {
