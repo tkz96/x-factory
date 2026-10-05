@@ -73,6 +73,14 @@ function matchesGitHubIdentity(
   return Boolean(existingRepo && targetRepo && existingRepo === targetRepo);
 }
 
+const IDENTITY_MATCHERS: Record<
+  string,
+  (p: Project, newTrackerOrgUrl: string, newTrackerProject: string) => boolean
+> = {
+  azure: matchesAzureIdentity,
+  github: (p, orgUrl, project) => matchesGitHubIdentity(p, project, orgUrl),
+};
+
 function checkExternalProviderMatch(
   projects: Project[],
   newProvider: string,
@@ -82,22 +90,16 @@ function checkExternalProviderMatch(
   const normProvider = (newProvider || "").toLowerCase().trim();
   if (!normProvider) return undefined;
 
+  const matcher = IDENTITY_MATCHERS[normProvider];
+  if (!matcher) return undefined;
+
   for (const p of projects) {
     const existingProvider = (p.issueTracker?.provider || "")
       .toLowerCase()
       .trim();
     if (existingProvider !== normProvider) continue;
 
-    if (
-      normProvider === "azure" &&
-      matchesAzureIdentity(p, newTrackerOrgUrl, newTrackerProject)
-    ) {
-      return p;
-    }
-    if (
-      normProvider === "github" &&
-      matchesGitHubIdentity(p, newTrackerProject, newTrackerOrgUrl)
-    ) {
+    if (matcher(p, newTrackerOrgUrl, newTrackerProject)) {
       return p;
     }
   }

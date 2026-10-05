@@ -1,8 +1,13 @@
 // src/providers/github/repositories.ts — GitHub repository discovery and pagination (#138).
 
 import type { ProviderConfig, ProviderRepository } from "../contract.js";
-import { detectGitHubConfigMismatch, resolveGitHubConfig } from "./config.js";
-import { githubFetch, resolveGitHubHeaders } from "./http.js";
+import { resolveGitHubConfig } from "./config.js";
+import { GitHubHttpError } from "./errors.js";
+import {
+  DEFAULT_GITHUB_API_ROOT,
+  githubFetch,
+  resolveGitHubHeaders,
+} from "./http.js";
 
 interface RawGitHubRepo {
   id?: number | string;
@@ -55,13 +60,8 @@ export async function listGitHubRepositories(
   config: ProviderConfig,
   fetchFn?: typeof fetch,
 ): Promise<ProviderRepository[]> {
-  const mismatch = detectGitHubConfigMismatch(config);
-  if (mismatch.mismatch) {
-    throw new Error(mismatch.error);
-  }
-
   const { token, owner, baseUrl } = resolveGitHubConfig(config);
-  const root = baseUrl || "https://api.github.com";
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
   const headers = resolveGitHubHeaders(token);
 
   let initialUrl: string;
@@ -95,10 +95,8 @@ export async function listGitHubRepositories(
       if (
         visitedUrls.size === 1 &&
         owner &&
-        typeof err === "object" &&
-        err !== null &&
-        "status" in err &&
-        (err as { status: unknown }).status === 404
+        err instanceof GitHubHttpError &&
+        err.status === 404
       ) {
         const userUrl = `${root}/users/${encodeURIComponent(owner)}/repos?per_page=100&type=all`;
         res = await githubFetch(userUrl, { headers, fetchFn });

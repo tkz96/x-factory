@@ -65,7 +65,7 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
 
     expect(content).toContain("tracker.provider");
     expect(content).toContain("handleTestAzureScopes");
-    expect(content).toContain("Test Azure DevOps Scopes");
+    expect(content).toContain("Test Tracker Scopes");
     expect(content).toContain("api.testAzureScopes");
     expect(content).toContain("Ingestion Label");
   });

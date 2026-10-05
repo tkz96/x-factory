@@ -389,7 +389,6 @@ function _parseModern(obj: Record<string, unknown>): Project {
 
 function parseAzureTrackerConfig(
   t: Record<string, unknown>,
-  provider: IssueTrackerProvider,
 ): AzureTrackerConfig | undefined {
   if (t.azure && typeof t.azure === "object") {
     const a = t.azure as Record<string, unknown>;
@@ -403,12 +402,13 @@ function parseAzureTrackerConfig(
     };
   }
   if (
-    provider === "azure" &&
+    typeof t.orgUrl === "string" &&
+    t.orgUrl.trim() &&
     typeof t.projectId === "string" &&
     t.projectId.trim()
   ) {
     return {
-      orgUrl: typeof t.orgUrl === "string" ? (t.orgUrl as string).trim() : "",
+      orgUrl: t.orgUrl.trim(),
       project: t.projectId.trim(),
     };
   }
@@ -474,7 +474,7 @@ function _parseIssueTracker(
         : undefined,
   };
 
-  const azure = parseAzureTrackerConfig(t, provider);
+  const azure = parseAzureTrackerConfig(t);
   if (azure) result.azure = azure;
 
   const jira = parseJiraTrackerConfig(t);

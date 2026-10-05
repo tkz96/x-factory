@@ -1,14 +1,89 @@
-// src/http/projects-tracker-helpers.ts — Tracker credential resolution, provider testing, and migration helpers.
+// src/providers/project-config.ts — Project-level provider resolution, credential mapping, and migration helpers (#141).
 
-import { testAzureConnection } from "../azure/connection.js";
 import { PROJECT_ENV_KEYS } from "../project-env.js";
 import { maskSecret } from "../settings.js";
-import { fetchGitHubTickets, fetchJiraTickets } from "../trackers/index.js";
 import type {
   IssueTrackerProvider,
   Project,
   ProjectIssueTracker,
-} from "../types.js";
+} from "../shared/types.js";
+import type { Provider, ProviderConfig } from "./contract.js";
+import { getProvider, requireProvider } from "./registry.js";
+
+export interface ResolvedProjectProvider {
+  provider: Provider;
+  config: ProviderConfig;
+  repository: string;
+}
+
+/**
+ * Resolves the active provider, resolved config, and repository coordinate for a project.
+ */
+export function resolveProjectProvider(
+  project: Project,
+  env: Record<string, string> = {},
+): ResolvedProjectProvider {
+  const providerId = (project.issueTracker?.provider ||
+    "github") as IssueTrackerProvider;
+  const provider = requireProvider(providerId);
+
+  const primaryRepo =
+    project.repositories?.find((r) => r.path === project.repositoryPath) ||
+    project.repositories?.[0];
+
+  let config: ProviderConfig = {};
+  let repository = "";
+
+  if (providerId === "azure") {
+    const azureCfg = project.issueTracker?.azure;
+    const orgUrl = azureCfg?.orgUrl || "";
+    const azureProject =
+      azureCfg?.project || project.issueTracker?.projectId || "";
+    const pat =
+      env[PROJECT_ENV_KEYS.AZURE_PAT] || process.env.AZURE_DEVOPS_PAT || "";
+    const requiredLabel = azureCfg?.requiredLabel;
+    repository =
+      primaryRepo?.name || primaryRepo?.id || project.name || project.id;
+    config = {
+      orgUrl,
+      project: azureProject,
+      pat,
+      ...(requiredLabel ? { requiredLabel } : {}),
+    };
+  } else if (providerId === "jira") {
+    const jiraCfg = project.issueTracker?.jira;
+    const host = jiraCfg?.host || "";
+    const email = jiraCfg?.email || "";
+    const token =
+      env[PROJECT_ENV_KEYS.JIRA_TOKEN] || process.env.JIRA_API_TOKEN || "";
+    const jiraProject =
+      jiraCfg?.project || project.issueTracker?.projectId || "";
+    const requiredLabel = jiraCfg?.requiredLabel;
+    repository =
+      primaryRepo?.name || primaryRepo?.id || project.name || project.id;
+    config = {
+      host,
+      email,
+      token,
+      project: jiraProject,
+      ...(requiredLabel ? { requiredLabel } : {}),
+    };
+  } else {
+    // Default to GitHub
+    const ghCfg = project.issueTracker?.github;
+    const token =
+      env[PROJECT_ENV_KEYS.GITHUB_TOKEN] || process.env.GITHUB_TOKEN || "";
+    const requiredLabel = ghCfg?.requiredLabel;
+    repository = ghCfg?.repo || primaryRepo?.name || project.name || project.id;
+    config = {
+      repo: repository,
+      token,
+      ...(requiredLabel ? { requiredLabel } : {}),
+    };
+  }
+
+  return { provider, config, repository };
+}
 
 export interface ProjectTrackerSummary {
   provider: IssueTrackerProvider;
@@ -62,7 +137,7 @@ export function resolveProjectTrackerSummary(
 }
 
 /**
- * Extracts and maps credential values (including convenient aliases) into PROJECT_ENV_KEYS.
+ * Extracts and maps credential values (including aliases) into PROJECT_ENV_KEYS.
  */
 export function extractTrackerCredentialsToSave(
   body: Record<string, string>,
@@ -83,7 +158,6 @@ export function extractTrackerCredentialsToSave(
     varsToSave[PROJECT_ENV_KEYS.JIRA_TOKEN] = jiraToken;
   }
 
-  // Convenient aliases: { pat, token, secret }
   if (typeof body.pat === "string") {
     varsToSave[PROJECT_ENV_KEYS.AZURE_PAT] = body.pat;
   }
@@ -114,18 +188,25 @@ export interface TrackerTestResult {
 }
 
 /**
- * Executes a live connection probe against Azure DevOps, Jira, or GitHub.
+ * Executes a live connection probe using the registered provider.
  */
 export async function testProjectTrackerConnection(
-  provider: IssueTrackerProvider,
+  providerId: IssueTrackerProvider,
   tracker: ProjectIssueTracker | undefined,
   env: Record<string, string>,
   bodyData: Record<string, unknown>,
   repositoryPath: string,
 ): Promise<TrackerTestResult> {
-  if (provider === "azure") {
+  const provider = getProvider(providerId);
+  if (!provider) {
+    return { ok: false, error: `Unsupported provider: ${providerId}` };
+  }
+
+  let config: ProviderConfig = { ...bodyData };
+
+  if (providerId === "azure") {
     const orgUrl = (bodyData.orgUrl as string) || tracker?.azure?.orgUrl;
-    const azureProj =
+    const project =
       (bodyData.project as string) ||
       tracker?.azure?.project ||
       tracker?.projectId;
@@ -133,70 +214,40 @@ export async function testProjectTrackerConnection(
       (bodyData.pat as string) ||
       env[PROJECT_ENV_KEYS.AZURE_PAT] ||
       process.env.AZURE_DEVOPS_PAT;
-    const input: { orgUrl?: string; project?: string; pat?: string } = {};
-    if (orgUrl) input.orgUrl = orgUrl;
-    if (azureProj) input.project = azureProj;
-    if (pat) input.pat = pat;
-    return testAzureConnection(input);
-  }
-
-  if (provider === "jira") {
+    config = { ...config, orgUrl, project, pat };
+  } else if (providerId === "jira") {
     const host = (bodyData.host as string) || tracker?.jira?.host;
     const email = (bodyData.email as string) || tracker?.jira?.email;
     const token =
       (bodyData.token as string) ||
       env[PROJECT_ENV_KEYS.JIRA_TOKEN] ||
       process.env.JIRA_API_TOKEN;
-    const jiraProj =
+    const project =
       (bodyData.project as string) ||
       tracker?.jira?.project ||
       tracker?.projectId;
     if (!host || !email || !token) {
-      return {
-        ok: false,
-        error: "Jira host, email, and token are required.",
-      };
+      return { ok: false, error: "Jira host, email, and token are required." };
     }
-    try {
-      await fetchJiraTickets({
-        host,
-        email,
-        token,
-        project: jiraProj,
-        requiredLabel: "agentic-workflow",
-      });
-      return { ok: true, message: "Jira connection successful." };
-    } catch (err: unknown) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  if (provider === "github") {
+    config = { ...config, host, email, token, project };
+  } else if (providerId === "github") {
     const repo = (bodyData.repo as string) || tracker?.github?.repo;
     const token =
       (bodyData.token as string) ||
       env[PROJECT_ENV_KEYS.GITHUB_TOKEN] ||
       process.env.GITHUB_TOKEN;
-    try {
-      await fetchGitHubTickets({
-        repo,
-        token,
-        cwd: repositoryPath,
-        requiredLabel: "agentic-workflow",
-      });
-      return {
-        ok: true,
-        message: "GitHub connection successful.",
-      };
-    } catch (err: unknown) {
-      return { ok: false, error: (err as Error).message };
-    }
+    config = { ...config, repo, token, cwd: repositoryPath };
   }
 
-  return {
-    ok: false,
-    error: `Unsupported provider: ${provider}`,
-  };
+  try {
+    await provider.verifyCredentials(config);
+    return {
+      ok: true,
+      message: `${provider.displayName} connection successful.`,
+    };
+  } catch (err: unknown) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 export interface ProjectMigrationInput {

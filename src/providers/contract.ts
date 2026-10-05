@@ -325,3 +325,31 @@ export function hasCapability<Capability extends ProviderCapability>(
 ): provider is Provider & Required<Pick<Provider, Capability>> {
   return typeof provider[capability] === "function";
 }
+
+/**
+ * Verifies that a provider strictly adheres to the PR_CREATE_ONLY safety invariant.
+ * Returns true if no PR mutation methods (merge, close, abandon, delete, update) are exposed.
+ */
+export function isCreateOnlyProvider(provider: Provider): boolean {
+  const p = provider as unknown as Record<string, unknown>;
+  const forbidden = [
+    "mergePullRequest",
+    "closePullRequest",
+    "abandonPullRequest",
+    "deletePullRequest",
+    "updatePullRequest",
+  ];
+  return forbidden.every((method) => typeof p[method] !== "function");
+}
+
+/**
+ * Asserts that a provider adheres to the PR_CREATE_ONLY invariant, throwing if any
+ * forbidden PR mutation capabilities are defined.
+ */
+export function assertCreateOnlyInvariant(provider: Provider): void {
+  if (!isCreateOnlyProvider(provider)) {
+    throw new Error(
+      "Provider violates PR_CREATE_ONLY invariant: pull request mutation methods are strictly forbidden.",
+    );
+  }
+}

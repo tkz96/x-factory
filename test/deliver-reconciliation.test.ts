@@ -1,14 +1,27 @@
 import { describe, expect, it } from "bun:test";
+import type { CommandRecord } from "../src/db/command-repository.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
+import type { EventRepository } from "../src/db/event-repository.js";
+import type { JobRecord, JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
 import { RunRepository } from "../src/db/run-repository.js";
+import type { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import {
   type DeliverDependencies,
   DeliverExecutor,
 } from "../src/executors/deliver.js";
 import { Worker } from "../src/worker.js";
+
+function claimFirstPendingCommand(
+  commandRepo: CommandRepository,
+): CommandRecord {
+  const commands = commandRepo.claimPendingCommands("worker-1", 10000);
+  const first = commands[0];
+  if (!first) throw new Error("Expected a pending command to claim");
+  return first;
+}
 
 describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => {
   function setupTest() {
@@ -43,8 +56,6 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       }),
       safeCommitAll: async () => {},
       push: async () => {},
-      createAzurePullRequest: async () => ({ ok: true, url: "new-az" }),
-      findExistingAzurePullRequest: async () => null,
       createPullRequest: async () => "new-pr",
       findExistingPullRequest: async () => null,
       getHeadMessage: async () => "msg",
@@ -84,9 +95,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       payload: {},
       idempotencyKey: `d:${run.id}`,
     });
-    await worker.processCommand(
-      commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-    );
+    await worker.processCommand(claimFirstPendingCommand(commandRepo));
     expect(commitCalls).toBe(0);
     expect(operationLedgerRepo.getOperation(run.id, "git_commit")?.status).toBe(
       "completed",
@@ -122,9 +131,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     // We expect it to fail closed
@@ -163,9 +170,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     expect(pushCalls).toBe(0);
@@ -203,9 +208,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     expect(pushCalls).toBe(1);
@@ -244,9 +247,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     expect(pushCalls).toBe(1); // Proceeded to push safely
@@ -293,9 +294,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       payload: {},
       idempotencyKey: `d:${run.id}`,
     });
-    await worker.processCommand(
-      commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-    );
+    await worker.processCommand(claimFirstPendingCommand(commandRepo));
 
     expect(prCalls).toBe(0);
     expect(operationLedgerRepo.getOperation(run.id, "create_pr")?.status).toBe(
@@ -335,9 +334,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       payload: {},
       idempotencyKey: `d:${run.id}`,
     });
-    await worker.processCommand(
-      commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-    );
+    await worker.processCommand(claimFirstPendingCommand(commandRepo));
 
     expect(prCalls).toBe(1);
     expect(operationLedgerRepo.getOperation(run.id, "create_pr")?.status).toBe(
@@ -375,12 +372,12 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
     let prCalls = 0;
     const deliverExecutor = new DeliverExecutor(
       mockDeps({
-        createAzurePullRequest: async () => {
+        createPullRequest: async () => {
           prCalls++;
-          return { ok: true, url: "new-az" };
+          return "new-az";
         },
         getHeadSha: async () => "sha-head",
-        findExistingAzurePullRequest: async () => ({
+        findExistingPullRequest: async () => ({
           url: "existing-az",
           sourceRefName: "refs/heads/factory/D-1", // Match
           targetRefName: "refs/heads/main",
@@ -393,13 +390,13 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
     await deliverExecutor.execute({
       run,
       project,
-      job: {} as any,
+      job: {} as unknown as JobRecord,
       workerId: "worker-1",
       db,
       runRepo,
-      jobRepo: {} as any,
-      eventRepo: { appendEvent: () => {} } as any,
-      stageAttemptRepo: {} as any,
+      jobRepo: {} as unknown as JobRepository,
+      eventRepo: { appendEvent: () => {} } as unknown as EventRepository,
+      stageAttemptRepo: {} as unknown as StageAttemptRepository,
       operationLedgerRepo,
       attemptId: "att-1",
     });
@@ -440,25 +437,25 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
     let prCalls = 0;
     const deliverExecutor = new DeliverExecutor(
       mockDeps({
-        createAzurePullRequest: async () => {
+        createPullRequest: async () => {
           prCalls++;
-          return { ok: true, url: "new-az" };
+          return "new-az";
         },
         getHeadSha: async () => "sha-head",
-        findExistingAzurePullRequest: async () => null, // Missing
+        findExistingPullRequest: async () => null, // Missing
       }),
     );
 
     await deliverExecutor.execute({
       run,
       project,
-      job: {} as any,
+      job: {} as unknown as JobRecord,
       workerId: "worker-1",
       db,
       runRepo,
-      jobRepo: {} as any,
-      eventRepo: { appendEvent: () => {} } as any,
-      stageAttemptRepo: {} as any,
+      jobRepo: {} as unknown as JobRepository,
+      eventRepo: { appendEvent: () => {} } as unknown as EventRepository,
+      stageAttemptRepo: {} as unknown as StageAttemptRepository,
       operationLedgerRepo,
       attemptId: "att-1",
     });
@@ -498,9 +495,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     expect(commitCalls).toBe(0); // Failed closed
@@ -547,9 +542,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       payload: {},
       idempotencyKey: `d:${run.id}`,
     });
-    await worker.processCommand(
-      commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-    );
+    await worker.processCommand(claimFirstPendingCommand(commandRepo));
 
     expect(commitCalls).toBe(0);
     const op = operationLedgerRepo.getOperation(run.id, "git_commit");
@@ -590,9 +583,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     // Must not create a duplicate X-Factory commit (fail closed)
@@ -632,14 +623,15 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       idempotencyKey: `d:${run.id}`,
     });
     try {
-      await worker.processCommand(
-        commandRepo.claimPendingCommands("worker-1", 10000)[0]!,
-      );
+      await worker.processCommand(claimFirstPendingCommand(commandRepo));
     } catch {}
 
     const op = operationLedgerRepo.getOperation(run.id, "git_commit");
     expect(op?.status).toBe("failed");
     // Verify it used sha-original (metadata wasn't replaced with a new prepareContext call)
-    expect((op?.result as any)?.preCommitSha).toBe("sha-original");
+    expect(
+      (op?.result as { preCommitSha?: string } | null | undefined)
+        ?.preCommitSha,
+    ).toBe("sha-original");
   });
 });

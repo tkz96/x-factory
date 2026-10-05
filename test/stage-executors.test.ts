@@ -342,12 +342,10 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         push: async () => {
           pushed = true;
         },
-        createAzurePullRequest: async () => ({ ok: true, url: "" }),
         createPullRequest: async () => "https://github.com/org/repo/pull/42",
         getHeadSha: async () => "sha-head",
         getParentSha: async () => "sha-parent",
         getHeadMessage: async () => "msg",
-        findExistingAzurePullRequest: async () => null,
         findExistingPullRequest: async () => null,
         getRemoteBranchSha: async () => null,
       });

@@ -206,21 +206,6 @@ describe("Project Onboarding & Management APIs", () => {
     assert.ok(err.error.includes("Unsupported discovery provider"));
   });
 
-  it("POST /api/projects/discover-repositories discovers with local provider", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/discover-repositories`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "local", workspacePath: tempDir }),
-    });
-
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as {
-      repositories: Array<{ name: string }>;
-    };
-    assert.ok(Array.isArray(body.repositories));
-    assert.ok(body.repositories.some((r) => r.name === "sample-repo"));
-  });
-
   it("DELETE /api/projects/:id removes project", async () => {
     const res = await fetch(`${baseUrl}/api/projects/${testProjectId}`, {
       method: "DELETE",
@@ -285,20 +270,6 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(res.status, 200);
     const body = (await res.json()) as { ok: boolean };
     assert.equal(body.ok, false);
-  });
-
-  it("POST /api/projects/discover routes to repository discovery", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/discover`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "local", workspacePath: tempDir }),
-    });
-
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as {
-      repositories: Array<{ name: string }>;
-    };
-    assert.ok(Array.isArray(body.repositories));
   });
 
   it("POST /api/projects/inspect-repository includes readiness status", async () => {

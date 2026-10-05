@@ -23,6 +23,7 @@ import {
 import { GitHubHttpError, toGitHubUserError } from "./github/errors.js";
 import {
   createGitHubPullRequest,
+  enforceGitHubPrCreateOnly,
   findExistingGitHubPullRequest,
 } from "./github/pull-requests.js";
 import { listGitHubRepositories } from "./github/repositories.js";
@@ -45,7 +46,7 @@ export function createGithubProvider(
 ): Provider<"github"> {
   const fetchFn = options.fetchFn;
 
-  return {
+  const provider: Provider<"github"> = {
     id: "github",
     displayName: "GitHub",
     roles: ["tracker", "gitHost"],
@@ -93,6 +94,8 @@ export function createGithubProvider(
       return toGitHubUserError(error, context);
     },
   };
+  enforceGitHubPrCreateOnly(provider);
+  return provider;
 }
 
 /**
