@@ -660,7 +660,9 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(getEl("combo-tracker-state").textContent).toBe(
       CONNECTION_STATE_COPY.degradedAccepted,
     );
-    expect(getEl("combo-tracker-state").dataset.connectionState).toBe("degraded");
+    expect(getEl("combo-tracker-state").dataset.connectionState).toBe(
+      "degraded",
+    );
     // Accepted evidence — not a dismissal — is what unblocked it.
     expect(document.getElementById("review-blocked")).toBeNull();
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(false);
