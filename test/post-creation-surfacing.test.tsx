@@ -48,6 +48,7 @@ import {
 import { api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
+import { SettingsView } from "../src/frontend/views/SettingsView.js";
 import type { Project } from "../src/shared/types.js";
 
 afterAll(async () => {
@@ -580,5 +581,106 @@ describe("Project card — combo line and integrity failure", () => {
     expect(combo?.classList.contains("connection-combo-line--warning")).toBe(
       true,
     );
+  });
+});
+
+// ─── Settings connections registry ──────────────────────────────────────────
+
+/** Opens the settings Connections tab and returns the registry container. */
+async function renderConnectionsRegistry(
+  projects: Project[],
+  client: QueryClient,
+): Promise<HTMLElement> {
+  client.setQueryData(queryKeys.projects(), projects);
+  const { container } = renderUi(
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(SettingsView),
+      React.createElement(OnboardingProbe),
+    ),
+    client,
+  );
+
+  const tab = Array.from(container.querySelectorAll("button")).find(
+    (button) => button.dataset.tab === "trackers",
+  );
+  if (!(tab instanceof HTMLElement)) {
+    throw new Error("connections tab missing");
+  }
+  await act(async () => {
+    fireEvent.click(tab);
+  });
+  return container;
+}
+
+describe("Settings connections registry — combo line per project", () => {
+  it("HEALTHY: renders the combo line for a project with both connections", async () => {
+    const container = await renderConnectionsRegistry(
+      [makeProject()],
+      makeClient(),
+    );
+
+    const row = container.querySelector("#connections-registry-tbody tr");
+    expect(row?.textContent).toContain("Tracker One");
+    expect(row?.textContent).toContain("Git Host One");
+    expect(row?.textContent).not.toContain("tracker-one");
+    expect(
+      row?.querySelector(".connection-combo-line--connected"),
+    ).not.toBeNull();
+  });
+
+  it("DEGRADED: renders the warning tone without a repair path", async () => {
+    const container = await renderConnectionsRegistry(
+      [makeProject({ connections: DEGRADED_CONNECTIONS })],
+      makeClient(),
+    );
+
+    const row = container.querySelector("#connections-registry-tbody tr");
+    expect(
+      row?.querySelector(".connection-combo-line--warning"),
+    ).not.toBeNull();
+    expect(row?.querySelector(".connection-combo-line--error")).toBeNull();
+    expect(row?.querySelector("button.retry-action")).toBeNull();
+  });
+
+  it("INTEGRITY FAILURE: renders the repair path that opens the connection flow", async () => {
+    const container = await renderConnectionsRegistry(
+      [makeProject({ connections: NO_TRACKER_CONNECTIONS })],
+      makeClient(),
+    );
+
+    const row = container.querySelector("#connections-registry-tbody tr");
+    expect(row?.querySelector(".connection-combo-line--error")).not.toBeNull();
+    const repair = row?.querySelector("button.retry-action");
+    expect(repair?.textContent).toContain(CONNECTIONS_COPY.reconnect);
+
+    expect(
+      container.querySelector('[data-testid="onboarding-probe"]')?.textContent,
+    ).toBe("onboarding-closed");
+    if (!(repair instanceof HTMLElement)) {
+      throw new Error("repair action missing");
+    }
+    await act(async () => {
+      fireEvent.click(repair);
+    });
+    expect(
+      container.querySelector('[data-testid="onboarding-probe"]')?.textContent,
+    ).toBe("onboarding-open");
+  });
+});
+
+describe("Settings connections registry — canonical copy", () => {
+  it("renders the registry title and its columns from the copy map", async () => {
+    const container = await renderConnectionsRegistry(
+      [makeProject()],
+      makeClient(),
+    );
+
+    expect(container.textContent).toContain(CONNECTIONS_COPY.registryTitle);
+    expect(container.textContent).toContain(
+      CONNECTIONS_COPY.registryColumnConnections,
+    );
+    expect(container.textContent).toContain(CONNECTIONS_COPY.registryAction);
   });
 });

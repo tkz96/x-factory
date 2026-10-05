@@ -15,7 +15,10 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     expect(content).toContain("Connections");
     expect(content).toContain('id="tab-trackers"');
     expect(content).toContain('id="connections-registry-tbody"');
-    expect(content).toContain("Tracker Connections");
+    // The registry title is canonical copy (#147): it lives in the copy map,
+    // not inline in the view.
+    expect(content).toContain("CONNECTIONS_COPY.registryTitle");
+    expect(content).not.toContain("Tracker Connections");
     // Ensure legacy global tracker fields are completely removed
     expect(content).not.toContain("setting-tracker-azure-pat");
     expect(content).not.toContain("setting-tracker-jira-token");

@@ -172,6 +172,20 @@ export const CONNECTIONS_COPY = {
   },
   /** The repair path offered by every integrity failure. */
   reconnect: "Reconnect",
+  /** The settings connections registry (spec #133 story 50 surface). */
+  registryTitle: "Tracker Connections",
+  registrySubtitle:
+    "Read-only registry of projects and their configured connections.",
+  registryColumnProject: "Project",
+  registryColumnConnections: "Connections",
+  registryColumnStatus: "Status",
+  registryColumnAction: "Action",
+  registryStatusActive: "Active",
+  registryStatusArchived: "Archived",
+  registryLoading: "Loading connections…",
+  registryEmpty: "No projects configured.",
+  registryAction: "View Project →",
+  onboardProject: "Onboard Project",
   /** The tracker card on the project detail surface. */
   trackerCardTitle: "Issue Tracker Connection",
   trackerCardSubtitle: "Automated ticket ingestion and PR linking.",
