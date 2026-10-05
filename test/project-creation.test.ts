@@ -27,9 +27,13 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { z } from "zod/v4";
 import { getProjectEnvPath } from "../src/paths.js";
 import { loadProjectEnv } from "../src/project-env.js";
-import type { Provider } from "../src/providers/contract.js";
+import type {
+  Provider,
+  ProviderConfigFieldMeta,
+} from "../src/providers/contract.js";
 import { resolveProjectProvider } from "../src/providers/project-config.js";
 import { PROVIDER_REGISTRY } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
@@ -101,12 +105,57 @@ const trackerOnlyStubProvider: Provider = {
   roles: ["tracker"],
 };
 
+/**
+ * Declares an optional secret, so the update contract's "clear removes a
+ * stored secret" path has a field that may legally be absent.
+ */
+const optionalSecretStubProvider: Provider = {
+  ...capableStubProvider,
+  id: "stub-optional-secret",
+  displayName: "Optional Secret Stub",
+  configSchema: z.object({
+    host: z
+      .string()
+      .min(1)
+      .meta({
+        label: "Host",
+        uiType: "url",
+      } as ProviderConfigFieldMeta),
+    apiToken: z
+      .string()
+      .min(1)
+      .meta({
+        label: "API token",
+        uiType: "secret",
+        secret: true,
+        envKey: "STUB_API_TOKEN",
+      } as ProviderConfigFieldMeta),
+    backupToken: z
+      .string()
+      .optional()
+      .meta({
+        label: "Backup token",
+        uiType: "secret",
+        secret: true,
+        envKey: "STUB_BACKUP_TOKEN",
+      } as ProviderConfigFieldMeta),
+    project: z
+      .string()
+      .min(1)
+      .meta({
+        label: "Project",
+        uiType: "text",
+      } as ProviderConfigFieldMeta),
+  }),
+};
+
 const testRegistry: Map<string, Provider> = new Map<string, Provider>([
   ...PROVIDER_REGISTRY,
   [capableStubProvider.id, capableStubProvider],
   [noTicketsStubProvider.id, noTicketsStubProvider],
   [noPullRequestsStubProvider.id, noPullRequestsStubProvider],
   [trackerOnlyStubProvider.id, trackerOnlyStubProvider],
+  [optionalSecretStubProvider.id, optionalSecretStubProvider],
 ]);
 
 let server: ReturnType<typeof startServer>;
@@ -806,5 +855,161 @@ describe("Redaction before serialization (connections payload)", () => {
     expect(manifestText).not.toContain("envKey");
     expect(manifestText).not.toContain("STUB_API_TOKEN");
     expect(manifestText).toContain('"secret":true');
+  });
+});
+
+describe("Secret update semantics on PATCH /api/projects/:id", () => {
+  const backupMarker = "synthetic-backup-token-7a2d";
+  let projectId: string;
+
+  async function patch(
+    body: Record<string, unknown>,
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    const res = await fetch(`${baseUrl}/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, body: text ? JSON.parse(text) : {} };
+  }
+
+  function connectionBody(
+    config: Record<string, unknown>,
+    clearSecrets?: string[],
+  ): Record<string, unknown> {
+    return {
+      connections: [
+        { providerId: "stub-optional-secret", roles: ["tracker"], config },
+      ],
+      ...(clearSecrets ? { clearSecrets } : {}),
+    };
+  }
+
+  beforeAll(async () => {
+    projectId = `update-${Date.now()}`;
+    const { status } = await createProject({
+      id: projectId,
+      name: "Updatable",
+      workspacePath: tempDir,
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker"],
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            backupToken: backupMarker,
+            project: "updatable",
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${projectId}-web`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+        },
+      ],
+    });
+    expect(status).toBe(201);
+  });
+
+  it("keeps the stored secret when the secret field is missing", async () => {
+    const { status } = await patch(
+      connectionBody({ host: "https://stub.example", project: "renamed" }),
+    );
+    expect(status).toBe(200);
+
+    const env = await loadProjectEnv(projectId);
+    expect(env.STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+    // Non-secret configuration is updated, and the legacy tracker view follows.
+    const stored = await readStoredProject(projectId);
+    expect(stored?.connections?.[0]?.config).toEqual({
+      host: "https://stub.example",
+      project: "renamed",
+    });
+    expect(stored?.issueTracker?.projectId).toBe("renamed");
+  });
+
+  it("keeps the stored secret when the secret field is empty (empty never means delete)", async () => {
+    const { status } = await patch(
+      connectionBody({
+        host: "https://stub.example",
+        apiToken: "",
+        project: "renamed",
+      }),
+    );
+    expect(status).toBe(200);
+    expect((await loadProjectEnv(projectId)).STUB_API_TOKEN).toBe(
+      MARKER_STUB_TOKEN,
+    );
+  });
+
+  it("replaces the stored secret when a non-empty value is provided", async () => {
+    const replacement = "synthetic-replacement-token-5e1c";
+    const { status, body } = await patch(
+      connectionBody({
+        host: "https://stub.example",
+        apiToken: replacement,
+        project: "renamed",
+      }),
+    );
+    expect(status).toBe(200);
+
+    expect((await loadProjectEnv(projectId)).STUB_API_TOKEN).toBe(replacement);
+    // The replacement never enters the record or the response.
+    expect(JSON.stringify(body)).not.toContain(replacement);
+    const record = await readFile(configPath, "utf-8");
+    expect(record).not.toContain(replacement);
+    expect(record).toContain(projectId);
+
+    // Restore the original token for the remaining cases.
+    await patch(
+      connectionBody({
+        host: "https://stub.example",
+        apiToken: MARKER_STUB_TOKEN,
+        project: "renamed",
+      }),
+    );
+  });
+
+  it("clears a stored secret when it is listed in clearSecrets", async () => {
+    const { status } = await patch(
+      connectionBody({ host: "https://stub.example", project: "renamed" }, [
+        "backupToken",
+      ]),
+    );
+    expect(status).toBe(200);
+
+    const env = await loadProjectEnv(projectId);
+    expect(env.STUB_BACKUP_TOKEN).toBeUndefined();
+    // Clearing one secret leaves the others alone.
+    expect(env.STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+    const envFile = await readFile(getProjectEnvPath(projectId), "utf-8");
+    expect(envFile).not.toContain("STUB_BACKUP_TOKEN");
+  });
+
+  it("fails with fieldErrors when clearing a required secret, and writes nothing", async () => {
+    const before = await loadProjectEnv(projectId);
+    const { status, body } = await patch(
+      connectionBody({ host: "https://stub.example", project: "renamed" }, [
+        "apiToken",
+      ]),
+    );
+    expect(status).toBe(409);
+    expect(body).toEqual({ fieldErrors: { apiToken: "REQUIRED" } });
+    expect(await loadProjectEnv(projectId)).toEqual(before);
+  });
+
+  it("rejects a clearSecrets name the provider does not declare as a secret", async () => {
+    const { status, body } = await patch(
+      connectionBody({ host: "https://stub.example", project: "renamed" }, [
+        "host",
+      ]),
+    );
+    expect(status).toBe(409);
+    expect(body).toEqual({ fieldErrors: { host: "INVALID" } });
   });
 });
