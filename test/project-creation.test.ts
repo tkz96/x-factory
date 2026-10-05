@@ -28,6 +28,8 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod/v4";
+import { loadProjects } from "../src/config.js";
+import { missingConnectionRoleCodes } from "../src/config-schema.js";
 import { getProjectEnvPath } from "../src/paths.js";
 import { loadProjectEnv } from "../src/project-env.js";
 import type {
@@ -423,7 +425,10 @@ describe("POST /api/projects with a connections payload", () => {
         connections: [
           {
             providerId: connection.providerId ?? "stub-capable",
-            roles: connection.roles ?? ["tracker"],
+            // The default is a VALID payload under #133: one dual-role
+            // connection covers both required roles. Tests that need a
+            // single-role (invalid) set override `roles` explicitly.
+            roles: connection.roles ?? ["tracker", "gitHost"],
             config: connection.config ?? {
               host: "https://stub.example",
               apiToken: MARKER_STUB_TOKEN,
@@ -567,8 +572,116 @@ describe("POST /api/projects with a connections payload", () => {
 
       // Rejected before ANY write: no record, and not even the project's env
       // storage directory was created.
-      expect(await readStoredProject(id)).toBeUndefined();
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
       await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
+    it("rejects a payload with a tracker connection but no git host with 409 MISSING_GIT_HOST_CONNECTION", async () => {
+      const id = baseId();
+
+      // A tracker connection and nothing else: the set covers only one role, so
+      // the project would exist without a usable git host — a wiring the
+      // post-creation integrity surface can only report as broken.
+      const { status, body } = await createProject(
+        minimalPayload(id, { roles: ["tracker"] }),
+      );
+
+      // 409, never 400: the transport shape is valid, so the rejection is the
+      // SEMANTIC layer's own — the payload reaches role coverage.
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["MISSING_GIT_HOST_CONNECTION"] });
+
+      // Rejected before ANY write: no record, no env storage, no secret.
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
+    it("persists the project when the connection set covers both roles, as two connections or as one dual-role connection", async () => {
+      // (a) Two different providers, one connection per role.
+      const splitId = baseId();
+      const split = await createProject({
+        ...minimalPayload(splitId),
+        connections: [
+          {
+            providerId: "stub-tracker-only",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "split",
+            },
+          },
+          {
+            providerId: "stub-capable",
+            roles: ["gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "split",
+            },
+          },
+        ],
+      });
+      expect(split.status).toBe(201);
+
+      // Read the record back from disk: both connections and both roles landed.
+      const splitStored = await readStoredProject(splitId);
+      expect(splitStored?.connections).toEqual([
+        {
+          providerId: "stub-tracker-only",
+          roles: ["tracker"],
+          config: { host: "https://stub.example", project: "split" },
+        },
+        {
+          providerId: "stub-capable",
+          roles: ["gitHost"],
+          config: { host: "https://stub.example", project: "split" },
+        },
+      ]);
+
+      // (b) ONE provider carrying both roles.
+      const dualId = baseId();
+      const dual = await createProject(
+        minimalPayload(dualId, { roles: ["tracker", "gitHost"] }),
+      );
+      expect(dual.status).toBe(201);
+
+      const dualStored = await readStoredProject(dualId);
+      // Exactly one connection, and it covers both roles.
+      expect(dualStored?.connections).toHaveLength(1);
+      expect(dualStored?.connections?.[0]?.roles).toEqual([
+        "tracker",
+        "gitHost",
+      ]);
+    });
+
+    it("names every missing role at once, so one rejection teaches both gaps", () => {
+      // Unreachable through the transport (a connection declares at least one
+      // role), but the rule is a set operation over `roles`: a degenerate set
+      // must name BOTH gaps rather than whichever role the gate looked for
+      // first.
+      expect(missingConnectionRoleCodes([])).toEqual([
+        "MISSING_TRACKER_CONNECTION",
+        "MISSING_GIT_HOST_CONNECTION",
+      ]);
+      expect(missingConnectionRoleCodes([{ roles: ["tracker"] }])).toEqual([
+        "MISSING_GIT_HOST_CONNECTION",
+      ]);
+      expect(
+        missingConnectionRoleCodes([
+          { roles: ["tracker"] },
+          { roles: ["gitHost"] },
+        ]),
+      ).toEqual([]);
+      expect(
+        missingConnectionRoleCodes([{ roles: ["tracker", "gitHost"] }]),
+      ).toEqual([]);
     });
 
     it("mirrors issueTracker from the tracker connection, never from the default", async () => {
@@ -667,7 +780,7 @@ describe("POST /api/projects with a connections payload", () => {
         connections: [
           {
             providerId: "stub-capable",
-            roles: ["tracker"],
+            roles: ["tracker", "gitHost"],
             config: {
               host: "https://stub.example",
               apiToken: "synthetic-other-token-2b7e",
@@ -715,7 +828,9 @@ describe("Ordered writes for crash safety (connections payload)", () => {
       connections: [
         {
           providerId: "stub-capable",
-          roles: ["tracker"],
+          // A VALID set (#133): these tests need the ordered writes to RUN, so
+          // the payload must clear the pre-write validation ladder.
+          roles: ["tracker", "gitHost"],
           config: {
             host: "https://stub.example",
             apiToken: MARKER_STUB_TOKEN,
@@ -805,7 +920,9 @@ describe("Redaction before serialization (connections payload)", () => {
     const connections: ConnectionsPayload["connections"] = [
       {
         providerId: "stub-capable",
-        roles: ["tracker"],
+        // Both roles: the redaction surfaces are asserted on a project that can
+        // actually exist under #133.
+        roles: ["tracker", "gitHost"],
         config: {
           host: "https://stub.example",
           apiToken: connectionSecrets.stub,
@@ -942,7 +1059,13 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
   ): Record<string, unknown> {
     return {
       connections: [
-        { providerId: "stub-optional-secret", roles: ["tracker"], config },
+        {
+          providerId: "stub-optional-secret",
+          // A full-replacement update must keep BOTH roles: the merged set is
+          // what the role-coverage gate checks (#133).
+          roles: ["tracker", "gitHost"],
+          config,
+        },
       ],
       ...(clearSecrets ? { clearSecrets } : {}),
     };
@@ -957,7 +1080,7 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
       connections: [
         {
           providerId: "stub-optional-secret",
-          roles: ["tracker"],
+          roles: ["tracker", "gitHost"],
           config: {
             host: "https://stub.example",
             apiToken: MARKER_STUB_TOKEN,
@@ -1074,6 +1197,59 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(status).toBe(409);
     expect(body).toEqual({ fieldErrors: { host: "INVALID" } });
   });
+
+  it("rejects an update whose MERGED connections would drop a required role, with codes and no write", async () => {
+    const envBefore = await loadProjectEnv(projectId);
+    const recordBefore = await readStoredProject(projectId);
+    // A secret that would land in env storage if the gate ran AFTER the writes.
+    const unwritten = "synthetic-unwritten-token-9f3a";
+
+    // The update REPLACES this provider's connection, so a single-role payload
+    // would leave the project without a git host.
+    const noGitHost = await patch({
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker"],
+          config: {
+            host: "https://stub.example",
+            apiToken: unwritten,
+            project: "stripped",
+          },
+        },
+      ],
+    });
+    expect(noGitHost.status).toBe(409);
+    expect(noGitHost.body).toEqual({
+      formErrors: ["MISSING_GIT_HOST_CONNECTION"],
+    });
+
+    // …and without a tracker.
+    const noTracker = await patch({
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: unwritten,
+            project: "stripped",
+          },
+        },
+      ],
+    });
+    expect(noTracker.status).toBe(409);
+    expect(noTracker.body).toEqual({
+      formErrors: ["MISSING_TRACKER_CONNECTION"],
+    });
+
+    // Neither rejection wrote anything: the supplied secret never reached env
+    // storage, and secrets and record are untouched.
+    const envFile = await readFile(getProjectEnvPath(projectId), "utf-8");
+    expect(envFile).not.toContain(unwritten);
+    expect(await loadProjectEnv(projectId)).toEqual(envBefore);
+    expect(await readStoredProject(projectId)).toEqual(recordBefore);
+  });
 });
 describe("Redaction before serialization — structured logs", () => {
   it("logs the connection configuration with every declared secret masked", async () => {
@@ -1093,7 +1269,7 @@ describe("Redaction before serialization — structured logs", () => {
         connections: [
           {
             providerId: "stub-capable",
-            roles: ["tracker"],
+            roles: ["tracker", "gitHost"],
             config: {
               host: "https://stub.example",
               apiToken: secret,

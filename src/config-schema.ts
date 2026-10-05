@@ -285,6 +285,48 @@ export type ConnectionsProjectInput = z.infer<
   typeof ConnectionsProjectInputSchema
 >;
 
+// ---------------------------------------------------------------------------
+// Required connection-role coverage (#133)
+// ---------------------------------------------------------------------------
+
+/**
+ * The roles a project's connection set must cover: every project needs a usable
+ * issue tracker AND a usable git host, supplied either as TWO connections (one
+ * per role) or as ONE dual-role connection. A set covering only one role is not
+ * a project X-Factory can operate, so it is rejected before any write.
+ */
+export const REQUIRED_CONNECTION_ROLES = ["tracker", "gitHost"] as const;
+
+export type RequiredConnectionRole = (typeof REQUIRED_CONNECTION_ROLES)[number];
+
+/** The `formErrors` code reported for each required role no connection serves. */
+const MISSING_CONNECTION_ROLE_CODES: Readonly<
+  Record<RequiredConnectionRole, string>
+> = {
+  tracker: "MISSING_TRACKER_CONNECTION",
+  gitHost: "MISSING_GIT_HOST_CONNECTION",
+};
+
+/**
+ * One code per required role the connection set does not cover, in
+ * `REQUIRED_CONNECTION_ROLES` order — both codes when both are missing, so the
+ * user learns everything at once. Empty when the set is valid.
+ *
+ * This is a predicate rather than a `.refine` on `ConnectionsProjectInputSchema`
+ * on purpose: that schema is one branch of the transport union
+ * (`ProjectInputSchema`), so a payload failing it is a 400 — the missing-role
+ * payload must reach the semantic layer to be answered with these 409 codes.
+ * The rule still has exactly one definition, and this is it.
+ */
+export function missingConnectionRoleCodes(
+  connections: readonly { roles: readonly string[] }[],
+): string[] {
+  const covered = new Set(connections.flatMap((c) => c.roles));
+  return REQUIRED_CONNECTION_ROLES.filter((role) => !covered.has(role)).map(
+    (role) => MISSING_CONNECTION_ROLE_CODES[role],
+  );
+}
+
 export const ProjectInputSchema = z.union([
   ModernProjectInputSchema,
   LegacyProjectInputSchema,
