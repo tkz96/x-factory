@@ -2,14 +2,14 @@
 
 import "./ModalContainer.css";
 
+import { WizardModal } from "../wizard/WizardModal.js";
 import { NewRunModal } from "./modals/NewRunModal.js";
-import { OnboardingWizardModal } from "./modals/OnboardingWizardModal.js";
 
 export function ModalContainer() {
   return (
     <div id="modal-container">
       <NewRunModal />
-      <OnboardingWizardModal />
+      <WizardModal />
     </div>
   );
 }

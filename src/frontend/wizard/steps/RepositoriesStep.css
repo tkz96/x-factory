@@ -1,0 +1,14 @@
+/* src/frontend/wizard/steps/RepositoriesStep.css — Step 3 Repositories styling */
+
+.repositories-step-pane {
+  padding: 1.5rem;
+}
+
+.repositories-list-placeholder {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  margin-top: 1.25rem;
+}

@@ -69,47 +69,4 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     expect(content).toContain("api.testAzureScopes");
     expect(content).toContain("Ingestion Label");
   });
-
-  it("Onboarding Wizard step 2 requires tracker platform and contains no skip/none option", async () => {
-    const modalPath = path.join(
-      import.meta.dir,
-      "../src/frontend/components/modals/OnboardingWizardModal.tsx",
-    );
-    const content = await Bun.file(modalPath).text();
-
-    expect(content).toContain('id="onboard-step-2"');
-    expect(content).toContain('id="onboard-tracker-connection"');
-    expect(content).toContain('value="azure"');
-    expect(content).toContain('value="github"');
-    expect(content).toContain('value="jira"');
-    // Ensure no 'skip' or 'none' option exists
-    expect(content).not.toContain('value="none"');
-    expect(content).not.toContain('value="skip"');
-  });
-
-  it("Wizard client validation enforces tracker fields before advancing past Step 2", async () => {
-    const modalPath = path.join(
-      import.meta.dir,
-      "../src/frontend/components/modals/OnboardingWizardModal.tsx",
-    );
-    const content = await Bun.file(modalPath).text();
-
-    expect(content).toContain("canGoNextFromStep2");
-    expect(content).toContain(
-      "Please complete the required tracker configuration",
-    );
-    expect(content).toContain("leastPrivilegeAck");
-  });
-
-  it("Wizard actions saves project configuration directly to /api/projects", async () => {
-    const modalPath = path.join(
-      import.meta.dir,
-      "../src/frontend/components/modals/OnboardingWizardModal.tsx",
-    );
-    const content = await Bun.file(modalPath).text();
-
-    expect(content).toContain('fetch("/api/projects"');
-    expect(content).toContain('method: "POST"');
-    expect(content).toContain("invalidateProjects");
-  });
 });
