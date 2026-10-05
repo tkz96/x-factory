@@ -10,6 +10,7 @@
 // - POST /api/providers/parse-url: URL intake via parseQuickUrl. Returns draft or un-matched payload.
 
 import { z } from "zod/v4";
+import { parseProviderConfig } from "../providers/config-validation.js";
 import type {
   ProviderError,
   ProviderRole,
@@ -48,26 +49,6 @@ function normalizeRole(raw: string): ProviderRole | null {
     return "tracker";
   }
   return null;
-}
-
-/**
- * Maps a failed config-schema parse to the machine-readable field-error codes
- * the client resolves through the copy map: `REQUIRED` when the raw value was
- * absent or empty, `INVALID` otherwise. Shared by every provider route that
- * parses provider config, so the mapping can never drift between them.
- */
-function configFieldErrors(
-  issues: ReadonlyArray<{ readonly path: ReadonlyArray<PropertyKey> }>,
-  rawConfig: Record<string, unknown>,
-): Record<string, string> {
-  const fieldErrors: Record<string, string> = {};
-  for (const issue of issues) {
-    const fieldName = issue.path.join(".") || "config";
-    const rawVal = rawConfig[issue.path[0] as string];
-    const isRequired = rawVal === undefined || rawVal === null || rawVal === "";
-    fieldErrors[fieldName] = isRequired ? "REQUIRED" : "INVALID";
-  }
-  return fieldErrors;
 }
 
 /**
@@ -138,23 +119,18 @@ export async function handleVerifyRoute(
     }
 
     // 3. Semantic validation: Config schema validation
-    const parsedConfig = provider.configSchema.safeParse(body.config);
-    if (!parsedConfig.success) {
-      return jsonResponse(
-        {
-          fieldErrors: configFieldErrors(
-            parsedConfig.error.issues,
-            body.config,
-          ),
-        },
-        409,
-      );
+    const parsedConfig = parseProviderConfig(
+      provider.configSchema,
+      body.config,
+    );
+    if (!parsedConfig.ok) {
+      return jsonResponse({ fieldErrors: parsedConfig.fieldErrors }, 409);
     }
 
     // 4. Verification execution
     try {
       const verification: VerificationResult = await provider.verifyCredentials(
-        parsedConfig.data,
+        parsedConfig.config,
       );
       return jsonResponse(verification, 200);
     } catch (err: unknown) {
@@ -262,17 +238,12 @@ export async function handleRepositoriesRoute(
     }
 
     // 3. Semantic validation: Config schema validation
-    const parsedConfig = provider.configSchema.safeParse(body.config);
-    if (!parsedConfig.success) {
-      return jsonResponse(
-        {
-          fieldErrors: configFieldErrors(
-            parsedConfig.error.issues,
-            body.config,
-          ),
-        },
-        409,
-      );
+    const parsedConfig = parseProviderConfig(
+      provider.configSchema,
+      body.config,
+    );
+    if (!parsedConfig.ok) {
+      return jsonResponse({ fieldErrors: parsedConfig.fieldErrors }, 409);
     }
 
     // 4. Capability compatibility: the provider must be able to discover
@@ -282,7 +253,7 @@ export async function handleRepositoriesRoute(
 
     // 5. Discovery execution
     try {
-      const repositories = await provider.listRepositories(parsedConfig.data);
+      const repositories = await provider.listRepositories(parsedConfig.config);
       return jsonResponse(
         {
           providerId: provider.id,

@@ -75,14 +75,29 @@ export async function loadProjectEnv(
 }
 
 /**
+ * Writes the complete secret set for a project to its env file.
+ */
+async function writeProjectEnv(
+  projectId: string,
+  vars: Record<string, string>,
+): Promise<void> {
+  await ensureDir(getProjectDir(projectId));
+  const envPath = getProjectEnvPath(projectId);
+  await writeFile(envPath, formatEnvContent(vars), {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
+}
+
+/**
  * Save or update environment secrets for a specific project.
  * Merges with existing secrets, preserving unmasked values.
+ * Idempotent: re-applying the same values (a retry) is safe.
  */
 export async function saveProjectEnv(
   projectId: string,
   vars: Record<string, string>,
 ): Promise<void> {
-  await ensureDir(getProjectDir(projectId));
   const existing = await loadProjectEnv(projectId);
 
   const updated: Record<string, string> = { ...existing };
@@ -100,9 +115,23 @@ export async function saveProjectEnv(
     }
   }
 
-  const envPath = getProjectEnvPath(projectId);
-  const content = formatEnvContent(updated);
-  await writeFile(envPath, content, { encoding: "utf-8", mode: 0o600 });
+  await writeProjectEnv(projectId, updated);
+}
+
+/**
+ * Removes named secret keys for a project. Used by the explicit `clearSecrets`
+ * update contract: an empty value never means delete (#131).
+ */
+export async function deleteProjectEnvKeys(
+  projectId: string,
+  keys: readonly string[],
+): Promise<void> {
+  if (keys.length === 0) return;
+  const updated = await loadProjectEnv(projectId);
+  for (const key of keys) {
+    delete updated[key];
+  }
+  await writeProjectEnv(projectId, updated);
 }
 
 /**

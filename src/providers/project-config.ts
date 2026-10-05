@@ -8,7 +8,12 @@ import type {
   ProjectIssueTracker,
 } from "../shared/types.js";
 import type { Provider, ProviderConfig } from "./contract.js";
-import { getProvider, requireProvider } from "./registry.js";
+import {
+  getProvider,
+  PROVIDER_REGISTRY,
+  type ProviderRegistry,
+  requireProvider,
+} from "./registry.js";
 
 export interface ResolvedProjectProvider {
   provider: Provider;
@@ -22,10 +27,11 @@ export interface ResolvedProjectProvider {
 export function resolveProjectProvider(
   project: Project,
   env: Record<string, string> = {},
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ResolvedProjectProvider {
   const providerId = (project.issueTracker?.provider ||
     "github") as IssueTrackerProvider;
-  const provider = requireProvider(providerId);
+  const provider = requireProvider(providerId, registry);
 
   const primaryRepo =
     project.repositories?.find((r) => r.path === project.repositoryPath) ||
@@ -83,6 +89,51 @@ export function resolveProjectProvider(
   }
 
   return { provider, config, repository };
+}
+
+/**
+ * The legacy tracker view for a project that has no tracker connection: the
+ * pre-existing default `_parseIssueTracker` applies, preserved so the runtime
+ * still resolves something for hand-written records.
+ */
+export const DEFAULT_ISSUE_TRACKER: ProjectIssueTracker = {
+  provider: "github",
+  connectionId: "github",
+};
+
+/**
+ * Derives the legacy `ProjectIssueTracker` view from the connection that
+ * carries the `tracker` role (#145).
+ *
+ * `connections` is the normalized source of truth from #131, but the runtime
+ * (queue, deliver, readiness, tickets) still resolves the tracker through the
+ * `issueTracker` record. The mapping is generic: the legacy view mirrors the
+ * connection's own config, namespaced under the provider id, plus the legacy
+ * flat fields that share a config field's name. No provider conditionals live
+ * here — a new provider is picked up with no change to this function.
+ */
+export function deriveIssueTracker(
+  providerId: string,
+  config: Record<string, unknown>,
+): ProjectIssueTracker {
+  const tracker: Record<string, unknown> = {
+    provider: providerId as IssueTrackerProvider,
+    connectionId: providerId,
+  };
+
+  const project = config.project;
+  if (typeof project === "string" && project.trim()) {
+    tracker.projectId = project.trim();
+  }
+
+  const orgUrl = config.orgUrl;
+  if (typeof orgUrl === "string" && orgUrl.trim()) {
+    tracker.orgUrl = orgUrl.trim();
+  }
+
+  tracker[providerId] = config;
+
+  return tracker as unknown as ProjectIssueTracker;
 }
 
 export interface ProjectTrackerSummary {

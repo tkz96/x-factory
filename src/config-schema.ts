@@ -5,10 +5,12 @@ import { z } from "zod/v4";
 import type {
   AzureTrackerConfig,
   GitHubTrackerConfig,
+  GitIdentity,
   IssueTrackerProvider,
   JiraTrackerConfig,
   KnowledgeRepository,
   Project,
+  ProjectConnection,
   ProjectIssueTracker,
   ProjectRepository,
   RepositoryCommands,
@@ -18,7 +20,10 @@ import type {
 const IssueTrackerInputSchema = z
   .union([
     z.object({
-      provider: z.enum(["azure", "jira", "github"]).optional(),
+      // The legacy tracker view is a compatibility field, not the provider
+      // registry: a non-empty id keeps records created by providers outside
+      // the current built-in set loadable (extensibility gate a, #127).
+      provider: z.string().min(1).optional(),
       connectionId: z.string().optional(),
       projectId: z.string().optional(),
       orgUrl: z.string().optional(),
@@ -211,9 +216,71 @@ const LegacyProjectInputSchema = z
   })
   .passthrough();
 
+// ---------------------------------------------------------------------------
+// Normalized connections payload (#131/#145)
+// ---------------------------------------------------------------------------
+
+const ProjectConnectionRoleSchema = z.enum(["tracker", "gitHost"]);
+
+/**
+ * One provider connection as it arrives on the wire. `config` carries secret
+ * values inline exactly once; the server derives which of them are secret from
+ * the registered provider schema and never trusts client metadata.
+ */
+export const ProjectConnectionInputSchema = z.object({
+  providerId: NonEmptyString,
+  roles: z
+    .array(ProjectConnectionRoleSchema)
+    .min(1, "A connection must declare at least one role."),
+  config: z.record(z.string(), z.unknown()),
+});
+
+/** A role-tagged repository as returned by git-host discovery. */
+const DiscoveredRepositoryInputSchema = z.object({
+  id: NonEmptyString,
+  name: NonEmptyString,
+  remote: OptionalTrimmedString,
+  defaultBranch: OptionalTrimmedString,
+  localPath: OptionalTrimmedString,
+  role: RepositoryRoleSchema.optional(),
+  primary: z.boolean().optional(),
+});
+
+/**
+ * The normalized creation payload (#131): project-level fields (including the
+ * project-level `gitIdentity`), a normalized `connections` array, and
+ * role-tagged repositories with at least one application repository.
+ */
+export const ConnectionsProjectInputSchema = z
+  .object({
+    id: NonEmptyString,
+    name: NonEmptyString,
+    workspacePath: OptionalTrimmedString,
+    commandTimeoutMs: z.number().positive().optional(),
+    archived: z.boolean().optional(),
+    gitIdentity: z
+      .object({ name: NonEmptyString, email: NonEmptyString })
+      .optional(),
+    connections: z.array(ProjectConnectionInputSchema).min(1),
+    repositories: z.array(DiscoveredRepositoryInputSchema).min(1),
+  })
+  .passthrough()
+  .refine(
+    (input) => input.repositories.some((r) => r.role !== "knowledge"),
+    "At least one application repository is required.",
+  );
+
+export type ProjectConnectionInput = z.infer<
+  typeof ProjectConnectionInputSchema
+>;
+export type ConnectionsProjectInput = z.infer<
+  typeof ConnectionsProjectInputSchema
+>;
+
 export const ProjectInputSchema = z.union([
   ModernProjectInputSchema,
   LegacyProjectInputSchema,
+  ConnectionsProjectInputSchema,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -312,13 +379,48 @@ function _parseLegacy(obj: Record<string, unknown>): Project {
   };
 }
 
+/**
+ * Reads stored normalized connections (#131) off a project record. Secret
+ * values never appear here — only the provider's non-secret configuration.
+ */
+function parseStoredConnections(
+  obj: Record<string, unknown>,
+): ProjectConnection[] | undefined {
+  if (!Array.isArray(obj.connections)) return undefined;
+  const connections: ProjectConnection[] = [];
+  for (const [idx, raw] of obj.connections.entries()) {
+    const result = ProjectConnectionInputSchema.safeParse(raw);
+    if (!result.success) {
+      throw new Error(
+        `Project connection[${idx}] invalid:\n${z.prettifyError(result.error)}`,
+      );
+    }
+    connections.push({
+      providerId: result.data.providerId,
+      roles: [...result.data.roles],
+      config: result.data.config,
+    });
+  }
+  return connections;
+}
+
+/** Reads the project-level git identity off a project record. */
+function parseStoredGitIdentity(
+  obj: Record<string, unknown>,
+): GitIdentity | undefined {
+  const raw = obj.gitIdentity;
+  if (!raw || typeof raw !== "object") return undefined;
+  const { name, email } = raw as Record<string, unknown>;
+  if (typeof name !== "string" || typeof email !== "string") return undefined;
+  return { name: name.trim(), email: email.trim() };
+}
+
 function _parseModern(obj: Record<string, unknown>): Project {
   const result = ModernProjectInputSchema.safeParse(obj);
   if (!result.success) {
     throw new Error(_formatConfigError(result.error));
   }
   const d = result.data;
-
   // Parse repositories
   const repositories: ProjectRepository[] = d.repositories.map((r, idx) => {
     const parsed = ProjectRepositorySchema.safeParse(r);
@@ -360,6 +462,8 @@ function _parseModern(obj: Record<string, unknown>): Project {
     workspacePath: d.workspacePath,
     commandTimeoutMs: d.commandTimeoutMs,
     issueTracker,
+    connections: parseStoredConnections(obj),
+    gitIdentity: parseStoredGitIdentity(obj),
     archived:
       typeof (d as Record<string, unknown>).archived === "boolean"
         ? ((d as Record<string, unknown>).archived as boolean)
