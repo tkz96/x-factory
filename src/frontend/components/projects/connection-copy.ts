@@ -10,7 +10,7 @@ import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
 import type { ConnectionWarning } from "./connection-integrity.js";
 
 /** The canonical message for one derived warning. */
-export function formatConnectionWarning(warning: ConnectionWarning): string {
+function formatConnectionWarning(warning: ConnectionWarning): string {
   const details = warning.details.join(", ");
 
   switch (warning.kind) {

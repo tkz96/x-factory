@@ -847,3 +847,29 @@ describe("Work Queue — combo state matrix", () => {
     );
   });
 });
+
+describe("Manifest-driven display names (#147)", () => {
+  it("reads the providers manifest when no cached descriptors exist", async () => {
+    const getManifest = mock(async () => MANIFEST);
+    api.providers.getManifest = getManifest as never;
+
+    // A cold client: nothing is cached, so the surface must fetch the manifest
+    // to name the provider. No hardcoded id to name table may save it.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { container } = renderUi(
+      React.createElement(ProjectCard, { project: makeProject() }),
+      client,
+      ["/projects"],
+    );
+
+    await waitFor(() => {
+      if (!container.textContent?.includes("Tracker One")) {
+        throw new Error("manifest display name missing");
+      }
+    });
+    expect(getManifest).toHaveBeenCalled();
+    expect(container.textContent).not.toContain("tracker-one");
+  });
+});
