@@ -324,6 +324,11 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
     expect(getEl("repo-select-repo-app")).not.toBeNull();
     expect(getEl("repo-select-repo-api")).not.toBeNull();
     expect(document.querySelectorAll(".repositories-list-item").length).toBe(2);
+    // ...and there is no way to type a repository in by hand.
+    expect(
+      document.querySelectorAll("#onboard-step-3 input[type='text']").length,
+    ).toBe(0);
+    expect(document.querySelector("#onboard-step-3 textarea")).toBeNull();
 
     // The gate blocks until an application repository is selected
     expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
@@ -335,6 +340,28 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
 
     fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-4")).not.toBeNull();
+
+    // The selection is recorded role-tagged in wizard state, ready for the
+    // creation payload: the role it was listed under, not a hand-assigned one.
+    const draft = JSON.parse(
+      window.localStorage.getItem("xf_wizard_draft_v1") ?? "{}",
+    ) as {
+      state: {
+        repositories: {
+          selectedRepoIds: string[];
+          primaryRepoId: string | null;
+          repoConfigs: Record<string, { role: string; roles: string[] }>;
+          selectionFingerprint: string;
+        };
+      };
+    };
+    expect(draft.state.repositories.selectedRepoIds).toEqual(["repo-app"]);
+    expect(draft.state.repositories.primaryRepoId).toBe("repo-app");
+    expect(draft.state.repositories.repoConfigs["repo-app"]).toEqual({
+      role: "gitHost",
+      roles: ["gitHost"],
+    });
+    expect(draft.state.repositories.selectionFingerprint).toStartWith("cfp_");
   });
 
   it("LOADING: an indeterminate spinner fills a reserved region, and results land in the same region (no layout shift)", async () => {
@@ -457,6 +484,30 @@ describe("Repositories Step — degraded, error, stale & gate states (spec #133,
     expect(region.querySelectorAll(".repositories-list-item").length).toBe(2);
   });
 
+  it("ERROR (200 normalized envelope): a provider failure envelope is treated as a failure, never as a list", async () => {
+    // The discovery route returns a normalized envelope with HTTP 200 when the
+    // provider call throws — the step must not mistake it for repositories.
+    listRepositories = mock(
+      async () => ({ code: "RATE_LIMITED", context: "DISCOVERY" }) as never,
+    );
+    api.providers.listRepositories = listRepositories as never;
+
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    const errorRegion = getEl("onboard-step-3").querySelector(
+      ".async-region--error",
+    );
+    expect(errorRegion).not.toBeNull();
+    expect(errorRegion?.textContent).toContain(
+      ERROR_COPY.RATE_LIMITED.DISCOVERY,
+    );
+    expect(errorRegion?.textContent).not.toContain("RATE_LIMITED");
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+  });
+
   it("ERROR + RETRY: a failed discovery shows canonical copy and the retry re-invokes the query in place", async () => {
     const discoveryError = { code: "AUTH_INVALID", context: "DISCOVERY" };
     listRepositories = mock(async () => {
@@ -556,6 +607,28 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
     // Backward navigation is unaffected by the gate.
     fireEvent.click(getEl("btn-step-3-back"));
     expect(document.getElementById("onboard-step-2")).not.toBeNull();
+  });
+
+  it("PROGRESSION GATE (deselect): un-checking the last application repository closes the gate again", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    act(() => {
+      fireEvent.click(getEl("repo-select-repo-app"));
+      fireEvent.click(getEl("repo-select-repo-api"));
+    });
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+
+    act(() => {
+      fireEvent.click(getEl("repo-select-repo-app"));
+      fireEvent.click(getEl("repo-select-repo-api"));
+    });
+    expect(getEl<HTMLInputElement>("repo-select-repo-app").checked).toBe(false);
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    fireEvent.click(getEl("btn-step-3-next"));
+    expect(document.getElementById("onboard-step-4")).toBeNull();
   });
 
   it("STALE (restored draft): a selection made under a different connection is out of date — badge, refresh, blocked Next; re-selecting clears it", async () => {

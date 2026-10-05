@@ -174,6 +174,61 @@ Parses a repository or tracker URL into a configuration draft.
 
 ---
 
+### D. POST /api/providers/repositories
+
+Repository discovery for a git-host connection (ticket #144). The list a project
+is built from comes exclusively from here — the wizard never scans the local
+disk and never accepts a hand-entered repository.
+
+#### Request Body
+```json
+{
+  "providerId": "stub",
+  "role": "gitHost",
+  "config": {
+    "host": "https://stub.example",
+    "apiToken": "secret-pat",
+    "project": "my-project"
+  }
+}
+```
+`role` is optional and accepts `tracker`, `gitHost`, or the `git-host` alias;
+it names the connection role the repositories are listed under.
+
+#### Validation Layering
+1. **Transport Validation (`400 Bad Request`)**: Malformed JSON, missing
+   `providerId`, or a non-object `config`.
+2. **Semantic Validation (`409 Conflict`)** — the same machine-readable codes as
+   `/verify`:
+   - Unknown provider: `{ "formErrors": ["UNKNOWN_PROVIDER"] }`
+   - Role the provider does not declare: `{ "formErrors": ["INCOMPATIBLE_CONFIGURATION"] }`
+   - Config schema validation failure: `{ "fieldErrors": { "apiToken": "REQUIRED" } }`
+   - Provider without the `listRepositories` capability (e.g. Jira as git host):
+     `{ "formErrors": ["INCAPABLE_PROVIDER"] }`
+3. **Execution (`200 OK`)**:
+   - **Success**: a provider-agnostic envelope — no provider terminology crosses
+     the boundary:
+     ```json
+     {
+       "providerId": "stub",
+       "roles": ["gitHost"],
+       "repositories": [
+         {
+           "id": "repo-1",
+           "name": "rocket-app",
+           "remote": "https://stub.example/acme/rocket-app.git",
+           "defaultBranch": "main",
+           "webUrl": "https://stub.example/acme/rocket-app"
+         }
+       ]
+     }
+     ```
+   - **Provider Error**: `{ "code": "AUTH_INVALID", "context": "DISCOVERY" }`.
+     The provider's own status/body text is normalized inside the provider
+     module and never reaches the client.
+
+---
+
 ## 4. End-to-End Curl Demo with Stub Provider
 
 Run the demo script or execute curl requests against a running server:
@@ -200,6 +255,19 @@ curl -s -X POST http://localhost:3777/api/providers/verify \
 curl -s -X POST http://localhost:3777/api/providers/parse-url \
   -H "Content-Type: application/json" \
   -d '{"url": "https://stub.example/acme/rocket"}'
+
+# 4. Repository discovery for a git-host connection
+curl -s -X POST http://localhost:3777/api/providers/repositories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "providerId": "stub",
+    "role": "gitHost",
+    "config": {
+      "host": "https://stub.example",
+      "apiToken": "valid-token",
+      "project": "acme-app"
+    }
+  }'
 ```
 
 ---

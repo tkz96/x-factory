@@ -88,6 +88,26 @@ describe("connectionConfigFingerprint", () => {
     expect(fingerprint).not.toContain("ghp_");
     expect(fingerprint.length).toBeGreaterThan(0);
   });
+
+  it("canonicalises nested objects and arrays, so equal configs always match", () => {
+    const a = connectionConfigFingerprint("p", {
+      project: "acme",
+      scopes: ["repo", "read:org"],
+      nested: { z: 1, a: { deep: true } },
+    });
+    const b = connectionConfigFingerprint("p", {
+      nested: { a: { deep: true }, z: 1 },
+      scopes: ["repo", "read:org"],
+      project: "acme",
+    });
+    expect(a).toBe(b);
+
+    expect(
+      connectionConfigFingerprint("p", { scopes: ["repo", "read:org"] }),
+    ).not.toBe(
+      connectionConfigFingerprint("p", { scopes: ["read:org", "repo"] }),
+    );
+  });
 });
 
 describe("hasApplicationRepository", () => {
