@@ -94,13 +94,19 @@ export function useInspection(): InspectionView {
     }
   }, [workspacePath, selectedRepoIds, repoConfigs, primaryRepoId, dispatch]);
 
-  // Read once on arrival, and again whenever the inputs the identity depends on
-  // change: a stale identity must never be left on screen as if it were
-  // current. `inspect` keeps a stable identity between input changes, so this
-  // never re-fires on the state it records.
+  // Read once on arrival — and again whenever the inputs the identity depends
+  // on change: a stale identity must never be left on screen as if it were
+  // current. A record that is ALREADY current for the current inputs is not
+  // re-read: the effect fires on every mount of the step (a back-navigation to
+  // Inspection, for example), and firing a second identical request for
+  // evidence already on screen is exactly the duplicate-request churn #148's
+  // smoothness criterion 6 forbids. `inspect` keeps a stable identity between
+  // input changes, so this never re-fires on the state it records.
+  const recordIsCurrent = status.record !== null && !status.stale;
   useEffect(() => {
+    if (recordIsCurrent) return;
     void inspect();
-  }, [inspect]);
+  }, [inspect, recordIsCurrent]);
 
   const record = status.record;
   const derived = deriveAsyncState(

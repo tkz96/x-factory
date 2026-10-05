@@ -139,11 +139,23 @@ function Harness() {
   );
 }
 
+/**
+ * The imperative cache APIs the app could reach for. Watched per test so a
+ * route that expressed "the inputs changed" by invalidating the cache instead
+ * of by keying the render graph is visible (#148 criterion 3).
+ */
+let cacheInvalidations: ReturnType<typeof mock>;
+let cacheRefetches: ReturnType<typeof mock>;
+
 function renderWizard() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   queryClient.setQueryData(queryKeys.providers(), manifestFixture);
+  cacheInvalidations = mock(() => Promise.resolve());
+  cacheRefetches = mock(() => Promise.resolve());
+  queryClient.invalidateQueries = cacheInvalidations as never;
+  queryClient.refetchQueries = cacheRefetches as never;
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -754,6 +766,161 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
     fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-4")).not.toBeNull();
     expect(getEl<HTMLButtonElement>("step-nav-review").disabled).toBe(true);
+  });
+
+  // ── Smoothness #2, #3, #6 (#148): selection, keying, and back-navigation ───
+  describe("Smoothness — selection, config keying, and back-navigation (#148)", () => {
+    it("SMOOTHNESS #2: selecting a row updates only what depends on the selection — no fetch, no rebuilt list", async () => {
+      setupStep3Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      await flushDiscovery();
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+
+      const step = getEl("onboard-step-3");
+      const region = discoveryRegion();
+      const list = getEl("repositories-list");
+      const appRow = getEl<HTMLInputElement>("repo-select-repo-app");
+      const apiRow = getEl<HTMLInputElement>("repo-select-repo-api");
+
+      const structural: MutationRecord[] = [];
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === "childList") structural.push(record);
+        }
+      });
+      observer.observe(step, { childList: true, subtree: true });
+
+      act(() => {
+        fireEvent.click(appRow);
+      });
+      // MutationObserver delivery is a microtask: let it run before reading.
+      await act(async () => {
+        await Promise.resolve();
+      });
+      observer.disconnect();
+
+      // Nothing the selection does not depend on was rebuilt...
+      expect(getEl("onboard-step-3")).toBe(step);
+      expect(discoveryRegion()).toBe(region);
+      expect(getEl("repositories-list")).toBe(list);
+      expect(getEl("repo-select-repo-app")).toBe(appRow);
+      expect(getEl("repo-select-repo-api")).toBe(apiRow);
+      expect(list.querySelectorAll(".repositories-list-item").length).toBe(2);
+      // ...and the only structural change is the selection summary.
+      const added = structural.flatMap((record) => [...record.addedNodes]);
+      expect(added.map((node) => (node as HTMLElement).className)).toEqual([
+        "repositories-selection-summary",
+      ]);
+
+      // The selection never re-runs discovery: the list is already the source.
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+
+      // What DOES depend on the selection updated in place.
+      expect(getEl<HTMLInputElement>("repo-select-repo-app").checked).toBe(
+        true,
+      );
+      expect(step.textContent).toContain(REPOSITORIES_COPY.selectionSummary(1));
+      expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+    });
+
+    it("SMOOTHNESS #3: a config edit re-fetches by KEYING the render graph, with no imperative cache invalidation", async () => {
+      // The step is entered from Connect so the git-host config can be edited.
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+      await typeInput(getEl("gitHost-gitUrl"), "https://git.example.com");
+      await typeInput(getEl("gitHost-token"), "tok-a");
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-all"));
+      });
+      fireEvent.click(getEl("btn-step-2-next"));
+      await flushDiscovery();
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+      expect(listRepositories.mock.calls[0]?.[0]).toEqual({
+        providerId: "generic-githost",
+        role: "gitHost",
+        config: { gitUrl: "https://git.example.com", token: "tok-a" },
+      });
+
+      // A different connection is a different key, and therefore a new fetch.
+      listRepositories = mock(async () => ({
+        providerId: "generic-githost",
+        roles: ["gitHost"],
+        repositories: [
+          {
+            id: "repo-other",
+            name: "other-repo",
+            remote: "https://other.example.com/acme/other-repo.git",
+          },
+        ],
+      }));
+      api.providers.listRepositories = listRepositories as never;
+
+      fireEvent.click(getEl("btn-step-3-back"));
+      await typeInput(getEl("gitHost-gitUrl"), "https://other.example.com");
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-gitHost"));
+        fireEvent.click(getEl("btn-verify-tracker"));
+      });
+      fireEvent.click(getEl("btn-step-2-next"));
+      await flushDiscovery();
+
+      // A NEW request for the NEW config — the key moved with the config.
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+      expect(listRepositories.mock.calls[0]?.[0]).toEqual({
+        providerId: "generic-githost",
+        role: "gitHost",
+        config: { gitUrl: "https://other.example.com", token: "tok-a" },
+      });
+      expect(
+        discoveryRegion().querySelectorAll(".repositories-list-item").length,
+      ).toBe(1);
+
+      // And it was the render graph that asked for it: the app never reached
+      // for an imperative cache invalidation to express "the config changed".
+      expect(cacheInvalidations).not.toHaveBeenCalled();
+      expect(cacheRefetches).not.toHaveBeenCalled();
+    });
+
+    it("SMOOTHNESS #6: Repositories → Connect → Repositories fires no second discovery request", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      await verifyBothConnections();
+      fireEvent.click(getEl("btn-step-2-next"));
+      await flushDiscovery();
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+
+      // Back to Connect (which resets the in-memory verification) and forward
+      // again — the journey a user makes to check what they typed.
+      fireEvent.click(getEl("btn-step-3-back"));
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-all"));
+      });
+      fireEvent.click(getEl("btn-step-2-next"));
+      await flushDiscovery();
+
+      // The repositories were already discovered for this very connection: the
+      // cache answered, so no second identical request went out.
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+      expect(listRepositories).toHaveBeenCalledTimes(1);
+      expect(
+        discoveryRegion().querySelectorAll(".repositories-list-item").length,
+      ).toBe(2);
+    });
   });
 });
 

@@ -1512,4 +1512,120 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(parsed.state.maxStepVisited).toBe(4);
     });
   });
+
+  // ── Smoothness #1 (#148): verification completion stays local to its card ──
+  //
+  // The criterion is "no full modal re-render on verification completion".
+  // What a user can actually observe is a REMOUNT: nodes are replaced, the
+  // other card's entered values and focus are rebuilt from scratch, and the
+  // step flashes. That is what these assertions detect — a MutationObserver
+  // over the step reports which regions were structurally rebuilt, and node
+  // identity proves the rest was not. A pure re-render that produces identical
+  // DOM is invisible to the user by definition; it is not what this detects and
+  // is not claimed.
+  describe("Smoothness #1: verifying one role stays local to its card (#148)", () => {
+    it("SMOOTHNESS #1: completing one role's verification rebuilds only that card — the other card, its entered values and the step are untouched", async () => {
+      let resolveTracker!: (value: VerificationResult) => void;
+      const verify = mock(
+        (payload: {
+          providerId: string;
+          role: string;
+          config: Record<string, unknown>;
+        }) =>
+          payload.role === "tracker"
+            ? new Promise<VerificationResult>((resolve) => {
+                resolveTracker = resolve;
+              })
+            : Promise.resolve({ status: "ok" as const, warnings: [] }),
+      );
+      api.providers.verify = verify as never;
+
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
+      });
+      await typeInput(
+        getEl("tracker-endpointHost"),
+        "https://tracker.example.com",
+      );
+      await typeInput(getEl("gitHost-gitUrl"), "https://git.example.com");
+      await typeInput(getEl("gitHost-token"), "tok-plaintext-secret");
+
+      const step = getEl("onboard-step-2");
+      const verifiedCard = getEl("connection-card-tracker");
+      const otherCard = getEl("connection-card-gitHost");
+      const otherInput = getEl<HTMLInputElement>("gitHost-gitUrl");
+      const otherSelect = getEl<HTMLSelectElement>("select-gitHost-provider");
+      const verifyAllRow = step.querySelector(
+        ".connect-verify-all-row",
+      ) as HTMLElement;
+
+      // Only structural churn matters: a replaced node is a remount.
+      const structural: MutationRecord[] = [];
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === "childList") structural.push(record);
+        }
+      });
+      observer.observe(step, { childList: true, subtree: true });
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+      });
+      await act(async () => {
+        resolveTracker({ status: "ok", warnings: [] });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      observer.disconnect();
+
+      // The verified role reports its outcome.
+      expect(verifiedCard.dataset.role).toBe("tracker");
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "Verified",
+      );
+
+      // Nothing outside the card whose evidence changed (and the verify-all row
+      // that reports the batch) was structurally rebuilt: no remount of the
+      // other card, no remount of the step.
+      const rebuilt = structural.map((record) => record.target);
+      expect(
+        rebuilt.every(
+          (target) =>
+            verifiedCard.contains(target) || verifyAllRow.contains(target),
+        ),
+      ).toBe(true);
+
+      // Node identity: the step, the other card, and the other card's field and
+      // select are the very same nodes as before the verification completed.
+      expect(getEl("onboard-step-2")).toBe(step);
+      expect(getEl("connection-card-tracker")).toBe(verifiedCard);
+      expect(getEl("connection-card-gitHost")).toBe(otherCard);
+      expect(getEl("gitHost-gitUrl")).toBe(otherInput);
+      expect(getEl("select-gitHost-provider")).toBe(otherSelect);
+
+      // And the other card's work is intact — not re-entered, not lost.
+      expect(getEl<HTMLInputElement>("gitHost-gitUrl").value).toBe(
+        "https://git.example.com",
+      );
+      expect(getEl<HTMLInputElement>("gitHost-token").value).toBe(
+        "tok-plaintext-secret",
+      );
+
+      // The other role was never verified on the back of this one.
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(verify.mock.calls[0]?.[0]).toEqual({
+        providerId: "generic-tracker",
+        role: "tracker",
+        config: { endpointHost: "https://tracker.example.com" },
+      });
+    });
+  });
 });
