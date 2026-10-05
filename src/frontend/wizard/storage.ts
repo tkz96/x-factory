@@ -75,7 +75,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isStepNumber(value: unknown): boolean {
+function isStepNumber(value: unknown): value is number {
   return (
     typeof value === "number" &&
     Number.isInteger(value) &&
@@ -98,7 +98,8 @@ function isConnectionRoleState(value: unknown): boolean {
   return (
     isRecord(value) &&
     (typeof value.providerId === "string" || value.providerId === null) &&
-    isRecord(value.config)
+    isRecord(value.config) &&
+    (value.verified === undefined || typeof value.verified === "boolean")
   );
 }
 
@@ -111,13 +112,24 @@ function isConnectState(value: unknown): boolean {
   );
 }
 
+/** Per-repository configuration value: `{ role, localPath?, primary? }`. */
+function isRepoConfigValue(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.role === "string" &&
+    (value.localPath === undefined || typeof value.localPath === "string") &&
+    (value.primary === undefined || typeof value.primary === "boolean")
+  );
+}
+
 function isRepositoriesState(value: unknown): boolean {
   return (
     isRecord(value) &&
     Array.isArray(value.selectedRepoIds) &&
     value.selectedRepoIds.every((id) => typeof id === "string") &&
     (value.primaryRepoId === null || typeof value.primaryRepoId === "string") &&
-    isRecord(value.repoConfigs)
+    isRecord(value.repoConfigs) &&
+    Object.values(value.repoConfigs).every(isRepoConfigValue)
   );
 }
 
@@ -125,12 +137,21 @@ function isRepositoriesState(value: unknown): boolean {
  * Validates persisted draft state as untrusted input. Only a structurally
  * complete `WizardSourceState` is accepted; anything else (missing sections,
  * wrong types, malformed nested structures) is discarded by the caller.
+ *
+ * The state-machine invariant the reducer enforces — a user can never be on a
+ * step beyond the furthest one visited — is re-checked here, because a crafted
+ * payload of `{ step: 5, maxStepVisited: 1 }` would otherwise be restored
+ * straight into `RESTORE_DRAFT` and defeat the invariant at the boundary.
  */
 function isValidWizardState(value: unknown): value is WizardSourceState {
   if (!isRecord(value)) return false;
+  if (!isStepNumber(value.step) || !isStepNumber(value.maxStepVisited)) {
+    return false;
+  }
+  if (value.step > value.maxStepVisited) {
+    return false;
+  }
   return (
-    isStepNumber(value.step) &&
-    isStepNumber(value.maxStepVisited) &&
     isBasicsState(value.basics) &&
     isConnectState(value.connect) &&
     isRepositoriesState(value.repositories) &&

@@ -150,6 +150,75 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       ["step out of range", { ...valid, step: 9 }],
       ["step not a number", { ...valid, step: "two" }],
       [
+        "step beyond maxStepVisited (5 > 1)",
+        { ...valid, step: 5, maxStepVisited: 1 },
+      ],
+      [
+        "step beyond maxStepVisited (3 > 2)",
+        { ...valid, step: 3, maxStepVisited: 2 },
+      ],
+      ["maxStepVisited out of range", { ...valid, maxStepVisited: 0 }],
+      [
+        "connect.tracker.verified wrong type",
+        {
+          ...valid,
+          connect: {
+            ...valid.connect,
+            tracker: { ...valid.connect.tracker, verified: "yes" },
+          },
+        },
+      ],
+      [
+        "connect.gitHost.verified wrong type",
+        {
+          ...valid,
+          connect: {
+            ...valid.connect,
+            gitHost: { ...valid.connect.gitHost, verified: 1 },
+          },
+        },
+      ],
+      [
+        "repoConfigs value is not an object",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": 123 },
+          },
+        },
+      ],
+      [
+        "repoConfigs value missing role",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": { localPath: "/work/repo-1" } },
+          },
+        },
+      ],
+      [
+        "repoConfigs value has wrong localPath type",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": { role: "primary", localPath: 42 } },
+          },
+        },
+      ],
+      [
+        "repoConfigs value has wrong primary type",
+        {
+          ...valid,
+          repositories: {
+            ...valid.repositories,
+            repoConfigs: { "repo-1": { role: "primary", primary: "true" } },
+          },
+        },
+      ],
+      [
         "inspection.acknowledged wrong type",
         { ...valid, inspection: { acknowledged: "yes" } },
       ],
@@ -240,6 +309,59 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     // Verification flags must be restored as unverified/stale per #130 stale rule
     expect(loaded.connect.tracker.verified).toBe(false);
     expect(loaded.connect.gitHost.verified).toBe(false);
+  });
+
+  it("accepts a draft whose optional nested structures are well-formed", () => {
+    const state: WizardSourceState = {
+      ...createInitialWizardState(),
+      step: 3,
+      maxStepVisited: 4,
+      connect: {
+        quickUrl: "https://dev.azure.com/myorg/myproj",
+        tracker: {
+          providerId: "azure",
+          config: { orgUrl: "https://dev.azure.com/myorg", project: "myproj" },
+          verified: true,
+        },
+        gitHost: {
+          providerId: "github",
+          config: { owner: "myorg", repo: "myrepo" },
+          verified: false,
+        },
+      },
+      repositories: {
+        selectedRepoIds: ["repo-1", "repo-2"],
+        primaryRepoId: "repo-1",
+        repoConfigs: {
+          "repo-1": {
+            role: "primary",
+            localPath: "/work/repo-1",
+            primary: true,
+          },
+          "repo-2": { role: "secondary" },
+        },
+      },
+    };
+
+    expect(saveWizardDraft(state)).toBe(true);
+
+    const loaded = loadWizardDraft();
+    expect(loaded).not.toBeNull();
+    if (!loaded) return;
+    expect(loaded.step).toBe(3);
+    expect(loaded.maxStepVisited).toBe(4);
+    // Verified flags are intentionally reset to stale on restore (#130 rule)
+    expect(loaded.connect.tracker.verified).toBe(false);
+    expect(loaded.repositories.selectedRepoIds).toEqual(["repo-1", "repo-2"]);
+    expect(loaded.repositories.primaryRepoId).toBe("repo-1");
+    expect(loaded.repositories.repoConfigs["repo-1"]).toEqual({
+      role: "primary",
+      localPath: "/work/repo-1",
+      primary: true,
+    });
+    expect(loaded.repositories.repoConfigs["repo-2"]).toEqual({
+      role: "secondary",
+    });
   });
 
   it("SECURITY: strips secrets nested inside arrays and deep objects", () => {
