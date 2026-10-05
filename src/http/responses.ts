@@ -1,5 +1,10 @@
 import { z } from "zod/v4";
-import { ConflictError, NotFoundError, ValidationError } from "../errors.js";
+import {
+  ConflictError,
+  NotFoundError,
+  SemanticValidationError,
+  ValidationError,
+} from "../errors.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -48,6 +53,20 @@ export function translateDomainErrorToHttpResponse(
   ) {
     return errorResponse(err.message, 409);
   }
+  if (
+    err instanceof SemanticValidationError ||
+    (err instanceof Error && err.name === "SemanticValidationError")
+  ) {
+    const semantic = err as SemanticValidationError;
+    const body: Record<string, unknown> = {};
+    if (Object.keys(semantic.fieldErrors).length > 0) {
+      body.fieldErrors = semantic.fieldErrors;
+    }
+    if (semantic.formErrors.length > 0) {
+      body.formErrors = semantic.formErrors;
+    }
+    return jsonResponse(body, 409);
+  }
   if (err instanceof HttpError) {
     return errorResponse(err.message, err.status);
   }
@@ -79,6 +98,39 @@ export async function withJsonBody<T = Record<string, unknown>>(
   return action(body as unknown as T);
 }
 
+export type SchemaValidationResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; response: Response };
+
+/**
+ * Validates an already-parsed body against a schema, returning the standard
+ * structured 400 response on failure. Shared by `withValidatedBody` and by
+ * controllers that must choose their schema after reading the body.
+ */
+export function validateAgainstSchema<T>(
+  body: unknown,
+  schema: z.ZodType<T>,
+): SchemaValidationResult<T> {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0];
+    const message =
+      firstIssue &&
+      firstIssue.message !== "Required" &&
+      firstIssue.message !== "Invalid input"
+        ? firstIssue.message
+        : `Request validation failed:\n${z.prettifyError(parsed.error)}`;
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: message, details: parsed.error.issues },
+        400,
+      ),
+    };
+  }
+  return { ok: true, data: parsed.data };
+}
+
 /**
  * Higher-order controller helper: validates JSON body against a Zod schema and invokes handler.
  * Returns 400 with structured field-level errors on failure.
@@ -93,24 +145,9 @@ export async function withValidatedBody<T>(
   if (!body || typeof body !== "object") {
     return errorResponse(invalidJsonMsg, 400);
   }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    const firstIssue = parsed.error.issues[0];
-    const message =
-      firstIssue &&
-      firstIssue.message !== "Required" &&
-      firstIssue.message !== "Invalid input"
-        ? firstIssue.message
-        : `Request validation failed:\n${z.prettifyError(parsed.error)}`;
-    return jsonResponse(
-      {
-        error: message,
-        details: parsed.error.issues,
-      },
-      400,
-    );
-  }
-  return action(parsed.data);
+  const result = validateAgainstSchema(body, schema);
+  if (!result.ok) return result.response;
+  return action(result.data);
 }
 
 /**

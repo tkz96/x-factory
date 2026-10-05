@@ -68,6 +68,7 @@ async function routeApiRequest(
       subaction,
       parts.length,
       req,
+      customRegistry,
     );
   }
 

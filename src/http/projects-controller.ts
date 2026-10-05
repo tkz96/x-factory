@@ -9,6 +9,7 @@ import {
   loadProjects,
   saveProject,
 } from "../config.js";
+import type { ConnectionsProjectInput } from "../config-schema.js";
 import {
   checkProjectReadiness,
   evaluateRepositoryReadiness,
@@ -29,17 +30,31 @@ import {
   resolveProjectTrackerSummary,
   testProjectTrackerConnection,
 } from "../providers/project-config.js";
-import { getProvider } from "../providers/registry.js";
+import { redactConfigForProvider } from "../providers/redaction.js";
+import {
+  getProvider,
+  PROVIDER_REGISTRY,
+  type ProviderRegistry,
+} from "../providers/registry.js";
 import { getRunRepository } from "../runs.js";
+import {
+  createProjectFromConnections,
+  updateProjectConnections,
+} from "../services/project-creation.js";
 import type { IssueTrackerProvider } from "../shared/types.js";
 import {
   catchHttpErrors,
   errorResponse,
   jsonResponse,
+  parseJsonBody,
+  validateAgainstSchema,
   withJsonBody,
   withValidatedBody,
 } from "./responses.js";
-import { SaveProjectBodySchema, UpdateProjectBodySchema } from "./schemas.js";
+import {
+  SaveProjectBodySchema,
+  UpdateProjectConnectionsBodySchema,
+} from "./schemas.js";
 
 async function handleGetProjects(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -51,13 +66,23 @@ async function handleGetProjects(req: Request): Promise<Response> {
   return jsonResponse(filtered);
 }
 
-async function handleCreateProject(req: Request): Promise<Response> {
+async function handleCreateProject(
+  req: Request,
+  registry: ProviderRegistry,
+): Promise<Response> {
   return withValidatedBody(
     req,
     SaveProjectBodySchema,
     (body) =>
       catchHttpErrors(async () => {
-        const saved = await createProject(body);
+        // A payload carrying `connections` takes the normalized creation path
+        // (#131); everything else keeps the legacy configuration path.
+        const saved = hasConnections(body)
+          ? await createProjectFromConnections(
+              body as unknown as ConnectionsProjectInput,
+              { registry },
+            )
+          : await createProject(body);
         return jsonResponse(saved, 201);
       }),
     "Invalid JSON for project creation.",
@@ -71,28 +96,51 @@ async function handleGetProject(projectId: string): Promise<Response> {
   return jsonResponse({ ...project, readiness });
 }
 
+/** A payload carrying a `connections` array takes the normalized path (#131). */
+function hasConnections(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    Array.isArray((body as { connections?: unknown }).connections)
+  );
+}
+
 async function handleUpdateProject(
   projectId: string,
   req: Request,
+  registry: ProviderRegistry,
 ): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
-  return withValidatedBody(
-    req,
-    UpdateProjectBodySchema,
-    (body) =>
-      catchHttpErrors(async () => {
-        const merged = {
-          ...project,
-          ...body,
-          id: projectId,
-        };
-        const saved = await saveProject(merged);
-        return jsonResponse(saved);
-      }),
-    "Invalid JSON for project update.",
-  );
+  const raw = await parseJsonBody(req);
+  if (!raw) return errorResponse("Invalid JSON for project update.", 400);
+
+  // Connection updates go through the normalized path (#145); every other
+  // update keeps the existing merge-and-save behaviour.
+  if (hasConnections(raw)) {
+    const validated = validateAgainstSchema(
+      raw,
+      UpdateProjectConnectionsBodySchema,
+    );
+    if (!validated.ok) return validated.response;
+    return catchHttpErrors(async () => {
+      const saved = await updateProjectConnections(project, validated.data, {
+        registry,
+      });
+      return jsonResponse(saved);
+    });
+  }
+
+  return catchHttpErrors(async () => {
+    const merged = {
+      ...project,
+      ...raw,
+      id: projectId,
+    };
+    const saved = await saveProject(merged);
+    return jsonResponse(saved);
+  });
 }
 
 async function handleDeleteProject(projectId: string): Promise<Response> {
@@ -173,7 +221,10 @@ async function handleGetProjectReadiness(projectId: string): Promise<Response> {
   return jsonResponse(readiness);
 }
 
-async function handleGetProjectTickets(projectId: string): Promise<Response> {
+async function handleGetProjectTickets(
+  projectId: string,
+  registry: ProviderRegistry,
+): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   if (project.archived) {
@@ -190,7 +241,7 @@ async function handleGetProjectTickets(projectId: string): Promise<Response> {
       400,
     );
   }
-  const provider = getProvider(providerId);
+  const provider = getProvider(providerId, registry);
   if (!provider || !hasCapability(provider, "listTickets")) {
     return errorResponse(
       `Unsupported issue tracker provider: "${providerId}".`,
@@ -199,7 +250,7 @@ async function handleGetProjectTickets(projectId: string): Promise<Response> {
   }
 
   const env = await loadProjectEnv(projectId);
-  const { config } = resolveProjectProvider(project, env);
+  const { config } = resolveProjectProvider(project, env, registry);
   const requiredLabel =
     (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
 
@@ -207,12 +258,22 @@ async function handleGetProjectTickets(projectId: string): Promise<Response> {
   return jsonResponse(tickets);
 }
 
-async function handleGetProjectTracker(projectId: string): Promise<Response> {
+async function handleGetProjectTracker(
+  projectId: string,
+  registry: ProviderRegistry,
+): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const env = await loadProjectEnv(projectId);
   const summary = resolveProjectTrackerSummary(project.issueTracker, env);
-  return jsonResponse(summary);
+  // Redaction before serialization: the tracker config is provider config.
+  return jsonResponse({
+    ...summary,
+    config: redactConfigForProvider(
+      registry.get(summary.provider),
+      summary.config,
+    ),
+  });
 }
 
 async function handleUpdateProjectTrackerCredentials(
@@ -330,13 +391,14 @@ async function handleProjectMemberCrud(
   method: string,
   id: string,
   req: Request,
+  registry: ProviderRegistry,
 ): Promise<Response | null> {
   switch (method) {
     case "GET":
       return handleGetProject(id);
     case "PATCH":
     case "PUT":
-      return handleUpdateProject(id, req);
+      return handleUpdateProject(id, req, registry);
     case "DELETE":
       return handleDeleteProject(id);
     default:
@@ -351,16 +413,17 @@ async function handleProjectMemberRoute(
   subaction: string | undefined,
   partsCount: number,
   req: Request,
+  registry: ProviderRegistry,
 ): Promise<Response | null> {
   if (action === "tickets" && method === "GET") {
-    return handleGetProjectTickets(id);
+    return handleGetProjectTickets(id, registry);
   }
   if (action === "readiness" && method === "GET") {
     return handleGetProjectReadiness(id);
   }
   if (action === "tracker") {
     if (!subaction && method === "GET") {
-      return handleGetProjectTracker(id);
+      return handleGetProjectTracker(id, registry);
     }
     if (
       subaction === "credentials" &&
@@ -376,7 +439,7 @@ async function handleProjectMemberRoute(
     return handleMigrateProject(id, req);
   }
   if (!action && partsCount === 2) {
-    return handleProjectMemberCrud(method, id, req);
+    return handleProjectMemberCrud(method, id, req, registry);
   }
   return null;
 }
@@ -547,10 +610,12 @@ export async function handleProjectsRoute(
   subactionOrPartsCount: string | number | undefined,
   partsCountOrReq: number | Request,
   maybeReq?: Request,
+  customRegistry?: ProviderRegistry,
 ): Promise<Response | null> {
   let subaction: string | undefined;
   let partsCount: number;
   let req: Request;
+  const registry = customRegistry ?? PROVIDER_REGISTRY;
 
   if (typeof subactionOrPartsCount === "number") {
     subaction = undefined;
@@ -583,7 +648,7 @@ export async function handleProjectsRoute(
 
   if (!id) {
     if (method === "GET") return handleGetProjects(req);
-    if (method === "POST") return handleCreateProject(req);
+    if (method === "POST") return handleCreateProject(req, registry);
     return null;
   }
 
@@ -594,5 +659,6 @@ export async function handleProjectsRoute(
     subaction,
     partsCount,
     req,
+    registry,
   );
 }

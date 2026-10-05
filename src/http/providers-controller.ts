@@ -10,6 +10,7 @@
 // - POST /api/providers/parse-url: URL intake via parseQuickUrl. Returns draft or un-matched payload.
 
 import { z } from "zod/v4";
+import { parseProviderConfig } from "../providers/config-validation.js";
 import type {
   ProviderError,
   ProviderRole,
@@ -118,28 +119,18 @@ export async function handleVerifyRoute(
     }
 
     // 3. Semantic validation: Config schema validation
-    const parsedConfig = provider.configSchema.safeParse(body.config);
-    if (!parsedConfig.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of parsedConfig.error.issues) {
-        const fieldName = issue.path.join(".") || "config";
-        const rawVal = body.config[issue.path[0] as string];
-        const isRequired =
-          rawVal === undefined || rawVal === null || rawVal === "";
-        fieldErrors[fieldName] = isRequired ? "REQUIRED" : "INVALID";
-      }
-      return jsonResponse(
-        {
-          fieldErrors,
-        },
-        409,
-      );
+    const parsedConfig = parseProviderConfig(
+      provider.configSchema,
+      body.config,
+    );
+    if (!parsedConfig.ok) {
+      return jsonResponse({ fieldErrors: parsedConfig.fieldErrors }, 409);
     }
 
     // 4. Verification execution
     try {
       const verification: VerificationResult = await provider.verifyCredentials(
-        parsedConfig.data,
+        parsedConfig.config,
       );
       return jsonResponse(verification, 200);
     } catch (err: unknown) {
