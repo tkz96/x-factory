@@ -201,3 +201,46 @@ curl -s -X POST http://localhost:3777/api/providers/parse-url \
   -H "Content-Type: application/json" \
   -d '{"url": "https://stub.example/acme/rocket"}'
 ```
+
+---
+
+## 5. Post-Absorption Provider Behavior Invariants (#141)
+
+After the absorb-and-delete completed (legacy tracker/discovery/Azure/GitHub-client
+families deleted), these behavior invariants are the contract for every built-in
+provider module. They are mechanically guarded by
+`test/provider-agnostic-gate.test.ts` (no provider conditionals or provider-module
+imports outside `src/providers/`) and by the registry-level serialization gate.
+
+### PR creation is API-only
+`createPullRequest` and `findExistingPullRequest` execute **REST API calls with
+explicit provider credentials only**. No CLI executable, no ambient machine
+authentication, no fallback path. Upstream API errors propagate through the
+provider error envelope; they are never retried against a local CLI. The
+ticket-write path therefore never hard-depends on the `gh` CLI runtime (deviation
+retro-sanctioned on #138).
+
+### `parseQuickUrl` accepted URL shapes (GitHub reference)
+- `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
+  (owner + repo) plus inferred project name.
+- `git@github.com:owner/repo.git` (and `.git`-less SSH forms) — accepted for the
+  same reason users paste them; parsed into the same draft shape.
+- `github.com/owner` — owner-only draft with `repoOwner` set and repo left empty
+  (feeds repository discovery in the Connect step).
+- Anything else returns `matched: false`; the endpoint never guesses.
+
+### Error-envelope mapping (GitHub reference)
+- `429`, or `403` with rate-limit evidence (`retry-after` header,
+  `x-ratelimit-remaining: 0`, rate-limit body text) → `RATE_LIMITED`, with
+  `retryAfterMs` only when the server actually supplied a future value
+  (`retry-after`, or `x-ratelimit-reset` still in the future). A reset in the
+  past yields no `retryAfterMs` — the module never invents one.
+- A `401` with a `retry-after` header is strictly an auth error (`AUTH_INVALID`),
+  never rate-limiting.
+- `403` without rate-limit evidence → `PERMISSION`, distinct from `AUTH_INVALID`.
+
+### Ticket listing
+`listTickets` filters by the contract-required `requiredLabel` and lists **open**
+tickets only — the inspection flow consumes actionable tickets; closed tickets
+are deliberately excluded. Providers that gain a consumer needing a different
+state filter must extend the contract input, not the query behind it.

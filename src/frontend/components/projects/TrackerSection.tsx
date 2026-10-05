@@ -109,7 +109,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
         </div>
       </div>
 
-      {tracker.provider === "azure" && (
+      {Boolean(tracker.provider) && (
         <div className="tracker-test-container">
           <button
             type="button"
@@ -117,7 +117,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
             onClick={handleTestAzureScopes}
             disabled={testing}
           >
-            {testing ? "Testing Scopes…" : "Test Azure DevOps Scopes"}
+            {testing ? "Testing Scopes…" : "Test Tracker Scopes"}
           </button>
 
           {testResult && (

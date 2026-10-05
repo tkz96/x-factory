@@ -1,11 +1,11 @@
 // src/executors/deliver.ts — DeliverExecutor: Safe commit, remote push, and PR creation with operation ledger (XFM-28, XFM-32, XFM-33).
 
-import {
-  createAzurePullRequest,
-  findExistingAzurePullRequest,
-} from "../azure/pr.js";
 import * as git from "../git.js";
-import { createPullRequest, findExistingPullRequest } from "../github.js";
+import {
+  hasCapability,
+  type ProviderPullRequest,
+} from "../providers/contract.js";
+import { resolveProjectProvider } from "../providers/project-config.js";
 import type { Project, PullRequest } from "../shared/types.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
@@ -26,6 +26,63 @@ export function buildPrMetadata(ticket: {
   return { commitMsg, prTitle, prBody };
 }
 
+export async function defaultCreatePullRequest(
+  project: Project,
+  params: {
+    branch: string;
+    worktree: string;
+    prTitle: string;
+    prBody: string;
+  },
+): Promise<string> {
+  const { provider, config, repository } = resolveProjectProvider(project);
+
+  if (hasCapability(provider, "findExistingPullRequest")) {
+    const existing = await provider.findExistingPullRequest(config, {
+      repository,
+      sourceBranch: params.branch,
+    });
+    if (existing?.url) {
+      return existing.url;
+    }
+  }
+
+  if (!hasCapability(provider, "createPullRequest")) {
+    throw new Error(
+      `Provider "${provider.id}" does not support createPullRequest capability.`,
+    );
+  }
+
+  const pr = await provider.createPullRequest(config, {
+    repository,
+    title: params.prTitle,
+    description: params.prBody,
+    sourceBranch: params.branch,
+    targetBranch: project.defaultBranch,
+  });
+
+  return pr.url;
+}
+
+export async function defaultFindExistingPullRequest(
+  project: Project,
+  params: {
+    branch: string;
+    worktree: string;
+  },
+): Promise<ProviderPullRequest | null> {
+  const { provider, config, repository } = resolveProjectProvider(project);
+
+  if (!hasCapability(provider, "findExistingPullRequest")) {
+    return null;
+  }
+
+  return provider.findExistingPullRequest(config, {
+    repository,
+    sourceBranch: params.branch,
+  });
+}
+
 export async function createPullRequestWithFallback(
   params: {
     project: Project;
@@ -37,65 +94,44 @@ export async function createPullRequestWithFallback(
   deps: DeliverDependencies,
 ): Promise<string> {
   const { project, branch, worktree, prTitle, prBody } = params;
-  if (
-    project.issueTracker?.provider === "azure" &&
-    project.issueTracker?.azure
-  ) {
-    const { orgUrl, project: azureProject } = project.issueTracker.azure;
-    const primaryRepo =
-      project.repositories?.find((r) => r.path === project.repositoryPath) ||
-      project.repositories?.[0];
-    const repoName =
-      primaryRepo?.name || primaryRepo?.id || project.name || project.id;
-
-    // External PR Crash Recovery: check for existing PR first
-    const existing = await deps.findExistingAzurePullRequest({
-      orgUrl,
-      project: azureProject,
-      repoIdOrName: repoName,
-      sourceBranch: branch,
-    });
-    if (existing?.url) {
-      return existing.url;
-    }
-
-    const azPrResult = await deps.createAzurePullRequest({
-      orgUrl,
-      project: azureProject,
-      repoIdOrName: repoName,
-      sourceBranch: branch,
-      targetBranch: project.defaultBranch,
-      title: prTitle,
-      description: prBody,
-    });
-
-    if (azPrResult.ok && azPrResult.url) {
-      return azPrResult.url;
-    }
-  }
 
   // External PR Crash Recovery: check for existing PR first
-  const existing = await deps.findExistingPullRequest(worktree, branch);
+  const existing = await deps.findExistingPullRequest(project, {
+    branch,
+    worktree,
+  });
   if (existing?.url) {
     return existing.url;
   }
 
-  return deps.createPullRequest(
+  return deps.createPullRequest(project, {
+    branch,
     worktree,
     prTitle,
     prBody,
-    project.defaultBranch,
-  );
+  });
 }
 
 export interface DeliverDependencies {
   recordBaseline: typeof git.recordBaseline;
   safeCommitAll: typeof git.safeCommitAll;
   push: typeof git.push;
-  createAzurePullRequest: typeof createAzurePullRequest;
-  findExistingAzurePullRequest: typeof findExistingAzurePullRequest;
-  createPullRequest: typeof createPullRequest;
-  findExistingPullRequest: typeof findExistingPullRequest;
+  createPullRequest: (
+    project: Project,
+    input: {
+      branch: string;
+      worktree: string;
+      prTitle: string;
+      prBody: string;
+    },
+  ) => Promise<string>;
+  findExistingPullRequest: (
+    project: Project,
+    input: {
+      branch: string;
+      worktree: string;
+    },
+  ) => Promise<ProviderPullRequest | null>;
   getHeadMessage: typeof git.getHeadMessage;
   getHeadSha: typeof git.getHeadSha;
   getParentSha: typeof git.getParentSha;
@@ -107,10 +143,8 @@ export const defaultDeliverDeps: DeliverDependencies = {
   recordBaseline: git.recordBaseline,
   safeCommitAll: git.safeCommitAll,
   push: git.push,
-  createAzurePullRequest,
-  findExistingAzurePullRequest,
-  createPullRequest,
-  findExistingPullRequest,
+  createPullRequest: defaultCreatePullRequest,
+  findExistingPullRequest: defaultFindExistingPullRequest,
   getHeadMessage: git.getHeadMessage,
   getHeadSha: git.getHeadSha,
   getParentSha: git.getParentSha,
@@ -273,7 +307,7 @@ export class DeliverExecutor implements StageExecutor {
         };
       },
       async () => {
-        // We only want to recover, not mutate. So we call the finders directly.
+        // We only want to recover, not mutate. So we call the finder directly.
         const currentHeadSha = await this.deps
           .getHeadSha(worktree)
           .catch(() => null);
@@ -283,49 +317,23 @@ export class DeliverExecutor implements StageExecutor {
           );
         }
 
-        if (
-          project.issueTracker?.provider === "azure" &&
-          project.issueTracker?.azure
-        ) {
-          const { orgUrl, project: azureProject } = project.issueTracker.azure;
-          const primaryRepo =
-            project.repositories?.find(
-              (r) => r.path === project.repositoryPath,
-            ) || project.repositories?.[0];
-          const repoName =
-            primaryRepo?.name || primaryRepo?.id || project.name || project.id;
+        const existing = await this.deps.findExistingPullRequest(project, {
+          branch: run.branch,
+          worktree,
+        });
 
-          const existing = await this.deps.findExistingAzurePullRequest({
-            orgUrl,
-            project: azureProject,
-            repoIdOrName: repoName,
-            sourceBranch: run.branch,
-          });
+        if (existing) {
+          const raw = existing as unknown as Record<string, unknown>;
+          const branchMatches =
+            !existing.sourceBranch ||
+            existing.sourceBranch === run.branch ||
+            raw.headRefName === run.branch ||
+            raw.sourceRefName === `refs/heads/${run.branch}`;
+          const commitMatches =
+            existing.lastMergeSourceCommit === currentHeadSha ||
+            raw.headRefOid === currentHeadSha;
 
-          // Must match branch and head commit precisely
-          if (
-            existing &&
-            existing.sourceRefName.replace("refs/heads/", "") === run.branch &&
-            existing.lastMergeSourceCommit === currentHeadSha
-          ) {
-            const recovered: PullRequest = {
-              url: existing.url.trim(),
-              branch: run.branch,
-              baseBranch: project.defaultBranch,
-              title: prTitle,
-            };
-            return { externalId: recovered.url, result: recovered };
-          }
-        } else {
-          const existing = await this.deps.findExistingPullRequest(
-            worktree,
-            run.branch,
-          );
-          if (
-            existing &&
-            existing.headRefName === run.branch &&
-            existing.headRefOid === currentHeadSha
-          ) {
+          if (branchMatches && commitMatches) {
             const recovered: PullRequest = {
               url: existing.url.trim(),
               branch: run.branch,

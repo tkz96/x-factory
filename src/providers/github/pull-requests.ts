@@ -1,15 +1,27 @@
 // src/providers/github/pull-requests.ts — GitHub pull request creation and lookup (#138).
 
-import type {
-  CreatePullRequestInput,
-  FindPullRequestInput,
-  ProviderConfig,
-  ProviderPullRequest,
+import {
+  assertCreateOnlyInvariant,
+  type CreatePullRequestInput,
+  type FindPullRequestInput,
+  type ProviderConfig,
+  type ProviderPullRequest,
 } from "../contract.js";
-import { detectGitHubConfigMismatch, resolveGitHubConfig } from "./config.js";
+import { resolveGitHubConfig } from "./config.js";
 import { GitHubHttpError } from "./errors.js";
-import { githubFetch, resolveGitHubHeaders } from "./http.js";
+import {
+  DEFAULT_GITHUB_API_ROOT,
+  githubFetch,
+  resolveGitHubHeaders,
+} from "./http.js";
 import { resolveRepoCoordinates } from "./urls.js";
+
+/** Enforce the contract create-only invariant inside the module itself (#141, Finding B). */
+export function enforceGitHubPrCreateOnly(
+  provider: Parameters<typeof assertCreateOnlyInvariant>[0],
+): void {
+  assertCreateOnlyInvariant(provider);
+}
 
 interface RawBranchInfo {
   ref?: string;
@@ -21,6 +33,52 @@ interface RawPullRequest {
   state?: string;
   head?: RawBranchInfo;
   base?: RawBranchInfo;
+}
+
+export interface PreparedGitHubPrContext {
+  token: string;
+  owner: string;
+  repo: string;
+  root: string;
+}
+
+/**
+ * Extracts and validates shared PR context across creation and lookup (#141, Finding H).
+ */
+export function prepareGitHubPrContext(
+  config: ProviderConfig,
+  repositoryCoordinate: string,
+): PreparedGitHubPrContext {
+  const {
+    token,
+    owner: configOwner,
+    repo: configRepo,
+    baseUrl,
+  } = resolveGitHubConfig(config);
+  const { owner, repo } = resolveRepoCoordinates(
+    repositoryCoordinate,
+    configOwner,
+  );
+  const effectiveRepo = repo || configRepo;
+
+  if (!token) {
+    throw new GitHubHttpError(
+      "GitHub authentication failed: personal access token is required for pull requests.",
+      {
+        status: 401,
+        headers: new Headers(),
+      },
+    );
+  }
+
+  if (!owner || !effectiveRepo) {
+    throw new Error(
+      `Cannot resolve GitHub repository coordinates (${repositoryCoordinate}): owner or repo is incomplete.`,
+    );
+  }
+
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
+  return { token, owner, repo: effectiveRepo, root };
 }
 
 function parsePullRequestResponse(
@@ -56,38 +114,11 @@ export async function createGitHubPullRequest(
   input: CreatePullRequestInput,
   fetchFn?: typeof fetch,
 ): Promise<ProviderPullRequest> {
-  const mismatch = detectGitHubConfigMismatch(config);
-  if (mismatch.mismatch) {
-    throw new Error(mismatch.error);
-  }
-
-  const {
-    token,
-    owner: configOwner,
-    repo: configRepo,
-    baseUrl,
-  } = resolveGitHubConfig(config);
-  const { owner, repo } = resolveRepoCoordinates(input.repository, configOwner);
-  const effectiveRepo = repo || configRepo;
-
-  if (!owner || !effectiveRepo) {
-    throw new Error(
-      `Cannot create GitHub pull request: repository coordinates (${input.repository}) are incomplete.`,
-    );
-  }
-
-  if (!token) {
-    throw new GitHubHttpError(
-      "No GitHub token configured for pull request creation.",
-      {
-        status: 401,
-        headers: new Headers(),
-      },
-    );
-  }
-
-  const root = baseUrl || "https://api.github.com";
-  const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(effectiveRepo)}/pulls`;
+  const { token, owner, repo, root } = prepareGitHubPrContext(
+    config,
+    input.repository,
+  );
+  const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls`;
 
   const res = await githubFetch(endpoint, {
     method: "POST",
@@ -113,38 +144,11 @@ export async function findExistingGitHubPullRequest(
   input: FindPullRequestInput,
   fetchFn?: typeof fetch,
 ): Promise<ProviderPullRequest | null> {
-  const mismatch = detectGitHubConfigMismatch(config);
-  if (mismatch.mismatch) {
-    throw new Error(mismatch.error);
-  }
-
-  const {
-    token,
-    owner: configOwner,
-    repo: configRepo,
-    baseUrl,
-  } = resolveGitHubConfig(config);
-  const { owner, repo } = resolveRepoCoordinates(input.repository, configOwner);
-  const effectiveRepo = repo || configRepo;
-
-  if (!token) {
-    throw new GitHubHttpError(
-      "GitHub authentication failed: personal access token is required for pull requests.",
-      {
-        status: 401,
-        headers: new Headers(),
-      },
-    );
-  }
-
-  if (!owner || !effectiveRepo) {
-    throw new Error(
-      `Unable to determine owner/repo for pull request: owner="${owner}", repo="${effectiveRepo}".`,
-    );
-  }
-
-  const root = baseUrl || "https://api.github.com";
-  const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(effectiveRepo)}/pulls?head=${encodeURIComponent(`${owner}:${input.sourceBranch}`)}&state=all`;
+  const { token, owner, repo, root } = prepareGitHubPrContext(
+    config,
+    input.repository,
+  );
+  const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?head=${encodeURIComponent(`${owner}:${input.sourceBranch}`)}&state=all`;
 
   // All API errors propagate — including 404, which for GET /pulls means the
   // repository could not be resolved (bad config), not "no PR exists".
@@ -178,7 +182,7 @@ export async function findExistingGitHubPullRequest(
       url: prUrl,
       status: match.state || "open",
       sourceBranch: head.ref || input.sourceBranch,
-      targetBranch: base.ref || "main",
+      ...(base.ref ? { targetBranch: base.ref } : {}),
       ...(head.sha ? { lastMergeSourceCommit: String(head.sha) } : {}),
     };
   }

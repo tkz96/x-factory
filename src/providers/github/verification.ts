@@ -7,9 +7,19 @@ import type {
   VerificationResult,
   VerificationWarning,
 } from "../contract.js";
-import { detectGitHubConfigMismatch, resolveGitHubConfig } from "./config.js";
+import { resolveGitHubConfig } from "./config.js";
 import { GitHubHttpError, toGitHubUserError } from "./errors.js";
-import { githubFetch, resolveGitHubHeaders } from "./http.js";
+import {
+  DEFAULT_GITHUB_API_ROOT,
+  githubFetch,
+  resolveGitHubHeaders,
+} from "./http.js";
+
+interface GitHubTransport {
+  root: string;
+  token?: string | undefined;
+  fetchFn?: typeof fetch | undefined;
+}
 
 function parseOAuthScopes(headers: Headers): string[] {
   const scopesHeader = headers.get("x-oauth-scopes");
@@ -29,11 +39,10 @@ function hasAnyScope(scopes: string[], targets: string[]): boolean {
  * Never performs write requests or PR mutations during verification.
  */
 async function probeOwnerRepos(
-  root: string,
+  transport: GitHubTransport,
   owner: string,
-  token: string,
-  fetchFn?: typeof fetch,
 ): Promise<VerificationWarning | null> {
+  const { root, token, fetchFn } = transport;
   try {
     await githubFetch(
       `${root}/orgs/${encodeURIComponent(owner)}/repos?per_page=1`,
@@ -44,24 +53,14 @@ async function probeOwnerRepos(
     );
     return null;
   } catch (orgErr) {
-    if (
-      typeof orgErr === "object" &&
-      orgErr !== null &&
-      "status" in orgErr &&
-      (orgErr as { status: unknown }).status === 404
-    ) {
+    if (orgErr instanceof GitHubHttpError && orgErr.status === 404) {
       await githubFetch(`${root}/users/${encodeURIComponent(owner)}`, {
         headers: resolveGitHubHeaders(token),
         fetchFn,
       });
       return null;
     }
-    if (
-      typeof orgErr === "object" &&
-      orgErr !== null &&
-      "status" in orgErr &&
-      (orgErr as { status: unknown }).status === 403
-    ) {
+    if (orgErr instanceof GitHubHttpError && orgErr.status === 403) {
       return {
         kind: "CAPABILITY_UNCONFIRMED",
         capability: "listRepositories",
@@ -72,10 +71,9 @@ async function probeOwnerRepos(
 }
 
 async function probeUserRepos(
-  root: string,
-  token: string,
-  fetchFn?: typeof fetch,
+  transport: GitHubTransport,
 ): Promise<VerificationWarning | null> {
+  const { root, token, fetchFn } = transport;
   try {
     await githubFetch(`${root}/user/repos?per_page=1`, {
       headers: resolveGitHubHeaders(token),
@@ -116,10 +114,10 @@ function checkScopeWarnings(headers: Headers): VerificationWarning[] {
 }
 
 async function probePublicOwner(
-  root: string,
+  transport: GitHubTransport,
   owner: string,
-  fetchFn?: typeof fetch,
 ): Promise<void> {
+  const { root, fetchFn } = transport;
   try {
     await githubFetch(
       `${root}/orgs/${encodeURIComponent(owner)}/repos?per_page=1`,
@@ -146,13 +144,9 @@ export async function verifyGitHubCredentials(
   config: ProviderConfig,
   fetchFn?: typeof fetch,
 ): Promise<VerificationResult> {
-  const mismatch = detectGitHubConfigMismatch(config);
-  if (mismatch.mismatch) {
-    throw new Error(mismatch.error);
-  }
-
   const { token, owner, baseUrl } = resolveGitHubConfig(config);
-  const root = baseUrl || "https://api.github.com";
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
+  const transport: GitHubTransport = { root, token, fetchFn };
 
   if (!token && !owner) {
     throw new GitHubHttpError(
@@ -173,8 +167,8 @@ export async function verifyGitHubCredentials(
     });
 
     const repoWarning = owner
-      ? await probeOwnerRepos(root, owner, token, fetchFn)
-      : await probeUserRepos(root, token, fetchFn);
+      ? await probeOwnerRepos(transport, owner)
+      : await probeUserRepos(transport);
 
     if (repoWarning) {
       warnings.push(repoWarning);
@@ -182,7 +176,7 @@ export async function verifyGitHubCredentials(
 
     warnings.push(...checkScopeWarnings(userRes.headers));
   } else if (owner) {
-    await probePublicOwner(root, owner, fetchFn);
+    await probePublicOwner(transport, owner);
     warnings.push({
       kind: "CAPABILITY_UNCONFIRMED",
       capability: "createPullRequest",
@@ -202,13 +196,8 @@ export async function verifyGitHubScopes(
   config: ProviderConfig,
   fetchFn?: typeof fetch,
 ): Promise<ScopeVerificationReport> {
-  const mismatch = detectGitHubConfigMismatch(config);
-  if (mismatch.mismatch) {
-    throw new Error(mismatch.error);
-  }
-
   const { token, baseUrl } = resolveGitHubConfig(config);
-  const root = baseUrl || "https://api.github.com";
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
 
   if (!token) {
     return {

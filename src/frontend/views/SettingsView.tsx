@@ -248,13 +248,22 @@ function ConnectionsTabContent({
                   p.issueTracker?.provider ||
                   p.issueTracker?.connectionId ||
                   "None";
+                const trackerRecord = p.issueTracker as unknown as Record<
+                  string,
+                  Record<string, string> | undefined
+                >;
+                const cfg = trackerRecord?.[provider];
                 let target = "";
-                if (provider === "azure") {
-                  target = `${p.issueTracker?.azure?.orgUrl || ""} / ${p.issueTracker?.azure?.project || ""}`;
-                } else if (provider === "jira") {
-                  target = `${p.issueTracker?.jira?.host || ""} (${p.issueTracker?.jira?.project || ""})`;
-                } else if (provider === "github") {
-                  target = p.issueTracker?.github?.repo || "";
+                if (cfg) {
+                  if (cfg.repo) {
+                    target = cfg.repo;
+                  } else if (cfg.orgUrl && cfg.project) {
+                    target = `${cfg.orgUrl} / ${cfg.project}`;
+                  } else if (cfg.host && cfg.project) {
+                    target = `${cfg.host} (${cfg.project})`;
+                  } else if (cfg.orgUrl || cfg.host) {
+                    target = cfg.orgUrl || cfg.host || "";
+                  }
                 }
 
                 return (

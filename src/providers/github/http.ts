@@ -6,6 +6,9 @@ import {
   parseGitHubRetryAfter,
 } from "./errors.js";
 
+/** Default GitHub API root URL. */
+export const DEFAULT_GITHUB_API_ROOT = "https://api.github.com";
+
 /**
  * Builds canonical GitHub HTTP headers for API communication.
  */

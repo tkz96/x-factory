@@ -2,6 +2,7 @@
 
 import { z } from "zod/v4";
 import type { ProviderConfig } from "../contract.js";
+import { isForeignProviderObject } from "../discriminator.js";
 import { extractFromGitHubUrl } from "./urls.js";
 
 /**
@@ -61,30 +62,6 @@ interface ExtractionTargets {
 }
 
 /**
- * Checks whether an object belongs to another provider based on provider identity or provider-exclusive fields.
- */
-function isNonGitHubObject(obj: Record<string, unknown>): boolean {
-  if (typeof obj.providerId === "string" && obj.providerId !== "github") {
-    return true;
-  }
-  if (typeof obj.provider === "string" && obj.provider !== "github") {
-    return true;
-  }
-  // Jira exclusive fields
-  if (
-    typeof obj.host === "string" &&
-    obj.host.toLowerCase().includes("atlassian.net")
-  ) {
-    return true;
-  }
-  // Azure DevOps exclusive fields
-  if (typeof obj.orgUrl === "string" || typeof obj.pat === "string") {
-    return true;
-  }
-  return false;
-}
-
-/**
  * Extracts candidate values strictly for GitHub-owned schema fields.
  */
 function extractMatchingKeys(
@@ -114,7 +91,7 @@ function extractGitHubCandidatesFromObject(
   if (!obj || typeof obj !== "object") return;
   const rec = obj as Record<string, unknown>;
 
-  if (isNonGitHubObject(rec)) {
+  if (isForeignProviderObject(rec, "github")) {
     return;
   }
 

@@ -67,7 +67,7 @@ export function parseGitHubRetryAfter(
     if (!Number.isNaN(resetEpochSec) && resetEpochSec > 0) {
       const resetMs = resetEpochSec * 1000;
       const diff = resetMs - Date.now();
-      return diff > 0 ? diff : 1000;
+      return diff > 0 ? diff : undefined;
     }
   }
 
@@ -76,6 +76,8 @@ export function parseGitHubRetryAfter(
 
 /**
  * Determines whether a GitHub response indicates rate-limiting.
+ * Only rate-limit-plausible statuses (403, 429) can map to RATE_LIMITED.
+ * A 401 with retry-after is strictly an auth error.
  */
 export function isGitHubRateLimited(
   status: number,
@@ -83,9 +85,9 @@ export function isGitHubRateLimited(
   bodyText?: string | undefined,
 ): boolean {
   if (status === 429) return true;
-  if (headers?.has("retry-after")) return true;
 
   if (status === 403) {
+    if (headers?.has("retry-after")) return true;
     const remaining = headers?.get("x-ratelimit-remaining");
     if (remaining === "0") return true;
 

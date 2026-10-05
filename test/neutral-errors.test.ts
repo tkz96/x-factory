@@ -7,7 +7,6 @@ import {
   RunNotFoundError,
   StaleRevisionError,
 } from "../src/db/run-repository.js";
-import { getDiscoveryProvider } from "../src/discovery/index.js";
 import {
   ConflictError,
   DomainError,
@@ -125,21 +124,6 @@ describe("Neutral Domain Errors", () => {
     expect((thrownError as Error).message).toBe(
       'Project "nonexistent-project-xyz" not found.',
     );
-  });
-
-  it("src/discovery/index.ts throws neutral ValidationError with preserved message", () => {
-    expect(() => getDiscoveryProvider("unsupported-provider-xyz")).toThrow(
-      ValidationError,
-    );
-    try {
-      getDiscoveryProvider("unsupported-provider-xyz");
-    } catch (err) {
-      expect(err).toBeInstanceOf(ValidationError);
-      expect(err).not.toBeInstanceOf(HttpError);
-      expect((err as Error).message).toContain(
-        'Unsupported discovery provider "unsupported-provider-xyz"',
-      );
-    }
   });
 
   it("verifies no non-presentation modules import from src/http/*", () => {

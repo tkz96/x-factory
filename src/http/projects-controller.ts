@@ -2,8 +2,6 @@
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { testAzureConnection } from "../azure/connection.js";
-import { testAzurePatScopes } from "../azure/scopes.js";
 import {
   createProject,
   deleteProject,
@@ -12,26 +10,28 @@ import {
   saveProject,
 } from "../config.js";
 import {
-  discoverRepositories,
-  type RepositoryDiscoveryInput,
-} from "../discovery/index.js";
-import {
   checkProjectReadiness,
   evaluateRepositoryReadiness,
   inspectLocalRepository,
 } from "../inspection/index.js";
 import { expandUserPath, scanGitSubdirectories } from "../paths.js";
 import { loadProjectEnv, saveProjectEnv } from "../project-env.js";
-import { getRunRepository } from "../runs.js";
-import { fetchProjectTickets } from "../trackers/index.js";
-import type { IssueTrackerProvider } from "../types.js";
+import {
+  hasCapability,
+  type ProviderConfig,
+  REQUIRED_WORKFLOW_LABEL,
+} from "../providers/contract.js";
 import {
   buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
   type ProjectMigrationInput,
+  resolveProjectProvider,
   resolveProjectTrackerSummary,
   testProjectTrackerConnection,
-} from "./projects-tracker-helpers.js";
+} from "../providers/project-config.js";
+import { getProvider } from "../providers/registry.js";
+import { getRunRepository } from "../runs.js";
+import type { IssueTrackerProvider } from "../shared/types.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -103,13 +103,27 @@ async function handleDeleteProject(projectId: string): Promise<Response> {
 }
 
 async function handleDiscoverRepositories(req: Request): Promise<Response> {
-  return withJsonBody<RepositoryDiscoveryInput>(
+  return withJsonBody<Record<string, unknown>>(
     req,
     (body) =>
       catchHttpErrors(async () => {
-        const repos = await discoverRepositories(body);
+        const providerId = body.provider as string | undefined;
+        if (!providerId) {
+          return errorResponse(
+            "Provider is required for repository discovery.",
+            400,
+          );
+        }
+        const provider = getProvider(providerId);
+        if (!provider || !hasCapability(provider, "listRepositories")) {
+          return errorResponse(
+            `Unsupported discovery provider: ${providerId}`,
+            400,
+          );
+        }
+        const repos = await provider.listRepositories(body);
         return jsonResponse({
-          provider: body.provider,
+          provider: providerId,
           repositories: repos,
         });
       }),
@@ -168,7 +182,28 @@ async function handleGetProjectTickets(projectId: string): Promise<Response> {
       400,
     );
   }
-  const tickets = await fetchProjectTickets(projectId);
+  const providerId =
+    project.issueTracker?.provider || project.issueTracker?.connectionId;
+  if (!providerId) {
+    return errorResponse(
+      `Project "${projectId}" has no issue tracker configured.`,
+      400,
+    );
+  }
+  const provider = getProvider(providerId);
+  if (!provider || !hasCapability(provider, "listTickets")) {
+    return errorResponse(
+      `Unsupported issue tracker provider: "${providerId}".`,
+      400,
+    );
+  }
+
+  const env = await loadProjectEnv(projectId);
+  const { config } = resolveProjectProvider(project, env);
+  const requiredLabel =
+    (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
+
+  const tickets = await provider.listTickets(config, { requiredLabel });
   return jsonResponse(tickets);
 }
 
@@ -388,64 +423,118 @@ async function handleCheckPath(req: Request): Promise<Response> {
 }
 
 async function handleTestConnection(req: Request): Promise<Response> {
-  return withJsonBody<{
-    provider?: string;
-    orgUrl?: string;
-    project?: string;
-    pat?: string;
-    validateScopes?: boolean;
-  }>(
+  return withJsonBody<Record<string, unknown>>(
     req,
     async (data) => {
-      if ((data.provider || "azure") === "azure") {
-        const result = await testAzureConnection(data);
-        if (data.validateScopes || data.pat?.trim()) {
-          const scopeResult = await testAzurePatScopes({
-            orgUrl: data.orgUrl,
-            project: data.project,
-            pat: data.pat,
-          });
-          return jsonResponse({
-            ...result,
-            ok: result.ok && scopeResult.ok,
-            scopes: scopeResult.scopes,
-            overPrivileged: scopeResult.overPrivileged,
-            scopeErrors: scopeResult.errors,
-            scopeWarnings: scopeResult.warnings,
-            warnings: scopeResult.warnings,
-            error: !result.ok
-              ? result.error
-              : !scopeResult.ok
-                ? `Scope verification failed: ${scopeResult.errors.join(" ")}`
-                : undefined,
-          });
-        }
-        return jsonResponse(result);
+      const providerId = (data.provider as string) || "azure";
+      const provider = getProvider(providerId);
+      if (!provider) {
+        return jsonResponse({
+          ok: false,
+          error: `Unknown provider "${providerId}".`,
+        });
       }
-      return jsonResponse({
-        ok: true,
-        provider: data.provider,
-        message: "Connection parameters accepted.",
-      });
+
+      try {
+        const verifyResult = await provider.verifyCredentials(
+          data as ProviderConfig,
+        );
+        const ok =
+          verifyResult.status === "ok" || verifyResult.status === "degraded";
+
+        if (data.validateScopes || data.pat) {
+          if (hasCapability(provider, "verifyScopes")) {
+            const scopeResult = await provider.verifyScopes(
+              data as ProviderConfig,
+            );
+            const scopeErrors: string[] = [];
+            const scopeWarnings: string[] = [];
+            const scopes: Record<string, boolean> = {};
+
+            for (const f of scopeResult.findings) {
+              scopes[f.capability] = f.status === "confirmed";
+              if (f.status === "missing") {
+                scopeErrors.push(`Missing capability: ${f.capability}`);
+              }
+            }
+
+            return jsonResponse({
+              ok: ok && scopeErrors.length === 0,
+              status: verifyResult.status,
+              scopes,
+              overPrivileged: scopeResult.overPrivileged,
+              scopeErrors,
+              scopeWarnings,
+              warnings: scopeWarnings,
+              error: !ok
+                ? "Credential verification failed."
+                : scopeErrors.length > 0
+                  ? `Scope verification failed: ${scopeErrors.join(" ")}`
+                  : undefined,
+            });
+          }
+        }
+
+        return jsonResponse({
+          ok,
+          status: verifyResult.status,
+          message: `${provider.displayName} connection successful.`,
+        });
+      } catch (err: unknown) {
+        return jsonResponse({
+          ok: false,
+          error: (err as Error).message,
+        });
+      }
     },
     "Invalid JSON for connection test.",
   );
 }
 
 async function handleTestAzureScopes(req: Request): Promise<Response> {
-  return withJsonBody<{
-    orgUrl?: string;
-    project?: string;
-    pat?: string;
-  }>(
+  return withJsonBody<Record<string, unknown>>(
     req,
     async (data) => {
-      const scopeResult = await testAzurePatScopes({
-        orgUrl: data.orgUrl,
-        project: data.project,
-        pat: data.pat,
-      });
-      return jsonResponse(scopeResult);
+      const provider = getProvider("azure");
+      if (!provider || !hasCapability(provider, "verifyScopes")) {
+        return jsonResponse({
+          ok: false,
+          scopes: {},
+          errors: ["Azure provider does not support scope verification."],
+        });
+      }
+      try {
+        const report = await provider.verifyScopes(data as ProviderConfig);
+        const errors: string[] = [];
+        const warnings: string[] = [];
+        const scopes: Record<string, boolean> = {};
+
+        for (const finding of report.findings) {
+          scopes[finding.capability] = finding.status === "confirmed";
+          if (finding.status === "missing") {
+            errors.push(`Missing scope for ${finding.capability}`);
+          } else if (finding.status === "unconfirmed") {
+            warnings.push(`Unconfirmed capability: ${finding.capability}`);
+          }
+        }
+
+        const ok = errors.length === 0;
+        return jsonResponse({
+          ok,
+          overPrivileged: report.overPrivileged,
+          scopes,
+          errors,
+          warnings,
+        });
+      } catch (err: unknown) {
+        return jsonResponse({
+          ok: false,
+          overPrivileged: false,
+          scopes: {},
+          errors: [(err as Error).message],
+          warnings: [],
+        });
+      }
     },
     "Invalid JSON for scope verification.",
   );

@@ -5,8 +5,12 @@ import type {
   TicketQueryOptions,
   TrackerTicket,
 } from "../contract.js";
-import { detectGitHubConfigMismatch, resolveGitHubConfig } from "./config.js";
-import { githubFetch, resolveGitHubHeaders } from "./http.js";
+import { resolveGitHubConfig } from "./config.js";
+import {
+  DEFAULT_GITHUB_API_ROOT,
+  githubFetch,
+  resolveGitHubHeaders,
+} from "./http.js";
 import { resolveRepoCoordinates } from "./urls.js";
 
 interface RawGitHubLabel {
@@ -84,11 +88,6 @@ export async function listGitHubTickets(
   options: TicketQueryOptions,
   fetchFn?: typeof fetch,
 ): Promise<TrackerTicket[]> {
-  const mismatch = detectGitHubConfigMismatch(config);
-  if (mismatch.mismatch) {
-    throw new Error(mismatch.error);
-  }
-
   const {
     token,
     owner: configOwner,
@@ -100,12 +99,22 @@ export async function listGitHubTickets(
       ? config.repository.trim()
       : configRepo;
 
-  if (!repoCoordinate) {
-    throw new Error("Cannot list GitHub tickets: repository name is required.");
+  // Read-only listing degrades to an empty result while the tracker is not
+  // fully configured (missing token, missing repository, or unresolvable
+  // owner/repo coordinates) — parity with the legacy tracker path: a project
+  // without complete tracker config simply has no tickets to list. Write
+  // paths (PR creation/lookup) still fail loudly on incomplete config.
+  if (!token) return [];
+  if (!repoCoordinate) return [];
+  let owner: string | undefined;
+  let repo: string | undefined;
+  try {
+    ({ owner, repo } = resolveRepoCoordinates(repoCoordinate, configOwner));
+  } catch {
+    return [];
   }
-
-  const { owner, repo } = resolveRepoCoordinates(repoCoordinate, configOwner);
-  const root = baseUrl || "https://api.github.com";
+  if (!owner || !repo) return [];
+  const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
 
   let url = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&per_page=100`;
   if (options.requiredLabel) {

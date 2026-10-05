@@ -159,7 +159,6 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
         push: async () => {
           pushCalls++;
         },
-        createAzurePullRequest: async () => ({ ok: true, url: "" }),
         createPullRequest: async () => {
           apiCalls++;
           return "https://github.com/org/repo/pull/123";
@@ -167,7 +166,6 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
         getHeadSha: async () => "sha-head",
         getParentSha: async () => "sha-parent",
         getHeadMessage: async () => "msg",
-        findExistingAzurePullRequest: async () => null,
         findExistingPullRequest: async () => null,
         getRemoteBranchSha: async () => null,
       });
