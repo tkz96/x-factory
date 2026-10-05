@@ -93,9 +93,29 @@ export function useRoleConnection(
       if (isNormalizedError(res)) {
         setError(res);
         setVerification(null);
+        dispatch({
+          type: "UPDATE_CONNECT",
+          patch: { [role]: { unconfirmedCapabilities: [] } },
+        });
       } else {
         setVerification(res);
         setError(null);
+        // Degraded verification is evidence, not an error: persist exactly
+        // which contract capabilities could not be confirmed so downstream
+        // steps can name the capability they depend on (#129, #144).
+        dispatch({
+          type: "UPDATE_CONNECT",
+          patch: {
+            [role]: {
+              unconfirmedCapabilities:
+                res.status === "degraded"
+                  ? res.warnings
+                      .filter((w) => w.kind === "CAPABILITY_UNCONFIRMED")
+                      .map((w) => w.capability)
+                  : [],
+            },
+          },
+        });
       }
     } catch (err) {
       if (currentGen !== generationRef.current) {
@@ -103,6 +123,10 @@ export function useRoleConnection(
       }
       setError(err);
       setVerification(null);
+      dispatch({
+        type: "UPDATE_CONNECT",
+        patch: { [role]: { unconfirmedCapabilities: [] } },
+      });
     } finally {
       if (currentGen === generationRef.current) {
         setIsPending(false);

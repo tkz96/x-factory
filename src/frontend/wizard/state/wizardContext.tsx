@@ -19,6 +19,7 @@ import type {
   WizardSourceState,
   WizardStepNumber,
 } from "../types.js";
+import { canAdvanceFromRepositories } from "./repositoryRules.js";
 import { createInitialWizardState, wizardReducer } from "./wizardReducer.js";
 
 interface WizardContextValue {
@@ -62,7 +63,12 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       case 1:
         return isBasicsValid;
       case 2:
+        return true; // Connect gates itself on verification; #143 owns the rule
       case 3:
+        // At least one application repository, selected under the connection
+        // as it stands now (#144). Derived, never stored — the same predicate
+        // the reducer's NEXT_STEP guard uses.
+        return canAdvanceFromRepositories(state);
       case 4:
         return true; // Scaffolding: later tickets supply step-specific validation rules
       case 5:
@@ -70,7 +76,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       default:
         return false;
     }
-  }, [state.step, isBasicsValid]);
+  }, [state, isBasicsValid]);
 
   const canGoBack = state.step > 1;
 

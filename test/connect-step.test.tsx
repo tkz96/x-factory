@@ -30,6 +30,7 @@ import {
   useModal,
 } from "../src/frontend/context/ModalContext.js";
 import { ApiError, api } from "../src/frontend/lib/api-client.js";
+import { connectionConfigFingerprint } from "../src/frontend/lib/connection-fingerprint.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import {
   clearWizardDraft,
@@ -128,6 +129,18 @@ function getEl<T extends HTMLElement = HTMLElement>(id: string): T {
   return el as T;
 }
 
+/**
+ * A completed Repositories-step selection for the `generic-githost` connection
+ * with an empty config — the state a finished step 3 leaves behind. Navigation
+ * tests need it because step 3 refuses to advance without one (#144).
+ */
+const REPOSITORIES_WITH_SELECTION = {
+  selectedRepoIds: ["repo-1"],
+  primaryRepoId: "repo-1",
+  repoConfigs: { "repo-1": { role: "gitHost", roles: ["gitHost"] } },
+  selectionFingerprint: connectionConfigFingerprint("generic-githost", {}),
+};
+
 function typeInput(input: HTMLElement, value: string) {
   act(() => {
     input.focus();
@@ -214,6 +227,17 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     api.providers.parseUrl = mock(async () => ({
       matched: false as const,
       url: "",
+    }));
+    api.providers.listRepositories = mock(async () => ({
+      providerId: "generic-githost",
+      roles: ["gitHost"],
+      repositories: [
+        {
+          id: "repo-1",
+          name: "rocket-app",
+          remote: "https://git.example.com/acme/rocket-app.git",
+        },
+      ],
     }));
   });
 
@@ -1411,7 +1435,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     });
 
     it("Backward navigation still works", async () => {
-      setupStep2Draft();
+      setupStep2Draft({ repositories: REPOSITORIES_WITH_SELECTION });
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
 
@@ -1450,7 +1474,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     });
 
     it("Previously visited forward step is not directly reachable", async () => {
-      setupStep2Draft();
+      setupStep2Draft({ repositories: REPOSITORIES_WITH_SELECTION });
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
 
