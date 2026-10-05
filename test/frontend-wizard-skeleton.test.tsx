@@ -12,14 +12,18 @@ import {
   describe,
   expect,
   it,
+  mock,
 } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
   ModalProvider,
   useModal,
 } from "../src/frontend/context/ModalContext.js";
+import { api } from "../src/frontend/lib/api-client.js";
+import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { clearWizardDraft } from "../src/frontend/wizard/storage.js";
 import { WizardModal } from "../src/frontend/wizard/WizardModal.js";
 
@@ -61,10 +65,22 @@ function Harness() {
   );
 }
 
+const stubManifest: ProviderDescriptor[] = [
+  {
+    id: "stub-provider",
+    displayName: "Stub Provider",
+    roles: ["tracker", "gitHost"],
+    iconRef: "provider-stub",
+    capabilities: [],
+    configFields: [],
+  },
+];
+
 function renderWizard() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
+  queryClient.setQueryData(queryKeys.providers(), stubManifest);
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -80,6 +96,15 @@ function renderWizard() {
 describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () => {
   beforeEach(() => {
     clearWizardDraft();
+    api.providers.getManifest = mock(async () => stubManifest);
+    api.providers.verify = mock(async () => ({
+      status: "ok" as const,
+      warnings: [],
+    }));
+    api.providers.parseUrl = mock(async () => ({
+      matched: false as const,
+      url: "",
+    }));
   });
 
   afterEach(() => {
@@ -166,6 +191,18 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     const step2Btn = getEl<HTMLButtonElement>("step-nav-connect");
     expect(step1Btn.className).toContain("completed");
     expect(step2Btn.className).toContain("active");
+
+    // Fulfill Step 2 connection requirements (spec #133, ticket #143)
+    fireEvent.change(getEl("select-tracker-provider"), {
+      target: { value: "stub-provider" },
+    });
+    fireEvent.change(getEl("select-gitHost-provider"), {
+      target: { value: "stub-provider" },
+    });
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-tracker"));
+      fireEvent.click(getEl("btn-verify-gitHost"));
+    });
 
     // Advance to Step 3: Repositories
     fireEvent.click(getEl("btn-step-2-next"));

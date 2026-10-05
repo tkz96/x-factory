@@ -1,13 +1,40 @@
-// src/frontend/wizard/steps/ConnectStep.tsx — Step 2: Dual connection cards scaffold (spec #126, #130, #142).
+// src/frontend/wizard/steps/ConnectStep.tsx — Step 2: Dual decoupled connection cards & Quick-URL (spec #130, #133, #143).
 
+import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
+import { QuickUrlIntake } from "../../connection/QuickUrlIntake.js";
+import { ConnectCardsContainer } from "./ConnectCardsContainer.js";
+import { ConnectStepFooter } from "./ConnectStepFooter.js";
+import { ConnectVerifyAllRow } from "./ConnectVerifyAllRow.js";
+import { useConnectStep } from "./useConnectStep.js";
 import "./ConnectStep.css";
 
-import { ConnectionCard } from "../../connection/ConnectionCard.js";
-import { useWizard } from "../state/wizardContext.js";
-
 export function ConnectStep() {
-  const { state, nextStep, prevStep } = useWizard();
-  const { tracker, gitHost } = state.connect;
+  const {
+    manifestQuery,
+    manifestAsync,
+    manifest,
+    tracker,
+    gitHost,
+    trackerConn,
+    gitHostConn,
+    quickUrlState,
+    handleVerifyAll,
+    isVerifyingAny,
+    canProceed,
+    handleNext,
+    prevStep,
+  } = useConnectStep();
+
+  if (manifestAsync.state === "loading" || manifestAsync.state === "error") {
+    return (
+      <div id="onboard-step-2" className="wizard-step-pane connect-step-pane">
+        <AsyncRegion
+          derived={manifestAsync}
+          onRetry={() => manifestQuery.refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div id="onboard-step-2" className="wizard-step-pane connect-step-pane">
@@ -19,42 +46,35 @@ export function ConnectStep() {
         </p>
       </div>
 
-      <div className="connect-cards-container">
-        <ConnectionCard
-          connectionRole="tracker"
-          providerId={tracker.providerId}
-          title="Issue Tracker"
-        >
-          <p>Configure credentials and project issue tracking.</p>
-        </ConnectionCard>
+      <QuickUrlIntake
+        value={quickUrlState.quickUrl}
+        onChange={quickUrlState.setQuickUrl}
+        onSubmit={quickUrlState.handleQuickUrlSubmit}
+        isSubmitting={quickUrlState.isParsingUrl}
+        disabled={isVerifyingAny}
+        missMessage={quickUrlState.quickUrlMissMessage}
+      />
 
-        <ConnectionCard
-          connectionRole="gitHost"
-          providerId={gitHost.providerId}
-          title="Git Host"
-        >
-          <p>Configure git repository hosting and pull request creation.</p>
-        </ConnectionCard>
-      </div>
+      <ConnectVerifyAllRow
+        isVisible={Boolean(tracker.providerId && gitHost.providerId)}
+        isVerifying={isVerifyingAny}
+        onVerifyAll={handleVerifyAll}
+      />
 
-      <div className="wizard-actions">
-        <button
-          type="button"
-          id="btn-step-2-back"
-          className="btn-secondary"
-          onClick={prevStep}
-        >
-          ← Back
-        </button>
-        <button
-          type="button"
-          id="btn-step-2-next"
-          className="btn-primary"
-          onClick={nextStep}
-        >
-          Continue to Repositories →
-        </button>
-      </div>
+      <ConnectCardsContainer
+        manifest={manifest}
+        tracker={tracker}
+        gitHost={gitHost}
+        trackerConn={trackerConn}
+        gitHostConn={gitHostConn}
+        disabled={quickUrlState.isParsingUrl}
+      />
+
+      <ConnectStepFooter
+        canProceed={canProceed}
+        onPrev={prevStep}
+        onNext={handleNext}
+      />
     </div>
   );
 }

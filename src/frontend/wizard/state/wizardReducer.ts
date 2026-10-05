@@ -22,11 +22,13 @@ export function createInitialWizardState(): WizardSourceState {
         providerId: null,
         config: {},
         verified: false,
+        degradedAccepted: false,
       },
       gitHost: {
         providerId: null,
         config: {},
         verified: false,
+        degradedAccepted: false,
       },
     },
     repositories: {
@@ -105,6 +107,18 @@ export function wizardReducer(
         connect: {
           ...state.connect,
           ...action.patch,
+          tracker: action.patch.tracker
+            ? {
+                ...state.connect.tracker,
+                ...action.patch.tracker,
+              }
+            : state.connect.tracker,
+          gitHost: action.patch.gitHost
+            ? {
+                ...state.connect.gitHost,
+                ...action.patch.gitHost,
+              }
+            : state.connect.gitHost,
         },
       };
     }

@@ -424,4 +424,49 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       (loaded.connect.tracker.config.layers as Record<string, unknown>)?.inner,
     ).toBeDefined();
   });
+
+  it("validates degradedAccepted in connection role state (boolean/absent accepted, string/number rejected)", () => {
+    const valid = createInitialWizardState();
+    valid.connect.tracker.degradedAccepted = true;
+    valid.connect.gitHost.degradedAccepted = false;
+    expect(saveWizardDraft(valid)).toBe(true);
+    expect(loadWizardDraft()).not.toBeNull();
+
+    // Absent degradedAccepted is also valid
+    const absent = createInitialWizardState();
+    delete (absent.connect.tracker as unknown as Record<string, unknown>)
+      .degradedAccepted;
+    expect(saveWizardDraft(absent)).toBe(true);
+    expect(loadWizardDraft()).not.toBeNull();
+
+    // String degradedAccepted is rejected
+    const malformedString = createInitialWizardState();
+    (
+      malformedString.connect.tracker as unknown as Record<string, unknown>
+    ).degradedAccepted = "true";
+    window.localStorage.setItem(
+      "xf_wizard_draft_v1",
+      JSON.stringify({
+        version: WIZARD_SCHEMA_VERSION,
+        savedAt: new Date().toISOString(),
+        state: malformedString,
+      }),
+    );
+    expect(loadWizardDraft()).toBeNull();
+
+    // Number degradedAccepted is rejected
+    const malformedNumber = createInitialWizardState();
+    (
+      malformedNumber.connect.gitHost as unknown as Record<string, unknown>
+    ).degradedAccepted = 1;
+    window.localStorage.setItem(
+      "xf_wizard_draft_v1",
+      JSON.stringify({
+        version: WIZARD_SCHEMA_VERSION,
+        savedAt: new Date().toISOString(),
+        state: malformedNumber,
+      }),
+    );
+    expect(loadWizardDraft()).toBeNull();
+  });
 });

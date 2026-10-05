@@ -1,0 +1,9 @@
+/* src/frontend/connection/ConnectionField.css — Generic field styling */
+
+.connection-field-group {
+  margin-bottom: 1rem;
+}
+
+.connection-field-group:last-child {
+  margin-bottom: 0;
+}

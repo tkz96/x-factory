@@ -12,9 +12,18 @@ export const queryKeys = {
   settings: () => ["settings"] as const,
   readiness: () => ["readiness"] as const,
   diagnostics: () => ["diagnostics"] as const,
+  providers: () => ["providers", "manifest"] as const,
 };
 
 export const QUERY_POLICIES = {
+  // Providers: Static configuration from server registry
+  providers: {
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  },
+
   // Settings: Slow-changing static configuration — fetch once, invalidate on change
   settings: {
     staleTime: 5 * 60 * 1000, // 5 minutes

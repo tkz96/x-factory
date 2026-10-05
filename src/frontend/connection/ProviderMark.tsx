@@ -4,19 +4,43 @@ import "./ProviderMark.css";
 
 interface ProviderMarkProps {
   providerId: string | null;
+  iconRef?: string | null | undefined;
+  displayName?: string | null | undefined;
   size?: "sm" | "md" | "lg";
 }
 
-export function ProviderMark({ providerId, size = "md" }: ProviderMarkProps) {
-  const initial = providerId ? providerId.charAt(0).toUpperCase() : "?";
+function resolveSpriteId(iconRef?: string | null | undefined): string | null {
+  if (!iconRef) return null;
+  const stripped = iconRef.replace(/^(provider-|icon-)/, "");
+  if (!/^[a-z0-9-]+$/.test(stripped)) {
+    return null;
+  }
+  return `icon-${stripped}`;
+}
+
+export function ProviderMark({
+  providerId,
+  iconRef,
+  displayName,
+  size = "md",
+}: ProviderMarkProps) {
+  const initial = (displayName || providerId || "?").charAt(0).toUpperCase();
+  const label = displayName || providerId || "Unknown provider";
+  const spriteId = resolveSpriteId(iconRef);
 
   return (
     <span
       role="img"
       className={`provider-mark provider-mark-${size}`}
-      aria-label={providerId ?? "Unknown provider"}
+      aria-label={label}
     >
-      {initial}
+      {spriteId ? (
+        <svg className={`icon icon-${size}`} aria-hidden="true">
+          <use href={`/assets/icons/sprite.svg#${spriteId}`} />
+        </svg>
+      ) : (
+        initial
+      )}
     </span>
   );
 }
