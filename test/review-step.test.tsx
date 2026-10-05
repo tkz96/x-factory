@@ -198,8 +198,8 @@ function renderWizard() {
   );
 }
 
-/** Drives Basics → Connect (both verified) → Repositories, at step 3. */
-async function runToRepositories() {
+/** Drives Basics → Connect with both cards verified, stopping at step 2. */
+async function runToConnect() {
   renderWizard();
   fireEvent.click(getEl("btn-open-wizard"));
 
@@ -223,6 +223,11 @@ async function runToRepositories() {
   await act(async () => {
     fireEvent.click(getEl("btn-verify-all"));
   });
+}
+
+/** Continues from Connect to Repositories, at step 3. */
+async function runToRepositories() {
+  await runToConnect();
   fireEvent.click(getEl("btn-step-2-next"));
   expect(document.getElementById("onboard-step-3")).not.toBeNull();
   await flush();
@@ -614,6 +619,50 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
 
     expect(document.getElementById("review-blocked")).toBeNull();
     expect(getEl("review-identity-name").textContent).toBe("Moved Owner");
+    expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(false);
+  });
+
+  it("DEGRADED: a verified connection with warnings is shown as degraded, blocks Review until the warnings are accepted, and then submits", async () => {
+    api.providers.verify = mock(async (payload: { role: string }) =>
+      payload.role === "tracker"
+        ? {
+            status: "degraded" as const,
+            warnings: [
+              {
+                kind: "CAPABILITY_UNCONFIRMED" as const,
+                capability: "listTickets",
+              },
+            ],
+          }
+        : { status: "ok" as const, warnings: [] },
+    );
+
+    await runToConnect();
+    // The tracker degraded: recorded, and visible as such on the card...
+    expect(getEl("connection-card-tracker").textContent).toContain("Degraded");
+    // ...and it is not usable until the warnings are accepted, so Connect
+    // itself refuses to move on.
+    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    await act(async () => {
+      fireEvent.click(getEl("btn-accept-degraded-tracker"));
+    });
+    fireEvent.click(getEl("btn-step-2-next"));
+    expect(document.getElementById("onboard-step-3")).not.toBeNull();
+    await flush();
+
+    // The combo line reports the SAME state as the gate.
+    fireEvent.click(getEl("repo-select-repo-app"));
+    fireEvent.click(getEl("btn-step-3-next"));
+    await flush();
+    fireEvent.click(getEl("btn-step-4-next"));
+    await flush();
+    expect(document.getElementById("onboard-step-5")).not.toBeNull();
+    expect(getEl("combo-tracker-state").textContent).toBe(
+      CONNECTION_STATE_COPY.degradedAccepted,
+    );
+    expect(getEl("combo-tracker-state").dataset.connectionState).toBe("degraded");
+    // Accepted evidence — not a dismissal — is what unblocked it.
+    expect(document.getElementById("review-blocked")).toBeNull();
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(false);
   });
 
