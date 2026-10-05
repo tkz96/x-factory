@@ -7,8 +7,24 @@
 // real ~/.x-factory or repository state is touched. Only synthetic
 // credentials are used.
 
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { getProjectEnvPath } from "../src/paths.js";
@@ -555,5 +571,110 @@ describe("POST /api/projects with a connections payload", () => {
       expect((await readStoredProject(id))?.name).toBe("Layered");
       expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
     });
+  });
+});
+
+describe("Ordered writes for crash safety (connections payload)", () => {
+  let crashDir: string;
+  const originalDataDir = process.env.X_FACTORY_DATA_DIR;
+  const originalConfigPath = process.env.X_FACTORY_CONFIG_PATH;
+
+  beforeEach(async () => {
+    crashDir = await mkdtemp(path.join(tmpdir(), "xf-crash-"));
+    process.env.X_FACTORY_DATA_DIR = path.join(crashDir, "data");
+    process.env.X_FACTORY_CONFIG_PATH = path.join(crashDir, "projects.json");
+  });
+
+  afterEach(async () => {
+    await chmod(process.env.X_FACTORY_CONFIG_PATH ?? "", 0o644).catch(() => {});
+    process.env.X_FACTORY_DATA_DIR = originalDataDir;
+    process.env.X_FACTORY_CONFIG_PATH = originalConfigPath;
+    await rm(crashDir, { recursive: true, force: true });
+  });
+
+  function crashPayload(id: string): ConnectionsPayload {
+    return {
+      id,
+      name: "Crash Test",
+      workspacePath: crashDir,
+      connections: [
+        {
+          providerId: "stub-capable",
+          roles: ["tracker"],
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            project: "crash",
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(crashDir, "web"),
+          role: "backend",
+        },
+      ],
+    };
+  }
+
+  async function storedIds(): Promise<string[]> {
+    const raw = await readFile(
+      process.env.X_FACTORY_CONFIG_PATH ?? "",
+      "utf-8",
+    );
+    return (
+      JSON.parse(raw) as { projects: Array<{ id: string }> }
+    ).projects.map((p) => p.id);
+  }
+
+  it("creates no project at all when secret persistence fails", async () => {
+    const id = `crash-secret-${Date.now()}`;
+    // Block per-project env storage: <dataDir>/projects is a regular file, so
+    // creating <dataDir>/projects/<id>/ fails.
+    await mkdir(path.join(crashDir, "data"), { recursive: true });
+    await writeFile(path.join(crashDir, "data", "projects"), "not a directory");
+
+    const { status } = await createProject(crashPayload(id));
+    expect(status).toBe(500);
+
+    // No secret store for the project…
+    await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+    // …and no project record: a project never exists without its secrets.
+    // (The projects file itself may be created empty by the read path — that
+    // is not a project.)
+    expect(await storedIds().catch(() => [])).toEqual([]);
+  });
+
+  it("leaves the secrets and no project when the commit point fails, then converges on retry", async () => {
+    const id = `crash-commit-${Date.now()}`;
+    const configPath = process.env.X_FACTORY_CONFIG_PATH ?? "";
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ projects: [] }, null, 2)}\n`,
+    );
+
+    // Make the projects file readable but not writable: step (3) fails after
+    // step (2) has already persisted the secrets.
+    await chmod(configPath, 0o444);
+    // Precondition, asserted: this environment actually enforces read-only, so
+    // the test cannot pass vacuously.
+    await expect(writeFile(configPath, "blocked")).rejects.toThrow();
+
+    const { status } = await createProject(crashPayload(id));
+    expect(status).toBe(500);
+
+    // Secrets landed first (idempotent, retry-safe)…
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+    // …and the record did not commit.
+    expect(await storedIds()).not.toContain(id);
+
+    // A retry after the failure converges: same secret, one record.
+    await chmod(configPath, 0o644);
+    const retry = await createProject(crashPayload(id));
+    expect(retry.status).toBe(201);
+    expect(await storedIds()).toEqual([id]);
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
   });
 });
