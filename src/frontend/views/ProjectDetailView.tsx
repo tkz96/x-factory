@@ -1,56 +1,65 @@
-// src/frontend/views/ProjectDetailView.tsx — Detailed single project view (XFM-48).
+// src/frontend/views/ProjectDetailView.tsx — Detailed single project view
+// (XFM-48; rebuilt on the feedback family in #147).
+//
+// The read region (loading / error / not-found) renders through AsyncRegion and
+// the copy map; the project header carries the persisted git host + tracker
+// combo line (spec #133 story 48) and the tracker card below it carries the
+// integrity failure when the project has no tracker.
 
 import "./ProjectDetailView.css";
 
 import { useNavigate, useParams } from "react-router-dom";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
+import { PROJECT_DETAIL_COPY } from "../components/feedback/copy-map.js";
+import { ConnectionComboLine } from "../components/projects/ConnectionComboLine.js";
+import { deriveConnectionIntegrity } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
+import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
 
 export function ProjectDetailView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: projects = [], isLoading } = useProjects();
+  const projectsQuery = useProjects();
+  const { data: descriptors = [] } = useProviderDescriptors();
 
+  const projects = projectsQuery.data ?? [];
   const project = projects.find((p) => p.id === id);
 
-  if (isLoading) {
-    return (
-      <section id="area-projects" className="area-view active">
-        <div className="empty-state card">
-          <div className="spinner-sm" />
-          <h3 className="mt-4">Loading Project…</h3>
-        </div>
-      </section>
-    );
-  }
+  // One read region over the projects query: loading until it resolves, a
+  // retryable error if it fails, and the not-found empty state once the
+  // catalog has loaded without this id.
+  const derived = deriveAsyncState(projectsQuery, {
+    isEmpty: () => projectsQuery.data !== undefined && project === undefined,
+  });
 
-  if (!project) {
+  const backToProjects = () => navigate("/projects");
+
+  if (project === undefined) {
     return (
       <section id="area-projects" className="area-view active">
-        <div className="empty-state card">
-          <div className="empty-icon">
-            <svg className="icon icon-xl" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-            </svg>
-          </div>
-          <h3>Project Not Found</h3>
-          <p className="text-muted">
-            The project &ldquo;{id}&rdquo; does not exist or has been removed.
-          </p>
-          <button
-            type="button"
-            className="btn-secondary btn-sm mt-4"
-            onClick={() => navigate("/projects")}
-          >
-            ← Back to Projects
-          </button>
-        </div>
+        <AsyncRegion
+          derived={derived}
+          onRetry={() => void projectsQuery.refetch()}
+          emptyCopy={PROJECT_DETAIL_COPY.notFound(id ?? "")}
+          emptyAction={
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={backToProjects}
+            >
+              ← {PROJECT_DETAIL_COPY.backToProjects}
+            </button>
+          }
+        />
       </section>
     );
   }
 
   const repos = project.repositories || [];
+  const integrity = deriveConnectionIntegrity(project, descriptors);
 
   return (
     <section id="area-projects" className="area-view active">
@@ -63,7 +72,7 @@ export function ProjectDetailView() {
               className="btn-secondary btn-sm"
               title="Back to all projects"
               aria-label="Back to all projects"
-              onClick={() => navigate("/projects")}
+              onClick={backToProjects}
             >
               <svg className="icon icon-sm" aria-hidden="true">
                 <use href="/assets/icons/sprite.svg#icon-arrow-left" />
@@ -77,7 +86,13 @@ export function ProjectDetailView() {
           </div>
         </div>
 
-        <div id="project-detail-meta" className="project-detail-meta-grid">
+        <ConnectionComboLine
+          id="project-connections-combo"
+          integrity={integrity}
+          descriptors={descriptors}
+        />
+
+        <div id="project-detail-meta" className="project-detail-meta-grid mt-4">
           <div className="project-meta-item">
             <strong>Project ID</strong>
             <code>{project.id}</code>

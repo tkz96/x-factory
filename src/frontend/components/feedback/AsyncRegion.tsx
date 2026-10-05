@@ -29,6 +29,14 @@ export interface AsyncRegionProps {
   onRetry?: () => void;
   /** Partial banner detail: exactly which parts failed (spec user story 31). */
   failedParts?: readonly string[];
+  /**
+   * Overrides the canonical error guidance for this region — for a failure
+   * whose cause the region knows (e.g. a project with no tracker connection,
+   * #147). The raw payload is still never rendered.
+   */
+  errorCopy?: string;
+  /** Overrides the error region's retry label (e.g. the repair path, #147). */
+  retryLabel?: string;
   /** Overrides the canonical empty guidance for this region. */
   emptyCopy?: string;
   /** The empty state's optional call-to-action (e.g. the onboard button). */
@@ -41,6 +49,8 @@ export function AsyncRegion({
   derived,
   onRetry,
   failedParts,
+  errorCopy,
+  retryLabel,
   emptyCopy,
   emptyAction,
   children,
@@ -71,7 +81,9 @@ export function AsyncRegion({
         <svg className="icon icon-xl" aria-hidden="true">
           <use href="/assets/icons/sprite.svg#icon-alert-circle" />
         </svg>
-        <p className="async-region-hint">{resolveErrorCopy(derived.error)}</p>
+        <p className="async-region-hint">
+          {errorCopy ?? resolveErrorCopy(derived.error)}
+        </p>
         {onRetry !== undefined && (
           <div className="async-region-actions">
             {remainingMs !== undefined && remainingMs > 0 && (
@@ -79,7 +91,11 @@ export function AsyncRegion({
                 {formatRetryCountdown(remainingMs)}
               </span>
             )}
-            <RetryAction onRetry={onRetry} disabled={rateLimited} />
+            <RetryAction
+              onRetry={onRetry}
+              disabled={rateLimited}
+              label={retryLabel}
+            />
           </div>
         )}
       </div>

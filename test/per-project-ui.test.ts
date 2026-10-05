@@ -56,17 +56,34 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     expect(trackerContent).toContain('className="project-tracker-card card"');
   });
 
-  it("TrackerSection renders provider badge, target, ingestion label, and Azure scope testing", async () => {
+  // Rewritten for ticket #147. The previous assertions pinned the
+  // provider-conditional rendering this ticket deletes: TrackerSection read
+  // `tracker.provider` and reached into `tracker.azure` / `tracker.jira` /
+  // `tracker.github`, and its copy was inline. The card is now driven by the
+  // project's normalized connections; the strings live in the copy map and the
+  // scope action is gated on the provider's declared capabilities. Behavioural
+  // coverage of all of it lives in test/post-creation-surfacing.test.tsx.
+  it("TrackerSection renders the tracker card from connections, with no provider conditionals", async () => {
     const trackerSectionPath = path.join(
       import.meta.dir,
       "../src/frontend/components/projects/TrackerSection.tsx",
     );
     const content = await Bun.file(trackerSectionPath).text();
 
-    expect(content).toContain("tracker.provider");
-    expect(content).toContain("handleTestAzureScopes");
-    expect(content).toContain("Test Tracker Scopes");
+    // Generic derivation + capability-driven action.
+    expect(content).toContain("deriveConnectionIntegrity");
+    expect(content).toContain('capabilities.includes("verifyScopes")');
     expect(content).toContain("api.testAzureScopes");
-    expect(content).toContain("Ingestion Label");
+    // The integrity failure with its repair path (spec #133 story 49).
+    expect(content).toContain("CONNECTIONS_COPY.integrityFailure");
+    expect(content).toContain("CONNECTIONS_COPY.reconnect");
+    // Copy comes from the map, never inline.
+    expect(content).toContain("CONNECTIONS_COPY.ingestionLabel");
+    expect(content).not.toContain("Ingestion Label");
+    // No provider-conditional reads anywhere on this surface. (`providerId` is
+    // the generic connection field, not a provider branch.)
+    expect(content).not.toMatch(/tracker\.provider\b/);
+    expect(content).not.toMatch(/tracker\.(azure|jira|github)\b/);
+    expect(content).not.toContain("issueTracker");
   });
 });
