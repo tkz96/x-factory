@@ -411,8 +411,11 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   await flush();
 
   // ── Review: the combo line names the providers the manifest serves ──────
-  const displayName = (providerId: string) =>
-    descriptors.find((descriptor) => descriptor.id === providerId)?.displayName;
+  const displayName = (providerId: string): string => {
+    const descriptor = descriptors.find((entry) => entry.id === providerId);
+    expect(descriptor).toBeDefined();
+    return descriptor?.displayName ?? providerId;
+  };
   for (const role of ROLES) {
     const providerId = fixture.roleProvider[role];
     expect(getEl(`combo-${role}-name`).textContent).toBe(
@@ -533,7 +536,8 @@ function journeyTests(fixture: JourneyFixture): void {
     );
     for (const expected of fixture.expectedConnections) {
       const descriptor = descriptors.find((d) => d.id === expected.providerId);
-      expect(container.textContent).toContain(descriptor?.displayName);
+      expect(descriptor).toBeDefined();
+      expect(container.textContent).toContain(descriptor?.displayName ?? "");
     }
     expect(container.textContent).not.toContain(CONNECTIONS_COPY.notRecorded);
     cleanup();

@@ -161,11 +161,19 @@ function Harness() {
   );
 }
 
-function renderWizard(manifestData = genericManifestFixture) {
+/**
+ * Renders the harness. `manifestData === null` leaves the manifest cache empty,
+ * so the step has to fetch it — the read region's own states.
+ */
+function renderWizard(
+  manifestData: ProviderDescriptor[] | null = genericManifestFixture,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
-  queryClient.setQueryData(queryKeys.providers(), manifestData);
+  if (manifestData !== null) {
+    queryClient.setQueryData(queryKeys.providers(), manifestData);
+  }
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -1626,6 +1634,117 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         role: "tracker",
         config: { endpointHost: "https://tracker.example.com" },
       });
+    });
+  });
+
+  // ── Connect's own read region: the provider manifest (#148 audit) ──────────
+  //
+  // The contract (docs/reference/state-coverage.md) requires every read region
+  // to be tested in its states. The Connect step's manifest region is asserted
+  // here: loading (in flight), error (unavailable, with a working retry), and
+  // empty (no provider registered — the step still renders, nothing selected).
+  describe("Connect — the provider manifest read region (#148)", () => {
+    /** The manifest read is a query: its state lands a tick after it settles. */
+    async function flushManifest(): Promise<void> {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    }
+
+    it("LOADING: the step reserves its region while the manifest is in flight, and the cards land in the same step", async () => {
+      let resolveManifest!: (value: ProviderDescriptor[]) => void;
+      const getManifest = mock(
+        () =>
+          new Promise<ProviderDescriptor[]>((resolve) => {
+            resolveManifest = resolve;
+          }),
+      );
+      api.providers.getManifest = getManifest as never;
+
+      setupStep2Draft();
+      renderWizard(null);
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      const step = getEl("onboard-step-2");
+      const loading = step.querySelector(".async-region--loading");
+      expect(loading).not.toBeNull();
+      expect(loading?.getAttribute("role")).toBe("status");
+      expect(getManifest).toHaveBeenCalledTimes(1);
+      // Nothing to configure yet: the cards are not rendered behind the region.
+      expect(document.getElementById("connection-card-tracker")).toBeNull();
+
+      await act(async () => {
+        resolveManifest(genericManifestFixture);
+      });
+      await flushManifest();
+
+      // Same step element, and the provider choices are the manifest's.
+      expect(getEl("onboard-step-2")).toBe(step);
+      const options = [
+        ...getEl<HTMLSelectElement>("select-tracker-provider").options,
+      ]
+        .map((option) => option.value)
+        .filter((value) => value !== "");
+      expect(options).toEqual(["generic-tracker", "dual-service"]);
+      expect(getManifest).toHaveBeenCalledTimes(1);
+    });
+
+    it("ERROR: an unavailable manifest renders canonical copy with a working retry, never the transport message", async () => {
+      let attempts = 0;
+      const getManifest = mock(async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new TypeError("Failed to fetch");
+        }
+        return genericManifestFixture;
+      });
+      api.providers.getManifest = getManifest as never;
+
+      setupStep2Draft();
+      renderWizard(null);
+      fireEvent.click(getEl("btn-open-wizard"));
+      await flushManifest();
+
+      const step = getEl("onboard-step-2");
+      const errorRegion = step.querySelector(".async-region--error");
+      expect(errorRegion).not.toBeNull();
+      expect(errorRegion?.textContent).toContain(STATE_COPY.errorFallback);
+      expect(errorRegion?.textContent).not.toContain("Failed to fetch");
+
+      // The retry re-invokes the read in place: same step, cards now present.
+      const retry = errorRegion?.querySelector(
+        ".retry-action",
+      ) as HTMLButtonElement;
+      expect(retry.textContent).toContain(STATE_COPY.retry);
+      await act(async () => {
+        fireEvent.click(retry);
+      });
+      await flushManifest();
+      expect(getManifest).toHaveBeenCalledTimes(2);
+      expect(getEl("onboard-step-2")).toBe(step);
+      expect(document.getElementById("connection-card-tracker")).not.toBeNull();
+    });
+
+    it("EMPTY: a registry with no providers renders the step, preselects nothing, and keeps the gate closed", async () => {
+      setupStep2Draft();
+      renderWizard([]);
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // The step is not blank and not an error: both cards are there, with no
+      // provider to choose.
+      expect(document.getElementById("connection-card-tracker")).not.toBeNull();
+      expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe(
+        "",
+      );
+      expect(getEl<HTMLSelectElement>("select-gitHost-provider").value).toBe(
+        "",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+      expect(
+        document
+          .getElementById("onboard-step-2")
+          ?.querySelector(".async-region--error"),
+      ).toBeNull();
     });
   });
 });
