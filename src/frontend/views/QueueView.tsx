@@ -1,25 +1,48 @@
-// src/frontend/views/QueueView.tsx — Work queue view with ticket search & launch actions (XFM-38, XFM-40, XFM-47).
+// src/frontend/views/QueueView.tsx — Work queue view (XFM-38, XFM-40, XFM-47;
+// rebuilt on the feedback family in #147).
+//
+// The queue is a read region over the tickets query, and it is gated by the
+// selected project's connection integrity: a project with no tracker is an
+// integrity failure with a repair path, NEVER a successfully-empty queue
+// (spec #133 story 49). A degraded tracker keeps the queue visible with a
+// warning, and a real query error keeps the manual path open.
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import {
+  CONNECTIONS_COPY,
+  QUEUE_COPY,
+} from "../components/feedback/copy-map.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
+import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
+import { formatConnectionWarnings } from "../components/projects/connection-copy.js";
+import {
+  applyConnectionIntegrity,
+  deriveConnectionIntegrity,
+} from "../components/projects/connection-integrity.js";
 import { TicketCard } from "../components/queue/TicketCard.js";
 import { TicketSearchToolbar } from "../components/queue/TicketSearchToolbar.js";
 import { useModal } from "../context/ModalContext.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
+import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useTickets } from "../hooks/useQueries.js";
 import "./QueueView.css";
 
 export function QueueView() {
-  const { selectedProjectId } = useCurrentProject();
+  const { selectedProjectId, selectedProject } = useCurrentProject();
   const { openNewRunModal } = useModal();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const { data: descriptors = [] } = useProviderDescriptors();
 
-  const {
-    data: tickets = [],
-    isLoading,
-    isRefetching,
-    refetch,
-    error,
-  } = useTickets(selectedProjectId);
+  const ticketsQuery = useTickets(selectedProjectId);
+  const tickets = ticketsQuery.data ?? [];
+  const { isRefetching, refetch } = ticketsQuery;
+
+  const integrity = selectedProject
+    ? deriveConnectionIntegrity(selectedProject, descriptors)
+    : undefined;
 
   const filteredTickets = useMemo(() => {
     if (!searchQuery.trim()) return tickets;
@@ -34,6 +57,34 @@ export function QueueView() {
     });
   }, [tickets, searchQuery]);
 
+  const searching = searchQuery.trim().length > 0;
+
+  // The integrity failure is primary over every async condition: the queue
+  // cannot be loaded at all, so it must never read as a successfully-empty
+  // queue. Precedence still carries the asynchronous diagnostics.
+  const derived = applyConnectionIntegrity(
+    deriveAsyncState(ticketsQuery, {
+      isEmpty: (query) =>
+        Array.isArray(query.data) &&
+        (searching ? filteredTickets.length === 0 : tickets.length === 0),
+    }),
+    integrity,
+  );
+
+  const manualRunAction = (
+    <button
+      type="button"
+      id="btn-queue-manual"
+      className="btn-secondary btn-sm"
+      onClick={() => openNewRunModal()}
+    >
+      {QUEUE_COPY.manualRun}
+    </button>
+  );
+
+  const integrityFailure = integrity?.hasIntegrityFailure === true;
+  const showManualRun = integrityFailure || derived.state === "error";
+
   return (
     <section id="area-queue" className="area-view active">
       <TicketSearchToolbar
@@ -44,79 +95,49 @@ export function QueueView() {
       />
 
       <div id="queue-tickets-list" className="tickets-grid">
-        {isLoading ? (
-          <div className="empty-state card">
-            <div className="spinner-sm" />
-            <h3 className="mt-4">Loading Work Queue…</h3>
-            <p className="text-muted">
-              Fetching tickets from connected issue tracker.
-            </p>
-          </div>
-        ) : error ? (
-          <div className="empty-state card">
-            <div className="empty-icon">
-              <svg className="icon icon-xl" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-alert-circle" />
-              </svg>
-            </div>
-            <h3>Unable to Load Work Queue</h3>
-            <p className="error-message queue-error-message">
-              {error instanceof Error ? error.message : String(error)}
-            </p>
-            <button
-              type="button"
-              id="btn-queue-manual"
-              className="btn-secondary btn-sm mt-4"
-              onClick={() => openNewRunModal()}
-            >
-              Start Manual Run
-            </button>
-          </div>
-        ) : tickets.length === 0 ? (
-          <div className="empty-state card">
-            <div className="empty-icon">
-              <svg className="icon icon-xl" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-calendar" />
-              </svg>
-            </div>
-            <h3>No Issue Tracker Connected</h3>
-            <p>
-              Configure GitHub, Jira, or Azure DevOps in Settings to pull
-              tickets with the <code>agentic-workflow</code> label
-              automatically.
-            </p>
-            <button
-              type="button"
-              id="btn-queue-manual"
-              className="btn-secondary btn-sm mt-4"
-              onClick={() => openNewRunModal()}
-            >
-              Start Manual Run
-            </button>
-          </div>
-        ) : filteredTickets.length === 0 ? (
-          <div className="empty-state card">
-            <div className="empty-icon">
-              <svg className="icon icon-xl" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-search" />
-              </svg>
-            </div>
-            <h3>No Matching Tickets</h3>
-            <p className="text-muted">
-              No tickets matched your search query &ldquo;{searchQuery}&rdquo;.
-            </p>
-            <button
-              type="button"
-              className="btn-secondary btn-sm mt-4"
-              onClick={() => setSearchQuery("")}
-            >
-              Clear Filter
-            </button>
-          </div>
-        ) : (
-          filteredTickets.map((ticket) => (
+        <AsyncRegion
+          derived={derived}
+          onRetry={
+            integrityFailure ? () => navigate("/settings") : () => refetch()
+          }
+          errorCopy={
+            integrityFailure
+              ? CONNECTIONS_COPY.integrityFailure.message
+              : undefined
+          }
+          retryLabel={integrityFailure ? CONNECTIONS_COPY.reconnect : undefined}
+          emptyCopy={
+            searching ? QUEUE_COPY.noMatches(searchQuery) : QUEUE_COPY.empty
+          }
+          emptyAction={
+            searching ? (
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => setSearchQuery("")}
+              >
+                {QUEUE_COPY.clearFilter}
+              </button>
+            ) : (
+              manualRunAction
+            )
+          }
+        >
+          {filteredTickets.map((ticket) => (
             <TicketCard key={ticket.id} ticket={ticket} />
-          ))
+          ))}
+        </AsyncRegion>
+
+        {integrity?.tracker.state === "degraded" && (
+          <FeedbackBanner
+            tone="warning"
+            message={CONNECTIONS_COPY.degradedTitle}
+            items={formatConnectionWarnings(integrity.tracker.warnings)}
+          />
+        )}
+
+        {showManualRun && (
+          <div className="queue-manual-actions">{manualRunAction}</div>
         )}
       </div>
     </section>

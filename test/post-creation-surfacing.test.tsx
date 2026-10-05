@@ -36,7 +36,10 @@ import {
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
+import {
+  CONNECTIONS_COPY,
+  QUEUE_COPY,
+} from "../src/frontend/components/feedback/copy-map.js";
 import { ConnectionComboLine } from "../src/frontend/components/projects/ConnectionComboLine.js";
 import { deriveConnectionIntegrity } from "../src/frontend/components/projects/connection-integrity.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
@@ -45,9 +48,11 @@ import {
   ModalProvider,
   useModal,
 } from "../src/frontend/context/ModalContext.js";
+import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
+import { QueueView } from "../src/frontend/views/QueueView.js";
 import { SettingsView } from "../src/frontend/views/SettingsView.js";
 import type { Project } from "../src/shared/types.js";
 
@@ -169,9 +174,13 @@ function renderUi(
       QueryClientProvider,
       { client },
       React.createElement(
-        ModalProvider,
+        ProjectProvider,
         null,
-        React.createElement(MemoryRouter, { initialEntries }, ui),
+        React.createElement(
+          ModalProvider,
+          null,
+          React.createElement(MemoryRouter, { initialEntries }, ui),
+        ),
       ),
     ),
   );
@@ -193,6 +202,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
 });
 describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
   it("renders both roles with manifest display names and the connected tone", () => {
@@ -682,5 +692,150 @@ describe("Settings connections registry — canonical copy", () => {
       CONNECTIONS_COPY.registryColumnConnections,
     );
     expect(container.textContent).toContain(CONNECTIONS_COPY.registryAction);
+  });
+});
+
+// ─── Work Queue ─────────────────────────────────────────────────────────────
+
+function makeTicket(id: string) {
+  return {
+    id,
+    title: `${id} title`,
+    acceptanceCriteria: [],
+    url: `https://tickets.example/${id}`,
+    provider: "tracker-one",
+  } as Parameters<
+    typeof import("../src/frontend/components/queue/TicketCard.js").TicketCard
+  >[0]["ticket"];
+}
+
+async function renderQueue(
+  project: Project,
+  tickets: ReturnType<typeof makeTicket>[],
+) {
+  const client = makeClient();
+  client.setQueryData(queryKeys.projects(), [project]);
+  client.setQueryData(queryKeys.tickets(project.id), tickets);
+  api.getTickets = mock(async () => tickets) as never;
+
+  const rendered = renderUi(
+    React.createElement(
+      Routes,
+      null,
+      React.createElement(Route, {
+        path: "/queue",
+        element: React.createElement(QueueView),
+      }),
+      React.createElement(Route, {
+        path: "/settings",
+        element: React.createElement(
+          "div",
+          { id: "settings-route" },
+          "Connections",
+        ),
+      }),
+    ),
+    client,
+    ["/queue"],
+  );
+  await waitFor(() => {
+    if (client.getQueryData(queryKeys.tickets(project.id)) === undefined) {
+      throw new Error("tickets not in cache");
+    }
+  });
+  return rendered;
+}
+
+describe("Work Queue — combo state matrix", () => {
+  it("HEALTHY: lists the queue with no feedback chrome", async () => {
+    const { container } = await renderQueue(makeProject(), [
+      makeTicket("TICK-1"),
+    ]);
+    await waitFor(() => {
+      if (!container.textContent?.includes("TICK-1")) {
+        throw new Error("ticket missing");
+      }
+    });
+
+    expect(container.querySelector(".async-region--error")).toBeNull();
+    expect(container.querySelector(".feedback-banner--warning")).toBeNull();
+    expect(container.querySelector("#queue-tickets-list")).not.toBeNull();
+  });
+
+  it("DEGRADED: warns about the connection while the queue stays visible", async () => {
+    const { container } = await renderQueue(
+      makeProject({ connections: DEGRADED_CONNECTIONS }),
+      [makeTicket("TICK-2")],
+    );
+    await waitFor(() => {
+      if (!container.textContent?.includes("TICK-2")) {
+        throw new Error("ticket missing");
+      }
+    });
+
+    const warnings = container.querySelector(".feedback-banner--warning");
+    expect(warnings?.textContent).toContain("Email");
+    expect(container.querySelector(".async-region--error")).toBeNull();
+  });
+
+  it("INTEGRITY FAILURE: is never rendered as an empty queue", async () => {
+    const { container } = await renderQueue(
+      makeProject({ connections: NO_TRACKER_CONNECTIONS }),
+      [],
+    );
+
+    await waitFor(() => {
+      if (container.querySelector(".async-region--error") === null) {
+        throw new Error("integrity failure missing");
+      }
+    });
+
+    expect(container.textContent).toContain(
+      CONNECTIONS_COPY.integrityFailure.message,
+    );
+    expect(
+      container.querySelector("button.retry-action")?.textContent,
+    ).toContain(CONNECTIONS_COPY.reconnect);
+    // Never a successfully-empty queue, and never the dead-end copy.
+    expect(container.querySelector(".async-region--empty")).toBeNull();
+    expect(container.textContent).not.toContain(QUEUE_COPY.empty);
+    // The manual path stays open.
+    expect(container.textContent).toContain(QUEUE_COPY.manualRun);
+  });
+
+  it("INTEGRITY FAILURE: the repair action reaches the connections surface", async () => {
+    const { container } = await renderQueue(
+      makeProject({ connections: NO_TRACKER_CONNECTIONS }),
+      [],
+    );
+
+    await waitFor(() => {
+      if (container.querySelector("button.retry-action") === null) {
+        throw new Error("repair action missing");
+      }
+    });
+    const repair = container.querySelector("button.retry-action");
+    if (!(repair instanceof HTMLElement)) {
+      throw new Error("repair action missing");
+    }
+    await act(async () => {
+      fireEvent.click(repair);
+    });
+    expect(container.querySelector("#settings-route")).not.toBeNull();
+  });
+
+  it("HEALTHY and empty: renders the honest empty queue, not an integrity failure", async () => {
+    const { container } = await renderQueue(makeProject(), []);
+
+    await waitFor(() => {
+      if (container.querySelector(".async-region--empty") === null) {
+        throw new Error("empty region missing");
+      }
+    });
+
+    expect(container.textContent).toContain(QUEUE_COPY.empty);
+    expect(container.textContent).not.toContain(
+      CONNECTIONS_COPY.integrityFailure.message,
+    );
   });
 });

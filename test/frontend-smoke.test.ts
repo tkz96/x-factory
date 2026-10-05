@@ -456,11 +456,11 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
    * Legacy files that still construct ad-hoc loading/error markup, pending
    * absorption by the wizard rebuild (spec #133). New files must never land
    * here; entries leave this list when their absorbing ticket deletes them.
+   * ProjectDetailView and QueueView left it in #147, when both moved onto the
+   * feedback family.
    */
   const LEGACY_ADHOC_FEEDBACK_FILES = new Set([
     "src/frontend/components/docs/DocsSidebarNav.tsx",
-    "src/frontend/views/ProjectDetailView.tsx",
-    "src/frontend/views/QueueView.tsx",
     "src/frontend/views/RunDetailView.tsx",
     "src/frontend/views/RunsView.tsx",
   ]);
