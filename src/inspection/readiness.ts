@@ -29,8 +29,8 @@ interface RepositoryInspectionResult {
   /**
    * The git identity in effect for this directory (#146), read with the same
    * `git config --get` invocation — same CLI, same `cwd` — that resolves every
-   * other git fact here, so it is the identity the executor's worktree will
-   * commit with.
+   * other git fact here, so it is the identity git would author a commit with
+   * in that directory.
    *
    * ABSENT when either `user.name` or `user.email` is unconfigured for that
    * directory: the agent would have no identity either, and reporting an empty
