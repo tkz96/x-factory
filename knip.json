@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/knip@5/overview/configuration.json",
   "entry": ["test/**/*.ts", "src/reticle-dev.ts"],
   "project": ["src/**/*.{ts,tsx}", "test/**/*.{ts,tsx}"],
-  "ignoreDependencies": ["@reticlehq/react"],
+  "ignoreDependencies": ["@reticlehq/react", "@testing-library/user-event"],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "exports": "warn",

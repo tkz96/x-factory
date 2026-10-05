@@ -1,0 +1,28 @@
+/* src/frontend/connection/ConnectionCard.css — Role-based connection card styling */
+
+.connection-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.connection-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.connection-card-role-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.connection-card-body {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}

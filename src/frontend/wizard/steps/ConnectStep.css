@@ -1,0 +1,12 @@
+/* src/frontend/wizard/steps/ConnectStep.css — Step 2 Connect styling */
+
+.connect-step-pane {
+  padding: 1.5rem;
+}
+
+.connect-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}

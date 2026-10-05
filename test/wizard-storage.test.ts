@@ -1,0 +1,167 @@
+/// <reference lib="dom" />
+import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
+
+registerHappyDom();
+
+import { afterAll, beforeEach, describe, expect, it } from "bun:test";
+import { createInitialWizardState } from "../src/frontend/wizard/state/wizardReducer.js";
+import {
+  clearWizardDraft,
+  loadWizardDraft,
+  saveWizardDraft,
+} from "../src/frontend/wizard/storage.js";
+import {
+  WIZARD_SCHEMA_VERSION,
+  type WizardSourceState,
+} from "../src/frontend/wizard/types.js";
+
+describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secrets)", () => {
+  afterAll(async () => {
+    await unregisterHappyDom();
+  });
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("persists a versioned draft envelope with timestamp and state", () => {
+    const state = createInitialWizardState();
+    state.basics.name = "My Project";
+    state.basics.id = "my-project";
+    state.step = 2;
+    state.maxStepVisited = 2;
+
+    const saved = saveWizardDraft(state);
+    expect(saved).toBe(true);
+
+    const raw = window.localStorage.getItem("xf_wizard_draft_v1");
+    expect(raw).not.toBeNull();
+
+    const parsed = JSON.parse(raw || "{}");
+    expect(parsed.version).toBe(WIZARD_SCHEMA_VERSION);
+    expect(typeof parsed.savedAt).toBe("string");
+    expect(parsed.state.basics.name).toBe("My Project");
+    expect(parsed.state.basics.id).toBe("my-project");
+    expect(parsed.state.step).toBe(2);
+  });
+
+  it("loads a valid saved draft successfully", () => {
+    const state = createInitialWizardState();
+    state.basics.name = "Restored Project";
+    state.basics.id = "restored-project";
+    state.basics.workspacePath = "/workspace/path";
+    saveWizardDraft(state);
+
+    const loaded = loadWizardDraft();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.basics.name).toBe("Restored Project");
+    expect(loaded?.basics.id).toBe("restored-project");
+    expect(loaded?.basics.workspacePath).toBe("/workspace/path");
+  });
+
+  it("safely discards drafts referencing a stale or incompatible schema version", () => {
+    // Write an envelope with a stale schema version (e.g. 0 or 999)
+    const staleEnvelope = {
+      version: 999,
+      savedAt: new Date().toISOString(),
+      state: createInitialWizardState(),
+    };
+    window.localStorage.setItem(
+      "xf_wizard_draft_v1",
+      JSON.stringify(staleEnvelope),
+    );
+
+    const loaded = loadWizardDraft();
+    expect(loaded).toBeNull();
+
+    // Key must have been discarded safely from localStorage
+    expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
+  });
+
+  it("safely discards corrupted or unparseable JSON without throwing", () => {
+    window.localStorage.setItem("xf_wizard_draft_v1", "{ not-valid-json ]");
+
+    const loaded = loadWizardDraft();
+    expect(loaded).toBeNull();
+    expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
+  });
+
+  it("safely discards envelopes with missing or malformed state", () => {
+    window.localStorage.setItem(
+      "xf_wizard_draft_v1",
+      JSON.stringify({ version: WIZARD_SCHEMA_VERSION, state: null }),
+    );
+
+    const loaded = loadWizardDraft();
+    expect(loaded).toBeNull();
+    expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
+  });
+
+  it("clears the draft on clearWizardDraft()", () => {
+    const state = createInitialWizardState();
+    saveWizardDraft(state);
+    expect(window.localStorage.getItem("xf_wizard_draft_v1")).not.toBeNull();
+
+    clearWizardDraft();
+    expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
+  });
+
+  it("CRITICAL SECURITY INVARIANT: never writes secrets or envKey to the draft", () => {
+    const state: WizardSourceState = {
+      ...createInitialWizardState(),
+      connect: {
+        quickUrl: "https://dev.azure.com/myorg/myproj",
+        tracker: {
+          providerId: "azure",
+          config: {
+            orgUrl: "https://dev.azure.com/myorg",
+            project: "myproj",
+            pat: "super-secret-pat-token-value-12345",
+            token: "secret-token-xyz",
+            password: "super-password",
+            secretField: "classified",
+            envKey: "AZURE_DEVOPS_PAT",
+          },
+          verified: true,
+        },
+        gitHost: {
+          providerId: "github",
+          config: {
+            owner: "myorg",
+            repo: "myrepo",
+            apiKey: "secret-api-key-999",
+            credentials: { authSecret: "classified-bearer" },
+          },
+          verified: true,
+        },
+      },
+    };
+
+    saveWizardDraft(state);
+
+    const raw = window.localStorage.getItem("xf_wizard_draft_v1") || "";
+    expect(raw).toBeDefined();
+
+    // Ensure raw JSON contains ZERO trace of secrets, PATs, tokens, passwords, or envKey
+    expect(raw).not.toContain("super-secret-pat-token-value-12345");
+    expect(raw).not.toContain("secret-token-xyz");
+    expect(raw).not.toContain("super-password");
+    expect(raw).not.toContain("secret-api-key-999");
+    expect(raw).not.toContain("classified-bearer");
+    expect(raw).not.toContain("AZURE_DEVOPS_PAT");
+    expect(raw).not.toContain('"pat"');
+    expect(raw).not.toContain('"token"');
+    expect(raw).not.toContain('"password"');
+    expect(raw).not.toContain('"apiKey"');
+    expect(raw).not.toContain('"envKey"');
+
+    // Non-secret fields must still survive
+    const loaded = loadWizardDraft();
+    expect(loaded).not.toBeNull();
+    if (!loaded) return;
+    expect(loaded.connect.tracker.config.project).toBe("myproj");
+    expect(loaded.connect.gitHost.config.repo).toBe("myrepo");
+    // Verification flags must be restored as unverified/stale per #130 stale rule
+    expect(loaded.connect.tracker.verified).toBe(false);
+    expect(loaded.connect.gitHost.verified).toBe(false);
+  });
+});
