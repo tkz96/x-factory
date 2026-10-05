@@ -12,7 +12,6 @@ export type {
   KnowledgeRepository,
   Project,
   ProjectConnection,
-  ProjectConnectionRole,
   ProjectIssueTracker,
   ProjectReadiness,
   ProjectRepository,

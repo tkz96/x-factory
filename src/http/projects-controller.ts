@@ -53,6 +53,7 @@ import {
 } from "./responses.js";
 import {
   SaveProjectBodySchema,
+  UpdateProjectBodySchema,
   UpdateProjectConnectionsBodySchema,
 } from "./schemas.js";
 
@@ -133,9 +134,11 @@ async function handleUpdateProject(
   }
 
   return catchHttpErrors(async () => {
+    const validated = validateAgainstSchema(raw, UpdateProjectBodySchema);
+    if (!validated.ok) return validated.response;
     const merged = {
       ...project,
-      ...raw,
+      ...validated.data,
       id: projectId,
     };
     const saved = await saveProject(merged);
