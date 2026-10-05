@@ -178,7 +178,7 @@ describe("isReviewReady", () => {
           },
         }),
       ),
-    ).toEqual(["noApplicationRepository", "inspectionStale"]);
+    ).toEqual(["noApplicationRepository"]);
 
     // Same repository, selected under a different git-host configuration: the
     // SELECTION is out of date. The identity was still read from the same

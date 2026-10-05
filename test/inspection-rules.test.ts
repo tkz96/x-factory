@@ -249,4 +249,17 @@ describe("deriveInspectionStatus", () => {
     expect(status.identityResolved).toBe(false);
     expect(status.partial).toBe(false);
   });
+
+  it("does not call a record out of date when there is nothing left to inspect", () => {
+    const status = deriveInspectionStatus(
+      stateWith({
+        inspection: recordFor(inputs({})),
+        selectedRepoIds: [],
+        repoConfigs: {},
+      }),
+    );
+
+    expect(status.targets).toEqual([]);
+    expect(status.stale).toBe(false);
+  });
 });

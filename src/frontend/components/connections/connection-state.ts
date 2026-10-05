@@ -54,6 +54,7 @@ export function deriveConnectionState(
 export function isConnectionUsable(evidence: ConnectionEvidence): boolean {
   const state = deriveConnectionState(evidence);
   return (
-    state === "connected" || (state === "degraded" && evidence.degradedAccepted)
+    state === "connected" ||
+    (state === "degraded" && evidence.degradedAccepted === true)
   );
 }

@@ -130,6 +130,57 @@ export const REPOSITORIES_COPY = {
 } as const;
 
 /**
+ * The combo line's copy (#146): the two roles a project's connections serve,
+ * and the three health states each can be in. Shared by every surface that
+ * renders a project's connections — one line, one vocabulary.
+ */
+export const CONNECTION_STATE_COPY = {
+  trackerLabel: "Tracker",
+  gitHostLabel: "Git host",
+  /** Verified with nothing outstanding. */
+  connected: "Connected",
+  /** Verified, but warnings were reported and have NOT been accepted. */
+  degraded: "Degraded — warnings outstanding",
+  /** Verified, warnings reported and explicitly accepted. */
+  degradedAccepted: "Degraded — warnings accepted",
+  /** No provider selected, or nothing verified in this session. */
+  disconnected: "Not connected",
+} as const;
+
+/**
+ * Inspection step copy (#146). The step reports the git identity the agent will
+ * commit with, read from the same git configuration the executor's worktree
+ * resolves — so it can also say, honestly, that none could be resolved.
+ */
+export const INSPECTION_COPY = {
+  title: "Git Identity Inspection",
+  subtitle:
+    "The git identity your agent commits with, read from the git configuration in effect for each selected repository.",
+  /** Empty: nothing is selected to inspect yet. */
+  emptyNoSelection:
+    "No repository is selected yet. Choose at least one on the Repositories step, then inspect its git identity.",
+  /** Empty: a selection exists, but there is no directory to read a config in. */
+  emptyNoPath:
+    "There is no local directory to read a git configuration in yet. Set a local workspace root on the Basics step, or a local path for the repository.",
+  /** Partial: one item per repository whose directory resolved no identity. */
+  unresolvedRepo: (name: string) =>
+    `${name} — no git identity is configured for its directory`,
+  /** Ready, but no complete identity is configured for the inspected directory. */
+  identityMissing: (path: string) =>
+    path
+      ? `No git identity is configured for ${path}. Both a user.name and a user.email are required there, and none will be invented — your agent would have no identity to commit with either.`
+      : "No git identity is configured for the inspected directories. Both a user.name and a user.email are required, and none will be invented — your agent would have no identity to commit with either.",
+  identityTitle: "Resolved git identity",
+  nameLabel: "Name",
+  emailLabel: "Email",
+  pathLabel: "Read from",
+  /** The explicit re-inspection affordance (never an automatic retry loop). */
+  inspectAction: "Inspect again",
+  previous: "Back",
+  next: "Continue to Review",
+} as const;
+
+/**
  * Canonical copy for server validation error codes returned in 409 envelopes.
  * Field errors format the field's human label; form errors provide form-level guidance.
  */

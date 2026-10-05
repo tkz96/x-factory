@@ -1,4 +1,4 @@
-import type { Project, Run, Ticket } from "../../shared/types.js";
+import type { GitIdentity, Project, Run, Ticket } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
   DiscoverRepositoriesPayload,
@@ -36,6 +36,13 @@ export interface InspectRepositoryResponse {
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: string | undefined;
+  /**
+   * The git identity in effect for that directory (#146), resolved by the
+   * server through the same git CLI the executor's worktree uses. ABSENT when
+   * either user.name or user.email is unconfigured for it — never an empty
+   * string and never a guessed default.
+   */
+  gitIdentity?: GitIdentity | undefined;
   detectedCommands: Record<string, string>;
   detectedTooling: string[];
   readiness: {

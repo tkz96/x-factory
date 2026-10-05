@@ -13,9 +13,9 @@
 // moment the selection, a selected repository's role/local path, or the
 // workspace root changes.
 
+import type { GitIdentity } from "../../../shared/types.js";
 import { connectionConfigFingerprint } from "../../lib/connection-fingerprint.js";
 import type {
-  GitIdentity,
   WizardInspectionState,
   WizardRepoConfig,
   WizardSourceState,
@@ -136,11 +136,17 @@ export function deriveInspectionStatus(
   const fingerprint = inspectionInputsFingerprint(inputs);
   const record = recordOf(state.inspection);
   const identityResolved = record?.gitIdentity !== undefined;
+  const targets = inspectionTargets(inputs);
   return {
     fingerprint,
-    targets: inspectionTargets(inputs),
+    targets,
     record,
-    stale: record !== null && record.inputsFingerprint !== fingerprint,
+    // Nothing to inspect cannot be out of date: with no target at all the
+    // region shows its own guidance, never an "out of date" badge.
+    stale:
+      targets.length > 0 &&
+      record !== null &&
+      record.inputsFingerprint !== fingerprint,
     identityResolved,
     partial: identityResolved && (record?.unresolvedRepoIds.length ?? 0) > 0,
   };
