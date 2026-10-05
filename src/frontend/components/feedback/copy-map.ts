@@ -130,6 +130,119 @@ export const REPOSITORIES_COPY = {
 } as const;
 
 /**
+ * The combo line's copy (#146): the two roles a project's connections serve,
+ * and the three health states each can be in. Shared by every surface that
+ * renders a project's connections — one line, one vocabulary.
+ */
+export const CONNECTION_STATE_COPY = {
+  trackerLabel: "Tracker",
+  gitHostLabel: "Git host",
+  /** Verified with nothing outstanding. */
+  connected: "Connected",
+  /** Verified, but warnings were reported and have NOT been accepted. */
+  degraded: "Degraded — warnings outstanding",
+  /** Verified, warnings reported and explicitly accepted. */
+  degradedAccepted: "Degraded — warnings accepted",
+  /** No provider selected, or nothing verified in this session. */
+  disconnected: "Not connected",
+} as const;
+
+/**
+ * Inspection step copy (#146). The step reports the git identity the agent will
+ * commit with, read from the same git configuration the executor's worktree
+ * resolves — so it can also say, honestly, that none could be resolved.
+ */
+export const INSPECTION_COPY = {
+  title: "Git Identity Inspection",
+  subtitle:
+    "The git identity your agent commits with, read from the git configuration in effect for each selected repository.",
+  /** Empty: nothing is selected to inspect yet. */
+  emptyNoSelection:
+    "No repository is selected yet. Choose at least one on the Repositories step, then inspect its git identity.",
+  /** Empty: a selection exists, but there is no directory to read a config in. */
+  emptyNoPath:
+    "There is no local directory to read a git configuration in yet. Set a local workspace root on the Basics step, or a local path for the repository.",
+  /** Partial: one item per repository whose directory resolved no identity. */
+  unresolvedRepo: (name: string) =>
+    `${name} — no git identity is configured for its directory`,
+  /** Ready, but no complete identity is configured for the inspected directory. */
+  identityMissing: (path: string) =>
+    path
+      ? `No git identity is configured for ${path}. Both a user.name and a user.email are required there, and none will be invented — your agent would have no identity to commit with either.`
+      : "No git identity is configured for the inspected directories. Both a user.name and a user.email are required, and none will be invented — your agent would have no identity to commit with either.",
+  identityTitle: "Resolved git identity",
+  nameLabel: "Name",
+  emailLabel: "Email",
+  pathLabel: "Read from",
+  /** The explicit re-inspection affordance (never an automatic retry loop). */
+  inspectAction: "Inspect again",
+  previous: "Back",
+  next: "Continue to Review",
+} as const;
+
+/**
+ * Review step copy (#146). The step is the single gate before creation: it
+ * shows what was configured, and — when something downstream is no longer
+ * current — explains exactly what, with no dismissal path (#133 stale rule).
+ */
+export const REVIEW_COPY = {
+  title: "Review Project Setup",
+  subtitle:
+    "Confirm the configuration. Creating the project uses your connections and the resolved git identity.",
+  projectSectionTitle: "Project",
+  nameLabel: "Project Name",
+  identifierLabel: "Identifier",
+  descriptionLabel: "Description",
+  workspacePathLabel: "Workspace Path",
+  identitySectionTitle: "Git identity",
+  identityNameLabel: "Name",
+  identityEmailLabel: "Email",
+  repositoriesSectionTitle: "Repositories",
+  repositoryRolesLabel: "Listed as",
+  primaryBadge: "Primary",
+  unsetName: "Untitled",
+  unsetValue: "—",
+  defaultWorkspacePath: "(Default)",
+  /** The blocked banner's title; the reasons are listed as its items. */
+  blockedTitle: "This project cannot be created yet.",
+  blocked: {
+    trackerUnverified:
+      "The issue tracker connection is not verified. Verify it on the Connect step.",
+    trackerDegradedUnaccepted:
+      "The issue tracker connection could not confirm every capability. Accept the warnings on the Connect step to continue.",
+    gitHostUnverified:
+      "The Git host connection is not verified. Verify it on the Connect step.",
+    gitHostDegradedUnaccepted:
+      "The Git host connection could not confirm every capability. Accept the warnings on the Connect step to continue.",
+    noApplicationRepository:
+      "No application repository is selected. Choose at least one on the Repositories step.",
+    selectionStale:
+      "The repository selection was made for a different connection configuration. Select the repositories again.",
+    inspectionMissing:
+      "The git identity has not been inspected for this selection yet. Inspect it on the Inspection step.",
+    inspectionStale:
+      "The git identity was resolved for a different repository selection or workspace root. Inspect it again.",
+    identityUnresolved:
+      "No git identity could be resolved for the selected repositories: both a user.name and a user.email are required, and none will be invented.",
+    identityPartial:
+      "No git identity could be resolved for every selected repository. Configure one, or deselect the ones that have none.",
+  },
+  submit: "Create Project",
+  submitting: "Creating project…",
+  previous: "Back",
+  /** The 409 envelope's own codes carry the detail as banner items. */
+  conflictTitle: "The project could not be created.",
+  /** Any other rejected request (400, 5xx): the request itself was refused. */
+  requestRejectedTitle: "The request was rejected.",
+  requestRejectedDetail:
+    "The project was not created and nothing was saved. Check the configuration and try again.",
+  /** The request never reached the server. */
+  networkErrorTitle: "The server could not be reached.",
+  networkErrorDetail:
+    "The project was not created. Check your connection and try again.",
+} as const;
+
+/**
  * Canonical copy for server validation error codes returned in 409 envelopes.
  * Field errors format the field's human label; form errors provide form-level guidance.
  */

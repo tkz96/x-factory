@@ -39,6 +39,7 @@ Required test coverage for every read region: loading, empty, partial, error, st
 |---|---|---|
 | Connect — provider manifest | `wizard/steps/useConnectStep.ts` | loading = manifest in flight; error = manifest unavailable; retry refetches. |
 | Repositories — git-host discovery (`#144`) | `wizard/steps/useRepositoryDiscovery.ts` | loading = discovery in flight in the reserved region; empty = the connection lists no repositories (guidance copy); partial = the connection's verification could not confirm `listRepositories` (banner names the capability); error = the provider call failed (normalized copy + retry); stale = the displayed results or the recorded selection were produced from a git-host connection configuration that is no longer current. |
+| Inspection — git identity (`#146`) | `wizard/steps/useInspection.ts` | loading = the identity read is in flight in the reserved region; empty = there is no directory to read a configuration in (nothing selected, or no local path at all — guidance names which); partial = the identity resolved for some selected repositories and not for others (the banner names each repository whose directory resolved none); error = the read failed (canonical copy + retry); stale = the record was resolved for a selection or workspace root that has since changed (badge + re-inspect). A record that resolved NO identity is not a failure of the region: the region renders normally and a banner states, with the directory named, that no `user.name`/`user.email` is configured and that none will be invented. |
 
 **Repositories staleness (`#144`).** The step records the fingerprint of the
 git-host connection (provider id + config values, in
@@ -51,9 +52,26 @@ while it holds, so a project can never be created from a selection made under a
 connection that has since changed. Report/Review stale-blocking (#146/#147)
 builds on the same rule.
 
+**Inspection & Review staleness (`#146`).** The Inspection step records the
+resolved identity together with the fingerprint of the INPUTS it was resolved
+from — the workspace root, the selection and its order, and each selected
+repository's role tags and local path (`inspectionRules.ts`, same digest
+technique). The record is stale the moment any of those moves. Review derives
+`isReviewReady` per render (never stored, #126) and is blocked while ANY value
+downstream is not current: an unusable connection, a selection that is not an
+application selection under the current connection, an identity that was never
+resolved, an identity whose inputs moved, or an identity that resolved for only
+some of the selected repositories. There is no dismissal path — only a fresh
+verification (Connect) or a fresh inspection (Inspection) clears a blocked
+reason, and Review lists every outstanding reason through the copy map.
+
 ## Mutation regions — pending / success / error
 
 Mutations (project creation, credential verification submits, pull-request creation) render through the same family: `pending` disables the invoking action (never a spinner takeover), `success` renders inline confirmation, `error` renders a `FeedbackBanner` (error tone) with copy-map copy and `RetryAction`. Rate-limited errors (`RATE_LIMITED` with `retryAfterMs`) disable the retry behind countdown guidance that ticks down once per second inside the banner (`use-retry-countdown`) — the retry un-disables itself, so the user never hammers the provider (spec user story 26).
+
+| Region | Module | What the three states mean there |
+|---|---|---|
+| Review — project creation (`#146`) | `wizard/steps/useReviewSubmit.ts` | pending = the creation request is in flight: the submit is disabled and reads "Creating project…", every entered value stays rendered, and nothing remounts; success = the wizard completes (draft cleared, modal closed, the project present through the query cache — no reload, no re-entry); error = canonical copy with a working retry, entered data preserved. A semantic 409 renders its `formErrors`/`fieldErrors` codes through the copy map (a field is named by its descriptor label), a transport refusal and a network failure each get their own copy — a raw server message is never rendered. |
 
 Required test coverage for every mutation region: pending, success, error.
 

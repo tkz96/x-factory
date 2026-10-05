@@ -37,3 +37,53 @@
   font-weight: 500;
   color: var(--text);
 }
+
+.review-repositories {
+  margin-top: 1.25rem;
+}
+
+.review-section-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 0.625rem;
+}
+
+.review-repository-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.review-repository-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  font-size: 0.875rem;
+}
+
+.review-repository-name {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.review-repository-role {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.review-repository-primary {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: var(--radius-pill);
+  padding: 0.0625rem 0.5rem;
+}

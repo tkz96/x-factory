@@ -1574,6 +1574,15 @@ export function getOpenApiSpec() {
             buildScript: { type: "string", example: "bun run build" },
             hasGit: { type: "boolean", example: true },
             isClean: { type: "boolean", example: true },
+            gitIdentity: {
+              type: "object",
+              description:
+                "The git identity in effect for the inspected directory, read with the same git configuration the executor's worktree resolves. ABSENT when either user.name or user.email is unconfigured for it — never an empty string and never a guessed default.",
+              properties: {
+                name: { type: "string", example: "Dev Example" },
+                email: { type: "string", example: "dev@example.com" },
+              },
+            },
           },
         },
         ConnectionTestResult: {

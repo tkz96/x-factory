@@ -1,4 +1,4 @@
-import type { Project, Run, Ticket } from "../../shared/types.js";
+import type { GitIdentity, Project, Run, Ticket } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
   DiscoverRepositoriesPayload,
@@ -36,6 +36,13 @@ export interface InspectRepositoryResponse {
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: string | undefined;
+  /**
+   * The git identity in effect for that directory (#146), resolved by the
+   * server through the same git CLI the executor's worktree uses. ABSENT when
+   * either user.name or user.email is unconfigured for it — never an empty
+   * string and never a guessed default.
+   */
+  gitIdentity?: GitIdentity | undefined;
   detectedCommands: Record<string, string>;
   detectedTooling: string[];
   readiness: {
@@ -51,6 +58,45 @@ export interface ReadinessData {
     status: "pass" | "warn" | "fail";
     message: string;
   }>;
+}
+
+// ---------------------------------------------------------------------------
+// Project creation (spec #133 §Project creation payload, #131/#145)
+// ---------------------------------------------------------------------------
+
+/** One provider connection as the creation endpoint accepts it. */
+export interface ProjectCreationConnectionPayload {
+  providerId: string;
+  /** Every role this one connection serves (a dual-role provider appears once). */
+  roles: ("tracker" | "gitHost")[];
+  /** INCLUDING secret values, inline, exactly once. Never persisted client-side. */
+  config: Record<string, unknown>;
+}
+
+/** One role-tagged repository, as the git-host discovery reported it. */
+export interface ProjectCreationRepositoryPayload {
+  id: string;
+  name: string;
+  remote?: string | undefined;
+  defaultBranch?: string | undefined;
+  localPath?: string | undefined;
+  role?: string | undefined;
+  primary?: boolean | undefined;
+}
+
+/**
+ * The creation payload (#131): project-level fields including the project-level
+ * `gitIdentity`, a normalized `connections` array, and role-tagged
+ * repositories. Consumed unchanged by `POST /api/projects`.
+ */
+export interface ProjectCreationPayload {
+  id: string;
+  name: string;
+  description?: string | undefined;
+  workspacePath?: string | undefined;
+  gitIdentity: GitIdentity;
+  connections: ProjectCreationConnectionPayload[];
+  repositories: ProjectCreationRepositoryPayload[];
 }
 
 export class ApiError extends Error {
@@ -145,6 +191,20 @@ export const api = {
 
   async getProject(id: string): Promise<Project> {
     const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
+    return handleResponse<Project>(res);
+  },
+
+  /**
+   * Creates a project from the normalized connections payload (#131/#145).
+   * Secrets ride THIS request once, inline in each connection's config, and the
+   * response is the secret-free project record.
+   */
+  async createProject(payload: ProjectCreationPayload): Promise<Project> {
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
     return handleResponse<Project>(res);
   },
 

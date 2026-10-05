@@ -116,6 +116,17 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
         },
       ],
     }));
+    // The Inspection step reads the configured git identity through the
+    // api-client (#146), like every other async read in the wizard.
+    api.inspectRepository = mock(async (payload: { path: string }) => ({
+      path: payload.path,
+      exists: true,
+      isGitRepo: true,
+      gitIdentity: { name: "Stub Owner", email: "stub@example.com" },
+      detectedCommands: {},
+      detectedTooling: [],
+      readiness: { status: "ready" as const, message: "ready" },
+    }));
   });
 
   afterEach(() => {
@@ -231,6 +242,11 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
 
     // Advance to Step 5: Review
     fireEvent.click(getEl("btn-step-4-next"));
+    // The Inspection step's git-identity read lands after that step is left
+    // (#146): let it settle inside the test's act scope.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(document.getElementById("onboard-step-5")).not.toBeNull();
 
     // Verify Review shows data from Step 1
