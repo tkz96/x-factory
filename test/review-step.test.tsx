@@ -34,6 +34,7 @@ import {
   REVIEW_COPY,
   resolveFieldValidationError,
   resolveFormValidationError,
+  STATE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -278,13 +279,11 @@ function setupStepFiveDraft(
         providerId: "generic-tracker",
         config: { endpointHost: TRACKER_HOST },
         verified: true,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: "generic-githost",
         config: gitHostConfig,
         verified: true,
-        degradedAccepted: false,
       },
     },
     repositories: {
@@ -622,7 +621,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(false);
   });
 
-  it("DEGRADED: a verified connection with warnings is shown as degraded, blocks Review until the warnings are accepted, and then submits", async () => {
+  it("DEGRADED: a verified connection with warnings renders the partial state, never blocks progression, and submits", async () => {
     api.providers.verify = mock(async (payload: { role: string }) =>
       payload.role === "tracker"
         ? {
@@ -638,19 +637,24 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     );
 
     await runToConnect();
-    // The tracker degraded: recorded, and visible as such on the card...
-    expect(getEl("connection-card-tracker").textContent).toContain("Degraded");
-    // ...and it is not usable until the warnings are accepted, so Connect
-    // itself refuses to move on.
-    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
-    await act(async () => {
-      fireEvent.click(getEl("btn-accept-degraded-tracker"));
-    });
+    // The tracker degraded: recorded, and VISIBLE as the partial state on the
+    // card, with the capability the verification could not confirm named, and a
+    // retry offered — #133: "degraded renders the partial state".
+    const card = getEl("connection-card-tracker");
+    expect(card.textContent).toContain("Degraded");
+    expect(card.textContent).toContain(STATE_COPY.partial);
+    expect(card.textContent).toContain("listTickets");
+
+    // ...and progression is NEVER blocked by a degraded-but-verified connection:
+    // there is no acknowledgement to give, and Connect moves on (story 19).
+    expect(document.getElementById("btn-accept-degraded-tracker")).toBeNull();
+    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
     fireEvent.click(getEl("btn-step-2-next"));
     expect(document.getElementById("onboard-step-3")).not.toBeNull();
     await flush();
 
-    // The combo line reports the SAME state as the gate.
+    // The combo line reports the same partial state — the warning tone, never
+    // the error tone — and Review's gate agrees with it.
     fireEvent.click(getEl("repo-select-repo-app"));
     fireEvent.click(getEl("btn-step-3-next"));
     await flush();
@@ -658,14 +662,46 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     await flush();
     expect(document.getElementById("onboard-step-5")).not.toBeNull();
     expect(getEl("combo-tracker-state").textContent).toBe(
-      CONNECTIONS_COPY.stateLabel.degradedAccepted,
+      CONNECTIONS_COPY.stateLabel.degraded,
     );
     expect(getEl("combo-tracker-state").dataset.connectionState).toBe(
       "degraded",
     );
-    // Accepted evidence — not a dismissal — is what unblocked it.
+    expect(getEl("combo-summary").classList).toContain(
+      "connection-combo-line--warning",
+    );
     expect(document.getElementById("review-blocked")).toBeNull();
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(false);
+
+    // And the creation actually goes through, carrying the tracker connection.
+    await act(async () => {
+      fireEvent.click(getEl("btn-step-5-submit"));
+    });
+    await flush();
+
+    const payload = (
+      createProject as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls[0]?.[0] as {
+      connections: Array<{
+        providerId: string;
+        roles: string[];
+        config: Record<string, unknown>;
+      }>;
+    };
+    expect(payload.connections).toEqual([
+      {
+        providerId: "generic-tracker",
+        roles: ["tracker"],
+        config: { endpointHost: TRACKER_HOST },
+      },
+      {
+        providerId: "generic-githost",
+        roles: ["gitHost"],
+        config: { gitUrl: GIT_URL, token: GIT_HOST_SECRET },
+      },
+    ]);
+    expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
+    expect(created?.id).toBe("rocket");
   });
 
   it("PENDING: the submit is disabled and busy while the request is in flight, and every entered value is still on screen", async () => {

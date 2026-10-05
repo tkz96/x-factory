@@ -135,12 +135,11 @@ export const REPOSITORIES_COPY = {
  * Review step (draft verification evidence) and the post-creation surfaces
  * (persisted connections). One line, one rendering, one copy structure.
  *
- * The three distinctions are connected (the ideal), degraded (warnings
- * present), and disconnected; `degradedAccepted` is the degraded sub-state a
- * wizard draft can report once the user has explicitly accepted the warnings.
- * The no-tracker INTEGRITY FAILURE (spec #133 story 49) is an error state with
- * a repair path. Provider display names are never copy: they come from the
- * providers manifest.
+ * The three distinctions are connected (the ideal), degraded (warnings present,
+ * never a gate — #133 says degraded "progression never blocked"), and
+ * disconnected. The no-tracker INTEGRITY FAILURE (spec #133 story 49) is an
+ * error state with a repair path. Provider display names are never copy: they
+ * come from the providers manifest.
  */
 export const CONNECTIONS_COPY = {
   /** The two connection roles, in combo-line order. */
@@ -151,10 +150,8 @@ export const CONNECTIONS_COPY = {
   /** Slot states: connected is the ideal, degraded is a warning, disconnected drops out. */
   stateLabel: {
     connected: "Connected",
-    /** Verified or recorded with warnings that have not been accepted. */
-    degraded: "Degraded — warnings outstanding",
-    /** Verified with warnings the user explicitly accepted (draft evidence). */
-    degradedAccepted: "Degraded — warnings accepted",
+    /** Verified or recorded with warnings, which are listed on the line. */
+    degraded: "Degraded — warnings listed",
     disconnected: "Not connected",
   },
   /** Shown for a role with no recorded connection at all. */
@@ -319,12 +316,8 @@ export const REVIEW_COPY = {
   blocked: {
     trackerUnverified:
       "The issue tracker connection is not verified. Verify it on the Connect step.",
-    trackerDegradedUnaccepted:
-      "The issue tracker connection could not confirm every capability. Accept the warnings on the Connect step to continue.",
     gitHostUnverified:
       "The Git host connection is not verified. Verify it on the Connect step.",
-    gitHostDegradedUnaccepted:
-      "The Git host connection could not confirm every capability. Accept the warnings on the Connect step to continue.",
     noApplicationRepository:
       "No application repository is selected. Choose at least one on the Repositories step.",
     selectionStale:

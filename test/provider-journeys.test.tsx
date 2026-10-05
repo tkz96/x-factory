@@ -359,20 +359,18 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   });
   await flush();
 
-  // ── Connect: degraded evidence is accepted explicitly, never assumed ─────
+  // ── Connect: degraded evidence is shown, and NEVER blocks progression ────
   if (fixture.degraded !== null) {
     const { role, capability } = fixture.degraded;
     const card = getEl(`connection-card-${role}`);
     // The card names the capability that could not be confirmed, in contract
-    // terms, and reports the connection as degraded rather than verified.
+    // terms, in the partial state — never in provider scope terminology.
     expect(card.textContent).toContain(capability);
     expect(card.textContent).toContain("Degraded");
-    // Still not usable until the user accepts the real evidence.
-    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
-    await act(async () => {
-      fireEvent.click(getEl(`btn-accept-degraded-${role}`));
-    });
-    expect(getEl(`connection-card-${role}`).textContent).toContain("accepted");
+    // A degraded verification is usable (#133: "degraded renders the partial
+    // state, never blocks progression"): there is no acknowledgement to make.
+    expect(document.getElementById(`btn-accept-degraded-${role}`)).toBeNull();
+    expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
   }
   expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
   fireEvent.click(getEl("btn-step-2-next"));

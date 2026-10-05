@@ -23,13 +23,11 @@ export function createInitialWizardState(): WizardSourceState {
         providerId: null,
         config: {},
         verified: false,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: null,
         config: {},
         verified: false,
-        degradedAccepted: false,
       },
     },
     repositories: {

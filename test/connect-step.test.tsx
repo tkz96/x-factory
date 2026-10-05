@@ -789,7 +789,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(trackerPatInput.value).toBe("");
   });
 
-  it("NAVIGATION GATING: Next is blocked with missing selection, errored connection, or unaccepted degraded; enabled only when verified or degraded is explicitly accepted", async () => {
+  it("NAVIGATION GATING: Next is blocked with a missing selection or an unverified connection, and enabled as soon as both are verified — degraded included (#133)", async () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -828,7 +828,9 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     // One ok, one error -> Next is blocked!
     expect(nextBtn.disabled).toBe(true);
 
-    // 3. Degraded connection -> requires explicit acceptance before continuation
+    // 3. Degraded connection -> verified, so the partial state is shown and
+    // progression is NEVER blocked (#133: "degraded renders the partial state,
+    // never blocks progression").
     api.providers.verify = mock(async () => ({
       status: "degraded" as const,
       warnings: [
@@ -843,15 +845,13 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       fireEvent.click(getEl("btn-verify-gitHost"));
     });
 
-    // Tracker is ok, GitHost is degraded (unaccepted) -> Next is blocked!
-    expect(nextBtn.disabled).toBe(true);
+    // Tracker is ok, GitHost is degraded -> the partial state is on the card...
+    const gitHostCard = getEl("connection-card-gitHost");
+    expect(gitHostCard.textContent).toContain("Degraded");
+    expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
 
-    // Accept degraded connection on GitHost
-    await act(async () => {
-      fireEvent.click(getEl("btn-accept-degraded-gitHost"));
-    });
-
-    // Tracker is ok, GitHost is degraded + accepted -> permitted! Next is ENABLED!
+    // ...and Next is ENABLED: there is no acknowledgement to collect.
+    expect(document.getElementById("btn-accept-degraded-gitHost")).toBeNull();
     expect(nextBtn.disabled).toBe(false);
 
     // 4. Click Next -> advances to Step 3 (Repositories)
@@ -905,7 +905,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(gitHostCard.textContent).toContain("Error");
   });
 
-  describe("DEGRADED ACCEPTANCE & NAVIGATION (ticket #143 §5, §8)", () => {
+  describe("DEGRADED CONNECTIONS & NAVIGATION (ticket #143 §5, §8; spec #133)", () => {
     it("(a) ideal + ideal permits continuation", async () => {
       setupStep2Draft();
       renderWizard();
@@ -934,7 +934,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(nextBtn.disabled).toBe(false);
     });
 
-    it("(b) ideal + degraded does NOT permit continuation until degraded is explicitly accepted", async () => {
+    it("(b) ideal + degraded permits continuation, shows the partial state, and collects no acknowledgement", async () => {
       setupStep2Draft();
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
@@ -968,16 +968,19 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         fireEvent.click(getEl("btn-verify-gitHost"));
       });
 
-      const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
-      // Tracker is ideal (ok), GitHost is degraded (unaccepted) -> blocked!
-      expect(nextBtn.disabled).toBe(true);
+      // The partial state is rendered, naming the unconfirmed capability.
+      const gitHostCard = getEl("connection-card-gitHost");
+      expect(gitHostCard.textContent).toContain("Degraded");
+      expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
+      expect(gitHostCard.textContent).toContain("createPullRequest");
 
-      const acceptBtn = getEl<HTMLButtonElement>("btn-accept-degraded-gitHost");
-      expect(acceptBtn).not.toBeNull();
-      expect(acceptBtn.textContent).toContain("Accept partial connection");
+      // Tracker is ideal (ok), GitHost is degraded -> permitted: no gate.
+      const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
+      expect(nextBtn.disabled).toBe(false);
+      expect(document.getElementById("btn-accept-degraded-gitHost")).toBeNull();
     });
 
-    it("(c) accepting the degraded connection then permits continuation", async () => {
+    it("(c) an errored connection still blocks continuation", async () => {
       setupStep2Draft();
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
@@ -995,15 +998,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         if (payload.role === "tracker") {
           return { status: "ok" as const, warnings: [] };
         }
-        return {
-          status: "degraded" as const,
-          warnings: [
-            {
-              kind: "CAPABILITY_UNCONFIRMED" as const,
-              capability: "createPullRequest",
-            },
-          ],
-        };
+        return { code: "AUTH_INVALID" as const, context: "VERIFY" as const };
       });
 
       await act(async () => {
@@ -1011,28 +1006,57 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         fireEvent.click(getEl("btn-verify-gitHost"));
       });
 
-      const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
-      expect(nextBtn.disabled).toBe(true);
+      // A rejected credential is not a partial state: it is not verified.
+      expect(getEl("connection-card-gitHost").textContent).toContain("Error");
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
 
-      // Explicitly accept degraded connection on gitHost
-      await act(async () => {
-        fireEvent.click(getEl("btn-accept-degraded-gitHost"));
+    it("(d) both roles degraded permits continuation, and each card carries its own partial state", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "generic-githost" },
+        });
       });
 
-      // Now continuation is permitted!
-      expect(nextBtn.disabled).toBe(false);
-      expect(getEl("btn-accept-degraded-gitHost").textContent).toContain(
-        "Partial connection accepted",
-      );
+      api.providers.verify = mock(async () => ({
+        status: "degraded" as const,
+        warnings: [
+          {
+            kind: "CAPABILITY_UNCONFIRMED" as const,
+            capability: "someCapability",
+          },
+        ],
+      }));
 
-      // Advancing to step 3 succeeds
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+        fireEvent.click(getEl("btn-verify-gitHost"));
+      });
+
+      for (const role of ["tracker", "gitHost"]) {
+        const card = getEl(`connection-card-${role}`);
+        expect(card.textContent).toContain("Degraded");
+        expect(card.textContent).toContain("someCapability");
+      }
+
+      const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
+      expect(nextBtn.disabled).toBe(false);
+
+      // And the flow really continues with both roles degraded.
       await act(async () => {
         fireEvent.click(nextBtn);
       });
       expect(document.getElementById("onboard-step-3")).not.toBeNull();
     });
 
-    it("(d) accepting degraded on tracker does not affect gitHost state", async () => {
+    it("editing a role's config invalidates its verification without touching the other role", async () => {
       setupStep2Draft();
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
@@ -1059,92 +1083,26 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       await act(async () => {
         fireEvent.click(getEl("btn-verify-tracker"));
         fireEvent.click(getEl("btn-verify-gitHost"));
-      });
-
-      const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
-      expect(nextBtn.disabled).toBe(true);
-
-      // Both cards show unaccepted degraded buttons
-      expect(getEl("btn-accept-degraded-tracker").textContent).toContain(
-        "Accept partial connection",
-      );
-      expect(getEl("btn-accept-degraded-gitHost").textContent).toContain(
-        "Accept partial connection",
-      );
-
-      // Accept degraded on tracker ONLY
-      await act(async () => {
-        fireEvent.click(getEl("btn-accept-degraded-tracker"));
-      });
-
-      // Tracker button updates
-      expect(getEl("btn-accept-degraded-tracker").textContent).toContain(
-        "Partial connection accepted",
-      );
-
-      // GitHost button remains unaccepted and untouched!
-      const gitHostAcceptBtn = getEl<HTMLButtonElement>(
-        "btn-accept-degraded-gitHost",
-      );
-      expect(gitHostAcceptBtn.textContent).toContain(
-        "Accept partial connection",
-      );
-      expect(gitHostAcceptBtn.disabled).toBe(false);
-
-      // Next is STILL blocked because gitHost degraded is not accepted!
-      expect(nextBtn.disabled).toBe(true);
-    });
-
-    it("changing role provider or config resets degradedAccepted to false without touching other role", async () => {
-      setupStep2Draft();
-      renderWizard();
-      fireEvent.click(getEl("btn-open-wizard"));
-
-      act(() => {
-        fireEvent.change(getEl("select-tracker-provider"), {
-          target: { value: "generic-tracker" },
-        });
-        fireEvent.change(getEl("select-gitHost-provider"), {
-          target: { value: "generic-githost" },
-        });
-      });
-
-      api.providers.verify = mock(async () => ({
-        status: "degraded" as const,
-        warnings: [
-          {
-            kind: "CAPABILITY_UNCONFIRMED" as const,
-            capability: "someCapability",
-          },
-        ],
-      }));
-
-      await act(async () => {
-        fireEvent.click(getEl("btn-verify-tracker"));
-        fireEvent.click(getEl("btn-verify-gitHost"));
-      });
-
-      // Accept both
-      await act(async () => {
-        fireEvent.click(getEl("btn-accept-degraded-tracker"));
-        fireEvent.click(getEl("btn-accept-degraded-gitHost"));
       });
 
       const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
       expect(nextBtn.disabled).toBe(false);
 
-      // Edit tracker config field
+      // Edit tracker config field: what was verified is no longer current.
       const trackerEndpointInput = getEl<HTMLInputElement>(
         "tracker-endpointHost",
       );
       await typeInput(trackerEndpointInput, "https://tracker-changed.com");
 
-      // Tracker degraded acceptance is RESET!
+      // The tracker's verification is RESET, so Next blocks again...
       expect(nextBtn.disabled).toBe(true);
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Degraded",
+      );
 
-      // GitHost remains accepted!
-      expect(getEl("btn-accept-degraded-gitHost").textContent).toContain(
-        "Partial connection accepted",
+      // ...and the gitHost's partial state is untouched.
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Degraded",
       );
     });
   });
@@ -1379,7 +1337,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
     });
 
-    it("Degraded acceptance becomes invalid", async () => {
+    it("Degraded verification becomes invalid when the provider changes", async () => {
       setupStep2Draft();
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
@@ -1414,10 +1372,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         fireEvent.click(getEl("btn-verify-gitHost"));
       });
 
-      // Accept degraded
-      act(() => {
-        fireEvent.click(getEl("btn-accept-degraded-tracker"));
-      });
+      // The degraded verification alone permits continuation (#133).
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
 
       // Advance to Repositories
       fireEvent.click(getEl("btn-step-2-next"));
@@ -1434,7 +1390,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         });
       });
 
-      // Confirm degraded acceptance is reset (Next is blocked)
+      // The degraded evidence belonged to the previous provider: it is gone, so
+      // Next blocks until the new provider is verified.
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
 
       // Confirm StepNav cannot navigate to Repositories

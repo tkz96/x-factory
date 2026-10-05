@@ -50,7 +50,6 @@ function stateWith(options: {
           endpointHost: "https://t.example",
         },
         verified: true,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: options.gitHost?.providerId ?? "generic-githost",
@@ -58,7 +57,6 @@ function stateWith(options: {
           gitUrl: "https://git.example.com",
         },
         verified: true,
-        degradedAccepted: false,
       },
     },
     repositories: {

@@ -26,6 +26,7 @@ import {
   type ConnectionComboSlot,
   type ConnectionComboTone,
   type ConnectionState,
+  comboTone as comboToneForSlots,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
@@ -245,6 +246,18 @@ function buildSlot(
   };
 }
 
+/** Every role in `ROLES` has exactly one slot: found BY ROLE, never by index. */
+function slotForRole(
+  slots: readonly ConnectionSlot[],
+  role: ProjectConnectionRole,
+): ConnectionSlot {
+  const slot = slots.find((candidate) => candidate.role === role);
+  if (!slot) {
+    throw new Error(`No connection slot was derived for the "${role}" role.`);
+  }
+  return slot;
+}
+
 /**
  * Derives the whole project's connection wiring for display. Pure: the same
  * project and manifest always produce the same integrity.
@@ -255,8 +268,8 @@ export function deriveConnectionIntegrity(
 ): ConnectionIntegrity {
   const connections = deriveConnections(project);
   const slots = ROLES.map((role) => buildSlot(role, connections, descriptors));
-  const tracker = slots[0] as ConnectionSlot;
-  const gitHost = slots[1] as ConnectionSlot;
+  const tracker = slotForRole(slots, "tracker");
+  const gitHost = slotForRole(slots, "gitHost");
   const warnings = slots.flatMap((slot) => slot.warnings);
   const hasIntegrityFailure = tracker.state === "disconnected";
 
@@ -292,13 +305,21 @@ export function comboSlots(
 }
 
 /**
- * The line's tone for a persisted project: the integrity failure is the error
- * tone, warnings are the warning tone (never error), everything else reads as
- * connected.
+ * The roles a POST-CREATION line requires. A project with no tracker is the
+ * integrity failure (#133: both connections are mandatory at creation); an
+ * absent git host is a pre-#145 project's recorded-as-missing wiring, which is
+ * surfaced as a warning rather than invented.
+ */
+export const REQUIRED_CONNECTION_ROLES: readonly ProjectConnectionRole[] = [
+  "tracker",
+];
+
+/**
+ * The line's tone for a persisted project. The rule itself lives once, in
+ * `comboTone` (#148); this only states which roles THIS line requires.
  */
 export function comboTone(integrity: ConnectionIntegrity): ConnectionComboTone {
-  if (integrity.hasIntegrityFailure) return "error";
-  return integrity.isDegraded ? "warning" : "connected";
+  return comboToneForSlots(integrity.slots, REQUIRED_CONNECTION_ROLES);
 }
 
 /**

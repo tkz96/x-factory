@@ -26,7 +26,6 @@ export interface WizardConnectionRoleState {
   providerId: string | null;
   config: Record<string, unknown>;
   verified?: boolean;
-  degradedAccepted?: boolean;
   /**
    * Contract capability names the last verification could not confirm
    * (`VerificationWarning.kind === "CAPABILITY_UNCONFIRMED"`). Persisted so a

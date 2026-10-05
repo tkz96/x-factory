@@ -35,7 +35,6 @@ function verified(
     providerId: "generic-githost",
     config: GIT_HOST_CONFIG,
     verified: true,
-    degradedAccepted: false,
     unconfirmedCapabilities: [],
     ...overrides,
   };
@@ -105,7 +104,7 @@ describe("isReviewReady", () => {
     expect(reviewBlockedReasons(readyState())).toEqual([]);
   });
 
-  it("accepts a degraded connection only once its warnings are explicitly accepted", () => {
+  it("accepts a degraded-but-verified connection without any acknowledgement (#133: degraded never blocks)", () => {
     const degraded = stateWith({
       connect: {
         quickUrl: "",
@@ -114,29 +113,32 @@ describe("isReviewReady", () => {
           config: {},
           unconfirmedCapabilities: ["listTickets"],
         }),
-        gitHost: verified({ degradedAccepted: true }),
+        gitHost: verified({ unconfirmedCapabilities: ["createPullRequest"] }),
       },
     });
 
-    expect(reviewBlockedReasons(degraded)).toEqual([
-      "trackerDegradedUnaccepted",
-    ]);
-    expect(isReviewReady(degraded)).toBe(false);
+    // Both roles verified, both with unconfirmed capabilities: the gate is open
+    // — the warnings are rendered, never collected as a gate.
+    expect(reviewBlockedReasons(degraded)).toEqual([]);
+    expect(isReviewReady(degraded)).toBe(true);
+  });
 
-    const accepted = stateWith({
+  it("still blocks a connection that was never verified (degraded is not a blanket pass)", () => {
+    const unverified = stateWith({
       connect: {
         quickUrl: "",
         tracker: verified({
           providerId: "generic-tracker",
           config: {},
-          degradedAccepted: true,
+          verified: false,
           unconfirmedCapabilities: ["listTickets"],
         }),
-        gitHost: verified({ degradedAccepted: true }),
+        gitHost: verified(),
       },
     });
 
-    expect(isReviewReady(accepted)).toBe(true);
+    expect(reviewBlockedReasons(unverified)).toEqual(["trackerUnverified"]);
+    expect(isReviewReady(unverified)).toBe(false);
   });
 
   it("blocks an unverified or unselected connection, naming the role", () => {
