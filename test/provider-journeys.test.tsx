@@ -429,13 +429,6 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   await act(async () => {
     fireEvent.click(getEl("btn-step-5-submit"));
   });
-  // eslint-disable-next-line no-console
-  console.log(
-    "DEBUG-SENT",
-    JSON.stringify(transport.sent.filter((r) => r.path === "/api/projects")),
-  );
-  // eslint-disable-next-line no-console
-  console.log("DEBUG-LAST", transport.received.at(-1));
   await flushUntil(
     "the wizard to close after creation",
     () => document.getElementById("onboarding-wizard-modal") === null,
