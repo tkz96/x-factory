@@ -1,13 +1,16 @@
 // src/frontend/components/connections/connection-state.ts — The one definition
 // of a connection's health (spec #133, ticket #146).
 //
-// Every surface that reports on a connection — the wizard's combo summary line
-// today, the post-creation project surfaces (#147) and the Review gate — reads
-// these predicates, so the line a user sees and the gate that blocks them can
-// never disagree about whether a connection is usable.
+// Every surface that reports on a connection — the wizard's Review combo line,
+// the post-creation project surfaces (#147) and the Review gate — reads these
+// predicates, so the line a user sees and the gate that blocks them can never
+// disagree about whether a connection is usable.
 //
 // Provider-agnostic: this module knows a connection's *evidence* (provider id,
 // verification outcome, accepted warnings), never a provider.
+
+import type { ProjectConnectionRole } from "../../../shared/types.js";
+import type { ProviderDescriptor } from "../../connection/types.js";
 
 /** The three states a connection line can render, per role. */
 export type ConnectionState = "connected" | "degraded" | "disconnected";
@@ -56,5 +59,72 @@ export function isConnectionUsable(evidence: ConnectionEvidence): boolean {
   return (
     state === "connected" ||
     (state === "degraded" && evidence.degradedAccepted === true)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The combo line's model — one shape, two producers
+// ---------------------------------------------------------------------------
+
+/** The line's tone. The worst slot decides it; warnings are never the error tone. */
+export type ConnectionComboTone = "connected" | "warning" | "error";
+
+/**
+ * One role's slot as the combo line renders it: which provider serves the role,
+ * in which of the three states, and — for draft evidence only — whether a
+ * degraded result's warnings were explicitly accepted.
+ *
+ * The wizard produces these from verification evidence
+ * (`comboSlotFromEvidence`); the post-creation surfaces produce them from a
+ * project's persisted connections (`connection-integrity.ts`). Both feed the
+ * SAME presentational component, so the line a user sees during onboarding and
+ * the line they see afterwards can never drift apart.
+ */
+export interface ConnectionComboSlot {
+  readonly role: ProjectConnectionRole;
+  readonly state: ConnectionState;
+  readonly providerId: string | null;
+  /** Degraded with the warnings explicitly accepted (draft evidence only). */
+  readonly accepted?: boolean | undefined;
+}
+
+/** One role's slot, derived from the verification evidence the wizard holds. */
+export function comboSlotFromEvidence(
+  role: ProjectConnectionRole,
+  evidence: ConnectionEvidence,
+): ConnectionComboSlot {
+  return {
+    role,
+    state: deriveConnectionState(evidence),
+    providerId: evidence.providerId,
+    accepted: evidence.degradedAccepted === true,
+  };
+}
+
+/**
+ * The tone of a line built from draft verification evidence: a role that is not
+ * connected is the error tone (Review is a gate), a degraded role is the
+ * warning tone, and everything else reads as connected.
+ */
+export function comboEvidenceTone(
+  slots: readonly ConnectionComboSlot[],
+): ConnectionComboTone {
+  if (slots.some((slot) => slot.state === "disconnected")) return "error";
+  if (slots.some((slot) => slot.state === "degraded")) return "warning";
+  return "connected";
+}
+
+/**
+ * The human display name for a provider id: the manifest's `displayName`, or
+ * the id itself when the manifest has not loaded — never an invented name and
+ * never a hardcoded id→name table. The manifest is THE source of names.
+ */
+export function resolveProviderLabel(
+  providerId: string,
+  descriptors: readonly ProviderDescriptor[],
+): string {
+  return (
+    descriptors.find((descriptor) => descriptor.id === providerId)
+      ?.displayName ?? providerId
   );
 }

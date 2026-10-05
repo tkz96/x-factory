@@ -22,10 +22,16 @@
 
 import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
+import {
+  type ConnectionComboSlot,
+  type ConnectionComboTone,
+  type ConnectionState,
+  resolveProviderLabel,
+} from "../connections/connection-state.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
 
-/** The three distinctions the combo line renders. */
-export type ConnectionSlotState = "connected" | "degraded" | "disconnected";
+/** The three distinctions the combo line renders (one vocabulary, #148). */
+export type ConnectionSlotState = ConnectionState;
 
 /**
  * Why a slot is degraded. `details` carries the human-readable identifiers the
@@ -265,16 +271,43 @@ export function deriveConnectionIntegrity(
 }
 
 /**
+ * The combo line's slots for a derived integrity: tracker first, then git host,
+ * restricted to `roles` when the surface renders a single role.
+ *
+ * This is the persisted-connections producer of the ONE combo-line model (#148)
+ * — the wizard's Review step produces the same shape from draft verification
+ * evidence, and both render `ConnectionComboLine`.
+ */
+export function comboSlots(
+  integrity: ConnectionIntegrity,
+  roles?: readonly ProjectConnectionRole[],
+): ConnectionComboSlot[] {
+  return integrity.slots
+    .filter((slot) => roles === undefined || roles.includes(slot.role))
+    .map((slot) => ({
+      role: slot.role,
+      state: slot.state,
+      providerId: slot.providerId ?? null,
+    }));
+}
+
+/**
+ * The line's tone for a persisted project: the integrity failure is the error
+ * tone, warnings are the warning tone (never error), everything else reads as
+ * connected.
+ */
+export function comboTone(integrity: ConnectionIntegrity): ConnectionComboTone {
+  if (integrity.hasIntegrityFailure) return "error";
+  return integrity.isDegraded ? "warning" : "connected";
+}
+
+/**
  * The human display name for a provider id: the manifest's `displayName`, or
  * the id itself when the manifest has not loaded — never an invented name and
- * never a hardcoded id→name table.
+ * never a hardcoded id→name table. Re-exported here because the post-creation
+ * surfaces reach for it while rendering a project's connections.
  */
-export function resolveProviderLabel(
-  providerId: string,
-  descriptors: readonly ProviderDescriptor[],
-): string {
-  return descriptorFor(providerId, descriptors)?.displayName ?? providerId;
-}
+export { resolveProviderLabel };
 
 /**
  * Promotes an integrity failure into the region state.

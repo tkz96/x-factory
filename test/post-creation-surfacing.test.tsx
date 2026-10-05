@@ -36,14 +36,18 @@ import {
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
 import {
   CONNECTIONS_COPY,
   PROJECT_CARD_COPY,
   PROJECT_DETAIL_COPY,
   QUEUE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
-import { ConnectionComboLine } from "../src/frontend/components/projects/ConnectionComboLine.js";
-import { deriveConnectionIntegrity } from "../src/frontend/components/projects/connection-integrity.js";
+import {
+  comboSlots,
+  comboTone,
+  deriveConnectionIntegrity,
+} from "../src/frontend/components/projects/connection-integrity.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -211,7 +215,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const integrity = deriveConnectionIntegrity(makeProject(), MANIFEST);
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -238,7 +243,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     );
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -262,7 +268,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     );
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -307,7 +314,8 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     );
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity),
+        tone: comboTone(integrity),
         descriptors: [gitlab],
       }),
       makeClient(),
@@ -321,9 +329,9 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const integrity = deriveConnectionIntegrity(makeProject(), MANIFEST);
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
-        integrity,
+        slots: comboSlots(integrity, ["tracker"]),
+        tone: comboTone(integrity),
         descriptors: MANIFEST,
-        roles: ["tracker"],
       }),
       makeClient(),
     );

@@ -130,10 +130,15 @@ export const REPOSITORIES_COPY = {
 } as const;
 
 /**
- * Post-creation connection surfacing (#147). Every surface that shows how a
- * project is wired renders the same three distinctions — connected, degraded
- * (warnings present), disconnected — as the git host + tracker combo line, and
- * the no-tracker INTEGRITY FAILURE (spec #133 story 49) as an error state with
+ * Connection surfacing — THE one vocabulary for the combo line (#146/#147),
+ * shared by every surface that reports how a project is wired: the wizard's
+ * Review step (draft verification evidence) and the post-creation surfaces
+ * (persisted connections). One line, one rendering, one copy structure.
+ *
+ * The three distinctions are connected (the ideal), degraded (warnings
+ * present), and disconnected; `degradedAccepted` is the degraded sub-state a
+ * wizard draft can report once the user has explicitly accepted the warnings.
+ * The no-tracker INTEGRITY FAILURE (spec #133 story 49) is an error state with
  * a repair path. Provider display names are never copy: they come from the
  * providers manifest.
  */
@@ -146,7 +151,10 @@ export const CONNECTIONS_COPY = {
   /** Slot states: connected is the ideal, degraded is a warning, disconnected drops out. */
   stateLabel: {
     connected: "Connected",
-    degraded: "Needs attention",
+    /** Verified or recorded with warnings that have not been accepted. */
+    degraded: "Degraded — warnings outstanding",
+    /** Verified with warnings the user explicitly accepted (draft evidence). */
+    degradedAccepted: "Degraded — warnings accepted",
     disconnected: "Not connected",
   },
   /** Shown for a role with no recorded connection at all. */
@@ -248,24 +256,6 @@ export const PROJECT_CARD_COPY = {
   repositoryCount: (count: number) =>
     count === 1 ? "1 repo" : `${count} repos`,
   viewDetails: "View Details →",
-} as const;
-
-/**
- * The combo line's copy (#146): the two roles a project's connections serve,
- * and the three health states each can be in. Shared by every surface that
- * renders a project's connections — one line, one vocabulary.
- */
-export const CONNECTION_STATE_COPY = {
-  trackerLabel: "Tracker",
-  gitHostLabel: "Git host",
-  /** Verified with nothing outstanding. */
-  connected: "Connected",
-  /** Verified, but warnings were reported and have NOT been accepted. */
-  degraded: "Degraded — warnings outstanding",
-  /** Verified, warnings reported and explicitly accepted. */
-  degradedAccepted: "Degraded — warnings accepted",
-  /** No provider selected, or nothing verified in this session. */
-  disconnected: "Not connected",
 } as const;
 
 /**

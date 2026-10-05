@@ -1,8 +1,10 @@
-/* src/frontend/components/projects/ConnectionComboLine.css — The combo line
-   (spec #133 story 48, ticket #147). Tones follow DESIGN.md: connected is the
-   success colour, degraded is the warning colour (never the error colour), and
-   a missing tracker is the error colour. Every rule has the same specificity so
-   no selector can silently outrank another. No inline styles anywhere. */
+/* src/frontend/components/connections/ConnectionComboLine.css — THE combo line
+   (spec #133 story 48). One rendering for every surface: the wizard's Review
+   step and the post-creation project surfaces. Tones follow DESIGN.md:
+   connected is the success colour, degraded is the warning colour (never the
+   error colour), and a missing connection is the error colour. Every rule has
+   the same specificity so no selector can silently outrank another. No inline
+   styles anywhere. */
 
 .connection-combo-line {
   display: flex;

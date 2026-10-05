@@ -5,10 +5,14 @@ import "./SettingsView.css";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
+import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
-import { ConnectionComboLine } from "../components/projects/ConnectionComboLine.js";
-import { deriveConnectionIntegrity } from "../components/projects/connection-integrity.js";
+import {
+  comboSlots,
+  comboTone,
+  deriveConnectionIntegrity,
+} from "../components/projects/connection-integrity.js";
 import { useModal } from "../context/ModalContext.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import {
@@ -256,7 +260,8 @@ function ConnectionsTabContent({
                     <td>{p.name}</td>
                     <td className="connections-cell">
                       <ConnectionComboLine
-                        integrity={integrity}
+                        slots={comboSlots(integrity)}
+                        tone={comboTone(integrity)}
                         descriptors={descriptors}
                         className="connection-combo-line--compact"
                       />

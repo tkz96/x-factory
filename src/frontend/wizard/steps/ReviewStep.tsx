@@ -12,7 +12,11 @@
 // exactly once, in this request body.
 
 import { useQuery } from "@tanstack/react-query";
-import { ComboSummary } from "../../components/connections/ComboSummary.js";
+import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
+import {
+  comboEvidenceTone,
+  comboSlotFromEvidence,
+} from "../../components/connections/connection-state.js";
 import {
   REVIEW_COPY,
   resolveFieldValidationError,
@@ -133,6 +137,13 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
     defaultBranch: row.defaultBranch,
   }));
 
+  // The combo line reads the SAME draft evidence the gate reads (#148): one
+  // model, one rendering, shared with the post-creation surfaces.
+  const comboSlots = [
+    comboSlotFromEvidence("tracker", state.connect.tracker),
+    comboSlotFromEvidence("gitHost", state.connect.gitHost),
+  ];
+
   const handleSubmit = () => {
     if (!ready || !identity || submitState.isSubmitting) return;
     submitState.submit(buildCreationPayload(state, discovered, identity));
@@ -158,10 +169,11 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
         <p className="wizard-step-subtitle">{REVIEW_COPY.subtitle}</p>
       </div>
 
-      <ComboSummary
-        manifest={manifest}
-        tracker={state.connect.tracker}
-        gitHost={state.connect.gitHost}
+      <ConnectionComboLine
+        id="combo-summary"
+        slots={comboSlots}
+        tone={comboEvidenceTone(comboSlots)}
+        descriptors={manifest}
       />
 
       <div className="review-summary-card">

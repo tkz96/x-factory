@@ -30,7 +30,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionsProjectInputSchema } from "../src/config-schema.js";
 import {
-  CONNECTION_STATE_COPY,
+  CONNECTIONS_COPY,
   REVIEW_COPY,
   resolveFieldValidationError,
   resolveFormValidationError,
@@ -376,10 +376,10 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       "Generic Git Host Service",
     );
     expect(getEl("combo-tracker-state").textContent).toBe(
-      CONNECTION_STATE_COPY.connected,
+      CONNECTIONS_COPY.stateLabel.connected,
     );
     expect(getEl("combo-gitHost-state").textContent).toBe(
-      CONNECTION_STATE_COPY.connected,
+      CONNECTIONS_COPY.stateLabel.connected,
     );
     expect(getEl("combo-summary").textContent).not.toContain("generic-githost");
 
@@ -658,7 +658,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     await flush();
     expect(document.getElementById("onboard-step-5")).not.toBeNull();
     expect(getEl("combo-tracker-state").textContent).toBe(
-      CONNECTION_STATE_COPY.degradedAccepted,
+      CONNECTIONS_COPY.stateLabel.degradedAccepted,
     );
     expect(getEl("combo-tracker-state").dataset.connectionState).toBe(
       "degraded",
