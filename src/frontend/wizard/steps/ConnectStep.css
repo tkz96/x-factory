@@ -4,9 +4,15 @@
   padding: 1.5rem;
 }
 
+.connect-verify-all-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
 .connect-cards-container {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-top: 1.25rem;
+  margin-top: 0.5rem;
 }

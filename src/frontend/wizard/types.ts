@@ -24,6 +24,7 @@ export interface WizardConnectionRoleState {
   providerId: string | null;
   config: Record<string, unknown>;
   verified?: boolean;
+  degradedAccepted?: boolean;
 }
 
 export interface WizardConnectState {

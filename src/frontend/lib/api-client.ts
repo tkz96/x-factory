@@ -1,6 +1,11 @@
-// src/frontend/lib/api-client.ts — Typed REST API client for backend communication.
-
 import type { Project, Run, Ticket } from "../../shared/types.js";
+import type { NormalizedError } from "../components/feedback/types.js";
+import type {
+  ParseUrlResult,
+  ProviderDescriptor,
+  VerificationResult,
+  VerifyCredentialsPayload,
+} from "../connection/types.js";
 
 export interface SettingsData {
   models?: {
@@ -80,6 +85,37 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  // Providers (spec #133, ticket #143)
+  providers: {
+    async getManifest(
+      role?: "tracker" | "gitHost",
+    ): Promise<ProviderDescriptor[]> {
+      const query = role ? `?role=${encodeURIComponent(role)}` : "";
+      const res = await fetch(`/api/providers/manifest${query}`);
+      return handleResponse<ProviderDescriptor[]>(res);
+    },
+
+    async verify(
+      payload: VerifyCredentialsPayload,
+    ): Promise<VerificationResult | NormalizedError> {
+      const res = await fetch("/api/providers/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<VerificationResult | NormalizedError>(res);
+    },
+
+    async parseUrl(url: string): Promise<ParseUrlResult> {
+      const res = await fetch("/api/providers/parse-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      return handleResponse<ParseUrlResult>(res);
+    },
+  },
+
   // Projects
   async getProjects(options?: {
     includeArchived?: boolean;

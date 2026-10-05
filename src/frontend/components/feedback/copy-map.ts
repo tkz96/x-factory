@@ -99,6 +99,50 @@ export const STATE_COPY = {
 } as const;
 
 /**
+ * Canonical copy for server validation error codes returned in 409 envelopes.
+ * Field errors format the field's human label; form errors provide form-level guidance.
+ */
+export const VALIDATION_FIELD_ERROR_COPY: Readonly<
+  Record<string, (fieldLabel: string) => string>
+> = {
+  REQUIRED: (label) => `${label} is required.`,
+  INVALID: (label) => `${label} is invalid.`,
+};
+
+export const VALIDATION_FORM_ERROR_COPY: Readonly<Record<string, string>> = {
+  UNKNOWN_PROVIDER: "Unknown provider. Please select a registered provider.",
+  INCOMPATIBLE_CONFIGURATION:
+    "Incompatible configuration for the selected provider role.",
+};
+
+export const VALIDATION_FALLBACK_COPY = {
+  field: (label: string) => `${label} is invalid.`,
+  form: "The configuration is invalid. Please check your settings.",
+} as const;
+
+/**
+ * Resolves canonical field-level validation copy for a given error code and field label.
+ * Unknown codes fall back to a generic fallback string — never rendering raw code or provider text.
+ */
+export function resolveFieldValidationError(
+  code: string,
+  fieldLabel: string,
+): string {
+  const formatter = VALIDATION_FIELD_ERROR_COPY[code];
+  return formatter
+    ? formatter(fieldLabel)
+    : VALIDATION_FALLBACK_COPY.field(fieldLabel);
+}
+
+/**
+ * Resolves canonical form-level validation copy for a given error code.
+ * Unknown codes fall back to a generic fallback string — never rendering raw code or provider text.
+ */
+export function resolveFormValidationError(code: string): string {
+  return VALIDATION_FORM_ERROR_COPY[code] ?? VALIDATION_FALLBACK_COPY.form;
+}
+
+/**
  * Runtime guard for values crossing the API boundary as error envelopes.
  * Mirrors the provider contract's `isProviderError` (#129): a positive
  * `retryAfterMs` or none at all.

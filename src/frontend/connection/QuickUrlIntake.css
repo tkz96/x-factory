@@ -1,0 +1,21 @@
+/* src/frontend/connection/QuickUrlIntake.css — Quick-URL intake styling */
+
+.quick-url-intake {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.quick-url-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.quick-url-input {
+  flex: 1;
+}
