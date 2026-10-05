@@ -247,7 +247,7 @@ function buildProjectRecord(
     workspacePath: input.workspacePath,
     commandTimeoutMs: input.commandTimeoutMs,
     archived: input.archived,
-    gitIdentity: input.gitIdentity as GitIdentity | undefined,
+    gitIdentity: input.gitIdentity,
     issueTracker,
     connections: prepared.map((c) => c.connection),
     repositories: built.map((b) => b.repository),
