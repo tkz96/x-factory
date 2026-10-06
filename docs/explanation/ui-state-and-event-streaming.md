@@ -89,6 +89,11 @@ matter to the rest of the UI:
   and persisted to per-project env storage through ordered writes
   (`docs/reference/provider-api.md` §Ordered writes). The draft a reload restores
   is sanitized by key, so a credential cannot survive a reload in any nesting.
+  Nothing else reads them: the presentation-only connection-identity read
+  (`POST /api/providers/describe`, §Provider-owned connection identity) is
+  secret-free by construction — a surface projects the connection through the
+  manifest's own `secret` declarations before asking, and the route refuses a
+  request that carries a declared secret value.
 - **Success closes the flow.** Creation completes the wizard: the draft is
   cleared, the project appears through the query cache, and nothing asks the user
   to re-enter what they just submitted.

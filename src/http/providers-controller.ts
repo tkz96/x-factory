@@ -28,6 +28,7 @@ import {
   PROVIDER_REGISTRY,
   type ProviderRegistry,
 } from "../providers/registry.js";
+import { presentDeclaredSecretFields } from "../providers/secret-routing.js";
 import {
   type ProviderDescriptor,
   serializeProvider,
@@ -76,21 +77,31 @@ type ProviderRoutePrelude =
       readonly role: ProviderRole | null;
     };
 
+/** Outcome of the ROUTING half of the ladder: provider lookup → role. */
+type ProviderRouteRouting =
+  | {
+      readonly ok: false;
+      readonly reason: "UNKNOWN_PROVIDER" | "INCOMPATIBLE_ROLE";
+      readonly response: Response;
+    }
+  | {
+      readonly ok: true;
+      readonly provider: Provider;
+      /** The normalized role the connection was resolved under, or null. */
+      readonly role: ProviderRole | null;
+    };
+
 /**
- * The semantic ladder every provider connection route runs before executing a
- * capability: provider lookup -> role compatibility -> server-authoritative
- * config parsing. Extracted so `/verify` and `/repositories` can never
- * validate differently (#129: transport failures are 400, semantic failures
- * are 409, and every failure carries codes only — never a message).
+ * Provider lookup → role compatibility, the half of the ladder that is about the
+ * REQUEST rather than the configuration. `/describe` runs only this half: it is
+ * presentation-only and must compose an identity from the fields it is given, so
+ * it may not gate on a full-schema parse a secret-free configuration would fail
+ * (#133 correction 1).
  */
-function resolveProviderRoutePrelude(
+function resolveProviderRouting(
   registry: ProviderRegistry,
-  body: {
-    providerId: string;
-    role?: string | undefined;
-    config: Record<string, unknown>;
-  },
-): ProviderRoutePrelude {
+  body: { providerId: string; role?: string | undefined },
+): ProviderRouteRouting {
   const provider = registry.get(body.providerId);
   if (!provider) {
     return {
@@ -100,23 +111,52 @@ function resolveProviderRoutePrelude(
     };
   }
 
-  let role: ProviderRole | null = null;
-  if (body.role) {
-    const normalizedRole = normalizeRole(body.role);
-    if (!normalizedRole || !provider.roles.includes(normalizedRole)) {
-      return {
-        ok: false,
-        reason: "INCOMPATIBLE_ROLE",
-        response: jsonResponse(
-          { formErrors: ["INCOMPATIBLE_CONFIGURATION"] },
-          409,
-        ),
-      };
-    }
-    role = normalizedRole;
+  if (!body.role) {
+    return { ok: true, provider, role: null };
   }
 
-  const parsed = parseProviderConfig(provider.configSchema, body.config);
+  const role = normalizeRole(body.role);
+  if (!role || !provider.roles.includes(role)) {
+    return {
+      ok: false,
+      reason: "INCOMPATIBLE_ROLE",
+      response: jsonResponse(
+        { formErrors: ["INCOMPATIBLE_CONFIGURATION"] },
+        409,
+      ),
+    };
+  }
+  return { ok: true, provider, role };
+}
+
+/**
+ * The semantic ladder every provider connection route runs before executing a
+ * capability: routing (above) then server-authoritative config parsing.
+ * Extracted so `/verify` and `/repositories` can never validate differently
+ * (#129: transport failures are 400, semantic failures are 409, and every
+ * failure carries codes only — never a message).
+ */
+function resolveProviderRoutePrelude(
+  registry: ProviderRegistry,
+  body: {
+    providerId: string;
+    role?: string | undefined;
+    config: Record<string, unknown>;
+  },
+): ProviderRoutePrelude {
+  const routing = resolveProviderRouting(registry, body);
+  if (!routing.ok) {
+    return {
+      ok: false,
+      reason: routing.reason,
+      response: routing.response,
+    };
+  }
+
+  const parsed = parseProviderConfig(
+    routing.provider.configSchema,
+    body.config,
+  );
   if (!parsed.ok) {
     return {
       ok: false,
@@ -125,7 +165,12 @@ function resolveProviderRoutePrelude(
     };
   }
 
-  return { ok: true, provider, config: parsed.config, role };
+  return {
+    ok: true,
+    provider: routing.provider,
+    config: parsed.config,
+    role: routing.role,
+  };
 }
 
 /**
@@ -322,21 +367,34 @@ function presentableIdentity(identity: string | null): string | null {
  * POST /api/providers/describe
  * The connection's identity as its provider describes it (#133 story 34).
  *
- * PRESENTATION-ONLY. This route exists so a surface can render
- * `"GitHub (owner/repo)"` without knowing what a provider is, and it is
- * deliberately the one provider route that never turns a non-answer into an
- * error the user would see:
+ * PRESENTATION-ONLY, AND SECRET-FREE BY CONSTRUCTION. This route exists so a
+ * surface can render `"GitHub (owner/repo)"` without knowing what a provider is,
+ * and it reads the connection's NON-SECRET fields only: the identity of every
+ * provider is composed from coordinates that are not credentials, and the route
+ * never asks for the rest. A configuration is therefore never parsed against the
+ * full provider schema — a secret-free configuration would fail that gate and
+ * take the identity down with it (#133 correction 1) — and a request that
+ * carries a value in a field the provider declares `.meta({ secret: true })` is
+ * refused rather than described. Credentials travel exactly once, in the
+ * creation request, and this read is not a second occasion.
  *
+ * Failure policy, in the order it is applied:
+ *
+ *   - an unknown provider and an incompatible role mirror the shared routing
+ *     ladder exactly (codes-only 409), because those are routing mistakes rather
+ *     than descriptions that could not be produced;
+ *   - a payload carrying a declared secret field VALUE is the same kind of
+ *     mistake — a client still sending credentials for a display read — and is
+ *     refused codes-only, so the value is never handed to a capability and never
+ *     reachable from the response;
  *   - a provider without the `describeConnection` capability answers
  *     `{ providerId, identity: null }` with 200 — a safe fallback, not an error;
- *   - a configuration the provider's own schema rejects ALSO answers
- *     `{ providerId, identity: null }` with 200. The 409 `fieldErrors` ladder
- *     exists to block an ACTION on invalid input; describing a connection
- *     blocks nothing, so it must never become a second error surface for a
- *     configuration the action routes are already reporting on;
- *   - an unknown provider and an incompatible role mirror the shared prelude
- *     exactly (codes-only 409), because those are routing mistakes rather than
- *     descriptions that could not be produced.
+ *   - a configuration that identifies nothing answers the same, because
+ *     describing a connection blocks nothing;
+ *   - a capability that throws anyway (the contract says it is total) ALSO
+ *     answers `{ providerId, identity: null }` with 200: degrading keeps the
+ *     route presentation-only, and keeps the thrown text — which may quote a
+ *     configuration — off the wire entirely.
  *
  * The payload carries codes and the provider's own short identity string; no
  * provider-generated message, and never a configuration value beyond the
@@ -347,18 +405,18 @@ export async function handleDescribeRoute(
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<Response> {
   return withValidatedBody(req, ProviderConfigBodySchema, async (body) => {
-    const prelude = resolveProviderRoutePrelude(registry, body);
-    if (!prelude.ok) {
-      if (prelude.reason === "INVALID_CONFIG") {
-        return jsonResponse(
-          { providerId: body.providerId, identity: null },
-          200,
-        );
-      }
-      return prelude.response;
+    const routing = resolveProviderRouting(registry, body);
+    if (!routing.ok) {
+      return routing.response;
     }
 
-    const { provider, config } = prelude;
+    const { provider } = routing;
+    if (
+      presentDeclaredSecretFields(provider.configSchema, body.config).length > 0
+    ) {
+      return jsonResponse({ formErrors: ["SECRET_NOT_ACCEPTED"] }, 409);
+    }
+
     if (!hasCapability(provider, "describeConnection")) {
       return jsonResponse({ providerId: provider.id, identity: null }, 200);
     }
@@ -367,15 +425,13 @@ export async function handleDescribeRoute(
       return jsonResponse(
         {
           providerId: provider.id,
-          identity: presentableIdentity(provider.describeConnection(config)),
+          identity: presentableIdentity(
+            provider.describeConnection({ ...body.config }),
+          ),
         },
         200,
       );
     } catch {
-      // The capability is total by contract; a provider that throws anyway is
-      // reporting nothing here. Degrading keeps this route presentation-only,
-      // and — critically — keeps the thrown text (which may quote a
-      // configuration) off the wire entirely.
       return jsonResponse({ providerId: provider.id, identity: null }, 200);
     }
   });

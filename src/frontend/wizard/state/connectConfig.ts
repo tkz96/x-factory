@@ -21,7 +21,11 @@
 // Provider-agnostic: these functions compare PROVIDER IDS between the two role
 // selections. They never know a provider by name.
 
-import type { ConnectionIdentityTarget } from "../../components/connections/connection-state.js";
+import {
+  type ConnectionIdentityTarget,
+  identityConfig,
+} from "../../components/connections/connection-state.js";
+import type { ProviderDescriptor } from "../../connection/types.js";
 import type { WizardConnectionRole, WizardConnectState } from "../types.js";
 
 /** The roles the Connect step collects, in a stable order. */
@@ -38,7 +42,12 @@ function otherRole(role: WizardConnectionRole): WizardConnectionRole {
 /**
  * The connections the Connect step's configuration can identify: one target per
  * role, carrying the provider that role selected and that provider's ONE
- * configuration (#133 story 34).
+ * configuration (#133 story 34), reduced to its NON-SECRET fields.
+ *
+ * The draft configuration carries the credentials the user typed, and this read
+ * is presentation-only: `identityConfig` keeps only the fields the manifest
+ * declares and drops every field it declares `secret`, so a credential never
+ * leaves the draft for an identity read (#133 correction 1).
  *
  * A dual-role provider therefore yields two targets holding the SAME provider
  * and configuration — the identity hook queries it once, and both roles of the
@@ -47,13 +56,21 @@ function otherRole(role: WizardConnectionRole): WizardConnectionRole {
  */
 export function connectionIdentityTargets(
   connect: WizardConnectState,
+  descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
   return CONNECTION_ROLES.map((role) => {
     const providerId = connect[role].providerId;
     return {
       role,
       providerId,
-      config: providerId === null ? {} : providerConfig(connect, providerId),
+      config:
+        providerId === null
+          ? {}
+          : identityConfig(
+              providerId,
+              providerConfig(connect, providerId),
+              descriptors,
+            ),
     };
   });
 }

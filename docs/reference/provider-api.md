@@ -15,9 +15,11 @@ The provider API surface implements the HTTP boundary between the provider syste
               ↓
   Provider HTTP Controllers
               ↓
-  GET /api/providers/manifest
+  GET  /api/providers/manifest
   POST /api/providers/verify
   POST /api/providers/parse-url
+  POST /api/providers/repositories
+  POST /api/providers/describe
 ```
 
 ### Core Invariants
@@ -229,6 +231,73 @@ it names the connection role the repositories are listed under.
 
 ---
 
+### E. POST /api/providers/describe
+
+The connection's identity as its provider describes it (spec #133 story 34). This
+is the ONLY way a surface learns an identity: the provider composes it from its
+own configuration (`"owner/repo"`, `"acme.atlassian.net/ROCK"`), and the wizard,
+the project card, the project detail view and the settings registry all render
+the answer the same way, as `displayName (identity)`.
+
+The route exists so a surface can render that string **without knowing what a
+provider is**: it is driven by the optional `describeConnection` capability, and
+there is no provider name anywhere on the path.
+
+#### Capability
+
+`describeConnection(config: ProviderConfig): string | null` — declared in
+`CAPABILITIES` (`src/providers/contract.ts`) and implemented by each provider
+module. It is TOTAL by contract: it never throws, and it reads only the
+NON-SECRET coordinates of a connection (`src/providers/connection-identity.ts`
+holds the shared field/URL/join helpers). A provider that does not declare the
+capability is not an error — it simply has no identity to publish.
+
+#### Request Body
+
+```json
+{
+  "providerId": "github",
+  "config": { "repoOwner": "octo-org", "repository": "rocket" }
+}
+```
+
+**Secret-free by construction (#133 correction 1).** A credential travels
+exactly once, in the creation request; this read is not a second occasion. A
+surface builds the body from the connection's NON-SECRET fields — the frontend
+projects each connection through the manifest's own `secret` declarations before
+asking (`identityConfig`) — and the server refuses a request that brings a
+declared secret VALUE anyway. The route therefore never parses the configuration
+against the full provider schema: that gate demands credentials (GitHub's schema
+requires `token`), and a secret-free configuration would fail it and take the
+identity down with it. The identity is composed from what the request DOES
+carry, which is why a partial-but-identifying configuration answers rather than
+degrading.
+
+#### Response Shape
+
+- **Described (`200 OK`)**: `{ "providerId": "github", "identity": "octo-org/rocket" }`
+- **Nothing to describe (`200 OK`)**: `{ "providerId": "stub", "identity": null }` —
+  the provider declares no `describeConnection` capability, or the configuration
+  identifies nothing (an empty part is reported as absent, never rendered as
+  `"Name ()"`), or the capability threw despite its contract. Describing a
+  connection blocks nothing, so a non-answer is never an error a user sees: the
+  surface renders the plain display name.
+- **Transport (`400 Bad Request`)**: malformed JSON, missing `providerId`, or a
+  non-object `config`.
+- **Semantic (`409 Conflict`, codes only)**:
+  - Unknown provider: `{ "formErrors": ["UNKNOWN_PROVIDER"] }`
+  - Role the provider does not declare: `{ "formErrors": ["INCOMPATIBLE_CONFIGURATION"] }`
+  - A declared secret field carrying a value:
+    `{ "formErrors": ["SECRET_NOT_ACCEPTED"] }` — the refusal names no field and
+    echoes no value, and the request is never handed to the capability.
+
+The payload carries no provider-generated message, and never a configuration
+value beyond the identity the provider composed. `test/provider-describe-api.test.ts`
+asserts the raw response bytes, and `test/connection-identity-hook.test.tsx`
+asserts the secret-free body for each of GitHub, Azure and Jira.
+
+---
+
 ## 4. End-to-End Curl Demo with Stub Provider
 
 Run the demo script or execute curl requests against a running server:
@@ -268,6 +337,11 @@ curl -s -X POST http://localhost:3777/api/providers/repositories \
       "project": "acme-app"
     }
   }'
+
+# 5. Connection identity (presentation-only, secret-free: no credential here)
+curl -s -X POST http://localhost:3777/api/providers/describe \
+  -H "Content-Type: application/json" \
+  -d '{"providerId": "github", "config": {"repoOwner": "acme", "repository": "web"}}'
 ```
 
 ---
@@ -426,14 +500,34 @@ No provider conditional exists in this path.
 
 ### Ordered writes (crash safety)
 
-1. Validate the complete request in memory: transport shape (zod) → provider
-   config schema → role/capability compatibility → duplicate id.
-2. Write secrets to env storage (`saveProjectEnv`, idempotent — a retry
-   converges by overwriting).
-3. Append the project record last, as the commit point.
+The shipped sequence for a creation from the normalized connections payload, with
+the role-coverage gate (#133) and the per-id creation claim in place:
 
-A crash between (2) and (3) leaves a benign orphaned env file and no project; a
-failure during (2) leaves neither. A project can never exist without its secrets.
+1. **Validate the complete request in memory** — transport shape (zod) → provider
+   config schema → role/capability compatibility → required-role coverage →
+   duplicate providers. Pure, so it runs OUTSIDE the claim: an invalid payload
+   must not contend for one, and no secret is written for a request that will be
+   rejected.
+2. **Take the per-id creation claim** (`withCreationClaim`), then **re-check the
+   duplicate id** inside it. The claim is what makes the sequence safe against a
+   concurrent creation of the SAME id: without it two creations both pass an
+   in-memory duplicate check, both write secrets, and only then does one lose the
+   record append — leaving the winner's secret overwritten by the loser's
+   values. The claim files live under `getLocksDir()` (`~/.x-factory/locks/`,
+   `X_FACTORY_DATA_DIR`-relative) as `create-<readable-id>-<digest>.claim`, one
+   per candidate id, released when the
+   create returns or throws; a holder that outlives the TTL is reclaimable, and
+   that residual is documented in `src/services/creation-claim.ts`. A claim not
+   taken within the wait bound is reported as the same 409 as the duplicate.
+3. **Write secrets to env storage** (`saveProjectEnv`, idempotent — a retry
+   converges by overwriting).
+4. **Append the project record last**, as the commit point.
+5. **Release the claim.**
+
+A crash between (3) and (4) leaves a benign orphaned env file and no project; a
+failure during (3) leaves neither. A project can never exist without its secrets.
+A body without a `connections` array (the legacy shape) takes the same ordered
+write through `createProject`, after the tracker gate above.
 
 ### Error channels
 

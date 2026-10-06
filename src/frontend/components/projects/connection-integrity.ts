@@ -26,6 +26,7 @@ import {
   type ConnectionComboSlot,
   type ConnectionIdentityTarget,
   type ConnectionState,
+  identityConfig,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
@@ -297,7 +298,13 @@ export function comboSlots(
 /**
  * The connections a post-creation surface asks for identities: one target per
  * slot, carrying the provider id and the configuration a project RECORDED for
- * that role.
+ * that role — its NON-SECRET fields only, projected through the manifest
+ * (`identityConfig`, #133 correction 1).
+ *
+ * Named for what it reads, because the wizard has its own target producer for
+ * the DRAFT configuration (`connectConfig.connectionIdentityTargets`): both
+ * answer "what shall be described?", from different sources, and one name for
+ * both made a call site read as if it were the other.
  *
  * A role a project never recorded (a legacy project's git host) yields a target
  * with no provider id, which the identity hook does not query — the slot simply
@@ -305,16 +312,17 @@ export function comboSlots(
  * persisted, and the target is handed to the ONE identity hook
  * (`useConnectionIdentities`) by every post-creation surface.
  */
-export function connectionIdentityTargets(
+export function recordedConnectionIdentityTargets(
   integrity: ConnectionIntegrity,
-  roles?: readonly ProjectConnectionRole[],
+  roles: readonly ProjectConnectionRole[] | undefined,
+  descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
   return integrity.slots
     .filter((slot) => roles === undefined || roles.includes(slot.role))
     .map((slot) => ({
       role: slot.role,
       providerId: slot.providerId ?? null,
-      config: slot.config,
+      config: identityConfig(slot.providerId ?? null, slot.config, descriptors),
     }));
 }
 

@@ -100,7 +100,48 @@ export interface ConnectionComboSlot {
 export interface ConnectionIdentityTarget {
   readonly role: ProjectConnectionRole;
   readonly providerId: string | null;
+  /**
+   * The connection's SECRET-FREE configuration, and nothing else (#133
+   * correction 1).
+   *
+   * The identity read is a presentation-only surface: the server composes
+   * `"owner/repo"` from coordinates that are never credentials, and a request
+   * that carries a declared secret value is refused. Producers therefore build
+   * this through `identityConfig`, which keeps only the fields the manifest
+   * declares and drops every field it declares `secret` — so the credentials a
+   * user typed are not what travels here, whatever the draft or the record
+   * happens to hold.
+   */
   readonly config: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * A connection configuration as the identity read may carry it: the fields the
+ * manifest declares for the provider, minus every field declared `secret`.
+ *
+ * Deny by default. A provider the manifest does not declare yields `{}` — the
+ * manifest is the presentation contract, and sending a configuration whose
+ * secret fields are unknown is exactly the request the route refuses. The
+ * identity then simply stays unavailable, and the line renders the plain display
+ * name, which is what an unloaded manifest must look like.
+ */
+export function identityConfig(
+  providerId: string | null,
+  config: Readonly<Record<string, unknown>>,
+  descriptors: readonly ProviderDescriptor[],
+): Record<string, unknown> {
+  const descriptor = descriptors.find((entry) => entry.id === providerId);
+  if (!descriptor) {
+    return {};
+  }
+  const allowed = new Set(
+    descriptor.configFields
+      .filter((field) => field.secret !== true)
+      .map((field) => field.name),
+  );
+  return Object.fromEntries(
+    Object.entries(config).filter(([name]) => allowed.has(name)),
+  );
 }
 
 /** The identities a surface has, per role. A role may be absent or null. */

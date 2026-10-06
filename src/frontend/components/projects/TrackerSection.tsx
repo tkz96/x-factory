@@ -11,15 +11,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
-import { useConnectionIdentities } from "../../hooks/useConnectionIdentity.js";
+import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
-import {
-  comboTone,
-  identitiesByRole,
-  withConnectionIdentities,
-} from "../connections/connection-state.js";
+import { comboTone } from "../connections/connection-state.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
@@ -29,9 +25,9 @@ import {
   applyConnectionIntegrity,
   comboSlots,
   connectionDisplayValues,
-  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
+  recordedConnectionIdentityTargets,
   resolveProviderLabel,
 } from "./connection-integrity.js";
 import "./TrackerSection.css";
@@ -59,13 +55,11 @@ export function TrackerSection({ project }: TrackerSectionProps) {
   const tracker = integrity.tracker;
 
   // The provider's own identity for this connection (#133 story 34), read from
-  // the configuration the project RECORDED. The hook is called before any early
-  // return, and the line below renders only the tracker role.
-  const identityTargets = connectionIdentityTargets(integrity, ["tracker"]);
-  const identityLookup = useConnectionIdentities(identityTargets);
-  const slots = withConnectionIdentities(
+  // the configuration the project RECORDED. The wiring happens before any early
+  // return, and only the tracker role is read for.
+  const slots = useConnectionLine(
     comboSlots(integrity),
-    identitiesByRole(identityTargets, identityLookup),
+    recordedConnectionIdentityTargets(integrity, ["tracker"], descriptors),
   );
 
   const [testing, setTesting] = useState(false);

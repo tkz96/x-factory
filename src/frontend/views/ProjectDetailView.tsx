@@ -10,23 +10,19 @@ import "./ProjectDetailView.css";
 
 import { useNavigate, useParams } from "react-router-dom";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
-import {
-  comboTone,
-  identitiesByRole,
-  withConnectionIdentities,
-} from "../components/connections/connection-state.js";
+import { comboTone } from "../components/connections/connection-state.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { PROJECT_DETAIL_COPY } from "../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import {
   comboSlots,
-  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
+  recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
-import { useConnectionIdentities } from "../hooks/useConnectionIdentity.js";
+import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
 
@@ -48,20 +44,23 @@ export function ProjectDetailView() {
 
   const backToProjects = () => navigate("/projects");
 
-  // The identity read for the project this view resolved — no targets while the
-  // read has not resolved to one. It happens BEFORE the not-found return
-  // because it is a hook: hooks run in the same order on every render (#133
-  // story 34). `deriveConnectionIntegrity` is pure, so deriving the wiring once
-  // here for the targets and once below for the line costs nothing.
-  const identityTargets =
+  // The identity wiring for the project this view resolved — no slots while the
+  // read has not resolved to one. It happens BEFORE the not-found return because
+  // it is a hook: hooks run in the same order on every render (#133 story 34),
+  // and the derived integrity is pure, so computing it here for the line the
+  // render below may not reach costs nothing.
+  const integrity =
     project === undefined
+      ? undefined
+      : deriveConnectionIntegrity(project, descriptors);
+  const slots = useConnectionLine(
+    integrity === undefined ? [] : comboSlots(integrity),
+    integrity === undefined
       ? []
-      : connectionIdentityTargets(
-          deriveConnectionIntegrity(project, descriptors),
-        );
-  const identityLookup = useConnectionIdentities(identityTargets);
+      : recordedConnectionIdentityTargets(integrity, undefined, descriptors),
+  );
 
-  if (project === undefined) {
+  if (project === undefined || integrity === undefined) {
     return (
       <section id="area-projects" className="area-view active">
         <AsyncRegion
@@ -83,14 +82,6 @@ export function ProjectDetailView() {
   }
 
   const repos = project.repositories || [];
-  const integrity = deriveConnectionIntegrity(project, descriptors);
-  // The provider's own identity for each connection (#133 story 34), read from
-  // the configuration the project recorded — the targets the hook above was
-  // given, resolved.
-  const slots = withConnectionIdentities(
-    comboSlots(integrity),
-    identitiesByRole(identityTargets, identityLookup),
-  );
 
   return (
     <section id="area-projects" className="area-view active">
