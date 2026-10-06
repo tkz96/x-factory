@@ -20,12 +20,17 @@
 // git host is shown as not recorded rather than invented. A legacy project
 // with no usable `issueTracker` is an integrity failure like any other.
 
-import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
+import {
+  PROJECT_CONNECTION_ROLES,
+  type Project,
+  type ProjectConnectionRole,
+} from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import {
   type ConnectionComboSlot,
   type ConnectionIdentityTarget,
   type ConnectionState,
+  identityConfig,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
@@ -75,7 +80,7 @@ export interface ConnectionIntegrity {
 }
 
 /** The roles in render order. The combo line always reads left to right. */
-const ROLES: readonly ProjectConnectionRole[] = ["tracker", "gitHost"];
+const ROLES: readonly ProjectConnectionRole[] = PROJECT_CONNECTION_ROLES;
 
 /** A connection record as it is derived (normalized or legacy). */
 interface DerivedConnection {
@@ -297,7 +302,13 @@ export function comboSlots(
 /**
  * The connections a post-creation surface asks for identities: one target per
  * slot, carrying the provider id and the configuration a project RECORDED for
- * that role.
+ * that role — its NON-SECRET fields only, projected through the manifest
+ * (`identityConfig`, #133 correction 1).
+ *
+ * Named for what it reads, because the wizard has its own target producer for
+ * the DRAFT configuration (`connectConfig.draftConnectionIdentityTargets`): both
+ * answer "what shall be described?", from different sources, and one name for
+ * both made a call site read as if it were the other.
  *
  * A role a project never recorded (a legacy project's git host) yields a target
  * with no provider id, which the identity hook does not query — the slot simply
@@ -305,16 +316,17 @@ export function comboSlots(
  * persisted, and the target is handed to the ONE identity hook
  * (`useConnectionIdentities`) by every post-creation surface.
  */
-export function connectionIdentityTargets(
+export function recordedConnectionIdentityTargets(
   integrity: ConnectionIntegrity,
-  roles?: readonly ProjectConnectionRole[],
+  roles: readonly ProjectConnectionRole[] | undefined,
+  descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
   return integrity.slots
     .filter((slot) => roles === undefined || roles.includes(slot.role))
     .map((slot) => ({
       role: slot.role,
       providerId: slot.providerId ?? null,
-      config: slot.config,
+      config: identityConfig(slot.providerId ?? null, slot.config, descriptors),
     }));
 }
 
@@ -324,13 +336,18 @@ export function connectionIdentityTargets(
  * absent git host is a pre-#145 project's recorded-as-missing wiring, which is
  * surfaced as a warning rather than invented.
  *
+ * This is deliberately NOT `PROJECT_CONNECTION_ROLES` (the two-role list every
+ * other surface reads): it is a one-role requirement, and it is declared
+ * `satisfies ProjectConnectionRole` so a role renamed in the shared type breaks
+ * this list at compile time rather than silently reporting nothing.
+ *
  * Surfaces pass this to the ONE tone rule with their line's slots
  * (`comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)`); there is no
  * second implementation of the rule here.
  */
-export const REQUIRED_CONNECTION_ROLES: readonly ProjectConnectionRole[] = [
+export const REQUIRED_CONNECTION_ROLES = [
   "tracker",
-];
+] as const satisfies readonly ProjectConnectionRole[];
 
 /**
  * The human display name for a provider id: the manifest's `displayName`, or

@@ -22,14 +22,22 @@
 //      computed key `{ ["azure"]: … }`, `case "azure":`
 //   5. the legacy tracker/discovery/Azure/GitHub-client/provider-submodule imports
 //
-// Known precision boundary — provider-keyed TABLES. A record literal keyed by
+// Known precision boundaries — recorded, not hidden. A record literal keyed by
 // provider ids (`{ azure: matchAzure, github: matchGitHub }`) is data, not
 // branching, and is not reported; using a provider id to SELECT from such a
-// table is. The single instance outside the provider zone
-// (`src/shared/project-identity.ts`) cannot delegate to the registry:
-// `.fallowrc.json` lets `shared` import nothing and `frontend` import only
-// `shared`, and the duplicate check runs in the browser, so the per-provider
-// matchers have to live in the dependency-free zone.
+// table is. Provider-id PROPERTY ACCESS (`p.issueTracker?.azure`) is likewise
+// not reported: the shape appears legitimately in the legacy tracker view, and
+// the single instance in the dependency-free zone
+// (`src/shared/project-identity.ts`) cannot delegate to the registry because
+// `.fallowrc.json` lets `shared` import nothing while the duplicate check runs
+// in the browser. Both boundaries are stated in
+// `docs/reference/provider-api.md` §5.
+//
+// ALLOWED_FILES entries are RULE-SCOPED: an entry names the rules its audited
+// reason covers, and every other rule still applies to that file. A file-level
+// "skip everything" exemption is not expressible, and a second test proves each
+// entry is still needed (the named rules exist, and the file still violates
+// them). Import rules read the whole file, so a wrapped import is caught.
 
 import { describe, expect, it } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -41,14 +49,35 @@ const PROVIDER_ZONE = join(SRC_ROOT, "providers");
 const SRC_PREFIX = "src/";
 
 /**
- * File-level exemptions (relative to src/), each with an audited reason.
- * Keep this list SHORT — a growing list means the architecture is leaking.
+ * A reviewed exemption for ONE file, covering ONLY the rules its reason
+ * justifies.
+ *
+ * A file-level "skip everything" exemption was how `DocsView.tsx` slipped
+ * through with a reason that was not true of it: the page contains a `switch` on
+ * the docs URL slug, so it DOES hold provider-id literals, while its stated
+ * reason was "renders static copy only … dispatches no provider behavior". Every
+ * other rule now still applies to it — a provider lookup or a provider-module
+ * import in that file is reported like any other file's.
  */
-const ALLOWED_FILES: Readonly<Record<string, string>> = {
-  "frontend/views/DocsView.tsx":
-    "per-provider security documentation content UI — renders static copy only, imports no provider module, dispatches no provider behavior",
-  "frontend/components/docs/DocsSidebarNav.tsx":
-    "static navigation entries for the provider documentation pages — data list, no branching on provider behavior",
+interface AllowedFile {
+  /** Why these rules, in this file, are reviewed and accepted. */
+  readonly reason: string;
+  /** The rule names the reason covers. Nothing else is exempted. */
+  readonly rules: readonly string[];
+}
+
+/**
+ * File-level exemptions (relative to src/), each with an audited reason and the
+ * exact rules it covers. Keep this list SHORT — a growing list means the
+ * architecture is leaking, and an entry covering rules it does not need is a
+ * hole.
+ */
+const ALLOWED_FILES: Readonly<Record<string, AllowedFile>> = {
+  "frontend/views/DocsView.tsx": {
+    reason:
+      "per-provider security DOCUMENTATION: the docs URL slug (`?cat=security&slug=azure`) selects which static article is rendered, so the slug is compared against provider names to pick copy, and no provider module is imported, no provider is looked up and no provider capability is dispatched",
+    rules: ["switch case on provider id", "equality on provider id"],
+  },
 };
 
 interface Rule {
@@ -219,8 +248,56 @@ function matchRules(
   return violations;
 }
 
-function isImportLine(text: string): boolean {
-  return /^\s*import\b/.test(text) || /^\s*export\b.*\bfrom\b/.test(text);
+/** One import specifier found in the source, and where it starts. */
+interface ImportSpecifier {
+  readonly specifier: string;
+  readonly index: number;
+}
+
+/**
+ * The import specifiers of a source file, matched over the WHOLE content rather
+ * than line by line.
+ *
+ * A line-based check silently missed the house-style WRAPPED import — the
+ * specifier sits on the `} from "…"` line, which is neither an `import` line nor
+ * an `export … from` line — so this:
+ *
+ *     import {
+ *       githubProvider,
+ *     } from "../providers/github-module.js";
+ *
+ * escaped the import rules while the docs claim those import families are
+ * covered. Each pattern below therefore spans newlines, and `[^;]*?` keeps a
+ * match inside ONE statement: it cannot run past a terminator into the next
+ * import's specifier.
+ *
+ * Three shapes are read: `import … from "x"` / `export … from "x"`, a bare
+ * `import "x"`, and a dynamic `import("x")`. The rules are then tested against
+ * the SPECIFIER alone — the string that will be resolved — never against the
+ * whole statement, so a comment or an identifier that merely mentions a path
+ * cannot produce a violation.
+ */
+const IMPORT_SPECIFIER_PATTERNS: readonly RegExp[] = [
+  /\b(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/g,
+  /\bimport\s*["']([^"']+)["']/g,
+  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+];
+
+function importSpecifiers(content: string): ImportSpecifier[] {
+  const found: ImportSpecifier[] = [];
+  for (const pattern of IMPORT_SPECIFIER_PATTERNS) {
+    for (const match of content.matchAll(pattern)) {
+      const specifier = match[1];
+      if (specifier === undefined) continue;
+      found.push({
+        specifier,
+        // The specifier's own offset, so the reported line is the one carrying
+        // the path (which is what makes a wrapped import legible).
+        index: (match.index ?? 0) + match[0].indexOf(specifier),
+      });
+    }
+  }
+  return found;
 }
 
 /**
@@ -231,34 +308,39 @@ function isImportLine(text: string): boolean {
  * content stays identical. `relPath` is relative to `src/`; a leading `src/`
  * is tolerated so callers can pass either form.
  *
- * Import rules never apply to allowlisted files (they are content-only);
- * conditional and lookup rules are skipped for them too — the entry is audited
- * as a whole.
+ * An allowlist entry exempts the rules it NAMES for that file, and nothing else
+ * (#133 correction 1): the remaining conditional, lookup and import rules still
+ * run, so a copy-selection exemption cannot hide a provider lookup or a
+ * provider-module import.
  */
 export function scanContent(relPath: string, content: string): Violation[] {
   const path = normalizeRelPath(relPath);
   if (!isScannedSource(path) || isProviderZone(path)) return [];
-  if (path in ALLOWED_FILES) return [];
+  const exempt: readonly string[] = ALLOWED_FILES[path]?.rules ?? [];
+  const isExempt = (rule: string) => exempt.includes(rule);
 
-  const violations = matchRules(path, content, [
-    ...CONDITIONAL_RULES,
-    ...LOOKUP_RULES,
-  ]);
+  const violations = matchRules(
+    path,
+    content,
+    [...CONDITIONAL_RULES, ...LOOKUP_RULES].filter(
+      (rule) => !isExempt(rule.name),
+    ),
+  );
 
   const lines = content.split("\n");
-  lines.forEach((text, index) => {
-    if (!isImportLine(text)) return;
+  for (const { specifier, index } of importSpecifiers(content)) {
+    const line = content.slice(0, index).split("\n").length;
     for (const rule of FORBIDDEN_IMPORT_RULES) {
-      if (rule.pattern.test(text)) {
-        violations.push({
-          file: path,
-          line: index + 1,
-          text: text.trim(),
-          rule: rule.name,
-        });
-      }
+      if (isExempt(rule.name)) continue;
+      if (!rule.pattern.test(specifier)) continue;
+      violations.push({
+        file: path,
+        line,
+        text: (lines[line - 1] ?? "").trim(),
+        rule: rule.name,
+      });
     }
-  });
+  }
 
   return violations.sort((a, b) => a.line - b.line);
 }
@@ -296,6 +378,40 @@ describe("provider-agnosticism gate (spec #133, ticket #141)", () => {
         statSync(path).isFile(),
         `allowlisted file ${rel} no longer exists — remove its entry`,
       ).toBe(true);
+    }
+  });
+
+  it("every allowlisted file still needs the rules it is exempted for", () => {
+    // Two ways an exemption rots, both caught here: naming a rule that does not
+    // exist (which would silently excuse nothing and read as a hole), and
+    // keeping a rule the file no longer violates (a dead entry that only widens
+    // the hole).
+    const knownRules = new Set(
+      [...CONDITIONAL_RULES, ...LOOKUP_RULES, ...FORBIDDEN_IMPORT_RULES].map(
+        (rule) => rule.name,
+      ),
+    );
+    for (const [rel, entry] of Object.entries(ALLOWED_FILES)) {
+      for (const rule of entry.rules) {
+        expect(
+          knownRules,
+          `unknown rule "${rule}" in the ${rel} entry`,
+        ).toContain(rule);
+      }
+      // Read the file WITHOUT its exemption (a path that is not listed) and see
+      // which rules it actually violates.
+      const reported = new Set(
+        scanContent(
+          `exemption-check/${rel}`,
+          readFileSync(join(SRC_ROOT, rel), "utf8"),
+        ).map((violation) => violation.rule),
+      );
+      for (const rule of entry.rules) {
+        expect(
+          reported,
+          `${rel} no longer violates "${rule}" — drop it from its entry`,
+        ).toContain(rule);
+      }
     }
   });
 
@@ -410,6 +526,20 @@ const NEGATIVE_FIXTURES: ReadonlyArray<Fixture & { readonly rule: string }> = [
       'import { githubProvider } from "../providers/github-module.js";\n',
     rule: "provider submodule import",
   },
+  {
+    case: "a house-style WRAPPED provider-submodule import (the specifier on its own line)",
+    path: "http/example-controller.ts",
+    content:
+      'import {\n  githubProvider,\n} from "../providers/github-module.js";\n',
+    rule: "provider submodule import",
+  },
+  {
+    case: "provider-specific content inside the narrowly exempted docs view",
+    path: "frontend/views/DocsView.tsx",
+    content:
+      'import { getProvider } from "../providers/registry.js";\n\nconst provider = getProvider("azure");\n',
+    rule: "concrete provider lookup",
+  },
 ];
 
 describe("provider-agnosticism gate — negative fixtures (must be reported)", () => {
@@ -506,6 +636,28 @@ const PROVIDER_KEYED_TABLE = [
   "",
 ].join("\n");
 
+/**
+ * The shape the docs view is exempted for: a URL slug selects which static
+ * article renders, so the slug is compared with provider names. No provider is
+ * looked up, no provider module is imported and no capability is dispatched —
+ * which is what the entry's reason claims, and all it covers.
+ */
+const DOCS_VIEW_COPY_SELECTOR = [
+  "const securitySection = slug as SecuritySection;",
+  "",
+  "function headings(section: SecuritySection) {",
+  "  switch (section) {",
+  '    case "azure":',
+  "      return AZURE_SCOPES_ARTICLE;",
+  '    case "github":',
+  "      return GITHUB_PAT_ARTICLE;",
+  "  }",
+  "}",
+  "",
+  'const showAzure = securitySection === "azure";',
+  "",
+].join("\n");
+
 const POSITIVE_FIXTURES: readonly Fixture[] = [
   {
     case: "provider-specific content under the provider-zone path",
@@ -518,9 +670,9 @@ const POSITIVE_FIXTURES: readonly Fixture[] = [
     content: PROVIDER_SPECIFIC_FIXTURE_CONTENT,
   },
   {
-    case: "provider-specific content in an allowlisted content-only file",
+    case: "provider-specific content in a narrowly exempted content-only file",
     path: "frontend/views/DocsView.tsx",
-    content: PROVIDER_SPECIFIC_FIXTURE_CONTENT,
+    content: DOCS_VIEW_COPY_SELECTOR,
   },
   {
     case: "provider-specific content behind a test-fixture path",

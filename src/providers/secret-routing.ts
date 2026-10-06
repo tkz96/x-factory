@@ -44,7 +44,36 @@ export function getSecretFieldRoutes(schema: unknown): SecretFieldRoute[] {
   return routes;
 }
 
+/**
+ * The declared secret fields of a provider config that CARRY A VALUE, by name.
+ *
+ * The presentation-only describe read must never receive credentials (they
+ * travel exactly once, in the creation request), so the route asks this before
+ * it hands anything to a capability: a non-empty value in a field the provider's
+ * own schema declares `.meta({ secret: true })` is a client that is still
+ * sending credentials for a read that composes a display string. A missing or
+ * empty value is not a value — it is ignored, not reported.
+ *
+ * Derived from the schema, so a new provider needs no change here.
+ */
+export function presentDeclaredSecretFields(
+  schema: unknown,
+  config: Record<string, unknown>,
+): string[] {
+  const present: string[] = [];
+  for (const route of getSecretFieldRoutes(schema)) {
+    const value = config[route.name];
+    if (typeof value === "string") {
+      if (value.trim() !== "") present.push(route.name);
+      continue;
+    }
+    if (value !== undefined && value !== null) present.push(route.name);
+  }
+  return present;
+}
+
 /** A connection config split into what may be persisted and what is secret. */
+
 export interface RoutedConnectionSecrets {
   /** The provider config with every declared secret field removed. */
   config: Record<string, unknown>;

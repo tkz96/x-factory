@@ -182,21 +182,32 @@ other. Legacy descriptors are never reported as incomplete: their
 configuration shape predates the normalized payload (spec #133 keeps legacy
 config migration an open question).
 
-**Known deviation — no composite connection identifier (recorded, not silent).**
-Spec #133 story 34's example renders a connection as a provider name plus an
-identifying configuration value ("Tracker: Jira (site.acme.net) · Git host:
-GitHub (owner/repo)"). The combo line renders the provider's manifest
-`displayName` and the role's state, and deliberately does NOT render the
-parenthesised identifier. Rendering it needs provider-owned knowledge of which
-config field identifies a connection — that is a new provider-contract
-capability (`describeConnection`) plus a server-derived per-connection label on
-the wire — which would amend the closed #137 provider contract and the #145
-connection payload. Neither #146's nor #147's acceptance criteria require the
-identifier; both require the git host and the tracker with the
-degraded/disconnected distinctions, which this line implements. The gap is
-recorded here as a deviation from the story's EXAMPLE, to be closed by a
-provider-contract ticket if the capability is ever wanted — never by teaching
-the UI which config field identifies a provider.
+**The composite connection identifier (story 34, shipped).** Spec #133 story 34's
+example renders a connection as a provider name plus an identifying configuration
+value ("Tracker: Jira (site.acme.net) · Git host: GitHub (owner/repo)"). The
+combo line renders the provider's manifest `displayName` and, in parentheses, the
+identity the PROVIDER composes for its own connection: `displayName (identity)`.
+A role whose identity is unavailable — a provider that declares no
+`describeConnection` capability, a configuration that identifies nothing yet, a
+provider the loaded manifest does not register — renders the plain display name,
+never `"Name ()"` and never `null`.
+
+The capability is the provider's, not the UI's: `describeConnection(config)` is
+declared in the provider contract, each provider module implements it from its
+own non-secret coordinates, and `POST /api/providers/describe` publishes the
+answer (`docs/reference/provider-api.md` §E). The surfaces never learn which
+config field identifies a provider — that question never leaves the provider
+module. The read is presentation-only and secret-free: a surface asks with the
+connection's non-secret fields, the route refuses a body that carries a declared
+secret value, and an identity that cannot be produced is simply absent.
+
+Everything the line needs is reached through ONE wiring call
+(`useConnectionLine`): a surface hands it the slots it derived and the reads they
+need, and gets the slots back with identities attached, so no surface can wire
+the read differently or forget it. Post-creation surfaces derive their targets
+from the configuration a project RECORDED (`recordedConnectionIdentityTargets`),
+the wizard from the draft (`draftConnectionIdentityTargets`), and both project the
+configuration through the manifest's `secret` declarations first.
 
 **Repair path wiring.** The repair affordance is the copy-map `reconnect`
 label. On the project detail surface, the project cards, and the Work Queue it

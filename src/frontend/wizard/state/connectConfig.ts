@@ -21,14 +21,20 @@
 // Provider-agnostic: these functions compare PROVIDER IDS between the two role
 // selections. They never know a provider by name.
 
-import type { ConnectionIdentityTarget } from "../../components/connections/connection-state.js";
+import { PROJECT_CONNECTION_ROLES } from "../../../shared/types.js";
+import {
+  type ConnectionIdentityTarget,
+  identityConfig,
+} from "../../components/connections/connection-state.js";
+import type { ProviderDescriptor } from "../../connection/types.js";
 import type { WizardConnectionRole, WizardConnectState } from "../types.js";
 
-/** The roles the Connect step collects, in a stable order. */
-export const CONNECTION_ROLES: readonly WizardConnectionRole[] = [
-  "tracker",
-  "gitHost",
-];
+/**
+ * The roles the Connect step collects, in a stable order — the ONE role list
+ * (`PROJECT_CONNECTION_ROLES`), narrowed to the wizard's own role type.
+ */
+export const CONNECTION_ROLES: readonly WizardConnectionRole[] =
+  PROJECT_CONNECTION_ROLES;
 
 /** The opposite role. */
 function otherRole(role: WizardConnectionRole): WizardConnectionRole {
@@ -36,24 +42,37 @@ function otherRole(role: WizardConnectionRole): WizardConnectionRole {
 }
 
 /**
- * The connections the Connect step's configuration can identify: one target per
- * role, carrying the provider that role selected and that provider's ONE
- * configuration (#133 story 34).
+ * The connections the Connect step's DRAFT configuration can identify: one
+ * target per role, carrying the provider that role selected and that provider's ONE
+ * configuration (#133 story 34), reduced to its NON-SECRET fields.
+ *
+ * The draft configuration carries the credentials the user typed, and this read
+ * is presentation-only: `identityConfig` keeps only the fields the manifest
+ * declares and drops every field it declares `secret`, so a credential never
+ * leaves the draft for an identity read (#133 correction 1).
  *
  * A dual-role provider therefore yields two targets holding the SAME provider
  * and configuration — the identity hook queries it once, and both roles of the
  * combo line show the identity of the one connection they are. A role with no
  * provider is a target with no provider id, which the hook does not query.
  */
-export function connectionIdentityTargets(
+export function draftConnectionIdentityTargets(
   connect: WizardConnectState,
+  descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
   return CONNECTION_ROLES.map((role) => {
     const providerId = connect[role].providerId;
     return {
       role,
       providerId,
-      config: providerId === null ? {} : providerConfig(connect, providerId),
+      config:
+        providerId === null
+          ? {}
+          : identityConfig(
+              providerId,
+              providerConfig(connect, providerId),
+              descriptors,
+            ),
     };
   });
 }
@@ -67,6 +86,36 @@ export function providerConfig(
   providerId: string,
 ): Record<string, unknown> {
   return connect.providerConfigs[providerId] ?? {};
+}
+
+/**
+ * THE generation of a provider's configuration (correction 1, #133): the counter
+ * bumped by every write below, whichever card made it. A verification attempt
+ * captures this value and the reducer records its evidence only while the value
+ * is still current, so a write from the PARTNER card invalidates the attempt too
+ * — a per-card counter cannot see the other card's write, which is the hole this
+ * token closes.
+ *
+ * A provider with no entry reads generation 0: a configuration that was never
+ * written has never been replaced. The map is session-scoped and absent in a
+ * restored draft, so the absent case must stay meaningful.
+ */
+export function configGeneration(
+  connect: WizardConnectState,
+  providerId: string,
+): number {
+  return connect.providerConfigGenerations?.[providerId] ?? 0;
+}
+
+/** Bumps a provider's configuration generation — one bump per write. */
+function bumpConfigGeneration(
+  connect: WizardConnectState,
+  providerId: string,
+): Record<string, number> {
+  return {
+    ...connect.providerConfigGenerations,
+    [providerId]: configGeneration(connect, providerId) + 1,
+  };
 }
 
 /**
@@ -92,7 +141,16 @@ export function rolesForProvider(
   );
 }
 
-/** Drops configurations no role references, so the map holds one entry per provider in use. */
+/**
+ * Drops configurations no role references, so the map holds one entry per
+ * provider in use.
+ *
+ * The GENERATION of a dropped provider is deliberately KEPT: the counter must
+ * never go backwards, because a verification in flight for a configuration that
+ * was dropped and later re-created must still be recognised as stale. Pruning
+ * it would let a re-created configuration reuse a generation an old attempt
+ * carries.
+ */
 function pruneProviderConfigs(connect: WizardConnectState): WizardConnectState {
   const referenced = new Set(
     CONNECTION_ROLES.map((role) => connect[role].providerId).filter(
@@ -122,6 +180,9 @@ export function writeProviderConfig(
   const next: WizardConnectState = {
     ...connect,
     providerConfigs: { ...connect.providerConfigs, [providerId]: config },
+    // The write's generation: every verification in flight for this provider —
+    // from either card — is about a configuration that no longer exists.
+    providerConfigGenerations: bumpConfigGeneration(connect, providerId),
   };
   for (const role of rolesForProvider(connect, providerId)) {
     next[role] = {
@@ -153,13 +214,19 @@ export function selectProvider(
 ): WizardConnectState {
   const shared =
     providerId !== null && connect[otherRole(role)].providerId === providerId;
-  const providerConfigs =
-    providerId === null || shared
-      ? connect.providerConfigs
-      : { ...connect.providerConfigs, [providerId]: {} };
+  // A fresh provider's configuration entry is created EMPTY, which is still a
+  // write to it: a verification of that provider in flight on the other card
+  // asked about a configuration this selection just replaced.
+  const writesConfig = providerId !== null && !shared;
+  const providerConfigs = writesConfig
+    ? { ...connect.providerConfigs, [providerId]: {} }
+    : connect.providerConfigs;
   return pruneProviderConfigs({
     ...connect,
     providerConfigs,
+    ...(writesConfig
+      ? { providerConfigGenerations: bumpConfigGeneration(connect, providerId) }
+      : {}),
     [role]: {
       providerId,
       // A different provider is unverified evidence until it is verified:

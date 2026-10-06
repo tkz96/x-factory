@@ -39,6 +39,7 @@ import {
 } from "../providers/registry.js";
 import { getRunRepository } from "../runs.js";
 import {
+  assertLegacyTrackerUsable,
   createProjectFromConnections,
   updateProjectConnections,
 } from "../services/project-creation.js";
@@ -79,10 +80,19 @@ async function handleCreateProject(
         // The validated union's own discrimination decides the path (#131):
         // a payload that satisfies the normalized connections branch creates
         // through it; everything else keeps the legacy configuration path.
-        const saved = isConnectionsProjectInput(body)
-          ? await createProjectFromConnections(body, { registry })
-          : await createProject(body);
-        return jsonResponse(saved, 201);
+        if (isConnectionsProjectInput(body)) {
+          return jsonResponse(
+            await createProjectFromConnections(body, { registry }),
+            201,
+          );
+        }
+        // The legacy path is gated BEFORE its write (#133 correction 1): a
+        // legacy record's git host IS its repository, so the connection-array
+        // form of the role rule does not apply to it — but a project whose
+        // tracker names nothing the registry can serve must not be created in
+        // the first place, on either branch.
+        assertLegacyTrackerUsable(body.issueTracker, registry);
+        return jsonResponse(await createProject(body), 201);
       }),
     "Invalid JSON for project creation.",
   );
@@ -583,6 +593,19 @@ async function resolveScopeDiagnosticProvider(
   return recorded ? getProvider(recorded, registry) : undefined;
 }
 
+/**
+ * Why a scope diagnostic resolved no provider — accurate for the request that
+ * was actually sent. A body that named an UNREGISTERED provider is not told to
+ * "pass an explicit providerId": it did, and that id is the problem.
+ */
+function scopeResolutionError(data: Record<string, unknown>): string {
+  const requested = data.providerId;
+  if (typeof requested === "string" && requested.trim()) {
+    return `No tracker connection resolved for scope verification: no provider "${requested.trim()}" is registered.`;
+  }
+  return "No tracker connection resolved for scope verification: pass a projectId with a registered tracker connection, or an explicit providerId.";
+}
+
 async function handleTestProviderScopes(
   req: Request,
   registry: ProviderRegistry,
@@ -595,9 +618,7 @@ async function handleTestProviderScopes(
         return jsonResponse({
           ok: false,
           scopes: {},
-          errors: [
-            "No tracker connection resolved for scope verification: pass a projectId with a registered tracker connection, or an explicit providerId.",
-          ],
+          errors: [scopeResolutionError(data)],
         });
       }
       if (!hasCapability(provider, "verifyScopes")) {

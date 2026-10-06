@@ -7,6 +7,7 @@ import type {
 } from "../types.js";
 import {
   applyProviderMatch,
+  configGeneration,
   selectProvider,
   writeProviderConfig,
 } from "./connectConfig.js";
@@ -111,24 +112,28 @@ export function wizardReducer(
       };
     }
 
-    case "UPDATE_CONNECT": {
+    case "RECORD_VERIFICATION": {
+      const { connect } = state;
+      // THE staleness guard for a verification that came back late (correction
+      // 1, #133). The generation is the authoritative configuration's own, so a
+      // write from EITHER card invalidates the attempt — the asking card's own
+      // counter cannot see its partner's write. The role must still name the
+      // provider too: evidence belongs to the connection it was obtained for.
+      if (connect[action.role].providerId !== action.providerId) {
+        return state;
+      }
+      if (configGeneration(connect, action.providerId) !== action.generation) {
+        return state;
+      }
       return {
         ...state,
         connect: {
-          ...state.connect,
-          ...action.patch,
-          tracker: action.patch.tracker
-            ? {
-                ...state.connect.tracker,
-                ...action.patch.tracker,
-              }
-            : state.connect.tracker,
-          gitHost: action.patch.gitHost
-            ? {
-                ...state.connect.gitHost,
-                ...action.patch.gitHost,
-              }
-            : state.connect.gitHost,
+          ...connect,
+          [action.role]: {
+            ...connect[action.role],
+            verified: action.verified,
+            unconfirmedCapabilities: action.unconfirmedCapabilities,
+          },
         },
       };
     }

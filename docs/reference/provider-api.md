@@ -15,9 +15,11 @@ The provider API surface implements the HTTP boundary between the provider syste
               ↓
   Provider HTTP Controllers
               ↓
-  GET /api/providers/manifest
+  GET  /api/providers/manifest
   POST /api/providers/verify
   POST /api/providers/parse-url
+  POST /api/providers/repositories
+  POST /api/providers/describe
 ```
 
 ### Core Invariants
@@ -229,6 +231,73 @@ it names the connection role the repositories are listed under.
 
 ---
 
+### E. POST /api/providers/describe
+
+The connection's identity as its provider describes it (spec #133 story 34). This
+is the ONLY way a surface learns an identity: the provider composes it from its
+own configuration (`"owner/repo"`, `"acme.atlassian.net/ROCK"`), and the wizard,
+the project card, the project detail view and the settings registry all render
+the answer the same way, as `displayName (identity)`.
+
+The route exists so a surface can render that string **without knowing what a
+provider is**: it is driven by the optional `describeConnection` capability, and
+there is no provider name anywhere on the path.
+
+#### Capability
+
+`describeConnection(config: ProviderConfig): string | null` — declared in
+`CAPABILITIES` (`src/providers/contract.ts`) and implemented by each provider
+module. It is TOTAL by contract: it never throws, and it reads only the
+NON-SECRET coordinates of a connection (`src/providers/connection-identity.ts`
+holds the shared field/URL/join helpers). A provider that does not declare the
+capability is not an error — it simply has no identity to publish.
+
+#### Request Body
+
+```json
+{
+  "providerId": "github",
+  "config": { "repoOwner": "octo-org", "repository": "rocket" }
+}
+```
+
+**Secret-free by construction (#133 correction 1).** A credential travels
+exactly once, in the creation request; this read is not a second occasion. A
+surface builds the body from the connection's NON-SECRET fields — the frontend
+projects each connection through the manifest's own `secret` declarations before
+asking (`identityConfig`) — and the server refuses a request that brings a
+declared secret VALUE anyway. The route therefore never parses the configuration
+against the full provider schema: that gate demands credentials (GitHub's schema
+requires `token`), and a secret-free configuration would fail it and take the
+identity down with it. The identity is composed from what the request DOES
+carry, which is why a partial-but-identifying configuration answers rather than
+degrading.
+
+#### Response Shape
+
+- **Described (`200 OK`)**: `{ "providerId": "github", "identity": "octo-org/rocket" }`
+- **Nothing to describe (`200 OK`)**: `{ "providerId": "stub", "identity": null }` —
+  the provider declares no `describeConnection` capability, or the configuration
+  identifies nothing (an empty part is reported as absent, never rendered as
+  `"Name ()"`), or the capability threw despite its contract. Describing a
+  connection blocks nothing, so a non-answer is never an error a user sees: the
+  surface renders the plain display name.
+- **Transport (`400 Bad Request`)**: malformed JSON, missing `providerId`, or a
+  non-object `config`.
+- **Semantic (`409 Conflict`, codes only)**:
+  - Unknown provider: `{ "formErrors": ["UNKNOWN_PROVIDER"] }`
+  - Role the provider does not declare: `{ "formErrors": ["INCOMPATIBLE_CONFIGURATION"] }`
+  - A declared secret field carrying a value:
+    `{ "formErrors": ["SECRET_NOT_ACCEPTED"] }` — the refusal names no field and
+    echoes no value, and the request is never handed to the capability.
+
+The payload carries no provider-generated message, and never a configuration
+value beyond the identity the provider composed. `test/provider-describe-api.test.ts`
+asserts the raw response bytes, and `test/connection-identity-hook.test.tsx`
+asserts the secret-free body for each of GitHub, Azure and Jira.
+
+---
+
 ## 4. End-to-End Curl Demo with Stub Provider
 
 Run the demo script or execute curl requests against a running server:
@@ -268,6 +337,11 @@ curl -s -X POST http://localhost:3777/api/providers/repositories \
       "project": "acme-app"
     }
   }'
+
+# 5. Connection identity (presentation-only, secret-free: no credential here)
+curl -s -X POST http://localhost:3777/api/providers/describe \
+  -H "Content-Type: application/json" \
+  -d '{"providerId": "github", "config": {"repoOwner": "acme", "repository": "web"}}'
 ```
 
 ---
@@ -292,13 +366,31 @@ reported, each asserted under its rule name) and positive fixtures (provider-zon
 paths, the audited allowlist, a test-fixture path, and a generic consumer that
 does capability dispatch, dynamic lookup, and `Headers.get("content-type")`).
 
-One precision boundary is recorded rather than hidden: a record literal KEYED by
-provider ids (`{ azure: matchAzure, github: matchGitHub }`) is data, not
-branching, and is not reported — using a provider id to select from such a table
-is. The single instance outside the provider zone
-(`src/shared/project-identity.ts`) cannot delegate to the provider registry:
-`.fallowrc.json` lets `shared` import nothing and `frontend` import only
-`shared`, and the duplicate check runs in the browser.
+Two details bound what the gate can hide and what it can see:
+
+- **Import rules read the whole file, and exemptions name rules.** Import
+  specifiers are extracted over the file's content, not line by line, so a
+  house-style WRAPPED import (`import {` / `githubProvider,` /
+  `} from "../providers/github-module.js"`) is reported exactly like a
+  single-line one; the specifier alone is tested, so a comment mentioning a path
+  never trips a rule. An allowlist entry exempts the rules it NAMES and nothing
+  else — the one entry (`frontend/views/DocsView.tsx`, whose docs URL slug
+  selects which static security article renders) covers the switch/copy
+  selection only, and a provider lookup or provider-module import in that file is
+  reported like anywhere else. A file-level "skip everything" exemption is not
+  expressible.
+
+- **Recorded precision boundaries.** A record literal KEYED by provider ids
+  (`{ azure: matchAzure, github: matchGitHub }`) is data, not branching, and is
+  not reported — using a provider id to select FROM such a table is. The gate
+  also does not see provider-id PROPERTY ACCESS (`p.issueTracker?.azure`): that
+  shape appears legitimately in the legacy tracker view
+  (`src/config-schema.ts`, `src/providers/project-config.ts`) and in
+  `src/shared/project-identity.ts`, which cannot delegate to the provider
+  registry because `.fallowrc.json` lets `shared` import nothing while the
+  duplicate check runs in the browser. Both limits are recorded rather than
+  hidden: the gate is a text scanner over shipped source, and a rule for either
+  shape would report far more legitimate code than it would catch.
 
 ### PR creation is API-only
 `createPullRequest` and `findExistingPullRequest` execute **REST API calls with
@@ -371,9 +463,30 @@ Review (#146):
   once when both roles are missing, so one rejection teaches both gaps). A
   project the post-creation integrity surface would immediately flag as broken
   therefore cannot be created in the first place. The same rule applies to a
-  connection update, checked against the **merged** result. The legacy
-  configuration path is unaffected — it accepts a body with `issueTracker` and no
-  `connections`.
+  connection update, checked against the **merged** result. A connections payload
+  covering only ONE role is rejected on create **and** on update — a tracker-only
+  set reports `MISSING_GIT_HOST_CONNECTION` and a git-host-only set reports
+  `MISSING_TRACKER_CONNECTION`, neither is silently completed.
+- **A body with no `connections` array must name a usable tracker too.** Such a
+  body — the legacy configuration shape, whether it carries `repositoryPath`
+  alone or an explicit `repositories` array — is not exempt from the
+  "a created project must be operable" rule; it is the same rule in the form that
+  body can express, and it is applied to the SAME payloads: a git-host-only or
+  tracker-only *connections* payload is still rejected with the codes above, and
+  a body with no tracker identity is rejected by this one. A legacy record has no
+  connection set by design, because its git host IS its repository:
+  `repositoryPath` plus that repository's remote. What it must supply is an
+  `issueTracker` naming a tracker the registry can serve, named either explicitly
+  (`issueTracker.provider`, or its historical alias `connectionId`) or implicitly
+  by the namespaced view the configuration lives under (`{ "azure": { … } }`,
+  `{ "jira": { … } }`, `{ "github": { … } }` — the keying `deriveIssueTracker`
+  writes). A body that names none is rejected before any write with
+  `{ formErrors: ["MISSING_TRACKER_CONNECTION"] }` — the same code the
+  connections path reports — so a record whose tracker would only be the legacy
+  default cannot be created through the API any more. A named provider that is
+  not registered is `UNKNOWN_PROVIDER`; one that is registered but cannot serve
+  the tracker role, or cannot `listTickets`, is `INCOMPATIBLE_CONFIGURATION`.
+  Neither branch writes a secret for a rejected request.
 - `gitIdentity` is a project-level field — never nested inside a connection.
 - Secret values ride inline in `config` exactly once. The response, the events,
   the diagnostics and the structured logs never echo them, and the stored project
@@ -405,14 +518,34 @@ No provider conditional exists in this path.
 
 ### Ordered writes (crash safety)
 
-1. Validate the complete request in memory: transport shape (zod) → provider
-   config schema → role/capability compatibility → duplicate id.
-2. Write secrets to env storage (`saveProjectEnv`, idempotent — a retry
-   converges by overwriting).
-3. Append the project record last, as the commit point.
+The shipped sequence for a creation from the normalized connections payload, with
+the role-coverage gate (#133) and the per-id creation claim in place:
 
-A crash between (2) and (3) leaves a benign orphaned env file and no project; a
-failure during (2) leaves neither. A project can never exist without its secrets.
+1. **Validate the complete request in memory** — transport shape (zod) → provider
+   config schema → role/capability compatibility → required-role coverage →
+   duplicate providers. Pure, so it runs OUTSIDE the claim: an invalid payload
+   must not contend for one, and no secret is written for a request that will be
+   rejected.
+2. **Take the per-id creation claim** (`withCreationClaim`), then **re-check the
+   duplicate id** inside it. The claim is what makes the sequence safe against a
+   concurrent creation of the SAME id: without it two creations both pass an
+   in-memory duplicate check, both write secrets, and only then does one lose the
+   record append — leaving the winner's secret overwritten by the loser's
+   values. The claim files live under `getLocksDir()` (`~/.x-factory/locks/`,
+   `X_FACTORY_DATA_DIR`-relative) as `create-<readable-id>-<digest>.claim`, one
+   per candidate id, released when the
+   create returns or throws; a holder that outlives the TTL is reclaimable, and
+   that residual is documented in `src/services/creation-claim.ts`. A claim not
+   taken within the wait bound is reported as the same 409 as the duplicate.
+3. **Write secrets to env storage** (`saveProjectEnv`, idempotent — a retry
+   converges by overwriting).
+4. **Append the project record last**, as the commit point.
+5. **Release the claim.**
+
+A crash between (3) and (4) leaves a benign orphaned env file and no project; a
+failure during (3) leaves neither. A project can never exist without its secrets.
+A body without a `connections` array (the legacy shape) takes the same ordered
+write through `createProject`, after the tracker gate above.
 
 ### Error channels
 
@@ -422,12 +555,40 @@ failure during (2) leaves neither. A project can never exist without its secrets
 | Unknown provider id | 409 | `{ formErrors: ["UNKNOWN_PROVIDER"] }` |
 | Provider config schema | 409 | `{ fieldErrors: { field: "REQUIRED" \| "INVALID" } }` |
 | Role/capability mismatch, duplicate provider, knowledge-only repositories | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
-| Connection set covers only one role (create), or the merged set would after an update | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
+| Connection set covers only one role (create), the merged set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
 
 Codes only — provider and zod messages never cross the boundary. Upstream
 failures use the separate `ProviderError` envelope.
+
+### Scope diagnostic (`POST /api/projects/test-azure-scopes`)
+
+The route keeps its historical provider-named PATH; its RESOLUTION names no
+provider (#141). The provider a diagnostic runs against is resolved in this
+order, and nothing else is consulted:
+
+1. an explicit `providerId` in the body, which must be registered;
+2. otherwise the tracker connection recorded on the body's `projectId`;
+3. otherwise nothing resolves, and the request is answered with the honest
+   `{ ok: false, scopes: {}, errors: ["No tracker connection resolved …"] }`
+   copy.
+
+The resolved provider is then dispatched through
+`hasCapability(provider, "verifyScopes")`: a provider that does not declare the
+capability is reported as a capability gap in provider-agnostic copy, never
+substituted for, and a provider that does declare it answers with the findings
+for its own capabilities.
+
+The historical Azure-shaped body (`{ orgUrl, project, pat }`) names NEITHER a
+provider nor a project, so it resolves nothing and is answered as unresolved —
+the route does not fall back to a provider-shaped body, because a generic
+consumer must not branch on a concrete provider identity. A client that wants a
+diagnostic for a specific connection sends `providerId` or `projectId`
+(`src/http/openapi.ts` documents the accepted body, with the registry's real id
+as the example). `test/provider-scope-diagnostics.test.ts` covers the resolution
+order and the gap copy against an injected registry; `test/integration.test.ts`
+covers both outcomes against the shipped one.
 
 ### Secret update semantics
 

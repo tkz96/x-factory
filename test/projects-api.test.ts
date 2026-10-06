@@ -85,10 +85,13 @@ describe("Project Onboarding & Management APIs", () => {
   });
 
   it("POST /api/projects rejects duplicate project creation with 409 Conflict", async () => {
+    // The payload names a tracker: without one it is rejected before the write
+    // it is here to duplicate, so it would never reach the conflict it tests.
     const payload = {
       id: testProjectId,
       name: "Duplicate Product",
       workspacePath: tempDir,
+      issueTracker: { connectionId: "azure", projectId: "duplicate-project" },
       repositories: [
         {
           id: `${testProjectId}-web`,
@@ -127,6 +130,13 @@ describe("Project Onboarding & Management APIs", () => {
           id: "proj-malformed-test",
           name: "Malformed Product",
           workspacePath: tempDir,
+          // A tracker is named so the request reaches the malformed config file
+          // rather than being rejected for the missing tracker it no longer may
+          // be created without.
+          issueTracker: {
+            connectionId: "azure",
+            projectId: "malformed-project",
+          },
           repositories: [
             {
               id: `proj-malformed-test-repo`,

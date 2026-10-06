@@ -11,14 +11,10 @@ import "./ProjectCard.css";
 
 import { Link, useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
-import { useConnectionIdentities } from "../../hooks/useConnectionIdentity.js";
+import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
-import {
-  comboTone,
-  identitiesByRole,
-  withConnectionIdentities,
-} from "../connections/connection-state.js";
+import { comboTone } from "../connections/connection-state.js";
 import {
   CONNECTIONS_COPY,
   PROJECT_CARD_COPY,
@@ -27,9 +23,9 @@ import {
 import { RetryAction } from "../feedback/RetryAction.js";
 import {
   comboSlots,
-  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
+  recordedConnectionIdentityTargets,
 } from "./connection-integrity.js";
 
 interface ProjectCardProps {
@@ -43,12 +39,11 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
 
   const repoCount = (project.repositories || []).length;
   const integrity = deriveConnectionIntegrity(project, descriptors);
-  // The provider's own identity for each connection (#133 story 34).
-  const identityTargets = connectionIdentityTargets(integrity);
-  const identityLookup = useConnectionIdentities(identityTargets);
-  const slots = withConnectionIdentities(
+  // The provider's own identity for each connection (#133 story 34): ONE wiring
+  // call, from the line's slots and the reads they need.
+  const slots = useConnectionLine(
     comboSlots(integrity),
-    identitiesByRole(identityTargets, identityLookup),
+    recordedConnectionIdentityTargets(integrity, undefined, descriptors),
   );
   const displayPath =
     project.workspacePath ||

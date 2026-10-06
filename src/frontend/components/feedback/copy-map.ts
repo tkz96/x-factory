@@ -368,6 +368,8 @@ export const VALIDATION_FORM_ERROR_COPY: Readonly<Record<string, string>> = {
   UNKNOWN_PROVIDER: "Unknown provider. Please select a registered provider.",
   INCOMPATIBLE_CONFIGURATION:
     "Incompatible configuration for the selected provider role.",
+  SECRET_NOT_ACCEPTED:
+    "A credential was sent with a request that must not carry one. Connections are identified by their non-secret settings only.",
   MISSING_TRACKER_CONNECTION:
     "An issue tracker connection is required. Add one on the Connect step — X-Factory does not create tracker-less projects.",
   MISSING_GIT_HOST_CONNECTION:

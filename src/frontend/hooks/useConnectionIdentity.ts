@@ -24,21 +24,64 @@
 // projects on the same provider never share an identity that way.
 
 import { useQueries } from "@tanstack/react-query";
+// The ONE definition of a presentable identity, shared with the route that
+// publishes it: a provider that reports nothing shows nothing, on either side.
+import { presentableIdentity } from "../../shared/connection-identity.js";
 import type {
+  ConnectionComboSlot,
   ConnectionIdentityLookup,
   ConnectionIdentityTarget,
+} from "../components/connections/connection-state.js";
+import {
+  identitiesByRole,
+  withConnectionIdentities,
 } from "../components/connections/connection-state.js";
 import { api } from "../lib/api-client.js";
 import { connectionConfigFingerprint } from "../lib/connection-fingerprint.js";
 import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
 
-/** The identity as the surfaces render it: a non-empty string, or nothing. */
-function presentableIdentity(
-  identity: string | null | undefined,
-): string | null {
-  return typeof identity === "string" && identity.trim() !== ""
-    ? identity.trim()
-    : null;
+/**
+ * The identity wiring of ONE line, as ONE call: the line's slots in, the same
+ * slots out with each role's provider-owned identity attached.
+ *
+ * This is the only place the three-step wiring lives (the targets a surface
+ * derived → the read → attaching the answers to the slots). Every surface calls
+ * it — the wizard's Review step with the slots it derives from draft evidence,
+ * the post-creation surfaces with the slots they derive from a project's record
+ * — so no surface can wire it differently and no surface can forget the
+ * read: a line is always rendered with the identities that were actually
+ * fetched for it.
+ */
+export function useConnectionLine(
+  slots: readonly ConnectionComboSlot[],
+  targets: readonly ConnectionIdentityTarget[],
+): ConnectionComboSlot[] {
+  const lookup = useConnectionIdentities(targets);
+  return withConnectionIdentities(slots, identitiesByRole(targets, lookup));
+}
+
+/** One line's inputs: the slots a surface renders, and the reads they need. */
+export interface ConnectionLine {
+  readonly slots: readonly ConnectionComboSlot[];
+  readonly targets: readonly ConnectionIdentityTarget[];
+}
+
+/**
+ * The identity wiring of MANY lines in ONE batched read — the settings registry
+ * renders a line per project and must not make one round of requests per row.
+ * The batching rule (every line's targets in one call, each line taking its own
+ * answers back) consequently lives here too, rather than in that one surface.
+ */
+export function useConnectionLines(
+  lines: readonly ConnectionLine[],
+): ConnectionComboSlot[][] {
+  const lookup = useConnectionIdentities(lines.flatMap((line) => line.targets));
+  return lines.map((line) =>
+    withConnectionIdentities(
+      line.slots,
+      identitiesByRole(line.targets, lookup),
+    ),
+  );
 }
 
 /**
@@ -49,6 +92,10 @@ function presentableIdentity(
  * — one connection serving both roles — asks once and shows the same identity
  * for both. A role the hook cannot answer for renders the plain display name;
  * asking is never allowed to break a surface.
+ *
+ * Surfaces do not call this directly: they call `useConnectionLine`, which owns
+ * the whole wiring. It is exported because it is the seam the wiring is tested
+ * through.
  */
 export function useConnectionIdentities(
   targets: readonly ConnectionIdentityTarget[],

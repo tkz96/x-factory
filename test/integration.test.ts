@@ -239,16 +239,23 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     });
   });
 
-  describe("Azure Scope Diagnostics API", () => {
-    it("POST /api/projects/test-azure-scopes returns diagnostic structure", async () => {
+  describe("Scope Diagnostics API (the historical `test-azure-scopes` route)", () => {
+    // The route's path keeps the historical provider-named name; its RESOLUTION
+    // does not (correction: #141). The accepted body is
+    // `{ providerId? , projectId?, …provider config }` — an explicit providerId
+    // wins, otherwise the project's recorded tracker connection decides
+    // (`docs/reference/provider-api.md`). The historical Azure-shaped body names
+    // NEITHER, so it resolves nothing and is answered as such.
+    it("resolves the provider the request names and reports that provider's scope outcome", async () => {
+      // A registered tracker provider that ships WITHOUT `verifyScopes`: the
+      // diagnostic resolved it, asked for the capability, and reported the gap
+      // honestly — which is a real outcome, not a silent non-answer.
       const res = await fetch(`${baseUrl}/api/projects/test-azure-scopes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgUrl: "",
-          project: "",
-        }),
+        body: JSON.stringify({ providerId: "jira" }),
       });
+
       expect(res.status).toBe(200);
       const data = (await res.json()) as {
         ok: boolean;
@@ -257,7 +264,31 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       };
       expect(data.ok).toBe(false);
       expect(data).toHaveProperty("scopes");
-      expect(data).toHaveProperty("errors");
+      expect(data.scopes).toEqual({});
+      expect(data.errors).toEqual([
+        "The resolved tracker provider does not support scope verification.",
+      ]);
+      // Provider-agnostic: the copy names the gap, never the provider.
+      expect(JSON.stringify(data).toLowerCase()).not.toContain("jira");
+    });
+
+    it("reports an unresolved diagnostic for a body that names no provider and no project", async () => {
+      for (const body of [
+        {},
+        { orgUrl: "", project: "", pat: "synthetic-pat" },
+      ]) {
+        const res = await fetch(`${baseUrl}/api/projects/test-azure-scopes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as { ok: boolean; errors: string[] };
+        expect(data.ok).toBe(false);
+        expect(data.errors[0]).toContain("No tracker connection resolved");
+        expect(JSON.stringify(data).toLowerCase()).not.toContain("azure");
+      }
     });
   });
 });

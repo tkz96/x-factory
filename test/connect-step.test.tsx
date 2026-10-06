@@ -1357,6 +1357,62 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
     });
 
+    it("P1 (c): CROSS-CARD race guard — a verification in flight on ONE card is discarded when the OTHER card writes the shared configuration", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      // One provider, both roles: ONE authoritative configuration, written by
+      // either card and read by both.
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "dual-service" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "dual-service" },
+        });
+      });
+
+      await typeInput(
+        getEl<HTMLInputElement>("tracker-serviceUrl"),
+        "https://a.example.com",
+      );
+      await typeInput(getEl<HTMLInputElement>("gitHost-pat"), "pat-1");
+
+      // The TRACKER card starts a verification, and it stays in flight.
+      let resolveVerify!: (val: VerificationResult) => void;
+      api.providers.verify = mock(
+        async () =>
+          new Promise<VerificationResult>((resolve) => {
+            resolveVerify = resolve;
+          }),
+      );
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+      });
+
+      // While it is in flight, the GIT HOST card — the OTHER card, writing the
+      // SAME provider's one configuration — changes the credential. The
+      // configuration the tracker asked about no longer exists on record.
+      await typeInput(getEl<HTMLInputElement>("gitHost-pat"), "pat-2");
+
+      // The tracker's verification now resolves, for that replaced
+      // configuration.
+      await act(async () => {
+        resolveVerify({ status: "ok" as const, warnings: [] });
+      });
+
+      // The late resolve must not record evidence: the tracker verified a
+      // configuration only the OTHER card changed, so Review must not be able
+      // to submit that one connection carrying a configuration ONE role
+      // verified.
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
+
     it("P1 (b): Quick-URL race guard — stale parse result discarded if provider changed in flight & UI disabled while parsing", async () => {
       setupStep2Draft();
       renderWizard();

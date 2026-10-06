@@ -6,21 +6,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
-import {
-  comboTone,
-  identitiesByRole,
-  withConnectionIdentities,
-} from "../components/connections/connection-state.js";
+import { comboTone } from "../components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
 import {
   comboSlots,
-  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
+  recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
 import { useModal } from "../context/ModalContext.js";
-import { useConnectionIdentities } from "../hooks/useConnectionIdentity.js";
+import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import {
   useDiagnostics,
@@ -221,8 +217,15 @@ function ConnectionsTabContent({
     project,
     integrity: deriveConnectionIntegrity(project, descriptors),
   }));
-  const identityLookup = useConnectionIdentities(
-    rows.flatMap((row) => connectionIdentityTargets(row.integrity)),
+  const slotsByRow = useConnectionLines(
+    rows.map((row) => ({
+      slots: comboSlots(row.integrity),
+      targets: recordedConnectionIdentityTargets(
+        row.integrity,
+        undefined,
+        descriptors,
+      ),
+    })),
   );
 
   return (
@@ -271,14 +274,8 @@ function ConnectionsTabContent({
                 </td>
               </tr>
             ) : (
-              rows.map(({ project: p, integrity }) => {
-                const slots = withConnectionIdentities(
-                  comboSlots(integrity),
-                  identitiesByRole(
-                    connectionIdentityTargets(integrity),
-                    identityLookup,
-                  ),
-                );
+              rows.map(({ project: p, integrity }, index) => {
+                const slots = slotsByRow[index] ?? [];
 
                 return (
                   <tr key={p.id}>

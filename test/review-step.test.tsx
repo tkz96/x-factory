@@ -1127,15 +1127,20 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     );
 
     // The read came from `connect.providerConfigs`, one entry per provider —
-    // and the secret that travelled in it is nowhere on the line.
-    expect(
-      describedCalls.find((call) => call.providerId === "generic-tracker")
-        ?.config,
-    ).toEqual({ endpointHost: TRACKER_HOST });
-    expect(
-      describedCalls.find((call) => call.providerId === "generic-githost")
-        ?.config,
-    ).toEqual({ gitUrl: GIT_URL, token: GIT_HOST_SECRET });
+    // and it carries the NON-SECRET fields only (#133 correction 1). The
+    // credential the user typed stays in the draft: the identity of a
+    // connection is composed from coordinates that are not credentials, and
+    // the server refuses a read that brings one.
+    const trackerCall = describedCalls.find(
+      (call) => call.providerId === "generic-tracker",
+    );
+    expect(trackerCall?.config).toEqual({ endpointHost: TRACKER_HOST });
+    const gitHostCall = describedCalls.find(
+      (call) => call.providerId === "generic-githost",
+    );
+    expect(gitHostCall?.config).toEqual({ gitUrl: GIT_URL });
+    expect(JSON.stringify(describedCalls)).not.toContain(GIT_HOST_SECRET);
+    expect(JSON.stringify(describedCalls)).not.toContain(DUAL_SERVICE_PAT);
     expect(getEl("combo-summary").textContent).not.toContain(GIT_HOST_SECRET);
   });
 

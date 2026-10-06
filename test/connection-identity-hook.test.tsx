@@ -28,9 +28,15 @@ import React from "react";
 import {
   type ConnectionIdentityTarget,
   identitiesByRole,
+  identityConfig,
 } from "../src/frontend/components/connections/connection-state.js";
+import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import { useConnectionIdentities } from "../src/frontend/hooks/useConnectionIdentity.js";
 import { api } from "../src/frontend/lib/api-client.js";
+import { azureProvider } from "../src/providers/azure-module.js";
+import { githubProvider } from "../src/providers/github-module.js";
+import { jiraProvider } from "../src/providers/jira-module.js";
+import { serializeProvider } from "../src/providers/serializer.js";
 
 const ORIGINAL_DESCRIBE = api.providers.describe;
 
@@ -309,5 +315,124 @@ describe("useConnectionIdentities — one read, per connection configuration", (
     );
     expect(keys).not.toContain(CONFIG_SECRET_MARKER);
     expect(keys).toContain("identity");
+  });
+});
+
+describe("the identity read is SECRET-FREE by construction (#133 correction 1)", () => {
+  // The three shipped providers, as the manifest publishes them. The projection
+  // is driven by the descriptor's own `secret` declarations, so this test uses
+  // the REAL descriptors rather than a fixture: a provider that starts declaring
+  // a field secret is covered here with no edit.
+  const descriptors: ProviderDescriptor[] = [
+    githubProvider,
+    azureProvider,
+    jiraProvider,
+  ].map((provider) => {
+    const descriptor = serializeProvider(provider);
+    if (descriptor === null) {
+      throw new Error(`no descriptor for ${provider.id}`);
+    }
+    return {
+      ...descriptor,
+      capabilities: [...descriptor.capabilities],
+    } satisfies ProviderDescriptor;
+  });
+
+  const SECRET = "tok_identity_projection_marker_08af";
+
+  /** Each provider's connection: its real coordinates AND its real credential. */
+  const connections = [
+    {
+      providerId: "github",
+      secretField: "token",
+      config: { token: SECRET, repoOwner: "octo-org", repository: "rocket" },
+      kept: { repoOwner: "octo-org", repository: "rocket" },
+    },
+    {
+      providerId: "azure",
+      secretField: "pat",
+      config: {
+        pat: SECRET,
+        orgUrl: "https://dev.azure.com/acme",
+        project: "MyProject",
+      },
+      kept: { orgUrl: "https://dev.azure.com/acme", project: "MyProject" },
+    },
+    {
+      providerId: "jira",
+      secretField: "apiToken",
+      config: {
+        apiToken: SECRET,
+        host: "https://acme.atlassian.net",
+        project: "ROCK",
+      },
+      kept: { host: "https://acme.atlassian.net", project: "ROCK" },
+    },
+  ];
+
+  it.each(connections)(
+    "sends only $providerId's non-secret fields — the credential stays in the draft",
+    async (connection) => {
+      const calls = installDescribe(({ providerId }) => ({
+        providerId,
+        identity: "described",
+      }));
+
+      // The target a surface builds from the configuration a user typed — the
+      // credential included — through the ONE projection.
+      const targets = [
+        {
+          role: "tracker" as const,
+          providerId: connection.providerId,
+          config: identityConfig(
+            connection.providerId,
+            connection.config,
+            descriptors,
+          ),
+        },
+      ];
+      const { getByTestId } = renderProbe(makeClient(), targets);
+
+      await waitFor(() => {
+        expect(getByTestId("identities").textContent).toContain("described");
+      });
+
+      expect(calls).toHaveLength(1);
+      const sent = calls[0]?.config ?? {};
+      // What remains is exactly the connection's non-secret configuration…
+      expect(sent).toEqual(connection.kept);
+      // …so the credential, its field NAME, and the raw marker are all absent
+      // from the request body the frontend actually sends.
+      expect(sent).not.toHaveProperty(connection.secretField);
+      expect(JSON.stringify(sent)).not.toContain(SECRET);
+    },
+  );
+
+  it("sends NOTHING for a provider the manifest has not declared, rather than a configuration whose secrets are unknown", async () => {
+    const calls = installDescribe(({ providerId }) => ({
+      providerId,
+      identity: null,
+    }));
+
+    const { getByTestId } = renderProbe(makeClient(), [
+      {
+        role: "tracker" as const,
+        providerId: "not-in-the-manifest",
+        config: identityConfig(
+          "not-in-the-manifest",
+          { host: "https://unknown.example", secret: SECRET },
+          descriptors,
+        ),
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    expect(calls[0]?.config).toEqual({});
+    expect(JSON.stringify(calls[0]?.config)).not.toContain(SECRET);
+    expect(getByTestId("identities").textContent).toBe(
+      '{"tracker":null,"gitHost":null}',
+    );
   });
 });

@@ -167,6 +167,22 @@ describe("scope diagnostic resolves its provider generically (#141)", () => {
     expect(JSON.stringify(data).toLowerCase()).not.toContain("azure");
   });
 
+  it("tells a body that named an UNREGISTERED provider exactly that, rather than repeating advice it already followed", async () => {
+    const { status, data } = await postScopes({
+      providerId: "no-such-provider",
+    });
+
+    expect(status).toBe(200);
+    expect(data.ok).toBe(false);
+    expect(data.scopes).toEqual({});
+    expect(data.errors).toEqual([
+      'No tracker connection resolved for scope verification: no provider "no-such-provider" is registered.',
+    ]);
+    // The advice to "pass an explicit providerId" would be false here: the
+    // caller did, and the id is the problem.
+    expect(data.errors?.[0]).not.toContain("pass a projectId");
+  });
+
   it("resolves nothing for a project id that is not recorded", async () => {
     await writeProject("proj-stub", "stub");
 

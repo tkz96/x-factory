@@ -11,7 +11,12 @@
 //   3. a configuration that identifies nothing is the same safe fallback;
 //   4. the payload never carries a provider-generated message, and never any
 //      byte of a secret or of a configuration value the provider did not
-//      choose to publish.
+//      choose to publish;
+//   5. the read is SECRET-FREE BY CONSTRUCTION (#133 correction 1): a
+//      configuration is composed from the NON-SECRET fields only — the route
+//      no longer gates on the full provider schema, which a secret-free
+//      configuration would fail — and a request that DOES carry a declared
+//      secret field value is refused, never described.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { azureProvider } from "../src/providers/azure-module.js";
@@ -99,14 +104,10 @@ function expectOnlyIdentityKeys(body: unknown): void {
 }
 
 describe("POST /api/providers/describe", () => {
-  it("publishes GitHub's owner/repo identity, never its token", async () => {
+  it("publishes GitHub's owner/repo identity from its NON-SECRET fields", async () => {
     const { status, raw, body } = await describeConnection({
       providerId: "github",
-      config: {
-        token: GITHUB_TOKEN_MARKER,
-        repoOwner: "octo-org",
-        repository: "rocket",
-      },
+      config: { repoOwner: "octo-org", repository: "rocket" },
     });
 
     expect(status).toBe(200);
@@ -115,14 +116,10 @@ describe("POST /api/providers/describe", () => {
     expectNoSecretBytes(raw);
   });
 
-  it("publishes Azure DevOps's organization/Project identity, never its PAT", async () => {
+  it("publishes Azure DevOps's organization/Project identity from its NON-SECRET fields", async () => {
     const { status, raw, body } = await describeConnection({
       providerId: "azure",
-      config: {
-        orgUrl: "https://dev.azure.com/acme",
-        project: "MyProject",
-        pat: AZURE_PAT_MARKER,
-      },
+      config: { orgUrl: "https://dev.azure.com/acme", project: "MyProject" },
     });
 
     expect(status).toBe(200);
@@ -131,15 +128,10 @@ describe("POST /api/providers/describe", () => {
     expectNoSecretBytes(raw);
   });
 
-  it("publishes Jira's host/project identity, never its token or email", async () => {
+  it("publishes Jira's host/project identity from its NON-SECRET fields", async () => {
     const { status, raw, body } = await describeConnection({
       providerId: "jira",
-      config: {
-        host: "https://acme.atlassian.net",
-        email: JIRA_EMAIL_MARKER,
-        apiToken: JIRA_TOKEN_MARKER,
-        project: "ROCK",
-      },
+      config: { host: "https://acme.atlassian.net", project: "ROCK" },
     });
 
     expect(status).toBe(200);
@@ -151,14 +143,60 @@ describe("POST /api/providers/describe", () => {
     expectNoSecretBytes(raw);
   });
 
+  // THE correction-1 property: credentials travel exactly once, in the creation
+  // request. A read that composes a display string is not a second occasion, so
+  // this route must work from the fields that are NOT secrets — and must refuse
+  // a request that brings one anyway.
+  it.each([
+    [
+      "github",
+      {
+        repoOwner: "octo-org",
+        repository: "rocket",
+        token: GITHUB_TOKEN_MARKER,
+      },
+      "token",
+    ],
+    [
+      "azure",
+      {
+        orgUrl: "https://dev.azure.com/acme",
+        project: "MyProject",
+        pat: AZURE_PAT_MARKER,
+      },
+      "pat",
+    ],
+    [
+      "jira",
+      {
+        host: "https://acme.atlassian.net",
+        project: "ROCK",
+        apiToken: JIRA_TOKEN_MARKER,
+      },
+      "apiToken",
+    ],
+  ])(
+    "refuses a %s request that carries its declared secret, and never echoes it",
+    async (providerId, config, secretField) => {
+      const { status, raw, body } = await describeConnection({
+        providerId,
+        config,
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["SECRET_NOT_ACCEPTED"] });
+      // Codes only: the refusal names no field, echoes no value, and publishes
+      // no identity composed from a request it refused.
+      expect(Object.keys(body as object)).toEqual(["formErrors"]);
+      expect(raw).not.toContain(secretField);
+      expectNoSecretBytes(raw);
+    },
+  );
+
   it("is a safe fallback — not an error — for a provider without the capability", async () => {
     const { status, raw, body } = await describeConnection({
       providerId: "stub",
-      config: {
-        host: "https://stub.example",
-        apiToken: GITHUB_TOKEN_MARKER,
-        project: "rocket",
-      },
+      config: { host: "https://stub.example", project: "rocket" },
     });
 
     expect(status).toBe(200);
@@ -170,35 +208,44 @@ describe("POST /api/providers/describe", () => {
   it("answers identity: null for a configuration that identifies nothing", async () => {
     const { status, body } = await describeConnection({
       providerId: "github",
-      // A token alone identifies no repository.
-      config: { token: GITHUB_TOKEN_MARKER },
+      config: { repoOwner: "   ", repository: "" },
     });
 
     expect(status).toBe(200);
     expect(body).toEqual({ providerId: "github", identity: null });
   });
 
-  it("answers identity: null — not the 409 field ladder — for a configuration its provider rejects", async () => {
-    // GitHub's schema requires a token; the ACTION routes report that as a 409
-    // fieldErrors envelope, while describing a connection blocks nothing and
-    // must never become a second error surface.
+  it("composes the identity from what it was given, without requiring the fields the schema demands", async () => {
+    // GitHub's schema requires a token. The ACTION routes report that as a 409
+    // fieldErrors envelope; this read does not run that gate at all (#133
+    // correction 1), because the credential it would demand is one the read is
+    // forbidden to receive. Half the coordinates still name the connection, and
+    // describing it blocks nothing.
     const { status, body } = await describeConnection({
       providerId: "github",
       config: { repoOwner: "octo-org" },
     });
 
     expect(status).toBe(200);
-    expect(body).toEqual({ providerId: "github", identity: null });
+    expect(body).toEqual({ providerId: "github", identity: "octo-org" });
+  });
+
+  it("ignores an EMPTY declared secret rather than refusing the request", async () => {
+    // A field the client cleared is not a credential being sent: the read is
+    // answered from the coordinates that remain.
+    const { status, body } = await describeConnection({
+      providerId: "github",
+      config: { repoOwner: "octo-org", repository: "rocket", token: "" },
+    });
+
+    expect(status).toBe(200);
+    expect(body).toEqual({ providerId: "github", identity: "octo-org/rocket" });
   });
 
   it("answers identity: null when the provider's capability throws, without publishing the thrown text", async () => {
     const { status, raw, body } = await describeConnection({
       providerId: "stub-throwing",
-      config: {
-        host: "https://stub.example",
-        apiToken: GITHUB_TOKEN_MARKER,
-        project: "rocket",
-      },
+      config: { host: "https://stub.example", project: "rocket" },
     });
 
     expect(status).toBe(200);
@@ -224,10 +271,7 @@ describe("POST /api/providers/describe", () => {
     const { status, body } = await describeConnection({
       providerId: "jira",
       role: "gitHost",
-      config: {
-        host: "https://acme.atlassian.net",
-        apiToken: JIRA_TOKEN_MARKER,
-      },
+      config: { host: "https://acme.atlassian.net" },
     });
 
     expect(status).toBe(409);

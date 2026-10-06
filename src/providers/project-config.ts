@@ -106,6 +106,52 @@ export const DEFAULT_ISSUE_TRACKER: ProjectIssueTracker = {
 };
 
 /**
+ * The provider id a LEGACY `issueTracker` record names, or `null` when it names
+ * none (#133 correction 1).
+ *
+ * A legacy record carries no `connections` array, so its tracker is named in one
+ * of exactly two ways, and this function reads both without knowing a provider
+ * by name:
+ *
+ *   * explicitly, as `provider` (or its historical alias `connectionId`);
+ *   * implicitly, by the NAMESPACED VIEW its configuration lives under — the
+ *     same keying `deriveIssueTracker` writes (`tracker[providerId] = config`),
+ *     so a hand-written `{ azure: {...} }` or `{ github: {...} }` view is read
+ *     as the id of that view's provider. A key the registry does not know is not
+ *     a tracker identity, so it is skipped.
+ *
+ * `null` means the record supplies no tracker identity at all, which is what the
+ * create path rejects: a project whose tracker is only the hand-written default
+ * is a project X-Factory cannot operate.
+ */
+export function legacyTrackerProviderId(
+  issueTracker: unknown,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): string | null {
+  if (typeof issueTracker !== "object" || issueTracker === null) {
+    return null;
+  }
+  const record = issueTracker as Record<string, unknown>;
+  for (const key of ["provider", "connectionId"] as const) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  for (const [key, view] of Object.entries(record)) {
+    if (
+      view !== null &&
+      typeof view === "object" &&
+      !Array.isArray(view) &&
+      registry.get(key) !== undefined
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
+/**
  * Derives the legacy `ProjectIssueTracker` view from the connection that
  * carries the `tracker` role (#145).
  *

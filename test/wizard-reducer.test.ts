@@ -3,6 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { connectionConfigFingerprint } from "../src/frontend/lib/connection-fingerprint.js";
 import {
+  configGeneration,
   providerConfig,
   roleConfig,
 } from "../src/frontend/wizard/state/connectConfig.js";
@@ -313,14 +314,33 @@ describe("Connect — one configuration per provider (correction 2, #133)", () =
     });
   }
 
-  /** Records a successful verification for a role, as the card's hook does. */
+  /**
+   * Records a successful verification for a role, as the card's hook does: the
+   * evidence is written through `RECORD_VERIFICATION` with the provider's
+   * CURRENT configuration generation, and the reducer accepts it only while that
+   * generation is still the one on record (correction 1, #133).
+   *
+   * This used to patch `verified: true` straight into the state through a
+   * generic `UPDATE_CONNECT`. That action no longer exists — the raw patch could
+   * also replace a provider's configuration while leaving the flag standing — so
+   * the helper drives the ONE transition the card has, which is what makes the
+   * assertions below evidence about the shipped path.
+   */
   function verified(
     state: WizardSourceState,
     role: "tracker" | "gitHost",
   ): WizardSourceState {
+    const providerId = state.connect[role].providerId;
+    if (providerId === null) {
+      throw new Error(`recordVerification: role ${role} names no provider`);
+    }
     return wizardReducer(state, {
-      type: "UPDATE_CONNECT",
-      patch: { [role]: { verified: true, unconfirmedCapabilities: [] } },
+      type: "RECORD_VERIFICATION",
+      role,
+      providerId,
+      generation: configGeneration(state.connect, providerId),
+      verified: true,
+      unconfirmedCapabilities: [],
     });
   }
 
@@ -507,5 +527,260 @@ describe("Connect — one configuration per provider (correction 2, #133)", () =
     expect(state.connect.tracker.verified).toBe(false);
     expect(state.connect.gitHost.verified).toBe(false);
     expect(state.connect.quickUrl).toBe("https://dev.example/proj");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The configuration GENERATION: the one staleness token for a verification in
+// flight (correction 1, #133).
+//
+// The defect these tests pin: the guard used to be a counter on the CARD, so a
+// verification started on one card was invalidated only by a write that card
+// itself made. When the PARTNER card wrote the shared configuration — the card
+// whose write the asking card's counter cannot see — a late resolve still
+// recorded `verified: true`, and Review could submit the one connection carrying
+// a configuration only ONE role had verified.
+//
+// The generation lives in the state, is bumped by every write to a provider's
+// configuration whoever made it, and is carried by the verification attempt. The
+// reducer records evidence only while the attempt's generation is current, so
+// the guard is a property of the state model rather than of one hook's ref.
+describe("Connect — the configuration generation guards a verification in flight (correction 1, #133)", () => {
+  const CONFIG = { serviceUrl: "https://dual.example", pat: "pat-a" };
+
+  /** Both roles on ONE provider, its configuration on record. */
+  function sharedProviderState(): WizardSourceState {
+    let state = createInitialWizardState();
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "tracker",
+      providerId: "dual",
+    });
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "gitHost",
+      providerId: "dual",
+    });
+    return wizardReducer(state, {
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: "dual",
+      config: CONFIG,
+    });
+  }
+
+  const dualGeneration = (state: WizardSourceState) =>
+    configGeneration(state.connect, "dual");
+
+  it("bumps a provider's generation on every write, and only for THAT provider", () => {
+    let state = sharedProviderState();
+    const afterWrite = dualGeneration(state);
+    expect(afterWrite).toBeGreaterThan(0);
+
+    // A write to another provider's configuration does not move this one.
+    state = wizardReducer(state, {
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: "generic-githost",
+      config: { gitUrl: "https://g.example" },
+    });
+    expect(dualGeneration(state)).toBe(afterWrite);
+    expect(configGeneration(state.connect, "generic-githost")).toBe(1);
+
+    // A write to THIS provider's configuration does — the counter belongs to
+    // the configuration, not to a card.
+    state = wizardReducer(state, {
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: "dual",
+      config: { ...CONFIG, pat: "pat-b" },
+    });
+    expect(dualGeneration(state)).toBe(afterWrite + 1);
+  });
+
+  it("discards a verification whose configuration was replaced by the OTHER card, and records nothing about it", () => {
+    let state = sharedProviderState();
+    // The TRACKER card's attempt, for the generation on record now.
+    const attemptGeneration = dualGeneration(state);
+
+    // The GIT HOST card writes the SAME provider's one configuration while that
+    // attempt is in flight.
+    state = wizardReducer(state, {
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: "dual",
+      config: { ...CONFIG, pat: "pat-from-the-other-card" },
+    });
+
+    // The attempt now resolves, for a configuration nobody submitted.
+    const afterLateResolve = wizardReducer(state, {
+      type: "RECORD_VERIFICATION",
+      role: "tracker",
+      providerId: "dual",
+      generation: attemptGeneration,
+      verified: true,
+      unconfirmedCapabilities: [],
+    });
+
+    // Nothing was recorded: not the flag, and not a stale payload — the tracker
+    // still holds only what the write left it with.
+    expect(afterLateResolve.connect.tracker.verified).toBe(false);
+    expect(afterLateResolve.connect.tracker.unconfirmedCapabilities).toEqual(
+      [],
+    );
+    // The guard returned the state it was given, untouched.
+    expect(afterLateResolve).toBe(state);
+  });
+
+  it("records a verification that still describes the configuration on record", () => {
+    let state = sharedProviderState();
+
+    // The tracker's own card verifies, and nothing writes the configuration
+    // afterwards.
+    state = wizardReducer(state, {
+      type: "RECORD_VERIFICATION",
+      role: "tracker",
+      providerId: "dual",
+      generation: dualGeneration(state),
+      verified: true,
+      unconfirmedCapabilities: ["createPullRequest"],
+    });
+
+    expect(state.connect.tracker.verified).toBe(true);
+    expect(state.connect.tracker.unconfirmedCapabilities).toEqual([
+      "createPullRequest",
+    ]);
+    // The other role is untouched: evidence belongs to the role that asked.
+    expect(state.connect.gitHost.verified).toBe(false);
+  });
+
+  it("discards a verification for a provider the role no longer names", () => {
+    let state = sharedProviderState();
+    const attemptGeneration = dualGeneration(state);
+
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "tracker",
+      providerId: "generic-tracker",
+    });
+
+    const afterLateResolve = wizardReducer(state, {
+      type: "RECORD_VERIFICATION",
+      role: "tracker",
+      providerId: "dual",
+      generation: attemptGeneration,
+      verified: true,
+      unconfirmedCapabilities: [],
+    });
+    expect(afterLateResolve.connect.tracker.verified).toBe(false);
+    expect(afterLateResolve).toBe(state);
+  });
+
+  it("discards a verification whose provider was re-selected after its configuration was dropped, because coming back writes it afresh", () => {
+    let state = sharedProviderState();
+    const attemptGeneration = dualGeneration(state);
+
+    // Every role leaves the provider — its configuration is dropped — and the
+    // tracker comes back to it. Coming back creates the provider's
+    // configuration entry afresh, which is a write: the attempt above asked
+    // about a configuration that no longer exists.
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "gitHost",
+      providerId: null,
+    });
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "tracker",
+      providerId: null,
+    });
+    expect(Object.keys(state.connect.providerConfigs)).toEqual([]);
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "tracker",
+      providerId: "dual",
+    });
+    expect(dualGeneration(state)).toBeGreaterThan(attemptGeneration);
+
+    const afterLateResolve = wizardReducer(state, {
+      type: "RECORD_VERIFICATION",
+      role: "tracker",
+      providerId: "dual",
+      generation: attemptGeneration,
+      verified: true,
+      unconfirmedCapabilities: [],
+    });
+    expect(afterLateResolve.connect.tracker.verified).toBe(false);
+  });
+
+  it("keeps an in-flight verification valid when the OTHER role leaves the provider, because nothing was written", () => {
+    let state = sharedProviderState();
+    const attemptGeneration = dualGeneration(state);
+
+    // The git host card switching AWAY does not touch the configuration the
+    // tracker verified, and does not re-create it either: the provider is still
+    // configured by the tracker, so the record survives.
+    state = wizardReducer(state, {
+      type: "SELECT_PROVIDER",
+      role: "gitHost",
+      providerId: "generic-githost",
+    });
+    expect(dualGeneration(state)).toBe(attemptGeneration);
+    expect(providerConfig(state.connect, "dual")).toEqual(CONFIG);
+
+    state = wizardReducer(state, {
+      type: "RECORD_VERIFICATION",
+      role: "tracker",
+      providerId: "dual",
+      generation: attemptGeneration,
+      verified: true,
+      unconfirmedCapabilities: [],
+    });
+    expect(state.connect.tracker.verified).toBe(true);
+  });
+
+  it("a configuration write ALWAYS clears the affected roles' evidence — no transition can leave it standing", () => {
+    // Every writer of a provider's configuration, enumerated: the transition
+    // that writes one and the one that applies a Quick-URL match. Both clear the
+    // evidence of every role naming the provider, in the same step, which is why
+    // no blanket "patch the connect state" action exists any more.
+    const writers = [
+      (state: WizardSourceState) =>
+        wizardReducer(state, {
+          type: "UPDATE_PROVIDER_CONFIG",
+          providerId: "dual",
+          config: { ...CONFIG, pat: "written" },
+        }),
+      (state: WizardSourceState) =>
+        wizardReducer(state, {
+          type: "APPLY_PROVIDER_MATCH",
+          providerId: "dual",
+          config: { pat: "matched" },
+          roles: ["tracker", "gitHost"],
+          url: "https://dual.example",
+        }),
+    ];
+
+    for (const write of writers) {
+      let state = sharedProviderState();
+      state = wizardReducer(state, {
+        type: "RECORD_VERIFICATION",
+        role: "tracker",
+        providerId: "dual",
+        generation: dualGeneration(state),
+        verified: true,
+        unconfirmedCapabilities: [],
+      });
+      state = wizardReducer(state, {
+        type: "RECORD_VERIFICATION",
+        role: "gitHost",
+        providerId: "dual",
+        generation: dualGeneration(state),
+        verified: true,
+        unconfirmedCapabilities: [],
+      });
+      expect(state.connect.tracker.verified).toBe(true);
+      expect(state.connect.gitHost.verified).toBe(true);
+
+      state = write(state);
+      expect(state.connect.tracker.verified).toBe(false);
+      expect(state.connect.gitHost.verified).toBe(false);
+    }
   });
 });

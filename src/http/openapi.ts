@@ -585,9 +585,12 @@ export function getOpenApiSpec() {
                 schema: {
                   type: "object",
                   properties: {
+                    // The registry's own id. The example is the id that a
+                    // client can actually send; `azure-devops` is not a
+                    // registered provider.
                     providerId: {
                       type: "string",
-                      example: "azure-devops",
+                      example: "azure",
                     },
                     projectId: { type: "string", example: "proj-1" },
                     orgUrl: {

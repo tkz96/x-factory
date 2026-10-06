@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import { z } from "zod/v4";
+import { PROJECT_CONNECTION_ROLES } from "./shared/types.js";
 import type {
   AzureTrackerConfig,
   GitHubTrackerConfig,
@@ -295,12 +296,17 @@ export type ConnectionsProjectInput = z.infer<
  * per role) or as ONE dual-role connection. A set covering only one role is not
  * a project X-Factory can operate, so it is rejected before any write.
  */
-export const REQUIRED_CONNECTION_ROLES = ["tracker", "gitHost"] as const;
+export const REQUIRED_CONNECTION_ROLES = PROJECT_CONNECTION_ROLES;
 
 export type RequiredConnectionRole = (typeof REQUIRED_CONNECTION_ROLES)[number];
 
-/** The `formErrors` code reported for each required role no connection serves. */
-const MISSING_CONNECTION_ROLE_CODES: Readonly<
+/**
+ * The `formErrors` code reported for each required role no connection serves.
+ * Exported because the LEGACY create path reports the tracker code too: a legacy
+ * payload carries no `connections` array, so the coverage rule is applied to it
+ * through the tracker identity it names instead (#133 correction 1).
+ */
+export const MISSING_CONNECTION_ROLE_CODES: Readonly<
   Record<RequiredConnectionRole, string>
 > = {
   tracker: "MISSING_TRACKER_CONNECTION",
