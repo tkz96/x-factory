@@ -27,9 +27,12 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { getLocksDir, getProjectDir } from "../src/paths.js";
 import {
+  ClaimLostError,
   ClaimTimeoutError,
+  type CreationClaim,
   type CreationClaimOptions,
   getCreationClaimPath,
   withCreationClaim,
@@ -284,6 +287,76 @@ describe("withCreationClaim", () => {
 
     held.release();
     await expect(held.held).resolves.toBe("held");
+  });
+
+  it("renews the claim via heartbeat so a genuinely live holder is never reclaimed past the TTL", async () => {
+    const id = "heartbeat-live";
+
+    // Holder runs with a short TTL (60ms). Heartbeat fires every ~20ms.
+    const holderEntered = deferred();
+    const releaseHolder = deferred();
+    const holder = withCreationClaim(
+      id,
+      async (claim) => {
+        holderEntered.open();
+        // Wait 120ms (double the TTL) while alive:
+        await delay(120);
+        await claim.assertHeld();
+        await releaseHolder.opened;
+        return "alive";
+      },
+      { ttlMs: 60, heartbeat: true },
+    );
+
+    await holderEntered.opened;
+
+    // A contender tries to acquire while the holder is in its long action.
+    // Because heartbeat touched the claim mtime, the contender does not reclaim it.
+    await expect(
+      withCreationClaim(id, async () => "contender", {
+        ttlMs: 60,
+        waitTimeoutMs: 50,
+        pollIntervalMs: 5,
+      }),
+    ).rejects.toThrow(ClaimTimeoutError);
+
+    releaseHolder.open();
+    await expect(holder).resolves.toBe("alive");
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("fences a holder via assertHeld() if its claim was lost or stolen", async () => {
+    const id = "fenced-holder";
+    const claimPath = getCreationClaimPath(id);
+
+    const holderEntered = deferred();
+    const releaseHolder = deferred();
+    let holderClaim: CreationClaim | undefined;
+
+    const holder = withCreationClaim(
+      id,
+      async (claim) => {
+        holderClaim = claim;
+        holderEntered.open();
+        await releaseHolder.opened;
+        await claim.assertHeld();
+        return "completed";
+      },
+      { heartbeat: false },
+    );
+
+    await holderEntered.opened;
+    expect(holderClaim).toBeDefined();
+    await expect(holderClaim?.assertHeld()).resolves.toBeUndefined();
+
+    // Foreign process steals or replaces the claim file
+    await writeFile(claimPath, "foreign-token\n");
+
+    // The original holder's assertHeld() now detects claim loss and throws ClaimLostError
+    await expect(holderClaim?.assertHeld()).rejects.toThrow(ClaimLostError);
+
+    releaseHolder.open();
+    await expect(holder).rejects.toThrow(ClaimLostError);
   });
 });
 

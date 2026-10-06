@@ -59,6 +59,7 @@ import type {
   ProjectRepository,
 } from "../types.js";
 import {
+  ClaimLostError,
   ClaimTimeoutError,
   type CreationClaimOptions,
   withCreationClaim,
@@ -349,7 +350,7 @@ export async function createProjectFromConnections(
   try {
     return await withCreationClaim(
       input.id,
-      async () => {
+      async (claim) => {
         // (2) The duplicate check runs inside the claim, so "no project with
         // this id exists" keeps holding for the whole write sequence below.
         const existing = await loadProjects(configPath);
@@ -359,8 +360,14 @@ export async function createProjectFromConnections(
           );
         }
 
+        // Fencing check: verify claim is still held before mutating secret store.
+        await claim.assertHeld();
+
         // (3) Secrets first — overwriting is safe, so a retry converges.
         await saveProjectEnv(input.id, secrets);
+
+        // Fencing check: verify claim is still held before committing project record.
+        await claim.assertHeld();
 
         // (4) The project record is the commit point.
         const saved = await appendProjectRecord(record, configPath);
@@ -389,6 +396,11 @@ export async function createProjectFromConnections(
     if (err instanceof ClaimTimeoutError) {
       throw new ConflictError(
         `Project with ID "${input.id}" is already being created.`,
+      );
+    }
+    if (err instanceof ClaimLostError) {
+      throw new ConflictError(
+        `Project with ID "${input.id}" creation claim was lost to a concurrent operation.`,
       );
     }
     throw err;

@@ -24,6 +24,7 @@ import {
   readFile,
   rm,
   stat,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,7 +37,7 @@ import {
 } from "../src/config-schema.js";
 import { ConflictError } from "../src/errors.js";
 import { getLocksDir, getProjectEnvPath } from "../src/paths.js";
-import { loadProjectEnv } from "../src/project-env.js";
+import { loadProjectEnv, saveProjectEnv } from "../src/project-env.js";
 import type {
   Provider,
   ProviderConfigFieldMeta,
@@ -45,6 +46,7 @@ import { resolveProjectProvider } from "../src/providers/project-config.js";
 import { PROVIDER_REGISTRY } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
 import {
+  ClaimLostError,
   getCreationClaimPath,
   withCreationClaim,
 } from "../src/services/creation-claim.js";
@@ -1142,6 +1144,131 @@ describe("Concurrent creation of the same project id (#133 CORR-3)", () => {
     expect(
       (await loadProjects(raceConfigPath)).filter((p) => p.id === id),
     ).toHaveLength(1);
+  });
+
+  function raceLegacyPayload(
+    id: string,
+    name: string,
+  ): Record<string, unknown> {
+    return {
+      id,
+      name,
+      repositoryPath: path.join(raceDir, "legacy-repo"),
+      defaultBranch: "main",
+      testCommand: "bun test",
+      issueTracker: {
+        provider: "jira",
+        connectionId: "jira",
+        jira: {
+          host: "https://acme.atlassian.net",
+          email: "dev@example.com",
+          project: "ACME",
+        },
+      },
+    };
+  }
+
+  it("answers exactly one 201 and one 409 when legacy creation races with normalized connections creation of the same id", async () => {
+    const id = `race-legacy-norm-${Date.now()}`;
+    const responses = await Promise.all([
+      createProject(raceInput(id, "Norm Race", MARKER_A)),
+      createProject(raceLegacyPayload(id, "Legacy Race")),
+    ]);
+
+    expect(responses.map((r) => r.status).sort()).toEqual([201, 409]);
+
+    const winner = responses.find((r) => r.status === 201);
+    const stored = (await loadProjects(raceConfigPath)).filter(
+      (p) => p.id === id,
+    );
+    expect(stored).toHaveLength(1);
+
+    if (winner?.body.name === "Norm Race") {
+      expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_A);
+    } else {
+      // Legacy won: normalized loser's secret was never written to env store
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+    }
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("answers exactly one 201 and one 409 when two legacy creations race for the same id", async () => {
+    const id = `race-legacy-two-${Date.now()}`;
+    const responses = await Promise.all([
+      createProject(raceLegacyPayload(id, "Legacy A")),
+      createProject(raceLegacyPayload(id, "Legacy B")),
+    ]);
+
+    expect(responses.map((r) => r.status).sort()).toEqual([201, 409]);
+    const stored = (await loadProjects(raceConfigPath)).filter(
+      (p) => p.id === id,
+    );
+    expect(stored).toHaveLength(1);
+    expect(["Legacy A", "Legacy B"]).toContain(stored[0]?.name ?? "");
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("fences a slow holder whose claim was lost or stolen before persisting secrets, preventing it from overwriting the winner's secrets", async () => {
+    const id = `race-fenced-${Date.now()}`;
+    const claimPath = getCreationClaimPath(id);
+
+    let holderEntered!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      holderEntered = resolve;
+    });
+    let releaseHolder!: () => void;
+    const holderGate = new Promise<void>((resolve) => {
+      releaseHolder = resolve;
+    });
+
+    // Slow Holder A acquires claim with heartbeat disabled, passes duplicate check, then pauses before secrets
+    const slowHolder = withCreationClaim(
+      id,
+      async (claim) => {
+        holderEntered();
+        const existing = await loadProjects(raceConfigPath);
+        if (existing.some((p) => p.id === id)) {
+          throw new ConflictError(`Project with ID "${id}" already exists.`);
+        }
+        await holderGate;
+        // Slow holder unpauses here. Must be fenced out before writing secrets!
+        await claim.assertHeld();
+        await saveProjectEnv(id, { STUB_API_TOKEN: MARKER_A });
+        return { id } as Project;
+      },
+      { ttlMs: 50, heartbeat: false },
+    );
+
+    await entered;
+
+    // Backdate claim to simulate holder stalled past TTL
+    const past = new Date(Date.now() - 100);
+    await utimes(claimPath, past, past);
+
+    // Contender B reclaims and creates project with its secret
+    const winnerB = await createProjectFromConnections(
+      raceInput(id, "Winner B", MARKER_B),
+      {
+        registry: testRegistry,
+        configPath: raceConfigPath,
+        claim: { ttlMs: 1_000, waitTimeoutMs: 2_000, pollIntervalMs: 5 },
+      },
+    );
+    expect(winnerB.name).toBe("Winner B");
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_B);
+
+    // Now slow Holder A unpauses and tries to write secrets
+    releaseHolder();
+    await expect(slowHolder).rejects.toThrow(ClaimLostError);
+
+    // Winner B's secrets and record remain untouched!
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_B);
+    const stored = (await loadProjects(raceConfigPath)).filter(
+      (p) => p.id === id,
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.name).toBe("Winner B");
+    expect(await readdir(getLocksDir())).toEqual([]);
   });
 });
 

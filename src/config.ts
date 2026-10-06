@@ -5,6 +5,12 @@ import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
+import {
+  ClaimLostError,
+  ClaimTimeoutError,
+  type CreationClaimOptions,
+  withCreationClaim,
+} from "./services/creation-claim.js";
 import type { Project, ProjectRepository } from "./types.js";
 
 export { validateProjectInput as validateProject } from "./config-schema.js";
@@ -145,24 +151,52 @@ async function saveProjects(
 
 /**
  * Create a new project. Throws ConflictError if a project with the same ID already exists.
+ *
+ * Runs inside the exclusive per-project creation claim so legacy creation
+ * satisfies the same creation invariant as normalized creation: exactly one
+ * winner per project id, serialized against concurrent legacy or normalized
+ * creations.
  */
 export async function createProject(
   projectInput: unknown,
   configPath: string = getProjectsConfigPath(),
+  options: { claim?: CreationClaimOptions } = {},
 ): Promise<Project> {
   const validated = validateProjectInput(projectInput);
-  const projects = await loadProjects(configPath);
 
-  const existingIndex = projects.findIndex((p) => p.id === validated.id);
-  if (existingIndex >= 0) {
-    throw new ConflictError(
-      `Project with ID "${validated.id}" already exists.`,
+  try {
+    return await withCreationClaim(
+      validated.id,
+      async (claim) => {
+        const projects = await loadProjects(configPath);
+
+        const existingIndex = projects.findIndex((p) => p.id === validated.id);
+        if (existingIndex >= 0) {
+          throw new ConflictError(
+            `Project with ID "${validated.id}" already exists.`,
+          );
+        }
+
+        await claim.assertHeld();
+        projects.push(validated);
+        await saveProjects(projects, configPath);
+        return validated;
+      },
+      options.claim,
     );
+  } catch (err) {
+    if (err instanceof ClaimTimeoutError) {
+      throw new ConflictError(
+        `Project with ID "${validated.id}" is already being created.`,
+      );
+    }
+    if (err instanceof ClaimLostError) {
+      throw new ConflictError(
+        `Project with ID "${validated.id}" creation claim was lost to a concurrent operation.`,
+      );
+    }
+    throw err;
   }
-
-  projects.push(validated);
-  await saveProjects(projects, configPath);
-  return validated;
 }
 
 /**

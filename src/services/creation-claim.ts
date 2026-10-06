@@ -36,6 +36,7 @@ import {
   rename,
   rm,
   stat,
+  utimes,
 } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -47,11 +48,14 @@ import { getLocksDir } from "../paths.js";
  * that region. Reclaiming after a TTL, rather than never, is what keeps a
  * crashed creation from blocking that project id forever.
  *
+ * Live holders actively touch the claim file's mtime (heartbeat renewal) while
+ * their action runs, so a genuinely live holder is never reclaimed.
+ *
  * The TTL is a wall-clock duration read from the claim file's mtime — the same
  * clock a concurrent process sees — measured from acquisition, before the first
  * write, so the window covers the whole critical section by construction. 30s is
  * orders of magnitude above the real critical section (three small file writes):
- * a claim that old is not "slow", it is gone.
+ * a claim that old with no heartbeat is not "slow", it is gone.
  */
 export const CLAIM_TTL_MS = 30_000;
 
@@ -89,6 +93,22 @@ export class ClaimTimeoutError extends Error {
   }
 }
 
+/**
+ * Thrown when a held claim was stolen, superseded, or expired during execution.
+ * Fencing checks before mutating side effects (e.g. secret persistence, commit)
+ * call `claim.assertHeld()` to guarantee a slow or zombie holder cannot clobber
+ * a successor's state.
+ */
+export class ClaimLostError extends Error {
+  readonly claimPath: string;
+
+  constructor(claimPath: string) {
+    super(`Exclusive creation claim at ${claimPath} was lost or superseded.`);
+    this.name = "ClaimLostError";
+    this.claimPath = claimPath;
+  }
+}
+
 /** Tuning seams; every field has a documented default. */
 export interface CreationClaimOptions {
   /** See {@link CLAIM_TTL_MS}. */
@@ -97,6 +117,23 @@ export interface CreationClaimOptions {
   waitTimeoutMs?: number;
   /** See {@link CLAIM_POLL_INTERVAL_MS}. */
   pollIntervalMs?: number;
+  /**
+   * Whether to periodically touch the claim file mtime while the action is running
+   * so a genuinely live slow holder is not reclaimed. Defaults to true.
+   */
+  heartbeat?: boolean;
+}
+
+/** The active claim instance passed to the claimed action. */
+export interface CreationClaim {
+  readonly projectId: string;
+  readonly token: string;
+  readonly claimPath: string;
+  /**
+   * Asserts that the claim file still exists and still belongs to this holder's token.
+   * Throws {@link ClaimLostError} if the claim was lost, stolen, or superseded.
+   */
+  assertHeld(): Promise<void>;
 }
 
 /**
@@ -268,6 +305,11 @@ async function release(claimPath: string, token: string): Promise<void> {
  * Runs `action` while holding the exclusive claim for `projectId`, releasing it
  * on success and on failure alike (a rejected creation must leave no claim).
  *
+ * An active heartbeat timer touches the claim file's mtime so a live holder is
+ * never reclaimed by TTL. The action is passed a `claim` instance with
+ * `assertHeld()`, allowing mutating steps (e.g. secret persistence, commit) to
+ * be fenced against unexpected claim loss.
+ *
  * The claim is per project id: two actions for the same id are mutually
  * exclusive, while actions for different ids never wait on each other.
  * Contenders are NOT queued by arrival order — there is no fair queue, by
@@ -276,16 +318,50 @@ async function release(claimPath: string, token: string): Promise<void> {
  */
 export async function withCreationClaim<T>(
   projectId: string,
-  action: () => Promise<T>,
+  action: (claim: CreationClaim) => Promise<T>,
   options: CreationClaimOptions = {},
 ): Promise<T> {
   const claimPath = getCreationClaimPath(projectId);
   const token = randomUUID();
 
   await acquire(claimPath, token, options);
+
+  const claim: CreationClaim = {
+    projectId,
+    token,
+    claimPath,
+    async assertHeld(): Promise<void> {
+      const current = await readClaim(claimPath);
+      if (current?.token !== token) {
+        throw new ClaimLostError(claimPath);
+      }
+    },
+  };
+
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  if (options.heartbeat !== false) {
+    const ttlMs = options.ttlMs ?? CLAIM_TTL_MS;
+    const heartbeatMs = Math.max(10, Math.floor(ttlMs / 3));
+    heartbeatTimer = setInterval(async () => {
+      try {
+        const current = await readClaim(claimPath);
+        if (current?.token === token) {
+          const now = new Date();
+          await utimes(claimPath, now, now);
+        }
+      } catch {
+        // Renewal is best-effort; assertHeld() remains authoritative
+      }
+    }, heartbeatMs);
+    heartbeatTimer.unref?.();
+  }
+
   try {
-    return await action();
+    return await action(claim);
   } finally {
+    if (heartbeatTimer !== undefined) {
+      clearInterval(heartbeatTimer);
+    }
     await release(claimPath, token);
   }
 }
