@@ -56,7 +56,7 @@ const ProviderConfigBodySchema = z.object({
  * lets a PRESENTATION-ONLY route (`/describe`) treat one refusal differently
  * without inspecting response bodies.
  */
-export type ProviderRouteRejection =
+type ProviderRouteRejection =
   | "UNKNOWN_PROVIDER"
   | "INCOMPATIBLE_ROLE"
   | "INVALID_CONFIG";
