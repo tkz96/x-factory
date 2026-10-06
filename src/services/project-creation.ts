@@ -21,6 +21,7 @@ import {
 } from "../config.js";
 import {
   type ConnectionsProjectInput,
+  MISSING_CONNECTION_ROLE_CODES,
   missingConnectionRoleCodes,
   type ProjectConnectionInput,
 } from "../config-schema.js";
@@ -38,7 +39,10 @@ import {
   type ProviderCapability,
   type ProviderRole,
 } from "../providers/contract.js";
-import { deriveIssueTracker } from "../providers/project-config.js";
+import {
+  deriveIssueTracker,
+  legacyTrackerProviderId,
+} from "../providers/project-config.js";
 import { redactConnections } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,
@@ -272,6 +276,38 @@ function buildProjectRecord(
     defaultBranch: primary.repository.defaultBranch,
     testCommand: primary.repository.commands?.test || "",
   };
+}
+
+/**
+ * The LEGACY create path's tracker gate (#133 correction 1).
+ *
+ * The connection-array form of the role-coverage rule (`assertConnectionRoleCoverage`)
+ * cannot apply to a legacy payload: a legacy record carries no `connections`
+ * array, because its git host IS its repository — `repositoryPath` plus that
+ * repository's remote — and its tracker is a single `issueTracker` view. What
+ * DOES apply, unchanged, is the requirement that a created project be
+ * operable: the tracker it names must be one the registry can serve for the
+ * tracker role, so a payload that names none is rejected here, before any write,
+ * with the same code the connections branch reports.
+ *
+ * Provider-agnostic: the id comes from `legacyTrackerProviderId`, and the checks
+ * are the registry's (`get` + role + capability), never a name.
+ */
+export function assertLegacyTrackerUsable(
+  issueTracker: unknown,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): void {
+  const providerId = legacyTrackerProviderId(issueTracker, registry);
+  if (providerId === null) {
+    throw new SemanticValidationError({
+      formErrors: [MISSING_CONNECTION_ROLE_CODES.tracker],
+    });
+  }
+  const provider = registry.get(providerId);
+  if (!provider) {
+    throw new SemanticValidationError({ formErrors: ["UNKNOWN_PROVIDER"] });
+  }
+  assertRoleCompatible(provider, "tracker");
 }
 
 /**

@@ -371,9 +371,30 @@ Review (#146):
   once when both roles are missing, so one rejection teaches both gaps). A
   project the post-creation integrity surface would immediately flag as broken
   therefore cannot be created in the first place. The same rule applies to a
-  connection update, checked against the **merged** result. The legacy
-  configuration path is unaffected — it accepts a body with `issueTracker` and no
-  `connections`.
+  connection update, checked against the **merged** result. A connections payload
+  covering only ONE role is rejected on create **and** on update — a tracker-only
+  set reports `MISSING_GIT_HOST_CONNECTION` and a git-host-only set reports
+  `MISSING_TRACKER_CONNECTION`, neither is silently completed.
+- **A body with no `connections` array must name a usable tracker too.** Such a
+  body — the legacy configuration shape, whether it carries `repositoryPath`
+  alone or an explicit `repositories` array — is not exempt from the
+  "a created project must be operable" rule; it is the same rule in the form that
+  body can express, and it is applied to the SAME payloads: a git-host-only or
+  tracker-only *connections* payload is still rejected with the codes above, and
+  a body with no tracker identity is rejected by this one. A legacy record has no
+  connection set by design, because its git host IS its repository:
+  `repositoryPath` plus that repository's remote. What it must supply is an
+  `issueTracker` naming a tracker the registry can serve, named either explicitly
+  (`issueTracker.provider`, or its historical alias `connectionId`) or implicitly
+  by the namespaced view the configuration lives under (`{ "azure": { … } }`,
+  `{ "jira": { … } }`, `{ "github": { … } }` — the keying `deriveIssueTracker`
+  writes). A body that names none is rejected before any write with
+  `{ formErrors: ["MISSING_TRACKER_CONNECTION"] }` — the same code the
+  connections path reports — so a record whose tracker would only be the legacy
+  default cannot be created through the API any more. A named provider that is
+  not registered is `UNKNOWN_PROVIDER`; one that is registered but cannot serve
+  the tracker role, or cannot `listTickets`, is `INCOMPATIBLE_CONFIGURATION`.
+  Neither branch writes a secret for a rejected request.
 - `gitIdentity` is a project-level field — never nested inside a connection.
 - Secret values ride inline in `config` exactly once. The response, the events,
   the diagnostics and the structured logs never echo them, and the stored project
@@ -422,7 +443,7 @@ failure during (2) leaves neither. A project can never exist without its secrets
 | Unknown provider id | 409 | `{ formErrors: ["UNKNOWN_PROVIDER"] }` |
 | Provider config schema | 409 | `{ fieldErrors: { field: "REQUIRED" \| "INVALID" } }` |
 | Role/capability mismatch, duplicate provider, knowledge-only repositories | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
-| Connection set covers only one role (create), or the merged set would after an update | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
+| Connection set covers only one role (create), the merged set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
 

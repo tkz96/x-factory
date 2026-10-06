@@ -1487,6 +1487,116 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(await readStoredProject(projectId)).toEqual(recordBefore);
   });
 });
+describe("POST /api/projects with a LEGACY payload (#133 correction 1)", () => {
+  // A legacy record carries no `connections` array: its git host IS its
+  // repository (`repositoryPath`, plus that repository's remote). The
+  // role-coverage rule therefore applies to it in its own form — the tracker it
+  // NAMES must be one the registry can serve — and the requirement is the same
+  // one the connections branch enforces: no project exists without a usable
+  // issue tracker, rejected before any write.
+  function legacyPayload(
+    id: string,
+    issueTracker?: Record<string, unknown>,
+  ): Record<string, unknown> {
+    return {
+      id,
+      name: "Legacy App",
+      repositoryPath: path.join(tempDir, "legacy-repo"),
+      defaultBranch: "main",
+      testCommand: "bun test",
+      ...(issueTracker ? { issueTracker } : {}),
+    };
+  }
+
+  it("rejects a bare legacy payload with 409 MISSING_TRACKER_CONNECTION — and writes no project and no secret", async () => {
+    const id = `legacy-bare-${Date.now()}`;
+    const { status, body } = await createProject(legacyPayload(id));
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ formErrors: ["MISSING_TRACKER_CONNECTION"] });
+    // Nothing persisted: no project record…
+    expect(await readStoredProject(id)).toBeUndefined();
+    // …and no env file, so no secret could have been written for it either.
+    await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+  });
+
+  it("rejects a legacy payload whose tracker names no registry identity, whatever it does carry", async () => {
+    const id = `legacy-unnamed-${Date.now()}`;
+    const { status, body } = await createProject(
+      legacyPayload(id, { projectId: "PROJ-1", orgUrl: "https://x.example" }),
+    );
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ formErrors: ["MISSING_TRACKER_CONNECTION"] });
+    expect(await readStoredProject(id)).toBeUndefined();
+  });
+
+  it("rejects a legacy payload naming an unregistered provider with 409 UNKNOWN_PROVIDER", async () => {
+    const id = `legacy-unknown-${Date.now()}`;
+    const { status, body } = await createProject(
+      legacyPayload(id, { provider: "no-such-tracker", connectionId: "x" }),
+    );
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ formErrors: ["UNKNOWN_PROVIDER"] });
+    expect(await readStoredProject(id)).toBeUndefined();
+  });
+
+  it("rejects a legacy payload naming a registered provider that cannot serve the tracker role", async () => {
+    const id = `legacy-incapable-${Date.now()}`;
+    // Serves both roles but cannot list tickets: a tracker the registry knows
+    // and still cannot be operated as one.
+    const { status, body } = await createProject(
+      legacyPayload(id, {
+        provider: "stub-no-tickets",
+        connectionId: "stub-no-tickets",
+      }),
+    );
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+    expect(await readStoredProject(id)).toBeUndefined();
+  });
+
+  it("accepts a legacy payload with a usable issueTracker, named explicitly or by its namespaced view", async () => {
+    const explicitId = `legacy-explicit-${Date.now()}`;
+    const explicit = await createProject(
+      legacyPayload(explicitId, {
+        provider: "jira",
+        connectionId: "jira",
+        jira: {
+          host: "https://acme.atlassian.net",
+          email: "dev@example.com",
+          project: "ACME",
+        },
+      }),
+    );
+    expect(explicit.status).toBe(201);
+    // Read back through the runtime's own loader: a legacy record's git host IS
+    // its repository, so `repositoryPath` is resolved from the primary
+    // repository on the way in.
+    const record = (await loadProjects()).find((p) => p.id === explicitId);
+    expect(record?.repositoryPath).toBe(path.join(tempDir, "legacy-repo"));
+    // The tracker view survived the gate untouched.
+    expect(record?.issueTracker?.provider).toBe("jira");
+
+    // The namespaced view ALONE is an identity too: it is the keying
+    // `deriveIssueTracker` writes, so the view's key names its provider.
+    const viewId = `legacy-view-${Date.now()}`;
+    const view = await createProject(
+      legacyPayload(viewId, {
+        jira: {
+          host: "https://acme.atlassian.net",
+          email: "dev@example.com",
+          project: "ACME",
+        },
+      }),
+    );
+    expect(view.status).toBe(201);
+    expect((await loadProjects()).some((p) => p.id === viewId)).toBe(true);
+  });
+});
+
 describe("Redaction before serialization — structured logs", () => {
   it("logs the connection configuration with every declared secret masked", async () => {
     const id = `log-${Date.now()}`;
