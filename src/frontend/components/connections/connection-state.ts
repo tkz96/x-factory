@@ -225,9 +225,9 @@ export function comboTone(
   slots: readonly ComboToneSlot[],
   requiredRoles: readonly ProjectConnectionRole[],
 ): ConnectionComboTone {
+  const requiredRoleSet = new Set(requiredRoles);
   const isError = slots.some(
-    (slot) =>
-      slot.state === "disconnected" && requiredRoles.includes(slot.role),
+    (slot) => slot.state === "disconnected" && requiredRoleSet.has(slot.role),
   );
   if (isError) return "error";
 

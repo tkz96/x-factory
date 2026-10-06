@@ -261,7 +261,7 @@ const DiscoveredRepositoryInputSchema = z.object({
  * role-tagged repositories with at least one application repository.
  */
 export const ConnectionsProjectInputSchema = z
-  .object({
+  .looseObject({
     id: NonEmptyString,
     name: NonEmptyString,
     workspacePath: OptionalTrimmedString,
@@ -273,7 +273,6 @@ export const ConnectionsProjectInputSchema = z
     connections: z.array(ProjectConnectionInputSchema).min(1),
     repositories: z.array(DiscoveredRepositoryInputSchema).min(1),
   })
-  .passthrough()
   .refine(
     (input) => input.repositories.some((r) => r.role !== "knowledge"),
     "At least one application repository is required.",

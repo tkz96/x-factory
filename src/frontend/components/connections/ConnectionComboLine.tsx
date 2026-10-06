@@ -69,10 +69,11 @@ export function ConnectionComboLine({
   id,
   className,
 }: ConnectionComboLineProps) {
+  const roleSet = roles !== undefined ? new Set(roles) : undefined;
   const rendered =
-    roles === undefined
+    roleSet === undefined
       ? slots
-      : slots.filter((slot) => roles.includes(slot.role));
+      : slots.filter((slot) => roleSet.has(slot.role));
 
   return (
     <div

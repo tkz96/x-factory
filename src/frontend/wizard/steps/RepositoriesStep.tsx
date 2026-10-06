@@ -8,6 +8,7 @@
 // with `deriveAsyncState` and hands the result to `AsyncRegion`; it never
 // builds loading or error markup by hand.
 
+import { useMemo } from "react";
 import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
@@ -29,6 +30,11 @@ export function RepositoriesStep() {
     nextStep,
     prevStep,
   } = useRepositoryDiscovery();
+
+  const selectedRepoIdSet = useMemo(
+    () => new Set(selectedRepoIds),
+    [selectedRepoIds],
+  );
 
   const failedParts = [
     REPOSITORIES_COPY.discoveryUnconfirmed,
@@ -87,7 +93,7 @@ export function RepositoriesStep() {
                     // never be recorded under the current one (#133
                     // correction 4).
                     disabled={!rowsSelectable}
-                    checked={selectedRepoIds.includes(row.id)}
+                    checked={selectedRepoIdSet.has(row.id)}
                     onChange={() => toggleRepository(row)}
                   />
                   <span className="repositories-list-name">{row.name}</span>

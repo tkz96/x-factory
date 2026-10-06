@@ -290,8 +290,9 @@ export function comboSlots(
   integrity: ConnectionIntegrity,
   roles?: readonly ProjectConnectionRole[],
 ): ConnectionComboSlot[] {
+  const roleSet = roles !== undefined ? new Set(roles) : undefined;
   return integrity.slots
-    .filter((slot) => roles === undefined || roles.includes(slot.role))
+    .filter((slot) => roleSet === undefined || roleSet.has(slot.role))
     .map((slot) => ({
       role: slot.role,
       state: slot.state,
@@ -321,8 +322,9 @@ export function recordedConnectionIdentityTargets(
   roles: readonly ProjectConnectionRole[] | undefined,
   descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
+  const roleSet = roles !== undefined ? new Set(roles) : undefined;
   return integrity.slots
-    .filter((slot) => roles === undefined || roles.includes(slot.role))
+    .filter((slot) => roleSet === undefined || roleSet.has(slot.role))
     .map((slot) => ({
       role: slot.role,
       providerId: slot.providerId ?? null,

@@ -85,12 +85,11 @@ export function useInspection(): InspectionView {
         },
       });
     } catch (err) {
-      if (generation !== generationRef.current) return;
-      setError(err);
-    } finally {
       if (generation === generationRef.current) {
-        setIsPending(false);
+        setError(err);
       }
+    } finally {
+      setIsPending(false);
     }
   }, [workspacePath, selectedRepoIds, repoConfigs, primaryRepoId, dispatch]);
 

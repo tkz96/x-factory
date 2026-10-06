@@ -47,18 +47,16 @@ export const ChatRunBodySchema = z
 export const SaveProjectBodySchema = ProjectInputSchema;
 
 /** Request body schema for updating a project's normalized connections (#145). */
-export const UpdateProjectConnectionsBodySchema = z
-  .object({
-    name: z.string().optional(),
-    workspacePath: z.string().optional(),
-    gitIdentity: z
-      .object({ name: z.string().min(1), email: z.string().min(1) })
-      .optional(),
-    connections: z.array(ProjectConnectionInputSchema).min(1),
-    /** Secret field names to clear, applied before validation (#131). */
-    clearSecrets: z.array(z.string().min(1)).optional(),
-  })
-  .passthrough();
+export const UpdateProjectConnectionsBodySchema = z.looseObject({
+  name: z.string().optional(),
+  workspacePath: z.string().optional(),
+  gitIdentity: z
+    .object({ name: z.string().min(1), email: z.string().min(1) })
+    .optional(),
+  connections: z.array(ProjectConnectionInputSchema).min(1),
+  /** Secret field names to clear, applied before validation (#131). */
+  clearSecrets: z.array(z.string().min(1)).optional(),
+});
 
 /** Request body schema for POST /api/runs/:id/transitions */
 export const TransitionRunBodySchema = z

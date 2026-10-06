@@ -452,9 +452,10 @@ function prepareConnectionUpdate(
     effective[key] = value;
   }
 
+  const clearSecretNames = new Set(clearSecrets);
   const clearedKeys: string[] = [];
   for (const route of routes) {
-    if (clearSecrets.includes(route.name)) {
+    if (clearSecretNames.has(route.name)) {
       delete effective[route.name];
       clearedKeys.push(route.envKey);
       continue;

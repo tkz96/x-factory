@@ -9,6 +9,7 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { Ticket } from "../../shared/types.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import {
   CONNECTIONS_COPY,
@@ -29,6 +30,8 @@ import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useTickets } from "../hooks/useQueries.js";
 import "./QueueView.css";
 
+const EMPTY_TICKETS: Ticket[] = [];
+
 export function QueueView() {
   const { selectedProjectId, selectedProject } = useCurrentProject();
   const { openNewRunModal } = useModal();
@@ -37,7 +40,7 @@ export function QueueView() {
   const { data: descriptors = [] } = useProviderDescriptors();
 
   const ticketsQuery = useTickets(selectedProjectId);
-  const tickets = ticketsQuery.data ?? [];
+  const tickets = ticketsQuery.data ?? EMPTY_TICKETS;
   const { isRefetching, refetch } = ticketsQuery;
 
   const integrity = selectedProject
