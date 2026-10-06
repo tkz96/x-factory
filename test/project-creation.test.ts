@@ -20,6 +20,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -29,8 +30,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod/v4";
 import { loadProjects } from "../src/config.js";
-import { missingConnectionRoleCodes } from "../src/config-schema.js";
-import { getProjectEnvPath } from "../src/paths.js";
+import {
+  type ConnectionsProjectInput,
+  missingConnectionRoleCodes,
+} from "../src/config-schema.js";
+import { ConflictError } from "../src/errors.js";
+import { getLocksDir, getProjectEnvPath } from "../src/paths.js";
 import { loadProjectEnv } from "../src/project-env.js";
 import type {
   Provider,
@@ -39,6 +44,11 @@ import type {
 import { resolveProjectProvider } from "../src/providers/project-config.js";
 import { PROVIDER_REGISTRY } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
+import {
+  getCreationClaimPath,
+  withCreationClaim,
+} from "../src/services/creation-claim.js";
+import { createProjectFromConnections } from "../src/services/project-creation.js";
 import type { Project } from "../src/types.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
 
@@ -906,6 +916,232 @@ describe("Ordered writes for crash safety (connections payload)", () => {
     expect(retry.status).toBe(201);
     expect(await storedIds()).toEqual([id]);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+  });
+});
+
+describe("Concurrent creation of the same project id (#133 CORR-3)", () => {
+  let raceDir: string;
+  let raceConfigPath: string;
+  let savedDataDir: string | undefined;
+  let savedConfigPath: string | undefined;
+
+  // Two distinguishable synthetic secrets: whichever request wins, the OTHER
+  // value must be nowhere on disk afterwards.
+  const MARKER_A = "winner-candidate-a";
+  const MARKER_B = "winner-candidate-b";
+
+  beforeEach(async () => {
+    savedDataDir = process.env.X_FACTORY_DATA_DIR;
+    savedConfigPath = process.env.X_FACTORY_CONFIG_PATH;
+    raceDir = await mkdtemp(path.join(tmpdir(), "xf-creation-race-"));
+    process.env.X_FACTORY_DATA_DIR = path.join(raceDir, "data");
+    raceConfigPath = path.join(raceDir, "projects.json");
+    process.env.X_FACTORY_CONFIG_PATH = raceConfigPath;
+  });
+
+  afterEach(async () => {
+    if (savedDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
+    else process.env.X_FACTORY_DATA_DIR = savedDataDir;
+    if (savedConfigPath === undefined) delete process.env.X_FACTORY_CONFIG_PATH;
+    else process.env.X_FACTORY_CONFIG_PATH = savedConfigPath;
+    await rm(raceDir, { recursive: true, force: true });
+  });
+
+  /** One racer's payload: distinguishable by name AND by secret value. */
+  function raceInput(
+    id: string,
+    name: string,
+    marker: string,
+  ): ConnectionsProjectInput {
+    return {
+      id,
+      name,
+      workspacePath: raceDir,
+      connections: [
+        {
+          providerId: "stub-capable",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: marker,
+            project: name,
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(raceDir, "web"),
+          role: "backend",
+        },
+      ],
+    };
+  }
+
+  /** Splits settled results, so a test can assert on each side by name. */
+  async function settle<T>(
+    promises: Promise<T>[],
+  ): Promise<{ fulfilled: T[]; rejected: unknown[] }> {
+    const results = await Promise.allSettled(promises);
+    const fulfilled: T[] = [];
+    const rejected: unknown[] = [];
+    for (const result of results) {
+      if (result.status === "fulfilled") fulfilled.push(result.value);
+      else rejected.push(result.reason);
+    }
+    return { fulfilled, rejected };
+  }
+
+  /** Which racer won, decided by the settled result — never by assumed order. */
+  function markersFor(winnerName: string): {
+    winning: string;
+    losing: string;
+  } {
+    expect(["Race A", "Race B"]).toContain(winnerName);
+    return winnerName === "Race A"
+      ? { winning: MARKER_A, losing: MARKER_B }
+      : { winning: MARKER_B, losing: MARKER_A };
+  }
+
+  it("lets exactly one of two concurrent creations of the same id win, and never persists the loser's secret", async () => {
+    const id = `race-${Date.now()}`;
+
+    // Both requests are STARTED before either is awaited, so both are inside
+    // the creation path at once. Exactly one may win.
+    const { fulfilled, rejected } = await settle([
+      createProjectFromConnections(raceInput(id, "Race A", MARKER_A), {
+        registry: testRegistry,
+        configPath: raceConfigPath,
+      }),
+      createProjectFromConnections(raceInput(id, "Race B", MARKER_B), {
+        registry: testRegistry,
+        configPath: raceConfigPath,
+      }),
+    ]);
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toBeInstanceOf(ConflictError);
+
+    // WHICH request won is read off the settled result, never assumed.
+    const winner = fulfilled[0] as Project;
+    const { winning, losing } = markersFor(winner.name);
+
+    // The persisted secret is the WINNING request's value…
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(winning);
+    // …and the loser's value is nowhere: not in the env store…
+    expect(await readFile(getProjectEnvPath(id), "utf-8")).not.toContain(
+      losing,
+    );
+    // …not in the project record…
+    const recordRaw = await readFile(raceConfigPath, "utf-8");
+    expect(recordRaw).not.toContain(losing);
+    // …and the winner's secret is not in the record either: secrets only ever
+    // live in env storage.
+    expect(recordRaw).not.toContain(winning);
+
+    // Exactly ONE project record for that id, and it is the winner's.
+    const stored = (await loadProjects(raceConfigPath)).filter(
+      (p) => p.id === id,
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.name).toBe(winner.name);
+
+    // No claim file, and no takeover tombstone, survives the race.
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("answers exactly one 201 and one 409 for two concurrent POSTs of the same id, and stores the winner's secret", async () => {
+    const id = `race-http-${Date.now()}`;
+
+    const responses = await Promise.all([
+      createProject(raceInput(id, "Race A", MARKER_A)),
+      createProject(raceInput(id, "Race B", MARKER_B)),
+    ]);
+
+    // One request creates; the other is rejected as a duplicate — never both
+    // and never neither.
+    expect(responses.map((r) => r.status).sort()).toEqual([201, 409]);
+
+    const created = responses.find((r) => r.status === 201);
+    const { winning, losing } = markersFor(String(created?.body.name));
+
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(winning);
+    const envRaw = await readFile(getProjectEnvPath(id), "utf-8");
+    expect(envRaw).not.toContain(losing);
+    const recordRaw = await readFile(raceConfigPath, "utf-8");
+    expect(recordRaw).not.toContain(losing);
+    expect(recordRaw).not.toContain(winning);
+
+    expect(
+      (await loadProjects(raceConfigPath)).filter((p) => p.id === id),
+    ).toHaveLength(1);
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("rejects a creation whose id is claimed elsewhere as a conflict instead of hanging", async () => {
+    const id = `race-held-${Date.now()}`;
+    const claimPath = getCreationClaimPath(id);
+
+    // Another creation of this id holds the claim.
+    let holderEntered!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      holderEntered = resolve;
+    });
+    let releaseHolder!: () => void;
+    const holderGate = new Promise<void>((resolve) => {
+      releaseHolder = resolve;
+    });
+    const holder = withCreationClaim(id, async () => {
+      holderEntered();
+      await holderGate;
+      return "held";
+    });
+    await entered;
+
+    // The bounded wait turns into the documented 409 conflict, with a message
+    // that says so — neither the duplicate-id message nor a hang.
+    await expect(
+      createProjectFromConnections(raceInput(id, "Race A", MARKER_A), {
+        registry: testRegistry,
+        configPath: raceConfigPath,
+        claim: { waitTimeoutMs: 60, pollIntervalMs: 5 },
+      }),
+    ).rejects.toThrow(/already being created/);
+
+    // The rejected creation wrote nothing at all: no secrets, no record…
+    await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+    expect(await loadProjects(raceConfigPath)).toEqual([]);
+    // …and the holder's claim is untouched and still held.
+    expect(await readdir(getLocksDir())).toEqual([path.basename(claimPath)]);
+
+    releaseHolder();
+    await expect(holder).resolves.toBe("held");
+    // …and released by its holder, leaving nothing behind.
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("leaves no claim behind when a creation is rejected as a duplicate, and writes no secret for it", async () => {
+    const id = `race-dup-${Date.now()}`;
+
+    await createProjectFromConnections(raceInput(id, "Race A", MARKER_A), {
+      registry: testRegistry,
+      configPath: raceConfigPath,
+    });
+
+    await expect(
+      createProjectFromConnections(raceInput(id, "Race B", MARKER_B), {
+        registry: testRegistry,
+        configPath: raceConfigPath,
+      }),
+    ).rejects.toThrow(ConflictError);
+
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_A);
+    expect(await readdir(getLocksDir())).toEqual([]);
+    expect(
+      (await loadProjects(raceConfigPath)).filter((p) => p.id === id),
+    ).toHaveLength(1);
   });
 });
 
