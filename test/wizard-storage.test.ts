@@ -344,7 +344,7 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
             owner: "myorg",
             repo: "myrepo",
             apiKey: "secret-api-key-999",
-            credentials: { authSecret: "classified-bearer" },
+            credentials: { apiKey: "classified-bearer" },
           },
         },
         tracker: {
@@ -453,17 +453,17 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
         providerConfigs: {
           azure: {
             orgUrl: "https://dev.azure.com/myorg",
-            // Sensitive-looking keys nested inside an ARRAY of objects
+            // Declared secret keys nested inside an ARRAY of objects
             endpoints: [
               {
-                signingKey: "zz-nested-signing-material-42",
+                token: "zz-nested-signing-material-42",
                 label: "primary",
               },
-              { clientSecret: "zz-nested-client-secret-42", label: "failover" },
+              { password: "zz-nested-client-secret-42", label: "failover" },
             ],
             // ...and inside a deeper object
             layers: {
-              inner: { privateCredential: "zz-deep-credential-42" },
+              inner: { secretField: "zz-deep-credential-42" },
             },
           },
           github: { owner: "myorg", repo: "myrepo" },
@@ -488,9 +488,9 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     expect(raw).not.toContain("zz-nested-client-secret-42");
     expect(raw).not.toContain("zz-deep-credential-42");
     // No secret KEY survives either
-    expect(raw).not.toContain("signingKey");
-    expect(raw).not.toContain("clientSecret");
-    expect(raw).not.toContain("privateCredential");
+    expect(raw).not.toContain('"token"');
+    expect(raw).not.toContain('"password"');
+    expect(raw).not.toContain('"secretField"');
 
     // The surrounding non-secret structure (incl. the array itself) survives
     const loaded = loadWizardDraft(azureGithubDescriptors);
@@ -524,6 +524,14 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
           label: "Access Code",
           type: "secret",
           required: true,
+          secret: true,
+        },
+        {
+          name: "secretCode",
+          label: "Secret Code",
+          type: "secret",
+          required: false,
+          secret: true,
         },
         // Non-secret fields with suspicious-looking names
         {
@@ -545,6 +553,13 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
           type: "text",
           required: false,
         },
+        {
+          name: "apiKey",
+          label: "API Key",
+          type: "text",
+          required: false,
+          secret: false,
+        },
       ],
     };
 
@@ -556,7 +571,7 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
           providerConfigs: {
             "custom-provider": {
               endpoint: "https://api.custom.com",
-              accessCode: "secret-access-code-value-12345",
+              accessCode: "secret-value",
             },
           },
           tracker: { providerId: "custom-provider", verified: true },
@@ -567,7 +582,7 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       saveWizardDraft(state, [customDescriptor]);
 
       const raw = window.localStorage.getItem("xf_wizard_draft_v1") || "";
-      expect(raw).not.toContain("secret-access-code-value-12345");
+      expect(raw).not.toContain("secret-value");
       expect(raw).not.toContain('"accessCode"');
       expect(raw).toContain("https://api.custom.com");
 
@@ -629,7 +644,7 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
                 },
                 {
                   id: "item-2",
-                  privateKey: "array-conventional-secret-222",
+                  secretCode: "array-secret-code-222",
                 },
               ],
             },
@@ -643,9 +658,9 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
 
       const raw = window.localStorage.getItem("xf_wizard_draft_v1") || "";
       expect(raw).not.toContain("array-innocuous-secret-111");
-      expect(raw).not.toContain("array-conventional-secret-222");
+      expect(raw).not.toContain("array-secret-code-222");
       expect(raw).not.toContain('"accessCode"');
-      expect(raw).not.toContain('"privateKey"');
+      expect(raw).not.toContain('"secretCode"');
       expect(raw).toContain('"item-1"');
       expect(raw).toContain('"item-2"');
 
@@ -657,7 +672,7 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       expect(list[0]?.id).toBe("item-1");
       expect(list[0]?.accessCode).toBeUndefined();
       expect(list[1]?.id).toBe("item-2");
-      expect(list[1]?.privateKey).toBeUndefined();
+      expect(list[1]?.secretCode).toBeUndefined();
     });
 
     it("preserves non-secret fields with suspicious names (e.g. tokenType, authMethod, keyPrefix) when declared non-secret", () => {
@@ -692,58 +707,176 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       expect(config?.keyPrefix).toBe("pk_live_prefix_");
     });
 
-    it("strips conventional secret names (token, pat, password, secret) even if not explicitly in provider descriptor", () => {
-      const minimalDescriptor: ProviderDescriptor = {
-        id: "minimal-provider",
-        displayName: "Minimal Provider",
-        roles: ["tracker"],
-        iconRef: "icon-min",
-        capabilities: [],
-        configFields: [
-          { name: "endpoint", label: "Endpoint", type: "url", required: true },
-        ],
-      };
-
+    it("persists a declared non-secret field named apiKey when metadata says it is not secret", () => {
       const state: WizardSourceState = {
         ...createInitialWizardState(),
         connect: {
           quickUrl: "",
           providerConfigs: {
-            "minimal-provider": {
-              endpoint: "https://min.example.com",
-              token: "undeclared-token-value",
-              pat: "undeclared-pat-value",
-              password: "undeclared-password-value",
-              clientSecret: "undeclared-secret-value",
-              apiKey: "undeclared-key-value",
-              credential: "undeclared-credential-value",
+            "custom-provider": {
+              endpoint: "https://api.custom.com",
+              apiKey: "public-api-key-12345",
             },
           },
-          tracker: { providerId: "minimal-provider", verified: true },
+          tracker: { providerId: "custom-provider", verified: true },
           gitHost: { providerId: null, verified: false },
         },
       };
 
-      saveWizardDraft(state, [minimalDescriptor]);
+      saveWizardDraft(state, [customDescriptor]);
 
       const raw = window.localStorage.getItem("xf_wizard_draft_v1") || "";
-      expect(raw).not.toContain("undeclared-token-value");
-      expect(raw).not.toContain("undeclared-pat-value");
-      expect(raw).not.toContain("undeclared-password-value");
-      expect(raw).not.toContain("undeclared-secret-value");
-      expect(raw).not.toContain("undeclared-key-value");
-      expect(raw).not.toContain("undeclared-credential-value");
-      expect(raw).toContain("https://min.example.com");
+      expect(raw).toContain('"apiKey":"public-api-key-12345"');
 
-      const loaded = loadWizardDraft([minimalDescriptor]);
-      const config = loaded?.connect.providerConfigs["minimal-provider"];
-      expect(config?.endpoint).toBe("https://min.example.com");
-      expect(config?.token).toBeUndefined();
-      expect(config?.pat).toBeUndefined();
-      expect(config?.password).toBeUndefined();
-      expect(config?.clientSecret).toBeUndefined();
-      expect(config?.apiKey).toBeUndefined();
-      expect(config?.credential).toBeUndefined();
+      const loaded = loadWizardDraft([customDescriptor]);
+      expect(loaded?.connect.providerConfigs["custom-provider"]?.apiKey).toBe(
+        "public-api-key-12345",
+      );
+    });
+
+    it("does not restore an unknown provider configuration", () => {
+      const state: WizardSourceState = {
+        ...createInitialWizardState(),
+        connect: {
+          quickUrl: "",
+          providerConfigs: {
+            "unknown-provider": {
+              endpoint: "https://unknown.com",
+              accessCode: "secret-data",
+              setting: "val",
+            },
+          },
+          tracker: { providerId: "unknown-provider", verified: true },
+          gitHost: { providerId: null, verified: false },
+        },
+      };
+
+      window.localStorage.setItem(
+        "xf_wizard_draft_v1",
+        JSON.stringify({
+          version: WIZARD_SCHEMA_VERSION,
+          savedAt: new Date().toISOString(),
+          state,
+        }),
+      );
+
+      const loaded = loadWizardDraft([customDescriptor]);
+      expect(
+        loaded?.connect.providerConfigs["unknown-provider"],
+      ).toBeUndefined();
+      expect(loaded?.connect.providerConfigs).toEqual({});
+    });
+
+    it("ensures missing descriptors do not cause heuristic sanitization to decide what is safe (fails closed)", () => {
+      const state: WizardSourceState = {
+        ...createInitialWizardState(),
+        connect: {
+          quickUrl: "",
+          providerConfigs: {
+            "custom-provider": {
+              endpoint: "https://api.custom.com",
+              tokenType: "Bearer",
+              accessCode: "secret-token",
+            },
+          },
+          tracker: { providerId: "custom-provider", verified: true },
+          gitHost: { providerId: null, verified: false },
+        },
+      };
+
+      window.localStorage.setItem(
+        "xf_wizard_draft_v1",
+        JSON.stringify({
+          version: WIZARD_SCHEMA_VERSION,
+          savedAt: new Date().toISOString(),
+          state,
+        }),
+      );
+
+      const loaded = loadWizardDraft(undefined);
+      expect(loaded).not.toBeNull();
+      expect(loaded?.connect.providerConfigs).toEqual({});
+    });
+
+    it("ensures existing real provider secrets still remain excluded", () => {
+      const state: WizardSourceState = {
+        ...createInitialWizardState(),
+        connect: {
+          quickUrl: "https://dev.azure.com/myorg/myproj",
+          providerConfigs: {
+            azure: {
+              orgUrl: "https://dev.azure.com/myorg",
+              project: "myproj",
+              pat: "secret-azure-pat-12345",
+              token: "secret-azure-token-67890",
+              password: "secret-azure-password-abcde",
+              secretField: "secret-azure-field-xyz",
+            },
+            github: {
+              owner: "myorg",
+              repo: "myrepo",
+              apiKey: "secret-github-api-key-999",
+            },
+          },
+          tracker: { providerId: "azure", verified: true },
+          gitHost: { providerId: "github", verified: true },
+        },
+      };
+
+      saveWizardDraft(state, azureGithubDescriptors);
+
+      const raw = window.localStorage.getItem("xf_wizard_draft_v1") || "";
+      expect(raw).not.toContain("secret-azure-pat-12345");
+      expect(raw).not.toContain("secret-azure-token-67890");
+      expect(raw).not.toContain("secret-azure-password-abcde");
+      expect(raw).not.toContain("secret-azure-field-xyz");
+      expect(raw).not.toContain("secret-github-api-key-999");
+      expect(raw).not.toContain('"pat"');
+      expect(raw).not.toContain('"token"');
+      expect(raw).not.toContain('"password"');
+      expect(raw).not.toContain('"secretField"');
+      expect(raw).not.toContain('"apiKey"');
+
+      const loaded = loadWizardDraft(azureGithubDescriptors);
+      expect(loaded?.connect.providerConfigs.azure?.pat).toBeUndefined();
+      expect(loaded?.connect.providerConfigs.azure?.token).toBeUndefined();
+      expect(loaded?.connect.providerConfigs.azure?.password).toBeUndefined();
+      expect(
+        loaded?.connect.providerConfigs.azure?.secretField,
+      ).toBeUndefined();
+      expect(loaded?.connect.providerConfigs.github?.apiKey).toBeUndefined();
+    });
+
+    it("ensures valid non-secret provider fields still survive round-trip", () => {
+      const state: WizardSourceState = {
+        ...createInitialWizardState(),
+        connect: {
+          quickUrl: "https://dev.azure.com/myorg/myproj",
+          providerConfigs: {
+            azure: {
+              orgUrl: "https://dev.azure.com/myorg",
+              project: "myproj",
+            },
+            github: {
+              owner: "myorg",
+              repo: "myrepo",
+            },
+          },
+          tracker: { providerId: "azure", verified: true },
+          gitHost: { providerId: "github", verified: true },
+        },
+      };
+
+      saveWizardDraft(state, azureGithubDescriptors);
+
+      const loaded = loadWizardDraft(azureGithubDescriptors);
+      expect(loaded).not.toBeNull();
+      expect(loaded?.connect.providerConfigs.azure?.orgUrl).toBe(
+        "https://dev.azure.com/myorg",
+      );
+      expect(loaded?.connect.providerConfigs.azure?.project).toBe("myproj");
+      expect(loaded?.connect.providerConfigs.github?.owner).toBe("myorg");
+      expect(loaded?.connect.providerConfigs.github?.repo).toBe("myrepo");
     });
 
     it("never persists envKey under any circumstances, even if declared non-secret", () => {

@@ -280,9 +280,11 @@ async function verifyBothConnections() {
 
 /** Flushes the discovery query's fetch → render cycle (needs a real tick). */
 async function flushDiscovery() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  for (let i = 0; i < 5; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  }
 }
 
 /** The region container the step reserves for discovery. */

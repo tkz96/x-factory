@@ -5,8 +5,10 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
+  useRef,
 } from "react";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
@@ -14,6 +16,7 @@ import {
   clearWizardDraft,
   loadWizardDraft,
   saveWizardDraft,
+  storedDraftRequiresDescriptors,
 } from "../storage.js";
 import type {
   WizardAction,
@@ -43,6 +46,11 @@ const WizardContext = createContext<WizardContextValue | null>(null);
 function getInitialState(
   descriptors?: readonly ProviderDescriptor[] | undefined,
 ): WizardSourceState {
+  if (!descriptors || descriptors.length === 0) {
+    if (storedDraftRequiresDescriptors()) {
+      return createInitialWizardState();
+    }
+  }
   const draft = loadWizardDraft(descriptors);
   if (draft) {
     return draft;
@@ -64,6 +72,38 @@ export function WizardProvider({
     wizardReducer,
     descriptors,
     getInitialState,
+  );
+
+  // Restore draft once descriptors become available (#133 contract).
+  // If descriptors were undefined on mount, getInitialState could not restore provider
+  // configs without descriptors. When descriptors arrive, restore the stored draft
+  // using the descriptors for the stored provider ids.
+  const restoredWithDescriptorsRef = useRef(
+    descriptors && descriptors.length > 0
+      ? true
+      : !storedDraftRequiresDescriptors(),
+  );
+
+  useEffect(() => {
+    if (restoredWithDescriptorsRef.current) return;
+    if (!descriptors || !Array.isArray(descriptors) || descriptors.length === 0)
+      return;
+
+    const draft = loadWizardDraft(descriptors);
+    if (draft) {
+      restoredWithDescriptorsRef.current = true;
+      dispatch({ type: "RESTORE_DRAFT", state: draft });
+    }
+  }, [descriptors]);
+
+  const hasRequiredDescriptors = useCallback(
+    (configs: Record<string, unknown> | undefined) => {
+      if (!configs || Object.keys(configs).length === 0) return true;
+      if (!descriptors || !Array.isArray(descriptors)) return false;
+      const configuredIds = Object.keys(configs);
+      return configuredIds.every((id) => descriptors.some((d) => d.id === id));
+    },
+    [descriptors],
   );
 
   // Derived values — computed at render time, NEVER stored in state, NEVER synced via useEffect
@@ -108,15 +148,17 @@ export function WizardProvider({
       nextStepNum,
     ) as WizardStepNumber;
     dispatch({ type: "NEXT_STEP" });
-    saveWizardDraft(
-      {
-        ...state,
-        step: nextStepNum,
-        maxStepVisited: nextMax,
-      },
-      descriptors,
-    );
-  }, [canAdvance, state, descriptors]);
+    if (hasRequiredDescriptors(state.connect.providerConfigs)) {
+      saveWizardDraft(
+        {
+          ...state,
+          step: nextStepNum,
+          maxStepVisited: nextMax,
+        },
+        descriptors,
+      );
+    }
+  }, [canAdvance, state, descriptors, hasRequiredDescriptors]);
 
   const prevStep = useCallback(() => {
     if (state.step <= 1) return;
@@ -128,15 +170,17 @@ export function WizardProvider({
       // Prevent forward navigation to bypass step validation
       if (!isStepAccessible(targetStep) || targetStep > state.step) return;
       dispatch({ type: "SET_STEP", step: targetStep });
-      saveWizardDraft(
-        {
-          ...state,
-          step: targetStep,
-        },
-        descriptors,
-      );
+      if (hasRequiredDescriptors(state.connect.providerConfigs)) {
+        saveWizardDraft(
+          {
+            ...state,
+            step: targetStep,
+          },
+          descriptors,
+        );
+      }
     },
-    [isStepAccessible, state, descriptors],
+    [isStepAccessible, state, descriptors, hasRequiredDescriptors],
   );
 
   const resetWizard = useCallback(() => {
