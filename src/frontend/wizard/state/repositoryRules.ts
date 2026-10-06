@@ -7,6 +7,7 @@
 // `canAdvance` and the reducer's `NEXT_STEP` guard read these same functions,
 // so the UI hint and the state machine can never disagree.
 
+import type { ProviderDescriptor } from "../../connection/types.js";
 import { connectionConfigFingerprint } from "../../lib/connection-fingerprint.js";
 import type { WizardRepoConfig, WizardSourceState } from "../types.js";
 import { roleConfig } from "./connectConfig.js";
@@ -48,31 +49,44 @@ export function hasApplicationRepository(state: WizardSourceState): boolean {
 
 /**
  * The git-host connection fingerprint discovery and selection must belong to.
- * Follows the connection's provider id and every config value, so editing
- * either one moves the fingerprint.
+ * Follows the connection's provider id and non-secret config values, so editing
+ * relevant configuration moves the fingerprint while secret values never participate.
  */
-export function gitHostDiscoveryFingerprint(state: WizardSourceState): string {
+export function gitHostDiscoveryFingerprint(
+  state: WizardSourceState,
+  descriptorOrDescriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
+): string {
   return connectionConfigFingerprint(
     state.connect.gitHost.providerId,
     roleConfig(state.connect, "gitHost"),
+    descriptorOrDescriptors,
   );
 }
 
 /**
  * Input staleness (#132): the recorded selection was produced from a git-host
- * connection configuration that is no longer current — a provider or config
+ * connection configuration that is no longer current — a provider or non-secret config
  * edit after selection. This is never TanStack Query's cache-freshness
  * `isStale`; it is a comparison of the recorded provenance against the
  * connection as it stands now. A restored selection with no recorded
  * provenance is out of date, so old drafts cannot bypass revalidation.
  */
-export function isRepositorySelectionStale(state: WizardSourceState): boolean {
+export function isRepositorySelectionStale(
+  state: WizardSourceState,
+  descriptorOrDescriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
+): boolean {
   if (state.repositories.selectedRepoIds.length === 0) {
     return false;
   }
   return (
     state.repositories.selectionFingerprint !==
-    gitHostDiscoveryFingerprint(state)
+    gitHostDiscoveryFingerprint(state, descriptorOrDescriptors)
   );
 }
 
@@ -81,6 +95,15 @@ export function isRepositorySelectionStale(state: WizardSourceState): boolean {
  * exists. Stale selections block, so a project can never be created from a
  * selection made under a connection that has since changed.
  */
-export function canAdvanceFromRepositories(state: WizardSourceState): boolean {
-  return hasApplicationRepository(state) && !isRepositorySelectionStale(state);
+export function canAdvanceFromRepositories(
+  state: WizardSourceState,
+  descriptorOrDescriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
+): boolean {
+  return (
+    hasApplicationRepository(state) &&
+    !isRepositorySelectionStale(state, descriptorOrDescriptors)
+  );
 }

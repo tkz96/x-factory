@@ -36,6 +36,7 @@ import {
   identitiesByRole,
   withConnectionIdentities,
 } from "../components/connections/connection-state.js";
+import type { ProviderDescriptor } from "../connection/types.js";
 import { api } from "../lib/api-client.js";
 import { connectionConfigFingerprint } from "../lib/connection-fingerprint.js";
 import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
@@ -55,8 +56,12 @@ import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
 export function useConnectionLine(
   slots: readonly ConnectionComboSlot[],
   targets: readonly ConnectionIdentityTarget[],
+  descriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
 ): ConnectionComboSlot[] {
-  const lookup = useConnectionIdentities(targets);
+  const lookup = useConnectionIdentities(targets, descriptors);
   return withConnectionIdentities(slots, identitiesByRole(targets, lookup));
 }
 
@@ -74,8 +79,15 @@ export interface ConnectionLine {
  */
 export function useConnectionLines(
   lines: readonly ConnectionLine[],
+  descriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
 ): ConnectionComboSlot[][] {
-  const lookup = useConnectionIdentities(lines.flatMap((line) => line.targets));
+  const lookup = useConnectionIdentities(
+    lines.flatMap((line) => line.targets),
+    descriptors,
+  );
   return lines.map((line) =>
     withConnectionIdentities(
       line.slots,
@@ -99,6 +111,10 @@ export function useConnectionLines(
  */
 export function useConnectionIdentities(
   targets: readonly ConnectionIdentityTarget[],
+  descriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
 ): ConnectionIdentityLookup {
   // Deduplicate targets before passing queries to useQueries so queries are
   // created and executed only for unique (providerId, config) pairs. A dual-role
@@ -114,6 +130,7 @@ export function useConnectionIdentities(
     const fingerprint = connectionConfigFingerprint(
       target.providerId,
       target.config,
+      descriptors,
     );
     if (!seenFingerprints.has(fingerprint)) {
       seenFingerprints.add(fingerprint);
@@ -123,7 +140,11 @@ export function useConnectionIdentities(
 
   const results = useQueries({
     queries: uniqueTargets.map(({ target }) => ({
-      queryKey: queryKeys.providerIdentity(target.providerId, target.config),
+      queryKey: queryKeys.providerIdentity(
+        target.providerId,
+        target.config,
+        descriptors,
+      ),
       queryFn: () => {
         const providerId = target.providerId;
         if (providerId === null) {
@@ -151,6 +172,10 @@ export function useConnectionIdentities(
 
   return (target) =>
     answered.get(
-      connectionConfigFingerprint(target.providerId, target.config),
+      connectionConfigFingerprint(
+        target.providerId,
+        target.config,
+        descriptors,
+      ),
     ) ?? null;
 }

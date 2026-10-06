@@ -62,11 +62,23 @@ const trackerOnlyStubProvider: Provider = {
   roles: ["tracker"],
 };
 
+const throwingQuickUrlStubProvider: Provider = {
+  ...stubProvider,
+  id: "stub-throwing-quickurl",
+  displayName: "Throwing QuickUrl Stub",
+  parseQuickUrl(_url) {
+    throw new Error(
+      "Internal secret provider failure: sensitive token abc-123-leak",
+    );
+  },
+};
+
 const testRegistry = new Map<string, Provider>([
   [stubProvider.id, stubProvider],
   [degradedStubProvider.id, degradedStubProvider],
   [failingStubProvider.id, failingStubProvider],
   [trackerOnlyStubProvider.id, trackerOnlyStubProvider],
+  [throwingQuickUrlStubProvider.id, throwingQuickUrlStubProvider],
 ]);
 
 beforeAll(() => {
@@ -385,7 +397,7 @@ describe("POST /api/providers/parse-url", () => {
     });
   });
 
-  it("returns matched: false carrying original URL for unrecognized URL", async () => {
+  it("returns UNKNOWN error envelope carrying original URL in context for unrecognized URL", async () => {
     const unrecognizedUrl = "https://unrecognized.example/org/repo";
     const res = await fetch(`${baseUrl}/api/providers/parse-url`, {
       method: "POST",
@@ -397,11 +409,17 @@ describe("POST /api/providers/parse-url", () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
+      code: string;
+      context: string;
       matched: boolean;
       url: string;
     };
-    expect(body.matched).toBe(false);
-    expect(body.url).toBe(unrecognizedUrl);
+    expect(body).toEqual({
+      code: "UNKNOWN",
+      context: unrecognizedUrl,
+      matched: false,
+      url: unrecognizedUrl,
+    });
   });
 
   it("rejects transport invalid input with 400 (missing or empty url)", async () => {
@@ -411,6 +429,37 @@ describe("POST /api/providers/parse-url", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
+
+    const resEmpty = await fetch(`${baseUrl}/api/providers/parse-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "   " }),
+    });
+    expect(resEmpty.status).toBe(400);
+  });
+
+  it("ensures no provider-generated message or internal error crosses the boundary", async () => {
+    const unrecognizedUrl = "https://nonexistent.example/org/repo";
+    const res = await fetch(`${baseUrl}/api/providers/parse-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: unrecognizedUrl,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const rawText = await res.text();
+    expect(rawText).not.toContain("Internal secret provider failure");
+    expect(rawText).not.toContain("sensitive token abc-123-leak");
+
+    const body = JSON.parse(rawText);
+    expect(body).toEqual({
+      code: "UNKNOWN",
+      context: unrecognizedUrl,
+      matched: false,
+      url: unrecognizedUrl,
+    });
   });
 });
 

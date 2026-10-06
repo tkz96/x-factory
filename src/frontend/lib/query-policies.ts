@@ -1,5 +1,6 @@
 // src/frontend/lib/query-policies.ts — Explicit TanStack Query freshness policies (XFM-41).
 
+import type { ProviderDescriptor } from "../connection/types.js";
 import { connectionConfigFingerprint } from "./connection-fingerprint.js";
 
 export const queryKeys = {
@@ -24,11 +25,15 @@ export const queryKeys = {
   providerRepositories: (
     providerId: string | null,
     config: Record<string, unknown>,
+    descriptorOrDescriptors?:
+      | ProviderDescriptor
+      | readonly ProviderDescriptor[]
+      | ReadonlySet<string>,
   ) =>
     [
       "providers",
       "repositories",
-      connectionConfigFingerprint(providerId, config),
+      connectionConfigFingerprint(providerId, config, descriptorOrDescriptors),
     ] as const,
   /**
    * A connection's provider-owned identity (#133 story 34). Keyed by the same
@@ -39,11 +44,15 @@ export const queryKeys = {
   providerIdentity: (
     providerId: string | null,
     config: Record<string, unknown>,
+    descriptorOrDescriptors?:
+      | ProviderDescriptor
+      | readonly ProviderDescriptor[]
+      | ReadonlySet<string>,
   ) =>
     [
       "providers",
       "identity",
-      connectionConfigFingerprint(providerId, config),
+      connectionConfigFingerprint(providerId, config, descriptorOrDescriptors),
     ] as const,
 };
 

@@ -301,6 +301,8 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));
@@ -448,6 +450,8 @@ describe("Repositories Step — degraded, error, stale & gate states (spec #133,
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));
@@ -593,6 +597,8 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));
@@ -650,7 +656,10 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
 
   it("STALE (restored draft): a selection made under a different connection is out of date — badge, refresh, blocked Next; re-selecting clears it", async () => {
     setupStep3Draft({
-      repositories: selectionUnder({ ...GIT_HOST_CONFIG, token: "tok-old" }),
+      repositories: selectionUnder({
+        ...GIT_HOST_CONFIG,
+        gitUrl: "https://git-old.example.com",
+      }),
     });
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -1125,6 +1134,8 @@ describe("Repositories Step — a previous configuration's results are never sel
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));

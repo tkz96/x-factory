@@ -285,25 +285,31 @@ export async function handleParseUrlRoute(
 
   for (const provider of registry.values()) {
     if (hasCapability(provider, "parseQuickUrl")) {
-      const draft = provider.parseQuickUrl(urlStr);
-      if (draft !== null) {
-        return jsonResponse(
-          {
-            matched: true,
-            providerId: provider.id,
-            configDraft: draft.configDraft,
-            ...(draft.inferredName !== undefined
-              ? { inferredName: draft.inferredName }
-              : {}),
-          },
-          200,
-        );
+      try {
+        const draft = provider.parseQuickUrl(urlStr);
+        if (draft !== null) {
+          return jsonResponse(
+            {
+              matched: true,
+              providerId: provider.id,
+              configDraft: draft.configDraft,
+              ...(draft.inferredName !== undefined
+                ? { inferredName: draft.inferredName }
+                : {}),
+            },
+            200,
+          );
+        }
+      } catch {
+        // Degrade cleanly; never leak provider-generated text or internal error strings.
       }
     }
   }
 
   return jsonResponse(
     {
+      code: "UNKNOWN",
+      context: urlStr,
       matched: false,
       url: urlStr,
     },

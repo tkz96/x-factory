@@ -188,7 +188,7 @@ describe("useConnectionIdentities — one read, per connection configuration", (
     const calls = installDescribe(({ providerId, config }) => ({
       providerId,
       identity:
-        config.apiToken === CONFIG_SECRET_MARKER
+        config.host === "https://board-old.example"
           ? "board.example/OLD"
           : "board.example/NEW",
     }));
@@ -197,7 +197,7 @@ describe("useConnectionIdentities — one read, per connection configuration", (
     const first = renderProbe(
       client,
       targetsFor(
-        { host: "https://board.example", apiToken: CONFIG_SECRET_MARKER },
+        { host: "https://board-old.example", apiToken: CONFIG_SECRET_MARKER },
         {},
       ),
     );
@@ -212,7 +212,7 @@ describe("useConnectionIdentities — one read, per connection configuration", (
       client,
       targetsFor(
         {
-          host: "https://board.example",
+          host: "https://board-new.example",
           apiToken: EDITED_CONFIG_SECRET_MARKER,
         },
         {},
@@ -229,10 +229,52 @@ describe("useConnectionIdentities — one read, per connection configuration", (
     // The edited configuration was genuinely asked about: an identity keyed by
     // anything but the configuration could have reused the first answer.
     expect(
-      calls.filter(
-        (call) => call.config.apiToken === EDITED_CONFIG_SECRET_MARKER,
-      ),
+      calls.filter((call) => call.config.host === "https://board-new.example"),
     ).toHaveLength(1);
+  });
+
+  it("reuses cached identity when only secrets are rotated (#133 / PR #158)", async () => {
+    const calls = installDescribe(({ providerId }) => ({
+      providerId,
+      identity: "board.example/SAME",
+    }));
+
+    const client = makeClient();
+    const first = renderProbe(
+      client,
+      targetsFor(
+        { host: "https://board.example", apiToken: CONFIG_SECRET_MARKER },
+        {},
+      ),
+    );
+    await waitFor(() => {
+      expect(first.getByTestId("identities").textContent).toContain(
+        "board.example/SAME",
+      );
+    });
+    first.unmount();
+
+    const second = renderProbe(
+      client,
+      targetsFor(
+        {
+          host: "https://board.example",
+          apiToken: EDITED_CONFIG_SECRET_MARKER,
+        },
+        {},
+      ),
+    );
+    await waitFor(() => {
+      expect(second.getByTestId("identities").textContent).toContain(
+        "board.example/SAME",
+      );
+    });
+    // Because secrets are stripped from connection fingerprinting, rotating apiToken
+    // leaves the cache key identical and avoids spurious re-queries (2 initial calls from first render, 0 new calls).
+    expect(calls).toHaveLength(2);
+    expect(
+      calls.filter((c) => c.config.apiToken === EDITED_CONFIG_SECRET_MARKER),
+    ).toHaveLength(0);
   });
 
   it("asks nothing for a role with no provider, and renders no identity for it", async () => {

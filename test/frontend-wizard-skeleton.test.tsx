@@ -103,6 +103,8 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));

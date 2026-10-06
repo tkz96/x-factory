@@ -85,9 +85,12 @@ describe("connectionConfigFingerprint", () => {
     expect(
       connectionConfigFingerprint("p", { token: "t", host: "h" }),
     ).not.toBe(connectionConfigFingerprint("q", { token: "t", host: "h" }));
+    expect(connectionConfigFingerprint("p", { token: "t", host: "h" })).toBe(
+      connectionConfigFingerprint("p", { token: "t2", host: "h" }),
+    );
     expect(
       connectionConfigFingerprint("p", { token: "t", host: "h" }),
-    ).not.toBe(connectionConfigFingerprint("p", { token: "t2", host: "h" }));
+    ).not.toBe(connectionConfigFingerprint("p", { token: "t", host: "h2" }));
   });
 
   it("never carries a credential value — it is a non-reversible digest", () => {
@@ -211,11 +214,31 @@ describe("isRepositorySelectionStale", () => {
         ...state.connect,
         providerConfigs: {
           ...state.connect.providerConfigs,
-          "generic-githost": { ...GIT_HOST_CONFIG, token: "tok-b" },
+          "generic-githost": {
+            ...GIT_HOST_CONFIG,
+            host: "https://git-updated.example.com",
+          },
         },
       },
     };
     expect(isRepositorySelectionStale(edited)).toBe(true);
+  });
+
+  it("is false after rotating a secret token on the connection", () => {
+    const state = stateWithSelection(GIT_HOST_CONFIG, {
+      "repo-1": { role: "gitHost", roles: ["gitHost"] },
+    });
+    const rotated: WizardSourceState = {
+      ...state,
+      connect: {
+        ...state.connect,
+        providerConfigs: {
+          ...state.connect.providerConfigs,
+          "generic-githost": { ...GIT_HOST_CONFIG, token: "tok-b" },
+        },
+      },
+    };
+    expect(isRepositorySelectionStale(rotated)).toBe(false);
   });
 
   it("is true after the git-host provider changes", () => {

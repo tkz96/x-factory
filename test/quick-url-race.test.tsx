@@ -392,6 +392,8 @@ describe("useQuickUrlIntake — async race condition & generation discipline (#1
     // A resolves as unmatched
     await act(async () => {
       resolveA({
+        code: "UNKNOWN",
+        context: "https://unmatched-url.com",
         matched: false,
         url: "https://unmatched-url.com",
       });

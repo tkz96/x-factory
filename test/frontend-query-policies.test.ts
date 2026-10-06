@@ -75,6 +75,10 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
       gitUrl: "https://git.example.com",
     });
     const edited = queryKeys.providerRepositories("generic-githost", {
+      gitUrl: "https://git-2.example.com",
+      token: "tok-a",
+    });
+    const rotatedSecret = queryKeys.providerRepositories("generic-githost", {
       gitUrl: "https://git.example.com",
       token: "tok-b",
     });
@@ -87,12 +91,15 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
     expect(base[1]).toBe("repositories");
     // Key order is irrelevant — the same configuration is the same key...
     expect(base).toEqual(reordered);
-    // ...while any provider or value change is a different key, and therefore a
+    // ...secret rotation leaves the key unchanged because credentials are stripped...
+    expect(base).toEqual(rotatedSecret);
+    // ...while any provider or non-secret identity change is a different key, and therefore a
     // fresh fetch instead of the previous configuration's results.
     expect(base).not.toEqual(edited);
     expect(base).not.toEqual(otherProvider);
     // The key never carries a credential: it holds a non-reversible digest.
     expect(JSON.stringify(base)).not.toContain("tok-a");
+    expect(JSON.stringify(base)).not.toContain("tok-b");
   });
 });
 

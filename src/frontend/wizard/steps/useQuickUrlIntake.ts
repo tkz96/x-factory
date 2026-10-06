@@ -50,10 +50,17 @@ export function useQuickUrlIntake({
       if (currentParseGen !== activeGenRef.current) {
         return;
       }
-      if (!result.matched) {
+      if (
+        ("code" in result && result.code === "UNKNOWN") ||
+        ("matched" in result && result.matched === false)
+      ) {
         setQuickUrlMissMessage(
           "URL was not recognized by any registered provider.",
         );
+        return;
+      }
+
+      if (!("providerId" in result)) {
         return;
       }
 

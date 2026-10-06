@@ -2065,8 +2065,13 @@ export function getOpenApiSpec() {
         },
         QuickUrlUnrecognizedResult: {
           type: "object",
-          required: ["matched", "url"],
+          required: ["code", "context", "matched", "url"],
           properties: {
+            code: { type: "string", enum: ["UNKNOWN"] },
+            context: {
+              type: "string",
+              example: "https://unrecognized.example",
+            },
             matched: { type: "boolean", enum: [false] },
             url: { type: "string", example: "https://unrecognized.example" },
           },

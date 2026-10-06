@@ -232,6 +232,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));
@@ -440,6 +442,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     fireEvent.click(getEl("btn-open-wizard"));
 
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "https://unsupported.example.com/unknown",
       matched: false as const,
       url: "https://unsupported.example.com/unknown",
     }));
@@ -1548,6 +1552,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         warnings: [],
       }));
       api.providers.parseUrl = mock(async () => ({
+        code: "UNKNOWN" as const,
+        context: "",
         matched: false as const,
         url: "",
       }));

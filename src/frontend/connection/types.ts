@@ -33,17 +33,21 @@ export interface VerificationResult {
   warnings: VerificationWarning[];
 }
 
-export type ParseUrlResult =
-  | {
-      matched: true;
-      providerId: string;
-      configDraft: Record<string, unknown>;
-      inferredName?: string;
-    }
-  | {
-      matched: false;
-      url: string;
-    };
+export type ParseUrlSuccess = {
+  matched?: true;
+  providerId: string;
+  configDraft: Record<string, unknown>;
+  inferredName?: string;
+};
+
+export type ParseUrlError = {
+  code: "UNKNOWN";
+  context: string;
+  matched?: false;
+  url?: string;
+};
+
+export type ParseUrlResult = ParseUrlSuccess | ParseUrlError;
 
 export interface VerifyCredentialsPayload {
   providerId: string;

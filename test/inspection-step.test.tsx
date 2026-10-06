@@ -217,6 +217,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));

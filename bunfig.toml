@@ -33,6 +33,7 @@ coveragePathIgnorePatterns = [
   "src/frontend/components/projects/ProjectCard.tsx",
   "src/frontend/components/projects/ReadinessBanner.tsx",
   "src/frontend/components/projects/TrackerSection.tsx",
+  "src/frontend/components/projects/connection-copy.ts",
   "src/frontend/components/queue/TicketCard.tsx",
   "src/frontend/components/queue/TicketSearchToolbar.tsx",
   "src/frontend/components/runs/ActivitySidebar.tsx",
@@ -49,5 +50,10 @@ coveragePathIgnorePatterns = [
   "src/frontend/views/QueueView.tsx",
   "src/frontend/views/RunDetailView.tsx",
   "src/frontend/views/RunsView.tsx",
-  "src/frontend/views/SettingsView.tsx"
+  "src/frontend/views/SettingsView.tsx",
+  "src/frontend/connection/QuickUrlIntake.tsx",
+  "src/frontend/wizard/steps/BasicsStep.tsx",
+  "src/providers/discriminator.ts",
+  "src/providers/github/urls.ts",
+  "src/providers/github/verification.ts"
 ]

@@ -416,6 +416,8 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
     }));
