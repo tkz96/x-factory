@@ -56,6 +56,29 @@ while it holds, so a project can never be created from a selection made under a
 connection that has since changed. Report/Review stale-blocking (#146/#147)
 builds on the same rule.
 
+**Repositories result staleness — visible is not selectable (`#144`, correction
+4).** The same step has a SECOND staleness, about the RESULT rather than the
+selection: while the fetch for an edited configuration runs, the previous
+configuration's envelope stays on screen as placeholder content
+(`keepPreviousData`) so the region never collapses to a spinner — but it is
+placeholder content and nothing more. Rows whose `requestFingerprint` is not the
+current connection's fingerprint render disabled, with the reason stated from
+the copy map (`REPOSITORIES_COPY.staleResults`), and `toggleRepository` refuses
+them outright, so the refusal does not depend on the `disabled` attribute. The
+row of a connection that is no longer configured therefore can never be recorded
+under the current fingerprint, which is exactly the state the selection
+comparison above would then read as current. `canAdvance` in
+`wizard/steps/useRepositoryDiscovery.ts` folds this result staleness in, on top
+of the state-only rule in `repositoryRules.ts`: whether the ROWS on screen
+belong to the connection is a query-derived fact, and the hook is the one place
+that composes the query with the wizard's state. The two are not alternatives —
+the pure rule still blocks a stale selection on its own, and it always blocks
+when there is no current-configuration selection to unblock on. A failed refresh
+of a new configuration keeps the list on screen too (the hook holds the last
+displayed result, because TanStack Query drops its placeholder the moment the
+query errors) with the stale badge and the failure's canonical diagnostics
+beside it, still non-selectable and still blocked.
+
 **Inspection & Review staleness (`#146`).** The Inspection step records the
 resolved identity together with the fingerprint of the INPUTS it was resolved
 from — the workspace root, the selection and its order, and each selected
@@ -217,8 +240,10 @@ Two recordable consequences of the rules:
    provider id and canonicalised config are digested into the query key
    (`connectionConfigFingerprint`), so an edit produces a different key and a
    fresh fetch, and the previous results are flagged out of date while it runs
-   (`keepPreviousData`). No imperative `invalidateQueries` expresses "the inputs
-   changed" anywhere in the wizard.
+   (`keepPreviousData`). Those previous results stay VISIBLE and are never
+   selectable (correction 4 above): a click on one could only file an old
+   connection's repository under the new connection's fingerprint. No imperative
+   `invalidateQueries` expresses "the inputs changed" anywhere in the wizard.
 2. **A record that is already current for the current inputs is not re-read.**
    Entering Inspection again (a back-navigation, or a Review round trip) does not
    re-issue an identical read of evidence already on screen; a stale or missing
