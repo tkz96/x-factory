@@ -64,6 +64,24 @@ export interface WizardConnectState {
    * (`src/frontend/wizard/state/connectConfig.ts`).
    */
   providerConfigs: Record<string, Record<string, unknown>>;
+  /**
+   * THE generation of each provider's configuration: a counter the reducer
+   * bumps on every write to `providerConfigs[providerId]` — whichever card made
+   * the write, and whichever role names the provider.
+   *
+   * It is the ONE staleness token for a verification in flight (correction 1,
+   * #133). A verification captures the generation of the provider it asked
+   * about; the reducer records the evidence only while that generation is still
+   * current, so a configuration written from the PARTNER card — which bumps
+   * this counter and cannot touch the asking card's own state — invalidates the
+   * in-flight verification too. Without it, a late resolve could mark a
+   * connection verified against a configuration nobody submitted.
+   *
+   * Session-scoped, like the verification evidence it guards: it is not part of
+   * the persisted draft (the draft drops verification evidence anyway), so an
+   * absent map reads as generation 0 (`configGeneration`).
+   */
+  providerConfigGenerations?: Record<string, number>;
   tracker: WizardConnectionRoleState;
   gitHost: WizardConnectionRoleState;
 }
@@ -142,12 +160,22 @@ export interface WizardDraftEnvelope {
   state: WizardSourceState;
 }
 
+/**
+ * The wizard's actions, each named for the ONE thing it may change. There is
+ * deliberately no generic "patch the connect state" action (correction 1, #133):
+ * a configuration may be written only through `UPDATE_PROVIDER_CONFIG` and
+ * `APPLY_PROVIDER_MATCH`, which clear the verification of every role naming the
+ * provider in the same step, and verification evidence only through
+ * `RECORD_VERIFICATION`, which the reducer discards when the configuration it
+ * asked about is no longer current. A blanket patch could replace a provider's
+ * configuration while leaving every "verified" flag standing — the exact payload
+ * a connection must never be submitted with — so no such action exists.
+ */
 export type WizardAction =
   | { type: "SET_STEP"; step: WizardStepNumber }
   | { type: "NEXT_STEP" }
   | { type: "PREV_STEP" }
   | { type: "UPDATE_BASICS"; patch: Partial<WizardBasicsState> }
-  | { type: "UPDATE_CONNECT"; patch: Partial<WizardConnectState> }
   | {
       type: "SELECT_PROVIDER";
       role: WizardConnectionRole;
@@ -157,6 +185,24 @@ export type WizardAction =
       type: "UPDATE_PROVIDER_CONFIG";
       providerId: string;
       config: Record<string, unknown>;
+    }
+  | {
+      /**
+       * Records the outcome of a verification attempt for one role — THE only
+       * way verification evidence is written (correction 1, #133).
+       *
+       * `generation` is the configuration generation the attempt asked about. The
+       * reducer records the evidence only while the provider still serves the
+       * role AND its configuration still carries that generation, so an attempt
+       * whose configuration was replaced — by EITHER card — is discarded rather
+       * than recorded.
+       */
+      type: "RECORD_VERIFICATION";
+      role: WizardConnectionRole;
+      providerId: string;
+      generation: number;
+      verified: boolean;
+      unconfirmedCapabilities: string[];
     }
   | {
       type: "APPLY_PROVIDER_MATCH";
