@@ -100,8 +100,29 @@ export function useConnectionLines(
 export function useConnectionIdentities(
   targets: readonly ConnectionIdentityTarget[],
 ): ConnectionIdentityLookup {
+  // Deduplicate targets before passing queries to useQueries so queries are
+  // created and executed only for unique (providerId, config) pairs. A dual-role
+  // connection — or identical configurations across batched lines — makes
+  // exactly one request to describe.
+  const uniqueTargets: Array<{
+    target: ConnectionIdentityTarget;
+    fingerprint: string;
+  }> = [];
+  const seenFingerprints = new Set<string>();
+
+  for (const target of targets) {
+    const fingerprint = connectionConfigFingerprint(
+      target.providerId,
+      target.config,
+    );
+    if (!seenFingerprints.has(fingerprint)) {
+      seenFingerprints.add(fingerprint);
+      uniqueTargets.push({ target, fingerprint });
+    }
+  }
+
   const results = useQueries({
-    queries: targets.map((target) => ({
+    queries: uniqueTargets.map(({ target }) => ({
       queryKey: queryKeys.providerIdentity(target.providerId, target.config),
       queryFn: () => {
         const providerId = target.providerId;
@@ -121,9 +142,9 @@ export function useConnectionIdentities(
   });
 
   const answered = new Map<string, string | null>();
-  targets.forEach((target, index) => {
+  uniqueTargets.forEach(({ fingerprint }, index) => {
     answered.set(
-      connectionConfigFingerprint(target.providerId, target.config),
+      fingerprint,
       presentableIdentity(results[index]?.data?.identity),
     );
   });

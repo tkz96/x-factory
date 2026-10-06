@@ -31,7 +31,11 @@ import {
   identityConfig,
 } from "../src/frontend/components/connections/connection-state.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
-import { useConnectionIdentities } from "../src/frontend/hooks/useConnectionIdentity.js";
+import {
+  type ConnectionLine,
+  useConnectionIdentities,
+  useConnectionLines,
+} from "../src/frontend/hooks/useConnectionIdentity.js";
 import { api } from "../src/frontend/lib/api-client.js";
 import { azureProvider } from "../src/providers/azure-module.js";
 import { githubProvider } from "../src/providers/github-module.js";
@@ -434,5 +438,226 @@ describe("the identity read is SECRET-FREE by construction (#133 correction 1)",
     expect(getByTestId("identities").textContent).toBe(
       '{"tracker":null,"gitHost":null}',
     );
+  });
+});
+
+describe("deduplicate same-provider identity reads (PR #158 / #133)", () => {
+  it("same provider + same secret-free config => one request (dual-role scenario)", async () => {
+    const calls = installDescribe(({ providerId, config }) => ({
+      providerId,
+      identity: `${config.repoOwner}/${config.repository}`,
+    }));
+
+    const client = makeClient();
+    const sharedConfig = { repoOwner: "octo-org", repository: "rocket" };
+    const targets: ConnectionIdentityTarget[] = [
+      { role: "tracker", providerId: "github", config: sharedConfig },
+      { role: "gitHost", providerId: "github", config: sharedConfig },
+    ];
+
+    const { getByTestId } = renderProbe(client, targets);
+
+    await waitFor(() => {
+      expect(getByTestId("identities").textContent).toBe(
+        '{"tracker":"octo-org/rocket","gitHost":"octo-org/rocket"}',
+      );
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({
+      providerId: "github",
+      config: { repoOwner: "octo-org", repository: "rocket" },
+    });
+  });
+
+  it("same provider + different config => two requests", async () => {
+    const calls = installDescribe(({ providerId, config }) => ({
+      providerId,
+      identity: `${config.repoOwner}/${config.repository}`,
+    }));
+
+    const client = makeClient();
+    const targets: ConnectionIdentityTarget[] = [
+      {
+        role: "tracker",
+        providerId: "github",
+        config: { repoOwner: "octo-org", repository: "issues-repo" },
+      },
+      {
+        role: "gitHost",
+        providerId: "github",
+        config: { repoOwner: "octo-org", repository: "code-repo" },
+      },
+    ];
+
+    const { getByTestId } = renderProbe(client, targets);
+
+    await waitFor(() => {
+      expect(getByTestId("identities").textContent).toBe(
+        '{"tracker":"octo-org/issues-repo","gitHost":"octo-org/code-repo"}',
+      );
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls.map((c) => c.config.repository).sort()).toEqual([
+      "code-repo",
+      "issues-repo",
+    ]);
+  });
+
+  it("different providers => independent requests", async () => {
+    const calls = installDescribe(({ providerId, config }) => ({
+      providerId,
+      identity:
+        providerId === "jira"
+          ? `${config.host}/${config.project}`
+          : `${config.repoOwner}/${config.repository}`,
+    }));
+
+    const client = makeClient();
+    const targets: ConnectionIdentityTarget[] = [
+      {
+        role: "tracker",
+        providerId: "jira",
+        config: { host: "jira.example", project: "ROCK" },
+      },
+      {
+        role: "gitHost",
+        providerId: "github",
+        config: { repoOwner: "octo-org", repository: "rocket" },
+      },
+    ];
+
+    const { getByTestId } = renderProbe(client, targets);
+
+    await waitFor(() => {
+      expect(getByTestId("identities").textContent).toBe(
+        '{"tracker":"jira.example/ROCK","gitHost":"octo-org/rocket"}',
+      );
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls.find((c) => c.providerId === "jira")?.config).toEqual({
+      host: "jira.example",
+      project: "ROCK",
+    });
+    expect(calls.find((c) => c.providerId === "github")?.config).toEqual({
+      repoOwner: "octo-org",
+      repository: "rocket",
+    });
+  });
+
+  it("failed identity read remains non-blocking (non-throwing, answers null/plain display name)", async () => {
+    const calls = installDescribe(({ providerId, config }) => {
+      if (providerId === "failing-provider") {
+        throw new Error("connection reset by peer");
+      }
+      return {
+        providerId,
+        identity: `${config.repoOwner}/${config.repository}`,
+      };
+    });
+
+    const client = makeClient();
+    const targets: ConnectionIdentityTarget[] = [
+      {
+        role: "tracker",
+        providerId: "failing-provider",
+        config: { host: "https://down.example" },
+      },
+      {
+        role: "gitHost",
+        providerId: "github",
+        config: { repoOwner: "octo-org", repository: "rocket" },
+      },
+    ];
+
+    const { getByTestId } = renderProbe(client, targets);
+
+    await waitFor(() => {
+      expect(getByTestId("identities").textContent).toBe(
+        '{"tracker":null,"gitHost":"octo-org/rocket"}',
+      );
+    });
+
+    expect(calls).toHaveLength(2);
+  });
+
+  it("preserves multi-line batching behavior with cross-line deduplication", async () => {
+    const calls = installDescribe(({ providerId, config }) => ({
+      providerId,
+      identity:
+        providerId === "github"
+          ? `${config.repoOwner}/${config.repository}`
+          : `${config.host}/${config.project}`,
+    }));
+
+    const client = makeClient();
+    const sharedGitHub = { repoOwner: "octo-org", repository: "shared" };
+
+    function MultiLineProbe({ lines }: { lines: readonly ConnectionLine[] }) {
+      const results = useConnectionLines(lines);
+      return (
+        <span data-testid="multi-lines">
+          {JSON.stringify(
+            results.map((slots) =>
+              Object.fromEntries(
+                slots.map((s) => [s.role, s.identity ?? null]),
+              ),
+            ),
+          )}
+        </span>
+      );
+    }
+
+    const lines: ConnectionLine[] = [
+      // Line 1: dual-role github (shared)
+      {
+        slots: [
+          { role: "tracker", state: "connected", providerId: "github" },
+          { role: "gitHost", state: "connected", providerId: "github" },
+        ],
+        targets: [
+          { role: "tracker", providerId: "github", config: sharedGitHub },
+          { role: "gitHost", providerId: "github", config: sharedGitHub },
+        ],
+      },
+      // Line 2: tracker is jira, gitHost is the same shared github
+      {
+        slots: [
+          { role: "tracker", state: "connected", providerId: "jira" },
+          { role: "gitHost", state: "connected", providerId: "github" },
+        ],
+        targets: [
+          {
+            role: "tracker",
+            providerId: "jira",
+            config: { host: "jira.example", project: "PROJ" },
+          },
+          { role: "gitHost", providerId: "github", config: sharedGitHub },
+        ],
+      },
+    ];
+
+    const { getByTestId } = render(
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(MultiLineProbe, { lines }),
+      ),
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("multi-lines").textContent).toBe(
+        JSON.stringify([
+          { tracker: "octo-org/shared", gitHost: "octo-org/shared" },
+          { tracker: "jira.example/PROJ", gitHost: "octo-org/shared" },
+        ]),
+      );
+    });
+
+    // Despite 4 total targets across 2 lines (3 github targets + 1 jira target),
+    // there are only 2 unique configurations: github(shared) and jira(PROJ).
+    expect(calls).toHaveLength(2);
   });
 });
