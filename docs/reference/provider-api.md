@@ -366,13 +366,31 @@ reported, each asserted under its rule name) and positive fixtures (provider-zon
 paths, the audited allowlist, a test-fixture path, and a generic consumer that
 does capability dispatch, dynamic lookup, and `Headers.get("content-type")`).
 
-One precision boundary is recorded rather than hidden: a record literal KEYED by
-provider ids (`{ azure: matchAzure, github: matchGitHub }`) is data, not
-branching, and is not reported — using a provider id to select from such a table
-is. The single instance outside the provider zone
-(`src/shared/project-identity.ts`) cannot delegate to the provider registry:
-`.fallowrc.json` lets `shared` import nothing and `frontend` import only
-`shared`, and the duplicate check runs in the browser.
+Two details bound what the gate can hide and what it can see:
+
+- **Import rules read the whole file, and exemptions name rules.** Import
+  specifiers are extracted over the file's content, not line by line, so a
+  house-style WRAPPED import (`import {` / `githubProvider,` /
+  `} from "../providers/github-module.js"`) is reported exactly like a
+  single-line one; the specifier alone is tested, so a comment mentioning a path
+  never trips a rule. An allowlist entry exempts the rules it NAMES and nothing
+  else — the one entry (`frontend/views/DocsView.tsx`, whose docs URL slug
+  selects which static security article renders) covers the switch/copy
+  selection only, and a provider lookup or provider-module import in that file is
+  reported like anywhere else. A file-level "skip everything" exemption is not
+  expressible.
+
+- **Recorded precision boundaries.** A record literal KEYED by provider ids
+  (`{ azure: matchAzure, github: matchGitHub }`) is data, not branching, and is
+  not reported — using a provider id to select FROM such a table is. The gate
+  also does not see provider-id PROPERTY ACCESS (`p.issueTracker?.azure`): that
+  shape appears legitimately in the legacy tracker view
+  (`src/config-schema.ts`, `src/providers/project-config.ts`) and in
+  `src/shared/project-identity.ts`, which cannot delegate to the provider
+  registry because `.fallowrc.json` lets `shared` import nothing while the
+  duplicate check runs in the browser. Both limits are recorded rather than
+  hidden: the gate is a text scanner over shipped source, and a rule for either
+  shape would report far more legitimate code than it would catch.
 
 ### PR creation is API-only
 `createPullRequest` and `findExistingPullRequest` execute **REST API calls with
