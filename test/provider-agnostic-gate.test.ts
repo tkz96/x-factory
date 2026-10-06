@@ -298,6 +298,19 @@ describe("provider-agnosticism gate (spec #133, ticket #141)", () => {
       ).toBe(true);
     }
   });
+
+  it("no production source is skipped as a test artifact", () => {
+    // The path policy exists for fixtures. Nothing under src/ may use it to
+    // take itself out of scope: a `src/fixtures/**` or `src/x.test.ts` file
+    // would exempt real source, so its presence fails the gate loudly.
+    const exempted = listSourceFiles(SRC_ROOT)
+      .map((path) => relative(SRC_ROOT, path))
+      .filter((rel) => !isScannedSource(normalizeRelPath(rel)));
+    expect(
+      exempted,
+      "source under src/ is being treated as a test artifact",
+    ).toEqual([]);
+  });
 });
 
 // ─── Fixtures: the gate's own rules are gated (#141 self-test) ───────────────
