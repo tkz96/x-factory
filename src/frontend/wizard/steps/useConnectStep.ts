@@ -6,12 +6,14 @@ import { deriveAsyncState } from "../../components/feedback/derive-async-state.j
 import { api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
 import { useWizard } from "../state/wizardContext.js";
+import type { WizardConnectionRole } from "../types.js";
 import { useQuickUrlIntake } from "./useQuickUrlIntake.js";
 import { useRoleConnection } from "./useRoleConnection.js";
 
 export function useConnectStep() {
   const { state, dispatch, nextStep, prevStep, updateBasics } = useWizard();
-  const { tracker, gitHost } = state.connect;
+  const connect = state.connect;
+  const { tracker, gitHost } = connect;
 
   const parseGenRef = useRef(0);
   const onManualChange = () => {
@@ -29,18 +31,18 @@ export function useConnectStep() {
 
   const trackerConn = useRoleConnection(
     "tracker",
-    tracker,
+    connect,
     dispatch,
     onManualChange,
   );
   const gitHostConn = useRoleConnection(
     "gitHost",
-    gitHost,
+    connect,
     dispatch,
     onManualChange,
   );
 
-  const resetRoleVerifications = (roles: ("tracker" | "gitHost")[]) => {
+  const resetRoleVerifications = (roles: WizardConnectionRole[]) => {
     if (roles.includes("tracker")) {
       trackerConn.resetVerification();
     }
@@ -50,9 +52,8 @@ export function useConnectStep() {
   };
 
   const quickUrlState = useQuickUrlIntake({
-    initialUrl: state.connect.quickUrl,
+    initialUrl: connect.quickUrl,
     manifest,
-    currentConnect: state.connect,
     basicsName: state.basics.name,
     dispatch,
     updateBasics,
@@ -81,8 +82,7 @@ export function useConnectStep() {
     manifestQuery,
     manifestAsync,
     manifest,
-    tracker,
-    gitHost,
+    connect,
     trackerConn,
     gitHostConn,
     quickUrlState,

@@ -138,16 +138,12 @@ function setupStepFourDraft(options: StepFourDraftOptions = {}) {
     },
     connect: {
       quickUrl: "",
-      tracker: {
-        providerId: "generic-tracker",
-        config: {},
-        verified: true,
+      providerConfigs: {
+        "generic-tracker": {},
+        "generic-githost": GIT_HOST_CONFIG,
       },
-      gitHost: {
-        providerId: "generic-githost",
-        config: GIT_HOST_CONFIG,
-        verified: true,
-      },
+      tracker: { providerId: "generic-tracker", verified: true },
+      gitHost: { providerId: "generic-githost", verified: true },
     },
     repositories: {
       selectedRepoIds,

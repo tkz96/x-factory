@@ -1,10 +1,21 @@
 // src/frontend/wizard/steps/useRoleConnection.ts — State and verification lifecycle hook for a connection role.
+//
+// One instance per ROLE. The instance owns this card's local session state —
+// the verification result it just received, the error it just surfaced, whether
+// a request is in flight — while everything durable lives in the wizard state:
+// the provider selection per role, and the configuration per PROVIDER. A role
+// reads the configuration of the provider it selected (so a provider serving
+// both roles is read, and written, through one record by both cards), and it
+// keeps its own verification evidence, because verification is per role.
 
 import { useRef, useState } from "react";
 import { isNormalizedError } from "../../components/feedback/copy-map.js";
 import type { VerificationResult } from "../../connection/types.js";
 import { api } from "../../lib/api-client.js";
+import { roleConfig } from "../state/connectConfig.js";
 import type {
+  WizardAction,
+  WizardConnectionRole,
   WizardConnectionRoleState,
   WizardConnectState,
 } from "../types.js";
@@ -14,14 +25,15 @@ import {
 } from "./connection-error-helpers.js";
 
 export function useRoleConnection(
-  role: "tracker" | "gitHost",
-  roleState: WizardConnectionRoleState,
-  dispatch: (action: {
-    type: "UPDATE_CONNECT";
-    patch: Partial<WizardConnectState>;
-  }) => void,
+  role: WizardConnectionRole,
+  connect: WizardConnectState,
+  dispatch: (action: WizardAction) => void,
   onManualChange?: (() => void) | undefined,
 ) {
+  const roleState: WizardConnectionRoleState = connect[role];
+  // The authoritative configuration of the provider this role selected: the
+  // ONE record both cards read and write when they name the same provider.
+  const config = roleConfig(connect, role);
   const [verification, setVerification] = useState<VerificationResult | null>(
     null,
   );
@@ -35,40 +47,23 @@ export function useRoleConnection(
     setError(null);
     setIsPending(false);
     onManualChange?.();
-    dispatch({
-      type: "UPDATE_CONNECT",
-      patch: {
-        [role]: {
-          providerId,
-          config: {},
-          // A different provider is unverified evidence until it is verified:
-          // committing a project on the previous provider's verification would
-          // be exactly the stale value the wizard must never carry forward.
-          verified: false,
-        },
-      },
-    });
+    dispatch({ type: "SELECT_PROVIDER", role, providerId });
   };
 
   const updateConfig = (fieldName: string, value: unknown) => {
+    if (!roleState.providerId) return;
     generationRef.current += 1;
     setVerification(null);
     setError(null);
     setIsPending(false);
     onManualChange?.();
+    // A write to the provider's configuration clears the verification of EVERY
+    // role naming it, this one included: what was verified is no longer on
+    // record.
     dispatch({
-      type: "UPDATE_CONNECT",
-      patch: {
-        [role]: {
-          ...roleState,
-          config: {
-            ...roleState.config,
-            [fieldName]: value,
-          },
-          // Editing what was verified invalidates the verification.
-          verified: false,
-        },
-      },
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: roleState.providerId,
+      config: { ...config, [fieldName]: value },
     });
   };
 
@@ -81,7 +76,9 @@ export function useRoleConnection(
       const res = await api.providers.verify({
         providerId: roleState.providerId,
         role,
-        config: roleState.config,
+        // The shared configuration, read at request time: the verification is
+        // of what is on record for the provider, never of a per-role copy.
+        config: roleConfig(connect, role),
       });
       if (currentGen !== generationRef.current) {
         return;
@@ -141,19 +138,30 @@ export function useRoleConnection(
     setIsPending(false);
   };
 
-  const status = deriveVerificationStatus(isPending, verification, error);
   const { fieldErrors, formErrors } = extractApiErrors(error);
+  // The evidence this card displays is THIS role's verification, and it is only
+  // current while the state still records this role as verified: a write to the
+  // provider's shared configuration from EITHER card clears both roles'
+  // evidence, and a card must stop showing a verification that no longer
+  // corresponds to the configuration on record.
+  const sessionVerification = roleState.verified === true ? verification : null;
+  const sessionStatus = deriveVerificationStatus(
+    isPending,
+    sessionVerification,
+    error,
+  );
   // A degraded verification IS a verified connection (#133): its warnings are
   // surfaced on the card, never collected as an acknowledgement, and never a
   // reason to withhold anything.
   const isVerified =
-    Boolean(roleState.providerId) && (status === "ok" || status === "degraded");
+    Boolean(roleState.providerId) &&
+    (sessionStatus === "ok" || sessionStatus === "degraded");
 
   return {
-    verification,
+    verification: sessionVerification,
     error,
     isPending,
-    status,
+    status: sessionStatus,
     fieldErrors,
     formErrors,
     isVerified,

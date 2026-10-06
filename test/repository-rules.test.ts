@@ -28,17 +28,27 @@ function stateWith(options: {
   selectionFingerprint?: string | null;
 }): WizardSourceState {
   const base = createInitialWizardState();
-  const gitHost = {
-    providerId: "generic-githost",
-    config: GIT_HOST_CONFIG,
-    verified: true,
-    ...options.gitHost,
+  const gitHostProviderId =
+    options.gitHost?.providerId === undefined
+      ? "generic-githost"
+      : options.gitHost.providerId;
+  // Configuration is keyed by PROVIDER (correction 2, #133): the git-host role
+  // reads the entry of the provider it selected.
+  const providerConfigs = {
+    ...base.connect.providerConfigs,
+    ...(gitHostProviderId === null
+      ? {}
+      : { [gitHostProviderId]: options.gitHost?.config ?? GIT_HOST_CONFIG }),
   };
   return {
     ...base,
     step: 3,
     maxStepVisited: 3,
-    connect: { ...base.connect, gitHost },
+    connect: {
+      ...base.connect,
+      providerConfigs,
+      gitHost: { providerId: gitHostProviderId, verified: true },
+    },
     repositories: {
       ...base.repositories,
       selectedRepoIds: options.selectedRepoIds ?? [],
@@ -199,9 +209,9 @@ describe("isRepositorySelectionStale", () => {
       ...state,
       connect: {
         ...state.connect,
-        gitHost: {
-          ...state.connect.gitHost,
-          config: { ...GIT_HOST_CONFIG, token: "tok-b" },
+        providerConfigs: {
+          ...state.connect.providerConfigs,
+          "generic-githost": { ...GIT_HOST_CONFIG, token: "tok-b" },
         },
       },
     };
@@ -258,9 +268,12 @@ describe("canAdvanceFromRepositories", () => {
       ...state,
       connect: {
         ...state.connect,
-        gitHost: {
-          ...state.connect.gitHost,
-          config: { ...GIT_HOST_CONFIG, host: "https://other.example.com" },
+        providerConfigs: {
+          ...state.connect.providerConfigs,
+          "generic-githost": {
+            ...GIT_HOST_CONFIG,
+            host: "https://other.example.com",
+          },
         },
       },
     };

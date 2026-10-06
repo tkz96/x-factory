@@ -198,14 +198,13 @@ function setupStep2Draft(overrides?: Record<string, unknown>) {
     },
     connect: {
       quickUrl: "",
+      providerConfigs: {},
       tracker: {
         providerId: null,
-        config: {},
         verified: false,
       },
       gitHost: {
         providerId: null,
-        config: {},
         verified: false,
       },
     },
@@ -757,7 +756,14 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(gitHostCard.textContent).toContain("Dual-role");
   });
 
-  it("STATE ISOLATION: changing tracker config leaves git-host config untouched, and vice versa", async () => {
+  // Correction 2 (#133): the two roles' configurations are NOT independent when
+  // they name the same provider — that independence was the defect (each card
+  // could verify its own configuration while only one of them was submitted).
+  // One provider has ONE configuration: a value typed on either card is the
+  // value both cards show, and both roles' verification corresponds to it.
+  // Isolation still holds between DIFFERENT providers, which is what the second
+  // half of this test pins.
+  it("STATE ISOLATION: one provider serving both roles shares ONE configuration, while different providers stay independent", async () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -776,17 +782,42 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     const trackerUrlInput = getEl<HTMLInputElement>("tracker-serviceUrl");
     await typeInput(trackerUrlInput, "https://tracker-only.com");
 
-    // Git-host's serviceUrl must remain untouched
+    // Git-host's serviceUrl shows the SAME configuration: the provider has one,
+    // and this is what both roles verify and what the payload carries.
     const gitHostUrlInput = getEl<HTMLInputElement>("gitHost-serviceUrl");
-    expect(gitHostUrlInput.value).toBe("");
+    expect(gitHostUrlInput.value).toBe("https://tracker-only.com");
 
     // Change git-host's pat
     const gitHostPatInput = getEl<HTMLInputElement>("gitHost-pat");
     await typeInput(gitHostPatInput, "git-pat-secret");
 
-    // Tracker's pat must remain untouched
+    // Tracker's pat shows that same value: one configuration, whichever card
+    // wrote it.
     const trackerPatInput = getEl<HTMLInputElement>("tracker-pat");
-    expect(trackerPatInput.value).toBe("");
+    expect(trackerPatInput.value).toBe("git-pat-secret");
+
+    // The state holds ONE configuration for the one provider both roles name,
+    // never a copy per role — asserted at the state level in
+    // `test/wizard-reducer.test.ts` ("one configuration per provider").
+
+    // DIFFERENT providers are still independent: point the git-host card at
+    // another provider and edit each side — neither provider's configuration
+    // moves the other's.
+    act(() => {
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "generic-githost" },
+      });
+    });
+    await typeInput(
+      getEl<HTMLInputElement>("tracker-serviceUrl"),
+      "https://t2",
+    );
+    await typeInput(getEl<HTMLInputElement>("gitHost-gitUrl"), "https://g2");
+
+    expect(getEl<HTMLInputElement>("tracker-serviceUrl").value).toBe(
+      "https://t2",
+    );
+    expect(getEl<HTMLInputElement>("gitHost-gitUrl").value).toBe("https://g2");
   });
 
   it("NAVIGATION GATING: Next is blocked with a missing selection or an unverified connection, and enabled as soon as both are verified — degraded included (#133)", async () => {
@@ -903,6 +934,177 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
 
     const gitHostCard = getEl("connection-card-gitHost");
     expect(gitHostCard.textContent).toContain("Error");
+  });
+
+  // ══ CORRECTION 2 (#133): one provider, ONE verified configuration ═══════════
+  //
+  // A single provider serving both roles used to be configurable (and
+  // verifiable) TWICE, once per card, while the payload submitted only one of
+  // the two copies. These tests drive the real wizard to pin the corrected
+  // behaviour: the cards are views of the provider's one configuration, both
+  // verifications carry it, and an edit from either card invalidates both.
+  describe("SAME PROVIDER FOR BOTH ROLES: one configuration, verified as one", () => {
+    it("both roles verify the SAME configuration, and it is the configuration on record", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "dual-service" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "dual-service" },
+        });
+      });
+
+      // The user fills the tracker card, then the git-host card. Both cards are
+      // views of the ONE configuration of the provider they both selected.
+      await typeInput(
+        getEl<HTMLInputElement>("tracker-serviceUrl"),
+        "https://typed.example.com",
+      );
+      await typeInput(getEl<HTMLInputElement>("gitHost-pat"), "pat-synthetic");
+
+      expect(getEl<HTMLInputElement>("tracker-serviceUrl").value).toBe(
+        "https://typed.example.com",
+      );
+      expect(getEl<HTMLInputElement>("gitHost-serviceUrl").value).toBe(
+        "https://typed.example.com",
+      );
+      expect(getEl<HTMLInputElement>("gitHost-pat").value).toBe(
+        "pat-synthetic",
+      );
+      expect(getEl<HTMLInputElement>("tracker-pat").value).toBe(
+        "pat-synthetic",
+      );
+
+      const verifyMock = mock(
+        async (_payload: {
+          providerId: string;
+          role: string;
+          config: Record<string, unknown>;
+        }) => ({ status: "ok" as const, warnings: [] }),
+      );
+      api.providers.verify = verifyMock;
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-all"));
+      });
+
+      expect(verifyMock).toHaveBeenCalledTimes(2);
+      const trackerCall = verifyMock.mock.calls.find(
+        (call) => call[0]?.role === "tracker",
+      )?.[0];
+      const gitHostCall = verifyMock.mock.calls.find(
+        (call) => call[0]?.role === "gitHost",
+      )?.[0];
+      expect(trackerCall?.providerId).toBe("dual-service");
+      expect(gitHostCall?.providerId).toBe("dual-service");
+
+      // THE assertion of correction 2: the two roles verified the SAME
+      // configuration. Before the fix each card carried its own copy, so the
+      // tracker was verified against a configuration nobody submitted.
+      expect(trackerCall?.config).toEqual(gitHostCall?.config);
+      expect(trackerCall?.config).toEqual({
+        serviceUrl: "https://typed.example.com",
+        pat: "pat-synthetic",
+      });
+
+      // ...and that is exactly the configuration the payload carries:
+      // `buildCreationPayload` reads this same provider record from state, and
+      // `test/review-payload.test.ts` asserts it is the SAME object, not a copy
+      // of one role's view of it.
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Verified",
+      );
+    });
+
+    it("editing the shared configuration from EITHER card invalidates BOTH roles' verification", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "dual-service" },
+        });
+        fireEvent.change(getEl("select-gitHost-provider"), {
+          target: { value: "dual-service" },
+        });
+      });
+      await typeInput(
+        getEl<HTMLInputElement>("tracker-serviceUrl"),
+        "https://a.example.com",
+      );
+      await typeInput(getEl<HTMLInputElement>("gitHost-pat"), "pat-1");
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-all"));
+      });
+
+      const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
+      expect(nextBtn.disabled).toBe(false);
+
+      // Edited from the GIT HOST card: the tracker's verification of the same
+      // configuration goes with it — there is only one configuration.
+      await typeInput(getEl<HTMLInputElement>("gitHost-pat"), "pat-2");
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      expect(getEl("connection-card-gitHost").textContent).not.toContain(
+        "Verified",
+      );
+      expect(nextBtn.disabled).toBe(true);
+
+      // Re-verify, then edit from the TRACKER card: the same, in the other
+      // direction.
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-all"));
+      });
+      expect(nextBtn.disabled).toBe(false);
+
+      await typeInput(
+        getEl<HTMLInputElement>("tracker-serviceUrl"),
+        "https://b.example.com",
+      );
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      expect(getEl("connection-card-gitHost").textContent).not.toContain(
+        "Verified",
+      );
+      expect(nextBtn.disabled).toBe(true);
+    });
+
+    it("a provider the manifest does not declare for a role is never presented as dual-role", () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+
+      act(() => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "generic-tracker" },
+        });
+      });
+
+      // The manifest declares `roles: ["tracker"]` for it: no dual-role badge,
+      // and the git-host card does not offer it at all. A connection can
+      // therefore never claim the gitHost role on its behalf — the payload's
+      // roles come from the two role selections, and the second selection
+      // cannot name it (pinned for the payload in `test/review-payload.test.ts`).
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Dual-role",
+      );
+      const gitHostOptions = Array.from(
+        getEl<HTMLSelectElement>("select-gitHost-provider").options,
+      ).map((option) => option.value);
+      expect(gitHostOptions).not.toContain("generic-tracker");
+      expect(gitHostOptions).toContain("dual-service");
+    });
   });
 
   describe("DEGRADED CONNECTIONS & NAVIGATION (ticket #143 §5, §8; spec #133)", () => {

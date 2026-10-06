@@ -2,14 +2,14 @@
 
 import { ConnectionCard } from "../../connection/ConnectionCard.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
-import type { WizardConnectionRoleState } from "../types.js";
+import { roleConfig } from "../state/connectConfig.js";
+import type { WizardConnectState } from "../types.js";
 import type { useRoleConnection } from "./useRoleConnection.js";
 import "./ConnectStep.css";
 
 export interface ConnectCardsContainerProps {
   manifest: ProviderDescriptor[];
-  tracker: WizardConnectionRoleState;
-  gitHost: WizardConnectionRoleState;
+  connect: WizardConnectState;
   trackerConn: ReturnType<typeof useRoleConnection>;
   gitHostConn: ReturnType<typeof useRoleConnection>;
   disabled?: boolean | undefined;
@@ -17,12 +17,12 @@ export interface ConnectCardsContainerProps {
 
 export function ConnectCardsContainer({
   manifest,
-  tracker,
-  gitHost,
+  connect,
   trackerConn,
   gitHostConn,
   disabled = false,
 }: ConnectCardsContainerProps) {
+  const { tracker, gitHost } = connect;
   return (
     <div className="connect-cards-container">
       <ConnectionCard
@@ -30,7 +30,9 @@ export function ConnectCardsContainer({
         providerId={tracker.providerId}
         title="Issue Tracker"
         manifest={manifest}
-        config={tracker.config}
+        // The configuration of the provider this card selected — the SAME
+        // record the git-host card reads when both name one provider.
+        config={roleConfig(connect, "tracker")}
         onSelectProvider={trackerConn.selectProvider}
         onConfigChange={trackerConn.updateConfig}
         onVerify={trackerConn.verify}
@@ -47,7 +49,7 @@ export function ConnectCardsContainer({
         providerId={gitHost.providerId}
         title="Git Host"
         manifest={manifest}
-        config={gitHost.config}
+        config={roleConfig(connect, "gitHost")}
         onSelectProvider={gitHostConn.selectProvider}
         onConfigChange={gitHostConn.updateConfig}
         onVerify={gitHostConn.verify}

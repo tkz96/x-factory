@@ -17,6 +17,7 @@ import {
 import { createInitialWizardState } from "../src/frontend/wizard/state/wizardReducer.js";
 import type {
   WizardConnectionRoleState,
+  WizardConnectState,
   WizardInspectionState,
   WizardRepoConfig,
   WizardSourceState,
@@ -33,10 +34,33 @@ function verified(
 ): WizardConnectionRoleState {
   return {
     providerId: "generic-githost",
-    config: GIT_HOST_CONFIG,
     verified: true,
     unconfirmedCapabilities: [],
     ...overrides,
+  };
+}
+
+/**
+ * A connect state: the provider selection and verification evidence per role,
+ * and the configuration per PROVIDER (correction 2, #133) — one entry for each
+ * provider the roles name, never one per role.
+ */
+function connectState(
+  options: {
+    tracker?: Partial<WizardConnectionRoleState>;
+    gitHost?: Partial<WizardConnectionRoleState>;
+    configs?: Record<string, Record<string, unknown>>;
+  } = {},
+): WizardConnectState {
+  return {
+    quickUrl: "",
+    providerConfigs: {
+      "generic-tracker": {},
+      "generic-githost": GIT_HOST_CONFIG,
+      ...options.configs,
+    },
+    tracker: verified({ providerId: "generic-tracker", ...options.tracker }),
+    gitHost: verified({ ...options.gitHost }),
   };
 }
 
@@ -64,11 +88,7 @@ function readyState(): WizardSourceState {
     step: 5,
     maxStepVisited: 5,
     basics: { ...base.basics, workspacePath: WORKSPACE },
-    connect: {
-      ...base.connect,
-      tracker: verified({ providerId: "generic-tracker", config: {} }),
-      gitHost: verified(),
-    },
+    connect: connectState(),
     repositories: {
       selectedRepoIds: ["repo-app"],
       primaryRepoId: "repo-app",
@@ -106,15 +126,13 @@ describe("isReviewReady", () => {
 
   it("accepts a degraded-but-verified connection without any acknowledgement (#133: degraded never blocks)", () => {
     const degraded = stateWith({
-      connect: {
-        quickUrl: "",
-        tracker: verified({
+      connect: connectState({
+        tracker: {
           providerId: "generic-tracker",
-          config: {},
           unconfirmedCapabilities: ["listTickets"],
-        }),
+        },
         gitHost: verified({ unconfirmedCapabilities: ["createPullRequest"] }),
-      },
+      }),
     });
 
     // Both roles verified, both with unconfirmed capabilities: the gate is open
@@ -125,16 +143,13 @@ describe("isReviewReady", () => {
 
   it("still blocks a connection that was never verified (degraded is not a blanket pass)", () => {
     const unverified = stateWith({
-      connect: {
-        quickUrl: "",
-        tracker: verified({
+      connect: connectState({
+        tracker: {
           providerId: "generic-tracker",
-          config: {},
           verified: false,
           unconfirmedCapabilities: ["listTickets"],
-        }),
-        gitHost: verified(),
-      },
+        },
+      }),
     });
 
     expect(reviewBlockedReasons(unverified)).toEqual(["trackerUnverified"]);
@@ -145,11 +160,9 @@ describe("isReviewReady", () => {
     expect(
       reviewBlockedReasons(
         stateWith({
-          connect: {
-            quickUrl: "",
-            tracker: verified({ providerId: null, verified: false }),
-            gitHost: verified(),
-          },
+          connect: connectState({
+            tracker: { providerId: null, verified: false },
+          }),
         }),
       ),
     ).toEqual(["trackerUnverified"]);
@@ -157,11 +170,9 @@ describe("isReviewReady", () => {
     expect(
       reviewBlockedReasons(
         stateWith({
-          connect: {
-            quickUrl: "",
-            tracker: verified({ providerId: "generic-tracker", config: {} }),
-            gitHost: verified({ verified: false }),
-          },
+          connect: connectState({
+            gitHost: { verified: false },
+          }),
         }),
       ),
     ).toEqual(["gitHostUnverified"]);
@@ -187,13 +198,10 @@ describe("isReviewReady", () => {
     // directory for the same repositories, so its inputs are unchanged — the
     // selection reason alone blocks the submit.
     const reconnected = stateWith({
-      connect: {
-        quickUrl: "",
-        tracker: verified({ providerId: "generic-tracker", config: {} }),
-        gitHost: verified({
-          config: { gitUrl: "https://other.example.com" },
-        }),
-      },
+      connect: connectState({
+        // Same provider and selection, a DIFFERENT configuration on record.
+        configs: { "generic-githost": { gitUrl: "https://other.example.com" } },
+      }),
     });
     expect(reviewBlockedReasons(reconnected)).toEqual(["selectionStale"]);
     expect(isReviewReady(reconnected)).toBe(false);
@@ -250,11 +258,10 @@ describe("isReviewReady", () => {
 
   it("lists every reason at once, in a stable order, so the explanation is complete", () => {
     const blocked = stateWith({
-      connect: {
-        quickUrl: "",
-        tracker: verified({ providerId: null, verified: false }),
-        gitHost: verified({ verified: false }),
-      },
+      connect: connectState({
+        tracker: { providerId: null, verified: false },
+        gitHost: { verified: false },
+      }),
       repositories: {
         ...readyState().repositories,
         selectedRepoIds: [],

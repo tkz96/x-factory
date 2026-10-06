@@ -169,12 +169,10 @@ function renderWizard() {
 }
 
 function gitHostState(
-  config: Record<string, unknown> = GIT_HOST_CONFIG,
   extra: Record<string, unknown> = {},
-) {
+): Record<string, unknown> {
   return {
     providerId: "generic-githost",
-    config,
     verified: true,
     ...extra,
   };
@@ -197,14 +195,16 @@ function setupStep3Draft(
     },
     connect: {
       quickUrl: "",
-      tracker: {
-        providerId: "generic-tracker",
-        config: {},
-        verified: true,
-      },
-      gitHost: gitHostState(
-        (overrides.gitHost?.config as Record<string, unknown> | undefined) ??
+      // Configuration is keyed by PROVIDER (correction 2, #133): the git-host
+      // role's card and its discovery read this one entry.
+      providerConfigs: {
+        "generic-tracker": {},
+        "generic-githost":
+          (overrides.gitHost?.config as Record<string, unknown> | undefined) ??
           GIT_HOST_CONFIG,
+      },
+      tracker: { providerId: "generic-tracker", verified: true },
+      gitHost: gitHostState(
         (overrides.gitHost ?? {}) as Record<string, unknown>,
       ) as never,
     },
@@ -232,14 +232,13 @@ function setupStep2Draft() {
     },
     connect: {
       quickUrl: "",
+      providerConfigs: {},
       tracker: {
         providerId: null,
-        config: {},
         verified: false,
       },
       gitHost: {
         providerId: null,
-        config: {},
         verified: false,
       },
     },

@@ -5,36 +5,22 @@ import { useRef, useState } from "react";
 import { normalizeProjectId } from "../../../shared/project-identity.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import { api } from "../../lib/api-client.js";
-import type { WizardConnectState } from "../types.js";
+import { CONNECTION_ROLES } from "../state/connectConfig.js";
+import type { WizardAction, WizardConnectionRole } from "../types.js";
 
 export interface UseQuickUrlIntakeProps {
   initialUrl: string;
   manifest: ProviderDescriptor[];
-  currentConnect: WizardConnectState;
   basicsName: string;
-  dispatch: (action: {
-    type: "UPDATE_CONNECT";
-    patch: Partial<WizardConnectState>;
-  }) => void;
+  dispatch: (action: WizardAction) => void;
   updateBasics: (patch: { name: string; id: string }) => void;
-  onResetVerifications: (roles: ("tracker" | "gitHost")[]) => void;
+  onResetVerifications: (roles: WizardConnectionRole[]) => void;
   parseGenRef?: React.MutableRefObject<number> | undefined;
-}
-
-function resolveRoleConfig(
-  currentRole: WizardConnectState["tracker"],
-  newProviderId: string,
-  configDraft: Record<string, unknown>,
-): Record<string, unknown> {
-  return currentRole.providerId === newProviderId
-    ? { ...currentRole.config, ...configDraft }
-    : { ...configDraft };
 }
 
 export function useQuickUrlIntake({
   initialUrl,
   manifest,
-  currentConnect,
   basicsName,
   dispatch,
   updateBasics,
@@ -77,36 +63,25 @@ export function useQuickUrlIntake({
         return;
       }
 
-      const patch: Partial<WizardConnectState> = { quickUrl: url };
-      const changedRoles: ("tracker" | "gitHost")[] = [];
-
-      if (descriptor.roles.includes("tracker")) {
-        changedRoles.push("tracker");
-        patch.tracker = {
-          providerId: result.providerId,
-          config: resolveRoleConfig(
-            currentConnect.tracker,
-            result.providerId,
-            result.configDraft,
-          ),
-        };
-      }
-      if (descriptor.roles.includes("gitHost")) {
-        changedRoles.push("gitHost");
-        patch.gitHost = {
-          providerId: result.providerId,
-          config: resolveRoleConfig(
-            currentConnect.gitHost,
-            result.providerId,
-            result.configDraft,
-          ),
-        };
-      }
+      // Role targeting is unchanged: every role the descriptor serves is
+      // pointed at the matched provider. The transition itself lives in the
+      // state model, so the draft config is merged into the PROVIDER's one
+      // configuration and every role naming that provider loses its
+      // verification — the credentials on record have changed.
+      const changedRoles = CONNECTION_ROLES.filter((role) =>
+        descriptor.roles.includes(role),
+      );
 
       if (changedRoles.length > 0) {
         onResetVerifications(changedRoles);
       }
-      dispatch({ type: "UPDATE_CONNECT", patch });
+      dispatch({
+        type: "APPLY_PROVIDER_MATCH",
+        providerId: result.providerId,
+        config: result.configDraft,
+        roles: [...changedRoles],
+        url,
+      });
 
       if (
         result.inferredName &&

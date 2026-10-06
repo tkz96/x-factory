@@ -26,6 +26,7 @@ import {
   saveWizardDraft,
 } from "../src/frontend/wizard/storage.js";
 import type { WizardSourceState } from "../src/frontend/wizard/types.js";
+import { WIZARD_SCHEMA_VERSION } from "../src/frontend/wizard/types.js";
 
 const DRAFT_KEY = "xf_wizard_draft_v1";
 
@@ -41,16 +42,16 @@ function stepFiveState(): WizardSourceState {
     },
     connect: {
       quickUrl: "",
-      tracker: {
-        providerId: "generic-tracker",
-        config: {},
-        verified: true,
+      // Configuration is keyed by PROVIDER (correction 2, #133).
+      providerConfigs: {
+        "generic-tracker": {},
+        "generic-githost": {
+          gitUrl: "https://git.example.com",
+          token: "tok-secret",
+        },
       },
-      gitHost: {
-        providerId: "generic-githost",
-        config: { gitUrl: "https://git.example.com", token: "tok-secret" },
-        verified: true,
-      },
+      tracker: { providerId: "generic-tracker", verified: true },
+      gitHost: { providerId: "generic-githost", verified: true },
     },
     repositories: {
       selectedRepoIds: ["repo-app"],
@@ -73,7 +74,11 @@ function stepFiveState(): WizardSourceState {
 function writeRawEnvelope(state: unknown): void {
   window.localStorage.setItem(
     DRAFT_KEY,
-    JSON.stringify({ version: 1, savedAt: new Date().toISOString(), state }),
+    JSON.stringify({
+      version: WIZARD_SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      state,
+    }),
   );
 }
 
