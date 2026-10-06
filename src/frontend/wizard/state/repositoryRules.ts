@@ -9,6 +9,7 @@
 
 import { connectionConfigFingerprint } from "../../lib/connection-fingerprint.js";
 import type { WizardRepoConfig, WizardSourceState } from "../types.js";
+import { roleConfig } from "./connectConfig.js";
 
 /**
  * The connection role that makes a listed repository an application
@@ -53,7 +54,7 @@ export function hasApplicationRepository(state: WizardSourceState): boolean {
 export function gitHostDiscoveryFingerprint(state: WizardSourceState): string {
   return connectionConfigFingerprint(
     state.connect.gitHost.providerId,
-    state.connect.gitHost.config ?? {},
+    roleConfig(state.connect, "gitHost"),
   );
 }
 

@@ -2,7 +2,13 @@
 
 import type { GitIdentity } from "../../shared/types.js";
 
-export const WIZARD_SCHEMA_VERSION = 1;
+/**
+ * Draft schema version. Bumped to 2 by correction 2 (#133): the draft's
+ * `connect` section stores the provider's configuration once, keyed by provider
+ * id, instead of once per role — a v1 draft is structurally incompatible and is
+ * discarded by `loadWizardDraft` rather than migrated.
+ */
+export const WIZARD_SCHEMA_VERSION = 2;
 
 export const WIZARD_STEPS = [
   { id: "basics", label: "Basics", stepNumber: 1 },
@@ -22,9 +28,21 @@ export interface WizardBasicsState {
   workspacePath: string;
 }
 
+/** The two connection roles the wizard collects (spec #133). */
+export type WizardConnectionRole = "tracker" | "gitHost";
+
+/**
+ * What the state records for one ROLE: which provider serves it, and whether
+ * that role's verification of the provider's configuration succeeded.
+ *
+ * There is deliberately NO `config` here. Configuration belongs to the
+ * PROVIDER, not to the role (correction 2, #133): a provider serving both roles
+ * has exactly one configuration, and storing a copy per role is what allowed
+ * the two cards to hold — and verify — different configurations while the
+ * payload submitted only one of them.
+ */
 export interface WizardConnectionRoleState {
   providerId: string | null;
-  config: Record<string, unknown>;
   verified?: boolean;
   /**
    * Contract capability names the last verification could not confirm
@@ -37,6 +55,15 @@ export interface WizardConnectionRoleState {
 
 export interface WizardConnectState {
   quickUrl: string;
+  /**
+   * THE authoritative configuration of each selected provider, keyed by
+   * provider id — one entry per provider, never one per role. Both cards read
+   * and write the entry of the provider they selected, so the configuration a
+   * role verified is the configuration the payload submits, and an edit from
+   * either card invalidates both roles' verification
+   * (`src/frontend/wizard/state/connectConfig.ts`).
+   */
+  providerConfigs: Record<string, Record<string, unknown>>;
   tracker: WizardConnectionRoleState;
   gitHost: WizardConnectionRoleState;
 }
@@ -121,6 +148,23 @@ export type WizardAction =
   | { type: "PREV_STEP" }
   | { type: "UPDATE_BASICS"; patch: Partial<WizardBasicsState> }
   | { type: "UPDATE_CONNECT"; patch: Partial<WizardConnectState> }
+  | {
+      type: "SELECT_PROVIDER";
+      role: WizardConnectionRole;
+      providerId: string | null;
+    }
+  | {
+      type: "UPDATE_PROVIDER_CONFIG";
+      providerId: string;
+      config: Record<string, unknown>;
+    }
+  | {
+      type: "APPLY_PROVIDER_MATCH";
+      providerId: string;
+      config: Record<string, unknown>;
+      roles: WizardConnectionRole[];
+      url: string;
+    }
   | { type: "UPDATE_REPOSITORIES"; patch: Partial<WizardRepositoriesState> }
   | { type: "UPDATE_INSPECTION"; patch: Partial<WizardInspectionState> }
   | { type: "UPDATE_REVIEW"; patch: Partial<WizardReviewState> }

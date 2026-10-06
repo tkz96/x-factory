@@ -17,6 +17,7 @@ import type {
   ProjectCreationPayload,
   ProjectCreationRepositoryPayload,
 } from "../../lib/api-client.js";
+import { providerConfig } from "../state/connectConfig.js";
 import type { WizardSourceState } from "../types.js";
 
 /**
@@ -56,9 +57,11 @@ function repositoryRole(config: {
 }
 
 /**
- * Builds the creation payload. The connection config comes from the git-host
- * card when the provider serves that role (the repository list was discovered
- * with it), otherwise from the tracker card.
+ * Builds the creation payload. Each connection's config is the PROVIDER's one
+ * authoritative configuration from state (`connect.providerConfigs`), in memory,
+ * carrying the secret exactly once — never a role's copy of it. There is no
+ * source role to choose: a provider serving both roles has exactly one
+ * configuration, and it is the one both roles verified.
  *
  * The identity is a required argument rather than read from state: the payload
  * cannot be built without one, and the contract has no room for a placeholder.
@@ -80,15 +83,12 @@ export function buildCreationPayload(
     rolesByProvider.set(connection.providerId, roles);
   }
 
-  const connections = [...rolesByProvider].map(([providerId, roles]) => {
-    const source = roles.includes("gitHost") ? gitHost : tracker;
-    return {
-      providerId,
-      roles,
-      // In-memory config: the secrets the user entered in this session.
-      config: source.config ?? {},
-    };
-  });
+  const connections = [...rolesByProvider].map(([providerId, roles]) => ({
+    providerId,
+    roles,
+    // In-memory config: the secrets the user entered in this session.
+    config: providerConfig(state.connect, providerId),
+  }));
 
   const repositories: ProjectCreationRepositoryPayload[] =
     state.repositories.selectedRepoIds.map((id) => {

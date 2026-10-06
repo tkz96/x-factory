@@ -13,8 +13,7 @@ export function ConnectStep() {
     manifestQuery,
     manifestAsync,
     manifest,
-    tracker,
-    gitHost,
+    connect,
     trackerConn,
     gitHostConn,
     quickUrlState,
@@ -56,15 +55,16 @@ export function ConnectStep() {
       />
 
       <ConnectVerifyAllRow
-        isVisible={Boolean(tracker.providerId && gitHost.providerId)}
+        isVisible={Boolean(
+          connect.tracker.providerId && connect.gitHost.providerId,
+        )}
         isVerifying={isVerifyingAny}
         onVerifyAll={handleVerifyAll}
       />
 
       <ConnectCardsContainer
         manifest={manifest}
-        tracker={tracker}
-        gitHost={gitHost}
+        connect={connect}
         trackerConn={trackerConn}
         gitHostConn={gitHostConn}
         disabled={quickUrlState.isParsingUrl}

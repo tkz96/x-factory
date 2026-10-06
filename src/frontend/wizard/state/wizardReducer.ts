@@ -5,6 +5,11 @@ import type {
   WizardSourceState,
   WizardStepNumber,
 } from "../types.js";
+import {
+  applyProviderMatch,
+  selectProvider,
+  writeProviderConfig,
+} from "./connectConfig.js";
 import { canAdvanceFromRepositories } from "./repositoryRules.js";
 
 export function createInitialWizardState(): WizardSourceState {
@@ -19,14 +24,13 @@ export function createInitialWizardState(): WizardSourceState {
     },
     connect: {
       quickUrl: "",
+      providerConfigs: {},
       tracker: {
         providerId: null,
-        config: {},
         verified: false,
       },
       gitHost: {
         providerId: null,
-        config: {},
         verified: false,
       },
     },
@@ -125,6 +129,43 @@ export function wizardReducer(
                 ...action.patch.gitHost,
               }
             : state.connect.gitHost,
+        },
+      };
+    }
+
+    // The three connection transitions live in `connectConfig.ts`, so the
+    // invariant they enforce — one configuration per provider, and an edit
+    // invalidating every role that verified it — holds for EVERY write, not
+    // just for the ones a card happens to make.
+    case "SELECT_PROVIDER": {
+      return {
+        ...state,
+        connect: selectProvider(state.connect, action.role, action.providerId),
+      };
+    }
+
+    case "UPDATE_PROVIDER_CONFIG": {
+      return {
+        ...state,
+        connect: writeProviderConfig(
+          state.connect,
+          action.providerId,
+          action.config,
+        ),
+      };
+    }
+
+    case "APPLY_PROVIDER_MATCH": {
+      return {
+        ...state,
+        connect: {
+          ...applyProviderMatch(
+            state.connect,
+            action.providerId,
+            action.config,
+            action.roles,
+          ),
+          quickUrl: action.url,
         },
       };
     }

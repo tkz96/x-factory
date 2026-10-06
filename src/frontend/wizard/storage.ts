@@ -46,19 +46,31 @@ function sanitizeNode(value: unknown): unknown {
   return value;
 }
 
+function sanitizeProviderConfigs(
+  providerConfigs: Record<string, Record<string, unknown>> | undefined,
+): Record<string, Record<string, unknown>> {
+  const clean: Record<string, Record<string, unknown>> = {};
+  for (const [providerId, config] of Object.entries(providerConfigs ?? {})) {
+    clean[providerId] = sanitizeConfig(config || {});
+  }
+  return clean;
+}
+
 function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
   return {
     ...state,
     connect: {
-      ...state.connect,
+      quickUrl: state.connect.quickUrl,
+      // The provider's ONE configuration, sanitized: secrets never reach the
+      // draft (#131), and a provider serving both roles has a single entry here
+      // rather than a copy per role.
+      providerConfigs: sanitizeProviderConfigs(state.connect.providerConfigs),
       tracker: {
         providerId: state.connect.tracker.providerId,
-        config: sanitizeConfig(state.connect.tracker.config || {}),
         verified: false,
       },
       gitHost: {
         providerId: state.connect.gitHost.providerId,
-        config: sanitizeConfig(state.connect.gitHost.config || {}),
         verified: false,
       },
     },
@@ -102,7 +114,6 @@ function isConnectionRoleState(value: unknown): boolean {
   return (
     isRecord(value) &&
     (typeof value.providerId === "string" || value.providerId === null) &&
-    isRecord(value.config) &&
     (value.verified === undefined || typeof value.verified === "boolean") &&
     (value.unconfirmedCapabilities === undefined ||
       (Array.isArray(value.unconfirmedCapabilities) &&
@@ -112,10 +123,21 @@ function isConnectionRoleState(value: unknown): boolean {
   );
 }
 
+/**
+ * The provider-keyed configuration map: every value an object (the provider's
+ * one configuration), every key a provider id.
+ */
+function isProviderConfigs(value: unknown): boolean {
+  return (
+    isRecord(value) && Object.values(value).every((config) => isRecord(config))
+  );
+}
+
 function isConnectState(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.quickUrl === "string" &&
+    isProviderConfigs(value.providerConfigs) &&
     isConnectionRoleState(value.tracker) &&
     isConnectionRoleState(value.gitHost)
   );

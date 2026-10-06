@@ -21,6 +21,7 @@ import { deriveAsyncState } from "../../components/feedback/derive-async-state.j
 import type { ProviderRepository } from "../../connection/types.js";
 import { api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
+import { roleConfig } from "../state/connectConfig.js";
 import {
   APPLICATION_REPOSITORY_ROLE,
   gitHostDiscoveryFingerprint,
@@ -42,7 +43,7 @@ export function useRepositoryDiscovery() {
   const { state, dispatch, canAdvance, nextStep, prevStep } = useWizard();
   const gitHost = state.connect.gitHost;
   const providerId = gitHost.providerId;
-  const config = gitHost.config ?? {};
+  const config = roleConfig(state.connect, "gitHost");
   const requestFingerprint = gitHostDiscoveryFingerprint(state);
 
   const query = useQuery({
