@@ -39,6 +39,7 @@ interface WizardContextValue {
   goToStep: (step: WizardStepNumber) => void;
   resetWizard: () => void;
   updateBasics: (patch: Partial<WizardBasicsState>) => void;
+  descriptors?: readonly ProviderDescriptor[] | undefined;
 }
 
 const WizardContext = createContext<WizardContextValue | null>(null);
@@ -121,7 +122,7 @@ export function WizardProvider({
         // At least one application repository, selected under the connection
         // as it stands now (#144). Derived, never stored — the same predicate
         // the reducer's NEXT_STEP guard uses.
-        return canAdvanceFromRepositories(state);
+        return canAdvanceFromRepositories(state, descriptors);
       case 4:
         return true; // Scaffolding: later tickets supply step-specific validation rules
       case 5:
@@ -129,7 +130,7 @@ export function WizardProvider({
       default:
         return false;
     }
-  }, [state, isBasicsValid]);
+  }, [state, isBasicsValid, descriptors]);
 
   const canGoBack = state.step > 1;
 
@@ -147,7 +148,7 @@ export function WizardProvider({
       state.maxStepVisited,
       nextStepNum,
     ) as WizardStepNumber;
-    dispatch({ type: "NEXT_STEP" });
+    dispatch({ type: "NEXT_STEP", descriptors });
     if (hasRequiredDescriptors(state.connect.providerConfigs)) {
       saveWizardDraft(
         {
@@ -205,6 +206,7 @@ export function WizardProvider({
       goToStep,
       resetWizard,
       updateBasics,
+      descriptors,
     }),
     [
       state,
@@ -217,6 +219,7 @@ export function WizardProvider({
       goToStep,
       resetWizard,
       updateBasics,
+      descriptors,
     ],
   );
 

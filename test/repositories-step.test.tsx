@@ -588,6 +588,7 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
     selectionFingerprint: connectionConfigFingerprint(
       "generic-githost",
       config,
+      manifestFixture,
     ),
   });
 

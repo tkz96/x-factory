@@ -124,8 +124,8 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   });
   const manifest = manifestQuery.data ?? [];
 
-  const blockedReasons = reviewBlockedReasons(state);
-  const ready = isReviewReady(state);
+  const blockedReasons = reviewBlockedReasons(state, manifest);
+  const ready = isReviewReady(state, manifest);
   const identity = state.inspection.gitIdentity;
   const submitState = useReviewSubmit(() => onSubmit?.());
   const errorView = submitErrorView(submitState.error, manifest);

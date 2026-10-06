@@ -29,6 +29,7 @@ import type {
   ProviderRepository,
   RepositoriesEnvelope,
 } from "../../connection/types.js";
+import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
 import { configGeneration, roleConfig } from "../state/connectConfig.js";
@@ -56,11 +57,23 @@ interface DiscoveryResult {
 }
 
 export function useRepositoryDiscovery() {
-  const { state, dispatch, canAdvance, nextStep, prevStep } = useWizard();
+  const {
+    state,
+    dispatch,
+    canAdvance,
+    nextStep,
+    prevStep,
+    descriptors: wizardDescriptors,
+  } = useWizard();
+  const { data: queryDescriptors } = useProviderDescriptors();
+  const descriptors = wizardDescriptors ?? queryDescriptors;
   const gitHost = state.connect.gitHost;
   const providerId = gitHost.providerId;
+  const descriptor = descriptors?.find((d) => d.id === providerId);
   const config = roleConfig(state.connect, "gitHost");
-  const requestFingerprint = gitHostDiscoveryFingerprint(state);
+  const requestFingerprint = descriptor
+    ? gitHostDiscoveryFingerprint(state, descriptor)
+    : "";
   // The last result this region put on screen, kept so content survives a
   // failed refresh of a NEW configuration (#133 correction 4).
   const [lastDisplayed, setLastDisplayed] = useState<
@@ -72,16 +85,16 @@ export function useRepositoryDiscovery() {
   const query = useQuery({
     queryKey: queryKeys.providerRepositories(
       providerId,
-      config,
-      undefined,
+      descriptor ? config : {},
+      descriptor,
       generation,
     ),
-    enabled: providerId !== null,
+    enabled: providerId !== null && descriptor !== undefined,
     // A config edit keeps the previous results on screen while the new fetch
     // runs — flagged out of date rather than silently mistaken for current.
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<DiscoveryResult> => {
-      if (providerId === null) {
+      if (providerId === null || descriptor === undefined) {
         // Unreachable: the region is disabled without a git-host connection.
         throw new Error("Repository discovery requires a git-host connection.");
       }
@@ -138,7 +151,7 @@ export function useRepositoryDiscovery() {
 
   const resultIsStale =
     result !== undefined && result.requestFingerprint !== requestFingerprint;
-  const selectionIsStale = isRepositorySelectionStale(state);
+  const selectionIsStale = isRepositorySelectionStale(state, descriptor);
 
   // The rows on screen are only ever rows the CURRENT configuration produced.
   // While the fetch for an edited configuration runs, the previous

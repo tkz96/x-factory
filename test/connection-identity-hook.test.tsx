@@ -57,10 +57,16 @@ function makeClient(): QueryClient {
 /** A probe that renders exactly what a surface passes to the combo line. */
 function IdentityProbe({
   targets,
+  descriptors,
 }: {
   targets: readonly ConnectionIdentityTarget[];
+  descriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>
+    | undefined;
 }) {
-  const lookup = useConnectionIdentities(targets);
+  const lookup = useConnectionIdentities(targets, descriptors);
   const identities = identitiesByRole(targets, lookup);
   return (
     <span data-testid="identities">
@@ -75,12 +81,17 @@ function IdentityProbe({
 function renderProbe(
   client: QueryClient,
   targets: readonly ConnectionIdentityTarget[],
+  descriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>
+    | undefined,
 ) {
   return render(
     React.createElement(
       QueryClientProvider,
       { client },
-      React.createElement(IdentityProbe, { targets }),
+      React.createElement(IdentityProbe, { targets, descriptors }),
     ),
   );
 }
@@ -239,6 +250,24 @@ describe("useConnectionIdentities — one read, per connection configuration", (
       identity: "board.example/SAME",
     }));
 
+    const trackerDescriptor: ProviderDescriptor = {
+      id: "tracker-one",
+      displayName: "Tracker One",
+      roles: ["tracker"],
+      iconRef: "icon-custom-tracker",
+      capabilities: ["describeConnection"],
+      configFields: [
+        { name: "host", label: "Host", type: "url", required: true },
+        {
+          name: "apiToken",
+          label: "API Token",
+          type: "secret",
+          required: true,
+          secret: true,
+        },
+      ],
+    };
+
     const client = makeClient();
     const first = renderProbe(
       client,
@@ -246,6 +275,7 @@ describe("useConnectionIdentities — one read, per connection configuration", (
         { host: "https://board.example", apiToken: CONFIG_SECRET_MARKER },
         {},
       ),
+      [trackerDescriptor],
     );
     await waitFor(() => {
       expect(first.getByTestId("identities").textContent).toContain(
@@ -263,13 +293,14 @@ describe("useConnectionIdentities — one read, per connection configuration", (
         },
         {},
       ),
+      [trackerDescriptor],
     );
     await waitFor(() => {
       expect(second.getByTestId("identities").textContent).toContain(
         "board.example/SAME",
       );
     });
-    // Because secrets are stripped from connection fingerprinting, rotating apiToken
+    // Because secrets are stripped from connection fingerprinting via descriptor, rotating apiToken
     // leaves the cache key identical and avoids spurious re-queries (2 initial calls from first render, 0 new calls).
     expect(calls).toHaveLength(2);
     expect(

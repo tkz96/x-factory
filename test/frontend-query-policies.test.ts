@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
+import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
   invalidateProject,
   invalidateProjects,
@@ -66,26 +67,70 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
   });
 
   it("keys repository discovery by the git-host connection, so a config edit is a new fetch (#144)", () => {
-    const base = queryKeys.providerRepositories("generic-githost", {
-      gitUrl: "https://git.example.com",
-      token: "tok-a",
-    });
-    const reordered = queryKeys.providerRepositories("generic-githost", {
-      token: "tok-a",
-      gitUrl: "https://git.example.com",
-    });
-    const edited = queryKeys.providerRepositories("generic-githost", {
-      gitUrl: "https://git-2.example.com",
-      token: "tok-a",
-    });
-    const rotatedSecret = queryKeys.providerRepositories("generic-githost", {
-      gitUrl: "https://git.example.com",
-      token: "tok-b",
-    });
-    const otherProvider = queryKeys.providerRepositories("another-githost", {
-      gitUrl: "https://git.example.com",
-      token: "tok-a",
-    });
+    const gitHostDescriptor: ProviderDescriptor = {
+      id: "generic-githost",
+      displayName: "Generic Git Host Service",
+      roles: ["gitHost"],
+      iconRef: "icon-custom-git",
+      capabilities: ["listRepositories"],
+      configFields: [
+        {
+          name: "gitUrl",
+          label: "Git URL",
+          type: "url",
+          required: true,
+          secret: false,
+        },
+        {
+          name: "token",
+          label: "Access Token",
+          type: "secret",
+          required: true,
+          secret: true,
+        },
+      ],
+    };
+
+    const base = queryKeys.providerRepositories(
+      "generic-githost",
+      {
+        gitUrl: "https://git.example.com",
+        token: "tok-a",
+      },
+      gitHostDescriptor,
+    );
+    const reordered = queryKeys.providerRepositories(
+      "generic-githost",
+      {
+        token: "tok-a",
+        gitUrl: "https://git.example.com",
+      },
+      gitHostDescriptor,
+    );
+    const edited = queryKeys.providerRepositories(
+      "generic-githost",
+      {
+        gitUrl: "https://git-2.example.com",
+        token: "tok-a",
+      },
+      gitHostDescriptor,
+    );
+    const rotatedSecret = queryKeys.providerRepositories(
+      "generic-githost",
+      {
+        gitUrl: "https://git.example.com",
+        token: "tok-b",
+      },
+      gitHostDescriptor,
+    );
+    const otherProvider = queryKeys.providerRepositories(
+      "another-githost",
+      {
+        gitUrl: "https://git.example.com",
+        token: "tok-a",
+      },
+      gitHostDescriptor,
+    );
 
     expect(base[0]).toBe("providers");
     expect(base[1]).toBe("repositories");
@@ -105,13 +150,13 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
     const withGen1 = queryKeys.providerRepositories(
       "generic-githost",
       { gitUrl: "https://git.example.com", token: "tok-a" },
-      undefined,
+      gitHostDescriptor,
       1,
     );
     const withGen2 = queryKeys.providerRepositories(
       "generic-githost",
       { gitUrl: "https://git.example.com", token: "tok-a" },
-      undefined,
+      gitHostDescriptor,
       2,
     );
     expect(withGen1[3]).toBe(1);

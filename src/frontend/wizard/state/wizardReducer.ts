@@ -76,7 +76,10 @@ export function wizardReducer(
       // Step 3 guards the state machine itself (#144): no application
       // repository selected — or a selection made under a connection that has
       // since changed — means the journey cannot move on.
-      if (state.step === 3 && !canAdvanceFromRepositories(state)) {
+      if (
+        state.step === 3 &&
+        !canAdvanceFromRepositories(state, action.descriptors)
+      ) {
         return state;
       }
       const nextStep = (state.step + 1) as WizardStepNumber;

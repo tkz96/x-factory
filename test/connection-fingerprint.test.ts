@@ -5,6 +5,66 @@
 import { describe, expect, it } from "bun:test";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import { connectionConfigFingerprint } from "../src/frontend/lib/connection-fingerprint.js";
+import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import {
+  gitHostDiscoveryFingerprint,
+  isRepositorySelectionStale,
+} from "../src/frontend/wizard/state/repositoryRules.js";
+import { createInitialWizardState } from "../src/frontend/wizard/state/wizardReducer.js";
+import type { WizardSourceState } from "../src/frontend/wizard/types.js";
+
+const githubDescriptor: ProviderDescriptor = {
+  id: "github",
+  displayName: "GitHub",
+  roles: ["gitHost", "tracker"],
+  iconRef: "github",
+  capabilities: ["listRepositories"],
+  configFields: [
+    { name: "host", label: "Host", type: "url", required: true, secret: false },
+    {
+      name: "project",
+      label: "Project",
+      type: "text",
+      required: true,
+      secret: false,
+    },
+    {
+      name: "repo",
+      label: "Repo",
+      type: "text",
+      required: true,
+      secret: false,
+    },
+    {
+      name: "token",
+      label: "Token",
+      type: "secret",
+      required: false,
+      secret: true,
+    },
+    {
+      name: "pat",
+      label: "PAT",
+      type: "secret",
+      required: false,
+      secret: true,
+    },
+    {
+      name: "apiToken",
+      label: "API Token",
+      type: "secret",
+      required: false,
+      secret: true,
+    },
+    {
+      name: "password",
+      label: "Password",
+      type: "secret",
+      required: false,
+      secret: true,
+    },
+  ],
+};
 
 const customProviderDescriptor: ProviderDescriptor = {
   id: "custom-provider",
@@ -59,46 +119,78 @@ describe("connectionConfigFingerprint secret isolation", () => {
       repo: "my-repo",
     };
 
-    const fp1 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      token: "ghp_initial_token_11111",
-    });
+    const fp1 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        token: "ghp_initial_token_11111",
+      },
+      githubDescriptor,
+    );
 
-    const fp2 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      token: "ghp_rotated_token_99999",
-    });
+    const fp2 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        token: "ghp_rotated_token_99999",
+      },
+      githubDescriptor,
+    );
 
     expect(fp1).toBe(fp2);
 
-    const fpPat1 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      pat: "pat_alpha",
-    });
-    const fpPat2 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      pat: "pat_omega",
-    });
+    const fpPat1 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        pat: "pat_alpha",
+      },
+      githubDescriptor,
+    );
+    const fpPat2 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        pat: "pat_omega",
+      },
+      githubDescriptor,
+    );
     expect(fpPat1).toBe(fpPat2);
 
-    const fpApi1 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      apiToken: "key-1",
-    });
-    const fpApi2 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      apiToken: "key-2",
-    });
+    const fpApi1 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        apiToken: "key-1",
+      },
+      githubDescriptor,
+    );
+    const fpApi2 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        apiToken: "key-2",
+      },
+      githubDescriptor,
+    );
     expect(fpApi1).toBe(fpApi2);
 
-    const fpPass1 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      password: "pass1",
-    });
-    const fpPass2 = connectionConfigFingerprint("github", {
-      ...baseConfig,
-      password: "pass2",
-    });
+    const fpPass1 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        password: "pass1",
+      },
+      githubDescriptor,
+    );
+    const fpPass2 = connectionConfigFingerprint(
+      "github",
+      {
+        ...baseConfig,
+        password: "pass2",
+      },
+      githubDescriptor,
+    );
     expect(fpPass1).toBe(fpPass2);
   });
 
@@ -250,5 +342,373 @@ describe("connectionConfigFingerprint secret isolation", () => {
     });
 
     expect(fp).toMatch(/^cfp_[0-9a-f]{16}$/);
+  });
+});
+
+describe("schema-authoritative query identity and secret isolation (#133 blocker)", () => {
+  const providerDescriptorA: ProviderDescriptor = {
+    id: "provider-a",
+    displayName: "Provider A",
+    roles: ["gitHost"],
+    iconRef: "icon-a",
+    capabilities: ["listRepositories"],
+    configFields: [
+      {
+        name: "host",
+        label: "Host",
+        type: "url",
+        required: true,
+        secret: false,
+      },
+      {
+        name: "project",
+        label: "Project",
+        type: "text",
+        required: true,
+        secret: false,
+      },
+      {
+        name: "tokenType",
+        label: "Token Type",
+        type: "text",
+        required: false,
+        secret: false,
+      },
+      {
+        name: "accessCode",
+        label: "Access Code",
+        type: "secret",
+        required: true,
+        secret: true,
+      },
+      {
+        name: "token",
+        label: "Token",
+        type: "secret",
+        required: false,
+        secret: true,
+      },
+    ],
+  };
+
+  const providerDescriptorB: ProviderDescriptor = {
+    id: "provider-b",
+    displayName: "Provider B",
+    roles: ["gitHost"],
+    iconRef: "icon-b",
+    capabilities: ["listRepositories"],
+    configFields: [
+      {
+        name: "host",
+        label: "Host",
+        type: "url",
+        required: true,
+        secret: false,
+      },
+      {
+        name: "project",
+        label: "Project",
+        type: "text",
+        required: true,
+        secret: false,
+      },
+      {
+        name: "accessCode",
+        label: "Access Code",
+        type: "secret",
+        required: true,
+        secret: true,
+      },
+    ],
+  };
+
+  it("Same non-secret configuration + different secret => same fingerprint", () => {
+    const config1 = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      accessCode: "secret-code-alpha",
+      token: "secret-token-111",
+    };
+    const config2 = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      accessCode: "secret-code-beta",
+      token: "secret-token-999",
+    };
+
+    const fp1 = connectionConfigFingerprint(
+      "provider-a",
+      config1,
+      providerDescriptorA,
+    );
+    const fp2 = connectionConfigFingerprint(
+      "provider-a",
+      config2,
+      providerDescriptorA,
+    );
+
+    expect(fp1).toBe(fp2);
+  });
+
+  it("Different non-secret configuration => different fingerprint", () => {
+    const config1 = {
+      host: "https://git-1.example.com",
+      project: "core-repo",
+      accessCode: "secret-code-alpha",
+    };
+    const config2 = {
+      host: "https://git-2.example.com",
+      project: "core-repo",
+      accessCode: "secret-code-alpha",
+    };
+
+    const fp1 = connectionConfigFingerprint(
+      "provider-a",
+      config1,
+      providerDescriptorA,
+    );
+    const fp2 = connectionConfigFingerprint(
+      "provider-a",
+      config2,
+      providerDescriptorA,
+    );
+
+    expect(fp1).not.toBe(fp2);
+  });
+
+  it("Different provider => different fingerprint", () => {
+    const config = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      accessCode: "secret-code-alpha",
+    };
+
+    const fpA = connectionConfigFingerprint(
+      "provider-a",
+      config,
+      providerDescriptorA,
+    );
+    const fpB = connectionConfigFingerprint(
+      "provider-b",
+      config,
+      providerDescriptorB,
+    );
+
+    expect(fpA).not.toBe(fpB);
+  });
+
+  it("Reordered config keys => same fingerprint", () => {
+    const config1 = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      tokenType: "Bearer",
+      accessCode: "secret-code",
+    };
+    const config2 = {
+      accessCode: "secret-code",
+      tokenType: "Bearer",
+      project: "core-repo",
+      host: "https://git.example.com",
+    };
+
+    const fp1 = connectionConfigFingerprint(
+      "provider-a",
+      config1,
+      providerDescriptorA,
+    );
+    const fp2 = connectionConfigFingerprint(
+      "provider-a",
+      config2,
+      providerDescriptorA,
+    );
+
+    expect(fp1).toBe(fp2);
+  });
+
+  it("A secret named accessCode is excluded when the descriptor declares it secret", () => {
+    const base = {
+      host: "https://git.example.com",
+      project: "core-repo",
+    };
+    const configWithSecret1 = {
+      ...base,
+      accessCode: "ultra-secret-key-1",
+    };
+    const configWithSecret2 = {
+      ...base,
+      accessCode: "ultra-secret-key-2",
+    };
+
+    const fpBase = connectionConfigFingerprint(
+      "provider-a",
+      base,
+      providerDescriptorA,
+    );
+    const fp1 = connectionConfigFingerprint(
+      "provider-a",
+      configWithSecret1,
+      providerDescriptorA,
+    );
+    const fp2 = connectionConfigFingerprint(
+      "provider-a",
+      configWithSecret2,
+      providerDescriptorA,
+    );
+
+    expect(fp1).toBe(fp2);
+    expect(fp1).toBe(fpBase);
+  });
+
+  it("A suspicious-looking field declared non-secret remains part of the fingerprint", () => {
+    const config1 = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      tokenType: "Bearer",
+    };
+    const config2 = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      tokenType: "Basic",
+    };
+
+    const fp1 = connectionConfigFingerprint(
+      "provider-a",
+      config1,
+      providerDescriptorA,
+    );
+    const fp2 = connectionConfigFingerprint(
+      "provider-a",
+      config2,
+      providerDescriptorA,
+    );
+
+    expect(fp1).not.toBe(fp2);
+  });
+
+  it("The serialized TanStack Query key contains no credential value", () => {
+    const rawConfig = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      accessCode: "SECRET_ACCESS_CODE_98765",
+      token: "SECRET_TOKEN_VALUE_43210",
+    };
+
+    const qKey = queryKeys.providerRepositories(
+      "provider-a",
+      rawConfig,
+      providerDescriptorA,
+      1,
+    );
+
+    const serialized = JSON.stringify(qKey);
+    expect(serialized).not.toContain("SECRET_ACCESS_CODE_98765");
+    expect(serialized).not.toContain("SECRET_TOKEN_VALUE_43210");
+  });
+
+  it("Changing the provider config generation produces a different discovery query key even though the fingerprint remains unchanged", () => {
+    const rawConfig = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      accessCode: "secret-code",
+    };
+
+    const qKeyGen1 = queryKeys.providerRepositories(
+      "provider-a",
+      rawConfig,
+      providerDescriptorA,
+      1,
+    );
+    const qKeyGen2 = queryKeys.providerRepositories(
+      "provider-a",
+      rawConfig,
+      providerDescriptorA,
+      2,
+    );
+
+    // Fingerprints match
+    expect(qKeyGen1[2]).toBe(qKeyGen2[2]);
+    // Query keys differ
+    expect(qKeyGen1).not.toEqual(qKeyGen2);
+    expect(qKeyGen1[3]).toBe(1);
+    expect(qKeyGen2[3]).toBe(2);
+  });
+
+  it("Repository selection staleness uses the same descriptor-aware fingerprint as discovery", () => {
+    const initialConfig = {
+      host: "https://git.example.com",
+      project: "core-repo",
+      accessCode: "initial-secret",
+    };
+
+    const base = createInitialWizardState();
+    const state: WizardSourceState = {
+      ...base,
+      step: 3,
+      connect: {
+        ...base.connect,
+        providerConfigs: {
+          "provider-a": initialConfig,
+        },
+        gitHost: {
+          providerId: "provider-a",
+          verified: true,
+        },
+      },
+      repositories: {
+        ...base.repositories,
+        selectedRepoIds: ["repo-1"],
+        repoConfigs: {
+          "repo-1": { role: "gitHost", roles: ["gitHost"] },
+        },
+        selectionFingerprint: gitHostDiscoveryFingerprint(
+          {
+            ...base,
+            connect: {
+              ...base.connect,
+              providerConfigs: { "provider-a": initialConfig },
+              gitHost: { providerId: "provider-a", verified: true },
+            },
+          },
+          providerDescriptorA,
+        ),
+      },
+    };
+
+    // Current selection is not stale
+    expect(isRepositorySelectionStale(state, providerDescriptorA)).toBe(false);
+
+    // Rotating the secret does NOT make selection stale
+    const rotatedState: WizardSourceState = {
+      ...state,
+      connect: {
+        ...state.connect,
+        providerConfigs: {
+          "provider-a": {
+            ...initialConfig,
+            accessCode: "rotated-secret",
+          },
+        },
+      },
+    };
+    expect(isRepositorySelectionStale(rotatedState, providerDescriptorA)).toBe(
+      false,
+    );
+
+    // Changing a non-secret field DOES make selection stale
+    const editedState: WizardSourceState = {
+      ...state,
+      connect: {
+        ...state.connect,
+        providerConfigs: {
+          "provider-a": {
+            ...initialConfig,
+            host: "https://git-edited.example.com",
+          },
+        },
+      },
+    };
+    expect(isRepositorySelectionStale(editedState, providerDescriptorA)).toBe(
+      true,
+    );
   });
 });

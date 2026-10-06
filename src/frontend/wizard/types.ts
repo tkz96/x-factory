@@ -1,6 +1,7 @@
 // src/frontend/wizard/types.ts — Shared types, constants, and envelopes for the onboarding wizard (spec #133, #142).
 
 import type { GitIdentity } from "../../shared/types.js";
+import type { ProviderDescriptor } from "../connection/types.js";
 
 /**
  * Draft schema version. Bumped to 2 by correction 2 (#133): the draft's
@@ -173,7 +174,10 @@ export interface WizardDraftEnvelope {
  */
 export type WizardAction =
   | { type: "SET_STEP"; step: WizardStepNumber }
-  | { type: "NEXT_STEP" }
+  | {
+      type: "NEXT_STEP";
+      descriptors?: readonly ProviderDescriptor[] | undefined;
+    }
   | { type: "PREV_STEP" }
   | { type: "UPDATE_BASICS"; patch: Partial<WizardBasicsState> }
   | {

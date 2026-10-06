@@ -16,8 +16,6 @@ import type { ProviderDescriptor } from "../connection/types.js";
 const FNV_PRIME = 16777619;
 const FNV_OFFSET_BASIS = 2166136261;
 
-const FALLBACK_SENSITIVE_PATTERN =
-  /(token|pat(?!h)|secret|password|credential)/i;
 const ENV_KEY_PATTERN = /^env_?key$/i;
 
 /** One 32-bit FNV-1a pass over the canonical string, seeded at the end. */
@@ -69,7 +67,6 @@ function resolveDescriptor(
   ) {
     return {
       secretNames: descriptorOrDescriptors as ReadonlySet<string>,
-      nonSecretNames: new Set<string>(),
     };
   }
 
@@ -121,11 +118,10 @@ function stripSecrets(
       if (secretNames?.has(key)) {
         continue;
       }
-      if (nonSecretNames?.has(key)) {
-        clean[key] = stripSecrets(val, secretNames, nonSecretNames);
-        continue;
-      }
-      if (FALLBACK_SENSITIVE_PATTERN.test(key)) {
+      if (nonSecretNames !== undefined) {
+        if (nonSecretNames.has(key)) {
+          clean[key] = stripSecrets(val, secretNames, nonSecretNames);
+        }
         continue;
       }
       clean[key] = stripSecrets(val, secretNames, nonSecretNames);

@@ -6,6 +6,7 @@
 // the reducer's plain source state. Tested as pure functions, exhaustively.
 
 import { describe, expect, it } from "bun:test";
+import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import { connectionConfigFingerprint } from "../src/frontend/lib/connection-fingerprint.js";
 import {
   canAdvanceFromRepositories,
@@ -18,6 +19,30 @@ import type {
   WizardRepoConfig,
   WizardSourceState,
 } from "../src/frontend/wizard/types.js";
+
+const genericGitHostDescriptor: ProviderDescriptor = {
+  id: "generic-githost",
+  displayName: "Generic Git Host Service",
+  roles: ["gitHost"],
+  iconRef: "icon-custom-git",
+  capabilities: ["listRepositories", "createPullRequest"],
+  configFields: [
+    {
+      name: "host",
+      label: "Host",
+      type: "url",
+      required: true,
+      secret: false,
+    },
+    {
+      name: "token",
+      label: "Access Token",
+      type: "secret",
+      required: true,
+      secret: true,
+    },
+  ],
+};
 
 const GIT_HOST_CONFIG = { host: "https://git.example.com", token: "tok-a" };
 
@@ -64,6 +89,10 @@ function stateWithSelection(
   config: Record<string, unknown>,
   repos: Record<string, WizardRepoConfig>,
   fingerprintProviderId = "generic-githost",
+  descriptorOrDescriptors:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string> = genericGitHostDescriptor,
 ): WizardSourceState {
   return stateWith({
     gitHost: { providerId: fingerprintProviderId, config },
@@ -72,30 +101,78 @@ function stateWithSelection(
     selectionFingerprint: connectionConfigFingerprint(
       fingerprintProviderId,
       config,
+      descriptorOrDescriptors,
     ),
   });
 }
 
 describe("connectionConfigFingerprint", () => {
   it("identifies a connection by provider id and config values, independent of key order", () => {
-    const a = connectionConfigFingerprint("p", { host: "h", token: "t" });
-    const b = connectionConfigFingerprint("p", { token: "t", host: "h" });
+    const desc: ProviderDescriptor = {
+      id: "p",
+      displayName: "P",
+      roles: ["gitHost"],
+      iconRef: "p",
+      capabilities: [],
+      configFields: [
+        {
+          name: "host",
+          label: "Host",
+          type: "text",
+          required: true,
+          secret: false,
+        },
+        {
+          name: "token",
+          label: "Token",
+          type: "secret",
+          required: true,
+          secret: true,
+        },
+      ],
+    };
+    const a = connectionConfigFingerprint("p", { host: "h", token: "t" }, desc);
+    const b = connectionConfigFingerprint("p", { token: "t", host: "h" }, desc);
     expect(a).toBe(b);
 
     expect(
-      connectionConfigFingerprint("p", { token: "t", host: "h" }),
-    ).not.toBe(connectionConfigFingerprint("q", { token: "t", host: "h" }));
-    expect(connectionConfigFingerprint("p", { token: "t", host: "h" })).toBe(
-      connectionConfigFingerprint("p", { token: "t2", host: "h" }),
+      connectionConfigFingerprint("p", { token: "t", host: "h" }, desc),
+    ).not.toBe(
+      connectionConfigFingerprint("q", { token: "t", host: "h" }, desc),
     );
     expect(
-      connectionConfigFingerprint("p", { token: "t", host: "h" }),
-    ).not.toBe(connectionConfigFingerprint("p", { token: "t", host: "h2" }));
+      connectionConfigFingerprint("p", { token: "t", host: "h" }, desc),
+    ).toBe(connectionConfigFingerprint("p", { token: "t2", host: "h" }, desc));
+    expect(
+      connectionConfigFingerprint("p", { token: "t", host: "h" }, desc),
+    ).not.toBe(
+      connectionConfigFingerprint("p", { token: "t", host: "h2" }, desc),
+    );
   });
 
   it("never carries a credential value — it is a non-reversible digest", () => {
+    const desc: ProviderDescriptor = {
+      id: "p",
+      displayName: "P",
+      roles: ["gitHost"],
+      iconRef: "p",
+      capabilities: [],
+      configFields: [
+        {
+          name: "token",
+          label: "Token",
+          type: "secret",
+          required: true,
+          secret: true,
+        },
+      ],
+    };
     const secret = "ghp_super_secret_pat_value";
-    const fingerprint = connectionConfigFingerprint("p", { token: secret });
+    const fingerprint = connectionConfigFingerprint(
+      "p",
+      { token: secret },
+      desc,
+    );
 
     expect(fingerprint).not.toContain(secret);
     expect(fingerprint).not.toContain("ghp_");
@@ -194,14 +271,18 @@ describe("hasApplicationRepository", () => {
 
 describe("isRepositorySelectionStale", () => {
   it("is false with no selection at all", () => {
-    expect(isRepositorySelectionStale(stateWith({}))).toBe(false);
+    expect(
+      isRepositorySelectionStale(stateWith({}), genericGitHostDescriptor),
+    ).toBe(false);
   });
 
   it("is false when the selection was made under the current git-host connection", () => {
     const state = stateWithSelection(GIT_HOST_CONFIG, {
       "repo-1": { role: "gitHost", roles: ["gitHost"] },
     });
-    expect(isRepositorySelectionStale(state)).toBe(false);
+    expect(isRepositorySelectionStale(state, genericGitHostDescriptor)).toBe(
+      false,
+    );
   });
 
   it("is true after any connection config value changes", () => {
@@ -221,7 +302,9 @@ describe("isRepositorySelectionStale", () => {
         },
       },
     };
-    expect(isRepositorySelectionStale(edited)).toBe(true);
+    expect(isRepositorySelectionStale(edited, genericGitHostDescriptor)).toBe(
+      true,
+    );
   });
 
   it("is false after rotating a secret token on the connection", () => {
@@ -238,7 +321,9 @@ describe("isRepositorySelectionStale", () => {
         },
       },
     };
-    expect(isRepositorySelectionStale(rotated)).toBe(false);
+    expect(isRepositorySelectionStale(rotated, genericGitHostDescriptor)).toBe(
+      false,
+    );
   });
 
   it("is true after the git-host provider changes", () => {
@@ -252,7 +337,9 @@ describe("isRepositorySelectionStale", () => {
         gitHost: { ...state.connect.gitHost, providerId: "another-githost" },
       },
     };
-    expect(isRepositorySelectionStale(switched)).toBe(true);
+    expect(isRepositorySelectionStale(switched, genericGitHostDescriptor)).toBe(
+      true,
+    );
   });
 
   it("is true for a restored selection with no recorded provenance", () => {
@@ -260,7 +347,9 @@ describe("isRepositorySelectionStale", () => {
       selectedRepoIds: ["repo-1"],
       repoConfigs: { "repo-1": { role: "gitHost", roles: ["gitHost"] } },
     });
-    expect(isRepositorySelectionStale(state)).toBe(true);
+    expect(isRepositorySelectionStale(state, genericGitHostDescriptor)).toBe(
+      true,
+    );
   });
 });
 
@@ -269,18 +358,24 @@ describe("canAdvanceFromRepositories", () => {
     const state = stateWithSelection(GIT_HOST_CONFIG, {
       "repo-1": { role: "gitHost", roles: ["gitHost"] },
     });
-    expect(canAdvanceFromRepositories(state)).toBe(true);
+    expect(canAdvanceFromRepositories(state, genericGitHostDescriptor)).toBe(
+      true,
+    );
   });
 
   it("blocks progression with no selection", () => {
-    expect(canAdvanceFromRepositories(stateWith({}))).toBe(false);
+    expect(
+      canAdvanceFromRepositories(stateWith({}), genericGitHostDescriptor),
+    ).toBe(false);
   });
 
   it("blocks progression when only a non-application repository is selected", () => {
     const state = stateWithSelection(GIT_HOST_CONFIG, {
       "repo-1": { role: "tracker", roles: ["tracker"] },
     });
-    expect(canAdvanceFromRepositories(state)).toBe(false);
+    expect(canAdvanceFromRepositories(state, genericGitHostDescriptor)).toBe(
+      false,
+    );
   });
 
   it("blocks progression when the selection went stale after a connection edit", () => {
@@ -300,15 +395,21 @@ describe("canAdvanceFromRepositories", () => {
         },
       },
     };
-    expect(canAdvanceFromRepositories(edited)).toBe(false);
+    expect(canAdvanceFromRepositories(edited, genericGitHostDescriptor)).toBe(
+      false,
+    );
   });
 });
 
 describe("gitHostDiscoveryFingerprint", () => {
   it("follows the git-host connection's provider id and config", () => {
     const state = stateWithSelection(GIT_HOST_CONFIG, {});
-    expect(gitHostDiscoveryFingerprint(state)).toBe(
-      connectionConfigFingerprint("generic-githost", GIT_HOST_CONFIG),
+    expect(gitHostDiscoveryFingerprint(state, genericGitHostDescriptor)).toBe(
+      connectionConfigFingerprint(
+        "generic-githost",
+        GIT_HOST_CONFIG,
+        genericGitHostDescriptor,
+      ),
     );
   });
 });

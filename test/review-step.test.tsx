@@ -358,6 +358,7 @@ function setupStepFiveDraft(
         selectionFingerprint: connectionConfigFingerprint(
           "generic-githost",
           gitHostConfig,
+          MANIFEST,
         ),
         ...(overrides.repositories ?? {}),
       },

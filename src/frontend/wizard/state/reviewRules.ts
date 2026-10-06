@@ -16,6 +16,7 @@ import {
   type ConnectionEvidence,
   isConnectionUsable,
 } from "../../components/connections/connection-state.js";
+import type { ProviderDescriptor } from "../../connection/types.js";
 import type { WizardSourceState } from "../types.js";
 import { deriveInspectionStatus } from "./inspectionRules.js";
 import {
@@ -51,6 +52,10 @@ function roleReason(
  */
 export function reviewBlockedReasons(
   state: WizardSourceState,
+  descriptorOrDescriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
 ): ReviewBlockedReason[] {
   const reasons: ReviewBlockedReason[] = [];
 
@@ -62,7 +67,7 @@ export function reviewBlockedReasons(
   if (!hasApplicationRepository(state)) {
     reasons.push("noApplicationRepository");
   }
-  if (isRepositorySelectionStale(state)) {
+  if (isRepositorySelectionStale(state, descriptorOrDescriptors)) {
     reasons.push("selectionStale");
   }
 
@@ -82,6 +87,12 @@ export function reviewBlockedReasons(
 }
 
 /** True only when nothing blocks the creation. */
-export function isReviewReady(state: WizardSourceState): boolean {
-  return reviewBlockedReasons(state).length === 0;
+export function isReviewReady(
+  state: WizardSourceState,
+  descriptorOrDescriptors?:
+    | ProviderDescriptor
+    | readonly ProviderDescriptor[]
+    | ReadonlySet<string>,
+): boolean {
+  return reviewBlockedReasons(state, descriptorOrDescriptors).length === 0;
 }

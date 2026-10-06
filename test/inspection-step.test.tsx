@@ -60,7 +60,9 @@ const MANIFEST: ProviderDescriptor[] = [
     roles: ["gitHost"],
     iconRef: "icon-custom-git",
     capabilities: ["listRepositories", "createPullRequest"],
-    configFields: [],
+    configFields: [
+      { name: "gitUrl", label: "Git URL", type: "url", required: true },
+    ],
   },
 ];
 
@@ -154,7 +156,11 @@ function setupStepFourDraft(options: StepFourDraftOptions = {}) {
         },
         selectionFingerprint:
           selectedRepoIds.length > 0
-            ? connectionConfigFingerprint("generic-githost", GIT_HOST_CONFIG)
+            ? connectionConfigFingerprint(
+                "generic-githost",
+                GIT_HOST_CONFIG,
+                MANIFEST,
+              )
             : null,
       },
       inspection: { acknowledged: false, ...(options.inspection ?? {}) },
