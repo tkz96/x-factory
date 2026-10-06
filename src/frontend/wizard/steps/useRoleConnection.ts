@@ -91,12 +91,13 @@ export function useRoleConnection(
   // This is a DIFFERENT rule from the generation, and both are needed: the
   // generation answers "is the configuration this attempt asked about still on
   // record?" — cross-card, reducer-owned — while this sequence answers "is this
-  // the attempt the user last asked for?". A user may press Verify again while
-  // the first attempt is in flight (the button is not disabled while pending):
-  // the older answer is then not wrong, it is simply no longer the answer to the
-  // question on screen, so it must not write the local payload or the evidence.
-  // A reset (a Quick-URL match that clears this role) invalidates in-flight work
-  // the same way, which is why it bumps the sequence too.
+  // the attempt the user last asked for?". A superseded answer is not wrong, it
+  // is simply no longer the answer to the question on screen, so it must not
+  // write the local payload or the evidence. The shipped card disables its
+  // Verify button while an attempt is pending, so today a second attempt would
+  // need another caller (the Quick-URL reset path clears a role the same way);
+  // the rule makes the hook's behaviour independent of that button state, and is
+  // proven directly in `test/role-connection-hook.test.tsx`.
   const attemptSeq = useRef(0);
 
   const clearAttempt = () => {
