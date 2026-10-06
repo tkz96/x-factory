@@ -11,9 +11,14 @@ import "./ProjectCard.css";
 
 import { Link, useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
+import { useConnectionIdentities } from "../../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
-import { comboTone } from "../connections/connection-state.js";
+import {
+  comboTone,
+  identitiesByRole,
+  withConnectionIdentities,
+} from "../connections/connection-state.js";
 import {
   CONNECTIONS_COPY,
   PROJECT_CARD_COPY,
@@ -22,6 +27,7 @@ import {
 import { RetryAction } from "../feedback/RetryAction.js";
 import {
   comboSlots,
+  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
 } from "./connection-integrity.js";
@@ -37,6 +43,13 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
 
   const repoCount = (project.repositories || []).length;
   const integrity = deriveConnectionIntegrity(project, descriptors);
+  // The provider's own identity for each connection (#133 story 34).
+  const identityTargets = connectionIdentityTargets(integrity);
+  const identityLookup = useConnectionIdentities(identityTargets);
+  const slots = withConnectionIdentities(
+    comboSlots(integrity),
+    identitiesByRole(identityTargets, identityLookup),
+  );
   const displayPath =
     project.workspacePath ||
     project.repositoryPath ||
@@ -69,8 +82,8 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
         </div>
 
         <ConnectionComboLine
-          slots={comboSlots(integrity)}
-          tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
+          slots={slots}
+          tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
           descriptors={descriptors}
           className="connection-combo-line--compact"
         />

@@ -17,6 +17,8 @@ import { ConnectionComboLine } from "../../components/connections/ConnectionComb
 import {
   comboSlotFromEvidence,
   comboTone,
+  identitiesByRole,
+  withConnectionIdentities,
 } from "../../components/connections/connection-state.js";
 import {
   REVIEW_COPY,
@@ -25,8 +27,10 @@ import {
 } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
+import { useConnectionIdentities } from "../../hooks/useConnectionIdentity.js";
 import { ApiError, api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
+import { connectionIdentityTargets } from "../state/connectConfig.js";
 import {
   isReviewReady,
   type ReviewBlockedReason,
@@ -142,10 +146,19 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   // model, one rendering, one tone rule, shared with the post-creation
   // surfaces. Review is the creation gate, so BOTH roles are required here —
   // a role with no verified connection is an error, never a warning (#133).
-  const comboSlots = [
-    comboSlotFromEvidence("tracker", state.connect.tracker),
-    comboSlotFromEvidence("gitHost", state.connect.gitHost),
-  ];
+  //
+  // The identity is the provider's own (#133 story 34), read from the
+  // configuration the draft holds (`connect.providerConfigs`), so the line a
+  // user approves is the line they will see on the project afterwards.
+  const identityTargets = connectionIdentityTargets(state.connect);
+  const identityLookup = useConnectionIdentities(identityTargets);
+  const comboSlots = withConnectionIdentities(
+    [
+      comboSlotFromEvidence("tracker", state.connect.tracker),
+      comboSlotFromEvidence("gitHost", state.connect.gitHost),
+    ],
+    identitiesByRole(identityTargets, identityLookup),
+  );
   const requiredRoles: ProjectConnectionRole[] = ["tracker", "gitHost"];
 
   const handleSubmit = () => {

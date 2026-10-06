@@ -11,10 +11,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
+import { useConnectionIdentities } from "../../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
-import { comboTone } from "../connections/connection-state.js";
+import {
+  comboTone,
+  identitiesByRole,
+  withConnectionIdentities,
+} from "../connections/connection-state.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
@@ -24,6 +29,7 @@ import {
   applyConnectionIntegrity,
   comboSlots,
   connectionDisplayValues,
+  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
   resolveProviderLabel,
@@ -51,6 +57,16 @@ export function TrackerSection({ project }: TrackerSectionProps) {
   const { data: descriptors = [] } = useProviderDescriptors();
   const integrity = deriveConnectionIntegrity(project, descriptors);
   const tracker = integrity.tracker;
+
+  // The provider's own identity for this connection (#133 story 34), read from
+  // the configuration the project RECORDED. The hook is called before any early
+  // return, and the line below renders only the tracker role.
+  const identityTargets = connectionIdentityTargets(integrity, ["tracker"]);
+  const identityLookup = useConnectionIdentities(identityTargets);
+  const slots = withConnectionIdentities(
+    comboSlots(integrity),
+    identitiesByRole(identityTargets, identityLookup),
+  );
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<ScopeTestResult | null>(null);
@@ -114,8 +130,8 @@ export function TrackerSection({ project }: TrackerSectionProps) {
       </div>
 
       <ConnectionComboLine
-        slots={comboSlots(integrity)}
-        tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
+        slots={slots}
+        tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
         descriptors={descriptors}
         roles={["tracker"]}
       />

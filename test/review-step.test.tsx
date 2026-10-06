@@ -150,6 +150,7 @@ const ORIGINAL_API = {
   verify: api.providers.verify,
   parseUrl: api.providers.parseUrl,
   listRepositories: api.providers.listRepositories,
+  describe: api.providers.describe,
   inspectRepository: api.inspectRepository,
   createProject: api.createProject,
   getProjects: api.getProjects,
@@ -160,6 +161,7 @@ function restoreApi(): void {
   api.providers.verify = ORIGINAL_API.verify;
   api.providers.parseUrl = ORIGINAL_API.parseUrl;
   api.providers.listRepositories = ORIGINAL_API.listRepositories;
+  api.providers.describe = ORIGINAL_API.describe;
   api.inspectRepository = ORIGINAL_API.inspectRepository;
   api.createProject = ORIGINAL_API.createProject;
   api.getProjects = ORIGINAL_API.getProjects;
@@ -369,14 +371,42 @@ function setupStepFiveDraft(
   });
 }
 
+/**
+ * A provider's own identity, composed the way a provider would: from the
+ * NON-SECRET identity field its configuration carries (#133 story 34). The
+ * secret is deliberately not read here — mirroring the contract.
+ */
+function identityFromDraftConfig(
+  config: Record<string, unknown>,
+): string | null {
+  const host = [config.endpointHost, config.gitUrl, config.serviceUrl].find(
+    (value): value is string =>
+      typeof value === "string" && value.trim() !== "",
+  );
+  if (host === undefined) {
+    return null;
+  }
+  const stripped = host
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+    .replace(/\/+$/, "");
+  return stripped === "" ? null : `${stripped}/ROCK`;
+}
+
 describe("Review Step: the gate and the creation submit (#146)", () => {
   let createProject: ReturnType<typeof mock>;
   let inspectRepository: ReturnType<typeof mock>;
   let created: Record<string, unknown> | null;
+  /** Every describe request the Review step's identity read made. */
+  let describedCalls: Array<{
+    providerId: string;
+    config: Record<string, unknown>;
+  }>;
 
   beforeEach(() => {
     clearWizardDraft();
     created = null;
+    describedCalls = [];
     api.providers.getManifest = mock(async () => MANIFEST);
     api.providers.verify = mock(async () => ({
       status: "ok" as const,
@@ -391,6 +421,18 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       roles: ["gitHost"],
       repositories: REPOSITORIES,
     }));
+    api.providers.describe = mock(async (payload: unknown) => {
+      const { providerId, config } = payload as {
+        providerId: string;
+        config: Record<string, unknown>;
+      };
+      describedCalls.push({ providerId, config });
+      // The default seam is a provider WITHOUT the describeConnection
+      // capability: the server's safe fallback is 200 + `identity: null`, and
+      // a surface then renders the plain display name (#133 story 34). The
+      // identity tests below install a provider that composes one.
+      return { providerId, identity: null };
+    }) as never;
     inspectRepository = mock(async (payload: { path: string }) => ({
       path: payload.path,
       exists: true,
@@ -1052,5 +1094,83 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       expect(inspectRepository).toHaveBeenCalledTimes(1);
       expect(listRepositories).toHaveBeenCalledTimes(1);
     });
+  });
+
+  // ─── Provider-owned identity (#133 story 34) ───────────────────────────────
+  //
+  // The Review line reads the identity of the DRAFT configuration — the same
+  // configuration the creation payload will submit — so the line a user
+  // approves is the line they see on the project afterwards. Only the
+  // api-client seam is mocked.
+
+  /** A describe seam whose providers DO compose an identity from their config. */
+  function installComposingIdentity(): void {
+    api.providers.describe = mock(async (payload: unknown) => {
+      const { providerId, config } = payload as {
+        providerId: string;
+        config: Record<string, unknown>;
+      };
+      describedCalls.push({ providerId, config });
+      return { providerId, identity: identityFromDraftConfig(config) };
+    }) as never;
+  }
+
+  it("IDENTITY: the Review combo line shows each provider's identity for its draft configuration", async () => {
+    installComposingIdentity();
+    await runToReview();
+
+    expect(getEl("combo-tracker-name").textContent).toBe(
+      "Generic Tracker Service (tracker.example.com/ROCK)",
+    );
+    expect(getEl("combo-gitHost-name").textContent).toBe(
+      "Generic Git Host Service (git.example.com/ROCK)",
+    );
+
+    // The read came from `connect.providerConfigs`, one entry per provider —
+    // and the secret that travelled in it is nowhere on the line.
+    expect(
+      describedCalls.find((call) => call.providerId === "generic-tracker")
+        ?.config,
+    ).toEqual({ endpointHost: TRACKER_HOST });
+    expect(
+      describedCalls.find((call) => call.providerId === "generic-githost")
+        ?.config,
+    ).toEqual({ gitUrl: GIT_URL, token: GIT_HOST_SECRET });
+    expect(getEl("combo-summary").textContent).not.toContain(GIT_HOST_SECRET);
+  });
+
+  it("IDENTITY: a dual-role connection shows its ONE identity under BOTH roles", async () => {
+    installComposingIdentity();
+    await runToReview(["repo-app"], { sameProvider: true });
+
+    expect(getEl("combo-tracker-name").textContent).toBe(
+      "Dual Role Service (dual.example.com/ROCK)",
+    );
+    expect(getEl("combo-gitHost-name").textContent).toBe(
+      "Dual Role Service (dual.example.com/ROCK)",
+    );
+    // One connection, one configuration: the identity was read once, not twice.
+    expect(
+      describedCalls.filter((call) => call.providerId === "dual-service"),
+    ).toHaveLength(1);
+    expect(getEl("combo-summary").textContent).not.toContain(DUAL_SERVICE_PAT);
+  });
+
+  it("IDENTITY: a provider that identifies nothing renders the plain display name — never null", async () => {
+    api.providers.describe = mock(async (payload: unknown) => ({
+      providerId: (payload as { providerId: string }).providerId,
+      identity: null,
+    })) as never;
+
+    await runToReview();
+
+    expect(getEl("combo-tracker-name").textContent).toBe(
+      "Generic Tracker Service",
+    );
+    expect(getEl("combo-gitHost-name").textContent).toBe(
+      "Generic Git Host Service",
+    );
+    expect(getEl("combo-summary").textContent).not.toContain("null");
+    expect(getEl("combo-summary").textContent).not.toContain("()");
   });
 });

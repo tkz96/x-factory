@@ -10,17 +10,23 @@ import "./ProjectDetailView.css";
 
 import { useNavigate, useParams } from "react-router-dom";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
-import { comboTone } from "../components/connections/connection-state.js";
+import {
+  comboTone,
+  identitiesByRole,
+  withConnectionIdentities,
+} from "../components/connections/connection-state.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { PROJECT_DETAIL_COPY } from "../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import {
   comboSlots,
+  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
 } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
+import { useConnectionIdentities } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
 
@@ -41,6 +47,19 @@ export function ProjectDetailView() {
   });
 
   const backToProjects = () => navigate("/projects");
+
+  // The identity read for the project this view resolved — no targets while the
+  // read has not resolved to one. It happens BEFORE the not-found return
+  // because it is a hook: hooks run in the same order on every render (#133
+  // story 34). `deriveConnectionIntegrity` is pure, so deriving the wiring once
+  // here for the targets and once below for the line costs nothing.
+  const identityTargets =
+    project === undefined
+      ? []
+      : connectionIdentityTargets(
+          deriveConnectionIntegrity(project, descriptors),
+        );
+  const identityLookup = useConnectionIdentities(identityTargets);
 
   if (project === undefined) {
     return (
@@ -65,6 +84,13 @@ export function ProjectDetailView() {
 
   const repos = project.repositories || [];
   const integrity = deriveConnectionIntegrity(project, descriptors);
+  // The provider's own identity for each connection (#133 story 34), read from
+  // the configuration the project recorded — the targets the hook above was
+  // given, resolved.
+  const slots = withConnectionIdentities(
+    comboSlots(integrity),
+    identitiesByRole(identityTargets, identityLookup),
+  );
 
   return (
     <section id="area-projects" className="area-view active">
@@ -95,8 +121,8 @@ export function ProjectDetailView() {
 
         <ConnectionComboLine
           id="project-connections-combo"
-          slots={comboSlots(integrity)}
-          tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
+          slots={slots}
+          tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
           descriptors={descriptors}
         />
 
