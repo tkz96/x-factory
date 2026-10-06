@@ -25,6 +25,7 @@ import {
 import { api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { clearWizardDraft } from "../src/frontend/wizard/storage.js";
+import { WIZARD_SCHEMA_VERSION } from "../src/frontend/wizard/types.js";
 import { WizardModal } from "../src/frontend/wizard/WizardModal.js";
 
 function typeInput(input: HTMLElement, value: string) {
@@ -289,7 +290,10 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     const raw = window.localStorage.getItem("xf_wizard_draft_v1");
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw || "{}");
-    expect(parsed.version).toBe(1);
+    // The schema version the code writes — a draft from an older, structurally
+    // incompatible version is discarded by `loadWizardDraft` (correction 2
+    // changed the connect section; see `test/wizard-storage.test.ts`).
+    expect(parsed.version).toBe(WIZARD_SCHEMA_VERSION);
     expect(parsed.state.basics.name).toBe("Drafted App");
     expect(parsed.state.basics.workspacePath).toBe("/draft/path");
 
