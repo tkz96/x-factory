@@ -14,8 +14,6 @@ export interface ConnectionCardFeedbackProps {
   hasFormErrors: boolean;
   hasFieldErrors: boolean;
   formErrors?: string[] | null | undefined;
-  degradedAccepted?: boolean | undefined;
-  onAcceptDegraded?: (() => void) | undefined;
   onVerify: () => void;
 }
 
@@ -27,8 +25,6 @@ export function ConnectionCardFeedback({
   hasFormErrors,
   hasFieldErrors,
   formErrors,
-  degradedAccepted,
-  onAcceptDegraded,
   onVerify,
 }: ConnectionCardFeedbackProps) {
   if (hasFormErrors && formErrors) {
@@ -38,10 +34,7 @@ export function ConnectionCardFeedback({
   if (verificationStatus === "degraded") {
     return (
       <ConnectionDegradedBanner
-        connectionRole={connectionRole}
         verificationResult={verificationResult}
-        degradedAccepted={degradedAccepted}
-        onAccept={onAcceptDegraded}
         onRetry={onVerify}
       />
     );

@@ -2,13 +2,16 @@
 
 import path from "node:path";
 import { z } from "zod/v4";
+import { PROJECT_CONNECTION_ROLES } from "./shared/types.js";
 import type {
   AzureTrackerConfig,
   GitHubTrackerConfig,
+  GitIdentity,
   IssueTrackerProvider,
   JiraTrackerConfig,
   KnowledgeRepository,
   Project,
+  ProjectConnection,
   ProjectIssueTracker,
   ProjectRepository,
   RepositoryCommands,
@@ -18,7 +21,10 @@ import type {
 const IssueTrackerInputSchema = z
   .union([
     z.object({
-      provider: z.enum(["azure", "jira", "github"]).optional(),
+      // The legacy tracker view is a compatibility field, not the provider
+      // registry: a non-empty id keeps records created by providers outside
+      // the current built-in set loadable (extensibility gate a, #127).
+      provider: z.string().min(1).optional(),
       connectionId: z.string().optional(),
       projectId: z.string().optional(),
       orgUrl: z.string().optional(),
@@ -39,7 +45,15 @@ const IssueTrackerInputSchema = z
         .optional(),
       github: z
         .object({
-          repo: z.string(),
+          // A legacy record wrote the flat `repo` ("org/repo"). The normalized
+          // payload (#131) carries the provider's OWN configuration field
+          // names, and `deriveIssueTracker` copies them verbatim, so the view
+          // accepts both. Requiring `repo` alone made every project onboarded
+          // through the wizard — whose field is `repository` — unloadable
+          // (fixed in #148: `loadProjects` threw for the created project).
+          repo: z.string().optional(),
+          repoOwner: z.string().optional(),
+          repository: z.string().optional(),
           requiredLabel: z.string().optional(),
         })
         .optional(),
@@ -211,10 +225,129 @@ const LegacyProjectInputSchema = z
   })
   .passthrough();
 
+// ---------------------------------------------------------------------------
+// Normalized connections payload (#131/#145)
+// ---------------------------------------------------------------------------
+
+const ProjectConnectionRoleSchema = z.enum(["tracker", "gitHost"]);
+
+/**
+ * One provider connection as it arrives on the wire. `config` carries secret
+ * values inline exactly once; the server derives which of them are secret from
+ * the registered provider schema and never trusts client metadata.
+ */
+export const ProjectConnectionInputSchema = z.object({
+  providerId: NonEmptyString,
+  roles: z
+    .array(ProjectConnectionRoleSchema)
+    .min(1, "A connection must declare at least one role."),
+  config: z.record(z.string(), z.unknown()),
+});
+
+/** A role-tagged repository as returned by git-host discovery. */
+const DiscoveredRepositoryInputSchema = z.object({
+  id: NonEmptyString,
+  name: NonEmptyString,
+  remote: OptionalTrimmedString,
+  defaultBranch: OptionalTrimmedString,
+  localPath: OptionalTrimmedString,
+  role: RepositoryRoleSchema.optional(),
+  primary: z.boolean().optional(),
+});
+
+/**
+ * The normalized creation payload (#131): project-level fields (including the
+ * project-level `gitIdentity`), a normalized `connections` array, and
+ * role-tagged repositories with at least one application repository.
+ */
+export const ConnectionsProjectInputSchema = z
+  .looseObject({
+    id: NonEmptyString,
+    name: NonEmptyString,
+    workspacePath: OptionalTrimmedString,
+    commandTimeoutMs: z.number().positive().optional(),
+    archived: z.boolean().optional(),
+    gitIdentity: z
+      .object({ name: NonEmptyString, email: NonEmptyString })
+      .optional(),
+    connections: z.array(ProjectConnectionInputSchema).min(1),
+    repositories: z.array(DiscoveredRepositoryInputSchema).min(1),
+  })
+  .refine(
+    (input) => input.repositories.some((r) => r.role !== "knowledge"),
+    "At least one application repository is required.",
+  );
+
+export type ProjectConnectionInput = z.infer<
+  typeof ProjectConnectionInputSchema
+>;
+export type ConnectionsProjectInput = z.infer<
+  typeof ConnectionsProjectInputSchema
+>;
+
+// ---------------------------------------------------------------------------
+// Required connection-role coverage (#133)
+// ---------------------------------------------------------------------------
+
+/**
+ * The roles a project's connection set must cover: every project needs a usable
+ * issue tracker AND a usable git host, supplied either as TWO connections (one
+ * per role) or as ONE dual-role connection. A set covering only one role is not
+ * a project X-Factory can operate, so it is rejected before any write.
+ */
+export const REQUIRED_CONNECTION_ROLES = PROJECT_CONNECTION_ROLES;
+
+export type RequiredConnectionRole = (typeof REQUIRED_CONNECTION_ROLES)[number];
+
+/**
+ * The `formErrors` code reported for each required role no connection serves.
+ * Exported because the LEGACY create path reports the tracker code too: a legacy
+ * payload carries no `connections` array, so the coverage rule is applied to it
+ * through the tracker identity it names instead (#133 correction 1).
+ */
+export const MISSING_CONNECTION_ROLE_CODES: Readonly<
+  Record<RequiredConnectionRole, string>
+> = {
+  tracker: "MISSING_TRACKER_CONNECTION",
+  gitHost: "MISSING_GIT_HOST_CONNECTION",
+};
+
+/**
+ * One code per required role the connection set does not cover, in
+ * `REQUIRED_CONNECTION_ROLES` order — both codes when both are missing, so the
+ * user learns everything at once. Empty when the set is valid.
+ *
+ * This is a predicate rather than a `.refine` on `ConnectionsProjectInputSchema`
+ * on purpose: that schema is one branch of the transport union
+ * (`ProjectInputSchema`), so a payload failing it is a 400 — the missing-role
+ * payload must reach the semantic layer to be answered with these 409 codes.
+ * The rule still has exactly one definition, and this is it.
+ */
+export function missingConnectionRoleCodes(
+  connections: readonly { roles: readonly string[] }[],
+): string[] {
+  const covered = new Set(connections.flatMap((c) => c.roles));
+  return REQUIRED_CONNECTION_ROLES.filter((role) => !covered.has(role)).map(
+    (role) => MISSING_CONNECTION_ROLE_CODES[role],
+  );
+}
+
 export const ProjectInputSchema = z.union([
   ModernProjectInputSchema,
   LegacyProjectInputSchema,
+  ConnectionsProjectInputSchema,
 ]);
+
+/**
+ * The union's own discriminator (#131): a payload that satisfies the normalized
+ * connections branch IS the connections payload. Declared next to the union it
+ * discriminates so the create path never hand-rolls a second, duck-typed check.
+ */
+export function isConnectionsProjectInput(
+  input: unknown,
+): input is ConnectionsProjectInput {
+  return ConnectionsProjectInputSchema.safeParse(input).success;
+}
 
 // ---------------------------------------------------------------------------
 // Unified project validator: handles both legacy and modern formats
@@ -312,13 +445,48 @@ function _parseLegacy(obj: Record<string, unknown>): Project {
   };
 }
 
+/**
+ * Reads stored normalized connections (#131) off a project record. Secret
+ * values never appear here — only the provider's non-secret configuration.
+ */
+function parseStoredConnections(
+  obj: Record<string, unknown>,
+): ProjectConnection[] | undefined {
+  if (!Array.isArray(obj.connections)) return undefined;
+  const connections: ProjectConnection[] = [];
+  for (const [idx, raw] of obj.connections.entries()) {
+    const result = ProjectConnectionInputSchema.safeParse(raw);
+    if (!result.success) {
+      throw new Error(
+        `Project connection[${idx}] invalid:\n${z.prettifyError(result.error)}`,
+      );
+    }
+    connections.push({
+      providerId: result.data.providerId,
+      roles: [...result.data.roles],
+      config: result.data.config,
+    });
+  }
+  return connections;
+}
+
+/** Reads the project-level git identity off a project record. */
+function parseStoredGitIdentity(
+  obj: Record<string, unknown>,
+): GitIdentity | undefined {
+  const raw = obj.gitIdentity;
+  if (!raw || typeof raw !== "object") return undefined;
+  const { name, email } = raw as Record<string, unknown>;
+  if (typeof name !== "string" || typeof email !== "string") return undefined;
+  return { name: name.trim(), email: email.trim() };
+}
+
 function _parseModern(obj: Record<string, unknown>): Project {
   const result = ModernProjectInputSchema.safeParse(obj);
   if (!result.success) {
     throw new Error(_formatConfigError(result.error));
   }
   const d = result.data;
-
   // Parse repositories
   const repositories: ProjectRepository[] = d.repositories.map((r, idx) => {
     const parsed = ProjectRepositorySchema.safeParse(r);
@@ -360,6 +528,8 @@ function _parseModern(obj: Record<string, unknown>): Project {
     workspacePath: d.workspacePath,
     commandTimeoutMs: d.commandTimeoutMs,
     issueTracker,
+    connections: parseStoredConnections(obj),
+    gitIdentity: parseStoredGitIdentity(obj),
     archived:
       typeof (d as Record<string, unknown>).archived === "boolean"
         ? ((d as Record<string, unknown>).archived as boolean)
@@ -449,21 +619,32 @@ function parseGitHubTrackerConfig(
   return undefined;
 }
 
+/**
+ * Historical config files without an explicit issue tracker provider default to
+ * github on disk load. Isolated at this legacy parsing boundary.
+ */
+const LEGACY_DEFAULT_TRACKER_PROVIDER: IssueTrackerProvider = "github";
+
 function _parseIssueTracker(
   raw: unknown,
   _projectId: string,
 ): ProjectIssueTracker {
   if (!raw || typeof raw !== "object") {
-    return { provider: "github", connectionId: "github" };
+    return {
+      provider: LEGACY_DEFAULT_TRACKER_PROVIDER,
+      connectionId: LEGACY_DEFAULT_TRACKER_PROVIDER,
+    };
   }
   const t = raw as Record<string, unknown>;
-  const provider = ((typeof t.provider === "string" && t.provider.trim()
-    ? t.provider.trim()
-    : "") ||
+  const declaredProvider =
+    (typeof t.provider === "string" && t.provider.trim()
+      ? t.provider.trim()
+      : "") ||
     (typeof t.connectionId === "string" && t.connectionId.trim()
       ? t.connectionId.trim()
-      : "") ||
-    "github") as IssueTrackerProvider;
+      : "");
+  const provider = (declaredProvider ||
+    LEGACY_DEFAULT_TRACKER_PROVIDER) as IssueTrackerProvider;
 
   const result: ProjectIssueTracker = {
     provider,

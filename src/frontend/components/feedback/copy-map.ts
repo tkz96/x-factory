@@ -99,6 +99,261 @@ export const STATE_COPY = {
 } as const;
 
 /**
+ * Repositories step copy (#144). Feedback strings CANNOT be inlined in the
+ * step: the partial banner names the capability in contract terms, the empty
+ * state gives guidance, and the stale state explains that a connection change
+ * invalidated the selection.
+ */
+export const REPOSITORIES_COPY = {
+  title: "Select Repositories",
+  subtitle:
+    "Repositories discovered from your Git Host connection. Choose at least one application repository to work in.",
+  /** Empty: guidance when the connection lists zero repositories (story 29). */
+  empty:
+    "No repositories were found for this connection. Check that your token can see them, then refresh.",
+  /** Partial: the capability that could not be confirmed, in contract terms. */
+  discoveryUnconfirmed: "Repository discovery could not be confirmed.",
+  /** Stale: the selection belongs to a connection that has since changed. */
+  staleSelection:
+    "The Git Host connection changed after these repositories were listed, so this selection is out of date.",
+  /**
+   * Stale results: rows listed for a connection that is no longer current stay
+   * visible as placeholder content, but they cannot be selected — their ids
+   * belong to the previous configuration.
+   */
+  staleResults:
+    "These repositories were listed for the previous connection, so they cannot be selected. Refresh to load the current list.",
+  /** Stale: the action that clears the out-of-date selection. */
+  staleSelectionAction: "Start the selection again",
+  /** Row label for a repository listed under the git-host role. */
+  applicationRoleLabel: "Application repository",
+  /** Row label for a repository listed only in another role. */
+  noApplicationRoleLabel: "Not usable as an application repository",
+  /** Live count of the current selection. */
+  selectionSummary: (count: number) =>
+    count === 1 ? "1 repository selected" : `${count} repositories selected`,
+  previous: "Back",
+  next: "Continue to Inspection",
+} as const;
+
+/**
+ * Connection surfacing — THE one vocabulary for the combo line (#146/#147),
+ * shared by every surface that reports how a project is wired: the wizard's
+ * Review step (draft verification evidence) and the post-creation surfaces
+ * (persisted connections). One line, one rendering, one copy structure.
+ *
+ * The three distinctions are connected (the ideal), degraded (warnings present,
+ * never a gate — #133 says degraded "progression never blocked"), and
+ * disconnected. The no-tracker INTEGRITY FAILURE (spec #133 story 49) is an
+ * error state with a repair path. Provider display names are never copy: they
+ * come from the providers manifest.
+ */
+export const CONNECTIONS_COPY = {
+  /** The two connection roles, in combo-line order. */
+  roleLabel: {
+    tracker: "Issue tracker",
+    gitHost: "Git host",
+  },
+  /** Slot states: connected is the ideal, degraded is a warning, disconnected drops out. */
+  stateLabel: {
+    connected: "Connected",
+    /** Verified or recorded with warnings, which are listed on the line. */
+    degraded: "Degraded — warnings listed",
+    disconnected: "Not connected",
+  },
+  /** Shown for a role with no recorded connection at all. */
+  notRecorded: "Not recorded",
+  /**
+   * Degraded-slot warnings. `deriveConnectionIntegrity` supplies the detail
+   * (manifest field labels, the role, or a provider id) — never raw provider
+   * text.
+   */
+  warningMessage: {
+    ROLE_NOT_RECORDED: (role: string) =>
+      `No ${role.toLowerCase()} connection is recorded on this project.`,
+    CONFIG_INCOMPLETE: (fields: string) =>
+      `Required configuration is not recorded: ${fields}.`,
+    PROVIDER_UNKNOWN: (providerId: string) =>
+      `The connected provider “${providerId}” is no longer registered.`,
+  },
+  /** The integrity failure: a project with no tracker, which is not a mode. */
+  integrityFailure: {
+    title: "Issue tracker connection missing",
+    message:
+      "This project has no issue tracker connection, so tickets cannot load. Reconnect an issue tracker to repair the project.",
+  },
+  /** The repair path offered by every integrity failure. */
+  reconnect: "Reconnect",
+  /** The settings connections registry (spec #133 story 50 surface). */
+  registryTitle: "Tracker Connections",
+  registrySubtitle:
+    "Read-only registry of projects and their configured connections.",
+  registryColumnProject: "Project",
+  registryColumnConnections: "Connections",
+  registryColumnStatus: "Status",
+  registryColumnAction: "Action",
+  registryStatusActive: "Active",
+  registryStatusArchived: "Archived",
+  registryLoading: "Loading connections…",
+  registryEmpty: "No projects configured.",
+  registryAction: "View Project →",
+  onboardProject: "Onboard Project",
+  /** The tracker card on the project detail surface. */
+  trackerCardTitle: "Issue Tracker Connection",
+  trackerCardSubtitle: "Automated ticket ingestion and PR linking.",
+  /** Banner title when a connection's warnings leave it degraded. */
+  degradedTitle: "This connection needs attention.",
+  /** Ingestion: the workflow label tickets are picked up by. */
+  ingestionLabel: "Ingestion label",
+  workflowLabel: "agentic-workflow",
+  /**
+   * Scope verification diagnostics. The action is rendered from the
+   * connection's declared capabilities (spec #133 §Provider-agnosticism),
+   * never from a provider id.
+   */
+  verifyScopes: "Test Tracker Scopes",
+  verifyScopesPending: "Testing Scopes…",
+  verifyScopesOk: "Connection and permissions verified.",
+  verifyScopesFailed: "Verification failed. Review the required permissions.",
+  overPrivileged:
+    "Notice: the token has broader access than the recommended minimum.",
+} as const;
+
+/** Copy for the Work Queue read region (#147), including its integrity failure. */
+export const QUEUE_COPY = {
+  empty: "No tickets are waiting in this queue.",
+  noMatches: (query: string) => `No tickets matched “${query}”.`,
+  clearFilter: "Clear Filter",
+  /** The manual path that stays open when the tracker cannot be reached. */
+  manualRun: "Start Manual Run",
+} as const;
+
+/** Copy for the single-project detail surface (#147). */
+export const PROJECT_DETAIL_COPY = {
+  notFound: (projectId: string) =>
+    `The project “${projectId}” does not exist or has been removed.`,
+  backToProjects: "Back to Projects",
+  allProjects: "All Projects",
+  backToProjectsTitle: "Back to all projects",
+  archived: "Archived",
+  projectId: "Project ID",
+  workspacePath: "Workspace Path",
+  defaultWorkspace: "Default",
+  defaultBranch: "Default Branch",
+  defaultBranchFallback: "main",
+  repositories: "Repositories",
+  repositoriesConnected: (count: number) => `${count} connected`,
+  repositoriesEmpty:
+    "No separate sub-repositories configured. Using primary workspace repository.",
+  repositoryNameColumn: "Repository Name",
+  repositoryPathColumn: "Path",
+  repositoryBranchColumn: "Default Branch",
+} as const;
+
+/** Copy for the project cards (#147). */
+export const PROJECT_CARD_COPY = {
+  viewDetailsLabel: (projectName: string) =>
+    `View details for project ${projectName}`,
+  id: "ID",
+  workspace: "Workspace",
+  workspaceFallback: "Configured",
+  repositoryCount: (count: number) =>
+    count === 1 ? "1 repo" : `${count} repos`,
+  viewDetails: "View Details →",
+} as const;
+
+/**
+ * Inspection step copy (#146). The step reports the git identity the agent will
+ * commit with, read from the same git configuration the executor's worktree
+ * resolves — so it can also say, honestly, that none could be resolved.
+ */
+export const INSPECTION_COPY = {
+  title: "Git Identity Inspection",
+  subtitle:
+    "The git identity your agent commits with, read from the git configuration in effect for each selected repository.",
+  /** Empty: nothing is selected to inspect yet. */
+  emptyNoSelection:
+    "No repository is selected yet. Choose at least one on the Repositories step, then inspect its git identity.",
+  /** Empty: a selection exists, but there is no directory to read a config in. */
+  emptyNoPath:
+    "There is no local directory to read a git configuration in yet. Set a local workspace root on the Basics step, or a local path for the repository.",
+  /** Partial: one item per repository whose directory resolved no identity. */
+  unresolvedRepo: (name: string) =>
+    `${name} — no git identity is configured for its directory`,
+  /** Ready, but no complete identity is configured for the inspected directory. */
+  identityMissing: (path: string) =>
+    path
+      ? `No git identity is configured for ${path}. Both a user.name and a user.email are required there, and none will be invented — your agent would have no identity to commit with either.`
+      : "No git identity is configured for the inspected directories. Both a user.name and a user.email are required, and none will be invented — your agent would have no identity to commit with either.",
+  identityTitle: "Resolved git identity",
+  nameLabel: "Name",
+  emailLabel: "Email",
+  pathLabel: "Read from",
+  /** The explicit re-inspection affordance (never an automatic retry loop). */
+  inspectAction: "Inspect again",
+  previous: "Back",
+  next: "Continue to Review",
+} as const;
+
+/**
+ * Review step copy (#146). The step is the single gate before creation: it
+ * shows what was configured, and — when something downstream is no longer
+ * current — explains exactly what, with no dismissal path (#133 stale rule).
+ */
+export const REVIEW_COPY = {
+  title: "Review Project Setup",
+  subtitle:
+    "Confirm the configuration. Creating the project uses your connections and the resolved git identity.",
+  projectSectionTitle: "Project",
+  nameLabel: "Project Name",
+  identifierLabel: "Identifier",
+  descriptionLabel: "Description",
+  workspacePathLabel: "Workspace Path",
+  identitySectionTitle: "Git identity",
+  identityNameLabel: "Name",
+  identityEmailLabel: "Email",
+  repositoriesSectionTitle: "Repositories",
+  repositoryRolesLabel: "Listed as",
+  primaryBadge: "Primary",
+  unsetName: "Untitled",
+  unsetValue: "—",
+  defaultWorkspacePath: "(Default)",
+  /** The blocked banner's title; the reasons are listed as its items. */
+  blockedTitle: "This project cannot be created yet.",
+  blocked: {
+    trackerUnverified:
+      "The issue tracker connection is not verified. Verify it on the Connect step.",
+    gitHostUnverified:
+      "The Git host connection is not verified. Verify it on the Connect step.",
+    noApplicationRepository:
+      "No application repository is selected. Choose at least one on the Repositories step.",
+    selectionStale:
+      "The repository selection was made for a different connection configuration. Select the repositories again.",
+    inspectionMissing:
+      "The git identity has not been inspected for this selection yet. Inspect it on the Inspection step.",
+    inspectionStale:
+      "The git identity was resolved for a different repository selection or workspace root. Inspect it again.",
+    identityUnresolved:
+      "No git identity could be resolved for the selected repositories: both a user.name and a user.email are required, and none will be invented.",
+    identityPartial:
+      "No git identity could be resolved for every selected repository. Configure one, or deselect the ones that have none.",
+  },
+  submit: "Create Project",
+  submitting: "Creating project…",
+  previous: "Back",
+  /** The 409 envelope's own codes carry the detail as banner items. */
+  conflictTitle: "The project could not be created.",
+  /** Any other rejected request (400, 5xx): the request itself was refused. */
+  requestRejectedTitle: "The request was rejected.",
+  requestRejectedDetail:
+    "The project was not created and nothing was saved. Check the configuration and try again.",
+  /** The request never reached the server. */
+  networkErrorTitle: "The server could not be reached.",
+  networkErrorDetail:
+    "The project was not created. Check your connection and try again.",
+} as const;
+
+/**
  * Canonical copy for server validation error codes returned in 409 envelopes.
  * Field errors format the field's human label; form errors provide form-level guidance.
  */
@@ -113,6 +368,12 @@ export const VALIDATION_FORM_ERROR_COPY: Readonly<Record<string, string>> = {
   UNKNOWN_PROVIDER: "Unknown provider. Please select a registered provider.",
   INCOMPATIBLE_CONFIGURATION:
     "Incompatible configuration for the selected provider role.",
+  SECRET_NOT_ACCEPTED:
+    "A credential was sent with a request that must not carry one. Connections are identified by their non-secret settings only.",
+  MISSING_TRACKER_CONNECTION:
+    "An issue tracker connection is required. Add one on the Connect step — X-Factory does not create tracker-less projects.",
+  MISSING_GIT_HOST_CONNECTION:
+    "A git host connection is required. Add one on the Connect step — X-Factory does not create projects without a git host.",
 };
 
 export const VALIDATION_FALLBACK_COPY = {

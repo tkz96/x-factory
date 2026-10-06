@@ -45,6 +45,7 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     // Discovery & Inspection
     expect(paths).toContain("/api/projects/discover-repositories");
     expect(paths).toContain("/api/projects/inspect-repository");
+    expect(paths).toContain("/api/projects/test-scopes");
     expect(paths).toContain("/api/projects/test-azure-scopes");
     expect(paths).toContain("/api/projects/check-path");
 
@@ -79,6 +80,68 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     expect(schemas.SteerRunRequest).toBeDefined();
     expect(schemas.FactorySettings).toBeDefined();
     expect(schemas.ErrorResponse).toBeDefined();
+  });
+
+  it("documents the normalized connections creation contract (#131/#145)", () => {
+    const spec = getOpenApiSpec();
+    const schemas = spec.components.schemas;
+
+    expect(schemas.ProjectCreationRequest).toBeDefined();
+    expect(schemas.ProjectConnection).toBeDefined();
+    expect(schemas.ProjectConnectionInput).toBeDefined();
+    expect(schemas.ProjectRepositoryInput).toBeDefined();
+    expect(schemas.ProjectConnectionUpdate).toBeDefined();
+    expect(schemas.GitIdentity).toBeDefined();
+    expect(schemas.FormErrorResponse).toBeDefined();
+
+    // The creation payload carries the normalized connections, role-tagged
+    // repositories and the project-level git identity.
+    expect(Object.keys(schemas.ProjectCreationRequest.properties)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "name",
+        "gitIdentity",
+        "connections",
+        "repositories",
+      ]),
+    );
+    expect(schemas.ProjectCreationRequest.required).toEqual(
+      expect.arrayContaining(["id", "name", "connections", "repositories"]),
+    );
+
+    // A connection never exposes secret values in its stored representation.
+    expect(Object.keys(schemas.ProjectConnection.properties)).toEqual([
+      "providerId",
+      "roles",
+      "config",
+    ]);
+
+    // POST /api/projects accepts the creation payload and documents 201/400/409/500.
+    const createResponses = spec.paths["/api/projects"].post.responses;
+    expect(createResponses["201"]).toBeDefined();
+    expect(createResponses["400"]).toBeDefined();
+    expect(createResponses["409"]).toBeDefined();
+    expect(createResponses["500"]).toBeDefined();
+    expect(
+      JSON.stringify(spec.paths["/api/projects"].post.requestBody),
+    ).toContain("ProjectCreationRequest");
+
+    // The project record exposes connections and the project-level git identity
+    // (Project is composed from ProjectInput).
+    expect(Object.keys(schemas.ProjectInput.properties)).toEqual(
+      expect.arrayContaining(["connections", "gitIdentity"]),
+    );
+    expect(schemas.Project.allOf[0]?.$ref).toBe(
+      "#/components/schemas/ProjectInput",
+    );
+
+    // The update contract documents clearSecrets.
+    expect(Object.keys(schemas.ProjectConnectionUpdate.properties)).toContain(
+      "clearSecrets",
+    );
+    expect(
+      JSON.stringify(spec.paths["/api/projects/{id}"].post.requestBody),
+    ).toContain("ProjectConnectionUpdate");
   });
 });
 

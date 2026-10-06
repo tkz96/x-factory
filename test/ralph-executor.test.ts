@@ -789,7 +789,10 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
               criteriaChecked: [],
             };
           },
-          loadSettings: async () => ({ anthropicApiKey: "test-key" }) as any,
+          loadSettings: async () =>
+            ({
+              anthropicApiKey: "test-key",
+            }) as unknown as ReturnType<typeof loadSettings>,
           writeFile: async () => {},
         }),
       });

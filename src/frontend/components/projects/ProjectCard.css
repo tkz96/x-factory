@@ -187,3 +187,11 @@
   padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
 }
+
+/* Integrity failure repair path (#147) — outside the card's anchor so no
+   interactive element is nested inside a link. */
+.project-card-repair {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}

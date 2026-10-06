@@ -5,7 +5,19 @@ import "./SettingsView.css";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
+import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
+import { comboTone } from "../components/connections/connection-state.js";
+import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
+import { RetryAction } from "../components/feedback/RetryAction.js";
+import {
+  comboSlots,
+  deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
+  recordedConnectionIdentityTargets,
+} from "../components/projects/connection-integrity.js";
 import { useModal } from "../context/ModalContext.js";
+import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
+import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import {
   useDiagnostics,
   useProjects,
@@ -195,15 +207,33 @@ function ConnectionsTabContent({
   isLoading,
   onOnboardProject,
 }: ConnectionsTabContentProps) {
+  const { data: descriptors = [] } = useProviderDescriptors();
+
+  // The registry renders one combo line per project, so every project's wiring
+  // is derived here — once — and the identity read is ONE hook call for the
+  // whole table (#133 story 34). Each connection is keyed by its own
+  // configuration, so no two projects can share an identity.
+  const rows = projects.map((project) => ({
+    project,
+    integrity: deriveConnectionIntegrity(project, descriptors),
+  }));
+  const slotsByRow = useConnectionLines(
+    rows.map((row) => ({
+      slots: comboSlots(row.integrity),
+      targets: recordedConnectionIdentityTargets(
+        row.integrity,
+        undefined,
+        descriptors,
+      ),
+    })),
+  );
+
   return (
     <div id="tab-trackers" className="settings-pane active">
       <div className="connections-header">
         <div>
-          <h3>Tracker Connections</h3>
-          <p className="text-muted">
-            Read-only registry of projects and their configured issue tracker
-            connections.
-          </p>
+          <h3>{CONNECTIONS_COPY.registryTitle}</h3>
+          <p className="text-muted">{CONNECTIONS_COPY.registrySubtitle}</p>
         </div>
         <button
           type="button"
@@ -214,7 +244,7 @@ function ConnectionsTabContent({
           <svg className="icon icon-sm" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-plus" />
           </svg>
-          <span>Onboard Project</span>
+          <span>{CONNECTIONS_COPY.onboardProject}</span>
         </button>
       </div>
 
@@ -222,64 +252,55 @@ function ConnectionsTabContent({
         <table className="connections-table">
           <thead>
             <tr>
-              <th>Project</th>
-              <th>Tracker Provider</th>
-              <th>Target</th>
-              <th>Status</th>
-              <th className="align-right">Action</th>
+              <th>{CONNECTIONS_COPY.registryColumnProject}</th>
+              <th>{CONNECTIONS_COPY.registryColumnConnections}</th>
+              <th>{CONNECTIONS_COPY.registryColumnStatus}</th>
+              <th className="align-right">
+                {CONNECTIONS_COPY.registryColumnAction}
+              </th>
             </tr>
           </thead>
           <tbody id="connections-registry-tbody">
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="text-muted text-center p-4">
-                  Loading connections…
+                <td colSpan={4} className="text-muted text-center p-4">
+                  {CONNECTIONS_COPY.registryLoading}
                 </td>
               </tr>
             ) : projects.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-muted text-center p-4">
-                  No projects configured.
+                <td colSpan={4} className="text-muted text-center p-4">
+                  {CONNECTIONS_COPY.registryEmpty}
                 </td>
               </tr>
             ) : (
-              projects.map((p) => {
-                const provider =
-                  p.issueTracker?.provider ||
-                  p.issueTracker?.connectionId ||
-                  "None";
-                const trackerRecord = p.issueTracker as unknown as Record<
-                  string,
-                  Record<string, string> | undefined
-                >;
-                const cfg = trackerRecord?.[provider];
-                let target = "";
-                if (cfg) {
-                  if (cfg.repo) {
-                    target = cfg.repo;
-                  } else if (cfg.orgUrl && cfg.project) {
-                    target = `${cfg.orgUrl} / ${cfg.project}`;
-                  } else if (cfg.host && cfg.project) {
-                    target = `${cfg.host} (${cfg.project})`;
-                  } else if (cfg.orgUrl || cfg.host) {
-                    target = cfg.orgUrl || cfg.host || "";
-                  }
-                }
+              rows.map(({ project: p, integrity }, index) => {
+                const slots = slotsByRow[index] ?? [];
 
                 return (
                   <tr key={p.id}>
                     <td>{p.name}</td>
-                    <td>
-                      <span className="badge badge-provider">{provider}</span>
-                    </td>
-                    <td className="text-muted connections-target">
-                      {target || "—"}
+                    <td className="connections-cell">
+                      <ConnectionComboLine
+                        slots={slots}
+                        tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
+                        descriptors={descriptors}
+                        className="connection-combo-line--compact"
+                      />
+                      {integrity.hasIntegrityFailure && (
+                        <RetryAction
+                          label={CONNECTIONS_COPY.reconnect}
+                          onRetry={onOnboardProject}
+                        />
+                      )}
                     </td>
                     <td>
                       <span
                         className={`badge ${p.archived ? "badge-status-archived" : "badge-status-active"}`}
                       >
-                        {p.archived ? "Archived" : "Active"}
+                        {p.archived
+                          ? CONNECTIONS_COPY.registryStatusArchived
+                          : CONNECTIONS_COPY.registryStatusActive}
                       </span>
                     </td>
                     <td className="align-right">
@@ -287,7 +308,7 @@ function ConnectionsTabContent({
                         to={`/projects/${encodeURIComponent(p.id)}`}
                         className="project-link"
                       >
-                        View Project →
+                        {CONNECTIONS_COPY.registryAction}
                       </Link>
                     </td>
                   </tr>

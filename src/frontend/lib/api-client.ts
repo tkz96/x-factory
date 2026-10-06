@@ -1,8 +1,12 @@
-import type { Project, Run, Ticket } from "../../shared/types.js";
+import type { GitIdentity, Project, Run, Ticket } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
+  ConnectionIdentityResult,
+  DescribeConnectionPayload,
+  DiscoverRepositoriesPayload,
   ParseUrlResult,
   ProviderDescriptor,
+  RepositoriesEnvelope,
   VerificationResult,
   VerifyCredentialsPayload,
 } from "../connection/types.js";
@@ -34,6 +38,13 @@ export interface InspectRepositoryResponse {
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: string | undefined;
+  /**
+   * The git identity in effect for that directory (#146), resolved by the
+   * server through the same git CLI the executor's worktree uses. ABSENT when
+   * either user.name or user.email is unconfigured for it — never an empty
+   * string and never a guessed default.
+   */
+  gitIdentity?: GitIdentity | undefined;
   detectedCommands: Record<string, string>;
   detectedTooling: string[];
   readiness: {
@@ -49,6 +60,45 @@ export interface ReadinessData {
     status: "pass" | "warn" | "fail";
     message: string;
   }>;
+}
+
+// ---------------------------------------------------------------------------
+// Project creation (spec #133 §Project creation payload, #131/#145)
+// ---------------------------------------------------------------------------
+
+/** One provider connection as the creation endpoint accepts it. */
+export interface ProjectCreationConnectionPayload {
+  providerId: string;
+  /** Every role this one connection serves (a dual-role provider appears once). */
+  roles: ("tracker" | "gitHost")[];
+  /** INCLUDING secret values, inline, exactly once. Never persisted client-side. */
+  config: Record<string, unknown>;
+}
+
+/** One role-tagged repository, as the git-host discovery reported it. */
+export interface ProjectCreationRepositoryPayload {
+  id: string;
+  name: string;
+  remote?: string | undefined;
+  defaultBranch?: string | undefined;
+  localPath?: string | undefined;
+  role?: string | undefined;
+  primary?: boolean | undefined;
+}
+
+/**
+ * The creation payload (#131): project-level fields including the project-level
+ * `gitIdentity`, a normalized `connections` array, and role-tagged
+ * repositories. Consumed unchanged by `POST /api/projects`.
+ */
+export interface ProjectCreationPayload {
+  id: string;
+  name: string;
+  description?: string | undefined;
+  workspacePath?: string | undefined;
+  gitIdentity: GitIdentity;
+  connections: ProjectCreationConnectionPayload[];
+  repositories: ProjectCreationRepositoryPayload[];
 }
 
 export class ApiError extends Error {
@@ -114,6 +164,40 @@ export const api = {
       });
       return handleResponse<ParseUrlResult>(res);
     },
+
+    /**
+     * Repository discovery for a git-host connection (ticket #144). Resolves to
+     * the provider-agnostic envelope, or to a normalized error envelope when
+     * the provider call failed; a raw provider message never arrives here.
+     */
+    async listRepositories(
+      payload: DiscoverRepositoriesPayload,
+    ): Promise<RepositoriesEnvelope | NormalizedError> {
+      const res = await fetch("/api/providers/repositories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<RepositoriesEnvelope | NormalizedError>(res);
+    },
+
+    /**
+     * The connection's provider-owned identity (#133 story 34): one call per
+     * connection CONFIGURATION, cached by its fingerprint. The server answers
+     * `identity: null` for a provider without the capability and for a
+     * configuration that identifies nothing, so a surface that cannot reach an
+     * identity simply renders the display name.
+     */
+    async describe(
+      payload: DescribeConnectionPayload,
+    ): Promise<ConnectionIdentityResult> {
+      const res = await fetch("/api/providers/describe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<ConnectionIdentityResult>(res);
+    },
   },
 
   // Projects
@@ -130,28 +214,18 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
-  async discoverRepositories(payload: {
-    provider: string;
-    orgUrl?: string;
-    project?: string;
-    pat?: string;
-    workspacePath?: string;
-  }): Promise<{
-    provider: string;
-    repositories: Array<{
-      id: string;
-      name: string;
-      remote?: string;
-      defaultBranch?: string;
-      webUrl?: string;
-    }>;
-  }> {
-    const res = await fetch("/api/projects/discover-repositories", {
+  /**
+   * Creates a project from the normalized connections payload (#131/#145).
+   * Secrets ride THIS request once, inline in each connection's config, and the
+   * response is the secret-free project record.
+   */
+  async createProject(payload: ProjectCreationPayload): Promise<Project> {
+    const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    return handleResponse(res);
+    return handleResponse<Project>(res);
   },
 
   async inspectRepository(payload: {
@@ -280,28 +354,47 @@ export const api = {
     );
   },
 
-  async testAzureScopes(payload: {
-    projectId?: string;
-    organization?: string;
-    project?: string;
-    pat?: string;
+  async testScopes(payload: {
+    projectId?: string | undefined;
+    providerId?: string | undefined;
+    organization?: string | undefined;
+    project?: string | undefined;
+    pat?: string | undefined;
+    [key: string]: unknown;
   }): Promise<{
     ok: boolean;
-    overPrivileged?: boolean;
-    scopes?: Record<string, unknown>;
-    error?: string;
+    overPrivileged?: boolean | undefined;
+    scopes?: Record<string, unknown> | undefined;
+    errors?: string[] | undefined;
+    warnings?: string[] | undefined;
+    error?: string | undefined;
   }> {
-    const res = await fetch("/api/projects/test-azure-scopes", {
+    const res = await fetch("/api/projects/test-scopes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     return handleResponse<{
       ok: boolean;
-      overPrivileged?: boolean;
-      scopes?: Record<string, unknown>;
-      error?: string;
+      overPrivileged?: boolean | undefined;
+      scopes?: Record<string, unknown> | undefined;
+      errors?: string[] | undefined;
+      warnings?: string[] | undefined;
+      error?: string | undefined;
     }>(res);
+  },
+
+  /**
+   * @deprecated Use `testScopes` instead. Retained for backwards compatibility.
+   */
+  async testAzureScopes(payload: {
+    projectId?: string | undefined;
+    organization?: string | undefined;
+    project?: string | undefined;
+    pat?: string | undefined;
+    [key: string]: unknown;
+  }) {
+    return this.testScopes(payload);
   },
 
   // Settings & Readiness

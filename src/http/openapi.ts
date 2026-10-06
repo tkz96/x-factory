@@ -119,14 +119,22 @@ export function getOpenApiSpec() {
           tags: ["Projects"],
           summary: "Create Project",
           description:
-            "Creates and saves a new multi-repository project configuration.",
+            "Creates and saves a new multi-repository project configuration. " +
+            "A payload carrying `connections` (the normalized onboarding payload, #131) " +
+            "is validated against each registered provider's own schema and role " +
+            "capabilities; its secret fields are written to per-project environment " +
+            "storage (secrets first, project record last) and never appear in the " +
+            "response or the stored record.",
           operationId: "createProject",
           requestBody: {
             required: true,
             content: {
               "application/json": {
                 schema: {
-                  $ref: "#/components/schemas/ProjectInput",
+                  oneOf: [
+                    { $ref: "#/components/schemas/ProjectCreationRequest" },
+                    { $ref: "#/components/schemas/ProjectInput" },
+                  ],
                 },
               },
             },
@@ -144,6 +152,23 @@ export function getOpenApiSpec() {
             },
             "400": {
               $ref: "#/components/responses/BadRequestError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure (unknown provider, provider config schema, incompatible role/capability) or a duplicate project id",
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: [
+                      { $ref: "#/components/schemas/FormErrorResponse" },
+                      { $ref: "#/components/schemas/ErrorResponse" },
+                    ],
+                  },
+                },
+              },
+            },
+            "500": {
+              $ref: "#/components/responses/InternalError",
             },
           },
         },
@@ -184,7 +209,11 @@ export function getOpenApiSpec() {
           tags: ["Projects"],
           summary: "Update Project",
           description:
-            "Updates project settings, repositories, or issue tracker details.",
+            "Updates project settings, repositories, or issue tracker details. " +
+            "A body carrying `connections` takes the normalized connection-update " +
+            "contract (#131): a missing or empty secret keeps the stored value, and " +
+            "`clearSecrets` names the secret fields to remove (applied before " +
+            "validation).",
           operationId: "updateProject",
           parameters: [
             {
@@ -200,8 +229,10 @@ export function getOpenApiSpec() {
             content: {
               "application/json": {
                 schema: {
-                  type: "object",
-                  additionalProperties: true,
+                  oneOf: [
+                    { $ref: "#/components/schemas/ProjectConnectionUpdate" },
+                    { type: "object", additionalProperties: true },
+                  ],
                 },
               },
             },
@@ -219,6 +250,17 @@ export function getOpenApiSpec() {
             },
             "404": {
               $ref: "#/components/responses/NotFoundError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure for a connection update (unknown provider, provider config schema, incompatible role, cleared required secret)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/FormErrorResponse",
+                  },
+                },
+              },
             },
           },
         },
@@ -438,9 +480,10 @@ export function getOpenApiSpec() {
       "/api/projects/discover-repositories": {
         post: {
           tags: ["Discovery"],
-          summary: "Discover Repositories",
+          summary: "Discover Repositories (Legacy)",
           description:
-            "Scans Azure DevOps organizations, GitHub accounts, Jira links, or local directory paths to discover available Git repositories.",
+            "Legacy wire endpoint for repository discovery. Retained for backward compatibility; delegates to the provider registry. The canonical endpoint is POST /api/providers/repositories.",
+          deprecated: true,
           operationId: "discoverRepositories",
           requestBody: {
             required: true,
@@ -529,13 +572,13 @@ export function getOpenApiSpec() {
           },
         },
       },
-      "/api/projects/test-azure-scopes": {
+      "/api/projects/test-scopes": {
         post: {
           tags: ["Discovery"],
-          summary: "Verify Azure DevOps PAT Scopes",
+          summary: "Verify Tracker Provider Scopes",
           description:
-            "Probes an Azure DevOps Personal Access Token to confirm required 'Work Items (Read)' and 'Code (Read, Status)' scopes without excessive permissions.",
-          operationId: "testAzureScopes",
+            "Probes the resolved tracker provider's credentials for the capabilities that provider must hold. The provider is resolved from `providerId`, or from the tracker connection recorded on `projectId`; a connection whose provider does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for.",
+          operationId: "testScopes",
           requestBody: {
             required: true,
             content: {
@@ -543,6 +586,11 @@ export function getOpenApiSpec() {
                 schema: {
                   type: "object",
                   properties: {
+                    providerId: {
+                      type: "string",
+                      example: "azure",
+                    },
+                    projectId: { type: "string", example: "proj-1" },
                     orgUrl: {
                       type: "string",
                       example: "https://dev.azure.com/my-org",
@@ -556,7 +604,55 @@ export function getOpenApiSpec() {
           },
           responses: {
             "200": {
-              description: "Azure scope audit report",
+              description: "Provider scope audit report",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ScopeVerificationResult",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/projects/test-azure-scopes": {
+        post: {
+          tags: ["Discovery"],
+          summary: "Verify Tracker Provider Scopes (Legacy Wire Alias)",
+          description:
+            "Legacy wire alias for `/api/projects/test-scopes`. Probes the resolved tracker provider's credentials for required capabilities. Kept for backward compatibility with older clients.",
+          deprecated: true,
+          operationId: "testAzureScopes",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    // The registry's own id. The example is the id that a
+                    // client can actually send; `azure-devops` is not a
+                    // registered provider.
+                    providerId: {
+                      type: "string",
+                      example: "azure",
+                    },
+                    projectId: { type: "string", example: "proj-1" },
+                    orgUrl: {
+                      type: "string",
+                      example: "https://dev.azure.com/my-org",
+                    },
+                    project: { type: "string", example: "Platform" },
+                    pat: { type: "string", example: "token-string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Provider scope audit report",
               content: {
                 "application/json": {
                   schema: {
@@ -1098,6 +1194,131 @@ export function getOpenApiSpec() {
           },
         },
       },
+      "/api/providers/repositories": {
+        post: {
+          tags: ["Providers"],
+          summary: "Discover Provider Repositories",
+          description:
+            "Lists the repositories visible to a git-host connection's credentials. Returns a provider-agnostic envelope, or a normalized ProviderError envelope when the provider call fails. Provider-generated messages are never returned.",
+          operationId: "discoverProviderRepositories",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/ProviderRepositoriesInput",
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description:
+                "Discovered repositories or normalized provider error envelope",
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: [
+                      {
+                        $ref: "#/components/schemas/ProviderRepositoriesResult",
+                      },
+                      { $ref: "#/components/schemas/ProviderError" },
+                    ],
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure (unknown provider, incompatible role, invalid config, or missing discovery capability)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ProviderSemanticValidationError",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/providers/describe": {
+        post: {
+          tags: ["Providers"],
+          summary: "Describe Provider Connection",
+          description:
+            'Returns the provider-owned, non-secret identity of a configured connection (e.g. "owner/repo", "organization/MyProject", "acme.atlassian.net/ROCK"). Presentation-only: a provider without the describeConnection capability, a configuration that identifies nothing, and a configuration the provider\'s schema rejects all answer identity: null with 200, so a surface never fails to render because a description was unavailable. An unknown provider or an incompatible role is the shared codes-only 409.',
+          operationId: "describeProviderConnection",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["providerId", "config"],
+                  properties: {
+                    providerId: {
+                      type: "string",
+                      description: "Registry id of the configured provider",
+                    },
+                    role: {
+                      type: "string",
+                      enum: ["tracker", "git-host", "gitHost"],
+                      description:
+                        "Optional role the connection is rendered under",
+                    },
+                    config: {
+                      type: "object",
+                      description: "The connection's configuration values",
+                      additionalProperties: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description:
+                "The provider's identity for the connection, or null when none could be produced",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["providerId", "identity"],
+                    properties: {
+                      providerId: { type: "string" },
+                      identity: {
+                        type: "string",
+                        nullable: true,
+                        description:
+                          "Short, human, non-secret connection identity, or null",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure (unknown provider or incompatible role)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ProviderSemanticValidationError",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     components: {
       responses: {
@@ -1113,6 +1334,16 @@ export function getOpenApiSpec() {
         },
         NotFoundError: {
           description: "Requested resource not found",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ErrorResponse",
+              },
+            },
+          },
+        },
+        InternalError: {
+          description: "Persistence or internal failure",
           content: {
             "application/json": {
               schema: {
@@ -1181,6 +1412,180 @@ export function getOpenApiSpec() {
             tag: { type: "string", example: "agentic-workflow" },
           },
         },
+        FormErrorResponse: {
+          type: "object",
+          description:
+            "Codes only — provider and validation messages never cross the API boundary.",
+          properties: {
+            formErrors: {
+              type: "array",
+              items: { type: "string" },
+              example: ["INCOMPATIBLE_CONFIGURATION"],
+            },
+            fieldErrors: {
+              type: "object",
+              additionalProperties: {
+                type: "string",
+                enum: ["REQUIRED", "INVALID"],
+              },
+              example: { apiToken: "REQUIRED" },
+            },
+          },
+        },
+        GitIdentity: {
+          type: "object",
+          required: ["name", "email"],
+          description:
+            "Project-level git identity. Never nested inside a connection (#131).",
+          properties: {
+            name: { type: "string", example: "Ada Lovelace" },
+            email: {
+              type: "string",
+              format: "email",
+              example: "ada@example.com",
+            },
+          },
+        },
+        ProjectConnection: {
+          type: "object",
+          required: ["providerId", "roles", "config"],
+          description:
+            "One normalized provider connection (#131). `config` holds the " +
+            "provider's non-secret configuration only: declared secret fields are " +
+            "stored in per-project environment storage under the provider's `envKey`.",
+          properties: {
+            providerId: { type: "string", example: "jira" },
+            roles: {
+              type: "array",
+              minItems: 1,
+              items: { type: "string", enum: ["tracker", "gitHost"] },
+              example: ["tracker"],
+            },
+            config: {
+              type: "object",
+              additionalProperties: true,
+              example: {
+                host: "https://company.atlassian.net",
+                email: "dev@example.com",
+                project: "PROJ",
+              },
+            },
+          },
+        },
+        ProjectConnectionInput: {
+          type: "object",
+          required: ["providerId", "roles", "config"],
+          description:
+            "A connection as sent by the client. Secret values ride inline in " +
+            "`config` exactly once; the server derives which fields are secret from " +
+            "the registered provider's schema and never trusts client metadata.",
+          properties: {
+            providerId: { type: "string", example: "jira" },
+            roles: {
+              type: "array",
+              minItems: 1,
+              items: { type: "string", enum: ["tracker", "gitHost"] },
+              example: ["tracker"],
+            },
+            config: {
+              type: "object",
+              additionalProperties: true,
+              description:
+                "Provider configuration, including secret values on create/replace.",
+              example: {
+                host: "https://company.atlassian.net",
+                email: "dev@example.com",
+                apiToken: "••••••••",
+                project: "PROJ",
+              },
+            },
+          },
+        },
+        ProjectRepositoryInput: {
+          type: "object",
+          required: ["id", "name"],
+          description:
+            "A role-tagged repository selected from git-host discovery.",
+          properties: {
+            id: { type: "string", example: "rocket-web" },
+            name: { type: "string", example: "web" },
+            remote: {
+              type: "string",
+              example: "https://github.com/acme/web.git",
+            },
+            defaultBranch: { type: "string", example: "main" },
+            localPath: {
+              type: "string",
+              example: "/Users/dev/code/web",
+            },
+            role: {
+              type: "string",
+              enum: [
+                "frontend",
+                "backend",
+                "service",
+                "worker",
+                "mobile",
+                "infrastructure",
+                "documentation",
+                "knowledge",
+                "other",
+              ],
+              example: "frontend",
+            },
+            primary: { type: "boolean", example: true },
+          },
+        },
+        ProjectCreationRequest: {
+          type: "object",
+          required: ["id", "name", "connections", "repositories"],
+          description:
+            "The normalized project creation payload (#131). Secrets are written to " +
+            "per-project environment storage before the project record is committed.",
+          properties: {
+            id: { type: "string", example: "my-project" },
+            name: { type: "string", example: "My Cool Project" },
+            workspacePath: { type: "string", example: "/Users/dev/code" },
+            commandTimeoutMs: { type: "integer", example: 600000 },
+            gitIdentity: { $ref: "#/components/schemas/GitIdentity" },
+            connections: {
+              type: "array",
+              minItems: 1,
+              items: { $ref: "#/components/schemas/ProjectConnectionInput" },
+            },
+            repositories: {
+              type: "array",
+              minItems: 1,
+              description:
+                "Role-tagged repositories; at least one application repository is required.",
+              items: { $ref: "#/components/schemas/ProjectRepositoryInput" },
+            },
+          },
+        },
+        ProjectConnectionUpdate: {
+          type: "object",
+          required: ["connections"],
+          description:
+            "Connection update contract (#131). A missing or empty secret value " +
+            "keeps the stored secret; `clearSecrets` removes stored secrets and is " +
+            "applied before validation, so clearing a required secret fails with " +
+            "`fieldErrors`.",
+          properties: {
+            name: { type: "string", example: "My Cool Project" },
+            workspacePath: { type: "string", example: "/Users/dev/code" },
+            gitIdentity: { $ref: "#/components/schemas/GitIdentity" },
+            connections: {
+              type: "array",
+              minItems: 1,
+              items: { $ref: "#/components/schemas/ProjectConnectionInput" },
+            },
+            clearSecrets: {
+              type: "array",
+              items: { type: "string" },
+              example: ["apiToken"],
+            },
+          },
+        },
         ProjectInput: {
           type: "object",
           required: ["id", "name"],
@@ -1192,6 +1597,14 @@ export function getOpenApiSpec() {
               example: "Core engineering workbench project",
             },
             tracker: { $ref: "#/components/schemas/ProjectIssueTracker" },
+            workspacePath: { type: "string", example: "/Users/dev/code" },
+            gitIdentity: { $ref: "#/components/schemas/GitIdentity" },
+            connections: {
+              type: "array",
+              description:
+                "Normalized provider connections (#131). Additive to `tracker`.",
+              items: { $ref: "#/components/schemas/ProjectConnection" },
+            },
             repositories: {
               type: "array",
               items: { $ref: "#/components/schemas/Repository" },
@@ -1289,6 +1702,15 @@ export function getOpenApiSpec() {
             buildScript: { type: "string", example: "bun run build" },
             hasGit: { type: "boolean", example: true },
             isClean: { type: "boolean", example: true },
+            gitIdentity: {
+              type: "object",
+              description:
+                "The git identity in effect for the inspected directory, read with the same git configuration the executor's worktree resolves. ABSENT when either user.name or user.email is unconfigured for it — never an empty string and never a guessed default.",
+              properties: {
+                name: { type: "string", example: "Dev Example" },
+                email: { type: "string", example: "dev@example.com" },
+              },
+            },
           },
         },
         ConnectionTestResult: {
@@ -1558,6 +1980,60 @@ export function getOpenApiSpec() {
             retryAfterMs: { type: "number", example: 30000 },
           },
         },
+        ProviderRepositoriesInput: {
+          type: "object",
+          required: ["providerId", "config"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            role: {
+              type: "string",
+              enum: ["tracker", "gitHost", "git-host"],
+              description:
+                "The connection role the repositories are listed under; omitted means role-agnostic discovery.",
+              example: "gitHost",
+            },
+            config: {
+              type: "object",
+              additionalProperties: true,
+              example: { host: "https://stub.example", apiToken: "token" },
+            },
+          },
+        },
+        ProviderRepository: {
+          type: "object",
+          required: ["id", "name", "remote"],
+          properties: {
+            id: { type: "string", example: "repo-1" },
+            name: { type: "string", example: "rocket-app" },
+            remote: {
+              type: "string",
+              example: "https://stub.example/acme/rocket-app.git",
+            },
+            defaultBranch: { type: "string", example: "main" },
+            webUrl: {
+              type: "string",
+              example: "https://stub.example/acme/rocket-app",
+            },
+          },
+        },
+        ProviderRepositoriesResult: {
+          type: "object",
+          required: ["providerId", "roles", "repositories"],
+          properties: {
+            providerId: { type: "string", example: "stub" },
+            roles: {
+              type: "array",
+              description:
+                "Connection roles the repositories were listed under.",
+              items: { type: "string", enum: ["tracker", "gitHost"] },
+              example: ["gitHost"],
+            },
+            repositories: {
+              type: "array",
+              items: { $ref: "#/components/schemas/ProviderRepository" },
+            },
+          },
+        },
         ProviderSemanticValidationError: {
           type: "object",
           properties: {
@@ -1589,8 +2065,13 @@ export function getOpenApiSpec() {
         },
         QuickUrlUnrecognizedResult: {
           type: "object",
-          required: ["matched", "url"],
+          required: ["code", "context", "matched", "url"],
           properties: {
+            code: { type: "string", enum: ["UNKNOWN"] },
+            context: {
+              type: "string",
+              example: "https://unrecognized.example",
+            },
             matched: { type: "boolean", enum: [false] },
             url: { type: "string", example: "https://unrecognized.example" },
           },

@@ -1,0 +1,77 @@
+/* src/frontend/components/connections/ConnectionComboLine.css — THE combo line
+   (spec #133 story 48). One rendering for every surface: the wizard's Review
+   step and the post-creation project surfaces. Tones follow DESIGN.md:
+   connected is the success colour, degraded is the warning colour (never the
+   error colour), and a missing connection is the error colour. Every rule has
+   the same specificity so no selector can silently outrank another. No inline
+   styles anywhere. */
+
+.connection-combo-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  font-size: var(--text-footnote);
+}
+
+.connection-combo-line--warning {
+  border-color: var(--orange);
+  background: var(--orange-dim);
+}
+
+.connection-combo-line--error {
+  border-color: var(--red);
+  background: var(--red-dim);
+}
+
+/* Post-creation surfaces: the compact variant used inside cards and rows. */
+.connection-combo-line--compact {
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+}
+
+.connection-combo-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.connection-combo-role {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.connection-combo-value {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-combo-state {
+  color: var(--text-secondary);
+  font-size: var(--text-caption-1);
+}
+
+.connection-combo-state--connected {
+  color: var(--green);
+}
+
+.connection-combo-state--degraded {
+  color: var(--orange);
+}
+
+.connection-combo-state--disconnected {
+  color: var(--red);
+}
+
+.connection-combo-separator {
+  color: var(--text-dim);
+}

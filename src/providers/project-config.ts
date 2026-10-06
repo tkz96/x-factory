@@ -8,7 +8,12 @@ import type {
   ProjectIssueTracker,
 } from "../shared/types.js";
 import type { Provider, ProviderConfig } from "./contract.js";
-import { getProvider, requireProvider } from "./registry.js";
+import {
+  getProvider,
+  PROVIDER_REGISTRY,
+  type ProviderRegistry,
+  requireProvider,
+} from "./registry.js";
 
 export interface ResolvedProjectProvider {
   provider: Provider;
@@ -22,10 +27,13 @@ export interface ResolvedProjectProvider {
 export function resolveProjectProvider(
   project: Project,
   env: Record<string, string> = {},
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ResolvedProjectProvider {
+  // A hand-written (or pre-#145) record without a tracker keeps the legacy
+  // default, which is also the constant the runtime resolves here.
   const providerId = (project.issueTracker?.provider ||
-    "github") as IssueTrackerProvider;
-  const provider = requireProvider(providerId);
+    DEFAULT_ISSUE_TRACKER.provider) as IssueTrackerProvider;
+  const provider = requireProvider(providerId, registry);
 
   const primaryRepo =
     project.repositories?.find((r) => r.path === project.repositoryPath) ||
@@ -83,6 +91,99 @@ export function resolveProjectProvider(
   }
 
   return { provider, config, repository };
+}
+
+/**
+ * The legacy tracker view for a project that has no tracker connection: the
+ * pre-existing default `_parseIssueTracker` applies, preserved so the runtime
+ * still resolves something for hand-written records. Resolved by
+ * `resolveProjectProvider` for exactly that case; the creation path never uses
+ * it, because a tracker connection is mandatory at creation (#133).
+ */
+export const DEFAULT_ISSUE_TRACKER: ProjectIssueTracker = {
+  provider: "github",
+  connectionId: "github",
+};
+
+/**
+ * The provider id a LEGACY `issueTracker` record names, or `null` when it names
+ * none (#133 correction 1).
+ *
+ * A legacy record carries no `connections` array, so its tracker is named in one
+ * of exactly two ways, and this function reads both without knowing a provider
+ * by name:
+ *
+ *   * explicitly, as `provider` (or its historical alias `connectionId`);
+ *   * implicitly, by the NAMESPACED VIEW its configuration lives under — the
+ *     same keying `deriveIssueTracker` writes (`tracker[providerId] = config`),
+ *     so a hand-written `{ azure: {...} }` or `{ github: {...} }` view is read
+ *     as the id of that view's provider. A key the registry does not know is not
+ *     a tracker identity, so it is skipped.
+ *
+ * `null` means the record supplies no tracker identity at all, which is what the
+ * create path rejects: a project whose tracker is only the hand-written default
+ * is a project X-Factory cannot operate.
+ */
+export function legacyTrackerProviderId(
+  issueTracker: unknown,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): string | null {
+  if (typeof issueTracker !== "object" || issueTracker === null) {
+    return null;
+  }
+  const record = issueTracker as Record<string, unknown>;
+  for (const key of ["provider", "connectionId"] as const) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  for (const [key, view] of Object.entries(record)) {
+    if (
+      view !== null &&
+      typeof view === "object" &&
+      !Array.isArray(view) &&
+      registry.get(key) !== undefined
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
+/**
+ * Derives the legacy `ProjectIssueTracker` view from the connection that
+ * carries the `tracker` role (#145).
+ *
+ * `connections` is the normalized source of truth from #131, but the runtime
+ * (queue, deliver, readiness, tickets) still resolves the tracker through the
+ * `issueTracker` record. The mapping is generic: the legacy view mirrors the
+ * connection's own config, namespaced under the provider id, plus the legacy
+ * flat fields that share a config field's name. No provider conditionals live
+ * here — a new provider is picked up with no change to this function.
+ */
+export function deriveIssueTracker(
+  providerId: string,
+  config: Record<string, unknown>,
+): ProjectIssueTracker {
+  const tracker: Record<string, unknown> = {
+    provider: providerId as IssueTrackerProvider,
+    connectionId: providerId,
+  };
+
+  const project = config.project;
+  if (typeof project === "string" && project.trim()) {
+    tracker.projectId = project.trim();
+  }
+
+  const orgUrl = config.orgUrl;
+  if (typeof orgUrl === "string" && orgUrl.trim()) {
+    tracker.orgUrl = orgUrl.trim();
+  }
+
+  tracker[providerId] = config;
+
+  return tracker as unknown as ProjectIssueTracker;
 }
 
 export interface ProjectTrackerSummary {

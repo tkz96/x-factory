@@ -5,6 +5,13 @@ import type {
   WizardSourceState,
   WizardStepNumber,
 } from "../types.js";
+import {
+  applyProviderMatch,
+  configGeneration,
+  selectProvider,
+  writeProviderConfig,
+} from "./connectConfig.js";
+import { canAdvanceFromRepositories } from "./repositoryRules.js";
 
 export function createInitialWizardState(): WizardSourceState {
   return {
@@ -18,23 +25,21 @@ export function createInitialWizardState(): WizardSourceState {
     },
     connect: {
       quickUrl: "",
+      providerConfigs: {},
       tracker: {
         providerId: null,
-        config: {},
         verified: false,
-        degradedAccepted: false,
       },
       gitHost: {
         providerId: null,
-        config: {},
         verified: false,
-        degradedAccepted: false,
       },
     },
     repositories: {
       selectedRepoIds: [],
       primaryRepoId: null,
       repoConfigs: {},
+      selectionFingerprint: null,
     },
     inspection: {
       acknowledged: false,
@@ -66,6 +71,12 @@ export function wizardReducer(
 
     case "NEXT_STEP": {
       if (state.step >= 5) {
+        return state;
+      }
+      // Step 3 guards the state machine itself (#144): no application
+      // repository selected — or a selection made under a connection that has
+      // since changed — means the journey cannot move on.
+      if (state.step === 3 && !canAdvanceFromRepositories(state)) {
         return state;
       }
       const nextStep = (state.step + 1) as WizardStepNumber;
@@ -101,24 +112,65 @@ export function wizardReducer(
       };
     }
 
-    case "UPDATE_CONNECT": {
+    case "RECORD_VERIFICATION": {
+      const { connect } = state;
+      // THE staleness guard for a verification that came back late (correction
+      // 1, #133). The generation is the authoritative configuration's own, so a
+      // write from EITHER card invalidates the attempt — the asking card's own
+      // counter cannot see its partner's write. The role must still name the
+      // provider too: evidence belongs to the connection it was obtained for.
+      if (connect[action.role].providerId !== action.providerId) {
+        return state;
+      }
+      if (configGeneration(connect, action.providerId) !== action.generation) {
+        return state;
+      }
       return {
         ...state,
         connect: {
-          ...state.connect,
-          ...action.patch,
-          tracker: action.patch.tracker
-            ? {
-                ...state.connect.tracker,
-                ...action.patch.tracker,
-              }
-            : state.connect.tracker,
-          gitHost: action.patch.gitHost
-            ? {
-                ...state.connect.gitHost,
-                ...action.patch.gitHost,
-              }
-            : state.connect.gitHost,
+          ...connect,
+          [action.role]: {
+            ...connect[action.role],
+            verified: action.verified,
+            unconfirmedCapabilities: action.unconfirmedCapabilities,
+          },
+        },
+      };
+    }
+
+    // The three connection transitions live in `connectConfig.ts`, so the
+    // invariant they enforce — one configuration per provider, and an edit
+    // invalidating every role that verified it — holds for EVERY write, not
+    // just for the ones a card happens to make.
+    case "SELECT_PROVIDER": {
+      return {
+        ...state,
+        connect: selectProvider(state.connect, action.role, action.providerId),
+      };
+    }
+
+    case "UPDATE_PROVIDER_CONFIG": {
+      return {
+        ...state,
+        connect: writeProviderConfig(
+          state.connect,
+          action.providerId,
+          action.config,
+        ),
+      };
+    }
+
+    case "APPLY_PROVIDER_MATCH": {
+      return {
+        ...state,
+        connect: {
+          ...applyProviderMatch(
+            state.connect,
+            action.providerId,
+            action.config,
+            action.roles,
+          ),
+          quickUrl: action.url,
         },
       };
     }

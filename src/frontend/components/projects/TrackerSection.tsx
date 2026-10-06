@@ -1,55 +1,110 @@
-// src/frontend/components/projects/TrackerSection.tsx — Dedicated Tracker Card & Scope Diagnostics (XFM-48).
+// src/frontend/components/projects/TrackerSection.tsx — The tracker connection
+// card on the project detail surface (XFM-48; rebuilt in #147).
+//
+// Nothing here branches on a provider id. The card renders the tracker slot of
+// the project's connection integrity: the manifest display name, the recorded
+// configuration (labels from the manifest, secrets never rendered), the
+// degraded warnings, and — when the connection declares the capability — the
+// scope-verification diagnostic. A project with no tracker renders the
+// integrity failure with its repair path instead (spec #133 story 49).
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
+import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
+import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import { api } from "../../lib/api-client.js";
+import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
+import { comboTone } from "../connections/connection-state.js";
+import { AsyncRegion } from "../feedback/AsyncRegion.js";
+import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
+import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
+import type { DerivedAsyncState } from "../feedback/types.js";
+import { formatConnectionWarnings } from "./connection-copy.js";
+import {
+  applyConnectionIntegrity,
+  comboSlots,
+  connectionDisplayValues,
+  deriveConnectionIntegrity,
+  REQUIRED_CONNECTION_ROLES,
+  recordedConnectionIdentityTargets,
+  resolveProviderLabel,
+} from "./connection-integrity.js";
 import "./TrackerSection.css";
 
 interface TrackerSectionProps {
   project: Project;
 }
 
-export function TrackerSection({ project }: TrackerSectionProps) {
-  const tracker = project.issueTracker;
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    ok: boolean;
-    overPrivileged?: boolean | undefined;
-    message?: string | undefined;
-    details?: string | undefined;
-  } | null>(null);
+/** The region has no asynchronous condition of its own — the integrity is the state. */
+const READY_DERIVED: DerivedAsyncState = {
+  state: "ready",
+  suppressed: [],
+  error: undefined,
+};
 
-  if (!tracker) {
+interface ScopeTestResult {
+  ok: boolean;
+  overPrivileged?: boolean | undefined;
+}
+
+export function TrackerSection({ project }: TrackerSectionProps) {
+  const navigate = useNavigate();
+  const { data: descriptors = [] } = useProviderDescriptors();
+  const integrity = deriveConnectionIntegrity(project, descriptors);
+  const tracker = integrity.tracker;
+
+  // The provider's own identity for this connection (#133 story 34), read from
+  // the configuration the project RECORDED. The wiring happens before any early
+  // return, and only the tracker role is read for.
+  const slots = useConnectionLine(
+    comboSlots(integrity),
+    recordedConnectionIdentityTargets(integrity, ["tracker"], descriptors),
+  );
+
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ScopeTestResult | null>(null);
+
+  if (integrity.hasIntegrityFailure) {
     return (
       <div id="project-tracker-section" className="project-tracker-card card">
-        <h3>Issue Tracker Connection</h3>
-        <p className="text-muted">
-          No issue tracker connected to this project.
-        </p>
+        <div className="tracker-section-header">
+          <div>
+            <h3 className="tracker-title">
+              {CONNECTIONS_COPY.integrityFailure.title}
+            </h3>
+            <p className="text-muted tracker-subtitle">
+              {CONNECTIONS_COPY.trackerCardSubtitle}
+            </p>
+          </div>
+        </div>
+        <AsyncRegion
+          derived={applyConnectionIntegrity(READY_DERIVED, integrity)}
+          errorCopy={CONNECTIONS_COPY.integrityFailure.message}
+          retryLabel={CONNECTIONS_COPY.reconnect}
+          onRetry={() => navigate("/settings")}
+        />
       </div>
     );
   }
 
-  const handleTestAzureScopes = async () => {
+  const providerLabel = tracker.providerId
+    ? resolveProviderLabel(tracker.providerId, descriptors)
+    : CONNECTIONS_COPY.notRecorded;
+
+  const canVerifyScopes = tracker.capabilities.includes("verifyScopes");
+
+  // The action is gated on the connection's DECLARED CAPABILITY, never on a
+  // provider id: a provider that adds `verifyScopes` gets the action with no
+  // change here. The call dispatches through the generic api.testScopes endpoint.
+  const handleVerifyScopes = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await api.testAzureScopes({
-        projectId: project.id,
-      });
-      setTestResult({
-        ok: res.ok,
-        overPrivileged: res.overPrivileged,
-        message: res.ok
-          ? "Connection and permissions verified."
-          : "Verification failed. Review required scopes.",
-        details: JSON.stringify(res.scopes, null, 2),
-      });
-    } catch (err) {
-      setTestResult({
-        ok: false,
-        message: err instanceof Error ? err.message : String(err),
-      });
+      const res = await api.testScopes({ projectId: project.id });
+      setTestResult({ ok: res.ok, overPrivileged: res.overPrivileged });
+    } catch {
+      setTestResult({ ok: false });
     } finally {
       setTesting(false);
     }
@@ -59,65 +114,53 @@ export function TrackerSection({ project }: TrackerSectionProps) {
     <div id="project-tracker-section" className="project-tracker-card card">
       <div className="tracker-section-header">
         <div>
-          <h3 className="tracker-title">Issue Tracker Connection</h3>
+          <h3 className="tracker-title">{CONNECTIONS_COPY.trackerCardTitle}</h3>
           <p className="text-muted tracker-subtitle">
-            Automated ticket ingestion and PR linking.
+            {CONNECTIONS_COPY.trackerCardSubtitle}
           </p>
         </div>
-        <span className="role-badge">{tracker.provider}</span>
+        <span className="role-badge">{providerLabel}</span>
       </div>
+
+      <ConnectionComboLine
+        slots={slots}
+        tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
+        descriptors={descriptors}
+        roles={["tracker"]}
+      />
+
+      {tracker.warnings.length > 0 && (
+        <FeedbackBanner
+          tone="warning"
+          message={CONNECTIONS_COPY.degradedTitle}
+          items={formatConnectionWarnings(tracker.warnings)}
+        />
+      )}
 
       <div className="project-detail-meta-grid">
+        {connectionDisplayValues(tracker, descriptors).map((entry) => (
+          <div className="project-meta-item" key={entry.name}>
+            <strong>{entry.label}</strong>
+            <span>{entry.value}</span>
+          </div>
+        ))}
         <div className="project-meta-item">
-          <strong>Provider</strong>
-          <span>{tracker.provider}</span>
-        </div>
-        {tracker.azure?.orgUrl && (
-          <div className="project-meta-item">
-            <strong>Organization</strong>
-            <span>{tracker.azure.orgUrl}</span>
-          </div>
-        )}
-        {tracker.jira?.host && (
-          <div className="project-meta-item">
-            <strong>Host</strong>
-            <span>{tracker.jira.host}</span>
-          </div>
-        )}
-        {(tracker.azure?.project ||
-          tracker.jira?.project ||
-          tracker.github?.repo ||
-          tracker.projectId) && (
-          <div className="project-meta-item">
-            <strong>Target</strong>
-            <span>
-              {tracker.azure?.project ||
-                tracker.jira?.project ||
-                tracker.github?.repo ||
-                tracker.projectId}
-            </span>
-          </div>
-        )}
-        <div className="project-meta-item">
-          <strong>Ingestion Label</strong>
-          <code>
-            {tracker.azure?.requiredLabel ||
-              tracker.jira?.requiredLabel ||
-              tracker.github?.requiredLabel ||
-              "agentic-workflow"}
-          </code>
+          <strong>{CONNECTIONS_COPY.ingestionLabel}</strong>
+          <code>{CONNECTIONS_COPY.workflowLabel}</code>
         </div>
       </div>
 
-      {Boolean(tracker.provider) && (
+      {canVerifyScopes && (
         <div className="tracker-test-container">
           <button
             type="button"
             className="btn-secondary btn-sm"
-            onClick={handleTestAzureScopes}
+            onClick={handleVerifyScopes}
             disabled={testing}
           >
-            {testing ? "Testing Scopes…" : "Test Tracker Scopes"}
+            {testing
+              ? CONNECTIONS_COPY.verifyScopesPending
+              : CONNECTIONS_COPY.verifyScopes}
           </button>
 
           {testResult && (
@@ -125,15 +168,17 @@ export function TrackerSection({ project }: TrackerSectionProps) {
               className={`tracker-test-result ${
                 testResult.ok ? "success" : "danger"
               }`}
+              role="status"
             >
-              <strong>{testResult.message}</strong>
+              <strong>
+                {testResult.ok
+                  ? CONNECTIONS_COPY.verifyScopesOk
+                  : CONNECTIONS_COPY.verifyScopesFailed}
+              </strong>
               {testResult.overPrivileged && (
                 <div className="tracker-overprivileged-notice">
-                  Notice: Token has broader access than the recommended minimum.
+                  {CONNECTIONS_COPY.overPrivileged}
                 </div>
-              )}
-              {testResult.details && (
-                <pre className="tracker-test-details">{testResult.details}</pre>
               )}
             </div>
           )}

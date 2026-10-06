@@ -21,14 +21,14 @@ import type {
   ProviderRole,
 } from "./contract.js";
 import { hasCapability } from "./contract.js";
+import {
+  type ProviderConfigFieldSchema,
+  readConfigFieldSchemas,
+  SchemaSerializationError,
+  unwrapConfigField,
+} from "./schema-meta.js";
 
-/** Typed error thrown when a schema violates the supported serialization subset. */
-export class SchemaSerializationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SchemaSerializationError";
-  }
-}
+export { SchemaSerializationError };
 
 /** Wire representation of a single provider configuration field. */
 export interface ProviderConfigFieldDescriptor {
@@ -59,6 +59,7 @@ const KNOWN_CAPABILITIES: readonly ProviderCapability[] = [
   "parseQuickUrl",
   "createPullRequest",
   "findExistingPullRequest",
+  "describeConnection",
 ];
 
 const VALID_UI_TYPES = new Set<ProviderConfigUiType>([
@@ -168,22 +169,11 @@ function isBuiltInZodTrimCheck(checkDef: ZodCheckNode | undefined): boolean {
 export function serializeProviderConfigSchema(
   schema: unknown,
 ): ProviderConfigFieldDescriptor[] {
-  if (
-    !schema ||
-    typeof schema !== "object" ||
-    !("_def" in schema) ||
-    (schema as ZodSchemaNode)._def?.type !== "object"
-  ) {
-    throw new SchemaSerializationError(
-      "Provider config schema must be a ZodObject.",
-    );
-  }
-
-  const shape = (schema as unknown as { shape: Record<string, unknown> }).shape;
+  const fields: ProviderConfigFieldSchema[] = readConfigFieldSchemas(schema);
   const descriptors: ProviderConfigFieldDescriptor[] = [];
 
-  for (const [name, fieldSchema] of Object.entries(shape)) {
-    descriptors.push(serializeField(name, fieldSchema));
+  for (const field of fields) {
+    descriptors.push(serializeField(field.name, field.schema));
   }
 
   validateCrossRoleFieldUniqueness(descriptors);
@@ -194,43 +184,9 @@ function serializeField(
   name: string,
   fieldSchema: unknown,
 ): ProviderConfigFieldDescriptor {
-  if (
-    !fieldSchema ||
-    typeof fieldSchema !== "object" ||
-    !("_def" in fieldSchema)
-  ) {
-    throw new SchemaSerializationError(
-      `Field "${name}" is not a valid Zod schema.`,
-    );
-  }
+  const { schema, meta, isOptional } = unwrapConfigField(name, fieldSchema);
 
-  let cur: ZodSchemaNode = fieldSchema as ZodSchemaNode;
-  let isOptional = false;
-  let meta: Record<string, unknown> | undefined =
-    typeof cur.meta === "function" ? cur.meta() : undefined;
-
-  if (typeof cur.isOptional === "function" && cur.isOptional()) {
-    isOptional = true;
-  }
-
-  // Unwrap wrappers
-  while (cur._def?.innerType) {
-    const defType = cur._def?.type;
-    if (defType !== "optional" && defType !== "default") {
-      throw new SchemaSerializationError(
-        `Field "${name}" has unsupported wrapper type "${defType}". Only optional and default wrappers are supported.`,
-      );
-    }
-    if (defType === "optional") {
-      isOptional = true;
-    }
-    cur = cur._def.innerType;
-    if (!meta && typeof cur.meta === "function") {
-      meta = cur.meta();
-    }
-  }
-
-  validateCoreTypeAndChecks(name, cur);
+  validateCoreTypeAndChecks(name, schema as ZodSchemaNode);
   return buildDescriptor(name, meta, isOptional);
 }
 

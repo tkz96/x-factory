@@ -18,10 +18,8 @@ export interface ConnectionFieldsListProps {
   verificationError?: unknown | null | undefined;
   fieldErrors?: Record<string, string> | null | undefined;
   formErrors?: string[] | null | undefined;
-  degradedAccepted?: boolean | undefined;
   onConfigChange: (fieldName: string, value: unknown) => void;
   onVerify: () => void;
-  onAcceptDegraded?: (() => void) | undefined;
 }
 
 export function ConnectionFieldsList({
@@ -35,10 +33,8 @@ export function ConnectionFieldsList({
   verificationError,
   fieldErrors,
   formErrors,
-  degradedAccepted,
   onConfigChange,
   onVerify,
-  onAcceptDegraded,
 }: ConnectionFieldsListProps) {
   if (!selectedProvider) {
     return (
@@ -85,8 +81,6 @@ export function ConnectionFieldsList({
         hasFormErrors={hasFormErrors}
         hasFieldErrors={hasFieldErrors}
         formErrors={formErrors}
-        degradedAccepted={degradedAccepted}
-        onAcceptDegraded={onAcceptDegraded}
         onVerify={onVerify}
       />
 

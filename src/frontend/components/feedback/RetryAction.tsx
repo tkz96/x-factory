@@ -7,11 +7,11 @@ import "./RetryAction.css";
 
 export interface RetryActionProps {
   /** Retry (error regions) or refresh (stale regions). */
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
   /** Disabled while rate-limit timed guidance is counting down. */
-  disabled?: boolean;
+  disabled?: boolean | undefined;
   /** Overrides the canonical retry label (e.g. the stale-region "Refresh"). */
-  label?: string;
+  label?: string | undefined;
 }
 
 export function RetryAction({

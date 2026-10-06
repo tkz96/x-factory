@@ -8,6 +8,8 @@ import {
   useMemo,
   useReducer,
 } from "react";
+import type { ProviderDescriptor } from "../../connection/types.js";
+import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import {
   clearWizardDraft,
   loadWizardDraft,
@@ -19,6 +21,7 @@ import type {
   WizardSourceState,
   WizardStepNumber,
 } from "../types.js";
+import { canAdvanceFromRepositories } from "./repositoryRules.js";
 import { createInitialWizardState, wizardReducer } from "./wizardReducer.js";
 
 interface WizardContextValue {
@@ -37,18 +40,29 @@ interface WizardContextValue {
 
 const WizardContext = createContext<WizardContextValue | null>(null);
 
-function getInitialState(): WizardSourceState {
-  const draft = loadWizardDraft();
+function getInitialState(
+  descriptors?: readonly ProviderDescriptor[] | undefined,
+): WizardSourceState {
+  const draft = loadWizardDraft(descriptors);
   if (draft) {
     return draft;
   }
   return createInitialWizardState();
 }
 
-export function WizardProvider({ children }: { children: ReactNode }) {
+export function WizardProvider({
+  children,
+  descriptors: descriptorsProp,
+}: {
+  children: ReactNode;
+  descriptors?: readonly ProviderDescriptor[] | undefined;
+}) {
+  const { data: descriptorsFromQuery } = useProviderDescriptors();
+  const descriptors = descriptorsProp ?? descriptorsFromQuery;
+
   const [state, dispatch] = useReducer(
     wizardReducer,
-    undefined,
+    descriptors,
     getInitialState,
   );
 
@@ -62,7 +76,12 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       case 1:
         return isBasicsValid;
       case 2:
+        return true; // Connect gates itself on verification; #143 owns the rule
       case 3:
+        // At least one application repository, selected under the connection
+        // as it stands now (#144). Derived, never stored — the same predicate
+        // the reducer's NEXT_STEP guard uses.
+        return canAdvanceFromRepositories(state);
       case 4:
         return true; // Scaffolding: later tickets supply step-specific validation rules
       case 5:
@@ -70,7 +89,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       default:
         return false;
     }
-  }, [state.step, isBasicsValid]);
+  }, [state, isBasicsValid]);
 
   const canGoBack = state.step > 1;
 
@@ -89,12 +108,15 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       nextStepNum,
     ) as WizardStepNumber;
     dispatch({ type: "NEXT_STEP" });
-    saveWizardDraft({
-      ...state,
-      step: nextStepNum,
-      maxStepVisited: nextMax,
-    });
-  }, [canAdvance, state]);
+    saveWizardDraft(
+      {
+        ...state,
+        step: nextStepNum,
+        maxStepVisited: nextMax,
+      },
+      descriptors,
+    );
+  }, [canAdvance, state, descriptors]);
 
   const prevStep = useCallback(() => {
     if (state.step <= 1) return;
@@ -103,14 +125,18 @@ export function WizardProvider({ children }: { children: ReactNode }) {
 
   const goToStep = useCallback(
     (targetStep: WizardStepNumber) => {
-      if (!isStepAccessible(targetStep)) return;
+      // Prevent forward navigation to bypass step validation
+      if (!isStepAccessible(targetStep) || targetStep > state.step) return;
       dispatch({ type: "SET_STEP", step: targetStep });
-      saveWizardDraft({
-        ...state,
-        step: targetStep,
-      });
+      saveWizardDraft(
+        {
+          ...state,
+          step: targetStep,
+        },
+        descriptors,
+      );
     },
-    [isStepAccessible, state],
+    [isStepAccessible, state, descriptors],
   );
 
   const resetWizard = useCallback(() => {

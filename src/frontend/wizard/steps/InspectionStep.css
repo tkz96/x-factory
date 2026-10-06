@@ -1,14 +1,42 @@
-/* src/frontend/wizard/steps/InspectionStep.css — Step 4 Inspection styling */
+/* src/frontend/wizard/steps/InspectionStep.css — Step 4 Inspection styling.
+   Tokens only (.agents/rules/frontend-styling.md): spacing is an --space-*
+   token and type is a HIG --text-* token. `min-width` on the label column is a
+   layout constraint (a label column has no spacing step), not spacing. */
 
 .inspection-step-pane {
-  padding: 1.5rem;
+  padding: var(--space-6);
 }
 
-.inspection-placeholder {
-  border: 1px dashed var(--border);
+.inspection-region {
+  margin-top: var(--space-5);
+}
+
+.inspection-identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 2rem;
-  text-align: center;
+  background: var(--bg-card);
+  margin: 0;
+}
+
+.inspection-identity-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.inspection-identity-label {
+  min-width: 6rem;
+  font-size: var(--text-footnote);
+  font-weight: 500;
   color: var(--text-muted);
-  margin-top: 1.25rem;
+}
+
+.inspection-identity-value {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-main);
 }

@@ -137,6 +137,48 @@ export interface ProjectReadiness {
 }
 
 /**
+ * Connection roles a provider can serve on a project (#133/#131).
+ */
+export type ProjectConnectionRole = "tracker" | "gitHost";
+
+/**
+ * BOTH connection roles, in the order everything reports and renders them.
+ *
+ * THE list (#133): `ProjectConnectionRole` is the type, and this tuple is the
+ * one runtime form of it — declared `satisfies` that type, so a role added to
+ * one and not the other fails to compile rather than silently diverging. The
+ * role-coverage rule (`REQUIRED_CONNECTION_ROLES`), the post-creation combo
+ * line's render order and the wizard's Connect-step roles all read THIS, instead
+ * of each writing its own pair.
+ */
+export const PROJECT_CONNECTION_ROLES = [
+  "tracker",
+  "gitHost",
+] as const satisfies readonly ProjectConnectionRole[];
+
+/**
+ * One normalized provider connection on a project (#131).
+ *
+ * `config` is the provider's own configuration with every declared secret
+ * field stripped: secret values live only in per-project env storage, keyed
+ * by the provider schema's `envKey`.
+ */
+export interface ProjectConnection {
+  providerId: string;
+  roles: ProjectConnectionRole[];
+  config: Record<string, unknown>;
+}
+
+/**
+ * Project-level git identity used for commits and pull requests.
+ * Never nested inside a connection (#131).
+ */
+export interface GitIdentity {
+  name: string;
+  email: string;
+}
+
+/**
  * Project configuration representing a software product.
  */
 export interface Project {
@@ -144,6 +186,10 @@ export interface Project {
   name: string;
   workspacePath?: string | undefined;
   issueTracker: ProjectIssueTracker;
+  /** Normalized provider connections (#131). Additive to `issueTracker`. */
+  connections?: ProjectConnection[] | undefined;
+  /** Project-level git identity for authored commits. */
+  gitIdentity?: GitIdentity | undefined;
   repositories: ProjectRepository[];
   knowledgeRepository?: KnowledgeRepository | undefined;
   commandTimeoutMs?: number | undefined;

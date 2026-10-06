@@ -1,7 +1,10 @@
 // src/http/schemas.ts — Zod schemas for HTTP request validation.
 
 import { z } from "zod/v4";
-import { ProjectInputSchema } from "../config-schema.js";
+import {
+  ProjectConnectionInputSchema,
+  ProjectInputSchema,
+} from "../config-schema.js";
 
 /** Request body schema for POST /api/runs */
 export const CreateRunBodySchema = z
@@ -43,8 +46,17 @@ export const ChatRunBodySchema = z
 /** Request body schema for saving / creating projects */
 export const SaveProjectBodySchema = ProjectInputSchema;
 
-/** Request body schema for updating projects */
-export const UpdateProjectBodySchema = z.record(z.string(), z.unknown());
+/** Request body schema for updating a project's normalized connections (#145). */
+export const UpdateProjectConnectionsBodySchema = z.looseObject({
+  name: z.string().optional(),
+  workspacePath: z.string().optional(),
+  gitIdentity: z
+    .object({ name: z.string().min(1), email: z.string().min(1) })
+    .optional(),
+  connections: z.array(ProjectConnectionInputSchema).min(1),
+  /** Secret field names to clear, applied before validation (#131). */
+  clearSecrets: z.array(z.string().min(1)).optional(),
+});
 
 /** Request body schema for POST /api/runs/:id/transitions */
 export const TransitionRunBodySchema = z

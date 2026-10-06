@@ -44,6 +44,15 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
 
     // Readiness: 60s
     expect(QUERY_POLICIES.readiness.staleTime).toBe(60000);
+
+    // Repository discovery (#144): 60s, no background refetching — a
+    // connection-config edit changes the KEY instead, which fetches afresh.
+    expect(QUERY_POLICIES.providerRepositories.staleTime).toBe(60000);
+    expect(QUERY_POLICIES.providerRepositories.refetchOnWindowFocus).toBe(
+      false,
+    );
+    expect(QUERY_POLICIES.providerRepositories.refetchOnReconnect).toBe(false);
+    expect(QUERY_POLICIES.providerRepositories.refetchOnMount).toBe(false);
   });
 
   it("provides deterministic query key factories", () => {
@@ -54,6 +63,60 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
     expect(queryKeys.run("r1")).toEqual(["runs", "r1"]);
     expect(queryKeys.settings()).toEqual(["settings"]);
     expect(queryKeys.readiness()).toEqual(["readiness"]);
+  });
+
+  it("keys repository discovery by the git-host connection, so a config edit is a new fetch (#144)", () => {
+    const base = queryKeys.providerRepositories("generic-githost", {
+      gitUrl: "https://git.example.com",
+      token: "tok-a",
+    });
+    const reordered = queryKeys.providerRepositories("generic-githost", {
+      token: "tok-a",
+      gitUrl: "https://git.example.com",
+    });
+    const edited = queryKeys.providerRepositories("generic-githost", {
+      gitUrl: "https://git-2.example.com",
+      token: "tok-a",
+    });
+    const rotatedSecret = queryKeys.providerRepositories("generic-githost", {
+      gitUrl: "https://git.example.com",
+      token: "tok-b",
+    });
+    const otherProvider = queryKeys.providerRepositories("another-githost", {
+      gitUrl: "https://git.example.com",
+      token: "tok-a",
+    });
+
+    expect(base[0]).toBe("providers");
+    expect(base[1]).toBe("repositories");
+    // Key order is irrelevant — the same configuration is the same key...
+    expect(base).toEqual(reordered);
+    // ...secret rotation leaves the key unchanged because credentials are stripped...
+    expect(base).toEqual(rotatedSecret);
+    // ...while any provider or non-secret identity change is a different key, and therefore a
+    // fresh fetch instead of the previous configuration's results.
+    expect(base).not.toEqual(edited);
+    expect(base).not.toEqual(otherProvider);
+    // The key never carries a credential: it holds a non-reversible digest.
+    expect(JSON.stringify(base)).not.toContain("tok-a");
+    expect(JSON.stringify(base)).not.toContain("tok-b");
+
+    // Generation advances separate query keys to invalidate caches across intake resets
+    const withGen1 = queryKeys.providerRepositories(
+      "generic-githost",
+      { gitUrl: "https://git.example.com", token: "tok-a" },
+      undefined,
+      1,
+    );
+    const withGen2 = queryKeys.providerRepositories(
+      "generic-githost",
+      { gitUrl: "https://git.example.com", token: "tok-a" },
+      undefined,
+      2,
+    );
+    expect(withGen1[3]).toBe(1);
+    expect(withGen2[3]).toBe(2);
+    expect(withGen1).not.toEqual(withGen2);
   });
 });
 

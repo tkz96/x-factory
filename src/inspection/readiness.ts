@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { execCommand } from "../proc.js";
 import type {
+  GitIdentity,
   Project,
   ProjectReadiness,
   ProjectRepository,
@@ -25,8 +26,54 @@ interface RepositoryInspectionResult {
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
   role?: RepositoryRole | undefined;
+  /**
+   * The git identity in effect for this directory (#146), read with the same
+   * `git config --get` invocation — same CLI, same `cwd` — that resolves every
+   * other git fact here, so it is the identity git would author a commit with
+   * in that directory.
+   *
+   * ABSENT when either `user.name` or `user.email` is unconfigured for that
+   * directory: the agent would have no identity either, and reporting an empty
+   * string (or the OS account, or a default) would be a fabrication.
+   */
+  gitIdentity?: GitIdentity | undefined;
   detectedCommands: RepositoryCommands;
   detectedTooling: string[];
+}
+
+/**
+ * Reads one git configuration value for a directory through the git CLI.
+ * `undefined` when the key is not set for that path (non-zero exit) or set to
+ * an empty value — never a default.
+ */
+async function readGitConfigValue(
+  dir: string,
+  key: string,
+): Promise<string | undefined> {
+  const result = await execCommand("git", ["config", "--get", key], {
+    cwd: dir,
+  });
+  if (result.exitCode !== 0) {
+    return undefined;
+  }
+  const value = result.stdout.trim();
+  return value === "" ? undefined : value;
+}
+
+/**
+ * Resolves the git identity that applies inside `dir`. Both halves must be
+ * configured: a half-configured identity cannot author a commit, so it is
+ * reported as absent rather than completed with a guess.
+ */
+async function readGitIdentity(dir: string): Promise<GitIdentity | undefined> {
+  const [name, email] = await Promise.all([
+    readGitConfigValue(dir, "user.name"),
+    readGitConfigValue(dir, "user.email"),
+  ]);
+  if (name === undefined || email === undefined) {
+    return undefined;
+  }
+  return { name, email };
 }
 
 async function resolveGitInfo(dir: string): Promise<{
@@ -115,6 +162,12 @@ export async function inspectLocalRepository(
   const { isGit, remote, currentBranch, defaultBranch } =
     await resolveGitInfo(resolved);
 
+  // Read for the directory itself, whether or not it is a git checkout: for a
+  // directory the agent will clone into, the effective configuration is the
+  // host's, and for a directory that IS a checkout the checkout's own
+  // configuration wins — exactly what `git config` resolves there.
+  const gitIdentity = await readGitIdentity(resolved);
+
   let initialName = path.basename(resolved);
   if (
     remote &&
@@ -139,6 +192,7 @@ export async function inspectLocalRepository(
     currentBranch,
     defaultBranch: defaultBranch || "main",
     role,
+    gitIdentity,
     detectedCommands: commands,
     detectedTooling: tooling,
   };

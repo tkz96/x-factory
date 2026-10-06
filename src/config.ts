@@ -5,11 +5,25 @@ import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
+import {
+  type CreationClaimOptions,
+  translateClaimError,
+  withCreationClaim,
+} from "./services/creation-claim.js";
 import type { Project, ProjectRepository } from "./types.js";
 
 export { validateProjectInput as validateProject } from "./config-schema.js";
 
 const DEFAULT_CONFIG_PATH = path.join(process.cwd(), "config", "projects.json");
+
+/**
+ * Path to the projects configuration file.
+ * Defaults to `./config/projects.json`, or `X_FACTORY_CONFIG_PATH` when set —
+ * the same test-injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`.
+ */
+export function getProjectsConfigPath(): string {
+  return process.env.X_FACTORY_CONFIG_PATH || DEFAULT_CONFIG_PATH;
+}
 
 /**
  * Return the primary repository of a project (first application repository).
@@ -27,7 +41,7 @@ export function getPrimaryRepository(project: Project): ProjectRepository {
  * Automatically migrates legacy single-repository entries.
  */
 export async function loadProjects(
-  configPath: string = DEFAULT_CONFIG_PATH,
+  configPath: string = getProjectsConfigPath(),
 ): Promise<Project[]> {
   let raw: string;
   try {
@@ -94,13 +108,15 @@ export async function getProject(
  */
 async function saveProjects(
   projects: Project[],
-  configPath: string = DEFAULT_CONFIG_PATH,
+  configPath: string = getProjectsConfigPath(),
 ): Promise<void> {
   const cleanProjects = projects.map((p) => ({
     id: p.id,
     name: p.name,
     workspacePath: p.workspacePath,
     issueTracker: p.issueTracker,
+    connections: p.connections,
+    gitIdentity: p.gitIdentity,
     archived: p.archived,
     archivedAt: p.archivedAt,
     successorId: p.successorId,
@@ -134,24 +150,63 @@ async function saveProjects(
 
 /**
  * Create a new project. Throws ConflictError if a project with the same ID already exists.
+ *
+ * Runs inside the exclusive per-project creation claim so legacy creation
+ * satisfies the same creation invariant as normalized creation: exactly one
+ * winner per project id, serialized against concurrent legacy or normalized
+ * creations.
  */
 export async function createProject(
   projectInput: unknown,
-  configPath: string = DEFAULT_CONFIG_PATH,
+  configPath: string = getProjectsConfigPath(),
+  options: { claim?: CreationClaimOptions } = {},
 ): Promise<Project> {
   const validated = validateProjectInput(projectInput);
+
+  try {
+    return await withCreationClaim(
+      validated.id,
+      async (claim) => {
+        const projects = await loadProjects(configPath);
+
+        const existingIndex = projects.findIndex((p) => p.id === validated.id);
+        if (existingIndex >= 0) {
+          throw new ConflictError(
+            `Project with ID "${validated.id}" already exists.`,
+          );
+        }
+
+        await claim.assertHeld();
+        projects.push(validated);
+        await saveProjects(projects, configPath);
+        return validated;
+      },
+      options.claim,
+    );
+  } catch (err) {
+    translateClaimError(err, validated.id);
+  }
+}
+
+/**
+ * Appends an already-validated project record as the commit point of project
+ * creation (#145). The caller is responsible for having validated the complete
+ * request and for having persisted the project's secrets first: this function
+ * performs only the duplicate-id conflict check and the record write.
+ */
+export async function appendProjectRecord(
+  project: Project,
+  configPath: string = getProjectsConfigPath(),
+): Promise<Project> {
   const projects = await loadProjects(configPath);
 
-  const existingIndex = projects.findIndex((p) => p.id === validated.id);
-  if (existingIndex >= 0) {
-    throw new ConflictError(
-      `Project with ID "${validated.id}" already exists.`,
-    );
+  if (projects.some((p) => p.id === project.id)) {
+    throw new ConflictError(`Project with ID "${project.id}" already exists.`);
   }
 
-  projects.push(validated);
+  projects.push(project);
   await saveProjects(projects, configPath);
-  return validated;
+  return project;
 }
 
 /**
@@ -159,7 +214,7 @@ export async function createProject(
  */
 export async function saveProject(
   projectInput: unknown,
-  configPath: string = DEFAULT_CONFIG_PATH,
+  configPath: string = getProjectsConfigPath(),
 ): Promise<Project> {
   const validated = validateProjectInput(projectInput);
   let projects: Project[] = [];
@@ -185,7 +240,7 @@ export async function saveProject(
  */
 export async function deleteProject(
   projectId: string,
-  configPath: string = DEFAULT_CONFIG_PATH,
+  configPath: string = getProjectsConfigPath(),
 ): Promise<void> {
   const projects = await loadProjects(configPath);
   const filtered = projects.filter((p) => p.id !== projectId);

@@ -25,6 +25,7 @@ import {
 import { api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { clearWizardDraft } from "../src/frontend/wizard/storage.js";
+import { WIZARD_SCHEMA_VERSION } from "../src/frontend/wizard/types.js";
 import { WizardModal } from "../src/frontend/wizard/WizardModal.js";
 
 function typeInput(input: HTMLElement, value: string) {
@@ -102,8 +103,32 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
       warnings: [],
     }));
     api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
       matched: false as const,
       url: "",
+    }));
+    api.providers.listRepositories = mock(async () => ({
+      providerId: "stub-provider",
+      roles: ["gitHost"],
+      repositories: [
+        {
+          id: "repo-1",
+          name: "titan-app",
+          remote: "https://git.example.com/acme/titan-app.git",
+        },
+      ],
+    }));
+    // The Inspection step reads the configured git identity through the
+    // api-client (#146), like every other async read in the wizard.
+    api.inspectRepository = mock(async (payload: { path: string }) => ({
+      path: payload.path,
+      exists: true,
+      isGitRepo: true,
+      gitIdentity: { name: "Stub Owner", email: "stub@example.com" },
+      detectedCommands: {},
+      detectedTooling: [],
+      readiness: { status: "ready" as const, message: "ready" },
     }));
   });
 
@@ -168,6 +193,10 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     const idInput = getEl<HTMLInputElement>("onboard-proj-id");
     expect(idInput.value).toBe("apollo-engine");
 
+    // Test manual ID edit
+    await typeInput(idInput, "custom-apollo-id");
+    expect(idInput.value).toBe("custom-apollo-id");
+
     // Next button becomes enabled
     expect(nextBtn.disabled).toBe(false);
   });
@@ -208,12 +237,23 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     fireEvent.click(getEl("btn-step-2-next"));
     expect(document.getElementById("onboard-step-3")).not.toBeNull();
 
+    // Step 3 requires a discovered, selected application repository (#144).
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.click(getEl("repo-select-repo-1"));
+
     // Advance to Step 4: Inspection
     fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-4")).not.toBeNull();
 
     // Advance to Step 5: Review
     fireEvent.click(getEl("btn-step-4-next"));
+    // The Inspection step's git-identity read lands after that step is left
+    // (#146): let it settle inside the test's act scope.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(document.getElementById("onboard-step-5")).not.toBeNull();
 
     // Verify Review shows data from Step 1
@@ -256,7 +296,10 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     const raw = window.localStorage.getItem("xf_wizard_draft_v1");
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw || "{}");
-    expect(parsed.version).toBe(1);
+    // The schema version the code writes — a draft from an older, structurally
+    // incompatible version is discarded by `loadWizardDraft` (correction 2
+    // changed the connect section; see `test/wizard-storage.test.ts`).
+    expect(parsed.version).toBe(WIZARD_SCHEMA_VERSION);
     expect(parsed.state.basics.name).toBe("Drafted App");
     expect(parsed.state.basics.workspacePath).toBe("/draft/path");
 

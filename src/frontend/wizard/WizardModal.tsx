@@ -4,6 +4,7 @@ import "./WizardModal.css";
 
 import { useEffect } from "react";
 import { useModal } from "../context/ModalContext.js";
+import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { StepNav } from "./shared/StepNav.js";
 import { useWizard, WizardProvider } from "./state/wizardContext.js";
 import { BasicsStep } from "./steps/BasicsStep.js";
@@ -84,13 +85,14 @@ function WizardContent() {
 
 export function WizardModal() {
   const { isOnboardingOpen } = useModal();
+  const { data: descriptors } = useProviderDescriptors();
 
   if (!isOnboardingOpen) {
     return null;
   }
 
   return (
-    <WizardProvider>
+    <WizardProvider descriptors={descriptors}>
       <WizardContent />
     </WizardProvider>
   );

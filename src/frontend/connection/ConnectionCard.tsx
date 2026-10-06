@@ -21,8 +21,6 @@ export interface ConnectionCardProps {
   verificationError?: unknown | null | undefined;
   fieldErrors?: Record<string, string> | null | undefined;
   formErrors?: string[] | null | undefined;
-  degradedAccepted?: boolean | undefined;
-  onAcceptDegraded?: (() => void) | undefined;
   disabled?: boolean;
   children?: React.ReactNode;
 }
@@ -41,8 +39,6 @@ export function ConnectionCard({
   verificationError,
   fieldErrors,
   formErrors,
-  degradedAccepted,
-  onAcceptDegraded,
   disabled = false,
   children,
 }: ConnectionCardProps) {
@@ -82,10 +78,8 @@ export function ConnectionCard({
           verificationError={verificationError}
           fieldErrors={fieldErrors}
           formErrors={formErrors}
-          degradedAccepted={degradedAccepted}
           onConfigChange={onConfigChange}
           onVerify={onVerify}
-          onAcceptDegraded={onAcceptDegraded}
         />
 
         {children}

@@ -41,9 +41,3 @@
   color: var(--warning);
   font-weight: 600;
 }
-
-.tracker-test-details {
-  margin-top: var(--space-2);
-  font-size: var(--text-caption-1);
-  font-family: var(--font-mono);
-}
