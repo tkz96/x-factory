@@ -24,7 +24,6 @@ import {
   MISSING_CONNECTION_ROLE_CODES,
   missingConnectionRoleCodes,
   type ProjectConnectionInput,
-  REQUIRED_CONNECTION_ROLES,
 } from "../config-schema.js";
 import { emitStructuredLog } from "../diagnostics/correlation.js";
 import {
