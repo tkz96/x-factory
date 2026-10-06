@@ -20,6 +20,7 @@ export function RepositoriesStep() {
     derived,
     selectedRepoIds,
     selectionIsStale,
+    rowsSelectable,
     unconfirmedCapabilities,
     refresh,
     toggleRepository,
@@ -54,14 +55,38 @@ export function RepositoriesStep() {
           emptyCopy={REPOSITORIES_COPY.empty}
           failedParts={failedParts}
         >
+          {rows.length > 0 && !rowsSelectable && (
+            <div
+              id="repositories-stale-results"
+              className="repositories-stale-results"
+            >
+              <FeedbackBanner
+                tone="warning"
+                message={REPOSITORIES_COPY.staleResults}
+              />
+            </div>
+          )}
+
           <ul className="repositories-list" id="repositories-list">
             {rows.map((row) => (
               <li key={row.id} className="repositories-list-item">
-                <label className="repositories-list-row">
+                <label
+                  className={
+                    rowsSelectable
+                      ? "repositories-list-row"
+                      : "repositories-list-row repositories-list-row--disabled"
+                  }
+                >
                   <input
                     id={`repo-select-${row.id}`}
                     className="repositories-list-checkbox"
                     type="checkbox"
+                    // Rows produced for a connection that is no longer current
+                    // are shown as placeholder content and nothing more: not
+                    // selectable, so an old configuration's repository can
+                    // never be recorded under the current one (#133
+                    // correction 4).
+                    disabled={!rowsSelectable}
                     checked={selectedRepoIds.includes(row.id)}
                     onChange={() => toggleRepository(row)}
                   />

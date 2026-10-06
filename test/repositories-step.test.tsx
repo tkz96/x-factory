@@ -40,6 +40,12 @@ import { api } from "../src/frontend/lib/api-client.js";
 import { connectionConfigFingerprint } from "../src/frontend/lib/connection-fingerprint.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import {
+  useWizard,
+  WizardProvider,
+} from "../src/frontend/wizard/state/wizardContext.js";
+import { RepositoriesStep } from "../src/frontend/wizard/steps/RepositoriesStep.js";
+import { useRepositoryDiscovery } from "../src/frontend/wizard/steps/useRepositoryDiscovery.js";
+import {
   clearWizardDraft,
   saveWizardDraft,
 } from "../src/frontend/wizard/storage.js";
@@ -916,6 +922,565 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
         discoveryRegion().querySelectorAll(".repositories-list-item").length,
       ).toBe(2);
     });
+  });
+});
+
+// ── #133 correction 4: a previous configuration's results are never selectable ─
+//
+// The defect: `keepPreviousData` keeps the previous configuration's envelope on
+// screen while the newly edited configuration's fetch runs, and the rows built
+// from it stayed clickable. A click recorded the OLD configuration's repository
+// id stamped with the NEW configuration's fingerprint, so every later staleness
+// check agreed the selection was current and Continue unblocked on results that
+// belonged to a connection that no longer exists.
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+describe("Repositories Step — a previous configuration's results are never selectable (#133 correction 4)", () => {
+  // The draft the harness starts from was restored from storage, which strips
+  // secrets — so configuration A carries no token. B is the edit the user makes
+  // to the same connection.
+  const A_CONFIG = { gitUrl: "https://git.example.com" };
+  const B_CONFIG = { gitUrl: "https://other.example.com" };
+  // The same two configurations as the Connect step collects them, credentials
+  // included, for the journey that starts on Connect.
+  const A_CONFIG_WITH_TOKEN = { ...A_CONFIG, token: "tok-a" };
+  const B_CONFIG_WITH_TOKEN = { ...B_CONFIG, token: "tok-a" };
+  const B_REPOSITORIES = [
+    {
+      id: "repo-other",
+      name: "other-repo",
+      remote: "https://other.example.com/acme/other-repo.git",
+      defaultBranch: "main",
+    },
+  ];
+
+  let listRepositories: ReturnType<typeof mock>;
+  let bRequest: Deferred<RepositoriesEnvelope> | undefined;
+
+  /**
+   * The connection edit the Connect step makes, from inside the wizard tree:
+   * the same provider, the same reducer action (`UPDATE_PROVIDER_CONFIG`), a
+   * different configuration.
+   */
+  function ChangeConnection({ config }: { config: Record<string, unknown> }) {
+    const { dispatch } = useWizard();
+    return (
+      <button
+        type="button"
+        id="btn-change-git-host-connection"
+        onClick={() =>
+          dispatch({
+            type: "UPDATE_PROVIDER_CONFIG",
+            providerId: "generic-githost",
+            config,
+          })
+        }
+      >
+        Change Git Host connection
+      </button>
+    );
+  }
+
+  /**
+   * The modal's own step switch: step 3's pane exists only while the wizard is
+   * on step 3, so a refused Continue is observable as "still on step 3".
+   */
+  function Step3Pane() {
+    const { state } = useWizard();
+    if (state.step !== 3) {
+      return <div id="advanced-past-step-3" />;
+    }
+    return <RepositoriesStep />;
+  }
+
+  /**
+   * What the wizard has RECORDED, rendered as such: `<ids>|<fingerprint>`. This
+   * is the value the step's gate and the creation payload read — the observable
+   * an interaction must (not) change.
+   */
+  function RecordedSelectionProbe() {
+    const { state } = useWizard();
+    const { selectedRepoIds, selectionFingerprint } = state.repositories;
+    return (
+      <div id="probe-recorded-selection">
+        <span>{selectedRepoIds.join(",")}</span>
+        <span>|</span>
+        <span>{selectionFingerprint ?? "none"}</span>
+      </div>
+    );
+  }
+
+  /**
+   * The hook's own contract, driven directly and NOT through the DOM: whether
+   * the displayed rows are selectable, and one button per displayed row that
+   * toggles it by calling `toggleRepository` itself. Clicking a `disabled`
+   * input can never reach a handler, so this is what proves the refusal is the
+   * hook's and not the attribute's.
+   */
+  function DirectSelectionProbe() {
+    const discovery = useRepositoryDiscovery();
+    return (
+      <div>
+        <span id="probe-rows-selectable">
+          {discovery.rowsSelectable ? "selectable" : "inert"}
+        </span>
+        {discovery.rows.map((discoveryRow) => (
+          <button
+            key={discoveryRow.id}
+            type="button"
+            id={`btn-probe-toggle-${discoveryRow.id}`}
+            onClick={() => discovery.toggleRepository(discoveryRow)}
+          >
+            {`Toggle ${discoveryRow.id} directly`}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function recordedSelection() {
+    const [ids, fingerprint] = (
+      getEl("probe-recorded-selection").textContent ?? ""
+    ).split("|");
+    return {
+      ids: ids === "" ? [] : (ids ?? "").split(","),
+      fingerprint,
+    };
+  }
+
+  /**
+   * The REAL wizard (provider, draft, reducer, state machine) with the REAL
+   * Repositories step on screen. The modal's navigation unmounts step 3 and a
+   * remounted observer keeps no previous result — so the race this correction
+   * guards (the previous configuration's rows on screen while the edited
+   * configuration's fetch runs) is opened by editing the connection while the
+   * step stays mounted. Only the api-client seam is a stand-in.
+   */
+  function renderRaceHarness(config: Record<string, unknown>) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <WizardProvider>
+            <ChangeConnection config={config} />
+            <RecordedSelectionProbe />
+            <DirectSelectionProbe />
+            <Step3Pane />
+          </WizardProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  /** A repository row of the displayed configuration, as a labelled checkbox. */
+  function row(id: string): HTMLInputElement {
+    return getEl<HTMLInputElement>(`repo-select-${id}`);
+  }
+
+  function recordedDraft() {
+    return JSON.parse(
+      window.localStorage.getItem("xf_wizard_draft_v1") ?? "{}",
+    ) as {
+      state: {
+        repositories: {
+          selectedRepoIds: string[];
+          primaryRepoId: string | null;
+          repoConfigs: Record<string, { role: string; roles: string[] }>;
+          selectionFingerprint: string | null;
+        };
+      };
+    };
+  }
+
+  beforeEach(() => {
+    clearWizardDraft();
+    bRequest = undefined;
+    // The whole api-client seam, so this describe stands alone: the race
+    // harness needs discovery, and the reachable-journey test below runs the
+    // real Connect step.
+    api.providers.getManifest = mock(async () => manifestFixture);
+    api.providers.verify = mock(async () => ({
+      status: "ok" as const,
+      warnings: [],
+    }));
+    api.providers.parseUrl = mock(async () => ({
+      matched: false as const,
+      url: "",
+    }));
+    // Configuration A answers immediately; configuration B's request is held
+    // open so the window between the two is observable.
+    listRepositories = mock(
+      async (payload: { config: Record<string, unknown> }) => {
+        if (payload.config.gitUrl === B_CONFIG.gitUrl) {
+          bRequest = deferred<RepositoriesEnvelope>();
+          return bRequest.promise;
+        }
+        return discoveryEnvelope();
+      },
+    );
+    api.providers.listRepositories = listRepositories as never;
+  });
+
+  afterEach(() => {
+    cleanup();
+    clearWizardDraft();
+  });
+
+  it("THE RACE: the previous configuration's rows stay visible but inert while the new request runs, and only the new rows unlock Continue", async () => {
+    setupStep3Draft();
+    renderRaceHarness(B_CONFIG);
+    await flushDiscovery();
+
+    // Configuration A discovered: A's rows are on screen and selectable, and a
+    // repository is selected under A.
+    expect(listRepositories).toHaveBeenCalledTimes(1);
+    expect(listRepositories.mock.calls[0]?.[0]).toEqual({
+      providerId: "generic-githost",
+      role: "gitHost",
+      config: A_CONFIG,
+    });
+    expect(row("repo-app").disabled).toBe(false);
+    act(() => {
+      fireEvent.click(row("repo-app"));
+    });
+    expect(row("repo-app").checked).toBe(true);
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+
+    // The connection changes to B while step 3 is on screen: B's request starts
+    // and A's result is all the region has to show.
+    act(() => {
+      fireEvent.click(getEl("btn-change-git-host-connection"));
+    });
+    await flushDiscovery();
+    expect(bRequest).toBeDefined();
+    expect(listRepositories.mock.calls.at(-1)?.[0]).toEqual({
+      providerId: "generic-githost",
+      role: "gitHost",
+      config: B_CONFIG,
+    });
+
+    // (i) A's repositories are still visible — the region never collapses to a
+    // spinner — and are explained as out of date.
+    const region = discoveryRegion();
+    expect(region.querySelectorAll(".repositories-list-item").length).toBe(2);
+    expect(getEl("repo-select-repo-app")).not.toBeNull();
+    expect(region.querySelector(".async-region-stale-badge")?.textContent).toBe(
+      STATE_COPY.stale,
+    );
+    expect(getEl("repositories-stale-results").textContent).toContain(
+      REPOSITORIES_COPY.staleResults,
+    );
+    expect(region.querySelector(".async-region--loading")).toBeNull();
+
+    // (ii) …and every one of them is NOT selectable.
+    expect(row("repo-app").disabled).toBe(true);
+    expect(row("repo-api").disabled).toBe(true);
+
+    // (iii) A row of the previous configuration cannot become a selection the
+    // wizard records, and the refusal does not depend on the DOM: the hook is
+    // asked to toggle a placeholder row directly, and toggles nothing. (The
+    // DOM click is checked too — a disabled control is inert to the user.)
+    expect(getEl("probe-rows-selectable").textContent).toBe("inert");
+    expect(recordedSelection().ids).toEqual(["repo-app"]);
+    act(() => {
+      fireEvent.click(row("repo-api"));
+      getEl("btn-probe-toggle-repo-api").click();
+    });
+    expect(recordedSelection().ids).toEqual(["repo-app"]);
+    expect(recordedSelection().fingerprint).toBe(
+      connectionConfigFingerprint("generic-githost", A_CONFIG),
+    );
+    expect(region.textContent).toContain(REPOSITORIES_COPY.selectionSummary(1));
+
+    // (iv) Continue cannot proceed on the previous configuration's data.
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    fireEvent.click(getEl("btn-step-3-next"));
+    expect(document.getElementById("advanced-past-step-3")).toBeNull();
+
+    // B's results arrive: they are the current configuration's rows, so they are
+    // selectable, and Continue unblocks only on a selection made from them. The
+    // very direct toggle that was refused a moment ago now records — so the
+    // refusal was the placeholder rows', not the probe's.
+    await act(async () => {
+      bRequest?.resolve(discoveryEnvelope(B_REPOSITORIES));
+    });
+    await flushDiscovery();
+
+    expect(document.getElementById("repo-select-repo-app")).toBeNull();
+    expect(row("repo-other").disabled).toBe(false);
+    expect(getEl("probe-rows-selectable").textContent).toBe("selectable");
+    expect(document.getElementById("repositories-stale-results")).toBeNull();
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+
+    act(() => {
+      getEl("btn-probe-toggle-repo-other").click();
+    });
+    expect(recordedSelection().ids).toEqual(["repo-other"]);
+    expect(recordedSelection().fingerprint).toBe(
+      connectionConfigFingerprint("generic-githost", B_CONFIG),
+    );
+    expect(row("repo-other").checked).toBe(true);
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+    fireEvent.click(getEl("btn-step-3-next"));
+    expect(document.getElementById("advanced-past-step-3")).not.toBeNull();
+  });
+
+  it("PROVENANCE: after the race a selection holds only the current configuration's ids, under its fingerprint", async () => {
+    setupStep3Draft();
+    renderRaceHarness(B_CONFIG);
+    await flushDiscovery();
+
+    // A selection made under configuration A.
+    act(() => {
+      fireEvent.click(row("repo-app"));
+    });
+    expect(recordedSelection().ids).toEqual(["repo-app"]);
+
+    // The connection changes; the window is open, so the previous list is on
+    // screen. Neither a click nor a change event can extend it.
+    act(() => {
+      fireEvent.click(getEl("btn-change-git-host-connection"));
+    });
+    await flushDiscovery();
+    expect(row("repo-app").disabled).toBe(true);
+    act(() => {
+      fireEvent.click(row("repo-api"));
+      getEl("btn-probe-toggle-repo-api").click();
+    });
+    expect(recordedSelection().ids).toEqual(["repo-app"]);
+
+    await act(async () => {
+      bRequest?.resolve(discoveryEnvelope(B_REPOSITORIES));
+    });
+    await flushDiscovery();
+
+    // Only B's rows are selectable, and the selection that reaches the draft is
+    // made of B's ids, recorded under B's fingerprint. No id of the connection
+    // that produced the placeholder rows survives as a valid selection.
+    expect(row("repo-other").disabled).toBe(false);
+    act(() => {
+      fireEvent.click(row("repo-other"));
+    });
+    expect(recordedSelection().ids).toEqual(["repo-other"]);
+    expect(recordedSelection().fingerprint).toBe(
+      connectionConfigFingerprint("generic-githost", B_CONFIG),
+    );
+    fireEvent.click(getEl("btn-step-3-next"));
+
+    const { repositories } = recordedDraft().state;
+    expect(repositories.selectedRepoIds).toEqual(["repo-other"]);
+    expect(repositories.selectedRepoIds).not.toContain("repo-app");
+    expect(repositories.selectedRepoIds).not.toContain("repo-api");
+    expect(repositories.primaryRepoId).toBe("repo-other");
+    expect(repositories.selectionFingerprint).toBe(
+      connectionConfigFingerprint("generic-githost", B_CONFIG),
+    );
+    expect(repositories.selectionFingerprint).not.toBe(
+      connectionConfigFingerprint("generic-githost", A_CONFIG),
+    );
+  });
+
+  it("FAILED NEW CONFIGURATION: the previous rows stay visible with stale + error diagnostics, still inert, Continue still blocked", async () => {
+    setupStep3Draft();
+    renderRaceHarness(B_CONFIG);
+    await flushDiscovery();
+
+    act(() => {
+      fireEvent.click(row("repo-app"));
+    });
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+
+    act(() => {
+      fireEvent.click(getEl("btn-change-git-host-connection"));
+    });
+    await flushDiscovery();
+    const request = bRequest;
+    expect(request).toBeDefined();
+    await act(async () => {
+      request?.reject({ code: "AUTH_INVALID", context: "DISCOVERY" });
+    });
+    await flushDiscovery();
+
+    const region = discoveryRegion();
+
+    // The list the user was reading survives a failed refresh of the new
+    // configuration: the region does not blank, and it is not the error-only
+    // state — the failure rides along as a diagnostic beside the content.
+    expect(region.querySelectorAll(".repositories-list-item").length).toBe(2);
+    expect(region.querySelector(".async-region--error")).toBeNull();
+    const errorBanner = region.querySelector(".feedback-banner--error");
+    expect(errorBanner?.textContent).toContain(
+      ERROR_COPY.AUTH_INVALID.DISCOVERY,
+    );
+    expect(errorBanner?.textContent).not.toContain("AUTH_INVALID");
+
+    // Still flagged out of date, and still explained as non-selectable.
+    expect(region.querySelector(".async-region-stale-badge")?.textContent).toBe(
+      STATE_COPY.stale,
+    );
+    expect(getEl("repositories-stale-results").textContent).toContain(
+      REPOSITORIES_COPY.staleResults,
+    );
+
+    // Inert and blocked, exactly as while the new request was in flight.
+    expect(getEl("probe-rows-selectable").textContent).toBe("inert");
+    expect(row("repo-app").disabled).toBe(true);
+    act(() => {
+      fireEvent.click(row("repo-api"));
+      getEl("btn-probe-toggle-repo-api").click();
+    });
+    expect(recordedSelection().ids).toEqual(["repo-app"]);
+    expect(recordedSelection().fingerprint).toBe(
+      connectionConfigFingerprint("generic-githost", A_CONFIG),
+    );
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    fireEvent.click(getEl("btn-step-3-next"));
+    expect(document.getElementById("advanced-past-step-3")).toBeNull();
+  });
+
+  it("CANADVANCE FOLD: a selection that is current for the connection does not unblock Continue while the rows on screen belong to another one", async () => {
+    // The one state the wizard's own rule cannot see: the recorded selection IS
+    // current for the connection as it stands (it was made under configuration
+    // A, and A is what the connection now is), while the rows the region has to
+    // show are configuration B's. State alone would allow advancing; the rows
+    // on screen are not the connection's, so the step must not proceed.
+    setupStep3Draft({
+      gitHost: { config: B_CONFIG },
+      repositories: {
+        selectedRepoIds: ["repo-app"],
+        primaryRepoId: "repo-app",
+        repoConfigs: { "repo-app": { role: "gitHost", roles: ["gitHost"] } },
+        selectionFingerprint: connectionConfigFingerprint(
+          "generic-githost",
+          A_CONFIG,
+        ),
+      },
+    });
+
+    // The connection the draft is on answers; the edit's request is held open.
+    let aRequest: Deferred<RepositoriesEnvelope> | undefined;
+    listRepositories = mock(
+      async (payload: { config: Record<string, unknown> }) => {
+        if (payload.config.gitUrl === A_CONFIG.gitUrl) {
+          aRequest = deferred<RepositoriesEnvelope>();
+          return aRequest.promise;
+        }
+        return discoveryEnvelope(B_REPOSITORIES);
+      },
+    );
+    api.providers.listRepositories = listRepositories as never;
+
+    renderRaceHarness(A_CONFIG);
+    await flushDiscovery();
+
+    // The draft's connection (B) discovered its own rows: they are current, and
+    // the restored selection is out of date against them.
+    expect(getEl("probe-rows-selectable").textContent).toBe("selectable");
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+
+    // The connection changes to the one the selection was made under: the
+    // recorded selection is CURRENT now, and the rows on screen are B's.
+    act(() => {
+      fireEvent.click(getEl("btn-change-git-host-connection"));
+    });
+    await flushDiscovery();
+
+    expect(getEl("probe-rows-selectable").textContent).toBe("inert");
+    expect(document.getElementById("repo-select-repo-other")).not.toBeNull();
+    expect(document.getElementById("repo-select-repo-app")).toBeNull();
+    expect(recordedSelection().ids).toEqual(["repo-app"]);
+    expect(recordedSelection().fingerprint).toBe(
+      connectionConfigFingerprint("generic-githost", A_CONFIG),
+    );
+    // Continuing here would create a project from a selection no row on screen
+    // supports.
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    fireEvent.click(getEl("btn-step-3-next"));
+    expect(document.getElementById("advanced-past-step-3")).toBeNull();
+
+    // The connection's own results arrive: the same recorded selection is now
+    // supported by the rows on screen, and the step can proceed.
+    await act(async () => {
+      aRequest?.resolve(discoveryEnvelope());
+    });
+    await flushDiscovery();
+
+    expect(getEl("probe-rows-selectable").textContent).toBe("selectable");
+    expect(row("repo-app").checked).toBe(true);
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+  });
+
+  it("REACHABLE JOURNEY: after editing the connection from Connect, the step's own rows are selectable", async () => {
+    // The journey the modal allows: the edit happens on Connect (which unmounts
+    // step 3), so the step returns with the new configuration's own request and
+    // no older rows to show. The correction must not over-block that.
+    setupStep2Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    act(() => {
+      fireEvent.change(getEl("select-tracker-provider"), {
+        target: { value: "generic-tracker" },
+      });
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "generic-githost" },
+      });
+    });
+    await typeInput(getEl("gitHost-gitUrl"), A_CONFIG_WITH_TOKEN.gitUrl);
+    await typeInput(getEl("gitHost-token"), A_CONFIG_WITH_TOKEN.token);
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-all"));
+    });
+    fireEvent.click(getEl("btn-step-2-next"));
+    await flushDiscovery();
+    expect(
+      discoveryRegion().querySelectorAll(".repositories-list-item").length,
+    ).toBe(2);
+
+    // Back to Connect, edit the connection, return to Repositories.
+    listRepositories = mock(async () => discoveryEnvelope(B_REPOSITORIES));
+    api.providers.listRepositories = listRepositories as never;
+
+    fireEvent.click(getEl("btn-step-3-back"));
+    await typeInput(getEl("gitHost-gitUrl"), B_CONFIG_WITH_TOKEN.gitUrl);
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-gitHost"));
+      fireEvent.click(getEl("btn-verify-tracker"));
+    });
+    fireEvent.click(getEl("btn-step-2-next"));
+    await flushDiscovery();
+
+    expect(listRepositories.mock.calls[0]?.[0]).toEqual({
+      providerId: "generic-githost",
+      role: "gitHost",
+      config: B_CONFIG_WITH_TOKEN,
+    });
+    // The previous configuration's rows never appear, and the rows that do are
+    // the current configuration's — selectable, with nothing to explain.
+    expect(document.getElementById("repo-select-repo-app")).toBeNull();
+    expect(document.getElementById("repositories-stale-results")).toBeNull();
+    expect(row("repo-other").disabled).toBe(false);
+    act(() => {
+      fireEvent.click(row("repo-other"));
+    });
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
   });
 });
 
