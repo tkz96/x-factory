@@ -125,7 +125,7 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     // Generic derivation + capability-driven action.
     expect(content).toContain("deriveConnectionIntegrity");
     expect(content).toContain('capabilities.includes("verifyScopes")');
-    expect(content).toContain("api.testAzureScopes");
+    expect(content).toContain("api.testScopes");
     // The integrity failure with its repair path (spec #133 story 49).
     expect(content).toContain("CONNECTIONS_COPY.integrityFailure");
     expect(content).toContain("CONNECTIONS_COPY.reconnect");

@@ -220,23 +220,20 @@ than inventing a reconnect flow.
 **Recorded limitation — the scope diagnostic.** The tracker card renders its
 scope-verification action from the connection's *declared capabilities*
 (`verifyScopes` in the manifest), never from a provider id. The action reaches
-`POST /api/projects/test-azure-scopes`, which resolves its provider generically
-(#141 correction): from an optional `providerId` in the body, otherwise from the
-tracker connection recorded on the `projectId` the card sends, then dispatches
-through `hasCapability(provider, "verifyScopes")`. No provider id is named in
+`POST /api/projects/test-scopes` (with `test-azure-scopes` retained as a legacy wire alias),
+which resolves its provider generically (#141 correction): from an optional `providerId`
+in the body, otherwise from the tracker connection recorded on the `projectId` the card sends,
+then dispatches through `hasCapability(provider, "verifyScopes")`. No provider id is named in
 the controller, and a connection without the capability is reported as a
 capability gap rather than substituted for.
 
-Two couplings remain, both recorded rather than hidden. The route PATH is still
-provider-named (`test-azure-scopes`, referenced by the api-client and the
-OpenAPI document), and the diagnostic's provider config still comes from the
-request body: a client cannot supply the project's persisted secret (#131 keeps
+One coupling remains, recorded rather than hidden. The diagnostic's provider config still
+comes from the request body: a client cannot supply the project's persisted secret (#131 keeps
 secrets server-side), so the diagnostic can only succeed for payloads the server
-can complete on its own. Closing the second one needs a project-resolving
-endpoint that loads the persisted connection config, which is outside #147's
-scope (the ticket owns the post-creation frontend surfaces). The card renders
-only canonical copy for the outcome — the raw provider scope payload is never
-rendered.
+can complete on its own. Closing it needs a project-resolving endpoint that loads the
+persisted connection config, which is outside #147's scope (the ticket owns the post-creation
+frontend surfaces). The card renders only canonical copy for the outcome — the raw provider
+scope payload is never rendered.
 
 ## Onboarding smoothness — the six criteria (#148)
 

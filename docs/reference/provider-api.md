@@ -562,9 +562,10 @@ write through `createProject`, after the tracker gate above.
 Codes only — provider and zod messages never cross the boundary. Upstream
 failures use the separate `ProviderError` envelope.
 
-### Scope diagnostic (`POST /api/projects/test-azure-scopes`)
+### Scope diagnostic (`POST /api/projects/test-scopes`, legacy alias `POST /api/projects/test-azure-scopes`)
 
-The route keeps its historical provider-named PATH; its RESOLUTION names no
+The canonical endpoint is `POST /api/projects/test-scopes`, with `POST /api/projects/test-azure-scopes`
+retained as a legacy wire alias for backward compatibility. Its RESOLUTION names no
 provider (#141). The provider a diagnostic runs against is resolved in this
 order, and nothing else is consulted:
 

@@ -45,6 +45,7 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     // Discovery & Inspection
     expect(paths).toContain("/api/projects/discover-repositories");
     expect(paths).toContain("/api/projects/inspect-repository");
+    expect(paths).toContain("/api/projects/test-scopes");
     expect(paths).toContain("/api/projects/test-azure-scopes");
     expect(paths).toContain("/api/projects/check-path");
 

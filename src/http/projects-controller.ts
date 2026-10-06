@@ -180,7 +180,15 @@ async function handleDeleteProject(projectId: string): Promise<Response> {
   });
 }
 
-async function handleDiscoverRepositories(req: Request): Promise<Response> {
+/**
+ * POST /api/projects/discover-repositories (legacy wire endpoint)
+ * Retained for backward compatibility; delegates to the provider registry.
+ * Canonical discovery is POST /api/providers/repositories (via api.providers.listRepositories).
+ */
+async function handleDiscoverRepositories(
+  req: Request,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): Promise<Response> {
   return withJsonBody<Record<string, unknown>>(
     req,
     (body) =>
@@ -192,14 +200,14 @@ async function handleDiscoverRepositories(req: Request): Promise<Response> {
             400,
           );
         }
-        const provider = getProvider(providerId);
+        const provider = getProvider(providerId, registry);
         if (!provider || !hasCapability(provider, "listRepositories")) {
           return errorResponse(
             `Unsupported discovery provider: ${providerId}`,
             400,
           );
         }
-        const repos = await provider.listRepositories(body);
+        const repos = await provider.listRepositories(body as ProviderConfig);
         return jsonResponse({
           provider: providerId,
           repositories: repos,
@@ -317,9 +325,10 @@ async function handleUpdateProjectTrackerCredentials(
     req,
     async (body) => {
       const provider =
-        project.issueTracker?.provider ||
-        project.issueTracker?.connectionId ||
-        "github";
+        project.issueTracker?.provider || project.issueTracker?.connectionId;
+      if (!provider) {
+        return errorResponse("Missing issue tracker provider.", 400);
+      }
       const varsToSave = extractTrackerCredentialsToSave(body, provider);
       await saveProjectEnv(projectId, varsToSave);
       return jsonResponse({ ok: true, message: "Credentials updated." });
@@ -339,8 +348,10 @@ async function handleTestProjectTracker(
     const tracker = project.issueTracker;
     const provider = (bodyData.provider ||
       tracker?.provider ||
-      tracker?.connectionId ||
-      "github") as IssueTrackerProvider;
+      tracker?.connectionId) as IssueTrackerProvider | undefined;
+    if (!provider) {
+      return errorResponse("Missing issue tracker provider.", 400);
+    }
     const env = await loadProjectEnv(projectId);
 
     const result = await testProjectTrackerConnection(
@@ -519,7 +530,14 @@ async function handleTestConnection(req: Request): Promise<Response> {
   return withJsonBody<Record<string, unknown>>(
     req,
     async (data) => {
-      const providerId = (data.provider as string) || "azure";
+      const rawProvider = data.provider;
+      if (typeof rawProvider !== "string" || !rawProvider.trim()) {
+        return errorResponse(
+          "Provider is required for connection testing.",
+          400,
+        );
+      }
+      const providerId = rawProvider.trim();
       const provider = getProvider(providerId);
       if (!provider) {
         return jsonResponse({
@@ -708,7 +726,8 @@ export async function handleProjectsRoute(
     id === "discover-repositories" ||
     id === "discover" ||
     id === "repositories";
-  if (isDiscover && method === "POST") return handleDiscoverRepositories(req);
+  if (isDiscover && method === "POST")
+    return handleDiscoverRepositories(req, registry);
 
   const isInspect =
     id === "inspect-repository" || id === "quick-inspect" || id === "inspect";
@@ -717,9 +736,9 @@ export async function handleProjectsRoute(
   const isTest = id === "test-connection" || id === "test-tracker";
   if (isTest && method === "POST") return handleTestConnection(req);
 
-  // The wire path keeps its historical provider-named route (the api-client and
-  // the OpenAPI document reference it); the handler behind it does not.
-  const isTestScopes = id === "test-azure-scopes";
+  // The wire path supports generic /api/projects/test-scopes, while keeping
+  // its historical test-azure-scopes route as a legacy wire alias.
+  const isTestScopes = id === "test-scopes" || id === "test-azure-scopes";
   if (isTestScopes && method === "POST") {
     return handleTestProviderScopes(req, registry);
   }

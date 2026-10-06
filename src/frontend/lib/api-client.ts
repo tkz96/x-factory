@@ -228,30 +228,6 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
-  async discoverRepositories(payload: {
-    provider: string;
-    orgUrl?: string;
-    project?: string;
-    pat?: string;
-    workspacePath?: string;
-  }): Promise<{
-    provider: string;
-    repositories: Array<{
-      id: string;
-      name: string;
-      remote?: string;
-      defaultBranch?: string;
-      webUrl?: string;
-    }>;
-  }> {
-    const res = await fetch("/api/projects/discover-repositories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse(res);
-  },
-
   async inspectRepository(payload: {
     path: string;
     remote?: string | undefined;
@@ -378,28 +354,47 @@ export const api = {
     );
   },
 
-  async testAzureScopes(payload: {
-    projectId?: string;
-    organization?: string;
-    project?: string;
-    pat?: string;
+  async testScopes(payload: {
+    projectId?: string | undefined;
+    providerId?: string | undefined;
+    organization?: string | undefined;
+    project?: string | undefined;
+    pat?: string | undefined;
+    [key: string]: unknown;
   }): Promise<{
     ok: boolean;
-    overPrivileged?: boolean;
-    scopes?: Record<string, unknown>;
-    error?: string;
+    overPrivileged?: boolean | undefined;
+    scopes?: Record<string, unknown> | undefined;
+    errors?: string[] | undefined;
+    warnings?: string[] | undefined;
+    error?: string | undefined;
   }> {
-    const res = await fetch("/api/projects/test-azure-scopes", {
+    const res = await fetch("/api/projects/test-scopes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     return handleResponse<{
       ok: boolean;
-      overPrivileged?: boolean;
-      scopes?: Record<string, unknown>;
-      error?: string;
+      overPrivileged?: boolean | undefined;
+      scopes?: Record<string, unknown> | undefined;
+      errors?: string[] | undefined;
+      warnings?: string[] | undefined;
+      error?: string | undefined;
     }>(res);
+  },
+
+  /**
+   * @deprecated Use `testScopes` instead. Retained for backwards compatibility.
+   */
+  async testAzureScopes(payload: {
+    projectId?: string | undefined;
+    organization?: string | undefined;
+    project?: string | undefined;
+    pat?: string | undefined;
+    [key: string]: unknown;
+  }) {
+    return this.testScopes(payload);
   },
 
   // Settings & Readiness

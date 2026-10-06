@@ -96,13 +96,12 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
   // The action is gated on the connection's DECLARED CAPABILITY, never on a
   // provider id: a provider that adds `verifyScopes` gets the action with no
-  // change here. The wire route behind the call is provider-named (a recorded
-  // #141-era limitation — see docs/reference/state-coverage.md).
+  // change here. The call dispatches through the generic api.testScopes endpoint.
   const handleVerifyScopes = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await api.testAzureScopes({ projectId: project.id });
+      const res = await api.testScopes({ projectId: project.id });
       setTestResult({ ok: res.ok, overPrivileged: res.overPrivileged });
     } catch {
       setTestResult({ ok: false });

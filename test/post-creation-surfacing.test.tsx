@@ -577,6 +577,7 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
       overPrivileged: true,
       scopes: { listTickets: true },
     }));
+    api.testScopes = testScopes as never;
     api.testAzureScopes = testScopes as never;
 
     const { container } = renderDetail(makeProject(), makeClient());
@@ -605,6 +606,7 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
     const testScopes = mock(async (_payload: { projectId?: string }) => ({
       ok: true,
     }));
+    api.testScopes = testScopes as never;
     api.testAzureScopes = testScopes as never;
 
     const { container } = renderDetail(

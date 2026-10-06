@@ -480,9 +480,10 @@ export function getOpenApiSpec() {
       "/api/projects/discover-repositories": {
         post: {
           tags: ["Discovery"],
-          summary: "Discover Repositories",
+          summary: "Discover Repositories (Legacy)",
           description:
-            "Scans Azure DevOps organizations, GitHub accounts, Jira links, or local directory paths to discover available Git repositories.",
+            "Legacy wire endpoint for repository discovery. Retained for backward compatibility; delegates to the provider registry. The canonical endpoint is POST /api/providers/repositories.",
+          deprecated: true,
           operationId: "discoverRepositories",
           requestBody: {
             required: true,
@@ -571,12 +572,57 @@ export function getOpenApiSpec() {
           },
         },
       },
-      "/api/projects/test-azure-scopes": {
+      "/api/projects/test-scopes": {
         post: {
           tags: ["Discovery"],
           summary: "Verify Tracker Provider Scopes",
           description:
-            "Probes the resolved tracker provider's credentials for the capabilities that provider must hold. The provider is resolved from `providerId`, or from the tracker connection recorded on `projectId`; a connection whose provider does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for. The path keeps its historical provider-named form.",
+            "Probes the resolved tracker provider's credentials for the capabilities that provider must hold. The provider is resolved from `providerId`, or from the tracker connection recorded on `projectId`; a connection whose provider does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for.",
+          operationId: "testScopes",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    providerId: {
+                      type: "string",
+                      example: "azure",
+                    },
+                    projectId: { type: "string", example: "proj-1" },
+                    orgUrl: {
+                      type: "string",
+                      example: "https://dev.azure.com/my-org",
+                    },
+                    project: { type: "string", example: "Platform" },
+                    pat: { type: "string", example: "token-string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Provider scope audit report",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ScopeVerificationResult",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/projects/test-azure-scopes": {
+        post: {
+          tags: ["Discovery"],
+          summary: "Verify Tracker Provider Scopes (Legacy Wire Alias)",
+          description:
+            "Legacy wire alias for `/api/projects/test-scopes`. Probes the resolved tracker provider's credentials for required capabilities. Kept for backward compatibility with older clients.",
+          deprecated: true,
           operationId: "testAzureScopes",
           requestBody: {
             required: true,

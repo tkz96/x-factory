@@ -112,6 +112,14 @@ const CONDITIONAL_RULES: readonly Rule[] = [
     pattern: /[ \t]*\?[ \t]*["'](?:github|azure|jira)["'][ \t]*:/,
   },
   {
+    name: "ternary selecting provider id",
+    pattern: /\?[^:\n\r]+:[ \t]*["'](?:github|azure|jira)["']/,
+  },
+  {
+    name: "default or fallback to provider id",
+    pattern: /(?:\|\||\?\?)\s*["'](?:github|azure|jira)["']/,
+  },
+  {
     name: "provider-id map key selector",
     pattern:
       /\b[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*[ \t]*\[[ \t]*["'](?:github|azure|jira)["'][ \t]*\]/,
@@ -506,6 +514,31 @@ const NEGATIVE_FIXTURES: ReadonlyArray<Fixture & { readonly rule: string }> = [
     path: "http/example-controller.ts",
     content: 'const label = isTracker ? "github" : guessLabel();\n',
     rule: "ternary on provider id",
+  },
+  {
+    case: "a ternary selecting a provider-id value on the alternate branch",
+    path: "http/example-controller.ts",
+    content: 'const label = isTracker ? customLabel : "azure";\n',
+    rule: "ternary selecting provider id",
+  },
+  {
+    case: "a fallback default to a provider id with logical OR",
+    path: "http/example-controller.ts",
+    content: 'const providerId = (data.provider as string) || "azure";\n',
+    rule: "default or fallback to provider id",
+  },
+  {
+    case: "a fallback default to a provider id wrapped onto the next line",
+    path: "http/example-controller.ts",
+    content:
+      'const providerId =\n  project.issueTracker?.connectionId ||\n  "github";\n',
+    rule: "default or fallback to provider id",
+  },
+  {
+    case: "a fallback default to a provider id with nullish coalescing",
+    path: "http/example-controller.ts",
+    content: 'const providerId = data.provider ?? "jira";\n',
+    rule: "default or fallback to provider id",
   },
   {
     case: "provider-specific branching by selecting from a provider-keyed record",

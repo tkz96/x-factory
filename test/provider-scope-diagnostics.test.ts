@@ -49,18 +49,21 @@ interface DiagnosticBody {
 }
 
 /** POSTs the scope-diagnostic route and returns its status and JSON body. */
-async function postScopes(body: unknown): Promise<{
+async function postScopes(
+  body: unknown,
+  routeId: "test-scopes" | "test-azure-scopes" = "test-scopes",
+): Promise<{
   status: number;
   data: DiagnosticBody;
 }> {
-  const req = new Request("http://localhost/api/projects/test-azure-scopes", {
+  const req = new Request(`http://localhost/api/projects/${routeId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const res = await handleProjectsRoute(
     "POST",
-    "test-azure-scopes",
+    routeId,
     undefined,
     2,
     req,
@@ -190,5 +193,24 @@ describe("scope diagnostic resolves its provider generically (#141)", () => {
 
     expect(data.ok).toBe(false);
     expect(data.errors?.[0]).toContain("No tracker connection resolved");
+  });
+
+  it("serves both canonical test-scopes and legacy wire alias test-azure-scopes identically", async () => {
+    await writeProject("proj-stub", "stub");
+
+    const canonical = await postScopes(
+      { projectId: "proj-stub" },
+      "test-scopes",
+    );
+    const legacy = await postScopes(
+      { projectId: "proj-stub" },
+      "test-azure-scopes",
+    );
+
+    expect(canonical.status).toBe(200);
+    expect(legacy.status).toBe(200);
+    expect(canonical.data).toEqual(legacy.data);
+    expect(canonical.data.ok).toBe(true);
+    expect(canonical.data.scopes).toEqual({ listTickets: true });
   });
 });

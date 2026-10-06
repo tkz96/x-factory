@@ -619,21 +619,32 @@ function parseGitHubTrackerConfig(
   return undefined;
 }
 
+/**
+ * Historical config files without an explicit issue tracker provider default to
+ * github on disk load. Isolated at this legacy parsing boundary.
+ */
+const LEGACY_DEFAULT_TRACKER_PROVIDER: IssueTrackerProvider = "github";
+
 function _parseIssueTracker(
   raw: unknown,
   _projectId: string,
 ): ProjectIssueTracker {
   if (!raw || typeof raw !== "object") {
-    return { provider: "github", connectionId: "github" };
+    return {
+      provider: LEGACY_DEFAULT_TRACKER_PROVIDER,
+      connectionId: LEGACY_DEFAULT_TRACKER_PROVIDER,
+    };
   }
   const t = raw as Record<string, unknown>;
-  const provider = ((typeof t.provider === "string" && t.provider.trim()
-    ? t.provider.trim()
-    : "") ||
+  const declaredProvider =
+    (typeof t.provider === "string" && t.provider.trim()
+      ? t.provider.trim()
+      : "") ||
     (typeof t.connectionId === "string" && t.connectionId.trim()
       ? t.connectionId.trim()
-      : "") ||
-    "github") as IssueTrackerProvider;
+      : "");
+  const provider = (declaredProvider ||
+    LEGACY_DEFAULT_TRACKER_PROVIDER) as IssueTrackerProvider;
 
   const result: ProjectIssueTracker = {
     provider,

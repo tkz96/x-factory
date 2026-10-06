@@ -252,6 +252,31 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.ok, false);
   });
 
+  it("POST /api/projects/test-connection rejects missing provider with 400", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/test-connection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project: "nonexistent" }),
+    });
+
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { error: string };
+    assert.ok(body.error.includes("Provider is required"));
+  });
+
+  it("POST /api/projects/test-scopes verifies scopes through generic endpoint", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/test-scopes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "jira" }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean; errors: string[] };
+    assert.equal(body.ok, false);
+    assert.ok(body.errors[0]?.includes("does not support scope verification"));
+  });
+
   it("POST /api/projects/validate-path routes to path checking and returns existsLocally", async () => {
     const res = await fetch(`${baseUrl}/api/projects/validate-path`, {
       method: "POST",
@@ -564,6 +589,58 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(res.status, 200);
     const body = (await res.json()) as { ok: boolean };
     assert.equal(typeof body.ok, "boolean");
+  });
+
+  it("tracker credentials and test endpoints fail closed with 400 when project has no tracker configured", async () => {
+    const noTrackerProjId = `proj-no-tracker-${Date.now()}`;
+    const { spyOn } = await import("bun:test");
+    const configModule = await import("../src/config.js");
+    const noTrackerProj = {
+      id: noTrackerProjId,
+      name: "No Tracker Project",
+      workspacePath: tempDir,
+      repositoryPath: tempDir,
+      defaultBranch: "main",
+      testCommand: "bun test",
+      repositories: [],
+      issueTracker: {} as never,
+    };
+    const spy = spyOn(configModule, "getProject").mockImplementation(
+      async (id: string) => {
+        if (id === noTrackerProjId) return noTrackerProj as never;
+        return null;
+      },
+    );
+
+    try {
+      // PUT /tracker/credentials should fail closed with 400
+      const credRes = await fetch(
+        `${baseUrl}/api/projects/${noTrackerProjId}/tracker/credentials`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: "secret" }),
+        },
+      );
+      assert.equal(credRes.status, 400);
+      const credBody = (await credRes.json()) as { error: string };
+      assert.ok(credBody.error.includes("Missing issue tracker provider"));
+
+      // POST /tracker/test should fail closed with 400 when body does not specify a provider
+      const testRes = await fetch(
+        `${baseUrl}/api/projects/${noTrackerProjId}/tracker/test`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+      assert.equal(testRes.status, 400);
+      const testBody = (await testRes.json()) as { error: string };
+      assert.ok(testBody.error.includes("Missing issue tracker provider"));
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("POST /api/projects/:id/migrate blocks migration with 409 if project has active run", async () => {
