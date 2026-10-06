@@ -54,6 +54,11 @@ import type {
   ProjectConnection,
   ProjectRepository,
 } from "../types.js";
+import {
+  ClaimTimeoutError,
+  type CreationClaimOptions,
+  withCreationClaim,
+} from "./creation-claim.js";
 
 /** Capabilities a connection must support for each role it declares. */
 const ROLE_CAPABILITIES: Record<ProviderRole, readonly ProviderCapability[]> = {
@@ -73,6 +78,8 @@ export interface ProjectCreationOptions {
   registry?: ProviderRegistry;
   /** Projects config file; defaults to the documented path override. */
   configPath?: string;
+  /** Creation-claim tuning (tests); defaults to the documented TTL and bound. */
+  claim?: CreationClaimOptions;
 }
 
 interface PreparedConnection {
@@ -270,9 +277,19 @@ function buildProjectRecord(
 /**
  * Creates a project from the normalized connections payload (#131).
  *
- * Ordered writes: validate everything in memory → write the secrets (idempotent,
- * so a retry after a partial failure converges) → append the project record as
- * the commit point. If secret persistence fails, no project is created.
+ * Ordered writes, INSIDE the per-id creation claim (see
+ * `src/services/creation-claim.ts`): claim → duplicate check → secrets
+ * (idempotent, so a retry after a partial failure converges) → project record as
+ * the commit point → release. If secret persistence fails, no project is
+ * created.
+ *
+ * The claim is what makes this sequence safe against a concurrent creation of
+ * the SAME id: without it, two creations both pass an in-memory duplicate check,
+ * both write secrets, and only then does one of them lose the record append —
+ * leaving the winner's secret overwritten by the loser's values. With it, the
+ * loser writes nothing: it waits for the winner's claim and is rejected by the
+ * duplicate check, which runs *inside* the claim, as the same 409
+ * `ConflictError` as before.
  */
 export async function createProjectFromConnections(
   input: ConnectionsProjectInput,
@@ -281,7 +298,8 @@ export async function createProjectFromConnections(
   const registry = options.registry ?? PROVIDER_REGISTRY;
   const configPath = options.configPath ?? getProjectsConfigPath();
 
-  // (1) Validate the complete request in memory, before any write.
+  // (1) Validate the complete request in memory, before any write. Pure, so it
+  // stays outside the claim: an invalid payload must not contend for one.
   assertDistinctProviders(input.connections.map((c) => c.providerId));
   const prepared = input.connections.map((connection) =>
     prepareConnection(connection, registry),
@@ -292,30 +310,53 @@ export async function createProjectFromConnections(
   const secrets = mergeConnectionSecrets(prepared);
   const record = buildProjectRecord(input, prepared, coverage.tracker);
 
-  const existing = await loadProjects(configPath);
-  if (existing.some((p) => p.id === input.id)) {
-    throw new ConflictError(`Project with ID "${input.id}" already exists.`);
+  try {
+    return await withCreationClaim(
+      input.id,
+      async () => {
+        // (2) The duplicate check runs inside the claim, so "no project with
+        // this id exists" keeps holding for the whole write sequence below.
+        const existing = await loadProjects(configPath);
+        if (existing.some((p) => p.id === input.id)) {
+          throw new ConflictError(
+            `Project with ID "${input.id}" already exists.`,
+          );
+        }
+
+        // (3) Secrets first — overwriting is safe, so a retry converges.
+        await saveProjectEnv(input.id, secrets);
+
+        // (4) The project record is the commit point.
+        const saved = await appendProjectRecord(record, configPath);
+
+        emitStructuredLog(
+          "info",
+          "Project created from connections",
+          {},
+          {
+            project_id: saved.id,
+            // Redaction before serialization: the incoming configuration is logged
+            // with every declared secret masked, never as received.
+            connections: redactConnections(input.connections, registry),
+          },
+        );
+
+        return saved;
+      },
+      options.claim,
+    );
+  } catch (err) {
+    // A claim not taken within the wait bound means another creation of this id
+    // is in flight: the same conflict the duplicate check reports, so the API
+    // layer's 409 mapping is unchanged. A request fails loudly rather than
+    // hanging.
+    if (err instanceof ClaimTimeoutError) {
+      throw new ConflictError(
+        `Project with ID "${input.id}" is already being created.`,
+      );
+    }
+    throw err;
   }
-
-  // (2) Secrets first — overwriting is safe, so a retry converges.
-  await saveProjectEnv(input.id, secrets);
-
-  // (3) The project record is the commit point.
-  const saved = await appendProjectRecord(record, configPath);
-
-  emitStructuredLog(
-    "info",
-    "Project created from connections",
-    {},
-    {
-      project_id: saved.id,
-      // Redaction before serialization: the incoming configuration is logged
-      // with every declared secret masked, never as received.
-      connections: redactConnections(input.connections, registry),
-    },
-  );
-
-  return saved;
 }
 
 /** One connection in a project update; its secret values are optional. */

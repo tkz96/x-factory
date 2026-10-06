@@ -52,6 +52,19 @@ export function getDatabasePath(): string {
 }
 
 /**
+ * Directory holding cross-process claim/lock files:
+ * ~/.x-factory/locks/
+ *
+ * It lives at the data-dir root, deliberately OUTSIDE any project's own
+ * directory: a claim is an artifact of an *attempted* operation, so a rejected
+ * or abandoned attempt must leave nothing in the project's tree (and nothing
+ * that looks like a project at all).
+ */
+export function getLocksDir(): string {
+  return path.join(getDataDir(), "locks");
+}
+
+/**
  * Directory for a project's data:
  * ~/.x-factory/projects/<projectId>/
  */
