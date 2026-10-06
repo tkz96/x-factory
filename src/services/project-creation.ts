@@ -24,6 +24,7 @@ import {
   MISSING_CONNECTION_ROLE_CODES,
   missingConnectionRoleCodes,
   type ProjectConnectionInput,
+  REQUIRED_CONNECTION_ROLES,
 } from "../config-schema.js";
 import { emitStructuredLog } from "../diagnostics/correlation.js";
 import { ConflictError, SemanticValidationError } from "../errors.js";
@@ -165,13 +166,25 @@ function prepareConnection(
  * creation and update (for an update, against the MERGED result), so no secret
  * is ever written for a set that will be rejected.
  *
+ * Each required role must have exactly one owner (#133 / PR #158 Task 1). If a
+ * required role is covered by more than one connection, it is rejected with
+ * `incompatibleConfiguration()`. If a required role is missing, it is rejected
+ * with `missingConnectionRoleCodes(connections)`.
+ *
  * It returns the connection carrying each role, so the record builder derives
  * the legacy tracker mirror from the same lookup that proved the role exists —
  * never from a second, weaker check.
  */
-function assertConnectionRoleCoverage<
+export function assertConnectionRoleCoverage<
   T extends { roles: readonly ProviderRole[] },
 >(connections: readonly T[]): { tracker: T; gitHost: T } {
+  for (const role of REQUIRED_CONNECTION_ROLES) {
+    const owners = connections.filter((c) => c.roles.includes(role));
+    if (owners.length > 1) {
+      throw incompatibleConfiguration();
+    }
+  }
+
   const tracker = connections.find((c) => c.roles.includes("tracker"));
   const gitHost = connections.find((c) => c.roles.includes("gitHost"));
   if (!tracker || !gitHost) {

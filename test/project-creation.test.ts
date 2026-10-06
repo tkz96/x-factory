@@ -35,7 +35,7 @@ import {
   type ConnectionsProjectInput,
   missingConnectionRoleCodes,
 } from "../src/config-schema.js";
-import { ConflictError } from "../src/errors.js";
+import { ConflictError, SemanticValidationError } from "../src/errors.js";
 import { getLocksDir, getProjectEnvPath } from "../src/paths.js";
 import { loadProjectEnv, saveProjectEnv } from "../src/project-env.js";
 import type {
@@ -50,7 +50,10 @@ import {
   getCreationClaimPath,
   withCreationClaim,
 } from "../src/services/creation-claim.js";
-import { createProjectFromConnections } from "../src/services/project-creation.js";
+import {
+  assertConnectionRoleCoverage,
+  createProjectFromConnections,
+} from "../src/services/project-creation.js";
 import type { Project } from "../src/types.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
 
@@ -696,6 +699,294 @@ describe("POST /api/projects with a connections payload", () => {
       ).toEqual([]);
     });
 
+    it("enforces unique role ownership across connections (#133 / PR #158 Task 1)", () => {
+      // (a) Exactly one owner per required role is accepted
+      const validSplit = assertConnectionRoleCoverage([
+        { providerId: "p1", roles: ["tracker"] },
+        { providerId: "p2", roles: ["gitHost"] },
+      ]);
+      expect(validSplit.tracker.providerId).toBe("p1");
+      expect(validSplit.gitHost.providerId).toBe("p2");
+
+      const validDual = assertConnectionRoleCoverage([
+        { providerId: "p1", roles: ["tracker", "gitHost"] },
+      ]);
+      expect(validDual.tracker.providerId).toBe("p1");
+      expect(validDual.gitHost.providerId).toBe("p1");
+
+      // (b) More than one owner for a required role throws INCOMPATIBLE_CONFIGURATION
+      function expectIncompatible(
+        connections: Array<{
+          providerId: string;
+          roles: ("tracker" | "gitHost")[];
+        }>,
+      ): void {
+        try {
+          assertConnectionRoleCoverage(connections);
+          expect.unreachable("expected incompatible configuration error");
+        } catch (err) {
+          expect(err).toBeInstanceOf(SemanticValidationError);
+          expect((err as SemanticValidationError).formErrors).toEqual([
+            "INCOMPATIBLE_CONFIGURATION",
+          ]);
+        }
+      }
+
+      // Duplicate tracker (with gitHost present)
+      expectIncompatible([
+        { providerId: "p1", roles: ["tracker"] },
+        { providerId: "p2", roles: ["tracker"] },
+        { providerId: "p3", roles: ["gitHost"] },
+      ]);
+
+      // Duplicate gitHost (with tracker present)
+      expectIncompatible([
+        { providerId: "p1", roles: ["tracker"] },
+        { providerId: "p2", roles: ["gitHost"] },
+        { providerId: "p3", roles: ["gitHost"] },
+      ]);
+
+      // Dual-role connection + additional tracker connection
+      expectIncompatible([
+        { providerId: "p1", roles: ["tracker", "gitHost"] },
+        { providerId: "p2", roles: ["tracker"] },
+      ]);
+
+      // Dual-role connection + additional gitHost connection
+      expectIncompatible([
+        { providerId: "p1", roles: ["tracker", "gitHost"] },
+        { providerId: "p2", roles: ["gitHost"] },
+      ]);
+
+      // Multiple dual-role connections
+      expectIncompatible([
+        { providerId: "p1", roles: ["tracker", "gitHost"] },
+        { providerId: "p2", roles: ["tracker", "gitHost"] },
+      ]);
+
+      // Duplicate tracker even when gitHost is missing
+      expectIncompatible([
+        { providerId: "p1", roles: ["tracker"] },
+        { providerId: "p2", roles: ["tracker"] },
+      ]);
+
+      // Duplicate gitHost even when tracker is missing
+      expectIncompatible([
+        { providerId: "p1", roles: ["gitHost"] },
+        { providerId: "p2", roles: ["gitHost"] },
+      ]);
+    });
+
+    it("rejects a payload with duplicate tracker ownership with 409 INCOMPATIBLE_CONFIGURATION before any write", async () => {
+      const id = baseId();
+      const secretA = "synthetic-secret-tracker-a";
+      const secretB = "synthetic-secret-tracker-b";
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "jira",
+            roles: ["tracker"],
+            config: {
+              host: "https://jira.example",
+              email: "dev@example.com",
+              apiToken: secretA,
+              project: "JIRA",
+            },
+          },
+          {
+            providerId: "stub-tracker-only",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: secretB,
+              project: "stub",
+            },
+          },
+          {
+            providerId: "github",
+            roles: ["gitHost"],
+            config: {
+              token: MARKER_GITHUB_TOKEN,
+              repoOwner: "acme",
+              repository: "web",
+            },
+          },
+        ],
+      });
+
+      // Semantic 409 Conflict, not transport 400 Bad Request
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+
+      // Pre-write rejection: no record written, no env directory/file created
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
+    it("rejects a payload with duplicate gitHost ownership with 409 INCOMPATIBLE_CONFIGURATION before any write", async () => {
+      const id = baseId();
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-tracker-only",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "stub",
+            },
+          },
+          {
+            providerId: "stub-capable",
+            roles: ["gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "git1",
+            },
+          },
+          {
+            providerId: "github",
+            roles: ["gitHost"],
+            config: {
+              token: MARKER_GITHUB_TOKEN,
+              repoOwner: "acme",
+              repository: "web",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
+    it("rejects a dual-role connection with an additional tracker connection with 409 INCOMPATIBLE_CONFIGURATION before any write", async () => {
+      const id = baseId();
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "capable",
+            },
+          },
+          {
+            providerId: "jira",
+            roles: ["tracker"],
+            config: {
+              host: "https://jira.example",
+              email: "dev@example.com",
+              apiToken: MARKER_JIRA_TOKEN,
+              project: "JIRA",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
+    it("rejects a dual-role connection with an additional gitHost connection with 409 INCOMPATIBLE_CONFIGURATION before any write", async () => {
+      const id = baseId();
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "capable",
+            },
+          },
+          {
+            providerId: "github",
+            roles: ["gitHost"],
+            config: {
+              token: MARKER_GITHUB_TOKEN,
+              repoOwner: "acme",
+              repository: "web",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
+    it("rejects duplicate tracker ownership even if gitHost is missing with 409 INCOMPATIBLE_CONFIGURATION", async () => {
+      const id = baseId();
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "jira",
+            roles: ["tracker"],
+            config: {
+              host: "https://jira.example",
+              email: "dev@example.com",
+              apiToken: MARKER_JIRA_TOKEN,
+              project: "JIRA",
+            },
+          },
+          {
+            providerId: "stub-tracker-only",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "stub",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+
+      expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+        false,
+      );
+      await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+      expect(await loadProjectEnv(id)).toEqual({});
+    });
+
     it("mirrors issueTracker from the tracker connection, never from the default", async () => {
       const id = baseId();
 
@@ -1283,9 +1574,10 @@ describe("Redaction before serialization (connections payload)", () => {
     const connections: ConnectionsPayload["connections"] = [
       {
         providerId: "stub-capable",
-        // Both roles: the redaction surfaces are asserted on a project that can
-        // actually exist under #133.
-        roles: ["tracker", "gitHost"],
+        // Both roles when solo, or tracker role when paired with github:
+        // the redaction surfaces are asserted on a project that can actually
+        // exist under unique role ownership (#133 / Task 1).
+        roles: connectionSecrets.github ? ["tracker"] : ["tracker", "gitHost"],
         config: {
           host: "https://stub.example",
           apiToken: connectionSecrets.stub,
@@ -1610,6 +1902,70 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     // storage, and secrets and record are untouched.
     const envFile = await readFile(getProjectEnvPath(projectId), "utf-8");
     expect(envFile).not.toContain(unwritten);
+    expect(await loadProjectEnv(projectId)).toEqual(envBefore);
+    expect(await readStoredProject(projectId)).toEqual(recordBefore);
+  });
+
+  it("rejects an update whose MERGED connections would produce duplicate tracker ownership, with 409 INCOMPATIBLE_CONFIGURATION and no write", async () => {
+    const envBefore = await loadProjectEnv(projectId);
+    const recordBefore = await readStoredProject(projectId);
+    const unwrittenSecret = "synthetic-duplicate-tracker-secret";
+
+    // Project already has stub-optional-secret with ["tracker", "gitHost"].
+    // Adding stub-tracker-only with ["tracker"] would create duplicate tracker ownership in merged connections.
+    const res = await patch({
+      connections: [
+        {
+          providerId: "stub-tracker-only",
+          roles: ["tracker"],
+          config: {
+            host: "https://stub.example",
+            apiToken: unwrittenSecret,
+            project: "dup-tracker",
+          },
+        },
+      ],
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      formErrors: ["INCOMPATIBLE_CONFIGURATION"],
+    });
+
+    // Verify no secret write occurred:
+    const envFile = await readFile(getProjectEnvPath(projectId), "utf-8");
+    expect(envFile).not.toContain(unwrittenSecret);
+    expect(await loadProjectEnv(projectId)).toEqual(envBefore);
+    expect(await readStoredProject(projectId)).toEqual(recordBefore);
+  });
+
+  it("rejects an update whose MERGED connections would produce duplicate gitHost ownership, with 409 INCOMPATIBLE_CONFIGURATION and no write", async () => {
+    const envBefore = await loadProjectEnv(projectId);
+    const recordBefore = await readStoredProject(projectId);
+    const unwrittenSecret = "synthetic-duplicate-githost-secret";
+
+    // Adding github with ["gitHost"] creates duplicate gitHost ownership with stub-optional-secret
+    const res = await patch({
+      connections: [
+        {
+          providerId: "github",
+          roles: ["gitHost"],
+          config: {
+            token: unwrittenSecret,
+            repoOwner: "acme",
+            repository: "dup-repo",
+          },
+        },
+      ],
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      formErrors: ["INCOMPATIBLE_CONFIGURATION"],
+    });
+
+    const envFile = await readFile(getProjectEnvPath(projectId), "utf-8");
+    expect(envFile).not.toContain(unwrittenSecret);
     expect(await loadProjectEnv(projectId)).toEqual(envBefore);
     expect(await readStoredProject(projectId)).toEqual(recordBefore);
   });
