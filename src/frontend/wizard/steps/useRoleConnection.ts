@@ -22,6 +22,8 @@ import type {
 import {
   deriveVerificationStatus,
   extractApiErrors,
+  hasVerifiedEvidence,
+  resolveVerificationDisplay,
 } from "./connection-error-helpers.js";
 
 export function useRoleConnection(
@@ -139,26 +141,32 @@ export function useRoleConnection(
   };
 
   const { fieldErrors, formErrors } = extractApiErrors(error);
-  // The evidence this card displays is THIS role's verification, and it is only
-  // current while the state still records this role as verified: a write to the
-  // provider's shared configuration from EITHER card clears both roles'
-  // evidence, and a card must stop showing a verification that no longer
-  // corresponds to the configuration on record.
-  const sessionVerification = roleState.verified === true ? verification : null;
+  // The card's displayed evidence is derived from BOTH sources, in one place:
+  // the result just received, and the evidence the wizard state persists for
+  // this role. The state is authoritative for the FACT — the hook's local state
+  // is gone as soon as the step unmounts (only the ACTIVE step is rendered), so
+  // a remount must not silently un-verify a role the reducer still records as
+  // verified. A provider change, a configuration write from EITHER card and a
+  // Quick-URL match all clear that evidence, and the display follows it down —
+  // a result still in hand then belongs to a configuration nobody verified.
+  const displayVerification = resolveVerificationDisplay(
+    verification,
+    roleState,
+  );
   const sessionStatus = deriveVerificationStatus(
     isPending,
-    sessionVerification,
+    verification,
     error,
+    roleState,
   );
   // A degraded verification IS a verified connection (#133): its warnings are
   // surfaced on the card, never collected as an acknowledgement, and never a
-  // reason to withhold anything.
-  const isVerified =
-    Boolean(roleState.providerId) &&
-    (sessionStatus === "ok" || sessionStatus === "degraded");
+  // reason to withhold anything. WHETHER this role is verified is read from the
+  // evidence itself, never from the transient status that a remount resets.
+  const isVerified = hasVerifiedEvidence(roleState);
 
   return {
-    verification: sessionVerification,
+    verification: displayVerification,
     error,
     isPending,
     status: sessionStatus,
