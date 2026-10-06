@@ -2320,7 +2320,7 @@ describe("Concurrent project updates and claim fencing (#133 / #158 Task 2)", ()
     );
 
     expect(updated.name).toBe("Direct Updated Name");
-    expect(updated.connections[0].config.project).toBe("updated-direct");
+    expect(updated.connections?.[0]?.config.project).toBe("updated-direct");
   });
 });
 describe("POST /api/projects with a LEGACY payload (#133 correction 1)", () => {
