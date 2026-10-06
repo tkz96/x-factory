@@ -422,7 +422,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
 
     await typeInput(quickUrlInput, "https://dual.example.com/my-org");
     await act(async () => {
-      fireEvent.click(submitBtn);
+      fireEvent.keyDown(quickUrlInput, { key: "Enter" });
     });
 
     // Both cards now have dual-service selected

@@ -193,6 +193,10 @@ describe("Wizard Skeleton, Basics Step & Client Drafts (spec #133, #142)", () =>
     const idInput = getEl<HTMLInputElement>("onboard-proj-id");
     expect(idInput.value).toBe("apollo-engine");
 
+    // Test manual ID edit
+    await typeInput(idInput, "custom-apollo-id");
+    expect(idInput.value).toBe("custom-apollo-id");
+
     // Next button becomes enabled
     expect(nextBtn.disabled).toBe(false);
   });
