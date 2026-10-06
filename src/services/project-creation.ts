@@ -27,7 +27,11 @@ import {
   REQUIRED_CONNECTION_ROLES,
 } from "../config-schema.js";
 import { emitStructuredLog } from "../diagnostics/correlation.js";
-import { ConflictError, SemanticValidationError } from "../errors.js";
+import {
+  ConflictError,
+  NotFoundError,
+  SemanticValidationError,
+} from "../errors.js";
 import {
   deleteProjectEnvKeys,
   loadProjectEnv,
@@ -555,61 +559,86 @@ export async function updateProjectConnections(
     }
   }
 
-  const storedEnv = await loadProjectEnv(project.id);
-  const updates = input.connections.map((connection) =>
-    prepareConnectionUpdate(
-      project,
-      connection,
-      clearSecrets,
-      storedEnv,
-      registry,
-    ),
-  );
+  try {
+    return await withCreationClaim(
+      project.id,
+      async (claim) => {
+        // 1. Re-read current project state from disk (to ensure it hasn't been modified or deleted)
+        const existing = await loadProjects(configPath);
+        const current = existing.find((p) => p.id === project.id);
+        if (!current) {
+          throw new NotFoundError(`Project "${project.id}" not found.`);
+        }
 
-  // The MERGED result must still cover both roles: an update that would leave
-  // the project without a tracker or without a git host is rejected here, before
-  // any secret is written (#133).
-  const connections = mergeConnections(
-    project.connections,
-    updates.map((update) => update.connection),
-  );
-  const coverage = assertConnectionRoleCoverage(connections);
+        // 2. Perform fencing check: verify claim is still held before reading env
+        await claim.assertHeld();
 
-  const secrets: Record<string, string> = {};
-  const clearedKeys: string[] = [];
-  for (const update of updates) {
-    Object.assign(secrets, update.secrets);
-    clearedKeys.push(...update.clearedKeys);
+        // 3. Load latest project env
+        const storedEnv = await loadProjectEnv(project.id);
+
+        // 4. Prepare updates and merge with current connections
+        const updates = input.connections.map((connection) =>
+          prepareConnectionUpdate(
+            current,
+            connection,
+            clearSecrets,
+            storedEnv,
+            registry,
+          ),
+        );
+        const connections = mergeConnections(
+          current.connections,
+          updates.map((update) => update.connection),
+        );
+
+        // 5. Validate merged role coverage
+        const coverage = assertConnectionRoleCoverage(connections);
+
+        const secrets: Record<string, string> = {};
+        const clearedKeys: string[] = [];
+        for (const update of updates) {
+          Object.assign(secrets, update.secrets);
+          clearedKeys.push(...update.clearedKeys);
+        }
+
+        // 6. Save secrets and delete cleared keys
+        await saveProjectEnv(project.id, secrets);
+        await deleteProjectEnvKeys(project.id, clearedKeys);
+
+        // 7. Perform fencing check: verify claim is still held before committing project record
+        await claim.assertHeld();
+
+        // 8. Save updated project record
+        const next: Project = {
+          ...current,
+          name: input.name?.trim() || current.name,
+          workspacePath: input.workspacePath?.trim() || current.workspacePath,
+          gitIdentity: input.gitIdentity ?? current.gitIdentity,
+          connections,
+          issueTracker: deriveIssueTracker(
+            coverage.tracker.providerId,
+            coverage.tracker.config,
+          ),
+        };
+
+        const saved = await saveProject(next, configPath);
+
+        emitStructuredLog(
+          "info",
+          "Project connections updated",
+          {},
+          {
+            project_id: saved.id,
+            // Redacted before serialization, as on creation.
+            connections: redactConnections(input.connections, registry),
+          },
+        );
+
+        return saved;
+      },
+      options.claim,
+    );
+  } catch (err) {
+    translateClaimError(err, project.id);
   }
-
-  // Secrets first (idempotent), then the record as the commit point.
-  await saveProjectEnv(project.id, secrets);
-  await deleteProjectEnvKeys(project.id, clearedKeys);
-
-  const next: Project = {
-    ...project,
-    name: input.name?.trim() || project.name,
-    workspacePath: input.workspacePath?.trim() || project.workspacePath,
-    gitIdentity: input.gitIdentity ?? project.gitIdentity,
-    connections,
-    issueTracker: deriveIssueTracker(
-      coverage.tracker.providerId,
-      coverage.tracker.config,
-    ),
-  };
-
-  const saved = await saveProject(next, configPath);
-
-  emitStructuredLog(
-    "info",
-    "Project connections updated",
-    {},
-    {
-      project_id: saved.id,
-      // Redacted before serialization, as on creation.
-      connections: redactConnections(input.connections, registry),
-    },
-  );
-
-  return saved;
 }

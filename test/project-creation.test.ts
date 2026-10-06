@@ -1513,9 +1513,11 @@ describe("Concurrent creation of the same project id (#133 CORR-3)", () => {
     });
 
     // Slow Holder A acquires claim with heartbeat disabled, passes duplicate check, then pauses before secrets
+    let holderToken = "";
     const slowHolder = withCreationClaim(
       id,
       async (claim) => {
+        holderToken = claim.token;
         holderEntered();
         const existing = await loadProjects(raceConfigPath);
         if (existing.some((p) => p.id === id)) {
@@ -1532,8 +1534,16 @@ describe("Concurrent creation of the same project id (#133 CORR-3)", () => {
 
     await entered;
 
-    // Backdate claim to simulate holder stalled past TTL
-    const past = new Date(Date.now() - 100);
+    // Simulate holder process crashed/died past TTL by updating claim with dead PID and backdating
+    await writeFile(
+      claimPath,
+      `${JSON.stringify({
+        token: holderToken,
+        pid: 99999999,
+        createdAt: Date.now() - 200,
+      })}\n`,
+    );
+    const past = new Date(Date.now() - 200);
     await utimes(claimPath, past, past);
 
     // Contender B reclaims and creates project with its secret
@@ -1968,6 +1978,210 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(envFile).not.toContain(unwrittenSecret);
     expect(await loadProjectEnv(projectId)).toEqual(envBefore);
     expect(await readStoredProject(projectId)).toEqual(recordBefore);
+  });
+
+  it("rejects malformed normalized PATCH payloads with HTTP 400 and never reaches legacy merge", async () => {
+    const envBefore = await loadProjectEnv(projectId);
+    const recordBefore = await readStoredProject(projectId);
+
+    // { connections: null } must be rejected with 400 and NEVER reach the legacy merge path
+    const nullConnRes = await patch({ connections: null });
+    expect(nullConnRes.status).toBe(400);
+
+    // Non-array connections (string, object) must be rejected with 400
+    const strConnRes = await patch({ connections: "not-an-array" });
+    expect(strConnRes.status).toBe(400);
+
+    const objConnRes = await patch({ connections: { providerId: "jira" } });
+    expect(objConnRes.status).toBe(400);
+
+    // Empty array of connections must be rejected with 400 (min 1 required)
+    const emptyConnRes = await patch({ connections: [] });
+    expect(emptyConnRes.status).toBe(400);
+
+    // Modifying tracker directly on normalized project must not bypass normalized schema
+    const directTrackerRes = await patch({
+      issueTracker: { provider: "jira", connectionId: "jira" },
+    });
+    expect(directTrackerRes.status).toBe(400);
+
+    // Verify project record and env were NEVER mutated
+    expect(await loadProjectEnv(projectId)).toEqual(envBefore);
+    expect(await readStoredProject(projectId)).toEqual(recordBefore);
+  });
+});
+
+describe("Concurrent project updates and claim fencing (#133 / #158 Task 2)", () => {
+  it("serializes concurrent normalized PATCH operations through the claim, re-reading state from disk so neither loses updates", async () => {
+    const concurrentId = `patch-race-${Date.now()}`;
+    const initial = await createProject({
+      id: concurrentId,
+      name: "Concurrent Base",
+      workspacePath: tempDir,
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            backupToken: "initial-backup",
+            project: "initial-proj",
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${concurrentId}-repo`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+        },
+      ],
+    });
+    expect(initial.status).toBe(201);
+
+    const tokenA = "token-patch-a-999";
+    const tokenB = "token-patch-b-888";
+
+    // Two PATCHes started concurrently:
+    const [resA, resB] = await Promise.all([
+      fetch(`${baseUrl}/api/projects/${concurrentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Updated by A",
+          connections: [
+            {
+              providerId: "stub-optional-secret",
+              roles: ["tracker", "gitHost"],
+              config: {
+                host: "https://stub.example",
+                apiToken: tokenA,
+                project: "proj-a",
+              },
+            },
+          ],
+        }),
+      }),
+      fetch(`${baseUrl}/api/projects/${concurrentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connections: [
+            {
+              providerId: "stub-optional-secret",
+              roles: ["tracker", "gitHost"],
+              config: {
+                host: "https://stub.example",
+                backupToken: tokenB,
+                project: "proj-b",
+              },
+            },
+          ],
+        }),
+      }),
+    ]);
+
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+
+    const finalEnv = await loadProjectEnv(concurrentId);
+    expect(finalEnv.STUB_BACKUP_TOKEN).toBe(tokenB);
+    const finalStored = await readStoredProject(concurrentId);
+    expect(finalStored).toBeDefined();
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("rejects a normalized CREATE racing against a PATCH on the same project ID as a 409 Conflict", async () => {
+    const id = `patch-vs-create-norm-${Date.now()}`;
+    const initial = await createProject(jiraAndGithubPayload(id));
+    expect(initial.status).toBe(201);
+
+    const [patchRes, createRes] = await Promise.all([
+      fetch(`${baseUrl}/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Patched Project",
+          connections: [
+            {
+              providerId: "jira",
+              roles: ["tracker"],
+              config: {
+                host: "https://rocket.atlassian.net",
+                email: "dev@example.com",
+                project: "ROCKET",
+              },
+            },
+            {
+              providerId: "github",
+              roles: ["gitHost"],
+              config: { repoOwner: "acme", repository: "web" },
+            },
+          ],
+        }),
+      }),
+      createProject(jiraAndGithubPayload(id)),
+    ]);
+
+    expect(patchRes.status).toBe(200);
+    expect(createRes.status).toBe(409);
+    expect((await readStoredProject(id))?.name).toBe("Patched Project");
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("rejects a legacy CREATE racing against a PATCH on the same project ID as a 409 Conflict", async () => {
+    const id = `patch-vs-create-legacy-${Date.now()}`;
+    const initial = await createProject(jiraAndGithubPayload(id));
+    expect(initial.status).toBe(201);
+
+    const [patchRes, createRes] = await Promise.all([
+      fetch(`${baseUrl}/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Patched Legacy Rival",
+          connections: [
+            {
+              providerId: "jira",
+              roles: ["tracker"],
+              config: {
+                host: "https://rocket.atlassian.net",
+                email: "dev@example.com",
+                project: "ROCKET",
+              },
+            },
+            {
+              providerId: "github",
+              roles: ["gitHost"],
+              config: { repoOwner: "acme", repository: "web" },
+            },
+          ],
+        }),
+      }),
+      createProject({
+        id,
+        name: "Legacy Impostor",
+        repositoryPath: path.join(tempDir, "legacy-repo"),
+        defaultBranch: "main",
+        testCommand: "bun test",
+        issueTracker: {
+          provider: "jira",
+          connectionId: "jira",
+          jira: {
+            host: "https://acme.atlassian.net",
+            email: "dev@example.com",
+            project: "ACME",
+          },
+        },
+      }),
+    ]);
+
+    expect(patchRes.status).toBe(200);
+    expect(createRes.status).toBe(409);
+    expect((await readStoredProject(id))?.name).toBe("Patched Legacy Rival");
+    expect(await readdir(getLocksDir())).toEqual([]);
   });
 });
 describe("POST /api/projects with a LEGACY payload (#133 correction 1)", () => {

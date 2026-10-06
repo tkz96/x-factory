@@ -44,6 +44,7 @@ import {
   updateProjectConnections,
 } from "../services/project-creation.js";
 import type { IssueTrackerProvider } from "../shared/types.js";
+import type { Project } from "../types.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -106,16 +107,23 @@ async function handleGetProject(projectId: string): Promise<Response> {
 }
 
 /**
- * The raw update body's discriminator: it is NOT validated against a union, so
- * the presence of a `connections` array is the only signal available here. The
- * create path never needs this — its validated union already decided.
+ * Detects whether a project update targets normalized connections (#133 / #158).
+ * Any payload containing a `connections` or `clearSecrets` field, or targeting
+ * connection data on a project that already has normalized connections, must
+ * be validated against the normalized update schema rather than bypassing it
+ * through legacy raw merge.
  */
-function hasConnections(body: unknown): boolean {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    Array.isArray((body as { connections?: unknown }).connections)
-  );
+function isConnectionUpdate(raw: unknown, project: Project): boolean {
+  if (typeof raw !== "object" || raw === null) return false;
+  if ("connections" in raw || "clearSecrets" in raw) return true;
+  if (
+    Array.isArray(project.connections) &&
+    project.connections.length > 0 &&
+    "issueTracker" in raw
+  ) {
+    return true;
+  }
+  return false;
 }
 
 async function handleUpdateProject(
@@ -129,9 +137,10 @@ async function handleUpdateProject(
   const raw = await parseJsonBody(req);
   if (!raw) return errorResponse("Invalid JSON for project update.", 400);
 
-  // Connection updates go through the normalized path (#145); every other
-  // update keeps the existing merge-and-save behaviour.
-  if (hasConnections(raw)) {
+  // Connection updates go through the normalized path (#145, #158).
+  // A payload that carries a `connections` field (even if null or malformed)
+  // must NOT bypass normalized validation.
+  if (isConnectionUpdate(raw, project)) {
     const validated = validateAgainstSchema(
       raw,
       UpdateProjectConnectionsBodySchema,
@@ -146,13 +155,17 @@ async function handleUpdateProject(
   }
 
   return catchHttpErrors(async () => {
-    // The merge-and-save path: an update body that carries no `connections`
-    // array is merged onto the existing record as an open object — there is no
-    // schema left to reject it against, so nothing is validated here. (A schema
-    // that can never fail is not a validation step.)
+    // Legacy merge path: strictly for genuinely legacy update payloads.
+    // Strip connection fields to ensure malformed connection data never
+    // silently merges into the project record.
+    const {
+      connections: _ignoredConn,
+      clearSecrets: _ignoredClear,
+      ...safeRaw
+    } = raw as Record<string, unknown>;
     const merged = {
       ...project,
-      ...raw,
+      ...safeRaw,
       id: projectId,
     };
     const saved = await saveProject(merged);

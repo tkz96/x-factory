@@ -35,6 +35,7 @@ import {
   type CreationClaim,
   type CreationClaimOptions,
   getCreationClaimPath,
+  isPidAlive,
   withCreationClaim,
 } from "../src/services/creation-claim.js";
 
@@ -213,9 +214,20 @@ describe("withCreationClaim", () => {
     const id = "successor";
     const claimPath = getCreationClaimPath(id);
 
-    // A holds the claim, then backdate it as a stale TTL takeover would see it
-    // while A is still running.
+    // A holds the claim, then backdate it as a stale TTL takeover with dead PID
+    // would look to a peer while A is still running.
     const a = await holdClaim(id);
+    const aClaim = JSON.parse(await readFile(claimPath, "utf-8")) as {
+      token: string;
+    };
+    await writeFile(
+      claimPath,
+      `${JSON.stringify({
+        token: aClaim.token,
+        pid: 99999999,
+        createdAt: Date.now() - 5 * 60_000,
+      })}\n`,
+    );
     await backdate(claimPath, 5 * 60_000);
 
     // B takes the abandoned claim over and holds it in turn.
@@ -244,6 +256,62 @@ describe("withCreationClaim", () => {
 
     b.release();
     await expect(b.held).resolves.toBe("held");
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("never silently reclaims an expired claim if the holding process is still alive", async () => {
+    const id = "slow-live-holder";
+    const claimPath = getCreationClaimPath(id);
+
+    // Holder is active in current process (alive PID), but stalled past TTL with heartbeat disabled
+    const holder = await holdClaim(id, { heartbeat: false });
+    await backdate(claimPath, 5 * 60_000);
+
+    // Contender tries to acquire with a short wait timeout.
+    // Because holder's PID is still alive, it must NOT be reclaimed!
+    await expect(
+      withCreationClaim(id, async () => "contender", {
+        ttlMs: 1_000,
+        waitTimeoutMs: 60,
+        pollIntervalMs: 5,
+      }),
+    ).rejects.toThrow(ClaimTimeoutError);
+
+    // Holder's claim file is still intact and contains holder PID
+    const claimContent = await readFile(claimPath, "utf-8");
+    expect(claimContent).toContain(process.pid.toString());
+
+    holder.release();
+    await expect(holder.held).resolves.toBe("held");
+    expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("recovers and reclaims an expired claim when the holding process is dead/crashed", async () => {
+    const id = "crashed-holder-dead-pid";
+    const claimPath = getCreationClaimPath(id);
+    const deadPid = 99999999;
+    expect(isPidAlive(deadPid)).toBe(false);
+
+    await mkdir(path.dirname(claimPath), { recursive: true });
+    await writeFile(
+      claimPath,
+      `${JSON.stringify({
+        token: "crashed-dead-token",
+        pid: deadPid,
+        createdAt: Date.now() - 5 * 60_000,
+      })}\n`,
+    );
+    await backdate(claimPath, 5 * 60_000);
+
+    // Contender sees claim is past TTL and holder PID is dead, so it reclaims
+    await expect(
+      withCreationClaim(id, async () => "recovered-crashed", {
+        ttlMs: 1_000,
+        waitTimeoutMs: 1_000,
+        pollIntervalMs: 5,
+      }),
+    ).resolves.toBe("recovered-crashed");
+
     expect(await readdir(getLocksDir())).toEqual([]);
   });
 

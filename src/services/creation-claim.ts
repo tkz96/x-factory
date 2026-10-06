@@ -176,9 +176,35 @@ export function getCreationClaimPath(projectId: string): string {
   return path.join(getLocksDir(), `create-${readable}-${digest}.claim`);
 }
 
+/**
+ * Checks whether an OS process with the given PID is currently alive.
+ * Uses process.kill(pid, 0) which tests for process existence without sending a signal.
+ */
+export function isPidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err: unknown) {
+    if (err !== null && typeof err === "object" && "code" in err) {
+      if ((err as NodeJS.ErrnoException).code === "ESRCH") {
+        return false;
+      }
+      if ((err as NodeJS.ErrnoException).code === "EPERM") {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 interface ClaimRecord {
   /** Random token written by the holder that created this claim file. */
   token: string;
+  /** Process ID of the claiming process. */
+  pid?: number | undefined;
+  /** Timestamp when the claim was created. */
+  createdAt?: number | undefined;
   /** Creation time of the claim file — the TTL clock. */
   mtimeMs: number;
 }
@@ -190,7 +216,31 @@ async function readClaim(claimPath: string): Promise<ClaimRecord | null> {
       readFile(claimPath, "utf-8"),
       stat(claimPath),
     ]);
-    return { token: body.trim(), mtimeMs: info.mtimeMs };
+    const trimmed = body.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        token?: unknown;
+        pid?: unknown;
+        createdAt?: unknown;
+      };
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        typeof parsed.token === "string"
+      ) {
+        return {
+          token: parsed.token,
+          pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
+          createdAt:
+            typeof parsed.createdAt === "number" ? parsed.createdAt : undefined,
+          mtimeMs: info.mtimeMs,
+        };
+      }
+    } catch {
+      // Plain string token fallback
+    }
+    return { token: trimmed, mtimeMs: info.mtimeMs };
   } catch {
     return null;
   }
@@ -218,9 +268,13 @@ async function createClaimFile(
     throw err;
   }
   try {
-    // A failed write leaves an empty claim file, which the TTL reclaim cleans
-    // up — so no code path has to guess whether an empty file is "ours".
-    await handle.writeFile(`${token}\n`);
+    // Write structured claim info: token, pid, createdAt
+    const claimData = {
+      token,
+      pid: process.pid,
+      createdAt: Date.now(),
+    };
+    await handle.writeFile(`${JSON.stringify(claimData)}\n`);
   } finally {
     await handle.close();
   }
@@ -248,6 +302,12 @@ async function reclaimIfAbandoned(
   const observed = await readClaim(claimPath);
   if (!observed) return;
   if (Date.now() - observed.mtimeMs < ttlMs) return;
+
+  // Process-safe liveness check: verify if the holding process is still alive.
+  // A slow live holder (> TTL) must NOT be silently reclaimed!
+  if (observed.pid !== undefined && isPidAlive(observed.pid)) {
+    return;
+  }
 
   const tombstone = `${claimPath}.stale-${token}`;
   try {
@@ -317,7 +377,28 @@ async function acquire(
 async function release(claimPath: string, token: string): Promise<void> {
   const current = await readClaim(claimPath);
   if (current?.token !== token) return;
-  await rm(claimPath, { force: true });
+
+  // Race-safe release: verify token again after isolating to tombstone so
+  // an old owner can never delete a newer owner's claim file.
+  const tombstone = `${claimPath}.rel-${token}`;
+  try {
+    await rename(claimPath, tombstone);
+  } catch {
+    return;
+  }
+
+  const moved = await readClaim(tombstone);
+  if (moved?.token === token) {
+    await rm(tombstone, { force: true });
+    return;
+  }
+
+  try {
+    await link(tombstone, claimPath);
+  } catch {
+    // Already taken by peer
+  }
+  await rm(tombstone, { force: true });
 }
 
 /**
