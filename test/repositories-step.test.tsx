@@ -1482,6 +1482,38 @@ describe("Repositories Step — a previous configuration's results are never sel
     });
     expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
   });
+
+  it("COMMIT-SAFE RETENTION: previous discovery results survive a failed refresh after commit", async () => {
+    let callCount = 0;
+    listRepositories = mock(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return discoveryEnvelope(REPOSITORIES);
+      }
+      throw { code: "NETWORK_ERROR", context: "DISCOVERY" };
+    });
+    api.providers.listRepositories = listRepositories as never;
+
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    const region = discoveryRegion();
+    expect(region.querySelectorAll(".repositories-list-item").length).toBe(2);
+
+    // Refresh fails
+    const refreshBtn = region.querySelector(".async-region-action-btn");
+    if (refreshBtn) {
+      await act(async () => {
+        fireEvent.click(refreshBtn);
+      });
+      await flushDiscovery();
+    }
+
+    // Previous results remain visible after refresh failure
+    expect(region.querySelectorAll(".repositories-list-item").length).toBe(2);
+  });
 });
 
 afterAll(async () => {

@@ -48,12 +48,12 @@ interface Probe {
   error: unknown;
 }
 
-/** Renders ONE card's connection hook and exposes what it reports. */
+/** Renders ONE card's connection hook and exposes what it reports via commit effect. */
 function RoleProbe({
-  onRender,
+  probeRef,
   dispatch,
 }: {
-  onRender: (probe: Probe) => void;
+  probeRef: { current: Probe | undefined };
   dispatch: (action: WizardAction) => void;
 }) {
   const connection = useRoleConnection(
@@ -62,11 +62,13 @@ function RoleProbe({
     dispatch,
     () => {},
   );
-  onRender({
-    verify: connection.verify,
-    isPending: connection.isPending,
-    status: connection.status,
-    error: connection.error,
+  React.useEffect(() => {
+    probeRef.current = {
+      verify: connection.verify,
+      isPending: connection.isPending,
+      status: connection.status,
+      error: connection.error,
+    };
   });
   return null;
 }
@@ -74,12 +76,10 @@ function RoleProbe({
 /** Renders the probe and returns a live view of the hook's answers. */
 function renderRoleHook() {
   const actions: WizardAction[] = [];
-  let current: Probe | undefined;
+  const probeRef: { current: Probe | undefined } = { current: undefined };
   render(
     React.createElement(RoleProbe, {
-      onRender: (probe: Probe) => {
-        current = probe;
-      },
+      probeRef,
       dispatch: (action: WizardAction) => {
         actions.push(action);
       },
@@ -88,8 +88,9 @@ function renderRoleHook() {
   return {
     actions,
     probe: () => {
-      if (current === undefined) throw new Error("the hook has not rendered");
-      return current;
+      if (probeRef.current === undefined)
+        throw new Error("the hook has not rendered");
+      return probeRef.current;
     },
   };
 }
