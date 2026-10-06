@@ -8,6 +8,11 @@
 //   Semantic validation errors (incompatible role, config schema) -> 409;
 //   Returns VerificationResult (ideal/degraded) or normalized ProviderError.
 // - POST /api/providers/parse-url: URL intake via parseQuickUrl. Returns draft or un-matched payload.
+// - POST /api/providers/describe: Presentation-only connection identity (#133
+//   story 34) via the optional `describeConnection` capability. Answers
+//   `{ providerId, identity: null }` with 200 for a provider without the
+//   capability and for a configuration that identifies nothing — a surface may
+//   never fail to render because a description was unavailable.
 
 import { z } from "zod/v4";
 import { parseProviderConfig } from "../providers/config-validation.js";
@@ -45,9 +50,24 @@ const ProviderConfigBodySchema = z.object({
   config: z.record(z.string(), z.unknown()),
 });
 
+/**
+ * Why a provider connection route's semantic ladder refused the request. The
+ * refusal itself is always the same codes-only 409 envelope; the reason is what
+ * lets a PRESENTATION-ONLY route (`/describe`) treat one refusal differently
+ * without inspecting response bodies.
+ */
+export type ProviderRouteRejection =
+  | "UNKNOWN_PROVIDER"
+  | "INCOMPATIBLE_ROLE"
+  | "INVALID_CONFIG";
+
 /** Outcome of the semantic validation ladder every provider route runs. */
 type ProviderRoutePrelude =
-  | { readonly ok: false; readonly response: Response }
+  | {
+      readonly ok: false;
+      readonly reason: ProviderRouteRejection;
+      readonly response: Response;
+    }
   | {
       readonly ok: true;
       readonly provider: Provider;
@@ -75,6 +95,7 @@ function resolveProviderRoutePrelude(
   if (!provider) {
     return {
       ok: false,
+      reason: "UNKNOWN_PROVIDER",
       response: jsonResponse({ formErrors: ["UNKNOWN_PROVIDER"] }, 409),
     };
   }
@@ -85,6 +106,7 @@ function resolveProviderRoutePrelude(
     if (!normalizedRole || !provider.roles.includes(normalizedRole)) {
       return {
         ok: false,
+        reason: "INCOMPATIBLE_ROLE",
         response: jsonResponse(
           { formErrors: ["INCOMPATIBLE_CONFIGURATION"] },
           409,
@@ -98,6 +120,7 @@ function resolveProviderRoutePrelude(
   if (!parsed.ok) {
     return {
       ok: false,
+      reason: "INVALID_CONFIG",
       response: jsonResponse({ fieldErrors: parsed.fieldErrors }, 409),
     };
   }
@@ -283,6 +306,82 @@ export async function handleRepositoriesRoute(
 }
 
 /**
+ * The identity as the wire reports it: a non-empty string, or `null`. A
+ * provider that reports an empty identity is reporting nothing, and the UI then
+ * renders the plain display name — never `"Name ()"`.
+ */
+function presentableIdentity(identity: string | null): string | null {
+  if (identity === null) {
+    return null;
+  }
+  const trimmed = identity.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * POST /api/providers/describe
+ * The connection's identity as its provider describes it (#133 story 34).
+ *
+ * PRESENTATION-ONLY. This route exists so a surface can render
+ * `"GitHub (owner/repo)"` without knowing what a provider is, and it is
+ * deliberately the one provider route that never turns a non-answer into an
+ * error the user would see:
+ *
+ *   - a provider without the `describeConnection` capability answers
+ *     `{ providerId, identity: null }` with 200 — a safe fallback, not an error;
+ *   - a configuration the provider's own schema rejects ALSO answers
+ *     `{ providerId, identity: null }` with 200. The 409 `fieldErrors` ladder
+ *     exists to block an ACTION on invalid input; describing a connection
+ *     blocks nothing, so it must never become a second error surface for a
+ *     configuration the action routes are already reporting on;
+ *   - an unknown provider and an incompatible role mirror the shared prelude
+ *     exactly (codes-only 409), because those are routing mistakes rather than
+ *     descriptions that could not be produced.
+ *
+ * The payload carries codes and the provider's own short identity string; no
+ * provider-generated message, and never a configuration value beyond the
+ * identity the provider composed.
+ */
+export async function handleDescribeRoute(
+  req: Request,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): Promise<Response> {
+  return withValidatedBody(req, ProviderConfigBodySchema, async (body) => {
+    const prelude = resolveProviderRoutePrelude(registry, body);
+    if (!prelude.ok) {
+      if (prelude.reason === "INVALID_CONFIG") {
+        return jsonResponse(
+          { providerId: body.providerId, identity: null },
+          200,
+        );
+      }
+      return prelude.response;
+    }
+
+    const { provider, config } = prelude;
+    if (!hasCapability(provider, "describeConnection")) {
+      return jsonResponse({ providerId: provider.id, identity: null }, 200);
+    }
+
+    try {
+      return jsonResponse(
+        {
+          providerId: provider.id,
+          identity: presentableIdentity(provider.describeConnection(config)),
+        },
+        200,
+      );
+    } catch {
+      // The capability is total by contract; a provider that throws anyway is
+      // reporting nothing here. Degrading keeps this route presentation-only,
+      // and — critically — keeps the thrown text (which may quote a
+      // configuration) off the wire entirely.
+      return jsonResponse({ providerId: provider.id, identity: null }, 200);
+    }
+  });
+}
+
+/**
  * Dispatcher for all /api/providers/* routes.
  */
 export async function handleProvidersRoute(
@@ -309,6 +408,10 @@ export async function handleProvidersRoute(
 
   if (method === "POST" && action === "repositories") {
     return catchHttpErrors(() => handleRepositoriesRoute(req, registry));
+  }
+
+  if (method === "POST" && action === "describe") {
+    return catchHttpErrors(() => handleDescribeRoute(req, registry));
   }
 
   return errorResponse("Endpoint not found.", 404);
