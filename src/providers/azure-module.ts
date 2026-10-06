@@ -12,6 +12,11 @@
 
 import { z } from "zod/v4";
 import {
+  identityField,
+  joinIdentityParts,
+  schemeStripped,
+} from "./connection-identity.js";
+import {
   type CreatePullRequestInput,
   type FindPullRequestInput,
   type Provider,
@@ -54,6 +59,58 @@ export const azureConfigSchema = z.object({
 });
 
 export type AzureConfig = z.infer<typeof azureConfigSchema>;
+
+// ---------------------------------------------------------------------------
+// Connection identity (describeConnection, spec #133 story 34)
+// ---------------------------------------------------------------------------
+
+/**
+ * The organization as Azure DevOps itself names it, taken from `orgUrl`:
+ *
+ *   - `https://dev.azure.com/acme`      → `acme`  (the first path segment)
+ *   - `https://acme.visualstudio.com`   → `acme`  (the host label)
+ *   - anything else                     → the value with its scheme stripped
+ *                                         (`https://azure.example/org` →
+ *                                         `azure.example/org`)
+ *
+ * The first two are the forms Azure DevOps actually serves; the third keeps a
+ * self-hosted or proxied URL readable without inventing a label for it.
+ */
+function organizationFromOrgUrl(orgUrl: string): string | null {
+  const stripped = schemeStripped(orgUrl);
+  if (stripped === null) {
+    return null;
+  }
+
+  const [host, ...pathSegments] = stripped.split("/");
+  if (host === "dev.azure.com") {
+    const organization = pathSegments.find((segment) => segment !== "");
+    return organization ?? null;
+  }
+
+  const legacy = /^([a-zA-Z0-9-]+)\.visualstudio\.com$/.exec(host ?? "");
+  return legacy?.[1] ?? stripped;
+}
+
+/**
+ * The connection's identity as a human reads it (#133 story 34):
+ * `"organization/MyProject"`. `orgUrl` and `project` are the provider's two
+ * identity fields, and whichever one is recorded is used on its own when the
+ * other is missing — `null` when neither is.
+ *
+ * The PAT is NEVER read: an identity is presentation metadata that may be
+ * rendered on any surface, while the PAT is a credential.
+ */
+export function describeAzureConnection(config: ProviderConfig): string | null {
+  const orgUrl = identityField(config.orgUrl);
+  return joinIdentityParts(
+    [
+      orgUrl === null ? null : organizationFromOrgUrl(orgUrl),
+      identityField(config.project),
+    ],
+    "/",
+  );
+}
 
 /**
  * Provider-internal API error class preserving HTTP status, headers, and classification.
@@ -586,6 +643,10 @@ export function createAzureProvider(
     configSchema: azureConfigSchema,
 
     toUserError,
+
+    describeConnection(config: ProviderConfig): string | null {
+      return describeAzureConnection(config);
+    },
 
     async verifyCredentials(
       config: ProviderConfig,

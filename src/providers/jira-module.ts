@@ -9,6 +9,11 @@
 // - Remediates the deprecated /rest/api/3/search endpoint in favor of /rest/api/3/search/jql.
 
 import { z } from "zod/v4";
+import {
+  identityField,
+  joinIdentityParts,
+  schemeStripped,
+} from "./connection-identity.js";
 import type {
   Provider,
   ProviderConfig,
@@ -71,6 +76,29 @@ export const jiraConfigSchema = z.object({
 });
 
 export type JiraConfig = z.infer<typeof jiraConfigSchema>;
+
+// ---------------------------------------------------------------------------
+// Connection identity (describeConnection, spec #133 story 34)
+// ---------------------------------------------------------------------------
+
+/**
+ * The connection's identity as a human reads it (#133 story 34):
+ * `"acme.atlassian.net/ROCK"` — the host with its scheme stripped, plus the
+ * project key when one is recorded. The host is the SITE the connection points
+ * at, so it is the identity's anchor: without a host there is nothing to
+ * identify and the answer is `null`, however the rest is filled in.
+ *
+ * `apiToken` is NEVER read, and neither is `email`: the identity names the SITE
+ * and the project, while the email is personal data that says nothing about
+ * which connection this is.
+ */
+export function describeJiraConnection(config: ProviderConfig): string | null {
+  const host = schemeStripped(config.host);
+  if (host === null) {
+    return null;
+  }
+  return joinIdentityParts([host, identityField(config.project)], "/");
+}
 
 // ---------------------------------------------------------------------------
 // HTTP Boundary & Error Types
@@ -529,5 +557,9 @@ export const jiraProvider: Provider<"jira"> = {
 
   parseQuickUrl(url: string): QuickUrlDraft | null {
     return parseJiraQuickUrl(url);
+  },
+
+  describeConnection(config: ProviderConfig): string | null {
+    return describeJiraConnection(config);
   },
 };

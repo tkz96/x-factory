@@ -1,6 +1,7 @@
 // src/providers/github/config.ts — GitHub configuration schema, resolution, and mismatch detection (#138).
 
 import { z } from "zod/v4";
+import { identityField, joinIdentityParts } from "../connection-identity.js";
 import type { ProviderConfig } from "../contract.js";
 import { isForeignProviderObject } from "../discriminator.js";
 import { extractFromGitHubUrl } from "./urls.js";
@@ -300,6 +301,24 @@ export function detectGitHubConfigMismatch(config: ProviderConfig): {
   if (baseUrlCheck.mismatch) return baseUrlCheck;
 
   return { mismatch: false };
+}
+
+/**
+ * The connection's identity as a human reads it (#133 story 34): `"owner/repo"`.
+ * `repoOwner` and `repository` are the provider's two identity fields, and
+ * whichever one is recorded is used on its own when the other is missing.
+ *
+ * The token is NEVER read: an identity is presentation metadata that may be
+ * rendered on any surface, while the token is a credential that never leaves
+ * the request that carried it.
+ */
+export function describeGitHubConnection(
+  config: ProviderConfig,
+): string | null {
+  return joinIdentityParts(
+    [identityField(config.repoOwner), identityField(config.repository)],
+    "/",
+  );
 }
 
 /**

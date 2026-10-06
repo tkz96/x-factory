@@ -1001,3 +1001,151 @@ describe("Manifest-driven display names (#147)", () => {
     expect(container.textContent).not.toContain("tracker-one");
   });
 });
+
+// ─── Provider-owned identity on the post-creation surfaces (#133 story 34) ───
+//
+// The identity is the PROVIDER's statement about its own configuration, read
+// through the ONE identity hook; these surfaces only pass the string through.
+// The api-client seam is the only thing mocked.
+
+describe("Post-creation combo line — provider-owned identity (#133 story 34)", () => {
+  const ORIGINAL_DESCRIBE = api.providers.describe;
+  let described: Array<{ providerId: string; config: Record<string, unknown> }>;
+
+  /** The identity as each provider would compose it, from the config it got. */
+  function identityFor(
+    providerId: string,
+    config: Record<string, unknown>,
+  ): string | null {
+    const host = (value: unknown): string =>
+      typeof value === "string"
+        ? value
+            .trim()
+            .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+            .replace(/\/+$/, "")
+        : "";
+    switch (providerId) {
+      case "tracker-one":
+        return host(config.host) === "" ? null : `${host(config.host)}/ROCK`;
+      case "githost-one":
+        return host(config.orgUrl) === ""
+          ? null
+          : `${host(config.orgUrl)}/rocket`;
+      default:
+        // A provider with no identity to give: exactly what the server answers
+        // for a provider without the capability.
+        return null;
+    }
+  }
+
+  beforeEach(() => {
+    described = [];
+    api.providers.describe = mock(async (payload: unknown) => {
+      const { providerId, config } = payload as {
+        providerId: string;
+        config: Record<string, unknown>;
+      };
+      described.push({ providerId, config });
+      return { providerId, identity: identityFor(providerId, config) };
+    }) as never;
+  });
+
+  afterEach(() => {
+    api.providers.describe = ORIGINAL_DESCRIBE;
+  });
+
+  it("project detail: renders each connection's identity beside its display name", async () => {
+    const { container } = renderDetail(makeProject(), makeClient());
+
+    await waitFor(() => {
+      expect(container.textContent).toContain(
+        "Tracker One (tracker.example/ROCK)",
+      );
+    });
+    expect(container.textContent).toContain(
+      "Git Host One (git.example/rocket)",
+    );
+    // The recorded configuration is still the source of the identity.
+    expect(
+      described.find((call) => call.providerId === "githost-one")?.config,
+    ).toEqual({ orgUrl: "https://git.example", repo: "rocket" });
+  });
+
+  it("project card and settings registry: the SAME identity as the detail surface", async () => {
+    const card = renderCard(makeProject());
+    await waitFor(() => {
+      expect(card.container.textContent).toContain(
+        "Tracker One (tracker.example/ROCK)",
+      );
+    });
+    expect(card.container.textContent).toContain(
+      "Git Host One (git.example/rocket)",
+    );
+
+    const registry = await renderConnectionsRegistry(
+      [makeProject()],
+      makeClient(),
+    );
+    await waitFor(() => {
+      expect(registry.textContent).toContain(
+        "Tracker One (tracker.example/ROCK)",
+      );
+    });
+    expect(registry.textContent).toContain("Git Host One (git.example/rocket)");
+  });
+
+  it("a connection with no identity renders the plain display name — never null, never ()", async () => {
+    const project = makeProject({
+      connections: [
+        {
+          providerId: "plain-tracker",
+          roles: ["tracker" as const],
+          config: { host: "https://plain.example" },
+        },
+        {
+          providerId: "githost-one",
+          roles: ["gitHost" as const],
+          config: { orgUrl: "https://git.example", repo: "rocket" },
+        },
+      ],
+    });
+    const { container } = renderDetail(project, makeClient());
+
+    await waitFor(() => {
+      expect(container.textContent).toContain(
+        "Git Host One (git.example/rocket)",
+      );
+    });
+    // Asked anyway — the answer is the server's null, not a skipped read.
+    expect(described.some((call) => call.providerId === "plain-tracker")).toBe(
+      true,
+    );
+    expect(container.textContent).toContain("Plain Tracker");
+    expect(container.textContent).not.toContain("null");
+    expect(container.textContent).not.toContain("()");
+    expect(container.textContent).not.toContain("undefined");
+  });
+
+  it("a legacy project with no recorded git host asks nothing for it, and still shows the tracker's identity", async () => {
+    const { container } = renderCard(
+      makeProject({
+        connections: undefined,
+        issueTracker: {
+          provider: "tracker-one",
+          "tracker-one": { host: "https://legacy.example" },
+        } as unknown as Project["issueTracker"],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(container.textContent).toContain(
+        "Tracker One (legacy.example/ROCK)",
+      );
+    });
+    expect(container.textContent).toContain(CONNECTIONS_COPY.notRecorded);
+    // Nothing was asked about a role whose configuration is not recorded.
+    expect(
+      described.filter((call) => call.providerId === "githost-one"),
+    ).toHaveLength(0);
+  });
+});

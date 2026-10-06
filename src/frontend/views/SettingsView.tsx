@@ -6,15 +6,21 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
-import { comboTone } from "../components/connections/connection-state.js";
+import {
+  comboTone,
+  identitiesByRole,
+  withConnectionIdentities,
+} from "../components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
 import {
   comboSlots,
+  connectionIdentityTargets,
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
 } from "../components/projects/connection-integrity.js";
 import { useModal } from "../context/ModalContext.js";
+import { useConnectionIdentities } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import {
   useDiagnostics,
@@ -207,6 +213,18 @@ function ConnectionsTabContent({
 }: ConnectionsTabContentProps) {
   const { data: descriptors = [] } = useProviderDescriptors();
 
+  // The registry renders one combo line per project, so every project's wiring
+  // is derived here — once — and the identity read is ONE hook call for the
+  // whole table (#133 story 34). Each connection is keyed by its own
+  // configuration, so no two projects can share an identity.
+  const rows = projects.map((project) => ({
+    project,
+    integrity: deriveConnectionIntegrity(project, descriptors),
+  }));
+  const identityLookup = useConnectionIdentities(
+    rows.flatMap((row) => connectionIdentityTargets(row.integrity)),
+  );
+
   return (
     <div id="tab-trackers" className="settings-pane active">
       <div className="connections-header">
@@ -253,19 +271,22 @@ function ConnectionsTabContent({
                 </td>
               </tr>
             ) : (
-              projects.map((p) => {
-                const integrity = deriveConnectionIntegrity(p, descriptors);
+              rows.map(({ project: p, integrity }) => {
+                const slots = withConnectionIdentities(
+                  comboSlots(integrity),
+                  identitiesByRole(
+                    connectionIdentityTargets(integrity),
+                    identityLookup,
+                  ),
+                );
 
                 return (
                   <tr key={p.id}>
                     <td>{p.name}</td>
                     <td className="connections-cell">
                       <ConnectionComboLine
-                        slots={comboSlots(integrity)}
-                        tone={comboTone(
-                          comboSlots(integrity),
-                          REQUIRED_CONNECTION_ROLES,
-                        )}
+                        slots={slots}
+                        tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
                         descriptors={descriptors}
                         className="connection-combo-line--compact"
                       />

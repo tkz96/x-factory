@@ -19,8 +19,10 @@ import { cleanup, render } from "@testing-library/react";
 import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
 import {
   type ConnectionEvidence,
+  type ConnectionIdentities,
   comboSlotFromEvidence,
   comboTone,
+  withConnectionIdentities,
 } from "../src/frontend/components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
@@ -264,5 +266,141 @@ describe("ConnectionComboLine — one line, three states per role", () => {
 
     expect(document.getElementById("combo-tracker")).not.toBeNull();
     expect(document.getElementById("combo-gitHost")).toBeNull();
+  });
+
+  // ─── Provider-owned identity (#133 story 34) ────────────────────────────────
+  //
+  // The line renders `displayName (identity)` when a surface hands it one, and the
+  // plain display name otherwise. It never derives an identity itself, so these
+  // tests drive it exactly the way the producers do: slots with an identity
+  // attached, and slots without one.
+
+  describe("ConnectionComboLine — provider-owned identity", () => {
+    afterEach(() => {
+      cleanup();
+    });
+
+    afterAll(async () => {
+      await unregisterHappyDom();
+    });
+
+    /** The line as a producer renders it: two slots, optionally given identities. */
+    function renderWithIdentities(
+      identities: ConnectionIdentities | undefined,
+    ) {
+      const slots = withConnectionIdentities(
+        [
+          comboSlotFromEvidence(
+            "tracker",
+            evidence({ providerId: "quasar-board" }),
+          ),
+          comboSlotFromEvidence(
+            "gitHost",
+            evidence({ providerId: "nimbus-forge" }),
+          ),
+        ],
+        identities,
+      );
+      render(
+        <ConnectionComboLine
+          id="combo-summary"
+          slots={slots}
+          tone={comboTone(slots, ["tracker", "gitHost"])}
+          descriptors={MANIFEST}
+        />,
+      );
+    }
+
+    it("renders displayName (identity) for each role that has one", () => {
+      renderWithIdentities({
+        tracker: "board.example/ROCK",
+        gitHost: "octo-org/rocket",
+      });
+
+      expect(getEl("combo-tracker-name").textContent).toBe(
+        "Quasar Board (board.example/ROCK)",
+      );
+      expect(getEl("combo-gitHost-name").textContent).toBe(
+        "Nimbus Forge (octo-org/rocket)",
+      );
+      // The provider ids stay machine names a user never reads.
+      expect(getEl("combo-summary").textContent).not.toContain("quasar-board");
+      expect(getEl("combo-summary").textContent).not.toContain("nimbus-forge");
+    });
+
+    it("renders the plain display name when the identity is null, empty or absent", () => {
+      renderWithIdentities({ tracker: null, gitHost: "   " });
+
+      expect(getEl("combo-tracker-name").textContent).toBe("Quasar Board");
+      expect(getEl("combo-gitHost-name").textContent).toBe("Nimbus Forge");
+      // Never the string "null", and never empty parentheses.
+      expect(getEl("combo-summary").textContent).not.toContain("null");
+      expect(getEl("combo-summary").textContent).not.toContain("()");
+    });
+
+    it("renders the plain display name when the producer has no identity at all", () => {
+      renderWithIdentities(undefined);
+
+      expect(getEl("combo-tracker-name").textContent).toBe("Quasar Board");
+      expect(getEl("combo-gitHost-name").textContent).toBe("Nimbus Forge");
+      expect(getEl("combo-summary").textContent).not.toContain("null");
+    });
+
+    it("keeps notRecorded for a role with no provider id, whatever the identity map holds", () => {
+      const slots = withConnectionIdentities(
+        [
+          comboSlotFromEvidence("tracker", evidence({ providerId: null })),
+          comboSlotFromEvidence(
+            "gitHost",
+            evidence({ providerId: "nimbus-forge" }),
+          ),
+        ],
+        { tracker: "board.example/ROCK", gitHost: null },
+      );
+      render(
+        <ConnectionComboLine
+          id="combo-summary"
+          slots={slots}
+          tone={comboTone(slots, [])}
+          descriptors={MANIFEST}
+        />,
+      );
+
+      expect(getEl("combo-tracker-name").textContent).toBe(
+        CONNECTIONS_COPY.notRecorded,
+      );
+    });
+
+    it("shows one connection's identity under BOTH roles it serves (#133 dual role)", () => {
+      // One provider serving both roles: the surfaces hand the SAME identity to
+      // both slots, and the line renders one connection, not two.
+      const shared = "tandem.example/team/rocket";
+      const slots = withConnectionIdentities(
+        [
+          comboSlotFromEvidence("tracker", evidence({ providerId: "tandem" })),
+          comboSlotFromEvidence("gitHost", evidence({ providerId: "tandem" })),
+        ],
+        { tracker: shared, gitHost: shared },
+      );
+      render(
+        <ConnectionComboLine
+          id="combo-summary"
+          slots={slots}
+          tone={comboTone(slots, ["tracker", "gitHost"])}
+          descriptors={MANIFEST}
+        />,
+      );
+
+      expect(getEl("combo-tracker-name").textContent).toBe(
+        `Tandem Suite (${shared})`,
+      );
+      expect(getEl("combo-gitHost-name").textContent).toBe(
+        `Tandem Suite (${shared})`,
+      );
+      // One connection, rendered as the line's two role slots — never doubled.
+      expect(document.querySelectorAll(".connection-combo-slot")).toHaveLength(
+        2,
+      );
+    });
   });
 });

@@ -21,6 +21,7 @@
 // Provider-agnostic: these functions compare PROVIDER IDS between the two role
 // selections. They never know a provider by name.
 
+import type { ConnectionIdentityTarget } from "../../components/connections/connection-state.js";
 import type { WizardConnectionRole, WizardConnectState } from "../types.js";
 
 /** The roles the Connect step collects, in a stable order. */
@@ -35,7 +36,30 @@ function otherRole(role: WizardConnectionRole): WizardConnectionRole {
 }
 
 /**
- * THE authoritative configuration of a provider. Both roles naming the provider
+ * The connections the Connect step's configuration can identify: one target per
+ * role, carrying the provider that role selected and that provider's ONE
+ * configuration (#133 story 34).
+ *
+ * A dual-role provider therefore yields two targets holding the SAME provider
+ * and configuration — the identity hook queries it once, and both roles of the
+ * combo line show the identity of the one connection they are. A role with no
+ * provider is a target with no provider id, which the hook does not query.
+ */
+export function connectionIdentityTargets(
+  connect: WizardConnectState,
+): ConnectionIdentityTarget[] {
+  return CONNECTION_ROLES.map((role) => {
+    const providerId = connect[role].providerId;
+    return {
+      role,
+      providerId,
+      config: providerId === null ? {} : providerConfig(connect, providerId),
+    };
+  });
+}
+
+/**
+ * The authoritative configuration of a provider. Both roles naming the provider
  * read this same record, so there is exactly one configuration per provider.
  */
 export function providerConfig(

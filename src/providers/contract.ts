@@ -264,6 +264,7 @@ const OPTIONAL_CAPABILITIES = [
   "parseQuickUrl",
   "createPullRequest",
   "findExistingPullRequest",
+  "describeConnection",
 ] as const;
 
 export type ProviderCapability = (typeof OPTIONAL_CAPABILITIES)[number];
@@ -312,6 +313,22 @@ export interface Provider<Id extends string = string> {
     config: ProviderConfig,
     input: FindPullRequestInput,
   ): Promise<ProviderPullRequest | null>;
+  /**
+   * The connection's identity as a human reads it (#133 story 34): a SHORT,
+   * NON-SECRET identifier derived from the configuration a user already typed —
+   * `"owner/repo"`, `"organization/MyProject"`, `"acme.atlassian.net/ROCK"`.
+   *
+   * Presentation metadata ONLY. It is never persisted into a project record and
+   * never logged alongside a configuration, and it MUST NOT read or include a
+   * secret field (`token`, `pat`, `apiToken`, `envKey`): the whole point is an
+   * identifier safe to render.
+   *
+   * Returns `null` when the configuration does not identify anything yet — a
+   * connection the user has not filled in has no identity, and that is not an
+   * error. Synchronous and total: it never throws, never performs I/O, and a
+   * partial configuration yields the part that IS recorded.
+   */
+  describeConnection?(config: ProviderConfig): string | null;
 }
 
 /**

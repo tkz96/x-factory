@@ -16,6 +16,7 @@ import type {
   VerificationResult,
 } from "./contract.js";
 import {
+  describeGitHubConnection,
   detectGitHubConfigMismatch,
   githubConfigSchema,
   resolveGitHubConfig,
@@ -90,6 +91,10 @@ export function createGithubProvider(
       return findExistingGitHubPullRequest(config, input, fetchFn);
     },
 
+    describeConnection(config: ProviderConfig): string | null {
+      return describeGitHubConnection(config);
+    },
+
     toUserError(error: unknown, context: ProviderErrorContext): ProviderError {
       return toGitHubUserError(error, context);
     },
@@ -104,6 +109,7 @@ export function createGithubProvider(
 export const githubProvider: Provider<"github"> = createGithubProvider();
 
 export {
+  describeGitHubConnection,
   detectGitHubConfigMismatch,
   GitHubHttpError,
   githubConfigSchema,

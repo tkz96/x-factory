@@ -1,6 +1,8 @@
 import type { GitIdentity, Project, Run, Ticket } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
+  ConnectionIdentityResult,
+  DescribeConnectionPayload,
   DiscoverRepositoriesPayload,
   ParseUrlResult,
   ProviderDescriptor,
@@ -177,6 +179,24 @@ export const api = {
         body: JSON.stringify(payload),
       });
       return handleResponse<RepositoriesEnvelope | NormalizedError>(res);
+    },
+
+    /**
+     * The connection's provider-owned identity (#133 story 34): one call per
+     * connection CONFIGURATION, cached by its fingerprint. The server answers
+     * `identity: null` for a provider without the capability and for a
+     * configuration that identifies nothing, so a surface that cannot reach an
+     * identity simply renders the display name.
+     */
+    async describe(
+      payload: DescribeConnectionPayload,
+    ): Promise<ConnectionIdentityResult> {
+      const res = await fetch("/api/providers/describe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<ConnectionIdentityResult>(res);
     },
   },
 

@@ -1196,6 +1196,80 @@ export function getOpenApiSpec() {
           },
         },
       },
+      "/api/providers/describe": {
+        post: {
+          tags: ["Providers"],
+          summary: "Describe Provider Connection",
+          description:
+            'Returns the provider-owned, non-secret identity of a configured connection (e.g. "owner/repo", "organization/MyProject", "acme.atlassian.net/ROCK"). Presentation-only: a provider without the describeConnection capability, a configuration that identifies nothing, and a configuration the provider\'s schema rejects all answer identity: null with 200, so a surface never fails to render because a description was unavailable. An unknown provider or an incompatible role is the shared codes-only 409.',
+          operationId: "describeProviderConnection",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["providerId", "config"],
+                  properties: {
+                    providerId: {
+                      type: "string",
+                      description: "Registry id of the configured provider",
+                    },
+                    role: {
+                      type: "string",
+                      enum: ["tracker", "git-host", "gitHost"],
+                      description:
+                        "Optional role the connection is rendered under",
+                    },
+                    config: {
+                      type: "object",
+                      description: "The connection's configuration values",
+                      additionalProperties: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description:
+                "The provider's identity for the connection, or null when none could be produced",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["providerId", "identity"],
+                    properties: {
+                      providerId: { type: "string" },
+                      identity: {
+                        type: "string",
+                        nullable: true,
+                        description:
+                          "Short, human, non-secret connection identity, or null",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
+            },
+            "409": {
+              description:
+                "Semantic validation failure (unknown provider or incompatible role)",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ProviderSemanticValidationError",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     components: {
       responses: {

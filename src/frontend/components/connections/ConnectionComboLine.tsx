@@ -41,13 +41,24 @@ function stateLabel(slot: ConnectionComboSlot): string {
   return CONNECTIONS_COPY.stateLabel[slot.state];
 }
 
+/**
+ * The slot's value: the manifest display name, with the provider's own identity
+ * in parentheses when one was handed to the line (#133 story 34) —
+ * `"Generic Git Host Service (octo-org/rocket)"`. A slot with no provider id is
+ * `notRecorded`; a slot with no identity is the plain display name. The
+ * component never derives an identity and never branches on a provider id: it
+ * formats the string the surface gave it.
+ */
 function slotValue(
   slot: ConnectionComboSlot,
   descriptors: readonly ProviderDescriptor[],
 ): string {
-  return slot.providerId
-    ? resolveProviderLabel(slot.providerId, descriptors)
-    : CONNECTIONS_COPY.notRecorded;
+  if (!slot.providerId) {
+    return CONNECTIONS_COPY.notRecorded;
+  }
+  const displayName = resolveProviderLabel(slot.providerId, descriptors);
+  const identity = slot.identity?.trim() ?? "";
+  return identity === "" ? displayName : `${displayName} (${identity})`;
 }
 
 export function ConnectionComboLine({

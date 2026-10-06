@@ -77,3 +77,28 @@ export interface DiscoverRepositoriesPayload {
   role: "tracker" | "gitHost";
   config: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// Connection identity (spec #133 story 34)
+// ---------------------------------------------------------------------------
+
+/**
+ * The describe request: one connection's provider and configuration. `role` is
+ * optional — the identity is a property of the configuration, not of the role
+ * it is being rendered under.
+ */
+export interface DescribeConnectionPayload {
+  providerId: string;
+  role?: "tracker" | "gitHost" | undefined;
+  config: Record<string, unknown>;
+}
+
+/**
+ * The provider-owned identity of a configured connection, or `null` when the
+ * provider declares no `describeConnection` capability or the configuration
+ * does not identify anything yet. Presentation metadata only.
+ */
+export interface ConnectionIdentityResult {
+  providerId: string;
+  identity: string | null;
+}

@@ -82,6 +82,75 @@ export interface ConnectionComboSlot {
   readonly role: ProjectConnectionRole;
   readonly state: ConnectionState;
   readonly providerId: string | null;
+  /**
+   * The connection's provider-owned identity, as the provider describes its own
+   * configuration (`"owner/repo"`, `"acme.atlassian.net/ROCK"`) — presentation
+   * metadata the line renders as `displayName (identity)` (#133 story 34).
+   *
+   * Absent or null whenever there is no identity to show: the provider does not
+   * declare the capability, the configuration identifies nothing yet, or the
+   * surface cannot reach the configuration at all (a legacy project). The line
+   * then renders the plain display name, so an unavailable identity is never an
+   * error and never the text "null".
+   */
+  readonly identity?: string | null | undefined;
+}
+
+/** One connection whose identity a surface wants: role, provider, configuration. */
+export interface ConnectionIdentityTarget {
+  readonly role: ProjectConnectionRole;
+  readonly providerId: string | null;
+  readonly config: Readonly<Record<string, unknown>>;
+}
+
+/** The identities a surface has, per role. A role may be absent or null. */
+export type ConnectionIdentities = Partial<
+  Record<ProjectConnectionRole, string | null>
+>;
+
+/**
+ * How a surface reaches an identity it has already fetched: given a connection
+ * (provider + configuration), the provider's identity or `null`. The ONE
+ * identity hook produces one of these; nothing else may invent one.
+ */
+export type ConnectionIdentityLookup = (
+  target: ConnectionIdentityTarget,
+) => string | null;
+
+/**
+ * One role's identity from a lookup: `null` for a connection the lookup has
+ * nothing for — a provider that declares no `describeConnection` capability, a
+ * configuration that identifies nothing, or a read that has not resolved yet.
+ * All three render the same way (the plain display name), which is why they are
+ * one value rather than three states.
+ */
+export function identitiesByRole(
+  targets: readonly ConnectionIdentityTarget[],
+  lookup: ConnectionIdentityLookup,
+): ConnectionIdentities {
+  const identities: Partial<Record<ProjectConnectionRole, string | null>> = {};
+  for (const target of targets) {
+    identities[target.role] = lookup(target);
+  }
+  return identities;
+}
+
+/**
+ * The line's slots with the identities a surface has, per role. This is the ONE
+ * place identity is attached to a slot, so both producers reach the rendering
+ * the same way: a role with no identity keeps the slot it already had.
+ */
+export function withConnectionIdentities(
+  slots: readonly ConnectionComboSlot[],
+  identities: ConnectionIdentities | undefined,
+): ConnectionComboSlot[] {
+  if (identities === undefined) {
+    return [...slots];
+  }
+  return slots.map((slot) => {
+    const identity = identities[slot.role];
+    return identity === undefined ? slot : { ...slot, identity };
+  });
 }
 
 /** One role's slot, derived from the verification evidence the wizard holds. */

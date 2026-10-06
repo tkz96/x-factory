@@ -59,6 +59,7 @@ const KNOWN_CAPABILITIES: readonly ProviderCapability[] = [
   "parseQuickUrl",
   "createPullRequest",
   "findExistingPullRequest",
+  "describeConnection",
 ];
 
 const VALID_UI_TYPES = new Set<ProviderConfigUiType>([
