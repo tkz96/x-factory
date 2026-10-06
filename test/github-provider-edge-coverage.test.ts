@@ -84,7 +84,7 @@ describe("github verification — edge coverage", () => {
   it("reports missing/unconfirmed capabilities when verifyGitHubScopes has no token", async () => {
     const report = await verifyGitHubScopes({});
     expect(report.findings.length).toBe(4);
-    expect(report.findings[0].status).toBe("missing");
+    expect(report.findings[0]?.status).toBe("missing");
   });
 
   it("handles org repos 403 by returning CAPABILITY_UNCONFIRMED for listRepositories", async () => {
