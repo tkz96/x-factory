@@ -53,6 +53,7 @@ import {
 import {
   assertConnectionRoleCoverage,
   createProjectFromConnections,
+  updateProjectConnections,
 } from "../src/services/project-creation.js";
 import type { Project } from "../src/types.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
@@ -2267,6 +2268,59 @@ describe("Concurrent project updates and claim fencing (#133 / #158 Task 2)", ()
     expect(createRes.status).toBe(409);
     expect((await readStoredProject(id))?.name).toBe("Patched Legacy Rival");
     expect(await readdir(getLocksDir())).toEqual([]);
+  });
+
+  it("updates connections via updateProjectConnections directly", async () => {
+    const directId = `direct-update-${Date.now()}`;
+    const project = await createProjectFromConnections(
+      {
+        id: directId,
+        name: "Direct Update Initial",
+        workspacePath: tempDir,
+        connections: [
+          {
+            providerId: "stub-optional-secret",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: "direct-token-init",
+              backupToken: "direct-backup-init",
+              project: "init",
+            },
+          },
+        ],
+        repositories: [
+          {
+            id: `${directId}-app`,
+            name: "app",
+            localPath: path.join(tempDir, "app"),
+            role: "backend",
+          },
+        ],
+      },
+      { configPath, registry: testRegistry },
+    );
+
+    const updated = await updateProjectConnections(
+      project,
+      {
+        name: "Direct Updated Name",
+        connections: [
+          {
+            providerId: "stub-optional-secret",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              project: "updated-direct",
+            },
+          },
+        ],
+      },
+      { configPath, registry: testRegistry },
+    );
+
+    expect(updated.name).toBe("Direct Updated Name");
+    expect(updated.connections[0].config.project).toBe("updated-direct");
   });
 });
 describe("POST /api/projects with a LEGACY payload (#133 correction 1)", () => {
