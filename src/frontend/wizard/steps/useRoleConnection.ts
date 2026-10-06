@@ -21,7 +21,7 @@
 // OTHER card therefore invalidates the attempt in both places, which a per-card
 // counter structurally could not do.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { isConnectionUsable } from "../../components/connections/connection-state.js";
 import { isNormalizedError } from "../../components/feedback/copy-map.js";
 import type { VerificationResult } from "../../connection/types.js";
@@ -86,8 +86,23 @@ export function useRoleConnection(
   // ONE record both cards read and write when they name the same provider.
   const config = roleConfig(connect, role);
   const [attempt, setAttempt] = useState<VerificationAttempt | null>(null);
+  // Which of THIS card's attempts is the newest.
+  //
+  // This is a DIFFERENT rule from the generation, and both are needed: the
+  // generation answers "is the configuration this attempt asked about still on
+  // record?" — cross-card, reducer-owned — while this sequence answers "is this
+  // the attempt the user last asked for?". A user may press Verify again while
+  // the first attempt is in flight (the button is not disabled while pending):
+  // the older answer is then not wrong, it is simply no longer the answer to the
+  // question on screen, so it must not write the local payload or the evidence.
+  // A reset (a Quick-URL match that clears this role) invalidates in-flight work
+  // the same way, which is why it bumps the sequence too.
+  const attemptSeq = useRef(0);
 
-  const clearAttempt = () => setAttempt(null);
+  const clearAttempt = () => {
+    attemptSeq.current += 1;
+    setAttempt(null);
+  };
 
   const selectProvider = (providerId: string | null) => {
     clearAttempt();
@@ -119,6 +134,7 @@ export function useRoleConnection(
     // authoritative state as the request goes out. The reducer records the
     // evidence only while the provider still carries that generation.
     const generation = configGeneration(connect, providerId);
+    const seq = ++attemptSeq.current;
     setAttempt({
       providerId,
       generation,
@@ -134,6 +150,11 @@ export function useRoleConnection(
         // of what is on record for the provider, never of a per-role copy.
         config: roleConfig(connect, role),
       });
+      // A newer attempt on this card, or a reset, superseded this one: report
+      // nothing, in either direction.
+      if (seq !== attemptSeq.current) {
+        return;
+      }
       if (isNormalizedError(res)) {
         setAttempt({
           providerId,
@@ -179,6 +200,9 @@ export function useRoleConnection(
         });
       }
     } catch (err) {
+      if (seq !== attemptSeq.current) {
+        return;
+      }
       setAttempt({
         providerId,
         generation,
