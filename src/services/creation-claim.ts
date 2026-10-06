@@ -91,8 +91,6 @@ export class ClaimTimeoutError extends Error {
 
 /** Tuning seams; every field has a documented default. */
 export interface CreationClaimOptions {
-  /** Claim directory; defaults to `<dataDir>/locks`. */
-  locksDir?: string;
   /** See {@link CLAIM_TTL_MS}. */
   ttlMs?: number;
   /** See {@link CLAIM_WAIT_TIMEOUT_MS}. */
@@ -108,7 +106,6 @@ export interface CreationClaimOptions {
  * character reaches the path unescaped — no id can escape the locks directory,
  * however it is spelled.
  */
-
 export function getCreationClaimPath(projectId: string): string {
   const readable = projectId
     .replace(/[^A-Za-z0-9._-]/g, "_")
@@ -165,6 +162,8 @@ async function createClaimFile(
     throw err;
   }
   try {
+    // A failed write leaves an empty claim file, which the TTL reclaim cleans
+    // up — so no code path has to guess whether an empty file is "ours".
     await handle.writeFile(`${token}\n`);
   } finally {
     await handle.close();
@@ -173,9 +172,9 @@ async function createClaimFile(
 }
 
 /**
- * Takes over a claim whose holder is gone, reporting whether the path may be
- * retried now. `true` means "the path is free (or already vanished): retry the
- * exclusive create". `false` means "a live claim is there: keep waiting".
+ * Best-effort takeover of a claim whose holder is gone: after this returns, the
+ * path is either free (retry the exclusive create) or still held by a live
+ * claim, and there is nothing else the caller can usefully do either way.
  *
  * The takeover is itself race-safe. The claim is RENAMED to a private path
  * rather than unlinked, and the moved file is then verified to still carry the
@@ -189,10 +188,10 @@ async function reclaimIfAbandoned(
   claimPath: string,
   ttlMs: number,
   token: string,
-): Promise<boolean> {
+): Promise<void> {
   const observed = await readClaim(claimPath);
-  if (!observed) return true;
-  if (Date.now() - observed.mtimeMs < ttlMs) return false;
+  if (!observed) return;
+  if (Date.now() - observed.mtimeMs < ttlMs) return;
 
   const tombstone = `${claimPath}.stale-${token}`;
   try {
@@ -201,13 +200,13 @@ async function reclaimIfAbandoned(
   } catch {
     // Released by its holder, or reclaimed by a peer, between the read and the
     // rename: the path is free now.
-    return true;
+    return;
   }
 
   const moved = await readClaim(tombstone);
   if (moved?.token === observed.token) {
     await rm(tombstone, { force: true });
-    return true;
+    return;
   }
 
   // We moved a claim that had been replaced in the window above: give it back
@@ -218,10 +217,15 @@ async function reclaimIfAbandoned(
     // A peer claimed the path first; its claim stands.
   }
   await rm(tombstone, { force: true });
-  return false;
 }
 
-/** Acquires the claim, or throws once the bounded wait is exhausted. */
+/**
+ * Acquires the claim, or throws once the bounded wait is exhausted.
+ *
+ * Every non-winning iteration sleeps one poll interval before retrying, and the
+ * bound is re-checked every iteration, so the wait is bounded by construction —
+ * including against a claim file that can neither be read nor replaced.
+ */
 async function acquire(
   claimPath: string,
   token: string,
@@ -237,14 +241,15 @@ async function acquire(
   for (;;) {
     if (await createClaimFile(claimPath, token)) return;
 
-    // Contended: reclaim it if its holder is gone, otherwise wait — bounded, so
-    // a contended request fails instead of hanging forever.
-    if (!(await reclaimIfAbandoned(claimPath, ttlMs, token))) {
-      if (Date.now() >= deadline) {
-        throw new ClaimTimeoutError(claimPath, waitTimeoutMs);
-      }
-      await delay(pollIntervalMs);
+    // Contended: give up loudly once the bound is passed, rather than waiting
+    // on a claim that may never be released.
+    if (Date.now() >= deadline) {
+      throw new ClaimTimeoutError(claimPath, waitTimeoutMs);
     }
+
+    // …then reclaim it if its holder is gone, and re-check after a poll.
+    await reclaimIfAbandoned(claimPath, ttlMs, token);
+    await delay(pollIntervalMs);
   }
 }
 
@@ -274,12 +279,7 @@ export async function withCreationClaim<T>(
   action: () => Promise<T>,
   options: CreationClaimOptions = {},
 ): Promise<T> {
-  const claimPath = options.locksDir
-    ? path.join(
-        options.locksDir,
-        path.basename(getCreationClaimPath(projectId)),
-      )
-    : getCreationClaimPath(projectId);
+  const claimPath = getCreationClaimPath(projectId);
   const token = randomUUID();
 
   await acquire(claimPath, token, options);
