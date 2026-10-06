@@ -574,9 +574,9 @@ export function getOpenApiSpec() {
       "/api/projects/test-azure-scopes": {
         post: {
           tags: ["Discovery"],
-          summary: "Verify Azure DevOps PAT Scopes",
+          summary: "Verify Tracker Provider Scopes",
           description:
-            "Probes an Azure DevOps Personal Access Token to confirm required 'Work Items (Read)' and 'Code (Read, Status)' scopes without excessive permissions.",
+            "Probes the resolved tracker provider's credentials for the capabilities that provider must hold. The provider is resolved from `providerId`, or from the tracker connection recorded on `projectId`; a connection whose provider does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for. The path keeps its historical provider-named form.",
           operationId: "testAzureScopes",
           requestBody: {
             required: true,
@@ -585,6 +585,11 @@ export function getOpenApiSpec() {
                 schema: {
                   type: "object",
                   properties: {
+                    providerId: {
+                      type: "string",
+                      example: "azure-devops",
+                    },
+                    projectId: { type: "string", example: "proj-1" },
                     orgUrl: {
                       type: "string",
                       example: "https://dev.azure.com/my-org",
@@ -598,7 +603,7 @@ export function getOpenApiSpec() {
           },
           responses: {
             "200": {
-              description: "Azure scope audit report",
+              description: "Provider scope audit report",
               content: {
                 "application/json": {
                   schema: {
