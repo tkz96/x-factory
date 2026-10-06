@@ -66,16 +66,14 @@ describe("the fact of verification is read from the state alone (#146's predicat
     ).toBe(false);
   });
 
-  it("is exactly what the card's ok/degraded status is derived from", () => {
-    // The card's progression and the Review gate read ONE predicate, so they
-    // can never disagree about whether a role is verified.
-    for (const evidence of [verified, verifiedDegraded, cleared]) {
-      const status = deriveVerificationStatus(false, null, null, evidence);
-      expect(status === "ok" || status === "degraded").toBe(
-        isConnectionUsable(evidence),
-      );
-    }
-  });
+  // There is deliberately NO test here asserting that the card's status follows
+  // `isConnectionUsable`: that restates the implementation (`deriveVerificationStatus`
+  // calls the predicate) and would pass for any implementation that calls it.
+  // The agreement it is meant to pin — the card showing "Verified"/"Degraded"
+  // exactly while the Review gate lets the user through — is proven against the
+  // rendered surfaces instead: `test/connect-step.test.tsx` (both cards, every
+  // verification outcome, and the Next button) and `test/review-step.test.tsx`
+  // (the gate and the submit).
 });
 
 describe("deriveVerificationStatus — one precedence for both sources of the fact", () => {

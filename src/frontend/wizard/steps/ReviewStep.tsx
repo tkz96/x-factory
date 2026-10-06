@@ -28,7 +28,7 @@ import type { ProviderDescriptor } from "../../connection/types.js";
 import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
 import { ApiError, api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
-import { connectionIdentityTargets } from "../state/connectConfig.js";
+import { draftConnectionIdentityTargets } from "../state/connectConfig.js";
 import {
   isReviewReady,
   type ReviewBlockedReason,
@@ -154,7 +154,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       comboSlotFromEvidence("tracker", state.connect.tracker),
       comboSlotFromEvidence("gitHost", state.connect.gitHost),
     ],
-    connectionIdentityTargets(state.connect, manifest),
+    draftConnectionIdentityTargets(state.connect, manifest),
   );
   const requiredRoles: ProjectConnectionRole[] = ["tracker", "gitHost"];
 

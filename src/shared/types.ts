@@ -142,6 +142,21 @@ export interface ProjectReadiness {
 export type ProjectConnectionRole = "tracker" | "gitHost";
 
 /**
+ * BOTH connection roles, in the order everything reports and renders them.
+ *
+ * THE list (#133): `ProjectConnectionRole` is the type, and this tuple is the
+ * one runtime form of it — declared `satisfies` that type, so a role added to
+ * one and not the other fails to compile rather than silently diverging. The
+ * role-coverage rule (`REQUIRED_CONNECTION_ROLES`), the post-creation combo
+ * line's render order and the wizard's Connect-step roles all read THIS, instead
+ * of each writing its own pair.
+ */
+export const PROJECT_CONNECTION_ROLES = [
+  "tracker",
+  "gitHost",
+] as const satisfies readonly ProjectConnectionRole[];
+
+/**
  * One normalized provider connection on a project (#131).
  *
  * `config` is the provider's own configuration with every declared secret

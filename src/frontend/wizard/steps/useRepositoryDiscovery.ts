@@ -98,6 +98,21 @@ export function useRepositoryDiscovery() {
   // fingerprint against the current one, so it stays visible and never
   // selectable, next to the failure's diagnostics, which `deriveAsyncState`
   // renders as a suppressed banner over content rather than in place of it.
+  //
+  // THIS IS A RENDER-PHASE REF WRITE, and it is deliberate (#133 correction 1):
+  //
+  //   * it is IDEMPOTENT — the value written is `query.data` itself, so
+  //     rendering twice with the same data writes the same value twice. React's
+  //     double-invoked render under `StrictMode`, and a discarded concurrent
+  //     render, both leave the ref holding exactly the latest data the query
+  //     has, which is what it exists to hold;
+  //   * it is NOT an effect-driven mirror of state: the ref records what THIS
+  //     render displays, so it is accurate from the moment the render happens.
+  //     An effect would defer the same write to after commit, adding a window in
+  //     which the region has already shown a result the ref does not yet hold —
+  //     a strictly weaker invariant for no gain;
+  //   * the ref drives no other hook and no query key. It is read two lines
+  //     below, for display only.
   if (query.data !== undefined) {
     lastDisplayed.current = query.data;
   }

@@ -21,6 +21,7 @@
 // Provider-agnostic: these functions compare PROVIDER IDS between the two role
 // selections. They never know a provider by name.
 
+import { PROJECT_CONNECTION_ROLES } from "../../../shared/types.js";
 import {
   type ConnectionIdentityTarget,
   identityConfig,
@@ -28,11 +29,12 @@ import {
 import type { ProviderDescriptor } from "../../connection/types.js";
 import type { WizardConnectionRole, WizardConnectState } from "../types.js";
 
-/** The roles the Connect step collects, in a stable order. */
-export const CONNECTION_ROLES: readonly WizardConnectionRole[] = [
-  "tracker",
-  "gitHost",
-];
+/**
+ * The roles the Connect step collects, in a stable order — the ONE role list
+ * (`PROJECT_CONNECTION_ROLES`), narrowed to the wizard's own role type.
+ */
+export const CONNECTION_ROLES: readonly WizardConnectionRole[] =
+  PROJECT_CONNECTION_ROLES;
 
 /** The opposite role. */
 function otherRole(role: WizardConnectionRole): WizardConnectionRole {
@@ -40,8 +42,8 @@ function otherRole(role: WizardConnectionRole): WizardConnectionRole {
 }
 
 /**
- * The connections the Connect step's configuration can identify: one target per
- * role, carrying the provider that role selected and that provider's ONE
+ * The connections the Connect step's DRAFT configuration can identify: one
+ * target per role, carrying the provider that role selected and that provider's ONE
  * configuration (#133 story 34), reduced to its NON-SECRET fields.
  *
  * The draft configuration carries the credentials the user typed, and this read
@@ -54,7 +56,7 @@ function otherRole(role: WizardConnectionRole): WizardConnectionRole {
  * combo line show the identity of the one connection they are. A role with no
  * provider is a target with no provider id, which the hook does not query.
  */
-export function connectionIdentityTargets(
+export function draftConnectionIdentityTargets(
   connect: WizardConnectState,
   descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {

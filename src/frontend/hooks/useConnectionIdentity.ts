@@ -24,6 +24,9 @@
 // projects on the same provider never share an identity that way.
 
 import { useQueries } from "@tanstack/react-query";
+// The ONE definition of a presentable identity, shared with the route that
+// publishes it: a provider that reports nothing shows nothing, on either side.
+import { presentableIdentity } from "../../shared/connection-identity.js";
 import type {
   ConnectionComboSlot,
   ConnectionIdentityLookup,
@@ -36,15 +39,6 @@ import {
 import { api } from "../lib/api-client.js";
 import { connectionConfigFingerprint } from "../lib/connection-fingerprint.js";
 import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
-
-/** The identity as the surfaces render it: a non-empty string, or nothing. */
-function presentableIdentity(
-  identity: string | null | undefined,
-): string | null {
-  return typeof identity === "string" && identity.trim() !== ""
-    ? identity.trim()
-    : null;
-}
 
 /**
  * The identity wiring of ONE line, as ONE call: the line's slots in, the same

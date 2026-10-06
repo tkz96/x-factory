@@ -33,6 +33,9 @@ import {
   type ProviderDescriptor,
   serializeProvider,
 } from "../providers/serializer.js";
+// The ONE definition of a presentable identity, shared with the read that
+// attaches it to a line: an empty identity is nothing to show, on either side.
+import { presentableIdentity } from "../shared/connection-identity.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -348,19 +351,6 @@ export async function handleRepositoriesRoute(
       return jsonResponse(userError, 200);
     }
   });
-}
-
-/**
- * The identity as the wire reports it: a non-empty string, or `null`. A
- * provider that reports an empty identity is reporting nothing, and the UI then
- * renders the plain display name — never `"Name ()"`.
- */
-function presentableIdentity(identity: string | null): string | null {
-  if (identity === null) {
-    return null;
-  }
-  const trimmed = identity.trim();
-  return trimmed === "" ? null : trimmed;
 }
 
 /**
