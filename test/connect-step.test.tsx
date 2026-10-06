@@ -972,8 +972,12 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(getEl<HTMLInputElement>("gitHost-serviceUrl").value).toBe(
         "https://typed.example.com",
       );
-      expect(getEl<HTMLInputElement>("gitHost-pat").value).toBe("pat-synthetic");
-      expect(getEl<HTMLInputElement>("tracker-pat").value).toBe("pat-synthetic");
+      expect(getEl<HTMLInputElement>("gitHost-pat").value).toBe(
+        "pat-synthetic",
+      );
+      expect(getEl<HTMLInputElement>("tracker-pat").value).toBe(
+        "pat-synthetic",
+      );
 
       const verifyMock = mock(
         async (_payload: {
@@ -1011,8 +1015,12 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       // `buildCreationPayload` reads this same provider record from state, and
       // `test/review-payload.test.ts` asserts it is the SAME object, not a copy
       // of one role's view of it.
-      expect(getEl("connection-card-tracker").textContent).toContain("Verified");
-      expect(getEl("connection-card-gitHost").textContent).toContain("Verified");
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Verified",
+      );
     });
 
     it("editing the shared configuration from EITHER card invalidates BOTH roles' verification", async () => {

@@ -2,8 +2,8 @@
 
 import { ConnectionCard } from "../../connection/ConnectionCard.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
-import type { WizardConnectState } from "../types.js";
 import { roleConfig } from "../state/connectConfig.js";
+import type { WizardConnectState } from "../types.js";
 import type { useRoleConnection } from "./useRoleConnection.js";
 import "./ConnectStep.css";
 
