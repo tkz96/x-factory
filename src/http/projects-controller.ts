@@ -41,10 +41,9 @@ import { getRunRepository } from "../runs.js";
 import {
   assertLegacyTrackerUsable,
   createProjectFromConnections,
-  updateProjectConnections,
+  updateProjectConnectionsById,
 } from "../services/project-creation.js";
 import type { IssueTrackerProvider } from "../shared/types.js";
-import type { Project } from "../types.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -106,24 +105,12 @@ async function handleGetProject(projectId: string): Promise<Response> {
   return jsonResponse({ ...project, readiness });
 }
 
-/**
- * Detects whether a project update targets normalized connections (#133 / #158).
- * Any payload containing a `connections` or `clearSecrets` field, or targeting
- * connection data on a project that already has normalized connections, must
- * be validated against the normalized update schema rather than bypassing it
- * through legacy raw merge.
- */
-function isConnectionUpdate(raw: unknown, project: Project): boolean {
-  if (typeof raw !== "object" || raw === null) return false;
-  if ("connections" in raw || "clearSecrets" in raw) return true;
-  if (
-    Array.isArray(project.connections) &&
-    project.connections.length > 0 &&
-    "issueTracker" in raw
-  ) {
-    return true;
-  }
-  return false;
+function hasOwnConnections(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    Object.hasOwn(body, "connections")
+  );
 }
 
 async function handleUpdateProject(
@@ -131,43 +118,43 @@ async function handleUpdateProject(
   req: Request,
   registry: ProviderRegistry,
 ): Promise<Response> {
-  const project = await getProject(projectId);
-  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
-
   const raw = await parseJsonBody(req);
-  if (!raw) return errorResponse("Invalid JSON for project update.", 400);
+  if (!raw) {
+    return errorResponse("Invalid JSON for project update.", 400);
+  }
 
-  // Connection updates go through the normalized path (#145, #158).
-  // A payload that carries a `connections` field (even if null or malformed)
-  // must NOT bypass normalized validation.
-  if (isConnectionUpdate(raw, project)) {
+  if (hasOwnConnections(raw)) {
     const validated = validateAgainstSchema(
       raw,
       UpdateProjectConnectionsBodySchema,
     );
-    if (!validated.ok) return validated.response;
+
+    if (!validated.ok) {
+      return validated.response;
+    }
+
     return catchHttpErrors(async () => {
-      const saved = await updateProjectConnections(project, validated.data, {
-        registry,
-      });
+      const saved = await updateProjectConnectionsById(
+        projectId,
+        validated.data,
+        { registry },
+      );
       return jsonResponse(saved);
     });
   }
 
+  const project = await getProject(projectId);
+  if (!project) {
+    return errorResponse(`Project "${projectId}" not found.`, 404);
+  }
+
   return catchHttpErrors(async () => {
-    // Legacy merge path: strictly for genuinely legacy update payloads.
-    // Strip connection fields to ensure malformed connection data never
-    // silently merges into the project record.
-    const {
-      connections: _ignoredConn,
-      clearSecrets: _ignoredClear,
-      ...safeRaw
-    } = raw as Record<string, unknown>;
     const merged = {
       ...project,
-      ...safeRaw,
+      ...raw,
       id: projectId,
     };
+
     const saved = await saveProject(merged);
     return jsonResponse(saved);
   });

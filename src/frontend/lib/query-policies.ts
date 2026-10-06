@@ -29,11 +29,13 @@ export const queryKeys = {
       | ProviderDescriptor
       | readonly ProviderDescriptor[]
       | ReadonlySet<string>,
+    generation?: number,
   ) =>
     [
       "providers",
       "repositories",
       connectionConfigFingerprint(providerId, config, descriptorOrDescriptors),
+      ...(generation !== undefined ? [generation] : []),
     ] as const,
   /**
    * A connection's provider-owned identity (#133 story 34). Keyed by the same

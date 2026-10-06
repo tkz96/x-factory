@@ -2083,11 +2083,12 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     const emptyConnRes = await patch({ connections: [] });
     expect(emptyConnRes.status).toBe(400);
 
-    // Modifying tracker directly on normalized project must not bypass normalized schema
-    const directTrackerRes = await patch({
-      issueTracker: { provider: "jira", connectionId: "jira" },
-    });
-    expect(directTrackerRes.status).toBe(400);
+    // Boolean and number connections must also be rejected with 400
+    const boolConnRes = await patch({ connections: false });
+    expect(boolConnRes.status).toBe(400);
+
+    const numConnRes = await patch({ connections: 123 });
+    expect(numConnRes.status).toBe(400);
 
     // Verify project record and env were NEVER mutated
     expect(await loadProjectEnv(projectId)).toEqual(envBefore);

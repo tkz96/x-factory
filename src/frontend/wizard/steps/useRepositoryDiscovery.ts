@@ -31,7 +31,7 @@ import type {
 } from "../../connection/types.js";
 import { api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
-import { roleConfig } from "../state/connectConfig.js";
+import { configGeneration, roleConfig } from "../state/connectConfig.js";
 import {
   APPLICATION_REPOSITORY_ROLE,
   gitHostDiscoveryFingerprint,
@@ -67,8 +67,15 @@ export function useRepositoryDiscovery() {
     DiscoveryResult | undefined
   >(undefined);
 
+  const generation = configGeneration(state.connect, providerId ?? "");
+
   const query = useQuery({
-    queryKey: queryKeys.providerRepositories(providerId, config),
+    queryKey: queryKeys.providerRepositories(
+      providerId,
+      config,
+      undefined,
+      generation,
+    ),
     enabled: providerId !== null,
     // A config edit keeps the previous results on screen while the new fetch
     // runs — flagged out of date rather than silently mistaken for current.

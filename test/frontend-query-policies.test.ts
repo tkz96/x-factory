@@ -100,6 +100,23 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
     // The key never carries a credential: it holds a non-reversible digest.
     expect(JSON.stringify(base)).not.toContain("tok-a");
     expect(JSON.stringify(base)).not.toContain("tok-b");
+
+    // Generation advances separate query keys to invalidate caches across intake resets
+    const withGen1 = queryKeys.providerRepositories(
+      "generic-githost",
+      { gitUrl: "https://git.example.com", token: "tok-a" },
+      undefined,
+      1,
+    );
+    const withGen2 = queryKeys.providerRepositories(
+      "generic-githost",
+      { gitUrl: "https://git.example.com", token: "tok-a" },
+      undefined,
+      2,
+    );
+    expect(withGen1[3]).toBe(1);
+    expect(withGen2[3]).toBe(2);
+    expect(withGen1).not.toEqual(withGen2);
   });
 });
 

@@ -210,6 +210,34 @@ describe("withCreationClaim", () => {
     );
   });
 
+  it("does not reclaim a live owner merely because the claim is old", async () => {
+    const id = "live-owner-backdated";
+    const claimPath = getCreationClaimPath(id);
+    await mkdir(path.dirname(claimPath), { recursive: true });
+    await writeFile(
+      claimPath,
+      `${JSON.stringify({ token: "live-token", pid: process.pid, createdAt: Date.now() - 5 * 60_000 })}\n`,
+    );
+    await backdate(claimPath, 5 * 60_000);
+
+    // Contender tries to acquire with TTL of 1s.
+    // Even though claim is 5 minutes old (> 1s TTL), the holder PID (process.pid) is alive!
+    // So the contender must NOT reclaim it and must time out.
+    await expect(
+      withCreationClaim(id, async () => "should-not-acquire", {
+        ttlMs: 1_000,
+        waitTimeoutMs: 60,
+        pollIntervalMs: 5,
+      }),
+    ).rejects.toThrow(ClaimTimeoutError);
+
+    // Verify claim file is untouched and still held by live token
+    const record = JSON.parse(await readFile(claimPath, "utf-8")) as {
+      token: string;
+    };
+    expect(record.token).toBe("live-token");
+  });
+
   it("releases only its OWN claim: a holder whose claim was reclaimed cannot delete its successor's", async () => {
     const id = "successor";
     const claimPath = getCreationClaimPath(id);
