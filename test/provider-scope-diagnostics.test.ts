@@ -19,12 +19,20 @@ import { stubProvider } from "./fixtures/stub-provider.js";
 let baseDir: string;
 const savedConfigPath = process.env.X_FACTORY_CONFIG_PATH;
 
-/** A provider that declares NO scope capability — the honest capability gap. */
+/**
+ * The stub's contract identity with NO scope capability — the honest capability
+ * gap. It is spelled out rather than spread-with-`undefined` because
+ * `exactOptionalPropertyTypes` forbids assigning `undefined` to an optional
+ * capability, which is also the shape the gate wants us to dispatch on.
+ */
 const scopelessProvider: Provider = {
-  ...stubProvider,
   id: "scopeless",
   displayName: "Scopeless Provider",
-  verifyScopes: undefined,
+  roles: stubProvider.roles,
+  iconRef: stubProvider.iconRef,
+  configSchema: stubProvider.configSchema,
+  verifyCredentials: (config) => stubProvider.verifyCredentials(config),
+  toUserError: (raw, context) => stubProvider.toUserError(raw, context),
 };
 
 const registry = new Map<string, Provider>([

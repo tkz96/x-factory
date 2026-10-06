@@ -68,7 +68,7 @@ const CONDITIONAL_RULES: readonly Rule[] = [
   },
   {
     name: "loose equality on provider id",
-    pattern: /(?:==|!=)(?!=)\s*["'](?:github|azure|jira)["']/,
+    pattern: /(?<![=!])(?:==|!=)(?!=)\s*["'](?:github|azure|jira)["']/,
   },
   {
     name: "comparison on provider id (literal first)",
@@ -80,16 +80,16 @@ const CONDITIONAL_RULES: readonly Rule[] = [
   },
   {
     name: "ternary on provider id",
-    pattern: /\?\s*["'](?:github|azure|jira)["']\s*:/,
+    pattern: /[ \t]*\?[ \t]*["'](?:github|azure|jira)["'][ \t]*:/,
   },
   {
     name: "provider-id map key selector",
     pattern:
-      /\b[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\[\s*["'](?:github|azure|jira)["']\s*\]/,
+      /\b[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*[ \t]*\[[ \t]*["'](?:github|azure|jira)["'][ \t]*\]/,
   },
   {
     name: "computed object key on provider id",
-    pattern: /\[\s*["'](?:github|azure|jira)["']\s*\]\s*:/,
+    pattern: /\[[ \t]*["'](?:github|azure|jira)["'][ \t]*\][ \t]*:/,
   },
 ];
 
@@ -403,10 +403,15 @@ describe("provider-agnosticism gate — negative fixtures (must be reported)", (
   for (const fixture of NEGATIVE_FIXTURES) {
     it(`reports ${fixture.case}`, () => {
       const violations = scanContent(fixture.path, fixture.content);
+      const rules = violations.map((violation) => violation.rule);
       expect(
-        violations.map((violation) => violation.rule),
-        `${fixture.path} was not reported under "${fixture.rule}"`,
-      ).toContain(fixture.rule);
+        violations.length,
+        `${fixture.path} produced no violation for "${fixture.rule}"`,
+      ).toBeGreaterThan(0);
+      expect(
+        new Set(rules),
+        `${fixture.path} was reported under ${rules.join(", ")}`,
+      ).toEqual(new Set([fixture.rule]));
       expect(violations[0]?.file).toBe(fixture.path);
       expect(violations[0]?.line).toBeGreaterThan(0);
     });
@@ -441,6 +446,31 @@ const GENERIC_CONSUMER = [
   "    contentType,",
   "    descriptor: { providerId: provider.id, displayName: provider.displayName },",
   "  };",
+  "}",
+  "",
+].join("\n");
+
+/**
+ * Provider ids as DATA: a documentation list and a label map, read by a variable
+ * key. The gate reports using a provider id to SELECT (`TABLES["azure"]`), not
+ * the ids themselves being present.
+ */
+const PROVIDER_IDS_AS_DATA = [
+  "const DOC_SECTIONS = [",
+  '  { id: "azure", label: "Azure DevOps" },',
+  '  { id: "github", label: "GitHub" },',
+  '  { id: "jira", label: "Jira Software" },',
+  "];",
+  "",
+  "const TITLES: Record<string, string> = {",
+  '  azure: "Azure DevOps",',
+  '  github: "GitHub",',
+  '  jira: "Jira Software",',
+  "};",
+  "",
+  "export function titleFor(id: string): string | undefined {",
+  "  const section = DOC_SECTIONS.find((entry) => entry.id === id);",
+  "  return section ? TITLES[section.id] : undefined;",
   "}",
   "",
 ].join("\n");
@@ -498,6 +528,11 @@ const POSITIVE_FIXTURES: readonly Fixture[] = [
     case: "a provider-keyed table read by a variable key",
     path: "shared/example-identity.ts",
     content: PROVIDER_KEYED_TABLE,
+  },
+  {
+    case: "provider ids held as data in a list and a label map",
+    path: "frontend/components/ExampleDocsNav.tsx",
+    content: PROVIDER_IDS_AS_DATA,
   },
 ];
 
