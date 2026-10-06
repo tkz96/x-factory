@@ -53,6 +53,10 @@ import { WizardModal } from "../src/frontend/wizard/WizardModal.js";
 const GIT_URL = "https://git.example.com";
 const GIT_HOST_SECRET = "tok-super-secret-146";
 const TRACKER_HOST = "https://tracker.example.com";
+// The dual-role provider's one configuration: a URL typed on the tracker card
+// and a token typed on the git-host card.
+const DUAL_SERVICE_URL = "https://dual.example.com";
+const DUAL_SERVICE_PAT = "pat-super-secret-dual";
 // The server-side env key the secret routes to (#131/#145): a name the wizard
 // never sees and must therefore never render or persist.
 const GIT_HOST_ENV_KEY = "GENERIC_GITHOST_TOKEN";
@@ -89,6 +93,30 @@ const MANIFEST: ProviderDescriptor[] = [
       {
         name: "token",
         label: "Access Token",
+        type: "secret",
+        required: true,
+        secret: true,
+      },
+    ],
+  },
+  {
+    // Serves BOTH roles (correction 2, #133): one provider, one configuration,
+    // whichever card writes it.
+    id: "dual-service",
+    displayName: "Dual Role Service",
+    roles: ["tracker", "gitHost"],
+    iconRef: "icon-custom-dual",
+    capabilities: ["listTickets", "listRepositories", "createPullRequest"],
+    configFields: [
+      {
+        name: "serviceUrl",
+        label: "Service URL",
+        type: "url",
+        required: true,
+      },
+      {
+        name: "pat",
+        label: "Personal Access Token",
         type: "secret",
         required: true,
         secret: true,
@@ -199,8 +227,17 @@ function renderWizard() {
   );
 }
 
+/**
+ * How the Connect step is driven. The default is the two single-role providers;
+ * a `sameProvider` choice points BOTH cards at one dual-role provider, which is
+ * the correction-2 shape: one provider, one configuration.
+ */
+interface ConnectChoice {
+  sameProvider?: boolean;
+}
+
 /** Drives Basics → Connect with both cards verified, stopping at step 2. */
-async function runToConnect() {
+async function runToConnect(choice: ConnectChoice = {}) {
   renderWizard();
   fireEvent.click(getEl("btn-open-wizard"));
 
@@ -209,17 +246,32 @@ async function runToConnect() {
   await typeInput(getEl("onboard-workspace-path"), "/work/rocket");
   fireEvent.click(getEl("btn-step-1-next"));
 
-  act(() => {
-    fireEvent.change(getEl("select-tracker-provider"), {
-      target: { value: "generic-tracker" },
+  if (choice.sameProvider) {
+    // ONE provider for both roles: the tracker card is filled first, then the
+    // git-host card — both are views of the provider's single configuration.
+    act(() => {
+      fireEvent.change(getEl("select-tracker-provider"), {
+        target: { value: "dual-service" },
+      });
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "dual-service" },
+      });
     });
-    fireEvent.change(getEl("select-gitHost-provider"), {
-      target: { value: "generic-githost" },
+    await typeInput(getEl("tracker-serviceUrl"), DUAL_SERVICE_URL);
+    await typeInput(getEl("gitHost-pat"), DUAL_SERVICE_PAT);
+  } else {
+    act(() => {
+      fireEvent.change(getEl("select-tracker-provider"), {
+        target: { value: "generic-tracker" },
+      });
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "generic-githost" },
+      });
     });
-  });
-  await typeInput(getEl("tracker-endpointHost"), TRACKER_HOST);
-  await typeInput(getEl("gitHost-gitUrl"), GIT_URL);
-  await typeInput(getEl("gitHost-token"), GIT_HOST_SECRET);
+    await typeInput(getEl("tracker-endpointHost"), TRACKER_HOST);
+    await typeInput(getEl("gitHost-gitUrl"), GIT_URL);
+    await typeInput(getEl("gitHost-token"), GIT_HOST_SECRET);
+  }
 
   await act(async () => {
     fireEvent.click(getEl("btn-verify-all"));
@@ -227,16 +279,19 @@ async function runToConnect() {
 }
 
 /** Continues from Connect to Repositories, at step 3. */
-async function runToRepositories() {
-  await runToConnect();
+async function runToRepositories(choice: ConnectChoice = {}) {
+  await runToConnect(choice);
   fireEvent.click(getEl("btn-step-2-next"));
   expect(document.getElementById("onboard-step-3")).not.toBeNull();
   await flush();
 }
 
 /** Selects `repoIds` on step 3 and advances to step 4, with the read settled. */
-async function runToInspection(repoIds: string[] = ["repo-app"]) {
-  await runToRepositories();
+async function runToInspection(
+  repoIds: string[] = ["repo-app"],
+  choice: ConnectChoice = {},
+) {
+  await runToRepositories(choice);
   for (const repoId of repoIds) {
     act(() => {
       fireEvent.click(getEl(`repo-select-${repoId}`));
@@ -248,8 +303,11 @@ async function runToInspection(repoIds: string[] = ["repo-app"]) {
 }
 
 /** The full journey: at step 5 with everything resolved. */
-async function runToReview(repoIds: string[] = ["repo-app"]) {
-  await runToInspection(repoIds);
+async function runToReview(
+  repoIds: string[] = ["repo-app"],
+  choice: ConnectChoice = {},
+) {
+  await runToInspection(repoIds, choice);
   fireEvent.click(getEl("btn-step-4-next"));
   expect(document.getElementById("onboard-step-5")).not.toBeNull();
   await flush();
@@ -555,6 +613,60 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(JSON.stringify(inspectRepository.mock.calls)).not.toContain(
       GIT_HOST_ENV_KEY,
     );
+  });
+
+  it("SAME PROVIDER FOR BOTH ROLES (correction 2, #133): what BOTH roles verified is what the submit carries", async () => {
+    const verify = mock(
+      async (_payload: {
+        providerId: string;
+        role: string;
+        config: Record<string, unknown>;
+      }) => ({ status: "ok" as const, warnings: [] }),
+    );
+    api.providers.verify = verify;
+
+    await runToReview(["repo-app"], { sameProvider: true });
+
+    // Both roles verified the provider — each for its own role, on ONE
+    // configuration.
+    expect(verify).toHaveBeenCalledTimes(2);
+    const verifiedConfigs = verify.mock.calls.map((call) => call[0].config);
+    expect(verifiedConfigs).toEqual([
+      { serviceUrl: DUAL_SERVICE_URL, pat: DUAL_SERVICE_PAT },
+      { serviceUrl: DUAL_SERVICE_URL, pat: DUAL_SERVICE_PAT },
+    ]);
+
+    const submit = getEl<HTMLButtonElement>("btn-step-5-submit");
+    expect(submit.disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(submit);
+    });
+    await flush();
+
+    expect(createProject).toHaveBeenCalledTimes(1);
+    const payload = createProject.mock.calls[0]?.[0] as {
+      connections: Array<{
+        providerId: string;
+        roles: string[];
+        config: Record<string, unknown>;
+      }>;
+    };
+
+    // ONE connection, carrying BOTH roles and the ONE configuration both
+    // verifications were made against. Before correction 2 the payload carried
+    // whichever role's copy the builder picked, so the tracker could be
+    // submitted with a configuration it never verified.
+    expect(payload.connections).toHaveLength(1);
+    expect(payload.connections[0]?.providerId).toBe("dual-service");
+    expect(payload.connections[0]?.roles).toEqual(["tracker", "gitHost"]);
+    expect(payload.connections[0]?.config).toEqual(verifiedConfigs[0]);
+    expect(payload.connections[0]?.config).toEqual(verifiedConfigs[1]);
+    expect(ConnectionsProjectInputSchema.safeParse(payload).success).toBe(true);
+
+    // The secret travelled exactly once, in the creation request body — in no
+    // rendered text and in no draft.
+    expect(document.body.textContent).not.toContain(DUAL_SERVICE_PAT);
+    expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
   });
 
   it("STALE: a workspace root changed after inspection blocks the submit until the identity is resolved again, with no navigation needed", async () => {
