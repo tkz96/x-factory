@@ -1,14 +1,20 @@
 // src/frontend/wizard/steps/useRoleConnection.ts — State and verification lifecycle hook for a connection role.
 //
-// One instance per ROLE. The instance owns this card's local session state —
-// the verification result it just received, the error it just surfaced, whether
-// a request is in flight — while everything durable lives in the wizard state:
-// the provider selection per role, and the configuration per PROVIDER. A role
-// reads the configuration of the provider it selected (so a provider serving
-// both roles is read, and written, through one record by both cards), and it
-// keeps its own verification evidence, because verification is per role.
+// One instance per ROLE. The instance owns this card's local session state — the
+// verification result it just received, the error it just surfaced, whether a
+// request is in flight — while everything durable lives in the wizard state: the
+// provider selection per role, the configuration per PROVIDER, and the
+// verification EVIDENCE per role. A role reads the configuration of the provider
+// it selected (so a provider serving both roles is read, and written, through
+// one record by both cards).
+//
+// The session state is transient BY CONSTRUCTION: only the ACTIVE step is
+// rendered, so navigating away unmounts this hook and drops it. The EVIDENCE is
+// what survives, and it is what answers whether the role is verified
+// (correction 5, #133).
 
 import { useRef, useState } from "react";
+import { isConnectionUsable } from "../../components/connections/connection-state.js";
 import { isNormalizedError } from "../../components/feedback/copy-map.js";
 import type { VerificationResult } from "../../connection/types.js";
 import { api } from "../../lib/api-client.js";
@@ -22,7 +28,6 @@ import type {
 import {
   deriveVerificationStatus,
   extractApiErrors,
-  hasVerifiedEvidence,
   resolveVerificationDisplay,
 } from "./connection-error-helpers.js";
 
@@ -162,8 +167,9 @@ export function useRoleConnection(
   // A degraded verification IS a verified connection (#133): its warnings are
   // surfaced on the card, never collected as an acknowledgement, and never a
   // reason to withhold anything. WHETHER this role is verified is read from the
-  // evidence itself, never from the transient status that a remount resets.
-  const isVerified = hasVerifiedEvidence(roleState);
+  // evidence the state persists — the same predicate the Review gate reads
+  // (#146) — never from the transient status a remount resets.
+  const isVerified = isConnectionUsable(roleState);
 
   return {
     verification: displayVerification,

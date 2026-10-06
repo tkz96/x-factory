@@ -5,10 +5,10 @@
 // no local payload at all — reports.
 
 import { describe, expect, it } from "bun:test";
+import { isConnectionUsable } from "../src/frontend/components/connections/connection-state.js";
 import type { VerificationResult } from "../src/frontend/connection/types.js";
 import {
   deriveVerificationStatus,
-  hasVerifiedEvidence,
   resolveVerificationDisplay,
 } from "../src/frontend/wizard/steps/connection-error-helpers.js";
 import type { WizardConnectionRoleState } from "../src/frontend/wizard/types.js";
@@ -45,25 +45,36 @@ const cleared: WizardConnectionRoleState = {
   unconfirmedCapabilities: [],
 };
 
-describe("hasVerifiedEvidence — WHETHER the role is verified, from the state alone", () => {
+describe("the fact of verification is read from the state alone (#146's predicate)", () => {
   it("is true for evidence the state still holds", () => {
-    expect(hasVerifiedEvidence(verified)).toBe(true);
-    expect(hasVerifiedEvidence(verifiedDegraded)).toBe(true);
+    expect(isConnectionUsable(verified)).toBe(true);
+    expect(isConnectionUsable(verifiedDegraded)).toBe(true);
   });
 
   it("is false for cleared evidence, for a role with no provider, and for a role never verified", () => {
-    expect(hasVerifiedEvidence(cleared)).toBe(false);
+    expect(isConnectionUsable(cleared)).toBe(false);
     expect(
-      hasVerifiedEvidence({
+      isConnectionUsable({
         providerId: null,
         verified: true,
         unconfirmedCapabilities: [],
       }),
     ).toBe(false);
-    expect(hasVerifiedEvidence({ providerId: "generic-githost" })).toBe(false);
+    expect(isConnectionUsable({ providerId: "generic-githost" })).toBe(false);
     expect(
-      hasVerifiedEvidence({ providerId: "generic-githost", verified: false }),
+      isConnectionUsable({ providerId: "generic-githost", verified: false }),
     ).toBe(false);
+  });
+
+  it("is exactly what the card's ok/degraded status is derived from", () => {
+    // The card's progression and the Review gate read ONE predicate, so they
+    // can never disagree about whether a role is verified.
+    for (const evidence of [verified, verifiedDegraded, cleared]) {
+      const status = deriveVerificationStatus(false, null, null, evidence);
+      expect(status === "ok" || status === "degraded").toBe(
+        isConnectionUsable(evidence),
+      );
+    }
   });
 });
 

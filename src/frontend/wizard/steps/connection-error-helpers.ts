@@ -14,22 +14,13 @@
 // into an unverified one, which is what deriving the fact from the transient
 // result alone did.
 
+// THE definition of whether a connection is usable/verified (#133, ticket #146)
+// — the same predicate the Review gate reads, so the card's progression and the
+// gate that eventually blocks the user can never disagree.
+import { isConnectionUsable } from "../../components/connections/connection-state.js";
 import type { VerificationResult } from "../../connection/types.js";
 import { ApiError } from "../../lib/api-client.js";
 import type { WizardConnectionRoleState } from "../types.js";
-
-/**
- * Whether the state still records this role's connection as verified — THE
- * answer to "is this role verified?", and the only one. It is read from the
- * persisted evidence, so it is the same before and after a step remount, and it
- * goes false the moment the reducer clears that evidence (provider change,
- * configuration write, Quick-URL match).
- */
-export function hasVerifiedEvidence(
-  evidence: WizardConnectionRoleState,
-): boolean {
-  return evidence.providerId !== null && evidence.verified === true;
-}
 
 /**
  * The status the card displays. Precedence, in order:
@@ -54,7 +45,7 @@ export function deriveVerificationStatus(
 ): "idle" | "pending" | "ok" | "degraded" | "error" {
   if (isPending) return "pending";
   if (error) return "error";
-  if (!hasVerifiedEvidence(evidence)) return "idle";
+  if (!isConnectionUsable(evidence)) return "idle";
   if (verification?.status === "degraded") return "degraded";
   if (verification?.status === "ok") return "ok";
   return (evidence.unconfirmedCapabilities?.length ?? 0) > 0
@@ -75,7 +66,7 @@ export function resolveVerificationDisplay(
   verification: VerificationResult | null,
   evidence: WizardConnectionRoleState,
 ): VerificationResult | null {
-  if (!hasVerifiedEvidence(evidence)) return null;
+  if (!isConnectionUsable(evidence)) return null;
   if (verification) return verification;
   const unconfirmed = evidence.unconfirmedCapabilities ?? [];
   if (unconfirmed.length === 0) return null;
