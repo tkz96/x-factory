@@ -88,9 +88,7 @@ describe("github verification — edge coverage", () => {
   });
 
   it("handles org repos 403 by returning CAPABILITY_UNCONFIRMED for listRepositories", async () => {
-    let callCount = 0;
     const mockFetch: typeof fetch = (async (url: string | URL | Request) => {
-      callCount++;
       const urlStr = String(url);
       if (urlStr.includes("/user")) {
         const headers = new Headers();
