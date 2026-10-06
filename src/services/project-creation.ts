@@ -182,21 +182,29 @@ function prepareConnection(
 export function assertConnectionRoleCoverage<
   T extends { roles: readonly ProviderRole[] },
 >(connections: readonly T[]): { tracker: T; gitHost: T } {
-  for (const role of REQUIRED_CONNECTION_ROLES) {
-    const owners = connections.filter((c) => c.roles.includes(role));
-    if (owners.length > 1) {
-      throw incompatibleConfiguration();
-    }
-  }
+  const trackerOwners = connections.filter((connection) =>
+    connection.roles.includes("tracker"),
+  );
+  const gitHostOwners = connections.filter((connection) =>
+    connection.roles.includes("gitHost"),
+  );
 
-  const tracker = connections.find((c) => c.roles.includes("tracker"));
-  const gitHost = connections.find((c) => c.roles.includes("gitHost"));
-  if (!tracker || !gitHost) {
+  if (trackerOwners.length === 0 || gitHostOwners.length === 0) {
     throw new SemanticValidationError({
       formErrors: missingConnectionRoleCodes(connections),
     });
   }
-  return { tracker, gitHost };
+
+  // Exactly one connection must own each required role.
+  // One connection may own both roles.
+  if (trackerOwners.length !== 1 || gitHostOwners.length !== 1) {
+    throw incompatibleConfiguration();
+  }
+
+  return {
+    tracker: trackerOwners[0],
+    gitHost: gitHostOwners[0],
+  };
 }
 
 /**

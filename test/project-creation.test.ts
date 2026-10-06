@@ -764,17 +764,33 @@ describe("POST /api/projects with a connections payload", () => {
         { providerId: "p2", roles: ["tracker", "gitHost"] },
       ]);
 
-      // Duplicate tracker even when gitHost is missing
-      expectIncompatible([
-        { providerId: "p1", roles: ["tracker"] },
-        { providerId: "p2", roles: ["tracker"] },
-      ]);
+      // When gitHost is missing, missing role takes precedence
+      try {
+        assertConnectionRoleCoverage([
+          { providerId: "p1", roles: ["tracker"] },
+          { providerId: "p2", roles: ["tracker"] },
+        ]);
+        expect.unreachable("expected missing gitHost error");
+      } catch (err) {
+        expect(err).toBeInstanceOf(SemanticValidationError);
+        expect((err as SemanticValidationError).formErrors).toEqual([
+          "MISSING_GIT_HOST_CONNECTION",
+        ]);
+      }
 
-      // Duplicate gitHost even when tracker is missing
-      expectIncompatible([
-        { providerId: "p1", roles: ["gitHost"] },
-        { providerId: "p2", roles: ["gitHost"] },
-      ]);
+      // When tracker is missing, missing role takes precedence
+      try {
+        assertConnectionRoleCoverage([
+          { providerId: "p1", roles: ["gitHost"] },
+          { providerId: "p2", roles: ["gitHost"] },
+        ]);
+        expect.unreachable("expected missing tracker error");
+      } catch (err) {
+        expect(err).toBeInstanceOf(SemanticValidationError);
+        expect((err as SemanticValidationError).formErrors).toEqual([
+          "MISSING_TRACKER_CONNECTION",
+        ]);
+      }
     });
 
     it("rejects a payload with duplicate tracker ownership with 409 INCOMPATIBLE_CONFIGURATION before any write", async () => {
@@ -949,7 +965,75 @@ describe("POST /api/projects with a connections payload", () => {
       expect(await loadProjectEnv(id)).toEqual({});
     });
 
-    it("rejects duplicate tracker ownership even if gitHost is missing with 409 INCOMPATIBLE_CONFIGURATION", async () => {
+    it("rejects duplicate ownership of a required role", async () => {
+      const id = baseId();
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-tracker-only",
+            roles: ["tracker"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "duplicate-role",
+            },
+          },
+          {
+            providerId: "stub-capable",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "duplicate-role",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({
+        formErrors: ["INCOMPATIBLE_CONFIGURATION"],
+      });
+      expect(await readStoredProject(id)).toBeUndefined();
+    });
+
+    it("rejects duplicate ownership of a required role (reverse dual-role + gitHost)", async () => {
+      const id = baseId();
+
+      const { status, body } = await createProject({
+        ...minimalPayload(id),
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: MARKER_STUB_TOKEN,
+              project: "duplicate-role",
+            },
+          },
+          {
+            providerId: "github",
+            roles: ["gitHost"],
+            config: {
+              token: MARKER_GITHUB_TOKEN,
+              repoOwner: "acme",
+              repository: "web",
+            },
+          },
+        ],
+      });
+
+      expect(status).toBe(409);
+      expect(body).toEqual({
+        formErrors: ["INCOMPATIBLE_CONFIGURATION"],
+      });
+      expect(await readStoredProject(id)).toBeUndefined();
+    });
+
+    it("reports missing gitHost when gitHost is missing even if tracker is duplicated", async () => {
       const id = baseId();
 
       const { status, body } = await createProject({
@@ -978,7 +1062,7 @@ describe("POST /api/projects with a connections payload", () => {
       });
 
       expect(status).toBe(409);
-      expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+      expect(body).toEqual({ formErrors: ["MISSING_GIT_HOST_CONNECTION"] });
 
       expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
         false,
