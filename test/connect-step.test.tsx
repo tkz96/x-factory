@@ -1473,6 +1473,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(trackerSelect.value).toBe("dual-service");
       expect(getEl<HTMLInputElement>("tracker-serviceUrl")).not.toBeNull();
       expect(document.getElementById("tracker-endpointHost")).toBeNull();
+      expect(submitBtn.disabled).toBe(false);
+      expect(trackerSelect.disabled).toBe(false);
     });
 
     it("P2: Quick-URL invalidates ONLY the affected role, preserving untouched role's verification", async () => {

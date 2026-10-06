@@ -37,6 +37,8 @@ export function useQuickUrlIntake({
 
   const bumpParseGeneration = () => {
     activeGenRef.current += 1;
+    setIsParsingUrl(false);
+    setQuickUrlMissMessage(null);
   };
 
   const handleQuickUrlSubmit = async (url: string) => {
@@ -100,7 +102,9 @@ export function useQuickUrlIntake({
         "Failed to parse URL. Enter credentials manually below.",
       );
     } finally {
-      setIsParsingUrl(false);
+      if (currentParseGen === activeGenRef.current) {
+        setIsParsingUrl(false);
+      }
     }
   };
 

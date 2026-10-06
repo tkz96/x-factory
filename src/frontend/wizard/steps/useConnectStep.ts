@@ -16,8 +16,13 @@ export function useConnectStep() {
   const { tracker, gitHost } = connect;
 
   const parseGenRef = useRef(0);
+  const bumpParseRef = useRef<(() => void) | null>(null);
   const onManualChange = () => {
-    parseGenRef.current += 1;
+    if (bumpParseRef.current) {
+      bumpParseRef.current();
+    } else {
+      parseGenRef.current += 1;
+    }
   };
 
   const manifestQuery = useQuery({
@@ -60,6 +65,7 @@ export function useConnectStep() {
     onResetVerifications: resetRoleVerifications,
     parseGenRef,
   });
+  bumpParseRef.current = quickUrlState.bumpParseGeneration;
 
   const handleVerifyAll = () => {
     if (tracker.providerId) {
