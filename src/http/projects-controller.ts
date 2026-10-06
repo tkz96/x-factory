@@ -19,6 +19,7 @@ import { expandUserPath, scanGitSubdirectories } from "../paths.js";
 import { loadProjectEnv, saveProjectEnv } from "../project-env.js";
 import {
   hasCapability,
+  type Provider,
   type ProviderConfig,
   REQUIRED_WORKFLOW_LABEL,
 } from "../providers/contract.js";
@@ -560,16 +561,52 @@ async function handleTestConnection(req: Request): Promise<Response> {
   );
 }
 
-async function handleTestAzureScopes(req: Request): Promise<Response> {
+/**
+ * Resolves the provider a scope diagnostic runs against WITHOUT naming one
+ * (#141): the request may name an explicit `providerId`, otherwise the
+ * project's own tracker connection decides. `undefined` means nothing could be
+ * resolved — the caller reports that instead of guessing a provider.
+ */
+async function resolveScopeDiagnosticProvider(
+  data: Record<string, unknown>,
+  registry: ProviderRegistry,
+): Promise<Provider | undefined> {
+  const requested = data.providerId;
+  if (typeof requested === "string" && requested.trim()) {
+    return getProvider(requested.trim(), registry);
+  }
+  const projectId = data.projectId;
+  if (typeof projectId !== "string" || !projectId.trim()) return undefined;
+  const project = await getProject(projectId.trim());
+  const recorded =
+    project?.issueTracker?.provider || project?.issueTracker?.connectionId;
+  return recorded ? getProvider(recorded, registry) : undefined;
+}
+
+async function handleTestProviderScopes(
+  req: Request,
+  registry: ProviderRegistry,
+): Promise<Response> {
   return withJsonBody<Record<string, unknown>>(
     req,
     async (data) => {
-      const provider = getProvider("azure");
-      if (!provider || !hasCapability(provider, "verifyScopes")) {
+      const provider = await resolveScopeDiagnosticProvider(data, registry);
+      if (!provider) {
         return jsonResponse({
           ok: false,
           scopes: {},
-          errors: ["Azure provider does not support scope verification."],
+          errors: [
+            "No tracker connection resolved for scope verification: pass a projectId with a registered tracker connection, or an explicit providerId.",
+          ],
+        });
+      }
+      if (!hasCapability(provider, "verifyScopes")) {
+        return jsonResponse({
+          ok: false,
+          scopes: {},
+          errors: [
+            "The resolved tracker provider does not support scope verification.",
+          ],
         });
       }
       try {
@@ -646,8 +683,12 @@ export async function handleProjectsRoute(
   const isTest = id === "test-connection" || id === "test-tracker";
   if (isTest && method === "POST") return handleTestConnection(req);
 
+  // The wire path keeps its historical provider-named route (the api-client and
+  // the OpenAPI document reference it); the handler behind it does not.
   const isTestScopes = id === "test-azure-scopes";
-  if (isTestScopes && method === "POST") return handleTestAzureScopes(req);
+  if (isTestScopes && method === "POST") {
+    return handleTestProviderScopes(req, registry);
+  }
 
   const isCheckPath = id === "check-path" || id === "validate-path";
   if (isCheckPath && method === "POST") return handleCheckPath(req);

@@ -277,8 +277,28 @@ curl -s -X POST http://localhost:3777/api/providers/repositories \
 After the absorb-and-delete completed (legacy tracker/discovery/Azure/GitHub-client
 families deleted), these behavior invariants are the contract for every built-in
 provider module. They are mechanically guarded by
-`test/provider-agnostic-gate.test.ts` (no provider conditionals or provider-module
-imports outside `src/providers/`) and by the registry-level serialization gate.
+`test/provider-agnostic-gate.test.ts` and by the registry-level serialization gate.
+
+The provider-agnostic gate scans production source outside `src/providers/**`
+for provider-specific coupling and reports: a concrete provider lookup
+(`getProvider("github")`, `requireProvider("jira")`), a registry lookup by a
+provider-id literal (`.get("azure")`), a provider-id literal in a comparison
+(`===`, `!==`, `==`, `!=` — on either side), a `case`, or a ternary, a
+provider-id literal used to SELECT behaviour (`TABLES["azure"]`, a computed key
+`{ ["azure"]: … }`), and the legacy tracker/discovery/Azure/GitHub-client/
+provider-submodule imports. Its scanner is a function of (relative path, source
+text) — `scanContent` — and is itself gated by negative fixtures (what must be
+reported, each asserted under its rule name) and positive fixtures (provider-zone
+paths, the audited allowlist, a test-fixture path, and a generic consumer that
+does capability dispatch, dynamic lookup, and `Headers.get("content-type")`).
+
+One precision boundary is recorded rather than hidden: a record literal KEYED by
+provider ids (`{ azure: matchAzure, github: matchGitHub }`) is data, not
+branching, and is not reported — using a provider id to select from such a table
+is. The single instance outside the provider zone
+(`src/shared/project-identity.ts`) cannot delegate to the provider registry:
+`.fallowrc.json` lets `shared` import nothing and `frontend` import only
+`shared`, and the duplicate check runs in the browser.
 
 ### PR creation is API-only
 `createPullRequest` and `findExistingPullRequest` execute **REST API calls with
