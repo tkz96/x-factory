@@ -89,9 +89,9 @@ export function useInspection(): InspectionView {
         setError(err);
       }
     } finally {
-      setIsPending((prev) =>
-        generation === generationRef.current ? false : prev,
-      );
+      if (generation === generationRef.current) {
+        setIsPending(false);
+      }
     }
   }, [workspacePath, selectedRepoIds, repoConfigs, primaryRepoId, dispatch]);
 

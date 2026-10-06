@@ -22,7 +22,7 @@
 // fingerprint (#133 correction 4).
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { isNormalizedError } from "../../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../../components/feedback/derive-async-state.js";
 import type {
@@ -63,7 +63,9 @@ export function useRepositoryDiscovery() {
   const requestFingerprint = gitHostDiscoveryFingerprint(state);
   // The last result this region put on screen, kept so content survives a
   // failed refresh of a NEW configuration (#133 correction 4).
-  const lastDisplayed = useRef<DiscoveryResult | undefined>(undefined);
+  const [lastDisplayed, setLastDisplayed] = useState<
+    DiscoveryResult | undefined
+  >(undefined);
 
   const query = useQuery({
     queryKey: queryKeys.providerRepositories(providerId, config),
@@ -99,19 +101,19 @@ export function useRepositoryDiscovery() {
   // selectable, next to the failure's diagnostics, which `deriveAsyncState`
   // renders as a suppressed banner over content rather than in place of it.
   //
-  // Commit-safe ref update:
+  // Commit-safe state update:
   // - When `query.data` is present, render displays it directly.
-  // - On commit, `lastDisplayed.current` stores the latest data.
+  // - On commit, `lastDisplayed` stores the latest data.
   // - If a subsequent refresh fails, `query.data` drops to undefined and
-  //   `lastDisplayed.current` keeps the previous result visible.
+  //   `lastDisplayed` keeps the previous result visible.
   // - Stale results remain non-selectable, the current fingerprint remains
   //   authoritative, and Continue remains blocked for stale results.
   useEffect(() => {
     if (query.data !== undefined) {
-      lastDisplayed.current = query.data;
+      setLastDisplayed(query.data);
     }
   }, [query.data]);
-  const result = query.data ?? lastDisplayed.current;
+  const result = query.data ?? lastDisplayed;
 
   const envelope = result?.envelope;
   const listedUnderRoles =
