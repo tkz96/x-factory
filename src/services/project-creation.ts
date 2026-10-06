@@ -59,9 +59,8 @@ import type {
   ProjectRepository,
 } from "../types.js";
 import {
-  ClaimLostError,
-  ClaimTimeoutError,
   type CreationClaimOptions,
+  translateClaimError,
   withCreationClaim,
 } from "./creation-claim.js";
 
@@ -390,20 +389,9 @@ export async function createProjectFromConnections(
     );
   } catch (err) {
     // A claim not taken within the wait bound means another creation of this id
-    // is in flight: the same conflict the duplicate check reports, so the API
-    // layer's 409 mapping is unchanged. A request fails loudly rather than
-    // hanging.
-    if (err instanceof ClaimTimeoutError) {
-      throw new ConflictError(
-        `Project with ID "${input.id}" is already being created.`,
-      );
-    }
-    if (err instanceof ClaimLostError) {
-      throw new ConflictError(
-        `Project with ID "${input.id}" creation claim was lost to a concurrent operation.`,
-      );
-    }
-    throw err;
+    // is in flight; a lost claim means another creation took over. Both map to
+    // ConflictError (HTTP 409).
+    translateClaimError(err, input.id);
   }
 }
 

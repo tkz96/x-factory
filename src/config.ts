@@ -6,9 +6,8 @@ import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
 import {
-  ClaimLostError,
-  ClaimTimeoutError,
   type CreationClaimOptions,
+  translateClaimError,
   withCreationClaim,
 } from "./services/creation-claim.js";
 import type { Project, ProjectRepository } from "./types.js";
@@ -185,17 +184,7 @@ export async function createProject(
       options.claim,
     );
   } catch (err) {
-    if (err instanceof ClaimTimeoutError) {
-      throw new ConflictError(
-        `Project with ID "${validated.id}" is already being created.`,
-      );
-    }
-    if (err instanceof ClaimLostError) {
-      throw new ConflictError(
-        `Project with ID "${validated.id}" creation claim was lost to a concurrent operation.`,
-      );
-    }
-    throw err;
+    translateClaimError(err, validated.id);
   }
 }
 

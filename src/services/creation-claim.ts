@@ -40,6 +40,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { ConflictError } from "../errors.js";
 import { getLocksDir } from "../paths.js";
 
 /**
@@ -107,6 +108,24 @@ export class ClaimLostError extends Error {
     this.name = "ClaimLostError";
     this.claimPath = claimPath;
   }
+}
+
+/**
+ * Translates creation claim errors into the canonical API ConflictError (HTTP 409).
+ * Re-throws any unrelated error unchanged.
+ */
+export function translateClaimError(err: unknown, projectId: string): never {
+  if (err instanceof ClaimTimeoutError) {
+    throw new ConflictError(
+      `Project with ID "${projectId}" is already being created.`,
+    );
+  }
+  if (err instanceof ClaimLostError) {
+    throw new ConflictError(
+      `Project with ID "${projectId}" creation claim was lost to a concurrent operation.`,
+    );
+  }
+  throw err;
 }
 
 /** Tuning seams; every field has a documented default. */
