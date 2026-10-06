@@ -127,38 +127,41 @@ interface StepFourDraftOptions {
 
 function setupStepFourDraft(options: StepFourDraftOptions = {}) {
   const selectedRepoIds = options.selectedRepoIds ?? ["repo-app"];
-  saveWizardDraft({
-    step: 4,
-    maxStepVisited: 4,
-    basics: {
-      name: "Rocket",
-      id: "rocket",
-      description: "",
-      workspacePath: options.workspacePath ?? WORKSPACE,
-    },
-    connect: {
-      quickUrl: "",
-      providerConfigs: {
-        "generic-tracker": {},
-        "generic-githost": GIT_HOST_CONFIG,
+  saveWizardDraft(
+    {
+      step: 4,
+      maxStepVisited: 4,
+      basics: {
+        name: "Rocket",
+        id: "rocket",
+        description: "",
+        workspacePath: options.workspacePath ?? WORKSPACE,
       },
-      tracker: { providerId: "generic-tracker", verified: true },
-      gitHost: { providerId: "generic-githost", verified: true },
-    },
-    repositories: {
-      selectedRepoIds,
-      primaryRepoId: selectedRepoIds[0] ?? null,
-      repoConfigs: options.repoConfigs ?? {
-        "repo-app": { role: "gitHost", roles: ["gitHost"] },
+      connect: {
+        quickUrl: "",
+        providerConfigs: {
+          "generic-tracker": {},
+          "generic-githost": GIT_HOST_CONFIG,
+        },
+        tracker: { providerId: "generic-tracker", verified: true },
+        gitHost: { providerId: "generic-githost", verified: true },
       },
-      selectionFingerprint:
-        selectedRepoIds.length > 0
-          ? connectionConfigFingerprint("generic-githost", GIT_HOST_CONFIG)
-          : null,
+      repositories: {
+        selectedRepoIds,
+        primaryRepoId: selectedRepoIds[0] ?? null,
+        repoConfigs: options.repoConfigs ?? {
+          "repo-app": { role: "gitHost", roles: ["gitHost"] },
+        },
+        selectionFingerprint:
+          selectedRepoIds.length > 0
+            ? connectionConfigFingerprint("generic-githost", GIT_HOST_CONFIG)
+            : null,
+      },
+      inspection: { acknowledged: false, ...(options.inspection ?? {}) },
+      review: { confirmed: false },
     },
-    inspection: { acknowledged: false, ...(options.inspection ?? {}) },
-    review: { confirmed: false },
-  });
+    MANIFEST,
+  );
 }
 
 /** Flushes the inspection (and discovery) fetch → render cycle. */

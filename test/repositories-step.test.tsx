@@ -190,40 +190,44 @@ function setupStep3Draft(
     repositories?: Record<string, unknown>;
   } = {},
 ) {
-  saveWizardDraft({
-    step: 3,
-    maxStepVisited: 3,
-    basics: {
-      name: "Rocket",
-      id: "rocket",
-      description: "",
-      workspacePath: "/work/rocket",
-    },
-    connect: {
-      quickUrl: "",
-      // Configuration is keyed by PROVIDER (correction 2, #133): the git-host
-      // role's card and its discovery read this one entry.
-      providerConfigs: {
-        "generic-tracker": {},
-        "generic-githost":
-          (overrides.gitHost?.config as Record<string, unknown> | undefined) ??
-          GIT_HOST_CONFIG,
+  saveWizardDraft(
+    {
+      step: 3,
+      maxStepVisited: 3,
+      basics: {
+        name: "Rocket",
+        id: "rocket",
+        description: "",
+        workspacePath: "/work/rocket",
       },
-      tracker: { providerId: "generic-tracker", verified: true },
-      gitHost: gitHostState(
-        (overrides.gitHost ?? {}) as Record<string, unknown>,
-      ) as never,
+      connect: {
+        quickUrl: "",
+        // Configuration is keyed by PROVIDER (correction 2, #133): the git-host
+        // role's card and its discovery read this one entry.
+        providerConfigs: {
+          "generic-tracker": {},
+          "generic-githost":
+            (overrides.gitHost?.config as
+              | Record<string, unknown>
+              | undefined) ?? GIT_HOST_CONFIG,
+        },
+        tracker: { providerId: "generic-tracker", verified: true },
+        gitHost: gitHostState(
+          (overrides.gitHost ?? {}) as Record<string, unknown>,
+        ) as never,
+      },
+      repositories: {
+        selectedRepoIds: [],
+        primaryRepoId: null,
+        repoConfigs: {},
+        selectionFingerprint: null,
+        ...(overrides.repositories ?? {}),
+      },
+      inspection: { acknowledged: false },
+      review: { confirmed: false },
     },
-    repositories: {
-      selectedRepoIds: [],
-      primaryRepoId: null,
-      repoConfigs: {},
-      selectionFingerprint: null,
-      ...(overrides.repositories ?? {}),
-    },
-    inspection: { acknowledged: false },
-    review: { confirmed: false },
-  });
+    manifestFixture,
+  );
 }
 
 function setupStep2Draft() {

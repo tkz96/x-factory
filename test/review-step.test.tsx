@@ -324,51 +324,54 @@ function setupStepFiveDraft(
   overrides: { repositories?: Record<string, unknown> } = {},
 ) {
   const gitHostConfig = { gitUrl: GIT_URL, token: GIT_HOST_SECRET };
-  saveWizardDraft({
-    step: 5,
-    maxStepVisited: 5,
-    basics: {
-      name: "Rocket",
-      id: "rocket",
-      description: "Rocket app",
-      workspacePath: "/work/rocket",
-    },
-    connect: {
-      quickUrl: "",
-      // Configuration is keyed by PROVIDER (correction 2, #133): one entry per
-      // selected provider, never one per role.
-      providerConfigs: {
-        "generic-tracker": { endpointHost: TRACKER_HOST },
-        "generic-githost": gitHostConfig,
+  saveWizardDraft(
+    {
+      step: 5,
+      maxStepVisited: 5,
+      basics: {
+        name: "Rocket",
+        id: "rocket",
+        description: "Rocket app",
+        workspacePath: "/work/rocket",
       },
-      tracker: {
-        providerId: "generic-tracker",
-        verified: true,
+      connect: {
+        quickUrl: "",
+        // Configuration is keyed by PROVIDER (correction 2, #133): one entry per
+        // selected provider, never one per role.
+        providerConfigs: {
+          "generic-tracker": { endpointHost: TRACKER_HOST },
+          "generic-githost": gitHostConfig,
+        },
+        tracker: {
+          providerId: "generic-tracker",
+          verified: true,
+        },
+        gitHost: {
+          providerId: "generic-githost",
+          verified: true,
+        },
       },
-      gitHost: {
-        providerId: "generic-githost",
-        verified: true,
+      repositories: {
+        selectedRepoIds: ["repo-app"],
+        primaryRepoId: "repo-app",
+        repoConfigs: { "repo-app": { role: "gitHost", roles: ["gitHost"] } },
+        selectionFingerprint: connectionConfigFingerprint(
+          "generic-githost",
+          gitHostConfig,
+        ),
+        ...(overrides.repositories ?? {}),
       },
+      inspection: {
+        acknowledged: true,
+        gitIdentity: IDENTITY,
+        unresolvedRepoIds: [],
+        inspectedPath: "/work/rocket",
+        inputsFingerprint: "cfp_recorded_before_reload",
+      },
+      review: { confirmed: true },
     },
-    repositories: {
-      selectedRepoIds: ["repo-app"],
-      primaryRepoId: "repo-app",
-      repoConfigs: { "repo-app": { role: "gitHost", roles: ["gitHost"] } },
-      selectionFingerprint: connectionConfigFingerprint(
-        "generic-githost",
-        gitHostConfig,
-      ),
-      ...(overrides.repositories ?? {}),
-    },
-    inspection: {
-      acknowledged: true,
-      gitIdentity: IDENTITY,
-      unresolvedRepoIds: [],
-      inspectedPath: "/work/rocket",
-      inputsFingerprint: "cfp_recorded_before_reload",
-    },
-    review: { confirmed: true },
-  });
+    MANIFEST,
+  );
 }
 
 /**

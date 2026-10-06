@@ -1,5 +1,6 @@
 // src/frontend/wizard/storage.ts — Versioned client draft persistence and secret-sanitization (spec #131, #142).
 
+import type { ProviderDescriptor } from "../connection/types.js";
 import {
   WIZARD_SCHEMA_VERSION,
   type WizardDraftEnvelope,
@@ -11,18 +12,77 @@ const WIZARD_DRAFT_STORAGE_KEY = "xf_wizard_draft_v1";
 const SENSITIVE_KEY_PATTERN =
   /(token|pat|secret|password|key|auth|credential|envkey)/i;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isValidProviderDescriptor(desc: unknown): desc is ProviderDescriptor {
+  if (!isRecord(desc)) {
+    return false;
+  }
+  if (typeof desc.id !== "string" || desc.id.trim() === "") {
+    return false;
+  }
+  if (!Array.isArray(desc.configFields)) {
+    return false;
+  }
+  for (const field of desc.configFields) {
+    if (
+      !isRecord(field) ||
+      typeof field.name !== "string" ||
+      field.name.trim() === ""
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function extractFieldSets(descriptor: ProviderDescriptor): {
+  secretNames: Set<string>;
+  nonSecretNames: Set<string>;
+} {
+  const secretNames = new Set<string>();
+  const nonSecretNames = new Set<string>();
+
+  for (const field of descriptor.configFields) {
+    const isSecret = Boolean(field.secret === true || field.type === "secret");
+    if (isSecret) {
+      secretNames.add(field.name);
+      nonSecretNames.delete(field.name);
+    } else if (!secretNames.has(field.name)) {
+      nonSecretNames.add(field.name);
+    }
+  }
+
+  return { secretNames, nonSecretNames };
+}
+
 function sanitizeConfig(
   config: Record<string, unknown>,
+  secretNames: ReadonlySet<string>,
+  nonSecretNames: ReadonlySet<string>,
 ): Record<string, unknown> {
   const clean: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(config)) {
-    if (SENSITIVE_KEY_PATTERN.test(key)) {
+    // envKey must NEVER be persisted under any circumstances
+    if (/^env_?key$/i.test(key)) {
+      continue;
+    }
+    // Secret fields declared by provider metadata must be stripped
+    if (secretNames.has(key)) {
+      continue;
+    }
+    // Non-secret fields declared by provider metadata are preserved even if suspicious
+    if (!nonSecretNames.has(key) && SENSITIVE_KEY_PATTERN.test(key)) {
       continue;
     }
     if (Array.isArray(val)) {
-      clean[key] = val.map(sanitizeNode);
-    } else if (val && typeof val === "object") {
-      clean[key] = sanitizeConfig(val as Record<string, unknown>);
+      clean[key] = val.map((item) =>
+        sanitizeNode(item, secretNames, nonSecretNames),
+      );
+    } else if (isRecord(val)) {
+      clean[key] = sanitizeConfig(val, secretNames, nonSecretNames);
     } else {
       clean[key] = val;
     }
@@ -33,30 +93,66 @@ function sanitizeConfig(
 /**
  * Sanitizes an arbitrary nested value (object or array member) recursively:
  * arrays are traversed element by element, objects key by key, scalars pass
- * through. Secret-bearing keys are dropped at every depth, so a secret can
- * never reach the draft by nesting it inside an array or a deeper object.
+ * through. Secret-bearing keys are dropped at every depth according to provider
+ * metadata and fallback sensitive patterns.
  */
-function sanitizeNode(value: unknown): unknown {
+function sanitizeNode(
+  value: unknown,
+  secretNames: ReadonlySet<string>,
+  nonSecretNames: ReadonlySet<string>,
+): unknown {
   if (Array.isArray(value)) {
-    return value.map(sanitizeNode);
+    return value.map((item) => sanitizeNode(item, secretNames, nonSecretNames));
   }
-  if (value && typeof value === "object") {
-    return sanitizeConfig(value as Record<string, unknown>);
+  if (isRecord(value)) {
+    return sanitizeConfig(value, secretNames, nonSecretNames);
   }
   return value;
 }
 
 function sanitizeProviderConfigs(
   providerConfigs: Record<string, Record<string, unknown>> | undefined,
+  descriptors?: readonly ProviderDescriptor[] | undefined,
+  failClosedIfMissingDescriptors = true,
 ): Record<string, Record<string, unknown>> {
+  if (!descriptors || !Array.isArray(descriptors)) {
+    // When saving or when explicitly failing closed, missing descriptors drops all configs
+    if (failClosedIfMissingDescriptors) {
+      return {};
+    }
+    // Fallback defense-in-depth sanitization when reading a persisted draft without descriptors
+    const clean: Record<string, Record<string, unknown>> = {};
+    for (const [providerId, config] of Object.entries(providerConfigs ?? {})) {
+      clean[providerId] = sanitizeConfig(config || {}, new Set(), new Set());
+    }
+    return clean;
+  }
+
   const clean: Record<string, Record<string, unknown>> = {};
   for (const [providerId, config] of Object.entries(providerConfigs ?? {})) {
-    clean[providerId] = sanitizeConfig(config || {});
+    const descriptor = descriptors.find(
+      (entry) => isRecord(entry) && entry.id === providerId,
+    );
+    // If provider is not found or descriptor is malformed, fail closed: omit config
+    if (!descriptor || !isValidProviderDescriptor(descriptor)) {
+      continue;
+    }
+
+    const { secretNames, nonSecretNames } = extractFieldSets(descriptor);
+    clean[providerId] = sanitizeConfig(
+      config || {},
+      secretNames,
+      nonSecretNames,
+    );
   }
   return clean;
 }
 
-function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
+function sanitizeStateForDraft(
+  state: WizardSourceState,
+  descriptors?: readonly ProviderDescriptor[] | undefined,
+  failClosedIfMissingDescriptors = true,
+): WizardSourceState {
   return {
     ...state,
     connect: {
@@ -64,7 +160,11 @@ function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
       // The provider's ONE configuration, sanitized: secrets never reach the
       // draft (#131), and a provider serving both roles has a single entry here
       // rather than a copy per role.
-      providerConfigs: sanitizeProviderConfigs(state.connect.providerConfigs),
+      providerConfigs: sanitizeProviderConfigs(
+        state.connect.providerConfigs,
+        descriptors,
+        failClosedIfMissingDescriptors,
+      ),
       tracker: {
         providerId: state.connect.tracker.providerId,
         verified: false,
@@ -85,10 +185,6 @@ function sanitizeStateForDraft(state: WizardSourceState): WizardSourceState {
       confirmed: false,
     },
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isStepNumber(value: unknown): value is number {
@@ -241,12 +337,15 @@ function isValidWizardState(value: unknown): value is WizardSourceState {
   );
 }
 
-export function saveWizardDraft(state: WizardSourceState): boolean {
+export function saveWizardDraft(
+  state: WizardSourceState,
+  descriptors?: readonly ProviderDescriptor[] | undefined,
+): boolean {
   if (typeof window === "undefined" || !window.localStorage) {
     return false;
   }
   try {
-    const safeState = sanitizeStateForDraft(state);
+    const safeState = sanitizeStateForDraft(state, descriptors, true);
     const envelope: WizardDraftEnvelope = {
       version: WIZARD_SCHEMA_VERSION,
       savedAt: new Date().toISOString(),
@@ -262,7 +361,9 @@ export function saveWizardDraft(state: WizardSourceState): boolean {
   }
 }
 
-export function loadWizardDraft(): WizardSourceState | null {
+export function loadWizardDraft(
+  descriptors?: readonly ProviderDescriptor[] | undefined,
+): WizardSourceState | null {
   if (typeof window === "undefined" || !window.localStorage) {
     return null;
   }
@@ -285,7 +386,8 @@ export function loadWizardDraft(): WizardSourceState | null {
       window.localStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
       return null;
     }
-    return sanitizeStateForDraft(state);
+    const failClosed = descriptors !== undefined;
+    return sanitizeStateForDraft(state, descriptors, failClosed);
   } catch {
     window.localStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
     return null;

@@ -8,6 +8,8 @@ import {
   useMemo,
   useReducer,
 } from "react";
+import type { ProviderDescriptor } from "../../connection/types.js";
+import { useProviderDescriptors } from "../../hooks/useProviderDescriptors.js";
 import {
   clearWizardDraft,
   loadWizardDraft,
@@ -38,18 +40,29 @@ interface WizardContextValue {
 
 const WizardContext = createContext<WizardContextValue | null>(null);
 
-function getInitialState(): WizardSourceState {
-  const draft = loadWizardDraft();
+function getInitialState(
+  descriptors?: readonly ProviderDescriptor[] | undefined,
+): WizardSourceState {
+  const draft = loadWizardDraft(descriptors);
   if (draft) {
     return draft;
   }
   return createInitialWizardState();
 }
 
-export function WizardProvider({ children }: { children: ReactNode }) {
+export function WizardProvider({
+  children,
+  descriptors: descriptorsProp,
+}: {
+  children: ReactNode;
+  descriptors?: readonly ProviderDescriptor[] | undefined;
+}) {
+  const { data: descriptorsFromQuery } = useProviderDescriptors();
+  const descriptors = descriptorsProp ?? descriptorsFromQuery;
+
   const [state, dispatch] = useReducer(
     wizardReducer,
-    undefined,
+    descriptors,
     getInitialState,
   );
 
@@ -95,12 +108,15 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       nextStepNum,
     ) as WizardStepNumber;
     dispatch({ type: "NEXT_STEP" });
-    saveWizardDraft({
-      ...state,
-      step: nextStepNum,
-      maxStepVisited: nextMax,
-    });
-  }, [canAdvance, state]);
+    saveWizardDraft(
+      {
+        ...state,
+        step: nextStepNum,
+        maxStepVisited: nextMax,
+      },
+      descriptors,
+    );
+  }, [canAdvance, state, descriptors]);
 
   const prevStep = useCallback(() => {
     if (state.step <= 1) return;
@@ -112,12 +128,15 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       // Prevent forward navigation to bypass step validation
       if (!isStepAccessible(targetStep) || targetStep > state.step) return;
       dispatch({ type: "SET_STEP", step: targetStep });
-      saveWizardDraft({
-        ...state,
-        step: targetStep,
-      });
+      saveWizardDraft(
+        {
+          ...state,
+          step: targetStep,
+        },
+        descriptors,
+      );
     },
-    [isStepAccessible, state],
+    [isStepAccessible, state, descriptors],
   );
 
   const resetWizard = useCallback(() => {
