@@ -33,6 +33,12 @@
   cursor: pointer;
 }
 
+/* Rows listed for a connection that is no longer current: visible placeholder
+   content, deliberately not actionable — the banner above the list says why. */
+.repositories-list-row--disabled {
+  cursor: not-allowed;
+}
+
 .repositories-list-checkbox {
   flex: none;
   accent-color: var(--accent, #0a84ff);
@@ -78,4 +84,18 @@
   display: flex;
   justify-content: flex-end;
   margin-top: var(--space-2);
+}
+
+/* The explanation that sits above non-selectable rows: the previous
+   configuration's list is visible, and this says why it is inert. */
+.repositories-stale-results {
+  margin-bottom: var(--space-3);
+}
+
+/* Dimmed so a non-selectable row reads as inert even before it is clicked.
+   Declared after the base row rules: specificity ascends. */
+.repositories-list-row--disabled .repositories-list-name,
+.repositories-list-row--disabled .repositories-list-remote,
+.repositories-list-row--disabled .repositories-role-tag {
+  opacity: 0.6;
 }

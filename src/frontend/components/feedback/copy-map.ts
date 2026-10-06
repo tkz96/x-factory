@@ -116,6 +116,13 @@ export const REPOSITORIES_COPY = {
   /** Stale: the selection belongs to a connection that has since changed. */
   staleSelection:
     "The Git Host connection changed after these repositories were listed, so this selection is out of date.",
+  /**
+   * Stale results: rows listed for a connection that is no longer current stay
+   * visible as placeholder content, but they cannot be selected — their ids
+   * belong to the previous configuration.
+   */
+  staleResults:
+    "These repositories were listed for the previous connection, so they cannot be selected. Refresh to load the current list.",
   /** Stale: the action that clears the out-of-date selection. */
   staleSelectionAction: "Start the selection again",
   /** Row label for a repository listed under the git-host role. */
