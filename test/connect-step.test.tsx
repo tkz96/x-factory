@@ -1906,4 +1906,272 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       ).toBeNull();
     });
   });
+
+  // ── Correction 5 (#133): the FACT of verification lives in the wizard state ──
+  //
+  // `WizardModal` renders only the ACTIVE step, so leaving Connect unmounts it,
+  // and with it the hook's local session state — the result just received, the
+  // error just surfaced, whether an attempt is in flight. What survives is the
+  // evidence the wizard state persists for the role (`verified`,
+  // `unconfirmedCapabilities`). These tests pin the lifecycle: a round trip
+  // preserves exactly that evidence, and nothing the transient session held can
+  // outlive an invalidation.
+  describe("VERIFICATION SURVIVES THE STEP LIFECYCLE (correction 5, #133)", () => {
+    /** Selects a role's provider — one of the state changes that clears evidence. */
+    function selectProvider(
+      role: "tracker" | "gitHost",
+      providerId: string,
+    ): void {
+      act(() => {
+        fireEvent.change(getEl(`select-${role}-provider`), {
+          target: { value: providerId },
+        });
+      });
+    }
+
+    /**
+     * The REAL navigation out of Connect and back. Connect is unmounted on the
+     * way out and mounted again on the way in, which is what a user does — and
+     * what loses any state the hook held locally. Back/Continue is used rather
+     * than StepNav because StepNav only reaches the step the wizard is on and
+     * the steps it has already passed.
+     */
+    function leaveConnectAndReturn(): void {
+      fireEvent.click(getEl("btn-step-2-back"));
+      expect(document.getElementById("onboard-step-1")).not.toBeNull();
+      fireEvent.click(getEl("btn-step-1-next"));
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
+    }
+
+    async function verifyBothRoles(): Promise<void> {
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+        fireEvent.click(getEl("btn-verify-gitHost"));
+      });
+    }
+
+    it("(1) VERIFIED → LEAVE → RETURN: the card still reports the verified state and progression stays allowed", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      selectProvider("tracker", "generic-tracker");
+      selectProvider("gitHost", "generic-githost");
+      api.providers.verify = mock(async () => ({
+        status: "ok" as const,
+        warnings: [],
+      }));
+
+      await verifyBothRoles();
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Verified",
+      );
+
+      leaveConnectAndReturn();
+
+      // The evidence belongs to the wizard state, not to the unmounted hook:
+      // nothing was re-verified, yet the role is still verified.
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
+
+      // ...and the step still really advances.
+      await act(async () => {
+        fireEvent.click(getEl("btn-step-2-next"));
+      });
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+    });
+
+    it("(2) DEGRADED → LEAVE → RETURN: the partial state and its warnings survive, and nothing is blocked", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      selectProvider("tracker", "generic-tracker");
+      selectProvider("gitHost", "generic-githost");
+      api.providers.verify = mock(async () => ({
+        status: "degraded" as const,
+        warnings: [
+          {
+            kind: "CAPABILITY_UNCONFIRMED" as const,
+            capability: "createPullRequest",
+          },
+        ],
+      }));
+
+      await verifyBothRoles();
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Degraded",
+      );
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "createPullRequest",
+      );
+
+      leaveConnectAndReturn();
+
+      // Degraded evidence survives exactly as the verified flag does — the
+      // DISPLAY is derived from what the state persisted, so the warnings come
+      // back with it.
+      const gitHostCard = getEl("connection-card-gitHost");
+      expect(gitHostCard.textContent).toContain("Degraded");
+      expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
+      expect(gitHostCard.textContent).toContain("createPullRequest");
+      expect(getEl("connection-card-tracker").textContent).toContain(
+        "createPullRequest",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
+      // Still no acknowledgement to collect after the round trip (#133).
+      expect(document.getElementById("btn-accept-degraded-gitHost")).toBeNull();
+    });
+
+    it("(3) PROVIDER CHANGE: the invalidation survives the round trip", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      selectProvider("tracker", "generic-tracker");
+      selectProvider("gitHost", "generic-githost");
+      api.providers.verify = mock(async () => ({
+        status: "ok" as const,
+        warnings: [],
+      }));
+
+      await verifyBothRoles();
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
+
+      // The tracker moves to a provider it has never verified.
+      selectProvider("tracker", "dual-service");
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+
+      leaveConnectAndReturn();
+
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      // The git host names another provider: its evidence is not collateral.
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
+
+    it("(4) CONFIGURATION CHANGE: the invalidation survives the round trip", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      selectProvider("tracker", "generic-tracker");
+      selectProvider("gitHost", "generic-githost");
+      api.providers.verify = mock(async () => ({
+        status: "ok" as const,
+        warnings: [],
+      }));
+
+      await verifyBothRoles();
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
+
+      // What was verified is no longer the configuration on record.
+      await typeInput(
+        getEl<HTMLInputElement>("tracker-endpointHost"),
+        "https://changed.example.com",
+      );
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+
+      leaveConnectAndReturn();
+
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
+
+    it("(5) QUICK-URL CHANGE: the invalidation survives the round trip, for the roles it touches", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      selectProvider("tracker", "generic-tracker");
+      selectProvider("gitHost", "generic-githost");
+      api.providers.verify = mock(async () => ({
+        status: "ok" as const,
+        warnings: [],
+      }));
+
+      await verifyBothRoles();
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
+
+      // A Quick URL that matches the tracker's own provider: the credentials on
+      // record are replaced, so the tracker's verification goes with them.
+      api.providers.parseUrl = mock(async () => ({
+        matched: true as const,
+        providerId: "generic-tracker",
+        configDraft: {
+          endpointHost: "https://tracker.example.com",
+          accessCredential: "sec-tracker-999",
+        },
+      }));
+      await typeInput(
+        getEl<HTMLInputElement>("connect-quick-url"),
+        "https://tracker.example.com/issues",
+      );
+      await act(async () => {
+        fireEvent.click(getEl("btn-quick-url-submit"));
+      });
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+
+      leaveConnectAndReturn();
+
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      // The git host was not touched by that match.
+      expect(getEl("connection-card-gitHost").textContent).toContain(
+        "Verified",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
+
+    it("(6) STALE ASYNC RESULT: a late verification cannot restore obsolete state after the provider changes", async () => {
+      setupStep2Draft();
+      renderWizard();
+      fireEvent.click(getEl("btn-open-wizard"));
+      selectProvider("tracker", "generic-tracker");
+
+      let resolveTracker!: (value: VerificationResult) => void;
+      const trackerDeferred = new Promise<VerificationResult>((resolve) => {
+        resolveTracker = resolve;
+      });
+      api.providers.verify = mock(async () => trackerDeferred);
+
+      await act(async () => {
+        fireEvent.click(getEl("btn-verify-tracker"));
+      });
+      expect(getEl("btn-verify-tracker").textContent).toContain("Verifying…");
+
+      // The provider changes while the request is in flight.
+      await act(async () => {
+        fireEvent.change(getEl("select-tracker-provider"), {
+          target: { value: "dual-service" },
+        });
+      });
+
+      // The late result arrives for a provider the role no longer names.
+      await act(async () => {
+        resolveTracker({ status: "ok" as const, warnings: [] });
+      });
+
+      expect(getEl("connection-card-tracker").textContent).not.toContain(
+        "Verified",
+      );
+      expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
+    });
+  });
 });
