@@ -198,14 +198,13 @@ function setupStep2Draft(overrides?: Record<string, unknown>) {
     },
     connect: {
       quickUrl: "",
+      providerConfigs: {},
       tracker: {
         providerId: null,
-        config: {},
         verified: false,
       },
       gitHost: {
         providerId: null,
-        config: {},
         verified: false,
       },
     },
@@ -757,7 +756,14 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(gitHostCard.textContent).toContain("Dual-role");
   });
 
-  it("STATE ISOLATION: changing tracker config leaves git-host config untouched, and vice versa", async () => {
+  // Correction 2 (#133): the two roles' configurations are NOT independent when
+  // they name the same provider — that independence was the defect (each card
+  // could verify its own configuration while only one of them was submitted).
+  // One provider has ONE configuration: a value typed on either card is the
+  // value both cards show, and both roles' verification corresponds to it.
+  // Isolation still holds between DIFFERENT providers, which is what the second
+  // half of this test pins.
+  it("STATE ISOLATION: one provider serving both roles shares ONE configuration, while different providers stay independent", async () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
@@ -776,17 +782,42 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     const trackerUrlInput = getEl<HTMLInputElement>("tracker-serviceUrl");
     await typeInput(trackerUrlInput, "https://tracker-only.com");
 
-    // Git-host's serviceUrl must remain untouched
+    // Git-host's serviceUrl shows the SAME configuration: the provider has one,
+    // and this is what both roles verify and what the payload carries.
     const gitHostUrlInput = getEl<HTMLInputElement>("gitHost-serviceUrl");
-    expect(gitHostUrlInput.value).toBe("");
+    expect(gitHostUrlInput.value).toBe("https://tracker-only.com");
 
     // Change git-host's pat
     const gitHostPatInput = getEl<HTMLInputElement>("gitHost-pat");
     await typeInput(gitHostPatInput, "git-pat-secret");
 
-    // Tracker's pat must remain untouched
+    // Tracker's pat shows that same value: one configuration, whichever card
+    // wrote it.
     const trackerPatInput = getEl<HTMLInputElement>("tracker-pat");
-    expect(trackerPatInput.value).toBe("");
+    expect(trackerPatInput.value).toBe("git-pat-secret");
+
+    // The state holds ONE configuration for the one provider both roles name,
+    // never a copy per role — asserted at the state level in
+    // `test/wizard-reducer.test.ts` ("one configuration per provider").
+
+    // DIFFERENT providers are still independent: point the git-host card at
+    // another provider and edit each side — neither provider's configuration
+    // moves the other's.
+    act(() => {
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "generic-githost" },
+      });
+    });
+    await typeInput(
+      getEl<HTMLInputElement>("tracker-serviceUrl"),
+      "https://t2",
+    );
+    await typeInput(getEl<HTMLInputElement>("gitHost-gitUrl"), "https://g2");
+
+    expect(getEl<HTMLInputElement>("tracker-serviceUrl").value).toBe(
+      "https://t2",
+    );
+    expect(getEl<HTMLInputElement>("gitHost-gitUrl").value).toBe("https://g2");
   });
 
   it("NAVIGATION GATING: Next is blocked with a missing selection or an unverified connection, and enabled as soon as both are verified — degraded included (#133)", async () => {

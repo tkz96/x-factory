@@ -275,14 +275,18 @@ function setupStepFiveDraft(
     },
     connect: {
       quickUrl: "",
+      // Configuration is keyed by PROVIDER (correction 2, #133): one entry per
+      // selected provider, never one per role.
+      providerConfigs: {
+        "generic-tracker": { endpointHost: TRACKER_HOST },
+        "generic-githost": gitHostConfig,
+      },
       tracker: {
         providerId: "generic-tracker",
-        config: { endpointHost: TRACKER_HOST },
         verified: true,
       },
       gitHost: {
         providerId: "generic-githost",
-        config: gitHostConfig,
         verified: true,
       },
     },

@@ -54,13 +54,17 @@ describe("Wizard Reducer (Pure FSM & State Integrity)", () => {
     expect(state.maxStepVisited).toBe(3);
 
     // Step 3 requires an application repository before it may advance (#144).
-    const gitHostConnection = {
-      providerId: "generic-githost",
-      config: { host: "https://git.example.com" },
-    };
+    const gitHostProviderId = "generic-githost";
+    const gitHostConfig = { host: "https://git.example.com" };
     state = wizardReducer(state, {
-      type: "UPDATE_CONNECT",
-      patch: { gitHost: gitHostConnection },
+      type: "SELECT_PROVIDER",
+      role: "gitHost",
+      providerId: gitHostProviderId,
+    });
+    state = wizardReducer(state, {
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: gitHostProviderId,
+      config: gitHostConfig,
     });
     state = wizardReducer(state, {
       type: "UPDATE_REPOSITORIES",
@@ -68,8 +72,8 @@ describe("Wizard Reducer (Pure FSM & State Integrity)", () => {
         selectedRepoIds: ["repo-1"],
         repoConfigs: { "repo-1": { role: "gitHost", roles: ["gitHost"] } },
         selectionFingerprint: connectionConfigFingerprint(
-          gitHostConnection.providerId,
-          gitHostConnection.config,
+          gitHostProviderId,
+          gitHostConfig,
         ),
       },
     });
@@ -193,22 +197,28 @@ describe("Wizard Reducer — step 3 progression guard (#144)", () => {
     return state;
   }
 
-  const gitHost = {
-    providerId: "generic-githost",
-    config: { host: "https://git.example.com", token: "tok-a" },
-  };
+  const GIT_HOST_PROVIDER_ID = "generic-githost";
+  const GIT_HOST_CONFIG = { host: "https://git.example.com", token: "tok-a" };
 
   function withSelection(
     state: WizardSourceState,
     repoConfigs: Record<string, { role: string; roles?: string[] }>,
     fingerprint = connectionConfigFingerprint(
-      gitHost.providerId,
-      gitHost.config,
+      GIT_HOST_PROVIDER_ID,
+      GIT_HOST_CONFIG,
     ),
   ): WizardSourceState {
+    // The two transitions a card makes: select a provider for its role, then
+    // write the provider's configuration (correction 2, #133).
     let next = wizardReducer(state, {
-      type: "UPDATE_CONNECT",
-      patch: { gitHost },
+      type: "SELECT_PROVIDER",
+      role: "gitHost",
+      providerId: GIT_HOST_PROVIDER_ID,
+    });
+    next = wizardReducer(next, {
+      type: "UPDATE_PROVIDER_CONFIG",
+      providerId: GIT_HOST_PROVIDER_ID,
+      config: GIT_HOST_CONFIG,
     });
     next = wizardReducer(next, {
       type: "UPDATE_REPOSITORIES",

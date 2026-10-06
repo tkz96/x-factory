@@ -1,11 +1,18 @@
 // test/review-payload.test.ts — The creation payload builder (spec #133,
-// #131/#145, ticket #146).
+// #131/#145, ticket #146; correction 2).
 //
 // The payload is the one place the wizard commits its state, so its shape is
 // asserted here against the SERVER's own schema — the authority on what
-// `POST /api/projects` accepts — plus the two groupings the UI cannot produce
-// on its own: a dual-role provider appearing on ONE connection, and a
-// repository role tag that is not a repository role never being sent as one.
+// `POST /api/projects` accepts — plus the three things the UI cannot produce on
+// its own: a dual-role provider appearing on ONE connection, the connection's
+// configuration being the PROVIDER's single authoritative configuration rather
+// than any one role's copy of it, and a repository role tag that is not a
+// repository role never being sent as one.
+//
+// There is no source-role selection to assert any more: the builder reads
+// `connect.providerConfigs` by provider id, so the configuration a role
+// verified and the configuration submitted are the same record by
+// construction.
 
 import { describe, expect, it } from "bun:test";
 import { ConnectionsProjectInputSchema } from "../src/config-schema.js";
@@ -27,8 +34,10 @@ const DISCOVERED: DiscoveredRepositoryDetail[] = [
 ];
 
 function stateWith(options: {
-  tracker?: { providerId: string; config: Record<string, unknown> };
-  gitHost?: { providerId: string; config: Record<string, unknown> };
+  tracker?: { providerId: string };
+  gitHost?: { providerId: string };
+  /** The authoritative configuration of each selected provider. */
+  configs?: Record<string, Record<string, unknown>>;
   repoRole?: { role: string; roles: string[]; localPath?: string };
 }): WizardSourceState {
   const base = createInitialWizardState();
@@ -44,18 +53,17 @@ function stateWith(options: {
     },
     connect: {
       quickUrl: "",
+      providerConfigs: {
+        "generic-tracker": { endpointHost: "https://t.example" },
+        "generic-githost": { gitUrl: "https://git.example.com" },
+        ...(options.configs ?? {}),
+      },
       tracker: {
         providerId: options.tracker?.providerId ?? "generic-tracker",
-        config: options.tracker?.config ?? {
-          endpointHost: "https://t.example",
-        },
         verified: true,
       },
       gitHost: {
         providerId: options.gitHost?.providerId ?? "generic-githost",
-        config: options.gitHost?.config ?? {
-          gitUrl: "https://git.example.com",
-        },
         verified: true,
       },
     },
@@ -110,23 +118,65 @@ describe("buildCreationPayload", () => {
     expect(ConnectionsProjectInputSchema.safeParse(payload).success).toBe(true);
   });
 
-  it("sends ONE connection for a provider serving both roles, with the git host's config", () => {
-    const payload = buildCreationPayload(
-      stateWith({
-        tracker: { providerId: "dual", config: { serviceUrl: "https://d" } },
-        gitHost: { providerId: "dual", config: { serviceUrl: "https://d" } },
-      }),
-      DISCOVERED,
-      IDENTITY,
-    );
+  it("sends ONE connection for a provider serving both roles, carrying BOTH roles and the provider's ONE configuration", () => {
+    const state = stateWith({
+      tracker: { providerId: "dual" },
+      gitHost: { providerId: "dual" },
+      configs: { dual: { serviceUrl: "https://d", pat: "pat-synthetic" } },
+    });
+    const payload = buildCreationPayload(state, DISCOVERED, IDENTITY);
 
     expect(payload.connections).toEqual([
       {
         providerId: "dual",
         roles: ["tracker", "gitHost"],
-        config: { serviceUrl: "https://d" },
+        config: { serviceUrl: "https://d", pat: "pat-synthetic" },
       },
     ]);
+    // The submitted configuration IS the single configuration on record for
+    // that provider — the same record both roles verified, not a copy of one
+    // role's view of it (correction 2, #133).
+    expect(payload.connections[0]?.config).toBe(
+      state.connect.providerConfigs.dual,
+    );
+    expect(ConnectionsProjectInputSchema.safeParse(payload).success).toBe(true);
+  });
+
+  it("keeps two providers' configurations independent, and never invents a role a provider was not selected under", () => {
+    // `generic-tracker` is offered for the tracker role only (the manifest's
+    // role-filtered select cannot choose it as a git host), so the payload must
+    // carry it with its OWN configuration and the tracker role alone.
+    const state = stateWith({
+      configs: {
+        "generic-tracker": {
+          endpointHost: "https://t.example",
+          pat: "t-secret",
+        },
+        "generic-githost": { gitUrl: "https://git.example.com" },
+      },
+    });
+    const payload = buildCreationPayload(state, DISCOVERED, IDENTITY);
+
+    expect(payload.connections).toEqual([
+      {
+        providerId: "generic-tracker",
+        roles: ["tracker"],
+        config: { endpointHost: "https://t.example", pat: "t-secret" },
+      },
+      {
+        providerId: "generic-githost",
+        roles: ["gitHost"],
+        config: { gitUrl: "https://git.example.com" },
+      },
+    ]);
+    // Editing one provider's configuration cannot move the other's: the two
+    // payload entries are exactly the two state records.
+    expect(payload.connections[0]?.config).toBe(
+      state.connect.providerConfigs["generic-tracker"],
+    );
+    expect(payload.connections[1]?.config).toBe(
+      state.connect.providerConfigs["generic-githost"],
+    );
     expect(ConnectionsProjectInputSchema.safeParse(payload).success).toBe(true);
   });
 

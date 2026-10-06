@@ -110,17 +110,28 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
           ...valid,
           connect: {
             ...valid.connect,
-            gitHost: { providerId: 42, config: {} },
+            gitHost: { providerId: 42 },
           },
         },
       ],
       [
-        "connect.tracker.config wrong type",
+        "connect.providerConfigs wrong type",
         {
           ...valid,
           connect: {
             ...valid.connect,
-            tracker: { providerId: "github", config: "not-an-object" },
+            providerConfigs: { github: "not-an-object" },
+          },
+        },
+      ],
+      [
+        "connect.providerConfigs missing",
+        {
+          ...valid,
+          connect: {
+            quickUrl: "",
+            tracker: { providerId: null },
+            gitHost: { providerId: null },
           },
         },
       ],
@@ -256,9 +267,10 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       ...createInitialWizardState(),
       connect: {
         quickUrl: "https://dev.azure.com/myorg/myproj",
-        tracker: {
-          providerId: "azure",
-          config: {
+        // ONE configuration per provider (correction 2, #133), both of which
+        // carry secrets that must not survive sanitization.
+        providerConfigs: {
+          azure: {
             orgUrl: "https://dev.azure.com/myorg",
             project: "myproj",
             pat: "super-secret-pat-token-value-12345",
@@ -267,16 +279,19 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
             secretField: "classified",
             envKey: "AZURE_DEVOPS_PAT",
           },
-          verified: true,
-        },
-        gitHost: {
-          providerId: "github",
-          config: {
+          github: {
             owner: "myorg",
             repo: "myrepo",
             apiKey: "secret-api-key-999",
             credentials: { authSecret: "classified-bearer" },
           },
+        },
+        tracker: {
+          providerId: "azure",
+          verified: true,
+        },
+        gitHost: {
+          providerId: "github",
           verified: true,
         },
       },
@@ -304,8 +319,8 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     const loaded = loadWizardDraft();
     expect(loaded).not.toBeNull();
     if (!loaded) return;
-    expect(loaded.connect.tracker.config.project).toBe("myproj");
-    expect(loaded.connect.gitHost.config.repo).toBe("myrepo");
+    expect(loaded.connect.providerConfigs.azure?.project).toBe("myproj");
+    expect(loaded.connect.providerConfigs.github?.repo).toBe("myrepo");
     // Verification flags must be restored as unverified/stale per #130 stale rule
     expect(loaded.connect.tracker.verified).toBe(false);
     expect(loaded.connect.gitHost.verified).toBe(false);
@@ -318,14 +333,19 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       maxStepVisited: 4,
       connect: {
         quickUrl: "https://dev.azure.com/myorg/myproj",
+        providerConfigs: {
+          azure: {
+            orgUrl: "https://dev.azure.com/myorg",
+            project: "myproj",
+          },
+          github: { owner: "myorg", repo: "myrepo" },
+        },
         tracker: {
           providerId: "azure",
-          config: { orgUrl: "https://dev.azure.com/myorg", project: "myproj" },
           verified: true,
         },
         gitHost: {
           providerId: "github",
-          config: { owner: "myorg", repo: "myrepo" },
           verified: false,
         },
       },
@@ -369,9 +389,8 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
       ...createInitialWizardState(),
       connect: {
         quickUrl: "https://dev.azure.com/myorg/myproj",
-        tracker: {
-          providerId: "azure",
-          config: {
+        providerConfigs: {
+          azure: {
             orgUrl: "https://dev.azure.com/myorg",
             // Sensitive-looking keys nested inside an ARRAY of objects
             endpoints: [
@@ -386,11 +405,14 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
               inner: { privateCredential: "zz-deep-credential-42" },
             },
           },
+          github: { owner: "myorg", repo: "myrepo" },
+        },
+        tracker: {
+          providerId: "azure",
           verified: true,
         },
         gitHost: {
           providerId: "github",
-          config: { owner: "myorg", repo: "myrepo" },
           verified: true,
         },
       },
@@ -413,7 +435,7 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     const loaded = loadWizardDraft();
     expect(loaded).not.toBeNull();
     if (!loaded) return;
-    const endpoints = loaded.connect.tracker.config.endpoints as Array<
+    const endpoints = loaded.connect.providerConfigs.azure?.endpoints as Array<
       Record<string, unknown>
     >;
     expect(Array.isArray(endpoints)).toBe(true);
@@ -421,7 +443,8 @@ describe("Wizard Client Drafts & Storage (Client-only, Safe-Discard, Zero Secret
     expect(endpoints[0]?.label).toBe("primary");
     expect(endpoints[1]?.label).toBe("failover");
     expect(
-      (loaded.connect.tracker.config.layers as Record<string, unknown>)?.inner,
+      (loaded.connect.providerConfigs.azure?.layers as Record<string, unknown>)
+        ?.inner,
     ).toBeDefined();
   });
 });
