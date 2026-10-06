@@ -603,9 +603,9 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
 
     expect(createProject).toHaveBeenCalledTimes(1);
     const payload = createProject.mock.calls[0]?.[0] as Record<string, unknown>;
-    // Exactly the contract #145 accepts: the payload round-tripped to JSON is
-    // what travels on the wire, so undefined role/localPath leave no trace.
-    const onTheWire = JSON.parse(JSON.stringify(payload));
+    // Exactly the contract #145 accepts: the payload cloned for wire inspection,
+    // so undefined role/localPath leave no trace.
+    const onTheWire = structuredClone(payload);
     expect(onTheWire).toEqual({
       id: "rocket",
       name: "Rocket",
