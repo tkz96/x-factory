@@ -14,6 +14,12 @@
 //   - the recorded selection was made under a connection that has since
 //     changed (survives reloads and step round-trips).
 // Either way the step is blocked until the selection is made again.
+//
+// A previous configuration's results may stay on screen while the new key
+// fetches (`keepPreviousData`) — but only as content. They are never
+// selectable, and Continue never unblocks on them, so an old connection's
+// repository id can never be recorded under the current connection's
+// fingerprint (#133 correction 4).
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
