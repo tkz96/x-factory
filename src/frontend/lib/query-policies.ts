@@ -30,6 +30,21 @@ export const queryKeys = {
       "repositories",
       connectionConfigFingerprint(providerId, config),
     ] as const,
+  /**
+   * A connection's provider-owned identity (#133 story 34). Keyed by the same
+   * non-reversible fingerprint as discovery: the identity belongs to a
+   * CONFIGURATION, so an edit is a new key and can never inherit the previous
+   * configuration's identity. The configuration itself never enters a key.
+   */
+  providerIdentity: (
+    providerId: string | null,
+    config: Record<string, unknown>,
+  ) =>
+    [
+      "providers",
+      "identity",
+      connectionConfigFingerprint(providerId, config),
+    ] as const,
 };
 
 export const QUERY_POLICIES = {
@@ -46,6 +61,17 @@ export const QUERY_POLICIES = {
   // refetch of the previous key. Refreshing is the user's explicit action.
   providerRepositories: {
     staleTime: 60 * 1000, // 60 seconds
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  },
+
+  // Connection identity (#133 story 34): a presentation-only read whose
+  // identity IS the connection configuration — a config edit is a new key
+  // (fresh fetch), never a refetch of the previous key. Provider-owned, so it
+  // changes only when the configuration does; nothing here is persisted.
+  providerIdentity: {
+    staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,

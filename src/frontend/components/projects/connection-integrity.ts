@@ -24,6 +24,7 @@ import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import {
   type ConnectionComboSlot,
+  type ConnectionIdentityTarget,
   type ConnectionState,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
@@ -290,6 +291,30 @@ export function comboSlots(
       role: slot.role,
       state: slot.state,
       providerId: slot.providerId ?? null,
+    }));
+}
+
+/**
+ * The connections a post-creation surface asks for identities: one target per
+ * slot, carrying the provider id and the configuration a project RECORDED for
+ * that role.
+ *
+ * A role a project never recorded (a legacy project's git host) yields a target
+ * with no provider id, which the identity hook does not query — the slot simply
+ * renders without an identity. Presentation metadata only: nothing here is
+ * persisted, and the target is handed to the ONE identity hook
+ * (`useConnectionIdentities`) by every post-creation surface.
+ */
+export function connectionIdentityTargets(
+  integrity: ConnectionIntegrity,
+  roles?: readonly ProjectConnectionRole[],
+): ConnectionIdentityTarget[] {
+  return integrity.slots
+    .filter((slot) => roles === undefined || roles.includes(slot.role))
+    .map((slot) => ({
+      role: slot.role,
+      providerId: slot.providerId ?? null,
+      config: slot.config,
     }));
 }
 
