@@ -61,6 +61,12 @@ export function RepositoriesStep() {
       <div className="wizard-step-header">
         <h2 className="wizard-step-title">{REPOSITORIES_COPY.title}</h2>
         <p className="wizard-step-subtitle">{REPOSITORIES_COPY.subtitle}</p>
+        <p
+          className="repositories-requirements-hint"
+          id="repositories-requirements-hint"
+        >
+          {REPOSITORIES_COPY.requirementsHelp}
+        </p>
       </div>
 
       <div

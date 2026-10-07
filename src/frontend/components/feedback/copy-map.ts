@@ -140,6 +140,9 @@ export const REPOSITORIES_COPY = {
   /** Inline reason shown beside Continue while the step is gated (#160). */
   needsApplicationRepository:
     "Select at least one application repository to continue.",
+  /** Brief helper text explaining repository requirements (#160). */
+  requirementsHelp:
+    "An application repository is the primary codebase where workflows run. Select at least one to continue.",
   previous: "Back",
   next: "Continue to Inspection",
 } as const;

@@ -1642,6 +1642,17 @@ describe("Repositories Step — bulk selection: Select all / Deselect all (#160)
       REPOSITORIES_COPY.selectionSummary(1),
     );
   });
+
+  it("HELPER TEXT: renders brief helper text explaining repository requirements (#160)", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    const hint = document.getElementById("repositories-requirements-hint");
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toContain(REPOSITORIES_COPY.requirementsHelp);
+  });
 });
 
 afterAll(async () => {

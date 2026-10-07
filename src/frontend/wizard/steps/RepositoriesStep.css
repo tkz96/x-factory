@@ -4,6 +4,12 @@
   padding: 0;
 }
 
+.repositories-requirements-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
 /* The reserved region every discovery state renders inside: the loading
    spinner occupies this box, and results land in it — nothing shifts. */
 .repositories-discovery-region {
