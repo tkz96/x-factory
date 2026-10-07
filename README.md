@@ -12,7 +12,7 @@ Coding agents generate code quickly, but unconstrained agents introduce subtle b
 
 X-Factory establishes a deterministic, fault-tolerant runtime around the agent:
 - **Zero Hallucinated Progress**: Changes must pass your real compiler, linter, and test suite.
-- **Isolated Execution**: Agent modifications happen exclusively in dedicated external Git worktrees (`.worktrees/`), never on your active working branch.
+- **Isolated Execution**: Agent modifications happen exclusively in dedicated external Git worktrees (`~/.x-factory/projects/<id>/worktrees/`), never on your active working branch.
 - **Bounded Self-Repair**: When tests fail, X-Factory captures compiler and test outputs, feeds diagnostics back to the agent, and attempts automated repair (up to 3 cycles).
 - **Independent Adversarial Review**: A separate, read-only agent evaluates the diff against the original ticket acceptance criteria before human handoff.
 - **Crash-Resilient Multi-Process Architecture**: Web serving and background execution run in decoupled processes coordinated through durable SQLite leases.
@@ -32,8 +32,8 @@ graph TD
         DB[(SQLite Database - WAL Mode<br/><i>runs • jobs • events • stage_attempts</i>)]
         Worker["Worker Process (src/worker.ts)<br/><i>Atomic Leases • Stage Executors • Heartbeats</i>"]
         Pi["Pi Coding Agent SDK<br/><i>Model Inference • Subprocess Execution</i>"]
-        Worktree["External Git Worktree<br/><i>.worktrees/&lt;projectId&gt;/&lt;runId&gt;</i>"]
-        Artifacts["Run Artifact Store<br/><i>.runs/&lt;projectId&gt;/&lt;runId&gt;</i>"]
+        Worktree["External Git Worktree<br/><i>~/.x-factory/projects/&lt;projectId&gt;/worktrees/&lt;runId&gt;</i>"]
+        Artifacts["Run Artifact Store<br/><i>~/.x-factory/projects/&lt;projectId&gt;/runs/&lt;runId&gt;</i>"]
     end
 
     User -->|"HTTP Commands / Queries"| API

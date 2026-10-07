@@ -33,6 +33,7 @@ The system hierarchy and division of responsibility is strictly defined as follo
    - Graphify serves as the graph query engine over the codebase's Abstract Syntax Tree (AST), symbol hierarchy, and dependency relationships (`graphify-out/graph.json`).
    - Use Graphify MCP tools (`query_graph`, `get_node`, `get_neighbors`, `shortest_path`, `god_nodes`, `get_community`, `graph_stats`) or the `graphify` CLI to explore how modules, classes, and functions are connected.
    - **Rule**: Graph queries reveal *what code exists and how it connects*. Documentation determines *how code is permitted to behave*. In any conflict between an inferred graph connection and the architectural contracts in `docs/reference/` and `docs/explanation/`, the documentation wins unconditionally.
+   - **Exception, database structure**: the SQL migrations in `src/db/migrations/` are the source of truth for tables, columns and constraints. The structural section of `docs/reference/database-schema.md` is generated from them (`bun run docs:schema`), and CI fails if it is stale. The doc's prose stays authoritative for intent and invariants.
 
 3. **Knowledge-Graph Tool Restriction**:
    - Graphify MCP is the dedicated knowledge-graph provider for this repository.
@@ -48,7 +49,7 @@ Every coding agent must respect and preserve these architectural invariants:
 - **API Process (`src/server.ts`)**: Strictly handles HTTP/SSE routing, input validation, and SQLite persistence. It **never** directly executes workflows, spawns Pi agent sessions, or executes heavy pipeline stages. Commands write to SQLite and return HTTP responses immediately.
 - **Worker Process (`src/worker.ts`)**: An independent, dedicated Bun process. It polls SQLite, atomically claims jobs with leases (`claimed` state), executes pipeline stages via isolated executors, and updates state upon completion.
 - **SQLite (`x-factory.db`)**: Single source of truth for runtime state, operating in WAL mode (`PRAGMA journal_mode = WAL;`) with foreign keys enabled (`PRAGMA foreign_keys = ON;`).
-- **Filesystem Artifacts**: File artifacts live under `.runs/<projectId>/<runId>/` and Git worktrees under `.worktrees/<projectId>/<runId>/`. SQLite stores metadata and disk references, not raw large blobs.
+- **Filesystem Artifacts**: Everything lives under the data dir (`~/.x-factory`, or `X_FACTORY_DATA_DIR`). Run artifacts are in `projects/<projectId>/runs/<runId>/` and Git worktrees in `projects/<projectId>/worktrees/<runId>/`, resolved through `src/paths.ts`. SQLite stores metadata and disk references, not raw large blobs.
 
 ### B. Finite State Machine (FSM)
 - The $13 \times 13$ workflow transition matrix must be strictly observed (`queued` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `awaiting_understanding_approval` $\rightarrow$ `planning` $\rightarrow$ `awaiting_plan_approval` $\rightarrow$ `executing` $\rightarrow$ `awaiting_review` $\rightarrow$ `ready_for_pr`, with terminal/exception states `pr_created`, `recovery_required`, `failed`, `stopped`).
@@ -81,6 +82,7 @@ Any code changes must pass all repo verification gates before completion:
    - `bun run check:fallow` (target: maintainability $\ge 90$, 0 boundary violations)
    - `bun run check:cycles` (target: 0 circular dependencies via `dpdm`)
    - `bun run check:knip` (target: 0 broken or unused exports/dependencies)
+   - `bun run docs:schema:check` (schema doc matches the migrations; run `bun run docs:schema` after adding a migration)
 
 ---
 

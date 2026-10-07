@@ -25,6 +25,8 @@
     "knip": "knip",
     "check:knip": "knip",
     "check:fallow": "bunx fallow",
+    "docs:schema": "bun scripts/generate-schema-doc.ts",
+    "docs:schema:check": "bun scripts/generate-schema-doc.ts --check",
     "check:cycles": "dpdm --exit-code circular:1 --circular --warning=false --tree=false src/server.ts src/worker.ts src/frontend/main.tsx",
     "prepare": "lefthook install"
   },

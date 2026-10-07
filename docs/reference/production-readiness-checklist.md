@@ -54,7 +54,7 @@ Every production deployment must satisfy the requirements across twelve architec
 - Secret tokens remain confined to environment variables and configuration files.
 
 ### 9. Performance and Resource Hygiene
-- Git worktrees reside in isolated directories under `.worktrees/<projectId>/<runId>/`.
+- Git worktrees reside in isolated directories under `<data dir>/projects/<projectId>/worktrees/<runId>/`.
 - The application detects and logs orphaned worktrees during startup.
 - Database indexes cover `runs(status)`, `jobs(status, available_at)`, and `events(run_id)`.
 - The production JavaScript client bundle remains under 500 kilobytes uncompressed.

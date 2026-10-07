@@ -1,168 +1,219 @@
 # Reference: Database Schema and Durable Entities
 
-This document specifies the SQLite database schema, table definitions, connection parameters, and entity contracts for X-Factory.
+This document specifies the SQLite database, its connection parameters, and the purpose and invariants of each durable entity in X-Factory.
+
+## Source of Truth
+
+- **Structure** (tables, columns, types, defaults, keys, indexes) is owned by the SQL migrations in `src/db/migrations/`. The [Generated Schema](#generated-schema) section below is produced from them by `bun run docs:schema`. A lefthook pre-commit hook regenerates it when migrations change, and CI fails if it is stale (`bun run docs:schema:check`). Never edit it by hand.
+- **Intent** (why a table exists, what must always hold) is owned by the hand-written prose in this document.
 
 ## Database Location and Engine
 
 X-Factory persists state to a local SQLite database file.
-The default database file location is `~/.x-factory/x-factory.db`.
-Environment variable `X_FACTORY_DB_PATH` overrides the file path.
+The default location is `<data dir>/x-factory.db`, where the data dir is `~/.x-factory` unless `X_FACTORY_DATA_DIR` is set.
+Environment variable `X_FACTORY_DB_PATH` overrides the database file path.
 
 ## Connection Parameters
 
-Every connection initializes SQLite with these configuration parameters:
+Every writable connection initializes SQLite with:
 
 ```sql
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA busy_timeout = 5000;
+PRAGMA journal_mode = WAL;   -- file-backed databases only
 PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;
 ```
 
-## Schema Migrations
+`PRAGMA synchronous` is currently left at SQLite's default (`FULL`). Setting it to `NORMAL`, the usual WAL pairing, is tracked in #163.
 
-The database applies migrations sequentially on startup through `src/db/migrator.ts`:
-- **v1**: Creates initial tables for `runs`, `jobs`, and `events`.
-- **v2**: Adds columns for Git worktrees and artifact directories.
-- **v3**: Adds `stage_attempts` for execution telemetry.
-- **v4**: Adds optimistic locking `revision` counter to `runs`.
-- **v5**: Adds lease management columns (`worker_id`, `lease_until`, `last_heartbeat_at`) to `jobs`.
-- **v6**: Adds `operation_ledger` table for idempotent request processing.
-- **v7**: Adds `run_commands` table for durable operator commands and lease coordination.
-- **v8**: Adds `worker_heartbeats` table for tracking worker process liveness.
+## Entity Purposes and Invariants
 
-## Table Definitions
-
-### Table: `runs`
-
-The `runs` table stores the persistent state of each workflow execution.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | TEXT | PRIMARY KEY | Unique identifier for the run. |
-| `project_id` | TEXT | NOT NULL | Identifier of the associated project. |
-| `project_name` | TEXT | NOT NULL | Display name of the project. |
-| `ticket_id` | TEXT | NOT NULL | Identifier of the issue tracker ticket. |
-| `ticket_title` | TEXT | NOT NULL | Title of the ticket. |
-| `ticket_description` | TEXT | NULL | Body text of the ticket. |
-| `ticket_acceptance_criteria` | TEXT | NOT NULL | JSON array of acceptance criteria strings. |
-| `plan` | TEXT | NOT NULL | Markdown representation of implementation plan. |
-| `branch` | TEXT | NOT NULL | Git branch name created for the run. |
-| `status` | TEXT | NOT NULL | Current state from the workflow state machine. |
-| `started_at` | TEXT | NOT NULL | ISO8601 timestamp of run creation. |
-| `finished_at` | TEXT | NULL | ISO8601 timestamp of run termination. |
-| `repair_attempts` | INTEGER | NOT NULL DEFAULT 0 | Count of automated repair cycles executed. |
-| `artifacts_dir` | TEXT | NOT NULL | Absolute file system path to run artifacts. |
-| `worktree_path` | TEXT | NOT NULL | Absolute file system path to the dedicated Git worktree. |
-| `revision` | INTEGER | NOT NULL DEFAULT 1 | Monotonic revision counter for concurrency control. |
-| `implementation_context` | TEXT | NULL | JSON payload from the understand stage. |
-| `verification` | TEXT | NULL | JSON payload from the verify stage. |
-| `review` | TEXT | NULL | JSON payload from the review stage. |
-| `diff` | TEXT | NULL | Summary of the Git diff. |
-| `pull_request` | TEXT | NULL | JSON payload containing pull request details. |
-| `created_at` | TEXT | NOT NULL | ISO8601 creation timestamp. |
-| `updated_at` | TEXT | NOT NULL | ISO8601 last update timestamp. |
-
-### Table: `jobs`
-
-The `jobs` table records schedulable units of work claimed by worker processes.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | TEXT | PRIMARY KEY | Unique identifier for the job. |
-| `run_id` | TEXT | NOT NULL REFERENCES runs(id) | Associated run identifier. |
-| `stage` | TEXT | NOT NULL | Target workflow stage name. |
-| `status` | TEXT | NOT NULL | Job status (`pending`, `claimed`, `completed`, `failed`). |
-| `attempts` | INTEGER | NOT NULL DEFAULT 0 | Count of execution attempts. |
-| `max_attempts` | INTEGER | NOT NULL DEFAULT 3 | Upper threshold for retry attempts. |
-| `available_at` | TEXT | NOT NULL | ISO8601 timestamp after which workers can claim the job. |
-| `worker_id` | TEXT | NULL | Identifier of the worker process holding the active lease. |
-| `lease_until` | TEXT | NULL | ISO8601 timestamp of lease expiration. |
-| `last_heartbeat_at` | TEXT | NULL | ISO8601 timestamp of the most recent worker heartbeat. |
-| `error` | TEXT | NULL | Error message from the most recent attempt failure. |
-| `created_at` | TEXT | NOT NULL | ISO8601 creation timestamp. |
-| `updated_at` | TEXT | NOT NULL | ISO8601 last update timestamp. |
-
-### Table: `stage_attempts`
-
-The `stage_attempts` table records execution telemetry for each stage attempt.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | TEXT | PRIMARY KEY | Unique attempt identifier. |
-| `run_id` | TEXT | NOT NULL REFERENCES runs(id) | Associated run identifier. |
-| `stage` | TEXT | NOT NULL | Workflow stage name. |
-| `attempt` | INTEGER | NOT NULL | Attempt index for the stage. |
-| `started_at` | TEXT | NOT NULL | ISO8601 start timestamp. |
-| `finished_at` | TEXT | NULL | ISO8601 completion timestamp. |
-| `exit_code` | INTEGER | NULL | Process exit code from the stage executor. |
-| `error` | TEXT | NULL | Error details if the stage failed. |
-
-### Table: `events`
-
-The `events` table records durable events for real-time streaming and historical replay.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Monotonic event sequence identifier. |
-| `run_id` | TEXT | NOT NULL REFERENCES runs(id) | Associated run identifier. |
-| `event_type` | TEXT | NOT NULL | Event classification name. |
-| `payload` | TEXT | NOT NULL | JSON-serialized event content. |
-| `created_at` | TEXT | NOT NULL | ISO8601 timestamp. |
-
-### Table: `operation_ledger`
-
-The `operation_ledger` table enforces idempotency across mutating API commands.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | TEXT | PRIMARY KEY | Ledger entry identifier. |
-| `operation_type` | TEXT | NOT NULL | Operation classification name. |
-| `idempotency_key` | TEXT | NOT NULL | Unique idempotency key supplied by client or request context. |
-| `response_code` | INTEGER | NOT NULL | HTTP status code returned for the operation. |
-| `response_payload` | TEXT | NOT NULL | Cached JSON response body. |
-| `created_at` | TEXT | NOT NULL | ISO8601 timestamp. |
-
-A unique constraint applies across `(operation_type, idempotency_key)`.
-
-### Table: `run_commands`
-
-The `run_commands` table persists asynchronous operator commands (such as stops, steers, and pull request deliveries) across process boundaries.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | TEXT | PRIMARY KEY | Unique command identifier. |
-| `run_id` | TEXT | NOT NULL REFERENCES runs(id) | Associated run identifier. |
-| `command` | TEXT | NOT NULL | Command action type (`stop`, `steer`, `deliver`). |
-| `payload` | TEXT | NULL | JSON-serialized command arguments. |
-| `idempotency_key` | TEXT | UNIQUE | Unique client idempotency key. |
-| `target_worker_id` | TEXT | NULL | Worker identifier targeted for dedicated execution. |
-| `status` | TEXT | NOT NULL DEFAULT 'pending' | Command status (`pending`, `claimed`, `completed`, `failed`). |
-| `worker_id` | TEXT | NULL | Worker holding active execution lease. |
-| `lease_until` | TEXT | NULL | ISO8601 timestamp of command lease expiration. |
-| `attempts` | INTEGER | NOT NULL DEFAULT 0 | Count of execution attempts. |
-| `max_attempts` | INTEGER | NOT NULL DEFAULT 3 | Retry attempt limit. |
-| `error` | TEXT | NULL | Error message from execution failure. |
-| `result` | TEXT | NULL | JSON result payload from successful command execution. |
-| `created_at` | TEXT | NOT NULL | ISO8601 timestamp. |
-| `processed_at` | TEXT | NULL | ISO8601 completion timestamp. |
-
-### Table: `worker_heartbeats`
-
-The `worker_heartbeats` table tracks active background worker processes for liveness monitoring and orphan recovery.
-
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `worker_id` | TEXT | PRIMARY KEY | Unique worker identifier. |
-| `pid` | INTEGER | NULL | Operating system process identifier of the worker. |
-| `hostname` | TEXT | NULL | Hostname on which the worker is running. |
-| `last_heartbeat` | TEXT | NOT NULL | ISO8601 timestamp of the most recent heartbeat. |
-| `started_at` | TEXT | NOT NULL | ISO8601 startup timestamp. |
+- **`schema_migrations`**: one row per applied migration. The migrator applies pending migrations in version order on startup.
+- **`runs`**: the persistent state of each workflow execution. `status` follows the FSM in [`state-machine-matrix.md`](./state-machine-matrix.md). Every status change goes through the repository's compare-and-swap transition, which bumps `revision` (optimistic concurrency) and appends an event in the same transaction.
+- **`jobs`**: schedulable units of work for a stage. A worker claims a job with a lease (`worker_id`, `lease_until`) and renews it by heartbeat. Attempts are bounded by `max_attempts`.
+- **`run_events`**: the append-only event log for a run, ordered by a per-run `sequence`. It backs the SSE stream and historical replay.
+- **`stage_attempts`**: telemetry for each execution attempt of a stage (status, output, timing).
+- **`operation_ledger`**: idempotency for side-effecting external operations (for example PR creation). There is at most one row per `(run_id, operation)`.
+- **`run_commands`**: durable operator commands (`stop`, `deliver`) handed from the API process to a worker, with their own lease and attempt bounds.
+- **`worker_heartbeats`**: liveness of worker processes, used for orphan recovery and diagnostics. It stores the worker's OS PID and hostname for diagnostics only. PIDs are never used to signal or control processes.
 
 ## Runtime-Only Entities
 
-The system prohibits serialization of these runtime entities into SQLite:
+These are never serialized into SQLite:
 - Live agent session handles and subprocess streams.
 - In-memory event bus subscribers and listener functions.
 - In-memory baseline project state objects.
-- Operating system process identifiers (PIDs).
+
+Large artifacts (logs, transcripts, diffs) live on disk under the data dir. SQLite stores only their paths.
+
+## Generated Schema
+
+<!-- schema:generated:start -->
+<!-- Generated by `bun run docs:schema` from src/db/migrations. Do not edit by hand. -->
+
+### Migrations
+
+- **v1** `001_initial.sql`
+- **v2** `002_runs.sql`
+- **v3** `003_jobs.sql`
+- **v4** `004_run_events.sql`
+- **v5** `005_stage_attempts.sql`
+- **v6** `006_operation_ledger.sql`
+- **v7** `007_run_commands.sql`
+- **v8** `008_worker_heartbeats.sql`
+
+### Table: `jobs`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | TEXT | NULL |  | PK |  |
+| `run_id` | TEXT | NOT NULL |  |  | runs(id) ON DELETE CASCADE |
+| `stage` | TEXT | NOT NULL |  |  |  |
+| `status` | TEXT | NOT NULL |  |  |  |
+| `attempts` | INTEGER | NOT NULL | `0` |  |  |
+| `max_attempts` | INTEGER | NOT NULL | `3` |  |  |
+| `available_at` | TEXT | NOT NULL |  |  |  |
+| `worker_id` | TEXT | NULL |  |  |  |
+| `lease_until` | TEXT | NULL |  |  |  |
+| `last_heartbeat_at` | TEXT | NULL |  |  |  |
+| `error` | TEXT | NULL |  |  |  |
+| `created_at` | TEXT | NOT NULL |  |  |  |
+| `updated_at` | TEXT | NOT NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_jobs_run_id` on (run_id)
+- INDEX `idx_jobs_claimable` on (status, available_at, lease_until)
+
+### Table: `operation_ledger`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | TEXT | NULL |  | PK |  |
+| `run_id` | TEXT | NOT NULL |  |  | runs(id) ON DELETE CASCADE |
+| `operation` | TEXT | NOT NULL |  |  |  |
+| `status` | TEXT | NOT NULL |  |  |  |
+| `external_id` | TEXT | NULL |  |  |  |
+| `result` | TEXT | NULL |  |  |  |
+| `error` | TEXT | NULL |  |  |  |
+| `created_at` | TEXT | NOT NULL |  |  |  |
+| `updated_at` | TEXT | NOT NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_operation_ledger_run_op` on (run_id, operation)
+- UNIQUE (inline) on (run_id, operation)
+
+### Table: `run_commands`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | TEXT | NULL |  | PK |  |
+| `run_id` | TEXT | NOT NULL |  |  | runs(id) |
+| `command` | TEXT | NOT NULL |  |  |  |
+| `payload` | TEXT | NULL |  |  |  |
+| `idempotency_key` | TEXT | NULL |  |  |  |
+| `target_worker_id` | TEXT | NULL |  |  |  |
+| `status` | TEXT | NOT NULL | `'pending'` |  |  |
+| `worker_id` | TEXT | NULL |  |  |  |
+| `lease_until` | TEXT | NULL |  |  |  |
+| `attempts` | INTEGER | NOT NULL | `0` |  |  |
+| `max_attempts` | INTEGER | NOT NULL | `3` |  |  |
+| `error` | TEXT | NULL |  |  |  |
+| `result` | TEXT | NULL |  |  |  |
+| `created_at` | TEXT | NOT NULL |  |  |  |
+| `processed_at` | TEXT | NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_run_commands_pending` on (status, created_at)
+- UNIQUE (inline) on (idempotency_key)
+
+### Table: `run_events`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NULL |  | PK |  |
+| `run_id` | TEXT | NOT NULL |  |  | runs(id) ON DELETE CASCADE |
+| `sequence` | INTEGER | NOT NULL |  |  |  |
+| `type` | TEXT | NOT NULL |  |  |  |
+| `payload` | TEXT | NOT NULL |  |  |  |
+| `created_at` | TEXT | NOT NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_run_events_run_sequence` on (run_id, sequence)
+- UNIQUE (inline) on (run_id, sequence)
+
+### Table: `runs`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | TEXT | NULL |  | PK |  |
+| `project_id` | TEXT | NOT NULL |  |  |  |
+| `project_name` | TEXT | NOT NULL |  |  |  |
+| `ticket_id` | TEXT | NOT NULL |  |  |  |
+| `ticket_title` | TEXT | NOT NULL |  |  |  |
+| `ticket_description` | TEXT | NULL |  |  |  |
+| `ticket_acceptance_criteria` | TEXT | NOT NULL |  |  |  |
+| `plan` | TEXT | NOT NULL |  |  |  |
+| `branch` | TEXT | NOT NULL |  |  |  |
+| `status` | TEXT | NOT NULL |  |  |  |
+| `started_at` | TEXT | NOT NULL |  |  |  |
+| `finished_at` | TEXT | NULL |  |  |  |
+| `repair_attempts` | INTEGER | NOT NULL | `0` |  |  |
+| `artifacts_dir` | TEXT | NOT NULL |  |  |  |
+| `worktree_path` | TEXT | NOT NULL |  |  |  |
+| `revision` | INTEGER | NOT NULL | `1` |  |  |
+| `implementation_context` | TEXT | NULL |  |  |  |
+| `verification` | TEXT | NULL |  |  |  |
+| `review` | TEXT | NULL |  |  |  |
+| `artifacts` | TEXT | NULL |  |  |  |
+| `diff` | TEXT | NULL |  |  |  |
+| `pull_request` | TEXT | NULL |  |  |  |
+| `created_at` | TEXT | NOT NULL |  |  |  |
+| `updated_at` | TEXT | NOT NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_runs_project_id` on (project_id)
+- INDEX `idx_runs_status` on (status)
+
+### Table: `schema_migrations`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `version` | INTEGER | NULL |  | PK |  |
+| `name` | TEXT | NOT NULL |  |  |  |
+| `applied_at` | TEXT | NOT NULL |  |  |  |
+
+### Table: `stage_attempts`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | TEXT | NULL |  | PK |  |
+| `run_id` | TEXT | NOT NULL |  |  | runs(id) ON DELETE CASCADE |
+| `stage` | TEXT | NOT NULL |  |  |  |
+| `attempt` | INTEGER | NOT NULL | `1` |  |  |
+| `status` | TEXT | NOT NULL |  |  |  |
+| `started_at` | TEXT | NOT NULL |  |  |  |
+| `finished_at` | TEXT | NULL |  |  |  |
+| `output` | TEXT | NULL |  |  |  |
+| `error` | TEXT | NULL |  |  |  |
+| `created_at` | TEXT | NOT NULL |  |  |  |
+| `updated_at` | TEXT | NOT NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_stage_attempts_run_stage` on (run_id, stage)
+
+### Table: `worker_heartbeats`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `worker_id` | TEXT | NULL |  | PK |  |
+| `pid` | INTEGER | NULL |  |  |  |
+| `hostname` | TEXT | NULL |  |  |  |
+| `last_heartbeat` | TEXT | NOT NULL |  |  |  |
+| `started_at` | TEXT | NOT NULL |  |  |  |
+
+<!-- schema:generated:end -->

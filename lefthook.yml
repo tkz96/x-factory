@@ -7,6 +7,9 @@ pre-commit:
       glob: "*.{js,ts,json,css}"
       run: bunx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
       stage_fixed: true
+    schema-doc:
+      glob: "src/db/migrations/*.sql"
+      run: bun run docs:schema && git add docs/reference/database-schema.md
 
 pre-push:
   commands:

@@ -100,7 +100,7 @@ When the run transitions to `ready_for_pr` (the Deliver stage):
 
 1. Inspect the interactive **Diff Viewer** modal to examine every modified line.
 2. Review the automated verification logs, test results, and reviewer scorecards.
-3. Chat with the agent directly in the Run Detail view if you want to request revisions or steer further changes.
+3. Chat with the agent directly in the Run Detail view during the understanding and plan approval gates to request revisions before approving.
 4. Click **"Approve & Create PR"** to commit, push the branch, and open a pull request on your remote repository.
 
 You have successfully run your first autonomous engineering workflow with X-Factory!

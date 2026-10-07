@@ -56,6 +56,9 @@ jobs:
       - name: Run Biome Lint & Format Check
         run: bun run lint
 
+      - name: Check schema doc matches migrations
+        run: bun run docs:schema:check
+
   architecture:
     name: Architecture
     runs-on: ubuntu-latest

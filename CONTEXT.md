@@ -21,8 +21,8 @@ This document serves as the persistent domain glossary and architectural context
 | **Worker Process** | An independent background process (`src/worker.ts`) that polls SQLite, claims pending jobs, executes stages via isolated executors, and updates state. |
 | **API Process** | HTTP/SSE server (`src/server.ts`) handling client routing, settings, run creation, and persistence. Never executes heavy pipeline stages directly. |
 | **Pi Agent** | The autonomous coding agent engine executing codebase investigation, planning, and code synthesis within Git worktrees. |
-| **Worktree** | Isolated Git working tree located at `.worktrees/<projectId>/<runId>/` ensuring run changes do not dirty the primary repository tree. |
-| **Run Artifacts** | Disk-persisted artifacts located at `.runs/<projectId>/<runId>/` storing logs, transcripts, and diffs referenced by SQLite metadata. |
+| **Worktree** | Isolated Git working tree located at `<data dir>/projects/<projectId>/worktrees/<runId>/` ensuring run changes do not dirty the primary repository tree. |
+| **Run Artifacts** | Disk-persisted artifacts located at `<data dir>/projects/<projectId>/runs/<runId>/` storing logs, transcripts, and diffs referenced by SQLite metadata. |
 | **SSE Stream** | Server-Sent Events stream (`/api/runs/:id/events`) pushing real-time state and log updates to the React UI TanStack Query cache. |
 | **Reticle** | In-app verification layer executing real interactions against the running web application to produce evidence-backed verdicts. |
 
@@ -42,8 +42,8 @@ This document serves as the persistent domain glossary and architectural context
           │ Atomic Leases & Polling
 [ Worker Process (Bun) ]
           │
-          ├──> Git Worktrees (.worktrees/)
-          ├──> Run Artifacts (.runs/)
+          ├──> Git Worktrees (<data dir>/projects/<id>/worktrees/)
+          ├──> Run Artifacts (<data dir>/projects/<id>/runs/)
           └──> Pi Agent Sessions
 ```
 
