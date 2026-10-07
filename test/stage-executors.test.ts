@@ -15,13 +15,13 @@ import {
   type StageContext,
   UnderstandExecutor,
 } from "../src/executors/index.js";
-import type { BaselineState } from "../src/pollution.js";
 import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type {
   Project,
   PullRequest,
   VerificationResult,
 } from "../src/shared/types.js";
+import type { BaselineState } from "../src/worktree-state.js";
 
 describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
   const mockBaseline: BaselineState = {
@@ -335,7 +335,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       let pushed = false;
 
       const executor = new DeliverExecutor({
-        recordBaseline: async () => mockBaseline,
+        loadRecordedBaseline: async () => mockBaseline,
         safeCommitAll: async () => {
           committed = true;
         },

@@ -6,6 +6,7 @@ import type { OperationLedgerRepository } from "../db/operation-ledger-repositor
 import * as git from "../git.js";
 import { ensureDir, getWorktreePath } from "../paths.js";
 import type { Project } from "../shared/types.js";
+import { baselinePathFor } from "../worktree-state.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
@@ -176,9 +177,8 @@ export class PrepareExecutor implements StageExecutor {
 
     // 3. Reconstructable baseline tracking (XFM-35)
     await ensureDir(run.artifactsDir);
-    const baselineJsonPath = path.join(run.artifactsDir, "baseline.json");
     const baseline = await resolveWorktreeBaseline(
-      baselineJsonPath,
+      baselinePathFor(run.artifactsDir),
       worktreePath,
       this.deps.readFile,
       this.deps.recordBaseline,

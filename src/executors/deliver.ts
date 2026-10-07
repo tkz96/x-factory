@@ -7,6 +7,7 @@ import {
 } from "../providers/contract.js";
 import { resolveProjectProvider } from "../providers/project-config.js";
 import type { Project, PullRequest } from "../shared/types.js";
+import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
 export interface PrMetadata {
@@ -113,7 +114,7 @@ export async function createPullRequestWithFallback(
 }
 
 export interface DeliverDependencies {
-  recordBaseline: typeof git.recordBaseline;
+  loadRecordedBaseline: typeof loadRecordedBaseline;
   safeCommitAll: typeof git.safeCommitAll;
   push: typeof git.push;
   createPullRequest: (
@@ -140,7 +141,7 @@ export interface DeliverDependencies {
 }
 
 export const defaultDeliverDeps: DeliverDependencies = {
-  recordBaseline: git.recordBaseline,
+  loadRecordedBaseline,
   safeCommitAll: git.safeCommitAll,
   push: git.push,
   createPullRequest: defaultCreatePullRequest,
@@ -184,7 +185,9 @@ export class DeliverExecutor implements StageExecutor {
           text: "Committing verified changes safely…",
         });
 
-        const baseline = await this.deps.recordBaseline(worktree);
+        const baseline = await this.deps.loadRecordedBaseline(
+          baselinePathFor(run.artifactsDir),
+        );
         await this.deps.safeCommitAll(worktree, commitMsg, baseline);
 
         return {

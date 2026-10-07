@@ -8,6 +8,7 @@ import path from "node:path";
 import * as git from "../src/git.js";
 import { getRunMarkerPath, getWorktreePath } from "../src/paths.js";
 import { execStrict } from "../src/proc.js";
+import { readWorktreeState } from "../src/worktree-state.js";
 
 let baseTempDir: string;
 let fixtureRepo: string;
@@ -140,7 +141,7 @@ describe("createWorktree and removeWorktree", () => {
   });
 });
 
-describe("recordBaseline and checkPollution", () => {
+describe("recordBaseline and pollution detection", () => {
   it("detects clean state vs dangerous pollution files", async () => {
     await git.createBranch(fixtureRepo, "wt-branch-2", "main");
     const wtPath = await git.createWorktree(
@@ -154,7 +155,7 @@ describe("recordBaseline and checkPollution", () => {
     assert.ok(baseline.trackedFiles.has("README.md"));
 
     // Clean check
-    let pollution = await git.checkPollution(wtPath, baseline);
+    let pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, false);
 
     // Legitimate new file: src/feature.ts and .env.example are allowed!
@@ -165,7 +166,7 @@ describe("recordBaseline and checkPollution", () => {
     );
     await writeFile(path.join(wtPath, ".env.example"), "API_KEY=\n");
 
-    pollution = await git.checkPollution(wtPath, baseline);
+    pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(
       pollution.hasPollution,
       false,
@@ -174,13 +175,13 @@ describe("recordBaseline and checkPollution", () => {
 
     // Forbidden pollution file: debug.log
     await writeFile(path.join(wtPath, "debug.log"), "error log\n");
-    pollution = await git.checkPollution(wtPath, baseline);
+    pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, true);
-    assert.ok(pollution.details[0]?.includes("debug.log"));
+    assert.ok(pollution.pollutionDetails[0]?.includes("debug.log"));
 
     // Remove forbidden file
     await rm(path.join(wtPath, "debug.log"));
-    pollution = await git.checkPollution(wtPath, baseline);
+    pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, false);
 
     await git.removeWorktree(fixtureRepo, wtPath);
@@ -199,7 +200,7 @@ describe("getDiff and safeCommitAll", () => {
     const baseline = await git.recordBaseline(wtPath);
 
     // Initial diff is empty
-    let diffRes = await git.getDiff(wtPath);
+    let diffRes = await git.getDiff(wtPath, baseline);
     assert.equal(diffRes.filesChanged.length, 0);
 
     // Throws when nothing to commit
@@ -213,7 +214,7 @@ describe("getDiff and safeCommitAll", () => {
       path.join(wtPath, "new-module.ts"),
       "export function hello() {}\n",
     );
-    diffRes = await git.getDiff(wtPath);
+    diffRes = await git.getDiff(wtPath, baseline);
     assert.ok(diffRes.filesChanged.includes("new-module.ts"));
 
     // Commit safely
@@ -247,30 +248,24 @@ describe("Git Metadata and External Directory Safety", () => {
     );
     const baseline = await git.recordBaseline(wtPath);
 
-    // 1. .git is not in baseline
-    for (const f of baseline.trackedFiles) {
+    // 1. .git metadata is not in baseline
+    for (const f of [...baseline.trackedFiles, ...baseline.untrackedFiles]) {
       assert.ok(
-        !f.startsWith(".git"),
-        `Tracked file should not start with .git: ${f}`,
-      );
-    }
-    for (const f of baseline.untrackedFiles) {
-      assert.ok(
-        !f.startsWith(".git"),
-        `Untracked file should not start with .git: ${f}`,
+        f !== ".git" && !f.startsWith(".git/"),
+        `Baseline should not include .git metadata: ${f}`,
       );
     }
 
     // 2. Pollution check ignores .git
-    const pollution = await git.checkPollution(wtPath, baseline);
+    const pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, false);
 
-    // 3. Diff check ignores .git
-    const diffRes = await git.getDiff(wtPath);
+    // 3. Diff check ignores .git metadata
+    const diffRes = await git.getDiff(wtPath, baseline);
     for (const f of diffRes.filesChanged) {
       assert.ok(
-        !f.includes(".git"),
-        `Changed files should not include .git: ${f}`,
+        f !== ".git" && !f.startsWith(".git/"),
+        `Changed files should not include .git metadata: ${f}`,
       );
     }
 

@@ -46,6 +46,28 @@ describe("Subprocess Runner (proc.ts)", () => {
     assert.ok(res.stdout.includes("[output truncated]"));
   });
 
+  it("marks truncation when output stops exactly at the cap", async () => {
+    const res = await execCommand(
+      "sh",
+      ["-c", "printf '%050d' 0; sleep 0.2; printf more"],
+      { maxBufferChars: 50 },
+    );
+    assert.ok(res.stdout.endsWith("[output truncated]"));
+  });
+
+  it("keeps stdout byte-exact when rawStdout is set", async () => {
+    const res = await execCommand("printf", ["  x  "], { rawStdout: true });
+    assert.equal(res.stdout, "  x  ");
+  });
+
+  it("decodes a multi-byte character split across output chunks", async () => {
+    const res = await execCommand("sh", [
+      "-c",
+      "printf '\\346'; sleep 0.2; printf '\\227\\245'",
+    ]);
+    assert.equal(res.stdout, "日");
+  });
+
   it("execStrict resolves on success and throws on failure", async () => {
     const res = await execStrict("echo", ["strict test"]);
     assert.equal(res.stdout, "strict test");

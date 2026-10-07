@@ -12,6 +12,7 @@ import {
   MAX_REPAIR_ATTEMPTS,
   runVerification,
 } from "../verification.js";
+import { baselinePathFor } from "../worktree-state.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
 import { ReviewExecutor } from "./review.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
@@ -483,9 +484,8 @@ export class ExecuteExecutor implements StageExecutor {
       }
     }
 
-    const baselineJsonPath = path.join(run.artifactsDir, "baseline.json");
     const baseline = await this.deps.resolveWorktreeBaseline(
-      baselineJsonPath,
+      baselinePathFor(run.artifactsDir),
       worktreePath,
       this.deps.readFile,
       this.deps.recordBaseline,
@@ -579,7 +579,7 @@ export class ExecuteExecutor implements StageExecutor {
           attempt,
         );
 
-        finalDiff = await this.deps.getDiff(worktreePath);
+        finalDiff = await this.deps.getDiff(worktreePath, baseline);
 
         context.run = persistVerificationResult(
           context,

@@ -1,6 +1,6 @@
 // src/verification.ts — Deterministic verification pipeline and structured bounded repair.
 
-import { type BaselineState, checkPollution, getDiff } from "./git.js";
+import { getDiffText } from "./git.js";
 import { execCommand } from "./proc.js";
 import type {
   CommandResult,
@@ -8,6 +8,7 @@ import type {
   Ticket,
   VerificationResult,
 } from "./types.js";
+import { type BaselineState, readWorktreeState } from "./worktree-state.js";
 
 export const MAX_REPAIR_ATTEMPTS = 3;
 
@@ -58,7 +59,7 @@ function buildVerificationSummary(
  * 2. Optional typecheck command
  * 3. Optional lint command
  * 4. Pollution detection against baseline
- * 5. Git diff inspection (verifies non-empty diff)
+ * 5. No-change gate: at least one implementation change (scaffold does not count)
  */
 export async function runVerification(
   worktreePath: string,
@@ -86,23 +87,23 @@ export async function runVerification(
     worktreePath,
     timeoutMs,
   );
-  const pollution = await checkPollution(worktreePath, baseline);
-  const { diff, filesChanged } = await getDiff(worktreePath);
-  const hasDiff = diff.length > 0 || filesChanged.length > 0;
+  const state = await readWorktreeState(worktreePath, baseline);
+  const diff = await getDiffText(worktreePath);
+  const hasDiff = state.hasImplementationChanges;
 
   const passed =
     tests.passed &&
     (typecheck ? typecheck.passed : true) &&
     (lint ? lint.passed : true) &&
-    !pollution.hasPollution &&
+    !state.hasPollution &&
     hasDiff;
 
   const summary = buildVerificationSummary(
     tests,
     typecheck,
     lint,
-    pollution.hasPollution,
-    pollution.details,
+    state.hasPollution,
+    state.pollutionDetails,
     hasDiff,
   );
 
@@ -113,9 +114,9 @@ export async function runVerification(
     typecheck,
     lint,
     diff,
-    filesChanged,
-    hasPollution: pollution.hasPollution,
-    pollutionDetails: pollution.hasPollution ? pollution.details : undefined,
+    filesChanged: state.implementationPaths,
+    hasPollution: state.hasPollution,
+    pollutionDetails: state.hasPollution ? state.pollutionDetails : undefined,
     summary,
   };
 }
