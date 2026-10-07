@@ -14,7 +14,7 @@ export function ConnectStepFooter({
   onNext,
 }: ConnectStepFooterProps) {
   return (
-    <div className="wizard-actions">
+    <div className="modal-actions">
       <button
         type="button"
         id="btn-step-2-back"

@@ -4,7 +4,7 @@
    layout constraint (a label column has no spacing step), not spacing. */
 
 .inspection-step-pane {
-  padding: var(--space-6);
+  padding: 0;
 }
 
 .inspection-region {

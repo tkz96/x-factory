@@ -1,7 +1,7 @@
 /* src/frontend/wizard/steps/ConnectStep.css — Step 2 Connect styling */
 
 .connect-step-pane {
-  padding: 1.5rem;
+  padding: 0;
 }
 
 .connect-verify-all-row {

@@ -301,7 +301,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
         </div>
       )}
 
-      <div className="wizard-actions">
+      <div className="modal-actions">
         <button
           type="button"
           id="btn-step-5-back"

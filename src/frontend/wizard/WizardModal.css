@@ -1,81 +1,15 @@
-/* src/frontend/wizard/WizardModal.css — Thin orchestrator modal styling */
-
-.wizard-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-overlay, rgba(0, 0, 0, 0.6));
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.wizard-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: transparent;
-  cursor: default;
-  padding: 0;
-  margin: 0;
-}
+/* src/frontend/wizard/WizardModal.css — Wizard dialog sizing modifier (#159).
+ *
+ * The wizard composes the reusable modal classes (.modal-backdrop / .modal-dialog /
+ * .modal-header / .modal-body) from components/ModalContainer.css, which supply the
+ * structural guarantees: constrained viewport height, internal scrolling body,
+ * persistent header, responsive padding, backdrop blur and accessible dialog framing.
+ * This file only contributes the wizard's stable dialog dimensions so the modal keeps
+ * one size across every step instead of resizing as content length changes.
+ */
 
 .wizard-modal-dialog {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 44rem;
-  max-height: 90vh;
-  background: var(--bg-modal, var(--bg-card));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
-  overflow: hidden;
-  animation: appleModalSpring 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.wizard-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.wizard-modal-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-}
-
-.wizard-modal-close-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 1.125rem;
-  line-height: 1;
-  transition: all var(--transition-fast) ease;
-}
-
-.wizard-modal-close-btn:hover {
-  background: var(--bg-surface);
-  color: var(--text);
-}
-
-.wizard-modal-body {
-  flex: 1;
-  overflow-y: auto;
+  /* Stable height: content of varying lengths scrolls inside .modal-body rather than
+     growing or shrinking the dialog between steps. */
+  height: min(88vh, 720px);
 }

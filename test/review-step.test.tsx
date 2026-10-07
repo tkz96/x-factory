@@ -554,8 +554,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(true);
     // There is no dismissal or skip affordance: back, or submit (disabled).
     expect(
-      document.querySelectorAll("#onboard-step-5 .wizard-actions button")
-        .length,
+      document.querySelectorAll("#onboard-step-5 .modal-actions button").length,
     ).toBe(2);
   });
 

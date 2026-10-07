@@ -100,7 +100,7 @@ export function InspectionStep() {
         </AsyncRegion>
       </div>
 
-      <div className="wizard-actions">
+      <div className="modal-actions">
         <button
           type="button"
           id="btn-step-4-back"

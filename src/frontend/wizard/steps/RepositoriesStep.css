@@ -1,7 +1,7 @@
 /* src/frontend/wizard/steps/RepositoriesStep.css — Step 3 Repositories styling */
 
 .repositories-step-pane {
-  padding: 1.5rem;
+  padding: 0;
 }
 
 /* The reserved region every discovery state renders inside: the loading

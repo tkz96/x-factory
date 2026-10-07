@@ -138,7 +138,7 @@ export function RepositoriesStep() {
         </AsyncRegion>
       </div>
 
-      <div className="wizard-actions">
+      <div className="modal-actions">
         <button
           type="button"
           id="btn-step-3-back"

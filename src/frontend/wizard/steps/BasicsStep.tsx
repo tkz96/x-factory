@@ -143,7 +143,7 @@ export function BasicsStep({ onCancel }: BasicsStepProps) {
         </span>
       </div>
 
-      <div className="wizard-actions">
+      <div className="modal-actions">
         {onCancel && (
           <button
             type="button"
