@@ -67,22 +67,15 @@ Every coding agent must respect and preserve these architectural invariants:
 
 ## 3. Quality Gates & Verification Standards
 
-Any code changes must pass all repo verification gates before completion:
+Run every gate with one command before calling a change done:
 
-1. **TypeScript Typecheck**:
-   - Backend: `bun run typecheck` (`tsc --noEmit`)
-   - Frontend: `bun run typecheck:frontend` (`tsc --project tsconfig.frontend.json --noEmit`)
-2. **Linting & Formatting**:
-   - `bun run lint` (`biome check .`)
-3. **Tests & Coverage**:
-   - `bun test` (all tests passing, minimum 80% line and function coverage; current codebase maintains $> 97%$)
-   - Smoke & Integration: `bun run test:frontend-smoke`, `bun run test:integration`, `bun run test:integration:production`
-4. **Architectural & Health Checks**:
-   - `bunx fallow dupes` (target: 0 clone groups)
-   - `bun run check:fallow` (target: maintainability $\ge 90$, 0 boundary violations)
-   - `bun run check:cycles` (target: 0 circular dependencies via `dpdm`)
-   - `bun run check:knip` (target: 0 broken or unused exports/dependencies)
-   - `bun run docs:schema:check` (schema doc matches the migrations; run `bun run docs:schema` after adding a migration)
+```bash
+bun run check:all   # one line per gate; failing gates print a log tail (~40s)
+```
+
+The gate list lives in `scripts/check-all.ts`. Targets: coverage ≥ 80% lines and functions, fallow maintainability ≥ 90, 0 dependency cycles, 0 unused exports. After adding a migration, run `bun run docs:schema` to regenerate the schema doc.
+
+**Known red on main (2026-10-08):** `check:knip` (6 unused exports, 8 unused types) and `check:fallow` (24 dead-code issues, 50 clone groups, 1 health issue). A change passes these two gates if it adds no new findings to them. Delete this note once main is green.
 
 ---
 
