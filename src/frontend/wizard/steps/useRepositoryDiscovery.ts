@@ -36,6 +36,7 @@ import { configGeneration, roleConfig } from "../state/connectConfig.js";
 import {
   APPLICATION_REPOSITORY_ROLE,
   gitHostDiscoveryFingerprint,
+  hasApplicationRepository,
   isApplicationRepository,
   isRepositorySelectionStale,
 } from "../state/repositoryRules.js";
@@ -181,6 +182,14 @@ export function useRepositoryDiscovery() {
     },
   );
 
+  // The role-tagged config recorded for a selected repository. The role comes
+  // from the role the row was LISTED under (backend-provided), never assigned by
+  // the frontend — shared by single and bulk selection so both stamp identically.
+  const configFor = (row: RepositoryRow): WizardRepoConfig => ({
+    role: row.listedUnderRoles[0] ?? APPLICATION_REPOSITORY_ROLE,
+    roles: [...row.listedUnderRoles],
+  });
+
   const toggleRepository = (row: RepositoryRow) => {
     // Rows produced for a configuration that is no longer current are refused
     // here, not merely disabled in the DOM: the selection a click records is
@@ -205,12 +214,34 @@ export function useRepositoryDiscovery() {
     if (alreadySelected) {
       delete nextConfigs[row.id];
     } else {
-      nextConfigs[row.id] = {
-        role: row.listedUnderRoles[0] ?? APPLICATION_REPOSITORY_ROLE,
-        roles: [...row.listedUnderRoles],
-      };
+      nextConfigs[row.id] = configFor(row);
     }
 
+    dispatch({
+      type: "UPDATE_REPOSITORIES",
+      patch: {
+        selectedRepoIds: nextIds,
+        repoConfigs: nextConfigs,
+        primaryRepoId: nextIds[0] ?? null,
+        selectionFingerprint: nextIds.length > 0 ? requestFingerprint : null,
+      },
+    });
+  };
+
+  // Bulk selection (#160): selects or clears EVERY currently selectable row in
+  // one dispatch, reusing the exact same guard, config builder and fingerprint
+  // stamping as a single toggle — never a second selection model. Stale
+  // placeholder results are refused here exactly as a single toggle is.
+  const setAllRepositories = (select: boolean) => {
+    if (!rowsSelectable) {
+      return;
+    }
+    const target = select ? rows : [];
+    const nextIds = target.map((r) => r.id);
+    const nextConfigs: Record<string, WizardRepoConfig> = {};
+    for (const row of target) {
+      nextConfigs[row.id] = configFor(row);
+    }
     dispatch({
       type: "UPDATE_REPOSITORIES",
       patch: {
@@ -242,6 +273,37 @@ export function useRepositoryDiscovery() {
   // untouched and keeps blocking on its own.
   const canAdvanceStep = canAdvance && rowsSelectable;
 
+  // Bulk-selection header state (#160): derived from the recorded selection and
+  // the currently selectable rows — never a second selection model. When the
+  // displayed rows are stale placeholders nothing is bulk-selectable.
+  const selectedIdSet = new Set(state.repositories.selectedRepoIds);
+  const selectableRows = rowsSelectable ? rows : [];
+  const selectedAmongRows = selectableRows.filter((r) =>
+    selectedIdSet.has(r.id),
+  ).length;
+  const allSelectableSelected =
+    rowsSelectable && rows.length > 0 && selectedAmongRows === rows.length;
+  const someSelectableSelected =
+    rowsSelectable && selectedAmongRows > 0 && !allSelectableSelected;
+
+  // Why Continue is disabled (#160): composed from the AUTHORITATIVE signals
+  // already computed here (rowsSelectable, selectionIsStale, and the pure
+  // hasApplicationRepository rule) — the component never re-derives them.
+  let continueBlockedReason:
+    | "stale-results"
+    | "stale-selection"
+    | "needs-application-repository"
+    | null = null;
+  if (!canAdvanceStep) {
+    if (!rowsSelectable) {
+      continueBlockedReason = "stale-results";
+    } else if (selectionIsStale) {
+      continueBlockedReason = "stale-selection";
+    } else if (!hasApplicationRepository(state)) {
+      continueBlockedReason = "needs-application-repository";
+    }
+  }
+
   return {
     rows,
     derived,
@@ -253,6 +315,11 @@ export function useRepositoryDiscovery() {
       void query.refetch();
     },
     toggleRepository,
+    setAllRepositories,
+    allSelectableSelected,
+    someSelectableSelected,
+    totalRows: rows.length,
+    continueBlockedReason,
     restartSelection,
     canAdvance: canAdvanceStep,
     nextStep,

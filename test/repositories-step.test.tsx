@@ -1210,6 +1210,9 @@ describe("Repositories Step — a previous configuration's results are never sel
     // (ii) …and every one of them is NOT selectable.
     expect(row("repo-app").disabled).toBe(true);
     expect(row("repo-api").disabled).toBe(true);
+    // The bulk Select all control is inert together with the rows it operates
+    // on — stale placeholder rows can never be bulk-selected (#160).
+    expect(getEl<HTMLInputElement>("repo-select-all").disabled).toBe(true);
 
     // (iii) A row of the previous configuration cannot become a selection the
     // wizard records, and the refusal does not depend on the DOM: the hook is
@@ -1531,6 +1534,113 @@ describe("Repositories Step — a previous configuration's results are never sel
 
     // Previous results remain visible after refresh failure
     expect(region.querySelectorAll(".repositories-list-item").length).toBe(2);
+  });
+});
+
+describe("Repositories Step — bulk selection: Select all / Deselect all (#160)", () => {
+  beforeEach(() => {
+    clearWizardDraft();
+    api.providers.getManifest = mock(async () => manifestFixture);
+    api.providers.verify = mock(async () => ({
+      status: "ok" as const,
+      warnings: [],
+    }));
+    api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
+      matched: false as const,
+      url: "",
+    }));
+    api.providers.listRepositories = mock(async () => discoveryEnvelope());
+  });
+
+  afterEach(() => {
+    cleanup();
+    clearWizardDraft();
+  });
+
+  function selectAll(): HTMLInputElement {
+    return getEl<HTMLInputElement>("repo-select-all");
+  }
+  function row(id: string): HTMLInputElement {
+    return getEl<HTMLInputElement>(`repo-select-${id}`);
+  }
+  function count(): string {
+    return getEl("repositories-selected-count").textContent ?? "";
+  }
+  function continueReason(): HTMLElement | null {
+    return document.getElementById("repositories-continue-reason");
+  }
+
+  it("SELECT ALL: unchecked at zero, selects every row, gates Continue with an inline reason", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    // 0 selected: control unchecked, count shown, Continue gated with an inline reason.
+    expect(selectAll().checked).toBe(false);
+    expect(selectAll().indeterminate).toBe(false);
+    expect(count()).toBe("0 of 2 selected");
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    expect(continueReason()).not.toBeNull();
+    expect(continueReason()?.textContent).toContain("application repository");
+
+    // Select all → every row selected, count + Continue update, reason gone.
+    act(() => {
+      fireEvent.click(selectAll());
+    });
+    expect(row("repo-app").checked).toBe(true);
+    expect(row("repo-api").checked).toBe(true);
+    expect(selectAll().checked).toBe(true);
+    expect(selectAll().indeterminate).toBe(false);
+    expect(count()).toBe("2 of 2 selected");
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(false);
+    expect(continueReason()).toBeNull();
+
+    // Deselect a single row → indeterminate, partial count.
+    act(() => {
+      fireEvent.click(row("repo-api"));
+    });
+    expect(row("repo-api").checked).toBe(false);
+    expect(selectAll().checked).toBe(false);
+    expect(selectAll().indeterminate).toBe(true);
+    expect(count()).toBe("1 of 2 selected");
+
+    // From indeterminate, Select all re-selects every row.
+    act(() => {
+      fireEvent.click(selectAll());
+    });
+    expect(row("repo-app").checked).toBe(true);
+    expect(row("repo-api").checked).toBe(true);
+    expect(selectAll().checked).toBe(true);
+
+    // Deselect all (control is checked → click clears) re-gates Continue.
+    act(() => {
+      fireEvent.click(selectAll());
+    });
+    expect(row("repo-app").checked).toBe(false);
+    expect(row("repo-api").checked).toBe(false);
+    expect(selectAll().checked).toBe(false);
+    expect(selectAll().indeterminate).toBe(false);
+    expect(count()).toBe("0 of 2 selected");
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    expect(continueReason()).not.toBeNull();
+  });
+
+  it("SELECTION COUNT: the recorded selection drives the count and the summary", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    act(() => {
+      fireEvent.click(row("repo-app"));
+    });
+    expect(count()).toBe("1 of 2 selected");
+    expect(discoveryRegion().textContent).toContain(
+      REPOSITORIES_COPY.selectionSummary(1),
+    );
   });
 });
 

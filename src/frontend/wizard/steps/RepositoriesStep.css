@@ -99,3 +99,52 @@
 .repositories-list-row--disabled .repositories-role-tag {
   opacity: 0.6;
 }
+
+/* Bulk-selection header (#160): a master Select-all control and the live
+   "N of M selected" count above the list. */
+.repositories-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.repositories-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.repositories-select-all input {
+  accent-color: var(--accent, #0a84ff);
+}
+
+.repositories-list-header .repositories-select-all input:disabled {
+  cursor: not-allowed;
+}
+
+.repositories-selected-count {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* Inline reason shown beside Continue while the step is gated (#160): pushed to
+   the left of the footer so the reason reads next to the buttons, never a tooltip. */
+.repositories-continue-reason {
+  margin-right: auto;
+  margin-bottom: 0;
+  max-width: 60%;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  text-align: left;
+}

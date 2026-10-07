@@ -15,6 +15,13 @@ import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import "./RepositoriesStep.css";
 
+/** Inline explanation for a gated Continue, keyed by the authoritative reason. */
+const CONTINUE_REASON_COPY = {
+  "stale-results": REPOSITORIES_COPY.staleResults,
+  "stale-selection": REPOSITORIES_COPY.staleSelection,
+  "needs-application-repository": REPOSITORIES_COPY.needsApplicationRepository,
+} as const;
+
 export function RepositoriesStep() {
   const {
     rows,
@@ -25,6 +32,11 @@ export function RepositoriesStep() {
     unconfirmedCapabilities,
     refresh,
     toggleRepository,
+    setAllRepositories,
+    allSelectableSelected,
+    someSelectableSelected,
+    totalRows,
+    continueBlockedReason,
     restartSelection,
     canAdvance,
     nextStep,
@@ -72,6 +84,37 @@ export function RepositoriesStep() {
               />
             </div>
           )}
+
+          <div
+            className="repositories-list-header"
+            id="repositories-list-header"
+          >
+            <label className="repositories-select-all">
+              <input
+                id="repo-select-all"
+                type="checkbox"
+                // Bulk selection is inert with the rows it operates on: stale
+                // placeholder results can never be bulk-selected (#160).
+                disabled={!rowsSelectable}
+                checked={allSelectableSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someSelectableSelected;
+                }}
+                onChange={() => setAllRepositories(!allSelectableSelected)}
+              />
+              <span>{REPOSITORIES_COPY.selectAllLabel}</span>
+            </label>
+            <span
+              className="repositories-selected-count"
+              id="repositories-selected-count"
+              aria-live="polite"
+            >
+              {REPOSITORIES_COPY.selectedOfTotal(
+                selectedRepoIds.length,
+                totalRows,
+              )}
+            </span>
+          </div>
 
           <ul className="repositories-list" id="repositories-list">
             {rows.map((row) => (
@@ -139,6 +182,15 @@ export function RepositoriesStep() {
       </div>
 
       <div className="modal-actions">
+        {continueBlockedReason && (
+          <p
+            className="repositories-continue-reason"
+            id="repositories-continue-reason"
+            role="status"
+          >
+            {CONTINUE_REASON_COPY[continueBlockedReason]}
+          </p>
+        )}
         <button
           type="button"
           id="btn-step-3-back"

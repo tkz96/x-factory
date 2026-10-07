@@ -132,6 +132,14 @@ export const REPOSITORIES_COPY = {
   /** Live count of the current selection. */
   selectionSummary: (count: number) =>
     count === 1 ? "1 repository selected" : `${count} repositories selected`,
+  /** Header control for bulk selection (#160). */
+  selectAllLabel: "Select all",
+  /** Live "N of M selected" count shown in the list header (#160). */
+  selectedOfTotal: (selected: number, total: number) =>
+    `${selected} of ${total} selected`,
+  /** Inline reason shown beside Continue while the step is gated (#160). */
+  needsApplicationRepository:
+    "Select at least one application repository to continue.",
   previous: "Back",
   next: "Continue to Inspection",
 } as const;
