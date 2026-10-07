@@ -46,18 +46,16 @@ function attachReviewListeners(
   }) => void,
 ): () => string {
   let fullOutput = "";
-  if (onEvent) {
-    session.subscribe((e) => {
-      if (e.type === "text" && e.text) {
-        fullOutput += e.text;
-        onEvent({ type: "info", text: e.text });
-      } else if (e.type === "tool") {
-        onEvent({ type: "info", text: `Running tool ${e.tool}` });
-      } else if (e.type === "error") {
-        onEvent({ type: "error", error: e.error });
-      }
-    });
-  }
+  session.subscribe((e) => {
+    if (e.type === "text" && e.text) {
+      fullOutput += e.text;
+      onEvent?.({ type: "info", text: e.text });
+    } else if (e.type === "tool") {
+      onEvent?.({ type: "info", text: `Running tool ${e.tool}` });
+    } else if (e.type === "error") {
+      onEvent?.({ type: "error", error: e.error });
+    }
+  });
   return () => fullOutput;
 }
 
@@ -125,9 +123,26 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
     }
   }
 
-  const reviewResult = parseReviewOutput(ticket, getOutput());
+  const output = getOutput();
+  if (!hasReviewVerdict(output)) {
+    return createFallbackReview(
+      ticket,
+      "Review produced no parseable criteria or verdict.",
+      false,
+    );
+  }
+
+  const reviewResult = parseReviewOutput(ticket, output);
   await persistReviewArtifact(projectId, runId, reviewResult);
   return reviewResult;
+}
+
+/** A review counts only if it checked criteria or stated a verdict; anything else fails closed. */
+function hasReviewVerdict(output: string): boolean {
+  return (
+    extractReviewItems(output).criteriaChecked.length > 0 ||
+    /VERDICT:\s*(PASSED|FAILED)/i.test(output)
+  );
 }
 
 export function buildReviewPrompt(

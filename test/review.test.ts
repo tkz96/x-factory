@@ -452,5 +452,59 @@ FAILED
       assert.equal(result.passed, false);
       assert.ok(result.summary.includes("Review session error"));
     });
+
+    it("fails a review whose output reports failed criteria when no onEvent is given", async () => {
+      const result = await reviewRun({
+        projectId: "test-proj",
+        runId: "test-run-no-listener",
+        worktreePath: "/tmp",
+        ticket,
+        plan: "Step 1",
+        diff: "diff",
+        verification: sampleVerification,
+        sessionFactory: async () =>
+          scriptedSession(
+            "CRITERIA_CHECK:\n- [FAIL] Sanitize passwords from audit payload\n- [PASS] Do not modify user IDs\n\nVERDICT: FAILED\n",
+          ),
+      });
+
+      assert.equal(result.passed, false);
+    });
+
+    for (const [label, output] of [
+      ["empty", ""],
+      ["unparseable", "I had a look around and things seem fine."],
+    ] as const) {
+      it(`fails closed when the review output is ${label}`, async () => {
+        const result = await reviewRun({
+          projectId: "test-proj",
+          runId: `test-run-${label}`,
+          worktreePath: "/tmp",
+          ticket,
+          plan: "Step 1",
+          diff: "diff",
+          verification: sampleVerification,
+          sessionFactory: async () => scriptedSession(output),
+        });
+
+        assert.equal(result.passed, false);
+      });
+    }
   });
 });
+
+function scriptedSession(output: string): PiAgentSession {
+  const listeners: Array<Parameters<PiAgentSession["subscribe"]>[0]> = [];
+  return {
+    session: {} as unknown as AgentSession,
+    prompt: async () => {
+      for (const cb of listeners) cb({ type: "text", text: output });
+    },
+    steer: async () => {},
+    abort: async () => {},
+    subscribe: (cb) => {
+      listeners.push(cb);
+      return () => {};
+    },
+  };
+}
