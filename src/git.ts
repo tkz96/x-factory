@@ -191,9 +191,11 @@ export async function getDiff(
 }
 
 /**
- * Safely commit all changes.
- * 1. Verifies no pollution against baseline.
- * 2. Stages all changes with git add -A.
+ * Commit exactly the changes classified as implementation since the baseline.
+ * 1. Verifies no pollution against baseline, before anything is staged.
+ * 2. Unstages scaffold and baseline-untracked paths a prior staging step left
+ *    in the index, then stages the implementation paths explicitly —
+ *    additions, modifications, deletions and renames. Never `git add -A`.
  * 3. Verifies something is staged.
  * 4. Commits with provided message.
  */
@@ -209,12 +211,42 @@ export async function safeCommitAll(
     );
   }
 
-  await execStrict("git", ["add", "-A"], { cwd: worktreePath });
+  // Scaffold, and anything untracked at baseline, must not reach the commit —
+  // including when an earlier `git add` (e.g. a rename into `.agent/`) staged it.
+  const toUnstage = state.changes
+    .filter(
+      (c) =>
+        (c.kind === "scaffold" || baseline.untrackedFiles.has(c.path)) &&
+        c.status[0] !== " " &&
+        c.status[0] !== "?",
+    )
+    .map((c) => c.path);
+  if (toUnstage.length > 0) {
+    await execStrict(
+      "git",
+      ["--literal-pathspecs", "restore", "--staged", "--", ...toUnstage],
+      { cwd: worktreePath },
+    );
+  }
 
-  const statusCheck = await execStrict("git", ["status", "--porcelain"], {
+  // Stage implementation changes whose worktree differs from the index. A
+  // change already staged as-is (`R `, `D `, `M `) is skipped: it is already in
+  // the index, and re-adding a fully removed path fails the pathspec match.
+  const toStage = state.changes
+    .filter((c) => c.kind === "implementation" && c.status[1] !== " ")
+    .map((c) => c.path);
+  if (toStage.length > 0) {
+    await execStrict(
+      "git",
+      ["--literal-pathspecs", "add", "-A", "--", ...toStage],
+      { cwd: worktreePath },
+    );
+  }
+
+  const staged = await execStrict("git", ["diff", "--cached", "--name-only"], {
     cwd: worktreePath,
   });
-  if (statusCheck.stdout.length === 0) {
+  if (staged.stdout.length === 0) {
     throw new Error("Nothing to commit — working tree is clean.");
   }
 

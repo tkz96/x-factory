@@ -303,8 +303,8 @@ describe("findCommitByMessageAndParent", () => {
     );
     const parentSha = await git.getHeadSha(wtPath);
 
-    await writeFile(path.join(wtPath, "file1.txt"), "hello");
     const baseline = await recordBaseline(wtPath);
+    await writeFile(path.join(wtPath, "file1.txt"), "hello");
     await git.safeCommitAll(wtPath, "[X-Factory] Test Commit", baseline);
     const commitSha = await git.getHeadSha(wtPath);
 
@@ -328,8 +328,8 @@ describe("findCommitByMessageAndParent", () => {
     );
     const parentSha = await git.getHeadSha(wtPathBase);
 
-    await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
     const baseline = await recordBaseline(wtPathBase);
+    await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
     await git.safeCommitAll(wtPathBase, "[X-Factory] Target Commit", baseline);
 
     await git.createBranch(fixtureRepo, "wt-branch-find-2-other", "main");
@@ -373,9 +373,9 @@ describe("getParentSha and getHeadMessage", () => {
     const headMsg = await git.getHeadMessage(fixtureRepo);
     assert.equal(headMsg, "Initial commit");
 
-    // Create a commit
-    await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
+    // Create a commit (baseline first: a file untracked at baseline is not a change)
     const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
     const parentBefore = await git.getHeadSha(fixtureRepo);
     await git.safeCommitAll(fixtureRepo, "second commit", baseline);
 
