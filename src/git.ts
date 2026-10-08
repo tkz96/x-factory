@@ -49,6 +49,7 @@ export async function createBranch(
   }
   await execStrict("git", ["branch", branchName, baseBranch], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
 }
 
@@ -72,6 +73,7 @@ export async function createWorktree(
   // Add git worktree
   await execStrict("git", ["worktree", "add", worktreePath, branchName], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
 
   // Write .xfactory-run marker in the run artifacts directory (outside worktree)
@@ -100,7 +102,7 @@ export async function removeWorktree(
 ): Promise<void> {
   const args = ["worktree", "remove", worktreePath];
   if (force) args.push("--force");
-  await execStrict("git", args, { cwd: repoPath });
+  await execStrict("git", args, { cwd: repoPath, envPolicy: "inherit" });
 }
 
 /**
@@ -209,16 +211,23 @@ export async function safeCommitAll(
     );
   }
 
-  await execStrict("git", ["add", "-A"], { cwd: worktreePath });
+  await execStrict("git", ["add", "-A"], {
+    cwd: worktreePath,
+    envPolicy: "inherit",
+  });
 
   const statusCheck = await execStrict("git", ["status", "--porcelain"], {
     cwd: worktreePath,
+    envPolicy: "inherit",
   });
   if (statusCheck.stdout.length === 0) {
     throw new Error("Nothing to commit — working tree is clean.");
   }
 
-  await execStrict("git", ["commit", "-m", message], { cwd: worktreePath });
+  await execStrict("git", ["commit", "-m", message], {
+    cwd: worktreePath,
+    envPolicy: "inherit",
+  });
 }
 
 /**
@@ -230,6 +239,7 @@ export async function push(
 ): Promise<void> {
   await execStrict("git", ["push", "-u", "origin", branchName], {
     cwd: worktreePath,
+    envPolicy: "inherit",
   });
 }
 
@@ -258,6 +268,7 @@ export async function validateRepo(repoPath: string): Promise<void> {
 export async function getHeadSha(repoPath: string): Promise<string> {
   const result = await execStrict("git", ["rev-parse", "HEAD"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   return result.stdout.trim();
 }
@@ -268,6 +279,7 @@ export async function getHeadSha(repoPath: string): Promise<string> {
 export async function getParentSha(repoPath: string): Promise<string> {
   const result = await execStrict("git", ["log", "-1", "--format=%P"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   return result.stdout.trim().split(" ")[0] || "";
 }
@@ -278,6 +290,7 @@ export async function getParentSha(repoPath: string): Promise<string> {
 export async function getHeadMessage(repoPath: string): Promise<string> {
   const result = await execStrict("git", ["log", "-1", "--pretty=format:%B"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   return result.stdout.trim();
 }
