@@ -19,6 +19,7 @@ It prints one line per gate. If a gate fails, it also prints the last lines of t
 | Architecture | `bun run check:fallow` | Dead code, duplication, complexity and layer boundaries (fallow), against a baseline |
 | Dependencies | `bun run check:knip` | Unused dependencies, exports and types, and unresolved imports (knip), against a baseline |
 | Cycles | `bun run check:cycles` | No circular imports from the server, worker or frontend entry points |
+| Build | `bun run build` | Frontend and asset build into `dist/`. Runs before the test gates, as in CI |
 | Tests | `bun run test:coverage` | Full test suite with line and function coverage of at least 80% (`bunfig.toml`) |
 | Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, and no inline styles |
 | Integration | `bun run test:integration`, `bun run test:integration:production` | End-to-end runs in development and production mode |

@@ -1,6 +1,8 @@
 // scripts/check-all.ts — Runs every quality gate in docs/agents/ci-checks.md and prints one line per gate.
 //
-// Static gates are read-only and run in parallel; test suites run one at a time.
+// Static gates are read-only and run in parallel; then the build runs, then the
+// test suites run one at a time. The build comes first because CI builds first and
+// test:integration:production runs against dist/.
 // Full logs go to a temp directory; only a failing gate's log tail is printed.
 //
 // Usage:
@@ -27,7 +29,8 @@ const STATIC_GATES: Gate[] = [
 ];
 
 const TEST_GATES: Gate[] = [
-  { name: "test (coverage)", cmd: ["bun", "test", "--coverage"] },
+  { name: "build", cmd: ["bun", "run", "build"] },
+  { name: "test:coverage", cmd: ["bun", "run", "test:coverage"] },
   { name: "test:frontend-smoke", cmd: ["bun", "run", "test:frontend-smoke"] },
   { name: "test:integration", cmd: ["bun", "run", "test:integration"] },
   {
