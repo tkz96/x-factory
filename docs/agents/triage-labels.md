@@ -1,6 +1,6 @@
 # Triage Labels Configuration
 
-This document maps canonical triage roles used by agent skills (such as `/triage`, `/to-spec`, `/to-tickets`) to the repository's issue tracker labels.
+Read this before you label or triage an issue. It maps the canonical triage roles that triage workflows use to the labels on `tkz96/x-factory`.
 
 ## Canonical Role Mapping
 
@@ -12,13 +12,13 @@ This document maps canonical triage roles used by agent skills (such as `/triage
 | `ready-for-human` | `ready-for-human` | Task requires human decision, manual verification, or intervention |
 | `wontfix` | `wontfix` | Will not be implemented or worked on |
 
-## Tracker State
+## Tracker state
 
-- `wontfix` exists on the remote repository.
-- `needs-triage`, `needs-info`, `ready-for-agent`, and `ready-for-human` can be created via GitHub CLI:
-  ```bash
-  gh label create needs-triage --color "#fbca04" --description "Item requires review and triage"
-  gh label create needs-info --color "#d93f0b" --description "Waiting on information from reporter"
-  gh label create ready-for-agent --color "#0e8a16" --description "Specified and ready for AI agent to execute"
-  gh label create ready-for-human --color "#1d76db" --description "Requires human decision or manual intervention"
-  ```
+`wontfix`, `ready-for-agent` and `ready-for-human` exist on GitHub. `needs-triage` and `needs-info` do not exist yet. Create them before you use them:
+
+```bash
+gh label create needs-triage --color "#fbca04" --description "Item requires review and triage"
+gh label create needs-info --color "#d93f0b" --description "Waiting on information from reporter"
+```
+
+When you create one, update this section.

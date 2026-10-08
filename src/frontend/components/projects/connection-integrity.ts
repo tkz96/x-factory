@@ -8,7 +8,7 @@
 // UX), so "a project with no tracker" is not a supported mode: it is a durable
 // configuration error with a repair path.
 //
-// Provider-agnosticism (spec #133, AGENTS.md): this module never branches on a
+// Provider-agnosticism (spec #133, docs/reference/provider-api.md): this module never branches on a
 // provider id. Display names come from the providers manifest, the
 // "configuration is incomplete" check is driven by the manifest's own field
 // descriptors (`required` + `secret` + `roles`), and the legacy pre-#145

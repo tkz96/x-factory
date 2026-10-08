@@ -1,0 +1,18 @@
+{
+  "kind": "health",
+  "finding_counts": {
+    "src/providers/project-config.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "src/frontend/wizard/storage.ts:high impact",
+    "src/runs.ts:complexity",
+    "src/db/connection.ts:high impact",
+    "src/executors/execute.ts:complexity",
+    "src/frontend/components/runs/RunChat.tsx:complexity"
+  ]
+}

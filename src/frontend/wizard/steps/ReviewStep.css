@@ -1,5 +1,5 @@
 /* src/frontend/wizard/steps/ReviewStep.css — Step 5 Review styling.
-   Tokens only (.agents/rules/frontend-styling.md): spacing is an --space-*
+   Tokens only (docs/agents/frontend-styling.md): spacing is an --space-*
    token and type is a HIG --text-* token. Where a value had no exact token it
    snaps to the nearest one (ties go to the tighter value), and 1px hairlines
    keep their literal `1px` because a hairline is a rendering constraint, not a
