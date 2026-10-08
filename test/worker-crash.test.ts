@@ -638,9 +638,13 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     });
 
     // 1. Spawn Worker A as a separate Bun process
-    const child = spawn("bun", ["test/crashing-subprocess-worker.ts", dbPath], {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const child = spawn(
+      "bun",
+      [path.join(import.meta.dir, "crashing-subprocess-worker.ts"), dbPath],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
 
     let executorAStarted = false;
     child.stdout.on("data", (data: Buffer) => {
