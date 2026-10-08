@@ -1,6 +1,6 @@
 # Issue Tracker Configuration
 
-This document specifies the issue tracker configuration for AI agent skills in this repository.
+Read this before you read, create or update a GitHub issue. Labels and triage roles are in [triage-labels.md](./triage-labels.md).
 
 ## Tracker Details
 
@@ -11,7 +11,7 @@ This document specifies the issue tracker configuration for AI agent skills in t
 
 ## Agent Commands
 
-Agents should interact with GitHub issues using the `gh` command-line tool.
+Use the `gh` command-line tool for every issue operation.
 
 ### List Issues
 ```bash

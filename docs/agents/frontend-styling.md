@@ -1,6 +1,6 @@
-# Frontend Styling & CSS Architecture Rule
+# Frontend styling and CSS architecture
 
-This repository strictly enforces Apple Human Interface Guidelines (HIG) and a modular, token-based Vanilla CSS architecture. All AI coding agents operating on `src/frontend` must comply with the following invariants without exception.
+Read this before you change anything under `src/frontend/`. This repository follows the Apple Human Interface Guidelines (see [`DESIGN.md`](../../DESIGN.md)) and a modular, token-based vanilla CSS architecture. Everyone who changes `src/frontend/`, people and agents alike, must follow these rules. To audit existing code against them, use [css-audit.md](./css-audit.md).
 
 ---
 
@@ -36,8 +36,8 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 ## 3. Component & View Co-location
 
 - Every React component or view that requires custom styles must have a co-located `.css` file in the same directory:
-  - Component: `src/frontend/components/MyComponent.tsx` $\rightarrow$ `src/frontend/components/MyComponent.css`.
-  - View: `src/frontend/views/MyView.tsx` $\rightarrow$ `src/frontend/views/MyView.css`.
+  - Component: `src/frontend/components/<Name>.tsx` $\rightarrow$ `src/frontend/components/<Name>.css`.
+  - View: `src/frontend/views/<Name>.tsx` $\rightarrow$ `src/frontend/views/<Name>.css`.
 - The TSX file must explicitly import its co-located CSS:
   ```tsx
   import "./MyComponent.css";
