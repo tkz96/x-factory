@@ -3,7 +3,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isPollutionPath } from "./pollution.js";
-import { execStrict } from "./proc.js";
+import { execStrict, TRUNCATION_MARKER } from "./proc.js";
 
 export interface BaselineState {
   trackedFiles: Set<string>;
@@ -40,7 +40,6 @@ interface StatusEntry {
 
 const UNTRACKED = "??";
 const STATUS_MAX_CHARS = 16 * 1024 * 1024;
-const TRUNCATION_MARKER = "\n... [output truncated]";
 
 /** Only `.git` itself is git metadata; `.github/` and `.gitignore` are repository content. */
 function isGitMetadataPath(relPath: string): boolean {

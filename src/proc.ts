@@ -15,6 +15,8 @@ export interface ExecOptions {
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes default
 const DEFAULT_MAX_BUFFER_CHARS = 50_000;
+/** Appended to output that hit `maxBufferChars`. */
+export const TRUNCATION_MARKER = "\n... [output truncated]";
 
 function createBufferAccumulator(maxBufferChars: number) {
   // Streaming decoder so a multi-byte character split across chunks stays intact.
@@ -36,7 +38,7 @@ function createBufferAccumulator(maxBufferChars: number) {
     },
     value() {
       add(decoder.end());
-      return truncated ? `${buffer}\n... [output truncated]` : buffer;
+      return truncated ? `${buffer}${TRUNCATION_MARKER}` : buffer;
     },
   };
 }
