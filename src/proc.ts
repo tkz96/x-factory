@@ -173,8 +173,6 @@ export function execCommand(
   const fullCommand = [cmd, ...args].join(" ");
   const startTime = Date.now();
 
-  const emitChunk = onOutputChunk;
-
   if (signal?.aborted) {
     return Promise.resolve(
       buildCloseResult(fullCommand, 1, false, timeoutMs, "", "", 0, true),
@@ -188,11 +186,11 @@ export function execCommand(
   return new Promise((resolve) => {
     const stdout = createBufferAccumulator(
       maxBufferChars,
-      emitChunk ? (chunk) => emitChunk(chunk, "stdout") : undefined,
+      onOutputChunk ? (chunk) => onOutputChunk(chunk, "stdout") : undefined,
     );
     const stderr = createBufferAccumulator(
       maxBufferChars,
-      emitChunk ? (chunk) => emitChunk(chunk, "stderr") : undefined,
+      onOutputChunk ? (chunk) => onOutputChunk(chunk, "stderr") : undefined,
     );
     let timedOut = false;
     let aborted = false;
@@ -212,7 +210,7 @@ export function execCommand(
 
     const terminate = () => {
       if (settled) return;
-      if (escalationTimer) return; // One SIGTERM -> SIGKILL escalation timer
+      if (terminationStarted) return; // One SIGTERM -> SIGKILL escalation timer
       terminationStarted = true;
 
       killProcessGroup(child, "SIGTERM");
@@ -298,7 +296,7 @@ export function execCommand(
 
 export interface ExecStrictOptions
   extends Omit<Partial<ExecOptions>, "envPolicy"> {
-  envPolicy?: EnvPolicy | undefined;
+  envPolicy: EnvPolicy;
 }
 
 /**
@@ -307,11 +305,11 @@ export interface ExecStrictOptions
 export async function execStrict(
   cmd: string,
   args: string[],
-  options: ExecStrictOptions = {},
+  options: ExecStrictOptions,
 ): Promise<{ stdout: string; stderr: string; durationMs: number }> {
   const result = await execCommand(cmd, args, {
     ...options,
-    envPolicy: options.envPolicy ?? "inherit",
+    envPolicy: options.envPolicy,
   });
   if (result.exitCode !== 0) {
     const errorMsg = `${result.command} failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`;

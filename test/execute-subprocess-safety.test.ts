@@ -67,17 +67,24 @@ exit 0
   await chmod(mockSbxPath, 0o755);
 
   // Initialize git repo
-  await execStrict("git", ["init", "--initial-branch=main", repo]);
+  await execStrict("git", ["init", "--initial-branch=main", repo], {
+    envPolicy: "inherit",
+  });
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await write("README.md", "# Fixture\n");
   await write("src/app.ts", "export const app = 1;\n");
-  await execStrict("git", ["add", "-A"], { cwd: repo });
-  await execStrict("git", ["commit", "-m", "Initial commit"], { cwd: repo });
+  await execStrict("git", ["add", "-A"], { envPolicy: "inherit", cwd: repo });
+  await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
+    cwd: repo,
+  });
 
   await saveRecordedBaseline(
     baselinePathFor(artifactsDir),
@@ -237,20 +244,16 @@ describe("Subprocess safety at Worker seam", () => {
 
     let grandchildPid = 0;
     try {
-      // Poll until grandchild PID is written by the verification command (deadline ~5s)
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
+      // Poll until the verification command writes the grandchild PID (~5s)
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline && grandchildPid === 0) {
         try {
-          const content = await Bun.file(pidFile).text();
-          const parsed = parseInt(content.trim(), 10);
-          if (parsed > 0) {
-            grandchildPid = parsed;
-            break;
-          }
+          const parsed = parseInt((await Bun.file(pidFile).text()).trim(), 10);
+          if (parsed > 0) grandchildPid = parsed;
         } catch {
           // file not yet written
         }
-        await new Promise((r) => setTimeout(r, 50));
+        if (grandchildPid === 0) await new Promise((r) => setTimeout(r, 50));
       }
 
       expect(grandchildPid).toBeGreaterThan(0);
@@ -277,6 +280,9 @@ describe("Subprocess safety at Worker seam", () => {
       const finalRun = runRepo.get(run.id);
       expect(finalRun?.status).toBe("stopped");
     } finally {
+      // Abort any in-flight verification, wait for it, then reap the pid.
+      await worker.stop();
+      await processPromise.catch(() => {});
       if (grandchildPid > 0) {
         try {
           process.kill(grandchildPid, "SIGKILL");

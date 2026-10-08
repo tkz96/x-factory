@@ -5,6 +5,23 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execCommand, execStrict } from "../src/proc.js";
 
+async function waitForPid(pidFile: string, timeoutMs = 5000): Promise<number> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const text = await Bun.file(pidFile).text();
+      const pid = parseInt(text.trim(), 10);
+      if (pid > 0) {
+        return pid;
+      }
+    } catch {
+      // not written yet
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`Timed out waiting for pid file ${pidFile}`);
+}
+
 describe("Subprocess Runner (proc.ts)", () => {
   it("executes successful command and captures stdout", async () => {
     const res = await execCommand("echo", ["hello world"], {
@@ -95,11 +112,13 @@ describe("Subprocess Runner (proc.ts)", () => {
   });
 
   it("execStrict resolves on success and throws on failure", async () => {
-    const res = await execStrict("echo", ["strict test"]);
+    const res = await execStrict("echo", ["strict test"], {
+      envPolicy: "inherit",
+    });
     assert.equal(res.stdout, "strict test");
 
     await assert.rejects(
-      () => execStrict("sh", ["-c", "exit 1"]),
+      () => execStrict("sh", ["-c", "exit 1"], { envPolicy: "inherit" }),
       /failed \(exit 1\)/,
     );
   });
@@ -160,21 +179,7 @@ describe("Subprocess Runner (proc.ts)", () => {
         { signal: controller.signal, envPolicy: "inherit" },
       );
 
-      // Wait until the grandchild pid is written with a deadline of about 5s
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
-        try {
-          const text = await Bun.file(pidFile).text();
-          const pid = parseInt(text.trim(), 10);
-          if (pid > 0) {
-            grandchildPid = pid;
-            break;
-          }
-        } catch {
-          // file not yet written
-        }
-        await new Promise((r) => setTimeout(r, 20));
-      }
+      grandchildPid = await waitForPid(pidFile);
 
       assert.ok(grandchildPid > 0, "Expected grandchild pid to be written");
 
@@ -233,21 +238,7 @@ describe("Subprocess Runner (proc.ts)", () => {
         { timeoutMs: 2000, envPolicy: "inherit" },
       );
 
-      // Wait until the grandchild pid is written with a deadline of about 5s
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
-        try {
-          const text = await Bun.file(pidFile).text();
-          const pid = parseInt(text.trim(), 10);
-          if (pid > 0) {
-            grandchildPid = pid;
-            break;
-          }
-        } catch {
-          // file not yet written
-        }
-        await new Promise((r) => setTimeout(r, 20));
-      }
+      grandchildPid = await waitForPid(pidFile);
 
       assert.ok(grandchildPid > 0, "Expected grandchild pid to be written");
 
@@ -306,21 +297,7 @@ describe("Subprocess Runner (proc.ts)", () => {
         { timeoutMs: 2000, envPolicy: "inherit" },
       );
 
-      // Poll until grandchild pid is written
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
-        try {
-          const text = await Bun.file(pidFile).text();
-          const pid = parseInt(text.trim(), 10);
-          if (pid > 0) {
-            grandchildPid = pid;
-            break;
-          }
-        } catch {
-          // not written yet
-        }
-        await new Promise((r) => setTimeout(r, 20));
-      }
+      grandchildPid = await waitForPid(pidFile);
       assert.ok(grandchildPid > 0, "Expected grandchild pid to be written");
 
       const res = await runPromise;
@@ -377,21 +354,7 @@ describe("Subprocess Runner (proc.ts)", () => {
         { signal: controller.signal, envPolicy: "inherit" },
       );
 
-      // Poll until grandchild pid is written
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
-        try {
-          const text = await Bun.file(pidFile).text();
-          const pid = parseInt(text.trim(), 10);
-          if (pid > 0) {
-            grandchildPid = pid;
-            break;
-          }
-        } catch {
-          // not written yet
-        }
-        await new Promise((r) => setTimeout(r, 20));
-      }
+      grandchildPid = await waitForPid(pidFile);
       assert.ok(grandchildPid > 0, "Expected grandchild pid to be written");
 
       controller.abort();
