@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import type { CommandResult } from "./types.js";
 
-export type EnvPolicy = "inherit" | "sanitized";
+type EnvPolicy = "inherit" | "sanitized";
 
 export interface ExecOptions {
   cwd?: string | undefined;
@@ -19,10 +19,8 @@ export interface ExecOptions {
   onOutputChunk?:
     | ((chunk: string, stream: "stdout" | "stderr") => void)
     | undefined;
-  /** Alias for onOutputChunk. */
-  onChunk?: ((chunk: string, stream: "stdout" | "stderr") => void) | undefined;
-  /** Environment policy: 'inherit' (default) copies process.env; 'sanitized' allows only safe standard variables. */
-  envPolicy?: EnvPolicy | undefined;
+  /** Environment policy: 'inherit' copies process.env; 'sanitized' allows only safe standard variables. */
+  envPolicy: EnvPolicy;
 }
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes default
@@ -30,7 +28,7 @@ const DEFAULT_MAX_BUFFER_CHARS = 50_000;
 /** Appended to output that hit `maxBufferChars`. */
 export const TRUNCATION_MARKER = "\n... [output truncated]";
 
-export const DEFAULT_ALLOWED_ENV_KEYS: readonly string[] = [
+const DEFAULT_ALLOWED_ENV_KEYS: readonly string[] = [
   "PATH",
   "HOME",
   "USER",
@@ -43,35 +41,14 @@ export const DEFAULT_ALLOWED_ENV_KEYS: readonly string[] = [
   "TMPDIR",
 ];
 
-export function resolveSanitizedEnv(
-  providerOrOptions?:
-    | string
-    | {
-        provider?: string | undefined;
-        allowedKeys?: readonly string[] | undefined;
-        extraKeys?: readonly string[] | undefined;
-      },
-): Record<string, string> {
-  const options =
-    typeof providerOrOptions === "string"
-      ? { provider: providerOrOptions }
-      : providerOrOptions;
+export function resolveSanitizedEnv(provider?: string): Record<string, string> {
+  const keys = new Set<string>(DEFAULT_ALLOWED_ENV_KEYS);
 
-  const keys = new Set<string>(
-    options?.allowedKeys ?? DEFAULT_ALLOWED_ENV_KEYS,
-  );
-
-  if (options?.provider) {
+  if (provider) {
     keys.add("PI_API_KEY");
-    if (options.provider === "anthropic") keys.add("ANTHROPIC_API_KEY");
-    if (options.provider === "openai") keys.add("OPENAI_API_KEY");
-    if (options.provider === "google") keys.add("GEMINI_API_KEY");
-  }
-
-  if (options?.extraKeys) {
-    for (const key of options.extraKeys) {
-      keys.add(key);
-    }
+    if (provider === "anthropic") keys.add("ANTHROPIC_API_KEY");
+    if (provider === "openai") keys.add("OPENAI_API_KEY");
+    if (provider === "google") keys.add("GEMINI_API_KEY");
   }
 
   const sanitized: Record<string, string> = {};
@@ -86,15 +63,15 @@ export function resolveSanitizedEnv(
 
 function createBufferAccumulator(
   maxBufferChars: number,
-  onChunk?: (chunk: string) => void,
+  onOutputChunk?: (chunk: string) => void,
 ) {
   // Streaming decoder so a multi-byte character split across chunks stays intact.
   const decoder = new StringDecoder("utf8");
   let buffer = "";
   let truncated = false;
   const add = (text: string) => {
-    if (text && onChunk) {
-      onChunk(text);
+    if (text && onOutputChunk) {
+      onOutputChunk(text);
     }
     if (truncated) return;
     if (buffer.length + text.length > maxBufferChars) {
@@ -175,11 +152,12 @@ function buildCloseResult(
 /**
  * Execute a command safely and return a CommandResult.
  * Always resolves (does not throw on non-zero exit code).
+ * Note: the streaming callback receives every byte and only the captured result is capped.
  */
 export function execCommand(
   cmd: string,
   args: string[],
-  options: ExecOptions = {},
+  options: ExecOptions,
 ): Promise<CommandResult> {
   const {
     cwd,
@@ -188,28 +166,18 @@ export function execCommand(
     maxBufferChars = DEFAULT_MAX_BUFFER_CHARS,
     rawStdout = false,
     signal,
-    envPolicy = "inherit",
+    envPolicy,
     onOutputChunk,
-    onChunk,
   } = options;
 
   const fullCommand = [cmd, ...args].join(" ");
   const startTime = Date.now();
 
-  const emitChunk = onOutputChunk ?? onChunk;
+  const emitChunk = onOutputChunk;
 
   if (signal?.aborted) {
     return Promise.resolve(
-      buildCloseResult(
-        fullCommand,
-        1,
-        false,
-        timeoutMs,
-        "",
-        "Command aborted",
-        0,
-        true,
-      ),
+      buildCloseResult(fullCommand, 1, false, timeoutMs, "", "", 0, true),
     );
   }
 
@@ -235,13 +203,17 @@ export function execCommand(
     const child = spawn(cmd, args, {
       cwd,
       env: resolvedEnv,
+      // Children leave the worker's process group, so a worker crash can orphan them, and abort/timeout are what reap them.
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
+    let terminationStarted = false;
+
     const terminate = () => {
       if (settled) return;
       if (escalationTimer) return; // One SIGTERM -> SIGKILL escalation timer
+      terminationStarted = true;
 
       killProcessGroup(child, "SIGTERM");
       escalationTimer = setTimeout(() => {
@@ -286,6 +258,9 @@ export function execCommand(
     child.on("error", (err) => {
       if (settled) return;
       settled = true;
+      if (terminationStarted) {
+        killProcessGroup(child, "SIGKILL");
+      }
       cleanup();
       resolve({
         command: fullCommand,
@@ -301,6 +276,9 @@ export function execCommand(
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
+      if (terminationStarted) {
+        killProcessGroup(child, "SIGKILL");
+      }
       cleanup();
       resolve(
         buildCloseResult(
@@ -318,15 +296,23 @@ export function execCommand(
   });
 }
 
+export interface ExecStrictOptions
+  extends Omit<Partial<ExecOptions>, "envPolicy"> {
+  envPolicy?: EnvPolicy | undefined;
+}
+
 /**
  * Execute a command and reject if the exit code is non-zero or it timed out.
  */
 export async function execStrict(
   cmd: string,
   args: string[],
-  options: ExecOptions = {},
+  options: ExecStrictOptions = {},
 ): Promise<{ stdout: string; stderr: string; durationMs: number }> {
-  const result = await execCommand(cmd, args, options);
+  const result = await execCommand(cmd, args, {
+    ...options,
+    envPolicy: options.envPolicy ?? "inherit",
+  });
   if (result.exitCode !== 0) {
     const errorMsg = `${result.command} failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`;
     throw new Error(errorMsg);

@@ -31,7 +31,7 @@ export async function branchExists(
   const result = await execCommand(
     "git",
     ["rev-parse", "--verify", `refs/heads/${branchName}`],
-    { cwd: repoPath },
+    { cwd: repoPath, envPolicy: "inherit" },
   );
   return result.exitCode === 0;
 }
@@ -160,7 +160,7 @@ export async function getDiffText(
     const result = await execCommand(
       "git",
       ["--literal-pathspecs", "diff", "HEAD", "--", ...tracked],
-      { cwd: worktreePath },
+      { cwd: worktreePath, envPolicy: "inherit" },
     );
     parts.push(result.stdout);
   }
@@ -169,7 +169,7 @@ export async function getDiffText(
     const result = await execCommand(
       "git",
       ["diff", "--no-index", "--", "/dev/null", file],
-      { cwd: worktreePath },
+      { cwd: worktreePath, envPolicy: "inherit" },
     );
     parts.push(result.stdout);
   }
@@ -245,6 +245,7 @@ export async function validateRepo(repoPath: string): Promise<void> {
 
   const gitDirResult = await execCommand("git", ["rev-parse", "--git-dir"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   if (gitDirResult.exitCode !== 0) {
     throw new Error(`Not a git repository: ${repoPath}`);
@@ -293,7 +294,7 @@ export async function findCommitByMessageAndParent(
   const result = await execCommand(
     "git",
     ["log", "--format=%H %P", "--grep", message, "--fixed-strings"],
-    { cwd: repoPath },
+    { cwd: repoPath, envPolicy: "inherit" },
   );
 
   if (result.exitCode !== 0) {
@@ -331,6 +332,7 @@ export async function getRemoteBranchSha(
     ["ls-remote", remote, `refs/heads/${branchName}`],
     {
       cwd: repoPath,
+      envPolicy: "inherit",
     },
   );
   if (result.exitCode !== 0) {

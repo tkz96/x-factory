@@ -12,7 +12,7 @@ import { type BaselineState, readWorktreeState } from "./worktree-state.js";
 
 export const MAX_REPAIR_ATTEMPTS = 3;
 
-export interface VerificationOptions {
+interface VerificationOptions {
   signal?: AbortSignal | undefined;
 }
 
