@@ -12,13 +12,23 @@ import { type BaselineState, readWorktreeState } from "./worktree-state.js";
 
 export const MAX_REPAIR_ATTEMPTS = 3;
 
+export interface VerificationOptions {
+  signal?: AbortSignal | undefined;
+}
+
 async function runOptionalCommand(
   cmd: string | undefined,
   cwd: string,
   timeoutMs?: number | undefined,
+  options?: VerificationOptions,
 ): Promise<CommandResult | undefined> {
   if (!cmd) return undefined;
-  return execCommand("sh", ["-c", cmd], { cwd, timeoutMs });
+  return execCommand("sh", ["-c", cmd], {
+    cwd,
+    timeoutMs,
+    envPolicy: "sanitized",
+    signal: options?.signal,
+  });
 }
 
 function buildVerificationSummary(
@@ -66,6 +76,7 @@ export async function runVerification(
   project: Project,
   baseline: BaselineState,
   attempt: number,
+  options?: VerificationOptions,
 ): Promise<VerificationResult> {
   const timeoutMs = project.commandTimeoutMs;
 
@@ -75,17 +86,21 @@ export async function runVerification(
     {
       cwd: worktreePath,
       timeoutMs,
+      envPolicy: "sanitized",
+      signal: options?.signal,
     },
   );
   const typecheck = await runOptionalCommand(
     project.typecheckCommand,
     worktreePath,
     timeoutMs,
+    options,
   );
   const lint = await runOptionalCommand(
     project.lintCommand,
     worktreePath,
     timeoutMs,
+    options,
   );
   const state = await readWorktreeState(worktreePath, baseline);
   const diff = await getDiffText(worktreePath, state);

@@ -5,6 +5,7 @@ import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { RunRecord } from "../db/run-repository.js";
 import * as git from "../git.js";
+import { resolveSanitizedEnv } from "../proc.js";
 import { loadSettings } from "../settings.js";
 import type { Project, Ticket, VerificationResult } from "../shared/types.js";
 import {
@@ -266,30 +267,6 @@ For EVERY task in \`.agent/tasks.md\`:
 - All commands (test, typecheck, lint) must exit cleanly with code 0 before completing a task.
 - When all tasks in \`.agent/tasks.md\` are marked \`[x]\`, conclude your work.
 `;
-}
-
-function resolveSanitizedEnv(provider: string): Record<string, string> {
-  const allowedEnvKeys = [
-    "PATH",
-    "HOME",
-    "USER",
-    "LANG",
-    "LC_ALL",
-    "PI_API_KEY",
-  ];
-
-  if (provider === "anthropic") allowedEnvKeys.push("ANTHROPIC_API_KEY");
-  if (provider === "openai") allowedEnvKeys.push("OPENAI_API_KEY");
-  if (provider === "google") allowedEnvKeys.push("GEMINI_API_KEY");
-
-  const sanitizedEnv: Record<string, string> = {};
-  for (const key of allowedEnvKeys) {
-    const val = process.env[key];
-    if (val !== undefined) {
-      sanitizedEnv[key] = val;
-    }
-  }
-  return sanitizedEnv;
 }
 
 interface RalphLoopExecutionResult {
@@ -577,6 +554,7 @@ export class ExecuteExecutor implements StageExecutor {
           project,
           baseline,
           attempt,
+          signal ? { signal } : undefined,
         );
 
         finalDiff = await this.deps.getDiff(worktreePath, baseline);
