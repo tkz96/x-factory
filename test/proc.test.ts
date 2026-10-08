@@ -77,4 +77,144 @@ describe("Subprocess Runner (proc.ts)", () => {
       /failed \(exit 1\)/,
     );
   });
+
+  it("sanitizes environment when envPolicy is sanitized", async () => {
+    process.env.TEST_WORKER_SECRET_TOKEN = "secret-token-12345";
+    try {
+      const res = await execCommand(
+        "node",
+        [
+          "-e",
+          "console.log(JSON.stringify({ hasSecret: 'TEST_WORKER_SECRET_TOKEN' in process.env, hasPath: 'PATH' in process.env }))",
+        ],
+        { envPolicy: "sanitized" },
+      );
+      assert.equal(res.exitCode, 0);
+      const parsed = JSON.parse(res.stdout);
+      assert.equal(parsed.hasSecret, false);
+      assert.equal(parsed.hasPath, true);
+    } finally {
+      delete process.env.TEST_WORKER_SECRET_TOKEN;
+    }
+  });
+
+  it("streams output chunks via onOutputChunk callback", async () => {
+    const chunks: string[] = [];
+    const res = await execCommand(
+      "node",
+      [
+        "-e",
+        "process.stdout.write('first chunk\\n'); setTimeout(() => { process.stdout.write('second chunk\\n'); }, 50);",
+      ],
+      {
+        onOutputChunk: (chunk) => {
+          chunks.push(chunk);
+        },
+      },
+    );
+    assert.equal(res.exitCode, 0);
+    assert.ok(chunks.length >= 2);
+    assert.ok(chunks.join("").includes("first chunk\n"));
+    assert.ok(chunks.join("").includes("second chunk\n"));
+  });
+
+  it("aborting kills the command and its child processes including grandchildren", async () => {
+    const controller = new AbortController();
+    const pidFile = `/tmp/grandchild-abort-${Date.now()}.pid`;
+
+    const runPromise = execCommand(
+      "sh",
+      ["-c", `sh -c 'sleep 60' & echo $! > "${pidFile}"; wait`],
+      { signal: controller.signal },
+    );
+
+    // Wait until the grandchild pid is written
+    let grandchildPid = 0;
+    for (let i = 0; i < 50; i++) {
+      try {
+        const text = await Bun.file(pidFile).text();
+        const pid = parseInt(text.trim(), 10);
+        if (pid > 0) {
+          grandchildPid = pid;
+          break;
+        }
+      } catch {
+        // file not yet written
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    assert.ok(grandchildPid > 0, "Expected grandchild pid to be written");
+
+    // Abort the execution
+    controller.abort();
+    const res = await runPromise;
+
+    assert.equal(res.passed, false);
+    assert.ok(res.stderr.includes("Command aborted"));
+
+    // Verify grandchild is gone
+    let alive = true;
+    for (let i = 0; i < 20; i++) {
+      try {
+        process.kill(grandchildPid, 0);
+        await new Promise((r) => setTimeout(r, 50));
+      } catch {
+        alive = false;
+        break;
+      }
+    }
+    assert.equal(
+      alive,
+      false,
+      "Grandchild process should be killed when command is aborted",
+    );
+
+    try {
+      await Bun.file(pidFile).delete();
+    } catch {
+      // ignore cleanup error
+    }
+  });
+
+  it("a timeout kills the whole process group including grandchildren", async () => {
+    const pidFile = `/tmp/grandchild-timeout-${Date.now()}.pid`;
+
+    const res = await execCommand(
+      "sh",
+      ["-c", `sh -c 'sleep 60' & echo $! > "${pidFile}"; wait`],
+      { timeoutMs: 300 },
+    );
+
+    assert.equal(res.exitCode, 124);
+    assert.equal(res.passed, false);
+    assert.ok(res.stderr.includes("timed out after 300ms"));
+
+    const text = await Bun.file(pidFile).text();
+    const grandchildPid = parseInt(text.trim(), 10);
+    assert.ok(grandchildPid > 0, "Expected grandchild pid to be written");
+
+    // Verify grandchild is gone
+    let alive = true;
+    for (let i = 0; i < 20; i++) {
+      try {
+        process.kill(grandchildPid, 0);
+        await new Promise((r) => setTimeout(r, 50));
+      } catch {
+        alive = false;
+        break;
+      }
+    }
+    assert.equal(
+      alive,
+      false,
+      "Grandchild process should be killed when command times out",
+    );
+
+    try {
+      await Bun.file(pidFile).delete();
+    } catch {
+      // ignore cleanup error
+    }
+  });
 });
