@@ -10,7 +10,11 @@ import {
   getWorktreePath,
 } from "./paths.js";
 import { execCommand, execStrict } from "./proc.js";
-import { type BaselineState, readWorktreeState } from "./worktree-state.js";
+import {
+  type BaselineState,
+  readWorktreeState,
+  type WorktreeState,
+} from "./worktree-state.js";
 
 export interface DiffResult {
   diff: string;
@@ -133,19 +137,43 @@ export async function reportStaleWorktrees(
 }
 
 /**
- * Extract the full git diff text (staged and unstaged against HEAD).
+ * Diff text for exactly the implementation changes in `state`, so it covers the
+ * same paths as `implementationPaths`. Tracked changes (staged or not) are diffed
+ * against HEAD; new untracked files, which `git diff` cannot see, against /dev/null.
  */
-export async function getDiffText(worktreePath: string): Promise<string> {
-  const diffResult = await execCommand("git", ["diff", "HEAD"], {
-    cwd: worktreePath,
-  });
-  const stagedDiffResult = await execCommand("git", ["diff", "--cached"], {
-    cwd: worktreePath,
-  });
-  return [stagedDiffResult.stdout, diffResult.stdout]
-    .filter(Boolean)
-    .join("\n")
-    .trim();
+export async function getDiffText(
+  worktreePath: string,
+  state: WorktreeState,
+): Promise<string> {
+  const implementation = state.changes.filter(
+    (c) => c.kind === "implementation",
+  );
+  const tracked = implementation
+    .filter((c) => c.status !== "??")
+    .map((c) => c.path);
+  const untracked = implementation
+    .filter((c) => c.status === "??")
+    .map((c) => c.path);
+
+  const parts: string[] = [];
+  if (tracked.length > 0) {
+    const result = await execCommand(
+      "git",
+      ["--literal-pathspecs", "diff", "HEAD", "--", ...tracked],
+      { cwd: worktreePath },
+    );
+    parts.push(result.stdout);
+  }
+  for (const file of untracked) {
+    // Exits 1 when the files differ, which they always do here.
+    const result = await execCommand(
+      "git",
+      ["diff", "--no-index", "--", "/dev/null", file],
+      { cwd: worktreePath },
+    );
+    parts.push(result.stdout);
+  }
+  return parts.filter(Boolean).join("\n").trim();
 }
 
 /**
@@ -155,13 +183,10 @@ export async function getDiff(
   worktreePath: string,
   baseline: BaselineState,
 ): Promise<DiffResult> {
-  const { implementationPaths } = await readWorktreeState(
-    worktreePath,
-    baseline,
-  );
+  const state = await readWorktreeState(worktreePath, baseline);
   return {
-    diff: await getDiffText(worktreePath),
-    filesChanged: implementationPaths,
+    diff: await getDiffText(worktreePath, state),
+    filesChanged: state.implementationPaths,
   };
 }
 

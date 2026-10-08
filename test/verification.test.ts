@@ -152,6 +152,33 @@ describe("Deterministic Verification Pipeline", () => {
     await rm(path.join(fixtureRepo, "ralph.sh"));
   });
 
+  it("diffs exactly the files in filesChanged, including new untracked files", async () => {
+    const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(path.join(fixtureRepo, "README.md"), "# Changed\n");
+    await writeFile(
+      path.join(fixtureRepo, "added.ts"),
+      "export const a = 1;\n",
+    );
+    await writeFile(path.join(fixtureRepo, "ralph.sh"), "#!/bin/sh\n");
+
+    const result = await runVerification(fixtureRepo, project, baseline, 1);
+
+    assert.deepEqual([...result.filesChanged].sort(), [
+      "README.md",
+      "added.ts",
+    ]);
+    assert.ok(result.diff.includes("diff --git a/README.md b/README.md"));
+    assert.ok(result.diff.includes("diff --git a/added.ts b/added.ts"));
+    assert.ok(result.diff.includes("+export const a = 1;"));
+    assert.ok(!result.diff.includes("ralph.sh"));
+
+    await execStrict("git", ["checkout", "--", "README.md"], {
+      cwd: fixtureRepo,
+    });
+    await rm(path.join(fixtureRepo, "added.ts"));
+    await rm(path.join(fixtureRepo, "ralph.sh"));
+  });
+
   it("fails when a tracked .env is modified", async () => {
     await writeFile(path.join(fixtureRepo, ".env"), "TOKEN=committed\n");
     await execStrict("git", ["add", ".env"], { cwd: fixtureRepo });

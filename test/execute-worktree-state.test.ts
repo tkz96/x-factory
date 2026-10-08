@@ -152,6 +152,13 @@ async function execute(edits: () => Promise<void>): Promise<{
   };
 }
 
+/** Paths named by `diff --git a/<path> b/<path>` headers. */
+function diffPaths(diff: string): string[] {
+  return [...diff.matchAll(/^diff --git a\/(.+) b\/\1$/gm)]
+    .map((m) => m[1] as string)
+    .sort();
+}
+
 describe("Execute stage change classification", () => {
   it("reports exact changed paths, including a new file with a space in its name", async () => {
     const outcome = await execute(async () => {
@@ -165,6 +172,20 @@ describe("Execute stage change classification", () => {
       "src/app.ts",
       "src/new feature.ts",
     ]);
+  });
+
+  it("builds the diff from the same paths as filesChanged: new files in, scaffold out", async () => {
+    const outcome = await execute(async () => {
+      await write("src/app.ts", "export const app = 2;\n");
+      await write("src/new feature.ts", "export const f = 1;\n");
+    });
+
+    const filesChanged = [...(outcome.verification?.filesChanged ?? [])].sort();
+    expect(diffPaths(outcome.verification?.diff ?? "")).toEqual(filesChanged);
+    expect(diffPaths(outcome.diff ?? "")).toEqual(filesChanged);
+    expect(outcome.diff).toContain("+export const f = 1;");
+    expect(outcome.diff).not.toContain(".agent/");
+    expect(outcome.diff).not.toContain("ralph.sh");
   });
 
   it("fails verification when the agent modifies a tracked .env", async () => {
@@ -192,6 +213,11 @@ describe("Execute stage change classification", () => {
     expect(outcome.status).toBe("awaiting_review");
     expect(outcome.verification?.passed).toBe(true);
     expect([...(outcome.verification?.filesChanged ?? [])].sort()).toEqual([
+      ".github/dependabot.yml",
+      ".github/workflows/ci.yml",
+      ".gitignore",
+    ]);
+    expect(diffPaths(outcome.diff ?? "")).toEqual([
       ".github/dependabot.yml",
       ".github/workflows/ci.yml",
       ".gitignore",

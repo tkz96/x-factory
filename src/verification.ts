@@ -88,7 +88,7 @@ export async function runVerification(
     timeoutMs,
   );
   const state = await readWorktreeState(worktreePath, baseline);
-  const diff = await getDiffText(worktreePath);
+  const diff = await getDiffText(worktreePath, state);
 
   const passed =
     tests.passed &&
