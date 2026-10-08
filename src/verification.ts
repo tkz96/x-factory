@@ -27,7 +27,7 @@ function buildVerificationSummary(
   lint: CommandResult | undefined,
   hasPollution: boolean,
   pollutionDetails: string[],
-  hasDiff: boolean,
+  hasImplementationChanges: boolean,
 ): string {
   const parts: string[] = [
     tests.passed ? "Tests passed" : `Tests failed (exit ${tests.exitCode})`,
@@ -47,7 +47,7 @@ function buildVerificationSummary(
   if (hasPollution) {
     parts.push(`Pollution detected: ${pollutionDetails.join("; ")}`);
   }
-  if (!hasDiff) {
+  if (!hasImplementationChanges) {
     parts.push("No implementation changes detected in worktree diff");
   }
   return parts.join(" | ");
@@ -89,14 +89,13 @@ export async function runVerification(
   );
   const state = await readWorktreeState(worktreePath, baseline);
   const diff = await getDiffText(worktreePath);
-  const hasDiff = state.hasImplementationChanges;
 
   const passed =
     tests.passed &&
     (typecheck ? typecheck.passed : true) &&
     (lint ? lint.passed : true) &&
     !state.hasPollution &&
-    hasDiff;
+    state.hasImplementationChanges;
 
   const summary = buildVerificationSummary(
     tests,
@@ -104,7 +103,7 @@ export async function runVerification(
     lint,
     state.hasPollution,
     state.pollutionDetails,
-    hasDiff,
+    state.hasImplementationChanges,
   );
 
   return {

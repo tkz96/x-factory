@@ -133,15 +133,10 @@ export async function reportStaleWorktrees(
 }
 
 /**
- * Extract the full git diff text (staged and unstaged against target).
+ * Extract the full git diff text (staged and unstaged against HEAD).
  */
-export async function getDiffText(
-  worktreePath: string,
-  baseBranch?: string,
-): Promise<string> {
-  const target = baseBranch ? `origin/${baseBranch}...HEAD` : "HEAD";
-
-  const diffResult = await execCommand("git", ["diff", target], {
+export async function getDiffText(worktreePath: string): Promise<string> {
+  const diffResult = await execCommand("git", ["diff", "HEAD"], {
     cwd: worktreePath,
   });
   const stagedDiffResult = await execCommand("git", ["diff", "--cached"], {
