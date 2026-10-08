@@ -4,12 +4,15 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
+import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { ExecuteExecutor } from "../src/executors/execute.js";
 import { execStrict } from "../src/proc.js";
+import { stopRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 import {
   baselinePathFor,
@@ -27,6 +30,8 @@ let originalPath: string;
 let configPath: string;
 const previousDataDir = process.env.X_FACTORY_DATA_DIR;
 const previousConfigPath = process.env.X_FACTORY_CONFIG_PATH;
+const previousAnthropicKey = process.env.ANTHROPIC_API_KEY;
+const previousGithubToken = process.env.GITHUB_TOKEN;
 
 async function write(relPath: string, content: string): Promise<void> {
   await mkdir(path.dirname(path.join(repo, relPath)), { recursive: true });
@@ -88,8 +93,11 @@ afterEach(async () => {
     delete process.env.X_FACTORY_CONFIG_PATH;
   else process.env.X_FACTORY_CONFIG_PATH = previousConfigPath;
 
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.GITHUB_TOKEN;
+  if (previousAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = previousAnthropicKey;
+
+  if (previousGithubToken === undefined) delete process.env.GITHUB_TOKEN;
+  else process.env.GITHUB_TOKEN = previousGithubToken;
 
   await rm(tempDir, { recursive: true, force: true });
 });
@@ -197,6 +205,8 @@ describe("Subprocess safety at Worker seam", () => {
     runMigrations(db);
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
+    const commandRepo = new CommandRepository(db);
+    const eventRepo = new EventRepository(db);
 
     const run = runRepo.create({
       id: "run-worker-abort-check",
@@ -222,46 +232,58 @@ describe("Subprocess safety at Worker seam", () => {
       getStageExecutor: () => executor,
     });
 
-    const claimed = jobRepo.claimNextJob("worker-abort-test", 30_000);
-    expect(claimed).not.toBeNull();
-    if (!claimed) throw new Error("Expected a claimed job");
+    // Start processing in background via worker.stepRun
+    const processPromise = worker.stepRun(run.id);
 
-    // Start processing in background
-    const processPromise = worker.processJob(claimed);
-
-    // Poll until grandchild PID is written by the verification command
     let grandchildPid = 0;
-    for (let i = 0; i < 50; i++) {
-      try {
-        const content = await Bun.file(pidFile).text();
-        const parsed = parseInt(content.trim(), 10);
-        if (parsed > 0) {
-          grandchildPid = parsed;
+    try {
+      // Poll until grandchild PID is written by the verification command (deadline ~5s)
+      const start = Date.now();
+      while (Date.now() - start < 5000) {
+        try {
+          const content = await Bun.file(pidFile).text();
+          const parsed = parseInt(content.trim(), 10);
+          if (parsed > 0) {
+            grandchildPid = parsed;
+            break;
+          }
+        } catch {
+          // file not yet written
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(grandchildPid).toBeGreaterThan(0);
+
+      // Drive a real run stop command through the Worker
+      await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
+      await worker.stepCommandOnce();
+      await processPromise;
+
+      // Assert that the verification grandchild is gone
+      let alive = true;
+      for (let i = 0; i < 20; i++) {
+        try {
+          process.kill(grandchildPid, 0);
+          await new Promise((r) => setTimeout(r, 50));
+        } catch {
+          alive = false;
           break;
         }
-      } catch {
-        // file not yet written
       }
-      await new Promise((r) => setTimeout(r, 100));
-    }
+      expect(alive).toBe(false);
 
-    expect(grandchildPid).toBeGreaterThan(0);
-
-    // Stop the worker (which aborts the current run/stage)
-    await worker.stop();
-    await processPromise;
-
-    // Assert that the grandchild process is dead
-    let alive = true;
-    for (let i = 0; i < 20; i++) {
-      try {
-        process.kill(grandchildPid, 0);
-        await new Promise((r) => setTimeout(r, 50));
-      } catch {
-        alive = false;
-        break;
+      // Assert that the run ends in the stopped state
+      const finalRun = runRepo.get(run.id);
+      expect(finalRun?.status).toBe("stopped");
+    } finally {
+      if (grandchildPid > 0) {
+        try {
+          process.kill(grandchildPid, "SIGKILL");
+        } catch {
+          // ignore cleanup error
+        }
       }
     }
-    expect(alive).toBe(false);
   });
 });
