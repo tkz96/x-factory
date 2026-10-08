@@ -232,8 +232,16 @@ export async function safeCommitAll(
   // Stage implementation changes whose worktree differs from the index. A
   // change already staged as-is (`R `, `D `, `M `) is skipped: it is already in
   // the index, and re-adding a fully removed path fails the pathspec match.
+  // A path untracked at baseline is never staged, whatever its status: it is
+  // not a change the run made — an `AM` path was staged by a prior step and
+  // was just unstaged above.
   const toStage = state.changes
-    .filter((c) => c.kind === "implementation" && c.status[1] !== " ")
+    .filter(
+      (c) =>
+        c.kind === "implementation" &&
+        !baseline.untrackedFiles.has(c.path) &&
+        c.status[1] !== " ",
+    )
     .map((c) => c.path);
   if (toStage.length > 0) {
     await execStrict(

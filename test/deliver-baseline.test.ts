@@ -207,6 +207,49 @@ describe("Delivery baseline", () => {
     ]);
   });
 
+  it("never commits a file untracked at baseline even when staged then modified", async () => {
+    // Untracked at baseline: not a change the run made.
+    await writeFile(path.join(repo, "notes.md"), "scratch\n");
+
+    await saveRecordedBaseline(
+      baselinePathFor(artifactsDir),
+      await recordBaseline(repo),
+    );
+
+    // The run stages it, then edits it — status `AM` — plus a real
+    // implementation change so the delivery has something to commit.
+    await execStrict("git", ["add", "notes.md"], { cwd: repo });
+    await writeFile(path.join(repo, "notes.md"), "scratch, edited\n");
+    await mkdir(path.join(repo, "src"), { recursive: true });
+    await writeFile(path.join(repo, "src", "feature.ts"), "export {};\n");
+
+    const outcome = await deliver();
+
+    expect(outcome.status).toBe("pr_created");
+    expect(await headPaths()).toEqual(["src/feature.ts"]);
+  });
+
+  it("never commits a baseline-untracked file modified but never staged", async () => {
+    // Untracked at baseline: not a change the run made.
+    await writeFile(path.join(repo, "notes.md"), "scratch\n");
+
+    await saveRecordedBaseline(
+      baselinePathFor(artifactsDir),
+      await recordBaseline(repo),
+    );
+
+    // The run edits it without ever staging it — status stays `??` — plus a
+    // real implementation change so the delivery has something to commit.
+    await writeFile(path.join(repo, "notes.md"), "scratch, edited\n");
+    await mkdir(path.join(repo, "src"), { recursive: true });
+    await writeFile(path.join(repo, "src", "feature.ts"), "export {};\n");
+
+    const outcome = await deliver();
+
+    expect(outcome.status).toBe("pr_created");
+    expect(await headPaths()).toEqual(["src/feature.ts"]);
+  });
+
   it("blocks delivery on pollution before staging anything", async () => {
     await saveRecordedBaseline(
       baselinePathFor(artifactsDir),
