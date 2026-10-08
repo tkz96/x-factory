@@ -173,5 +173,121 @@ PASS
   `nav480.png`
 - Browser verification: active "1" shown in a blue circle at 480px
 
+---
+
+# Ticket #160
+
+## Reproduction
+
+Opened the New Project Setup wizard from `http://localhost:5173/projects` and navigated
+to Step 3 (Repositories).
+
+Observed:
+
+- **No bulk selection control**: Repositories had to be checked or unchecked individually;
+  no master "Select all" / "Deselect all" control existed in the list header.
+- **Missing indeterminate state**: No header checkbox existed to reflect partial row
+  selections (checked when all selectable rows are selected, unchecked when none,
+  indeterminate when some).
+- **Unclear selection count**: No live feedback displayed how many repositories were selected
+  relative to the total discovered (e.g. "0 of 3 selected", "3 of 3 selected").
+- **Missing repository requirements explanation**: Users had no explanation of what qualifies
+  as an application repository or why selecting at least one is required to proceed.
+- **Unexplained disabled Continue button**: When progression was blocked (e.g. no application
+  repository selected, stale results, or stale selection), the "Continue to Inspection" button
+  was disabled without inline explanation.
+
+## RED
+
+Tests added in `test/repositories-step.test.tsx` (`describe("Repositories Step — bulk selection: Select all / Deselect all (#160)")`):
+
+1. `SELECT ALL: unchecked at zero, selects every row, gates Continue with an inline reason`:
+   asserted master `#repo-select-all` checkbox states (`checked=false`, `indeterminate=false`
+   at 0; `checked=true`, `indeterminate=false` after bulk select; `checked=false`,
+   `indeterminate=true` after partial deselect; `checked=false`, `indeterminate=false` after
+   bulk clear), live count string `#repositories-selected-count` ("0 of 2 selected" →
+   "2 of 2 selected" → "1 of 2 selected"), and `#repositories-continue-reason` inline copy.
+2. `SELECTION COUNT: the recorded selection drives the count and the summary`: asserted live
+   count updates on individual row toggle.
+3. `HELPER TEXT: renders brief helper text explaining repository requirements (#160)`:
+   asserted `#repositories-requirements-hint` exists and displays `REPOSITORIES_COPY.requirementsHelp`.
+
+Failure observed: Initial absence of `#repo-select-all`, `#repositories-selected-count`,
+`#repositories-requirements-hint`, and `#repositories-continue-reason` elements.
+
+## Existing backend logic reused
+
+- Discovery envelope: `api.providers.listRepositories` returning `RepositoriesEnvelope`
+  with role-tagged repositories.
+- State machines and validation: `canAdvanceFromRepositories` in
+  `src/frontend/wizard/state/repositoryRules.ts` and `connectionConfigFingerprint` in
+  `src/frontend/lib/connection-fingerprint.ts`.
+- Design tokens and feedback primitives: `copy-map.ts` centralized UI strings,
+  `FeedbackBanner`, and design system tokens.
+
+## Minimal fix
+
+Implemented on `main` in commits `faf72f4` and `e262509` and composed inside the updated
+`<Modal>`/`<ModalFooter>` structure:
+
+1. `useRepositoryDiscovery.ts`: added `allSelectableSelected`, `someSelectableSelected`,
+   `totalRows`, `setAllRepositories(selected)` bulk action, and `continueBlockedReason`
+   derivation (`"stale-results"` | `"stale-selection"` | `"needs-application-repository"`).
+2. `RepositoriesStep.tsx`: added list header (`.repositories-list-header`) containing
+   `#repo-select-all` checkbox (with `indeterminate` DOM ref sync) and
+   `#repositories-selected-count` live counter. Added `#repositories-requirements-hint`
+   helper text in step header. Added `#repositories-continue-reason` inline status
+   rendered inside `<ModalFooter>`.
+3. `RepositoriesStep.css`: added styles using design tokens for `.repositories-list-header`,
+   `.repositories-select-all`, `.repositories-selected-count`,
+   `.repositories-requirements-hint`, and `.repositories-continue-reason`.
+4. `copy-map.ts`: added strings for `selectAllLabel`, `selectedOfTotal`,
+   `needsApplicationRepository`, and `requirementsHelp`.
+
+## GREEN
+
+- `test/repositories-step.test.tsx` → 23 pass / 0 fail (all bulk selection and requirements tests passing).
+- Full wizard test suite passing across all step and modal flows.
+- Quality gate check (`bun run check:all`) → all 13 gates passed:
+  - `typecheck`, `typecheck:frontend` exit 0.
+  - `lint` exit 0.
+  - `check:fallow`, `check:cycles`, `check:knip` exit 0.
+  - `docs:schema:check`, `check:agent-docs` exit 0.
+  - `build` exit 0.
+  - `test:coverage` (full suite) exit 0 with >=80% coverage.
+  - `test:frontend-smoke`, `test:integration`, `test:integration:production` exit 0.
+
+## Browser verification
+
+Playwright (`verify-160-viewports.mjs`) against the dev server with throwaway data dir and
+isolated port lock (`/tmp/x-factory-browser.lock`). Verified at 1280, 768, and 480 px viewports:
+
+- **1280px (Desktop)**:
+  - State 1 (Initial): 0 of 3 selected; Select all unchecked & non-indeterminate; Continue disabled; `#repositories-continue-reason` displayed. Dialog width 678px, no horizontal overflow (`hasHorizontalOverflow: false`).
+  - State 2 (Select all clicked): 3 of 3 selected; all row checkboxes checked; Select all checked; Continue enabled; blocked reason cleared.
+  - State 3 (1 row deselected): 2 of 3 selected; Select all checkbox indeterminate (`indeterminate=true`, checked=false); Continue remains enabled.
+  - State 4 (Deselect all): 0 of 3 selected; Select all unchecked; Continue disabled; blocked reason re-appears.
+- **768px (Tablet)**:
+  - All states verified identically. Dialog width 678px, height 718px, header and action bar stable, no horizontal overflow.
+- **480px (Mobile)**:
+  - All states verified identically. Dialog width 446px, height 702px.
+  - Stepper labels collapse to numbered circles (all visible).
+  - List header flex layout preserves checkbox and counter alignment without clipping.
+  - Repository URLs truncate with ellipsis cleanly; action buttons wrap cleanly in modal footer.
+  - Visual inspection of screenshots confirmed clean styling and zero visual clipping.
+
+## Blockers
+
+- Reticle tour scrim and presenter widget intercepted Playwright pointer clicks. Neutralized
+  in the driver init script via MutationObserver (`display:none !important; pointer-events:none !important`)
+  and direct DOM dispatch so real app UI could be driven and photographed cleanly.
+- Worker database migration race during simultaneous startup on fresh throwaway data directory.
+  Resolved by pre-initializing migrations via `createDatabase()` before launching dev server.
+
+## Result
+
+PASS
+
+
 
 
