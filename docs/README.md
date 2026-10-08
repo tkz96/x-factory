@@ -4,6 +4,8 @@ Welcome to the X-Factory documentation suite.
 This documentation follows the **Diátaxis documentation framework** and **ASD-STE100 Simplified Technical English (STE)**.
 The content is partitioned into four distinct quadrants based on user needs.
 
+To work on the codebase, as a person or an agent, start with [`AGENTS.md`](../AGENTS.md). It holds the rules that must never break and links to the working guides in [`docs/agents/`](./agents/): quality gates, architecture invariants, frontend styling, the code graph, in-app verification and agent setup.
+
 ---
 
 ## 1. Tutorials (Learning-Oriented)
@@ -32,6 +34,7 @@ Reference guides provide factual, objective technical specifications, schemas, m
 - **[Workflow State Machine and Transition Contracts](./reference/state-machine-matrix.md)**: State definitions, the canonical workflow state transition matrix, transition triggers, and monotonic execution rules.
 - **[Async State Coverage Contract](./reference/state-coverage.md)**: The five-state feedback taxonomy (loading/empty/partial/error/stale), derivation precedence, mutation and input state coverage requirements, and the feedback-family import rule.
 - **[Production Readiness Checklist and Evaluation Criteria](./reference/production-readiness-checklist.md)**: System verification standards across the twelve production pillars.
+- **[Provider API](./reference/provider-api.md)**: The provider-agnostic HTTP surface for provider discovery, configuration, credential verification and Quick-URL resolution.
 - **[Security Model and Execution Boundary](./reference/security.md)**: The autonomous execution boundary, sandbox requirements, and credential management constraints.
 
 ---

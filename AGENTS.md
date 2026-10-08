@@ -1,174 +1,52 @@
-# X-Factory Agent Guidelines & Architectural Authority
+# X-Factory: start here
 
-This document defines the working contracts, architectural authority, and toolchain setup for AI coding agents operating on the X-Factory codebase.
+This is the entry point for every coding agent working on X-Factory, whatever the tool. `CLAUDE.md` and `GEMINI.md` are symlinks to this file. It holds the rules you must never break, and tells you which document to read before each kind of work. The details live in [`docs/agents/`](./docs/agents/), which people read too.
 
----
+## Before you say a change is done
 
-## 1. Architectural Authority & Source of Truth
-
-The system hierarchy and division of responsibility is strictly defined as follows:
-
-```text
-          AGENTS.md
-              +
-       docs/README.md
- (docs/reference + explanation)
-              +
-         Graphify MCP
-              ↓
-        Coding Agent
-```
-
-### The Core Principle
-> **Graphify handles code relationships. Documentation handles architectural intent.**
-
-1. **Authoritative Sources of Truth for Architecture**:
-   - [`AGENTS.md`](./AGENTS.md) (this document): Operational guidelines, coding standards, and agent rules.
-   - [`docs/README.md`](./docs/README.md): Central index for the Diátaxis documentation framework.
-   - [`docs/reference/database-schema.md`](./docs/reference/database-schema.md) & [`docs/reference/state-machine-matrix.md`](./docs/reference/state-machine-matrix.md): Authoritative contracts for durable SQLite schemas, job lifecycle, and finite state machine transitions.
-   - [`docs/explanation/process-boundaries-and-topology.md`](./docs/explanation/process-boundaries-and-topology.md) & [`docs/explanation/ui-state-and-event-streaming.md`](./docs/explanation/ui-state-and-event-streaming.md): Deep-dive documentation on multi-process topology, optimistic locking, event streaming, and the React UI architecture.
-   - [`DESIGN.md`](./DESIGN.md): Apple Human Interface Guidelines (HIG) specification for layout, typography, colors, and components.
-
-2. **Graphify MCP (Code Relationships & Traversal)**:
-   - Graphify serves as the graph query engine over the codebase's Abstract Syntax Tree (AST), symbol hierarchy, and dependency relationships (`graphify-out/graph.json`).
-   - Use Graphify MCP tools (`query_graph`, `get_node`, `get_neighbors`, `shortest_path`, `god_nodes`, `get_community`, `graph_stats`) or the `graphify` CLI to explore how modules, classes, and functions are connected.
-   - **Rule**: Graph queries reveal *what code exists and how it connects*. Documentation determines *how code is permitted to behave*. In any conflict between an inferred graph connection and the architectural contracts in `docs/reference/` and `docs/explanation/`, the documentation wins unconditionally.
-   - **Exception, database structure**: the SQL migrations in `src/db/migrations/` are the source of truth for tables, columns and constraints. The structural section of `docs/reference/database-schema.md` is generated from them (`bun run docs:schema`), and CI fails if it is stale. The doc's prose stays authoritative for intent and invariants.
-
-3. **Knowledge-Graph Tool Restriction**:
-   - Graphify MCP is the dedicated knowledge-graph provider for this repository.
-   - **Do not add another knowledge-graph tool** (such as CodeGraph, understand-dashboard, or custom graph extractors) at this time.
-
----
-
-## 2. Core Architectural Invariants
-
-Every coding agent must respect and preserve these architectural invariants:
-
-### A. Process Boundaries & Execution Chain
-- **API Process (`src/server.ts`)**: Strictly handles HTTP/SSE routing, input validation, and SQLite persistence. It **never** directly executes workflows, spawns Pi agent sessions, or executes heavy pipeline stages. Commands write to SQLite and return HTTP responses immediately.
-- **Worker Process (`src/worker.ts`)**: An independent, dedicated Bun process. It polls SQLite, atomically claims jobs with leases (`claimed` state), executes pipeline stages via isolated executors, and updates state upon completion.
-- **SQLite (`x-factory.db`)**: Single source of truth for runtime state, operating in WAL mode (`PRAGMA journal_mode = WAL;`) with foreign keys enabled (`PRAGMA foreign_keys = ON;`).
-- **Filesystem Artifacts**: Everything lives under the data dir (`~/.x-factory`, or `X_FACTORY_DATA_DIR`). Run artifacts are in `projects/<projectId>/runs/<runId>/` and Git worktrees in `projects/<projectId>/worktrees/<runId>/`, resolved through `src/paths.ts`. SQLite stores metadata and disk references, not raw large blobs.
-
-### B. Finite State Machine (FSM)
-- The $13 \times 13$ workflow transition matrix must be strictly observed (`queued` $\rightarrow$ `preparing` $\rightarrow$ `understanding` $\rightarrow$ `awaiting_understanding_approval` $\rightarrow$ `planning` $\rightarrow$ `awaiting_plan_approval` $\rightarrow$ `executing` $\rightarrow$ `awaiting_review` $\rightarrow$ `ready_for_pr`, with terminal/exception states `pr_created`, `recovery_required`, `failed`, `stopped`).
-- Transitions must be atomic, monotonic, and recorded in `runs`, `jobs`, `events`, and `stage_attempts`.
-
-### C. Frontend Architecture & Styling Invariants
-- Built with React 19, Vite, React Router, and TanStack Query.
-- Visual styling follows Apple HIG layout conventions with CSS tokens and Lucide/Sprite SVG icons.
-- **Modular CSS Architecture**: Design system is strictly layered under `src/frontend/styles/` (`tokens.css` → `base.css` → `shared/*.css` → `utilities.css`), imported centrally via `src/frontend/styles/index.css`.
-- **Zero Inline Styles (`style={{...}}`) Invariant**: Inline styles in `.tsx` files are strictly banned. All styling must use design tokens, utility classes, or co-located component stylesheets (`./MyComponent.css`). Automated gate: `bun run test:frontend-smoke`.
-- **Rule Authority**: Governed by `.agents/rules/frontend-styling.md`.
-- Server-Sent Events (SSE) update the TanStack Query cache directly with zero full-page flickering.
-
----
-
-## 3. Quality Gates & Verification Standards
-
-Run every gate with one command before calling a change done:
+Run every quality gate with one command, and fix what fails:
 
 ```bash
-bun run check:all   # one line per gate; failing gates print a log tail (~40s)
+bun run check:all
 ```
 
-The gate list lives in `scripts/check-all.ts`. Targets: coverage ≥ 80% lines and functions, fallow maintainability ≥ 90, 0 dependency cycles, 0 unused exports. After adding a migration, run `bun run docs:schema` to regenerate the schema doc.
+How the gates and lint baselines work is in [`docs/agents/ci-checks.md`](./docs/agents/ci-checks.md).
 
-**Known red on main (2026-10-08):** `check:knip` (6 unused exports, 8 unused types) and `check:fallow` (24 dead-code issues, 50 clone groups, 1 health issue). A change passes these two gates if it adds no new findings to them. Delete this note once main is green.
+## Never break these
 
----
+1. **The API process never runs work.** `src/server.ts` handles HTTP/SSE routing, input validation and SQLite writes, then responds. It never executes workflows, starts agent sessions or runs pipeline stages.
+2. **Only the worker runs stages.** `src/worker.ts` claims jobs from SQLite with a lease and runs the stage executors.
+3. **SQLite is the only source of runtime state.** It runs in WAL mode with foreign keys on. Large outputs go to disk under the data dir, and paths come from `src/paths.ts`. SQLite stores references to them, not the blobs.
+4. **Run status changes only through the state machine.** Every transition must be allowed by the matrix in `docs/reference/state-machine-matrix.md`, be atomic, and be recorded in `runs`, `jobs`, `events` and `stage_attempts`.
+5. **Migrations define the database structure.** After you add one to `src/db/migrations/`, run `bun run docs:schema`.
+6. **No inline styles in `.tsx` files.** Use design tokens, utility classes or a co-located `.css` file. The one exception is passing a CSS custom property.
+7. **SSE events update the TanStack Query cache directly.** Do not refetch whole pages or cause the page to flicker.
+8. **Documentation outranks the code graph.** Graphify shows what code exists and how it connects. The docs in `docs/reference/` and `docs/explanation/` decide how it is allowed to behave.
+9. **Do not add another knowledge-graph tool.** Graphify is the only one.
+10. **Never weaken a check to make it pass.** Do not skip, loosen or delete an assertion, and do not add findings to a lint baseline. Fix the cause or report it.
 
-## 4. Graphify Operations
+## Read before you act
 
-- **Graph Storage**: Output resides in `graphify-out/` and is ignored by git (`.gitignore`).
-- **MCP Connection**: Configured in `.agents/mcp_config.json` and `~/.gemini/config/mcp_config.json` using `/Users/talhazuberi/.local/bin/graphify-mcp`.
-- **Incremental Updates**: After making structural code changes in a session, run:
-  ```bash
-  graphify update .
-  ```
-  Or to re-extract the AST across all code and schema files:
-  ```bash
-  graphify extract . --code-only --mode deep
-  ```
+| When you are about to… | Read |
+|---|---|
+| change CI, a gate or a lint baseline, or a gate fails | [`docs/agents/ci-checks.md`](./docs/agents/ci-checks.md) |
+| change the server, worker, database, executors or state machine | [`docs/agents/architecture-invariants.md`](./docs/agents/architecture-invariants.md) |
+| change anything under `src/frontend/` | [`docs/agents/frontend-styling.md`](./docs/agents/frontend-styling.md) and [`DESIGN.md`](./DESIGN.md) |
+| audit the frontend CSS | [`docs/agents/css-audit.md`](./docs/agents/css-audit.md) |
+| look up how code connects, or after you change code structure | [`docs/agents/graphify.md`](./docs/agents/graphify.md) |
+| say a change that users can see is done | [`docs/agents/reticle.md`](./docs/agents/reticle.md) |
+| use a domain term, or look for a spec | [`docs/agents/domain.md`](./docs/agents/domain.md) and [`CONTEXT.md`](./CONTEXT.md) |
+| read, create or update a GitHub issue | [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md) |
+| label or triage an issue | [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md) |
+| set up a new agent tool, MCP server or skill | [`docs/agents/agent-setup.md`](./docs/agents/agent-setup.md) |
 
-<!-- reticle:begin (managed by `reticle init` — edit outside these markers) -->
-## Verifying with Reticle
+## Keeping this current
 
-This app is instrumented by **Reticle**, an in-app verification layer exposed as `reticle_*` MCP tools and the `npx @reticlehq/server` CLI (always through npx: Reticle's server is not installed into this project). Verifying is part of "done", not an optional extra.
+`bun run check:agent-docs` fails when one of these is true:
 
-**Verify when you have changed something a user can see or do.** A component, a form, a route, a request, a piece of state that reaches the screen. Do it BEFORE telling the user it is complete. Reading the diff proves nothing and unit tests do not run the app.
+- a link in this file or in `docs/agents/` is broken;
+- a file in `docs/agents/` is not linked from the table above;
+- a script or repository path that those docs name does not exist;
+- a required symlink is missing.
 
-**Do not reach for Reticle when the change cannot show up in the running app.** It costs tool calls and the user's patience, and a verdict over an unrelated flow proves nothing about what you changed. Skip it for: documentation, comments, tests, build config, CI, dependency bumps with no user-facing effect, backend or CLI work with no UI surface, and any change to a project that is not a running web app. Say in one line that you skipped verification and why, rather than silently not doing it.
-
-**How to verify:**
-
-- Drive the flow with `reticle_act_and_wait({ ref, action, until })`. It names the consequence you expect BEFORE the action, which is the difference between a check and a rationalisation.
-- Batch a multi-step journey (a login, a form) into one `reticle_act { steps: [...] }` rather than one round trip per field.
-- Read the surrounding evidence with `reticle_look { action: "page" | "state" }` and `reticle_observe { action: "network" | "console" }`.
-- **Only `reticle_act_and_wait` and `reticle_assert` produce a verdict.** `reticle_act` and everything else move or read the app and prove nothing, so a session ending without one of those two has no result however many tools it used.
-- Covered flows: `npx @reticlehq/server gate` reports which recorded flows the changed files affect and whether they still pass.
-
-**Setting Reticle up? You are mid-sequence — do not stop until a verdict exists.** The whole of it
-is: instrument the app → get a dev server running → open the app in a browser → drive one flow →
-report the verdict. Every step is yours to do, and none of them needs the user. Stopping short leaves an app that
-looks installed and can verify nothing, which is the commonest way this goes wrong. `/reticle`
-carries the recovery ladder; never report the install as finished without a verdict to point at.
-
-**Nothing connected? Get the app running.**
-
-**A dev server already running when `reticle init` ran does not have Reticle in its bundle.** It read the build config at boot; `init` edited it afterwards. It serves the old bundle and no session appears. In order:
-
-1. **A dev server was already running?** Restart it, then hard-reload the tab. "Something is listening" does not mean the right bundle is served.
-2. **Nothing was running?** Start it in the BACKGROUND and say so in one line. `reticle_session { action: "list" }` gives you this project's own dev command in `next_action`; use that, never compose one. Started after `init`, it needs no restart.
-
-Stopping to ask is how a verification turn ends with nothing verified.
-
-Four guards, none optional:
-
-1. **Never run two at once.** One dev server on the app's port. Restarting a stale one means stopping it first, not starting a second alongside it.
-2. **Never guess the command.** It comes from `package.json` scripts. No recognisable dev script means say so and stop, not invent one.
-3. **Never kill anything you did not start**, and never a daemon or a port holder. The one exception is the restart above, and say in one line that you did it.
-4. **The permission prompt belongs to your host.** Never bypass, suppress or auto-approve it, and take a refusal as the answer.
-
-A dev server that is already running does not pick up an edited build config or a newly created plugin file — restart it and hard-reload the tab. And if a server IS listening and still nothing connects, the cause is the SDK not loading in the page, not a missing dev server; do not tell the user to start one they are already running.
-
-**Finish `src/reticle-dev.ts` before you claim setup is done.** `init` writes it and cannot always fill it in: a store that needs an argument only reading the code supplies (Jotai atoms, an XState actor, a TanStack `queryClient`) is left as a commented `registerStore` line. A file that registers nothing looks exactly like a finished one, and `reticle_look { action: "state" }` then returns empty forever — which is indistinguishable from an app that has nothing to report, so it reads as success. Uncomment the line, complete it, and prove it by driving one flow and seeing your keys come back. If `init` told you to restart your client, this is the job waiting for you on the other side of that restart.
-
-**Verify each feature as you finish it, not all of them at the end.** Asked for four, build one, drive it, get a verdict, then start the second. A red verdict after four builds has four suspects; after one it has none.
-
-**Capture what a change is FOR while you are building it, not afterwards.** The business outcome a change is meant to produce is known only while the change is being made. Pass `intent` when a flow is saved, so the saved flow carries the reason it exists. A flow without one replays for months and then reports "step 3 failed" instead of what stopped being true for a user.
-
-**Honesty, which is the whole point:**
-
-- **`verified: "unknown"` is not a pass.** It means Reticle drove the app and could not tell what happened; `verifiedReason` says which clause decided that. Report it as unknown, never as working.
-- **`verified: "no-fault"` is not a pass either.** It means nothing was DECLARED to prove: the page settled and no channel complained, but you asserted nothing, so there is no verification. You get it whenever `until` is omitted. Name a consequence the action changes — a signal, a request, a route, or store state — and call again.
-- **Never weaken a check to make it green.** Downgrading, skipping or deleting an assertion is a finding, not a fix.
-- **If Reticle cannot run** (no daemon, or this is not a running web app), say so. Do not skip verification silently.
-- **Setup is not finished until one real flow has been driven and produced a verdict.** `init` exiting 0, the tools appearing, and a session being listed are all things that happen before anything has been verified.
-
-**The `/reticle` skill runs this whole loop for you** — detect, connect, drive one flow, report. If your client does not have it, install it once: `/plugin marketplace add reticlehq/reticle` then `/plugin install reticle@reticlehq` in Claude Code, or `npx skills add reticlehq/reticle` anywhere the skills CLI works.
-
-**A tool you need is missing?** Call `reticle_tools` before assuming it: this surface merges several families behind an `action`, so what looks absent is usually one argument away. It is the verify loop and nothing else on purpose, and a daemon started with `RETICLE_ADVERTISE_ALL_TOOLS=1` advertises the wider set — it reads that at startup, so it takes effect on the next one.
-
-**Report Reticle's own defects with `reticle_session { action: "feedback" }` the moment you notice**, then carry on with your task. You are the user Reticle is built for and the only one who can say what it cost you, and that knowledge is gone when your context is.
-
-📄 **The rest is in [RETICLE.md](./RETICLE.md): what to do when the tools are missing, when a result carries `version_skew` or `update_available`, when `reticle_look { action: "state" }` comes back empty, and how to write a feedback report that can be acted on. Read it when you hit one of those, not before.**
-<!-- reticle:end -->
-
----
-
-## Agent skills
-
-### Issue tracker
-GitHub Issues via `gh` CLI for `tkz96/x-factory`.
-See [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md).
-
-### Domain docs
-Single-context layout rooted at [`CONTEXT.md`](./CONTEXT.md) and Diátaxis documentation under [`docs/`](./docs/).
-See [`docs/agents/domain.md`](./docs/agents/domain.md).
-
-### Triage labels
-Standard canonical triage roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`).
-See [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md).
-
+When you change how something works, update the document that owns it in the same change.

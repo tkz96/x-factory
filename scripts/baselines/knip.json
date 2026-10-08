@@ -1,0 +1,16 @@
+[
+  "src/db/migrator.ts:exports:resetMigrationVersionCacheForTesting",
+  "src/frontend/hooks/useQueries.ts:exports:useProject",
+  "src/frontend/hooks/useQueries.ts:exports:useSteerRun",
+  "src/providers/azure-module.ts:types:AzureConfig",
+  "src/providers/jira-module.ts:exports:SEARCH_JQL",
+  "src/runs.ts:exports:getOperationLedger",
+  "src/runs.ts:exports:getStageAttempts",
+  "src/shared/types.ts:types:AzureConnectionResult",
+  "src/shared/types.ts:types:DiscoveredRepo",
+  "src/shared/types.ts:types:WorkbenchSettings",
+  "src/store.ts:types:InternalRun",
+  "src/types.ts:types:RunEvent",
+  "src/types.ts:types:RunEventPayload",
+  "src/types.ts:types:WorkflowStage"
+]

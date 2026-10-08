@@ -1,5 +1,5 @@
 /* src/frontend/wizard/steps/InspectionStep.css — Step 4 Inspection styling.
-   Tokens only (.agents/rules/frontend-styling.md): spacing is an --space-*
+   Tokens only (docs/agents/frontend-styling.md): spacing is an --space-*
    token and type is a HIG --text-* token. `min-width` on the label column is a
    layout constraint (a label column has no spacing step), not spacing. */
 

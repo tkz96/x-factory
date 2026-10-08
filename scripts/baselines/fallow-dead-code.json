@@ -1,0 +1,87 @@
+{
+  "kind": "dead-code",
+  "analysis_identity": {
+    "mode": "syntactic",
+    "semantic_schema_version": 1,
+    "capabilities": [],
+    "project_config_hash": "",
+    "backend_family": "",
+    "completeness": "complete"
+  },
+  "identity": "dc1",
+  "unused_files": [
+    "unused-file:scripts/demo-providers.ts",
+    "unused-file:src/reticle-dev.ts",
+    "unused-file:test/crashing-subprocess-worker.ts"
+  ],
+  "unused_exports": [
+    "unused-export:src/db/migrator.ts:resetMigrationVersionCacheForTesting",
+    "unused-export:src/frontend/hooks/useQueries.ts:useProject",
+    "unused-export:src/frontend/hooks/useQueries.ts:useSteerRun",
+    "unused-export:src/providers/github-module.ts:describeGitHubConnection",
+    "unused-export:src/providers/jira-module.ts:SEARCH_JQL",
+    "unused-export:src/runs.ts:getOperationLedger",
+    "unused-export:src/runs.ts:getStageAttempts"
+  ],
+  "unused_types": [
+    "unused-type:src/providers/azure-module.ts:AzureConfig",
+    "unused-type:src/shared/types.ts:AzureConnectionResult",
+    "unused-type:src/shared/types.ts:DiscoveredRepo",
+    "unused-type:src/shared/types.ts:WorkbenchSettings",
+    "unused-type:src/store.ts:InternalRun",
+    "unused-type:src/types.ts:RunEvent",
+    "unused-type:src/types.ts:RunEventPayload",
+    "unused-type:src/types.ts:WorkflowStage"
+  ],
+  "private_type_leaks": [],
+  "deprecated_exports_in_use": [],
+  "unused_dependencies": [],
+  "unused_dev_dependencies": [],
+  "circular_dependencies": [],
+  "re_export_cycles": [],
+  "package_cycles": [],
+  "unused_optional_dependencies": [],
+  "unused_enum_members": [],
+  "unused_class_members": [
+    "unused-class-member:src/db/command-repository.ts:CommandRepository:findCommandByRunAndType"
+  ],
+  "unused_store_members": [],
+  "unprovided_injects": [],
+  "unrendered_components": [],
+  "unused_component_props": [],
+  "absent_component_props": [],
+  "unused_component_emits": [],
+  "unused_component_inputs": [],
+  "unused_component_outputs": [],
+  "unused_svelte_events": [],
+  "unused_server_actions": [],
+  "unused_load_data_keys": [],
+  "unresolved_imports": [],
+  "unlisted_dependencies": [],
+  "duplicate_exports": [
+    "duplicate-export:ProviderConfigFieldDescriptor:src/frontend/connection/types.ts|src/providers/serializer.ts",
+    "duplicate-export:ProviderDescriptor:src/frontend/connection/types.ts|src/providers/serializer.ts",
+    "duplicate-export:VerificationResult:src/frontend/connection/types.ts|src/providers/contract.ts|src/shared/types.ts",
+    "duplicate-export:extractCriteria:src/providers/azure-module.ts|src/providers/jira-module.ts"
+  ],
+  "type_only_dependencies": [],
+  "test_only_dependencies": [],
+  "dev_dependencies_in_production": [
+    "dev-dependency-in-production:package.json:@tanstack/react-query-devtools"
+  ],
+  "boundary_violations": [],
+  "boundary_coverage_violations": [],
+  "boundary_call_violations": [],
+  "policy_violations": [],
+  "stale_suppressions": [],
+  "unused_catalog_entries": [],
+  "empty_catalog_groups": [],
+  "unresolved_catalog_references": [],
+  "unused_dependency_overrides": [],
+  "misconfigured_dependency_overrides": [],
+  "invalid_client_exports": [],
+  "mixed_client_server_barrels": [],
+  "misplaced_directives": [],
+  "route_collisions": [],
+  "dynamic_segment_name_conflicts": []
+}

@@ -1,6 +1,8 @@
-// scripts/check-all.ts — Runs every AGENTS.md quality gate and prints one line per gate.
+// scripts/check-all.ts — Runs every quality gate in docs/agents/ci-checks.md and prints one line per gate.
 //
-// Static gates are read-only and run in parallel; test suites run one at a time.
+// Static gates are read-only and run in parallel; then the build runs, then the
+// test suites run one at a time. The build comes first because CI builds first and
+// test:integration:production runs against dist/.
 // Full logs go to a temp directory; only a failing gate's log tail is printed.
 //
 // Usage:
@@ -19,15 +21,16 @@ const STATIC_GATES: Gate[] = [
   { name: "typecheck", cmd: ["bun", "run", "typecheck"] },
   { name: "typecheck:frontend", cmd: ["bun", "run", "typecheck:frontend"] },
   { name: "lint", cmd: ["bun", "run", "lint"] },
-  { name: "fallow dupes", cmd: ["bunx", "fallow", "dupes"] },
   { name: "check:fallow", cmd: ["bun", "run", "check:fallow"] },
   { name: "check:cycles", cmd: ["bun", "run", "check:cycles"] },
   { name: "check:knip", cmd: ["bun", "run", "check:knip"] },
   { name: "docs:schema:check", cmd: ["bun", "run", "docs:schema:check"] },
+  { name: "check:agent-docs", cmd: ["bun", "run", "check:agent-docs"] },
 ];
 
 const TEST_GATES: Gate[] = [
-  { name: "test (coverage)", cmd: ["bun", "test", "--coverage"] },
+  { name: "build", cmd: ["bun", "run", "build"] },
+  { name: "test:coverage", cmd: ["bun", "run", "test:coverage"] },
   { name: "test:frontend-smoke", cmd: ["bun", "run", "test:frontend-smoke"] },
   { name: "test:integration", cmd: ["bun", "run", "test:integration"] },
   {

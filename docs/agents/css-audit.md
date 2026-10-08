@@ -1,6 +1,6 @@
-# /css-audit — Frontend CSS & Design System Audit Workflow
+# Frontend CSS audit
 
-Use this workflow to audit the frontend codebase for design system compliance, rogue inline styles, hardcoded colors, or unlinked stylesheets.
+Use these steps to audit the frontend codebase for compliance with [frontend-styling.md](./frontend-styling.md): rogue inline styles, hardcoded colors, or unlinked stylesheets.
 
 ---
 
