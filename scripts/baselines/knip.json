@@ -1,5 +1,4 @@
 [
-  "package.json:devDependencies:happy-dom",
   "src/db/migrator.ts:exports:resetMigrationVersionCacheForTesting",
   "src/frontend/hooks/useQueries.ts:exports:useProject",
   "src/frontend/hooks/useQueries.ts:exports:useSteerRun",
@@ -13,6 +12,5 @@
   "src/store.ts:types:InternalRun",
   "src/types.ts:types:RunEvent",
   "src/types.ts:types:RunEventPayload",
-  "src/types.ts:types:WorkflowStage",
-  "test/worker-crash.test.ts:unresolved:test/crashing-subprocess-worker.ts"
+  "src/types.ts:types:WorkflowStage"
 ]
