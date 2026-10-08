@@ -1,18 +1,16 @@
 // src/frontend/wizard/WizardModal.tsx — Thin orchestrator modal for onboarding (spec #126, #142, #159).
 //
-// The wizard composes the application's reusable modal structure (.modal-backdrop /
-// .modal-dialog / .modal-header / .modal-body) rather than a wizard-specific dialog
-// abstraction. The shared modal supplies the structural guarantees — constrained
-// viewport height, internal scrolling body, persistent header, responsive padding and
-// accessible dialog semantics — while this component only supplies wizard content and
-// navigation through normal React composition (#159).
+// The wizard composes the reusable <Modal> rather than re-implementing dialog
+// behaviour. <Modal> owns the backdrop, dialog semantics, dismissal and background
+// scroll lock; this component only fills its slots: the title, the step navigation
+// (subheader) and the active step (body). Each step puts its actions in the fixed
+// footer with <ModalFooter> (#159).
 
 import "./WizardModal.css";
 
-import { useEffect } from "react";
+import { Modal } from "../components/Modal.js";
 import { useModal } from "../context/ModalContext.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
-import { useScrollLock } from "../hooks/useScrollLock.js";
 import { StepNav } from "./shared/StepNav.js";
 import { useWizard, WizardProvider } from "./state/wizardContext.js";
 import { BasicsStep } from "./steps/BasicsStep.js";
@@ -24,20 +22,6 @@ import { ReviewStep } from "./steps/ReviewStep.js";
 function WizardContent() {
   const { closeOnboardingModal } = useModal();
   const { state } = useWizard();
-
-  // This component only mounts while the wizard is open, so the background is
-  // scroll-locked for its whole lifetime and released when it closes (#159).
-  useScrollLock(true);
-
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeOnboardingModal();
-      }
-    };
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [closeOnboardingModal]);
 
   const renderActiveStep = () => {
     switch (state.step) {
@@ -57,39 +41,16 @@ function WizardContent() {
   };
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop click dismisses the dialog (same pattern as the shared modals)
-    <div
-      className="modal-backdrop"
-      id="onboarding-wizard-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="wizard-modal-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) closeOnboardingModal();
-      }}
+    <Modal
+      id="onboarding-wizard-modal"
+      title="New Project Setup"
+      onClose={closeOnboardingModal}
+      className="wizard-modal-dialog"
+      closeButtonId="btn-wizard-close"
+      subheader={<StepNav />}
     >
-      <div
-        className="modal-dialog wizard-modal-dialog"
-        id="onboarding-wizard-modal"
-      >
-        <div className="modal-header">
-          <h2 id="wizard-modal-title">New Project Setup</h2>
-          <button
-            type="button"
-            id="btn-wizard-close"
-            className="btn-close"
-            aria-label="Close dialog"
-            onClick={closeOnboardingModal}
-          >
-            ×
-          </button>
-        </div>
-
-        <StepNav />
-
-        <div className="modal-body">{renderActiveStep()}</div>
-      </div>
-    </div>
+      {renderActiveStep()}
+    </Modal>
   );
 }
 

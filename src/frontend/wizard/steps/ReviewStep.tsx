@@ -42,6 +42,7 @@ import {
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import { isSemanticConflict, useReviewSubmit } from "./useReviewSubmit.js";
 import "./ReviewStep.css";
+import { ModalFooter } from "../../components/Modal.js";
 
 interface ReviewStepProps {
   /**
@@ -301,7 +302,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
         </div>
       )}
 
-      <div className="modal-actions">
+      <ModalFooter>
         <button
           type="button"
           id="btn-step-5-back"
@@ -322,7 +323,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
             ? REVIEW_COPY.submitting
             : REVIEW_COPY.submit}
         </button>
-      </div>
+      </ModalFooter>
     </div>
   );
 }

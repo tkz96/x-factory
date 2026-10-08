@@ -1,6 +1,7 @@
 // src/frontend/wizard/steps/ConnectStepFooter.tsx — Back and Next action buttons for Connect step.
 
 import "./ConnectStep.css";
+import { ModalFooter } from "../../components/Modal.js";
 
 export interface ConnectStepFooterProps {
   canProceed: boolean;
@@ -14,7 +15,7 @@ export function ConnectStepFooter({
   onNext,
 }: ConnectStepFooterProps) {
   return (
-    <div className="modal-actions">
+    <ModalFooter>
       <button
         type="button"
         id="btn-step-2-back"
@@ -32,6 +33,6 @@ export function ConnectStepFooter({
       >
         Continue to Repositories →
       </button>
-    </div>
+    </ModalFooter>
   );
 }

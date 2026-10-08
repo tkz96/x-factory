@@ -1,6 +1,7 @@
 /* src/frontend/wizard/WizardModal.css — Wizard dialog sizing modifier (#159).
  *
- * The wizard composes the reusable modal classes (.modal-backdrop / .modal-dialog /
+ * The wizard composes the reusable <Modal> (components/Modal.tsx), which uses the shared
+ * modal classes (.modal-backdrop / .modal-dialog /
  * .modal-header / .modal-body) from components/ModalContainer.css, which supply the
  * structural guarantees: constrained viewport height, internal scrolling body,
  * persistent header, responsive padding, backdrop blur and accessible dialog framing.
