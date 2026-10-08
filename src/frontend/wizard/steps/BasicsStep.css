@@ -1,11 +1,5 @@
 /* src/frontend/wizard/steps/BasicsStep.css — Step 1 Basics styling */
 
-/* Inner spacing comes from the shared .modal-body padding. Step actions live in the
-   modal's fixed footer (<ModalFooter>), not in the pane (#159). */
-.wizard-step-pane {
-  padding: 0;
-}
-
 .wizard-step-header {
   margin-bottom: 1.5rem;
 }

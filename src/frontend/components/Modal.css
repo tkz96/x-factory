@@ -18,8 +18,11 @@
 }
 
 /* Inside the footer, .modal-actions is a plain row: the footer already provides the
-   divider, background and pinning that the in-body sticky variant needs. */
+   divider, background and pinning that the in-body sticky variant needs. It wraps so
+   a status note plus buttons never overflow a narrow dialog. */
 .modal-footer .modal-actions {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
   position: static;
   margin-top: 0;
   padding: 0;

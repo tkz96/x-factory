@@ -1,10 +1,10 @@
 // test/modal.test.tsx — Reusable application modal contract (#159).
 //
-// Every dialog composes <Modal> instead of re-implementing backdrop, dialog
-// semantics, dismissal and background scroll lock. Content goes in through
-// slots: a title, an optional subheader (e.g. step navigation), the scrolling
-// body (children) and a fixed footer that body content can fill with
-// <ModalFooter>.
+// A dialog composes <Modal> instead of re-implementing backdrop, dialog
+// semantics, dismissal and background scroll lock; the setup wizard does.
+// Content goes in through slots: a title, an optional subheader (e.g. step
+// navigation), the scrolling body (children) and a fixed footer that body
+// content can fill with <ModalFooter>.
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
