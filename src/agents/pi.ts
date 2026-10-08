@@ -29,6 +29,8 @@ export interface PiAgentSession {
   prompt(text: string): Promise<void>;
   steer(message: string): Promise<void>;
   abort(): Promise<void>;
+  /** Release the underlying session. Safe to call once the session is no longer needed. */
+  dispose(): void;
   subscribe(listener: PiEventListener): () => void;
 }
 
@@ -137,6 +139,10 @@ function wrapSession(session: AgentSession): PiAgentSession {
     },
     async abort(): Promise<void> {
       await session.abort();
+    },
+    dispose(): void {
+      listeners.clear();
+      session.dispose();
     },
     subscribe(listener: PiEventListener): () => void {
       listeners.add(listener);
