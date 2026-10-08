@@ -8,7 +8,7 @@ import path from "node:path";
 import * as git from "../src/git.js";
 import { getRunMarkerPath, getWorktreePath } from "../src/paths.js";
 import { execStrict } from "../src/proc.js";
-import { readWorktreeState } from "../src/worktree-state.js";
+import { readWorktreeState, recordBaseline } from "../src/worktree-state.js";
 
 let baseTempDir: string;
 let fixtureRepo: string;
@@ -151,7 +151,7 @@ describe("recordBaseline and pollution detection", () => {
       "run-102",
     );
 
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
     assert.ok(baseline.trackedFiles.has("README.md"));
 
     // Clean check
@@ -197,7 +197,7 @@ describe("getDiff and safeCommitAll", () => {
       "proj-1",
       "run-103",
     );
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
 
     // Initial diff is empty
     let diffRes = await git.getDiff(wtPath, baseline);
@@ -246,7 +246,7 @@ describe("Git Metadata and External Directory Safety", () => {
       "proj-safety",
       "run-safety",
     );
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
 
     // 1. .git metadata is not in baseline
     for (const f of [...baseline.trackedFiles, ...baseline.untrackedFiles]) {
@@ -304,7 +304,7 @@ describe("findCommitByMessageAndParent", () => {
     const parentSha = await git.getHeadSha(wtPath);
 
     await writeFile(path.join(wtPath, "file1.txt"), "hello");
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
     await git.safeCommitAll(wtPath, "[X-Factory] Test Commit", baseline);
     const commitSha = await git.getHeadSha(wtPath);
 
@@ -329,7 +329,7 @@ describe("findCommitByMessageAndParent", () => {
     const parentSha = await git.getHeadSha(wtPathBase);
 
     await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
-    const baseline = await git.recordBaseline(wtPathBase);
+    const baseline = await recordBaseline(wtPathBase);
     await git.safeCommitAll(wtPathBase, "[X-Factory] Target Commit", baseline);
 
     await git.createBranch(fixtureRepo, "wt-branch-find-2-other", "main");
@@ -375,7 +375,7 @@ describe("getParentSha and getHeadMessage", () => {
 
     // Create a commit
     await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
-    const baseline = await git.recordBaseline(fixtureRepo);
+    const baseline = await recordBaseline(fixtureRepo);
     const parentBefore = await git.getHeadSha(fixtureRepo);
     await git.safeCommitAll(fixtureRepo, "second commit", baseline);
 

@@ -10,14 +10,7 @@ import {
   getWorktreePath,
 } from "./paths.js";
 import { execCommand, execStrict } from "./proc.js";
-import {
-  type BaselineState,
-  readWorktreeState,
-  recordBaseline,
-} from "./worktree-state.js";
-
-// Re-export for backward compatibility
-export { type BaselineState, recordBaseline };
+import { type BaselineState, readWorktreeState } from "./worktree-state.js";
 
 export interface DiffResult {
   diff: string;

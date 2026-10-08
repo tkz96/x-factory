@@ -3,9 +3,9 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PiAgentSession } from "./agents/pi.js";
-import type { BaselineState } from "./git.js";
 import { ensureDir } from "./paths.js";
 import type { Project, Run, Ticket } from "./types.js";
+import type { BaselineState } from "./worktree-state.js";
 
 export interface InternalRun extends Run {
   _session: PiAgentSession | null;

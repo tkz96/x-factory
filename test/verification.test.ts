@@ -6,10 +6,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { validateProject } from "../src/config.js";
-import { recordBaseline } from "../src/git.js";
 import { execStrict } from "../src/proc.js";
 import type { Project, Ticket, VerificationResult } from "../src/types.js";
 import { buildRepairPrompt, runVerification } from "../src/verification.js";
+import { recordBaseline } from "../src/worktree-state.js";
 
 let baseTempDir: string;
 let fixtureRepo: string;
