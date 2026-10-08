@@ -102,6 +102,27 @@ async function headFiles(): Promise<string[]> {
   return result.stdout.split("\n").filter(Boolean).sort();
 }
 
+/** Every path named by `git show --name-status HEAD` (rename lines name both paths). */
+async function headPaths(): Promise<string[]> {
+  const result = await execStrict(
+    "git",
+    ["show", "--name-status", "--format=", "HEAD"],
+    { cwd: repo },
+  );
+  return result.stdout
+    .split("\n")
+    .filter(Boolean)
+    .flatMap((line) => line.split("\t").slice(1))
+    .sort();
+}
+
+async function stagedPaths(): Promise<string[]> {
+  const result = await execStrict("git", ["diff", "--cached", "--name-only"], {
+    cwd: repo,
+  });
+  return result.stdout.split("\n").filter(Boolean);
+}
+
 describe("Delivery baseline", () => {
   it("delivers using the baseline recorded at the run's baseline path", async () => {
     await saveRecordedBaseline(
@@ -124,6 +145,83 @@ describe("Delivery baseline", () => {
 
     expect(outcome.status).toBe("ready_for_pr");
     expect(outcome.error).toMatch(/No usable baseline recorded/);
+    expect(await headFiles()).toEqual(["README.md"]);
+  });
+
+  it("commits only implementation changes, never scaffold or baseline-untracked files", async () => {
+    // Tracked files the run will modify, delete and rename.
+    await mkdir(path.join(repo, "src"), { recursive: true });
+    await writeFile(
+      path.join(repo, "src", "app.ts"),
+      "export const app = 1;\n",
+    );
+    await writeFile(
+      path.join(repo, "src", "old.ts"),
+      "export const old = 1;\n",
+    );
+    await writeFile(
+      path.join(repo, "src", "move.ts"),
+      "export const move = 1;\n",
+    );
+    await execStrict("git", ["add", "-A"], { cwd: repo });
+    await execStrict("git", ["commit", "-m", "Tracked fixtures"], {
+      cwd: repo,
+    });
+
+    // Untracked at baseline: not a change the run made.
+    await mkdir(path.join(repo, "notes"), { recursive: true });
+    await writeFile(path.join(repo, "notes", "local.md"), "scratch\n");
+
+    await saveRecordedBaseline(
+      baselinePathFor(artifactsDir),
+      await recordBaseline(repo),
+    );
+
+    // The run's implementation changes: an addition, a modification,
+    // a deletion and a rename.
+    await writeFile(path.join(repo, "src", "feature.ts"), "export {};\n");
+    await writeFile(
+      path.join(repo, "src", "app.ts"),
+      "export const app = 2;\n",
+    );
+    await rm(path.join(repo, "src", "old.ts"));
+    await execStrict("git", ["mv", "src/move.ts", "src/moved.ts"], {
+      cwd: repo,
+    });
+
+    // Scaffold that must never reach the delivery commit.
+    await mkdir(path.join(repo, ".agent"), { recursive: true });
+    await writeFile(path.join(repo, ".agent", "PROMPT.md"), "prompt\n");
+    await writeFile(path.join(repo, ".agent", "tasks.md"), "- [ ] task\n");
+    await writeFile(path.join(repo, "ralph.sh"), "#!/usr/bin/env bash\n");
+
+    const outcome = await deliver();
+
+    expect(outcome.status).toBe("pr_created");
+    expect(await headPaths()).toEqual([
+      "src/app.ts",
+      "src/feature.ts",
+      "src/move.ts",
+      "src/moved.ts",
+      "src/old.ts",
+    ]);
+  });
+
+  it("blocks delivery on pollution before staging anything", async () => {
+    await saveRecordedBaseline(
+      baselinePathFor(artifactsDir),
+      await recordBaseline(repo),
+    );
+    await mkdir(path.join(repo, "src"), { recursive: true });
+    await writeFile(path.join(repo, "src", "feature.ts"), "export {};\n");
+    await writeFile(path.join(repo, "debug.log"), "boom\n");
+
+    const outcome = await deliver();
+
+    expect(outcome.status).toBe("ready_for_pr");
+    expect(outcome.error).toMatch(/Cannot commit changes due to pollution/);
+    expect(outcome.error).toContain("debug.log");
+    expect(await stagedPaths()).toEqual([]);
     expect(await headFiles()).toEqual(["README.md"]);
   });
 });
