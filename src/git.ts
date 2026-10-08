@@ -191,6 +191,20 @@ export async function getDiff(
 }
 
 /**
+ * Paths travel as command-line arguments, so a huge list can exceed the OS
+ * argument limit (E2BIG). Each git call receives at most this many paths.
+ */
+const PATHS_PER_GIT_CALL = 1000;
+
+function chunkPaths(paths: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < paths.length; i += PATHS_PER_GIT_CALL) {
+    chunks.push(paths.slice(i, i + PATHS_PER_GIT_CALL));
+  }
+  return chunks;
+}
+
+/**
  * Commit exactly the changes classified as implementation since the baseline.
  * 1. Verifies no pollution against baseline, before anything is staged.
  * 2. Unstages scaffold and baseline-untracked paths a prior staging step left
@@ -222,11 +236,13 @@ export async function safeCommitAll(
     )
     .map((c) => c.path);
   if (toUnstage.length > 0) {
-    await execStrict(
-      "git",
-      ["--literal-pathspecs", "restore", "--staged", "--", ...toUnstage],
-      { cwd: worktreePath },
-    );
+    for (const paths of chunkPaths(toUnstage)) {
+      await execStrict(
+        "git",
+        ["--literal-pathspecs", "restore", "--staged", "--", ...paths],
+        { cwd: worktreePath },
+      );
+    }
   }
 
   // Stage implementation changes whose worktree differs from the index. A
@@ -244,11 +260,13 @@ export async function safeCommitAll(
     )
     .map((c) => c.path);
   if (toStage.length > 0) {
-    await execStrict(
-      "git",
-      ["--literal-pathspecs", "add", "-A", "--", ...toStage],
-      { cwd: worktreePath },
-    );
+    for (const paths of chunkPaths(toStage)) {
+      await execStrict(
+        "git",
+        ["--literal-pathspecs", "add", "-A", "--", ...paths],
+        { cwd: worktreePath },
+      );
+    }
   }
 
   const staged = await execStrict("git", ["diff", "--cached", "--name-only"], {

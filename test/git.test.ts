@@ -228,6 +228,52 @@ describe("getDiff and safeCommitAll", () => {
 
     await git.removeWorktree(fixtureRepo, wtPath);
   });
+
+  it("commits over 1000 changed paths, passing them to git in chunks", async () => {
+    const chunkRepo = await mkdtemp(path.join(tmpdir(), "xf-git-chunk-"));
+    try {
+      await execStrict("git", ["init", "--initial-branch=main", chunkRepo]);
+      await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+        cwd: chunkRepo,
+      });
+      await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+        cwd: chunkRepo,
+      });
+      await writeFile(path.join(chunkRepo, "README.md"), "# Fixture\n");
+      await execStrict("git", ["add", "-A"], { cwd: chunkRepo });
+      await execStrict("git", ["commit", "-m", "Initial commit"], {
+        cwd: chunkRepo,
+      });
+
+      const baseline = await recordBaseline(chunkRepo);
+
+      // More paths than fit in one git invocation (chunk size is 1000).
+      const expected: string[] = [];
+      await mkdir(path.join(chunkRepo, "bulk"), { recursive: true });
+      const writes: Promise<void>[] = [];
+      for (let i = 0; i < 1100; i++) {
+        const rel = `bulk/file-${String(i).padStart(4, "0")}.txt`;
+        writes.push(writeFile(path.join(chunkRepo, rel), `content ${i}\n`));
+        expected.push(rel);
+      }
+      await Promise.all(writes);
+
+      await git.safeCommitAll(chunkRepo, "Add bulk files", baseline);
+
+      const show = await execStrict(
+        "git",
+        ["show", "--name-only", "--format=", "HEAD"],
+        { cwd: chunkRepo },
+      );
+      assert.deepEqual(
+        show.stdout.split("\n").filter(Boolean).sort(),
+        expected.sort(),
+        "every path must reach the commit across chunked git add calls",
+      );
+    } finally {
+      await rm(chunkRepo, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("reportStaleWorktrees", () => {
