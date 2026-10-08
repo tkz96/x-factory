@@ -50,7 +50,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
     overrides: Partial<DeliverDependencies> = {},
   ): Partial<DeliverDependencies> {
     return {
-      recordBaseline: async () => ({
+      loadRecordedBaseline: async () => ({
         trackedFiles: new Set(),
         untrackedFiles: new Set(),
       }),

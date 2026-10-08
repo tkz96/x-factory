@@ -354,7 +354,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
 
     let prCallCount = 0;
     const deliverExecutor = new DeliverExecutor({
-      recordBaseline: async () => ({
+      loadRecordedBaseline: async () => ({
         trackedFiles: new Set(),
         untrackedFiles: new Set(),
       }),
@@ -435,7 +435,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     let prCallCount = 0;
 
     const deliverExecutor = new DeliverExecutor({
-      recordBaseline: async () => ({
+      loadRecordedBaseline: async () => ({
         trackedFiles: new Set(),
         untrackedFiles: new Set(),
       }),

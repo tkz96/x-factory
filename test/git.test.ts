@@ -8,6 +8,7 @@ import path from "node:path";
 import * as git from "../src/git.js";
 import { getRunMarkerPath, getWorktreePath } from "../src/paths.js";
 import { execStrict } from "../src/proc.js";
+import { readWorktreeState, recordBaseline } from "../src/worktree-state.js";
 
 let baseTempDir: string;
 let fixtureRepo: string;
@@ -140,7 +141,7 @@ describe("createWorktree and removeWorktree", () => {
   });
 });
 
-describe("recordBaseline and checkPollution", () => {
+describe("recordBaseline and pollution detection", () => {
   it("detects clean state vs dangerous pollution files", async () => {
     await git.createBranch(fixtureRepo, "wt-branch-2", "main");
     const wtPath = await git.createWorktree(
@@ -150,11 +151,11 @@ describe("recordBaseline and checkPollution", () => {
       "run-102",
     );
 
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
     assert.ok(baseline.trackedFiles.has("README.md"));
 
     // Clean check
-    let pollution = await git.checkPollution(wtPath, baseline);
+    let pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, false);
 
     // Legitimate new file: src/feature.ts and .env.example are allowed!
@@ -165,7 +166,7 @@ describe("recordBaseline and checkPollution", () => {
     );
     await writeFile(path.join(wtPath, ".env.example"), "API_KEY=\n");
 
-    pollution = await git.checkPollution(wtPath, baseline);
+    pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(
       pollution.hasPollution,
       false,
@@ -174,13 +175,13 @@ describe("recordBaseline and checkPollution", () => {
 
     // Forbidden pollution file: debug.log
     await writeFile(path.join(wtPath, "debug.log"), "error log\n");
-    pollution = await git.checkPollution(wtPath, baseline);
+    pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, true);
-    assert.ok(pollution.details[0]?.includes("debug.log"));
+    assert.ok(pollution.pollutionDetails[0]?.includes("debug.log"));
 
     // Remove forbidden file
     await rm(path.join(wtPath, "debug.log"));
-    pollution = await git.checkPollution(wtPath, baseline);
+    pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, false);
 
     await git.removeWorktree(fixtureRepo, wtPath);
@@ -196,10 +197,10 @@ describe("getDiff and safeCommitAll", () => {
       "proj-1",
       "run-103",
     );
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
 
     // Initial diff is empty
-    let diffRes = await git.getDiff(wtPath);
+    let diffRes = await git.getDiff(wtPath, baseline);
     assert.equal(diffRes.filesChanged.length, 0);
 
     // Throws when nothing to commit
@@ -213,7 +214,7 @@ describe("getDiff and safeCommitAll", () => {
       path.join(wtPath, "new-module.ts"),
       "export function hello() {}\n",
     );
-    diffRes = await git.getDiff(wtPath);
+    diffRes = await git.getDiff(wtPath, baseline);
     assert.ok(diffRes.filesChanged.includes("new-module.ts"));
 
     // Commit safely
@@ -245,32 +246,26 @@ describe("Git Metadata and External Directory Safety", () => {
       "proj-safety",
       "run-safety",
     );
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
 
-    // 1. .git is not in baseline
-    for (const f of baseline.trackedFiles) {
+    // 1. .git metadata is not in baseline
+    for (const f of [...baseline.trackedFiles, ...baseline.untrackedFiles]) {
       assert.ok(
-        !f.startsWith(".git"),
-        `Tracked file should not start with .git: ${f}`,
-      );
-    }
-    for (const f of baseline.untrackedFiles) {
-      assert.ok(
-        !f.startsWith(".git"),
-        `Untracked file should not start with .git: ${f}`,
+        f !== ".git" && !f.startsWith(".git/"),
+        `Baseline should not include .git metadata: ${f}`,
       );
     }
 
     // 2. Pollution check ignores .git
-    const pollution = await git.checkPollution(wtPath, baseline);
+    const pollution = await readWorktreeState(wtPath, baseline);
     assert.equal(pollution.hasPollution, false);
 
-    // 3. Diff check ignores .git
-    const diffRes = await git.getDiff(wtPath);
+    // 3. Diff check ignores .git metadata
+    const diffRes = await git.getDiff(wtPath, baseline);
     for (const f of diffRes.filesChanged) {
       assert.ok(
-        !f.includes(".git"),
-        `Changed files should not include .git: ${f}`,
+        f !== ".git" && !f.startsWith(".git/"),
+        `Changed files should not include .git metadata: ${f}`,
       );
     }
 
@@ -309,7 +304,7 @@ describe("findCommitByMessageAndParent", () => {
     const parentSha = await git.getHeadSha(wtPath);
 
     await writeFile(path.join(wtPath, "file1.txt"), "hello");
-    const baseline = await git.recordBaseline(wtPath);
+    const baseline = await recordBaseline(wtPath);
     await git.safeCommitAll(wtPath, "[X-Factory] Test Commit", baseline);
     const commitSha = await git.getHeadSha(wtPath);
 
@@ -334,7 +329,7 @@ describe("findCommitByMessageAndParent", () => {
     const parentSha = await git.getHeadSha(wtPathBase);
 
     await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
-    const baseline = await git.recordBaseline(wtPathBase);
+    const baseline = await recordBaseline(wtPathBase);
     await git.safeCommitAll(wtPathBase, "[X-Factory] Target Commit", baseline);
 
     await git.createBranch(fixtureRepo, "wt-branch-find-2-other", "main");
@@ -380,7 +375,7 @@ describe("getParentSha and getHeadMessage", () => {
 
     // Create a commit
     await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
-    const baseline = await git.recordBaseline(fixtureRepo);
+    const baseline = await recordBaseline(fixtureRepo);
     const parentBefore = await git.getHeadSha(fixtureRepo);
     await git.safeCommitAll(fixtureRepo, "second commit", baseline);
 

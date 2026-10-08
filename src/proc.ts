@@ -1,6 +1,7 @@
 // src/proc.ts — Subprocess execution with timeouts, output caps, and clean process cleanup.
 
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import type { CommandResult } from "./types.js";
 
 export interface ExecOptions {
@@ -8,24 +9,36 @@ export interface ExecOptions {
   env?: Record<string, string | undefined> | undefined;
   timeoutMs?: number | undefined;
   maxBufferChars?: number | undefined;
+  /** Keep stdout byte-exact instead of trimming it (for whitespace-significant formats). */
+  rawStdout?: boolean | undefined;
 }
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes default
 const DEFAULT_MAX_BUFFER_CHARS = 50_000;
+/** Appended to output that hit `maxBufferChars`. */
+export const TRUNCATION_MARKER = "\n... [output truncated]";
 
 function createBufferAccumulator(maxBufferChars: number) {
+  // Streaming decoder so a multi-byte character split across chunks stays intact.
+  const decoder = new StringDecoder("utf8");
   let buffer = "";
+  let truncated = false;
+  const add = (text: string) => {
+    if (truncated) return;
+    if (buffer.length + text.length > maxBufferChars) {
+      buffer += text.slice(0, maxBufferChars - buffer.length);
+      truncated = true;
+    } else {
+      buffer += text;
+    }
+  };
   return {
     append(chunk: Buffer) {
-      if (buffer.length < maxBufferChars) {
-        buffer += chunk.toString("utf-8");
-        if (buffer.length > maxBufferChars) {
-          buffer = `${buffer.slice(0, maxBufferChars)}\n... [output truncated]`;
-        }
-      }
+      add(decoder.write(chunk));
     },
     value() {
-      return buffer;
+      add(decoder.end());
+      return truncated ? `${buffer}${TRUNCATION_MARKER}` : buffer;
     },
   };
 }
@@ -69,7 +82,7 @@ function buildCloseResult(
   return {
     command: fullCommand,
     exitCode: code,
-    stdout: stdout.trim(),
+    stdout,
     stderr: stderrOutput,
     passed: code === 0,
     durationMs,
@@ -90,6 +103,7 @@ export function execCommand(
     env,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxBufferChars = DEFAULT_MAX_BUFFER_CHARS,
+    rawStdout = false,
   } = options;
 
   const fullCommand = [cmd, ...args].join(" ");
@@ -139,7 +153,7 @@ export function execCommand(
           code,
           timedOut,
           timeoutMs,
-          stdout.value(),
+          rawStdout ? stdout.value() : stdout.value().trim(),
           stderr.value(),
           Date.now() - startTime,
         ),

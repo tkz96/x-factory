@@ -149,7 +149,7 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
       let pushCalls = 0;
 
       const executor = new DeliverExecutor({
-        recordBaseline: async () => ({
+        loadRecordedBaseline: async () => ({
           trackedFiles: new Set(["a.ts"]),
           untrackedFiles: new Set(),
         }),

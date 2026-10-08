@@ -9,15 +9,12 @@ import {
   getRunMarkerPath,
   getWorktreePath,
 } from "./paths.js";
+import { execCommand, execStrict } from "./proc.js";
 import {
   type BaselineState,
-  checkPollution,
-  recordBaseline,
-} from "./pollution.js";
-import { execCommand, execStrict } from "./proc.js";
-
-// Re-export for backward compatibility
-export { type BaselineState, checkPollution, recordBaseline };
+  readWorktreeState,
+  type WorktreeState,
+} from "./worktree-state.js";
 
 export interface DiffResult {
   diff: string;
@@ -140,54 +137,64 @@ export async function reportStaleWorktrees(
 }
 
 /**
- * Extract full git diff and list of changed files compared to target.
+ * Diff text for exactly the implementation changes in `state`, so it covers the
+ * same paths as `implementationPaths`. Tracked changes (staged or not) are diffed
+ * against HEAD; new untracked files, which `git diff` cannot see, against /dev/null.
+ */
+export async function getDiffText(
+  worktreePath: string,
+  state: WorktreeState,
+): Promise<string> {
+  const implementation = state.changes.filter(
+    (c) => c.kind === "implementation",
+  );
+  const tracked = implementation
+    .filter((c) => c.status !== "??")
+    .map((c) => c.path);
+  const untracked = implementation
+    .filter((c) => c.status === "??")
+    .map((c) => c.path);
+
+  const parts: string[] = [];
+  if (tracked.length > 0) {
+    const result = await execCommand(
+      "git",
+      ["--literal-pathspecs", "diff", "HEAD", "--", ...tracked],
+      { cwd: worktreePath },
+    );
+    parts.push(result.stdout);
+  }
+  for (const file of untracked) {
+    // Exits 1 when the files differ, which they always do here.
+    const result = await execCommand(
+      "git",
+      ["diff", "--no-index", "--", "/dev/null", file],
+      { cwd: worktreePath },
+    );
+    parts.push(result.stdout);
+  }
+  return parts.filter(Boolean).join("\n").trim();
+}
+
+/**
+ * Extract the full git diff text and the implementation files changed since the baseline.
  */
 export async function getDiff(
   worktreePath: string,
-  baseBranch?: string,
+  baseline: BaselineState,
 ): Promise<DiffResult> {
-  const target = baseBranch ? `origin/${baseBranch}...HEAD` : "HEAD";
-
-  // Diff text (staged and unstaged against target)
-  const diffResult = await execCommand("git", ["diff", target], {
-    cwd: worktreePath,
-  });
-  const stagedDiffResult = await execCommand("git", ["diff", "--cached"], {
-    cwd: worktreePath,
-  });
-  const fullDiff = [stagedDiffResult.stdout, diffResult.stdout]
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-
-  // Changed files
-  const nameResult = await execCommand(
-    "git",
-    ["status", "--porcelain", "-uall"],
-    {
-      cwd: worktreePath,
-    },
-  );
-  const filesChanged: string[] = [];
-
-  for (const line of nameResult.stdout.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.includes(".git")) {
-      filesChanged.push(trimmed.slice(3).trim());
-    }
-  }
-
+  const state = await readWorktreeState(worktreePath, baseline);
   return {
-    diff: fullDiff,
-    filesChanged: Array.from(new Set(filesChanged)),
+    diff: await getDiffText(worktreePath, state),
+    filesChanged: state.implementationPaths,
   };
 }
 
 /**
  * Safely commit all changes.
  * 1. Verifies no pollution against baseline.
- * 2. Verifies non-empty implementation diff exists.
- * 3. Stages all changes with git add -A.
+ * 2. Stages all changes with git add -A.
+ * 3. Verifies something is staged.
  * 4. Commits with provided message.
  */
 export async function safeCommitAll(
@@ -195,16 +202,11 @@ export async function safeCommitAll(
   message: string,
   baseline: BaselineState,
 ): Promise<void> {
-  const pollution = await checkPollution(worktreePath, baseline);
-  if (pollution.hasPollution) {
+  const state = await readWorktreeState(worktreePath, baseline);
+  if (state.hasPollution) {
     throw new Error(
-      `Cannot commit changes due to pollution:\n${pollution.details.join("\n")}`,
+      `Cannot commit changes due to pollution:\n${state.pollutionDetails.join("\n")}`,
     );
-  }
-
-  const { diff, filesChanged } = await getDiff(worktreePath);
-  if (!diff && filesChanged.length === 0) {
-    throw new Error("Nothing to commit — working tree is clean.");
   }
 
   await execStrict("git", ["add", "-A"], { cwd: worktreePath });
@@ -213,7 +215,7 @@ export async function safeCommitAll(
     cwd: worktreePath,
   });
   if (statusCheck.stdout.length === 0) {
-    throw new Error("Nothing to commit — working tree is clean after staging.");
+    throw new Error("Nothing to commit — working tree is clean.");
   }
 
   await execStrict("git", ["commit", "-m", message], { cwd: worktreePath });

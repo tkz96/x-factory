@@ -24,6 +24,7 @@
           "src/paths.ts",
           "src/git.ts",
           "src/pollution.ts",
+          "src/worktree-state.ts",
           "src/settings.ts",
           "src/config.ts"
         ]

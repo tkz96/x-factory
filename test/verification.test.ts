@@ -2,14 +2,14 @@
 
 import { afterAll, beforeAll, describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { validateProject } from "../src/config.js";
-import { recordBaseline } from "../src/git.js";
 import { execStrict } from "../src/proc.js";
 import type { Project, Ticket, VerificationResult } from "../src/types.js";
 import { buildRepairPrompt, runVerification } from "../src/verification.js";
+import { recordBaseline } from "../src/worktree-state.js";
 
 let baseTempDir: string;
 let fixtureRepo: string;
@@ -118,6 +118,85 @@ describe("Deterministic Verification Pipeline", () => {
     const result = await runVerification(fixtureRepo, project, baseline, 1);
     assert.equal(result.passed, false);
     assert.ok(result.summary.includes("No implementation changes detected"));
+  });
+
+  it("fails the no-change gate when only scaffold files changed", async () => {
+    const baseline = await recordBaseline(fixtureRepo);
+    await mkdir(path.join(fixtureRepo, ".agent"), { recursive: true });
+    await writeFile(path.join(fixtureRepo, ".agent", "tasks.md"), "- [x] t\n");
+    await writeFile(path.join(fixtureRepo, "ralph.sh"), "#!/bin/sh\n");
+
+    const result = await runVerification(fixtureRepo, project, baseline, 1);
+
+    assert.equal(result.passed, false);
+    assert.deepEqual(result.filesChanged, []);
+    assert.ok(result.summary.includes("No implementation changes detected"));
+
+    await rm(path.join(fixtureRepo, ".agent"), { recursive: true });
+    await rm(path.join(fixtureRepo, "ralph.sh"));
+  });
+
+  it("reports implementation files exactly and leaves scaffold out of them", async () => {
+    const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(path.join(fixtureRepo, "README.md"), "# Changed\n");
+    await writeFile(path.join(fixtureRepo, "ralph.sh"), "#!/bin/sh\n");
+
+    const result = await runVerification(fixtureRepo, project, baseline, 1);
+
+    assert.equal(result.passed, true);
+    assert.deepEqual(result.filesChanged, ["README.md"]);
+
+    await execStrict("git", ["checkout", "--", "README.md"], {
+      cwd: fixtureRepo,
+    });
+    await rm(path.join(fixtureRepo, "ralph.sh"));
+  });
+
+  it("diffs exactly the files in filesChanged, including new untracked files", async () => {
+    const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(path.join(fixtureRepo, "README.md"), "# Changed\n");
+    await writeFile(
+      path.join(fixtureRepo, "added.ts"),
+      "export const a = 1;\n",
+    );
+    await writeFile(path.join(fixtureRepo, "ralph.sh"), "#!/bin/sh\n");
+
+    const result = await runVerification(fixtureRepo, project, baseline, 1);
+
+    assert.deepEqual([...result.filesChanged].sort(), [
+      "README.md",
+      "added.ts",
+    ]);
+    assert.ok(result.diff.includes("diff --git a/README.md b/README.md"));
+    assert.ok(result.diff.includes("diff --git a/added.ts b/added.ts"));
+    assert.ok(result.diff.includes("+export const a = 1;"));
+    assert.ok(!result.diff.includes("ralph.sh"));
+
+    await execStrict("git", ["checkout", "--", "README.md"], {
+      cwd: fixtureRepo,
+    });
+    await rm(path.join(fixtureRepo, "added.ts"));
+    await rm(path.join(fixtureRepo, "ralph.sh"));
+  });
+
+  it("fails when a tracked .env is modified", async () => {
+    await writeFile(path.join(fixtureRepo, ".env"), "TOKEN=committed\n");
+    await execStrict("git", ["add", ".env"], { cwd: fixtureRepo });
+    await execStrict("git", ["commit", "-m", "Track .env"], {
+      cwd: fixtureRepo,
+    });
+    const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(path.join(fixtureRepo, "feature.ts"), "export {};\n");
+    await writeFile(path.join(fixtureRepo, ".env"), "TOKEN=leaked\n");
+
+    const result = await runVerification(fixtureRepo, project, baseline, 1);
+
+    assert.equal(result.passed, false);
+    assert.equal(result.hasPollution, true);
+    assert.ok(result.pollutionDetails?.some((d) => d.includes('".env"')));
+
+    await rm(path.join(fixtureRepo, "feature.ts"));
+    await execStrict("git", ["checkout", "--", ".env"], { cwd: fixtureRepo });
   });
 });
 

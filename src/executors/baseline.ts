@@ -1,11 +1,10 @@
 // src/executors/baseline.ts — Worktree baseline file state resolution and persistence.
 
-import type { BaselineState } from "../git.js";
-
-export interface BaselineJson {
-  trackedFiles: string[];
-  untrackedFiles: string[];
-}
+import {
+  type BaselineState,
+  loadRecordedBaseline,
+  saveRecordedBaseline,
+} from "../worktree-state.js";
 
 /**
  * Loads baseline state from baseline.json in artifactsDir or falls back to recording a fresh baseline.
@@ -21,27 +20,11 @@ export async function resolveWorktreeBaseline(
     | undefined,
 ): Promise<BaselineState> {
   try {
-    const content = await readFile(baselineJsonPath, "utf-8");
-    const parsed = JSON.parse(content) as BaselineJson;
-    return {
-      trackedFiles: new Set(parsed.trackedFiles || []),
-      untrackedFiles: new Set(parsed.untrackedFiles || []),
-    };
+    return await loadRecordedBaseline(baselineJsonPath, readFile);
   } catch {
     const baseline = await recordBaseline(worktreePath);
     if (writeFile) {
-      await writeFile(
-        baselineJsonPath,
-        JSON.stringify(
-          {
-            trackedFiles: Array.from(baseline.trackedFiles),
-            untrackedFiles: Array.from(baseline.untrackedFiles),
-          },
-          null,
-          2,
-        ),
-        "utf-8",
-      );
+      await saveRecordedBaseline(baselineJsonPath, baseline, writeFile);
     }
     return baseline;
   }
