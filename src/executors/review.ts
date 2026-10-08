@@ -1,7 +1,6 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
-import { writeFile } from "node:fs/promises";
-import path from "node:path";
+import type { PiAgentSession, SessionOptions } from "../agents/pi.js";
 import type { RunRecord } from "../db/run-repository.js";
 import { reviewRun } from "../review.js";
 import { loadSettings } from "../settings.js";
@@ -9,14 +8,17 @@ import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
 export interface ReviewDependencies {
   loadSettings: typeof loadSettings;
-  reviewRun: typeof reviewRun;
-  writeFile: typeof writeFile;
+  /** Test seam: replaces the Pi review session that reviewRun creates. */
+  sessionFactory?:
+    | ((
+        worktreePath: string,
+        options?: SessionOptions,
+      ) => Promise<PiAgentSession>)
+    | undefined;
 }
 
 export const defaultReviewDeps: ReviewDependencies = {
   loadSettings,
-  reviewRun,
-  writeFile,
 };
 
 export class ReviewExecutor implements StageExecutor {
@@ -47,23 +49,20 @@ export class ReviewExecutor implements StageExecutor {
     context.run = currentRun;
 
     const settings = await this.deps.loadSettings(false);
-    const rResult = await this.deps.reviewRun({
+    // reviewRun owns review.json; this executor only records the result.
+    const rResult = await reviewRun({
       projectId: context.project.id,
       runId: run.id,
       worktreePath,
+      artifactsDir: run.artifactsDir,
       ticket: context.run.ticket,
       plan: context.run.plan,
       diff: context.run.diff || "",
       verification: currentRun.verification,
       modelConfig: settings.models?.sessionB,
+      signal: context.signal,
+      sessionFactory: this.deps.sessionFactory,
     });
-
-    // Save review.json artifact
-    await this.deps.writeFile(
-      path.join(run.artifactsDir, "review.json"),
-      JSON.stringify(rResult, null, 2),
-      "utf-8",
-    );
 
     // Atomically update review record and append events (Phase 2, Section 31)
     let updatedRun: RunRecord | undefined;
