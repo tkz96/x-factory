@@ -1,20 +1,14 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
-import type { PiAgentSession, SessionOptions } from "../agents/pi.js";
 import type { RunRecord } from "../db/run-repository.js";
-import { reviewRun } from "../review.js";
+import { type ReviewSessionFactory, reviewRun } from "../review.js";
 import { loadSettings } from "../settings.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
 export interface ReviewDependencies {
   loadSettings: typeof loadSettings;
   /** Test seam: replaces the Pi review session that reviewRun creates. */
-  sessionFactory?:
-    | ((
-        worktreePath: string,
-        options?: SessionOptions,
-      ) => Promise<PiAgentSession>)
-    | undefined;
+  sessionFactory?: ReviewSessionFactory | undefined;
 }
 
 export const defaultReviewDeps: ReviewDependencies = {
@@ -51,8 +45,6 @@ export class ReviewExecutor implements StageExecutor {
     const settings = await this.deps.loadSettings(false);
     // reviewRun owns review.json; this executor only records the result.
     const rResult = await reviewRun({
-      projectId: context.project.id,
-      runId: run.id,
       worktreePath,
       artifactsDir: run.artifactsDir,
       ticket: context.run.ticket,

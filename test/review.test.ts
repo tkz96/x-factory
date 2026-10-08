@@ -395,8 +395,6 @@ FAILED
       };
 
       const reviewContext = {
-        projectId: "test-proj",
-        runId: "test-run-123",
         worktreePath: "/tmp",
         artifactsDir: legacyArtifactsDir,
         ticket,
@@ -423,8 +421,6 @@ FAILED
 
     it("returns fallback review when session initialization fails", async () => {
       const reviewContext = {
-        projectId: "test-proj",
-        runId: "test-run-fail",
         worktreePath: "/tmp",
         artifactsDir: legacyArtifactsDir,
         ticket,
@@ -454,8 +450,6 @@ FAILED
       };
 
       const reviewContext = {
-        projectId: "test-proj",
-        runId: "test-run-crash",
         worktreePath: "/tmp",
         artifactsDir: legacyArtifactsDir,
         ticket,
@@ -472,8 +466,6 @@ FAILED
 
     it("fails a review whose output reports failed criteria when no onEvent is given", async () => {
       const result = await reviewRun({
-        projectId: "test-proj",
-        runId: "test-run-no-listener",
         worktreePath: "/tmp",
         artifactsDir: legacyArtifactsDir,
         ticket,
@@ -495,8 +487,6 @@ FAILED
     ] as const) {
       it(`fails closed when the review output is ${label}`, async () => {
         const result = await reviewRun({
-          projectId: "test-proj",
-          runId: `test-run-${label}`,
           worktreePath: "/tmp",
           artifactsDir: legacyArtifactsDir,
           ticket,
@@ -554,8 +544,6 @@ describe("reviewRun artifact, abort and disposal", () => {
     signal?: AbortSignal,
   ) {
     return {
-      projectId: "p",
-      runId: "r",
       worktreePath: "/tmp",
       artifactsDir,
       ticket,
@@ -652,6 +640,95 @@ describe("reviewRun artifact, abort and disposal", () => {
         /aborted/i,
       );
       assert.equal(sessionsCreated, 0);
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("keeps the result when dispose throws after success", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const session = scriptedReviewSession(passingOutput, {
+        disposeError: new Error("dispose exploded"),
+      });
+      const result = await reviewRun(context(artifactsDir, session));
+
+      assert.equal(result.passed, true);
+      assert.equal(session.disposeCalls, 1);
+      assert.deepEqual(await readdir(artifactsDir), ["review.json"]);
+    });
+  });
+
+  it("keeps the abort error when dispose throws after abort", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession("", {
+        hangUntilAborted: true,
+        disposeError: new Error("dispose exploded"),
+        onPrompt: () => queueMicrotask(() => controller.abort()),
+      });
+
+      await assert.rejects(
+        reviewRun(context(artifactsDir, session, controller.signal)),
+        /Review aborted/,
+      );
+      assert.equal(session.disposeCalls, 1);
+    });
+  });
+
+  it("does not prompt when the signal aborts while the session is being created", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession(passingOutput);
+
+      await assert.rejects(
+        reviewRun({
+          ...context(artifactsDir, session, controller.signal),
+          sessionFactory: async () => {
+            controller.abort();
+            return session;
+          },
+        }),
+        /Review aborted/,
+      );
+      assert.equal(session.prompts.length, 0);
+      assert.equal(session.disposeCalls, 1);
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("prefers the abort over a session-creation failure and writes nothing", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+
+      await assert.rejects(
+        reviewRun({
+          ...context(
+            artifactsDir,
+            scriptedReviewSession(passingOutput),
+            controller.signal,
+          ),
+          sessionFactory: async () => {
+            controller.abort();
+            throw new Error("factory failed");
+          },
+        }),
+        /Review aborted/,
+      );
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("rejects when the abort races a prompt that already completed", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession(passingOutput, {
+        onPrompt: () => queueMicrotask(() => controller.abort()),
+      });
+
+      await assert.rejects(
+        reviewRun(context(artifactsDir, session, controller.signal)),
+        /Review aborted/,
+      );
+      assert.equal(session.disposeCalls, 1);
       assert.deepEqual(await readdir(artifactsDir), []);
     });
   });

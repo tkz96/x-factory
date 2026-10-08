@@ -17,6 +17,8 @@ export interface ScriptOptions {
   promptError?: Error;
   /** prompt() stays pending until abort() is called, then rejects. */
   hangUntilAborted?: boolean;
+  /** dispose() counts the call, then throws this. */
+  disposeError?: Error;
   /** Called when prompt() starts, so a test can abort mid-flight. */
   onPrompt?: () => void;
 }
@@ -50,6 +52,7 @@ export function scriptedReviewSession(
     },
     dispose: () => {
       state.disposeCalls++;
+      if (options.disposeError) throw options.disposeError;
     },
     subscribe: (cb) => {
       listeners.push(cb);

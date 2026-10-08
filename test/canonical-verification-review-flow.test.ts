@@ -705,6 +705,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(finalRun?.verification).toEqual(sampleVerification);
     expect(finalRun?.review).toEqual(approvedReview);
     expect(reviewSession.prompts[0]).toContain(sampleVerification.summary);
+    expect(reviewSession.prompts[0]).toContain(
+      `Changed files: ${sampleVerification.filesChanged.join(", ")}`,
+    );
   });
 
   it("unit: patchRunCache updates cache and allows HumanCheckpointSection to re-render without refresh", () => {

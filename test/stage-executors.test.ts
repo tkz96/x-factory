@@ -306,7 +306,11 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         artifactsDir: artifactDirs.make(),
       });
 
-      runRepo.update(context.run.id, { verification: mockVerification }, db);
+      const verification = {
+        ...mockVerification,
+        filesChanged: ["src/a.ts", "src/b.ts"],
+      };
+      runRepo.update(context.run.id, { verification }, db);
 
       const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
 
@@ -318,7 +322,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       await executor.execute(context);
 
       expect(session.prompts).toHaveLength(1);
-      expect(session.prompts[0]).toContain("Verification passed");
+      expect(session.prompts[0]).toContain(verification.summary);
+      expect(session.prompts[0]).toContain("Changed files: src/a.ts, src/b.ts");
     });
 
     it("fails when context.run.verification exists in memory but SQLite verification is missing", async () => {

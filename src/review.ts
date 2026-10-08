@@ -16,8 +16,6 @@ import type {
 } from "./types.js";
 
 export interface ReviewContext {
-  projectId: string;
-  runId: string;
   worktreePath: string;
   /** Run artifacts directory; review.json is written here, once. */
   artifactsDir: string;
@@ -34,13 +32,13 @@ export interface ReviewContext {
   modelConfig?: SessionOptions | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
-  sessionFactory?:
-    | ((
-        worktreePath: string,
-        options?: SessionOptions,
-      ) => Promise<PiAgentSession>)
-    | undefined;
+  sessionFactory?: ReviewSessionFactory | undefined;
 }
+
+export type ReviewSessionFactory = (
+  worktreePath: string,
+  options?: SessionOptions,
+) => Promise<PiAgentSession>;
 
 function attachReviewListeners(
   session: PiAgentSession,
@@ -110,6 +108,7 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
     const makeSession = context.sessionFactory ?? createReviewSession;
     reviewSession = await makeSession(worktreePath, context.modelConfig);
   } catch (err: unknown) {
+    if (signal?.aborted) throw abortError();
     const msg = err instanceof Error ? err.message : String(err);
     return createFallbackReview(
       ticket,
@@ -127,7 +126,19 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
       signal,
     );
   } finally {
-    reviewSession.dispose();
+    disposeQuietly(reviewSession);
+  }
+}
+
+/** Dispose must never replace the review outcome: Pi's dispose can throw. */
+function disposeQuietly(session: PiAgentSession): void {
+  try {
+    session.dispose();
+  } catch (err: unknown) {
+    console.warn(
+      "[X-Factory] Failed to dispose review session:",
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }
 
@@ -149,6 +160,8 @@ async function promptForVerdict(
   if (signal?.aborted) onAbort();
 
   try {
+    // A real Pi session ignores an abort that arrives before a prompt.
+    if (aborted) throw abortError();
     await reviewSession.prompt(reviewPrompt);
   } catch (err: unknown) {
     if (aborted) throw abortError();
