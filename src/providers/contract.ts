@@ -49,6 +49,7 @@ export interface TrackerTicket extends Ticket {
 /** Options for `listTickets`. */
 export interface TicketQueryOptions {
   requiredLabel: string;
+  pageCap?: number;
 }
 
 // ---------------------------------------------------------------------------

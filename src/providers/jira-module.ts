@@ -34,6 +34,11 @@ import {
   parseRetryAfter,
   providerFetch,
 } from "./http.js";
+import {
+  emitTruncationWarning,
+  extractAcceptanceCriteria,
+  resolvePageCap,
+} from "./ticket-normalization.js";
 
 /** Remediated JQL search endpoint name constant (#140). */
 export const SEARCH_JQL_ENDPOINT = "/rest/api/3/search/jql" as const;
@@ -301,59 +306,32 @@ export function parseAdfToText(node: unknown): string {
   if (Array.isArray(obj.content)) {
     const pieces = obj.content.map(parseAdfToText);
     if (obj.type === "bulletList") {
-      return pieces.map((p) => `- ${p.trim()}`).join("\n");
+      return `${pieces.map((p) => `- ${p.trim()}`).join("\n")}\n`;
     }
-    if (obj.type === "paragraph" || obj.type === "heading") {
+    if (obj.type === "orderedList") {
+      return `${pieces.map((p, i) => `${i + 1}. ${p.trim()}`).join("\n")}\n`;
+    }
+    if (obj.type === "heading") {
+      const level =
+        typeof obj.attrs === "object" &&
+        obj.attrs &&
+        typeof (obj.attrs as Record<string, unknown>).level === "number"
+          ? Math.max(
+              1,
+              Math.min(
+                6,
+                (obj.attrs as Record<string, unknown>).level as number,
+              ),
+            )
+          : 2;
+      return `${"#".repeat(level)} ${pieces.join("").trim()}\n`;
+    }
+    if (obj.type === "paragraph") {
       return `${pieces.join("")}\n`;
     }
     return pieces.join(" ");
   }
   return "";
-}
-
-function isSectionHeader(line: string): boolean {
-  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
-    line,
-  );
-}
-
-function sanitizeCriteriaLine(line: string): string {
-  return line
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_`]/g, "")
-    .trim();
-}
-
-function parseBulletLine(line: string): string | null {
-  const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
-  return match?.[1] ? sanitizeCriteriaLine(match[1]) : null;
-}
-
-export function extractCriteria(text: string): string[] {
-  if (!text || typeof text !== "string") return [];
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const headerIdx = lines.findIndex(isSectionHeader);
-
-  if (headerIdx >= 0) {
-    const sectionLines: string[] = [];
-    for (let i = headerIdx + 1; i < lines.length; i++) {
-      const currentLine = lines[i];
-      if (!currentLine) continue;
-      if (/^#+\s+/.test(currentLine)) break;
-      const bullet = parseBulletLine(currentLine);
-      if (bullet) {
-        sectionLines.push(bullet);
-      } else if (currentLine.length > 5) {
-        sectionLines.push(sanitizeCriteriaLine(currentLine));
-      }
-    }
-    return sectionLines;
-  }
-
-  return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
 }
 
 // ---------------------------------------------------------------------------
@@ -483,11 +461,14 @@ export function createJiraProvider(
       const maxResults = 50;
       const jql = `labels = "${label}"${project ? ` AND project = "${project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
 
+      const pageCap = resolvePageCap(options);
       const allTickets: TrackerTicket[] = [];
       const seenTicketIds = new Set<string>();
       let nextPageToken: string | undefined;
+      let pagesFetched = 0;
 
       do {
+        pagesFetched++;
         let searchUrl = `https://${host}${SEARCH_JQL_ENDPOINT}?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`;
         if (nextPageToken) {
           searchUrl += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
@@ -543,7 +524,7 @@ export function createJiraProvider(
             id: issue.key,
             title: issue.fields?.summary || "",
             description: desc,
-            acceptanceCriteria: extractCriteria(desc),
+            acceptanceCriteria: extractAcceptanceCriteria(desc),
             labels,
             url: `https://${host}/browse/${issue.key}`,
             provider: "jira" as const,
@@ -551,7 +532,11 @@ export function createJiraProvider(
         }
 
         nextPageToken = raw?.nextPageToken;
-      } while (nextPageToken);
+      } while (nextPageToken && pagesFetched < pageCap);
+
+      if (nextPageToken && pagesFetched >= pageCap) {
+        emitTruncationWarning("jira", pageCap);
+      }
 
       return allTickets;
     },
