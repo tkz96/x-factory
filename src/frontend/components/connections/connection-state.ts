@@ -35,30 +35,37 @@ export interface ConnectionEvidence {
 }
 
 /**
- * `connected` — verified with nothing outstanding.
- * `degraded` — verified, but with warnings.
- * `disconnected` — no provider selected, or not verified in this session. A
- * restored draft always lands here: verification results are never persisted.
+ * THE one three-state rule (#176): `connected` when the input shows a usable
+ * connection with nothing outstanding, `degraded` when a usable one carries
+ * warnings, `disconnected` when it shows no usable connection — warnings and
+ * all.
+ *
+ * This is the ONLY place the three states are decided, and both inputs go
+ * through it: each branch decides what counts as a connection and what counts
+ * as a warning (the draft's verification evidence, the record's presence and
+ * manifest warnings) and hands those two facts here. A DEGRADED connection is
+ * USABLE: its warnings surface, they never gate (#133).
  */
 export function deriveConnectionState(
-  evidence: ConnectionEvidence,
+  usable: boolean,
+  degraded: boolean,
 ): ConnectionState {
-  if (evidence.providerId === null || evidence.verified !== true) {
+  if (!usable) {
     return "disconnected";
   }
-  return (evidence.unconfirmedCapabilities?.length ?? 0) > 0
-    ? "degraded"
-    : "connected";
+  return degraded ? "degraded" : "connected";
 }
 
 /**
- * True when a project may be created with this connection: verified. A degraded
- * verification IS usable — its warnings are surfaced, never a gate — and only a
- * fresh verification can turn an unverified connection usable, so there is no
- * dismissal or skip path.
+ * True when a project may be created with this connection: a provider is
+ * selected AND its configuration verified — the draft's half of the one rule
+ * above, read as a predicate (unusable evidence IS a disconnected slot). A
+ * degraded verification IS usable — its warnings are surfaced, never a gate —
+ * and only a fresh verification can turn an unverified connection usable, so
+ * there is no dismissal or skip path.
  */
 export function isConnectionUsable(evidence: ConnectionEvidence): boolean {
-  return deriveConnectionState(evidence) !== "disconnected";
+  return evidence.providerId !== null && evidence.verified === true;
 }
 
 // ---------------------------------------------------------------------------

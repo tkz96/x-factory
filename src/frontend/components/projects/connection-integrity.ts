@@ -23,7 +23,11 @@
 // git host is shown as not recorded rather than invented. A legacy project
 // with no usable `issueTracker` is an integrity failure like any other.
 
-import type { Project, ProjectConnectionRole } from "../../../shared/types.js";
+import {
+  PROJECT_CONNECTION_ROLES,
+  type Project,
+  type ProjectConnectionRole,
+} from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import {
   type ConnectionComboSlot,
@@ -35,7 +39,6 @@ import {
   type ConnectionSlot,
   type ConnectionWarning,
   connectionComboSlots,
-  connectionViewSlots,
   deriveConnectionView,
   descriptorFor,
   fieldsForRole,
@@ -70,7 +73,8 @@ export function deriveConnectionIntegrity(
   descriptors: readonly ProviderDescriptor[] = [],
 ): ConnectionIntegrity {
   const view = deriveConnectionView({ kind: "recorded", project }, descriptors);
-  const slots = connectionViewSlots(view);
+  // THE list's order is the render order: tracker first, then git host.
+  const slots = PROJECT_CONNECTION_ROLES.map((role) => view[role]);
   const warnings = slots.flatMap((slot) => slot.warnings);
   const hasIntegrityFailure = view.tracker.state === "disconnected";
 

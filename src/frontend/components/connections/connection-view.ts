@@ -10,6 +10,10 @@
 // (`connected | degraded | disconnected`) from one module: the line a user sees
 // during onboarding and the line they see afterwards cannot drift apart.
 //
+// Each branch hands its two facts — is there a usable connection, does it
+// carry warnings — to THE one three-state rule (`deriveConnectionState` in
+// `connection-state.ts`), so no branch maps them to states on its own.
+//
 // The two branches differ only in what their evidence MEANS:
 //
 //   * draft: a connection exists when the role selected a provider AND that
@@ -40,6 +44,7 @@ import {
   type ConnectionComboSlot,
   type ConnectionEvidence,
   type ConnectionState,
+  deriveConnectionState,
   isConnectionUsable,
 } from "./connection-state.js";
 
@@ -108,24 +113,6 @@ export type ConnectionViewSource =
 export type ConnectionView = Readonly<
   Record<ProjectConnectionRole, ConnectionSlot>
 >;
-
-// ---------------------------------------------------------------------------
-// The one state rule
-// ---------------------------------------------------------------------------
-
-/**
- * THE state rule, for both inputs (#176): no usable connection →
- * `disconnected`; a usable one carrying warnings → `degraded`; otherwise
- * `connected`. "Usable" is the input's own evidence — the draft's verification
- * and the record's presence — so each branch decides what counts as a
- * connection, and both land in the one vocabulary the combo line renders.
- */
-function slotState(usable: boolean, degraded: boolean): ConnectionState {
-  if (!usable) {
-    return "disconnected";
-  }
-  return degraded ? "degraded" : "connected";
-}
 
 // ---------------------------------------------------------------------------
 // Recorded connections: the project payload, normalized or legacy
@@ -286,7 +273,10 @@ function draftSlot(
   const unconfirmed = evidence.unconfirmedCapabilities ?? [];
   return {
     role,
-    state: slotState(isConnectionUsable(evidence), unconfirmed.length > 0),
+    state: deriveConnectionState(
+      isConnectionUsable(evidence),
+      unconfirmed.length > 0,
+    ),
     providerId,
     config:
       providerId === undefined
@@ -309,7 +299,7 @@ function recordedSlot(
   const warnings = warningsFor(role, connection, descriptors);
   return {
     role,
-    state: slotState(connection !== undefined, warnings.length > 0),
+    state: deriveConnectionState(connection !== undefined, warnings.length > 0),
     providerId: connection?.providerId,
     config: connection?.config ?? {},
     capabilities: connection
@@ -352,9 +342,31 @@ export function deriveConnectionView(
   );
 }
 
-/** The view's slots in THE list's render order: tracker first, then git host. */
-export function connectionViewSlots(view: ConnectionView): ConnectionSlot[] {
-  return PROJECT_CONNECTION_ROLES.map((role) => view[role]);
+/**
+ * The roles the DRAFT line REQUIRES: creation needs every role (#133: both
+ * connections are mandatory at creation), so the Review line passes THESE to
+ * `comboTone` — the intent is "required at creation", not "every role a line
+ * can render". Deliberately THE all-roles list under its own name; a
+ * post-creation surface passes its own narrower `REQUIRED_CONNECTION_ROLES`
+ * (see `components/projects/connection-integrity.ts`).
+ */
+export const CREATION_REQUIRED_ROLES = PROJECT_CONNECTION_ROLES;
+
+/**
+ * The draft's combo-line slots in one call: THE chain the wizard's Review
+ * step reads — derive the view from the DRAFT, take THE list's slots in
+ * render order, and map them to the line's `string | null` vocabulary —
+ * hidden behind one name so no surface re-nests it (#176).
+ */
+export function draftComboSlots(
+  source: DraftConnectionSource,
+  descriptors: readonly ProviderDescriptor[] = [],
+): ConnectionComboSlot[] {
+  const view = deriveConnectionView(source, descriptors);
+  return connectionComboSlots(
+    // THE list's order is the render order: tracker first, then git host.
+    PROJECT_CONNECTION_ROLES.map((role) => view[role]),
+  );
 }
 
 /**

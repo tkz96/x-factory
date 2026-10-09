@@ -12,13 +12,11 @@
 // exactly once, in this request body.
 
 import { useQuery } from "@tanstack/react-query";
-import { PROJECT_CONNECTION_ROLES } from "../../../shared/types.js";
 import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../../components/connections/connection-state.js";
 import {
-  connectionComboSlots,
-  connectionViewSlots,
-  deriveConnectionView,
+  CREATION_REQUIRED_ROLES,
+  draftComboSlots,
 } from "../../components/connections/connection-view.js";
 import {
   REVIEW_COPY,
@@ -144,28 +142,25 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   }));
 
   // The combo line reads the SAME draft evidence the gate reads, through the
-  // ONE derivation every surface uses (#176): draft in, slots out, over THE one
-  // role list. Review is the creation gate, so BOTH roles are required here —
-  // a role with no verified connection is an error, never a warning (#133).
+  // ONE derivation every surface uses (#176): draft in, line slots out, over
+  // THE one role list — the whole chain is one call on the one module.
+  // Review is the creation gate, so BOTH roles are required here — a role with
+  // no verified connection is an error, never a warning (#133).
   //
   // The identity is the provider's own (#133 story 34), read from the
   // configuration the draft holds (`connect.providerConfigs`) — its non-secret
   // fields only, so the credentials the user typed stay in the draft — through
   // the ONE wiring call every surface uses.
-  const slots = connectionComboSlots(
-    connectionViewSlots(
-      deriveConnectionView(
-        {
-          kind: "draft",
-          evidence: state.connect,
-          providerConfigs: state.connect.providerConfigs,
-        },
-        manifest,
-      ),
-    ),
+  const draftSlots = draftComboSlots(
+    {
+      kind: "draft",
+      evidence: state.connect,
+      providerConfigs: state.connect.providerConfigs,
+    },
+    manifest,
   );
   const comboSlots = useConnectionLine(
-    slots,
+    draftSlots,
     draftConnectionIdentityTargets(state.connect, manifest),
   );
 
@@ -197,7 +192,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       <ConnectionComboLine
         id="combo-summary"
         slots={comboSlots}
-        tone={comboTone(comboSlots, PROJECT_CONNECTION_ROLES)}
+        tone={comboTone(comboSlots, CREATION_REQUIRED_ROLES)}
         descriptors={manifest}
       />
 

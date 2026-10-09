@@ -24,11 +24,7 @@ import {
   comboTone,
   withConnectionIdentities,
 } from "../src/frontend/components/connections/connection-state.js";
-import {
-  connectionComboSlots,
-  connectionViewSlots,
-  deriveConnectionView,
-} from "../src/frontend/components/connections/connection-view.js";
+import { draftComboSlots } from "../src/frontend/components/connections/connection-view.js";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 
@@ -78,17 +74,14 @@ function evidence(
 
 /**
  * The line's slots the way the producers build them: through the ONE
- * connection view's DRAFT input (#176), over THE one role list.
+ * connection view's DRAFT input (#176), over THE one role list — the same
+ * single call the wizard's Review step makes.
  */
 function draftSlots(
   tracker: ConnectionEvidence,
   gitHost: ConnectionEvidence,
 ): ConnectionComboSlot[] {
-  return connectionComboSlots(
-    connectionViewSlots(
-      deriveConnectionView({ kind: "draft", evidence: { tracker, gitHost } }),
-    ),
-  );
+  return draftComboSlots({ kind: "draft", evidence: { tracker, gitHost } });
 }
 
 /** Renders the line the way the wizard's Review step does: from draft evidence. */
