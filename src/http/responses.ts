@@ -7,13 +7,21 @@ import {
   SemanticValidationError,
   ValidationError,
 } from "../errors.js";
+import type { ProviderErrorCode } from "../providers/contract.js";
+import { ProviderError } from "../providers/errors.js";
 import type {
   RunEvent,
   RunEventPayloadMap,
   RunEventType,
 } from "../shared/types.js";
 
-export function jsonResponse(data: unknown, status = 200): Response {
+/**
+ * A JSON response for a body of type T (#182). Handlers pass the shared wire
+ * type explicitly — `jsonResponse<ResumeRunResponse>(...)` — so a controller
+ * that stops matching the declared response shape fails the typecheck instead
+ * of shipping a drift.
+ */
+export function jsonResponse<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -117,6 +125,45 @@ function semanticErrorEnvelope(err: unknown): Record<string, unknown> {
 }
 
 /**
+ * The HTTP status for each normalized provider failure. The body is the same
+ * for all of them; only the status tells the caller what kind of failure it is.
+ */
+const PROVIDER_ERROR_STATUS: Readonly<Record<ProviderErrorCode, number>> = {
+  AUTH_INVALID: 401,
+  AUTH_LOCKED: 423,
+  PERMISSION: 403,
+  NOT_FOUND: 404,
+  RATE_LIMITED: 429,
+  UNKNOWN: 502,
+};
+
+/**
+ * The one place a `ProviderError` becomes a response: body
+ * `{ error, code, context, retryAfterMs? }` with a status chosen by code, and a
+ * `Retry-After` header (whole seconds) when the provider said how long to wait.
+ */
+export function providerErrorResponse(err: ProviderError): Response {
+  const response = jsonResponse(
+    {
+      error: err.message,
+      code: err.code,
+      context: err.context,
+      ...(err.retryAfterMs !== undefined
+        ? { retryAfterMs: err.retryAfterMs }
+        : {}),
+    },
+    PROVIDER_ERROR_STATUS[err.code],
+  );
+  if (err.retryAfterMs !== undefined) {
+    response.headers.set(
+      "Retry-After",
+      String(Math.ceil(err.retryAfterMs / 1000)),
+    );
+  }
+  return response;
+}
+
+/**
  * Translates domain/application errors into presentation-layer HTTP responses.
  *
  * One family → status ladder, consulted once: family membership is decided by
@@ -139,7 +186,10 @@ export function translateDomainErrorToHttpResponse(
     );
   }
   if (inErrorFamily(err, ConflictError)) {
-    return errorResponse(message, 409);
+    const code = errorCodeOf(err);
+    return code
+      ? jsonResponse({ error: message, code }, 409)
+      : errorResponse(message, 409);
   }
   if (inErrorFamily(err, SemanticValidationError)) {
     return jsonResponse(semanticErrorEnvelope(err), 409);
@@ -147,6 +197,12 @@ export function translateDomainErrorToHttpResponse(
   if (inErrorFamily(err, GitConfigError)) {
     const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
     return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
+  }
+  if (
+    inErrorFamily(err, ProviderError) &&
+    Object.hasOwn(PROVIDER_ERROR_STATUS, errorCodeOf(err) ?? "")
+  ) {
+    return providerErrorResponse(err as ProviderError);
   }
   if (err instanceof HttpError) {
     return jsonResponse(

@@ -1,7 +1,9 @@
 // test/stabilization-cancellation.test.ts — Tests for atomic stop, stage cancellation, progression CAS, and job allowlist (v5.5).
 
 import { Database } from "bun:sqlite";
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import type { Repositories } from "../src/composition-root.js";
+import { createRepositories } from "../src/composition-root.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -11,11 +13,19 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { stopRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 function setupTest() {
   const db = new Database(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   runMigrations(db);
+  repos = createRepositories(db);
 
   const runRepo = new RunRepository(db);
   const jobRepo = new JobRepository(db);
@@ -49,7 +59,7 @@ function setupTest() {
 describe("Stabilization Pass — Cancellation & Progression CAS", () => {
   // Test 4: Atomic stop
   it("atomically transitions run to stopped, cancels pending/claimed jobs, and creates targeted stop command", async () => {
-    const { db, runRepo, jobRepo, commandRepo, eventRepo, run } = setupTest();
+    const { jobRepo, commandRepo, eventRepo, run } = setupTest();
 
     // Create a claimed job
     const job1 = jobRepo.createJob({
@@ -68,13 +78,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     });
 
     // Execute stopRun
-    const stopped = await stopRun(run.id, {
-      db,
-      runRepo,
-      jobRepo,
-      commandRepo,
-      eventRepo,
-    });
+    const stopped = await stopRun(repos, run.id);
     expect(stopped.status).toBe("stopped");
 
     // Both jobs should be cancelled
@@ -82,7 +86,11 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     expect(jobRepo.getJob(job2.id)?.status).toBe("cancelled");
 
     // Stop command should target active worker and jobId
-    const commands = commandRepo.claimPendingCommands("worker-stop-1", 30000);
+    const commands = commandRepo.claimPendingCommands(
+      "worker-stop-1",
+      30000,
+      30_000,
+    );
     expect(commands.length).toBe(1);
     expect(commands[0]?.command).toBe("stop");
     expect(commands[0]?.targetWorkerId).toBe("worker-stop-1");
@@ -100,15 +108,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
 
   // Test 5: Stop during Verify
   it("handles stop during verify: marks stage attempt cancelled without failure handling or next job", async () => {
-    const {
-      db,
-      runRepo,
-      jobRepo,
-      commandRepo,
-      eventRepo,
-      stageAttemptRepo,
-      run,
-    } = setupTest();
+    const { db, runRepo, jobRepo, stageAttemptRepo, run } = setupTest();
 
     const job = jobRepo.createJob({
       runId: run.id,
@@ -124,7 +124,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
       stage: "execute",
       async execute(): Promise<StageOutcome> {
         // Run is stopped externally while verifying
-        await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
+        await stopRun(repos, run.id);
         return {
           outcome: "passed",
         };
@@ -191,7 +191,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     });
 
     const claimedStop = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === stopCmd.id);
     if (claimedStop) await worker.processCommand(claimedStop);
     else await worker.processCommand(stopCmd);
@@ -205,7 +205,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
 
   // Test 8: Progression CAS guard
   it("prevents stage progression if run was stopped or job cancelled before progression commit", async () => {
-    const { db, runRepo, jobRepo, commandRepo, eventRepo, run } = setupTest();
+    const { db, runRepo, jobRepo, run } = setupTest();
 
     jobRepo.createJob({
       runId: run.id,
@@ -221,7 +221,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     });
 
     // Run is stopped externally before progression commits
-    await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
+    await stopRun(repos, run.id);
 
     // Worker attempts progression
     const committed = (

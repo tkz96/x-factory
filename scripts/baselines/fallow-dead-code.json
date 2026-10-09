@@ -26,7 +26,6 @@
     "unused-type:src/providers/azure-module.ts:AzureConfig",
     "unused-type:src/shared/types.ts:AzureConnectionResult",
     "unused-type:src/shared/types.ts:DiscoveredRepo",
-    "unused-type:src/shared/types.ts:WorkbenchSettings",
     "unused-type:src/store.ts:InternalRun",
     "unused-type:src/types.ts:RunEvent",
     "unused-type:src/types.ts:RunEventPayload",
@@ -60,8 +59,7 @@
   "duplicate_exports": [
     "duplicate-export:ProviderConfigFieldDescriptor:src/frontend/connection/types.ts|src/providers/serializer.ts",
     "duplicate-export:ProviderDescriptor:src/frontend/connection/types.ts|src/providers/serializer.ts",
-    "duplicate-export:VerificationResult:src/frontend/connection/types.ts|src/providers/contract.ts|src/shared/types.ts",
-    "duplicate-export:extractCriteria:src/providers/azure-module.ts|src/providers/jira-module.ts"
+    "duplicate-export:VerificationResult:src/frontend/connection/types.ts|src/providers/contract.ts|src/shared/types.ts"
   ],
   "type_only_dependencies": [],
   "test_only_dependencies": [],

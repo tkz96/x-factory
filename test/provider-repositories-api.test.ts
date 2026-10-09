@@ -11,7 +11,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import type {
   Provider,
-  ProviderError,
+  ProviderErrorEnvelope,
   ProviderRepository,
 } from "../src/providers/contract.js";
 import { startServer } from "../src/server.js";
@@ -68,7 +68,7 @@ const failingDiscoveryProvider: Provider = {
   async listRepositories(): Promise<ProviderRepository[]> {
     throw new Error(PROVIDER_BODY_TEXT);
   },
-  toUserError(_raw, context): ProviderError {
+  toUserError(_raw, context): ProviderErrorEnvelope {
     return { code: "AUTH_INVALID", context };
   },
 };

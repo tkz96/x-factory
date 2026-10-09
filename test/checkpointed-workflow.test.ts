@@ -1,6 +1,10 @@
 // test/checkpointed-workflow.test.ts — End-to-end multi-stage checkpointed workflow tests (XFM-30, XFM-31).
 
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -8,11 +12,19 @@ import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
   function setup() {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
+    repos = createRepositories(db);
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
     const stageAttemptRepo = new StageAttemptRepository(db);
@@ -198,28 +210,22 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     const { CommandRepository } = await import(
       "../src/db/command-repository.js"
     );
-    const { EventRepository } = await import("../src/db/event-repository.js");
     const { createPR } = await import("../src/runs.js");
 
     const commandRepo = new CommandRepository(db);
-    const eventRepo = new EventRepository(db);
 
     // Set run to ready_for_pr
     runRepo.update("run-cp-1", { status: "ready_for_pr" });
 
     // Trigger createPR
-    const prRes = await createPR("run-cp-1", {
-      db,
-      runRepo,
-      commandRepo,
-      eventRepo,
-    });
+    const prRes = await createPR(repos, "run-cp-1");
     expect(prRes.ok).toBe(true);
     expect(prRes.queued).toBe(true);
 
     const pendingCommands = commandRepo.claimPendingCommands(
       "worker-deliver-test",
       30000,
+      30_000,
     );
     expect(pendingCommands.length).toBe(1);
     const cmd = pendingCommands[0];
@@ -244,7 +250,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     });
 
     const claimed = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === cmd.id);
     if (claimed) await worker.processCommand(claimed);
     else await worker.processCommand(cmd);

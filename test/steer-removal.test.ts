@@ -12,6 +12,10 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
@@ -19,15 +23,16 @@ import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
 import type { RunEvent } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
 
+let repos: Repositories;
+
 function setupTest() {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
-  setDbForTesting(db);
+  repos = createRepositories(db);
   const runRepo = new RunRepository(db);
   const eventRepo = new EventRepository(db);
   return { db, runRepo, eventRepo };
@@ -51,9 +56,7 @@ function createRun(runRepo: RunRepository, runId: string) {
   });
 }
 
-afterAll(() => {
-  setDbForTesting(null);
-});
+afterAll(() => {});
 
 describe("Steering removed (#167)", () => {
   it("POST /api/runs/:id/steer returns 404 through handleApi", async () => {
@@ -66,7 +69,7 @@ describe("Steering removed (#167)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Focus on auth.ts" }),
     });
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Endpoint not found." });
@@ -92,6 +95,7 @@ describe("Steering removed (#167)", () => {
     const claimed = commandRepo.claimPendingCommands(
       "worker-steer-leftover",
       30000,
+      30_000,
     );
     const leftover = claimed.find((c) => c.id === commandId);
     expect(leftover).toBeDefined();
@@ -128,7 +132,11 @@ describe("Steering removed (#167)", () => {
     const worker = new Worker({ db, workerId: "worker-live" });
 
     // Step 1: the expired lease hands the row back to the pool.
-    const reclaimed = commandRepo.claimPendingCommands("worker-live", 30000);
+    const reclaimed = commandRepo.claimPendingCommands(
+      "worker-live",
+      30000,
+      30_000,
+    );
     const row = reclaimed.find((c) => c.id === commandId);
     expect(row).toBeDefined();
     expect(row?.status).toBe("claimed");
@@ -142,7 +150,11 @@ describe("Steering removed (#167)", () => {
     expect(updated?.error).toBe('Unsupported command type "steer"');
 
     // Step 3: terminal — never reclaimed again, attempts stay bounded.
-    const again = commandRepo.claimPendingCommands("worker-live", 30000);
+    const again = commandRepo.claimPendingCommands(
+      "worker-live",
+      30000,
+      30_000,
+    );
     expect(again.find((c) => c.id === commandId)).toBeUndefined();
     expect(commandRepo.getCommand(commandId)?.attempts).toBe(2);
   });

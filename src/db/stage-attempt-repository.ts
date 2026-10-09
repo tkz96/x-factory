@@ -182,9 +182,9 @@ export class StageAttemptRepository {
     status: "failed" | "cancelled",
     error: string,
     txDb?: Database,
+    now = new Date().toISOString(),
   ): StageAttemptRecord {
     const db = this.getDb(txDb);
-    const now = new Date().toISOString();
 
     const query = `
       UPDATE stage_attempts
@@ -224,8 +224,9 @@ export class StageAttemptRepository {
     id: string,
     error: string,
     txDb?: Database,
+    now?: string,
   ): StageAttemptRecord {
-    return this.recordTerminalStatus(id, "failed", error, txDb);
+    return this.recordTerminalStatus(id, "failed", error, txDb, now);
   }
 
   /**

@@ -1,7 +1,11 @@
 // test/stabilization-commands.test.ts — Unit tests for command repository, leasing, idempotency, and heartbeats (v5.5).
 
 import { Database } from "bun:sqlite";
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import {
   type CommandRecord,
   CommandRepository,
@@ -12,12 +16,20 @@ import { RunRepository } from "../src/db/run-repository.js";
 import { WorkerHeartbeatRepository } from "../src/db/worker-heartbeat-repository.js";
 import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { createTestRepositories } from "./helpers/composition.js";
 import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 function setupTest() {
   const db = new Database(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   runMigrations(db);
+  repos = createRepositories(db);
 
   const runRepo = new RunRepository(db);
   const commandRepo = new CommandRepository(db);
@@ -75,12 +87,20 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     });
 
     // Worker 1 claims command with short lease (1ms)
-    const claimed1 = commandRepo.claimPendingCommands("worker-1", -1000);
+    const claimed1 = commandRepo.claimPendingCommands(
+      "worker-1",
+      -1000,
+      30_000,
+    );
     expect(claimed1.length).toBe(1);
     expect(claimed1[0]?.workerId).toBe("worker-1");
 
     // Immediately, worker 2 cannot claim if lease was valid, but since lease is in the past, worker 2 claims it
-    const claimed2 = commandRepo.claimPendingCommands("worker-2", 30000);
+    const claimed2 = commandRepo.claimPendingCommands(
+      "worker-2",
+      30000,
+      30_000,
+    );
     expect(claimed2.length).toBe(1);
     expect(claimed2[0]?.workerId).toBe("worker-2");
     expect(claimed2[0]?.attempts).toBe(2);
@@ -130,7 +150,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
     // Surviving worker runs command cycle on stop
     const claimedStop = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === stopCmd.id);
     if (claimedStop) await worker.processCommand(claimedStop);
     else await worker.processCommand(stopCmd);
@@ -245,7 +265,11 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       targetWorkerId: "dead-worker",
     });
 
-    const claimed = commandRepo.claimPendingCommands("surviving-worker", 10000);
+    const claimed = commandRepo.claimPendingCommands(
+      "surviving-worker",
+      10000,
+      30_000,
+    );
 
     expect(commandRepo.getCommand(stopCmd.id)?.status).toBe("completed");
     // Deliver keeps its step-1 handling: not completed, not failed.
@@ -263,35 +287,29 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
   // Test 10: Create PR atomicity & deduplication
   it("createPR returns completed if PR already exists, or queued if deliver command pending", async () => {
-    const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
+    const { commandRepo, run } = setupTest();
 
     // First createPR call queues command
-    const res1 = await createPR(run.id, {
-      db,
-      runRepo,
-      commandRepo,
-      eventRepo,
-    });
+    const res1 = await createPR(repos, run.id);
     expect(res1.ok).toBe(true);
     expect(res1.queued).toBe(true);
 
     // Second concurrent call sees pending command and returns queued without duplicates
-    const res2 = await createPR(run.id, {
-      db,
-      runRepo,
-      commandRepo,
-      eventRepo,
-    });
+    const res2 = await createPR(repos, run.id);
     expect(res2.ok).toBe(true);
     expect(res2.queued).toBe(true);
 
-    const commands = commandRepo.claimPendingCommands("worker-test", 30000);
+    const commands = commandRepo.claimPendingCommands(
+      "worker-test",
+      30000,
+      30_000,
+    );
     expect(commands.length).toBe(1);
   });
 
   // Test 12: Deliver retry on failed command
   it("createPR resets failed deliver command back to pending for retry", async () => {
-    const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
+    const { commandRepo, run } = setupTest();
 
     // Insert failed deliver command
     const cmd = commandRepo.insertOrRetryCommand({
@@ -300,7 +318,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       payload: {},
       idempotencyKey: `deliver:${run.id}`,
     });
-    commandRepo.claimPendingCommands("test-worker-fail", 10000);
+    commandRepo.claimPendingCommands("test-worker-fail", 10000, 30_000);
     commandRepo.failCommand(
       cmd.id,
       "test-worker-fail",
@@ -310,7 +328,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     expect(commandRepo.getCommand(cmd.id)?.status).toBe("failed");
 
     // Operator triggers createPR again
-    const res = await createPR(run.id, { db, runRepo, commandRepo, eventRepo });
+    const res = await createPR(repos, run.id);
     expect(res.ok).toBe(true);
     expect(res.queued).toBe(true);
 

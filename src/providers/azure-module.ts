@@ -11,6 +11,7 @@
 // - parseQuickUrl pre-fills both tracker and git-host drafts
 
 import { z } from "zod/v4";
+import { toTypedProviderConfig } from "./config-validation.js";
 import {
   identityField,
   joinIdentityParts,
@@ -21,8 +22,8 @@ import {
   type FindPullRequestInput,
   type Provider,
   type ProviderConfig,
-  type ProviderError,
   type ProviderErrorContext,
+  type ProviderErrorEnvelope,
   type ProviderPullRequest,
   type ProviderRepository,
   REQUIRED_WORKFLOW_LABEL,
@@ -33,6 +34,7 @@ import {
   type VerificationResult,
   type VerificationWarning,
 } from "./contract.js";
+import { normalizeRawObjectGuard } from "./errors.js";
 import {
   type HttpTransport,
   isHtmlResponse,
@@ -40,6 +42,11 @@ import {
   ProviderHttpError,
   providerFetch,
 } from "./http.js";
+import {
+  emitTruncationWarning,
+  extractAcceptanceCriteria,
+  resolvePageCap,
+} from "./ticket-normalization.js";
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
 export const azureConfigSchema = z.object({
@@ -153,105 +160,25 @@ export class AzureApiError extends ProviderHttpError {
   }
 }
 
-/**
- * Extract canonical organization name from an Azure DevOps URL.
- */
-export function extractOrgNameFromUrl(orgUrl: string): string | null {
-  const trimmed = orgUrl.trim().replace(/\/+$/, "");
-  // dev.azure.com/<org>
-  const devAzureMatch = trimmed.match(
-    /^(?:https?:\/\/)?dev\.azure\.com\/([^/]+)/i,
-  );
-  if (devAzureMatch?.[1]) {
-    return decodeURIComponent(devAzureMatch[1]).toLowerCase();
-  }
-  // <org>.visualstudio.com
-  const vsMatch = trimmed.match(/^(?:https?:\/\/)?([^.]+)\.visualstudio\.com/i);
-  if (vsMatch?.[1]) {
-    return decodeURIComponent(vsMatch[1]).toLowerCase();
-  }
-  // ssh.dev.azure.com:v3/<org>
-  const sshMatch = trimmed.match(/^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)/i);
-  if (sshMatch?.[1]) {
-    return decodeURIComponent(sshMatch[1]).toLowerCase();
-  }
-  return null;
-}
+export { extractOrgNameFromUrl } from "./azure-urls.js";
 
 /**
  * Defect H2 fix: Detect organization vs orgUrl configuration mismatch.
  *
- * Detects whether the configured organization and the org embedded in orgUrl
- * are distinct configurations (also honoring #129 nested-config detection),
- * ensuring they are NEVER silently conflated.
+ * Delegates to the unified legacy migration step (#186), ensuring conflicting
+ * configurations are NEVER silently conflated.
  */
 export function detectOrganizationMismatch(config: Record<string, unknown>): {
   mismatch: boolean;
   error?: string;
 } {
-  const rawOrgUrl =
-    typeof config.orgUrl === "string" ? config.orgUrl.trim() : "";
-  if (!rawOrgUrl) {
-    return { mismatch: false };
+  const typed = toTypedProviderConfig(
+    { id: "azure", configSchema: azureConfigSchema },
+    config,
+  );
+  if (!typed.ok && typed.conflict !== undefined) {
+    return { mismatch: true, error: typed.conflict };
   }
-
-  const embeddedOrg = extractOrgNameFromUrl(rawOrgUrl);
-  if (!embeddedOrg) {
-    return { mismatch: false };
-  }
-
-  // Gather explicit organization candidates across top-level and nested config objects
-  const candidateOrgs: Array<{ source: string; value: string }> = [];
-  const candidateUrls: Array<{ source: string; value: string }> = [];
-
-  const inspect = (prefix: string, obj: unknown) => {
-    if (!obj || typeof obj !== "object") return;
-    const rec = obj as Record<string, unknown>;
-    if (typeof rec.organization === "string" && rec.organization.trim()) {
-      candidateOrgs.push({
-        source: `${prefix}organization`,
-        value: rec.organization.trim(),
-      });
-    }
-    if (typeof rec.org === "string" && rec.org.trim()) {
-      candidateOrgs.push({ source: `${prefix}org`, value: rec.org.trim() });
-    }
-    if (typeof rec.orgUrl === "string" && rec.orgUrl.trim()) {
-      candidateUrls.push({
-        source: `${prefix}orgUrl`,
-        value: rec.orgUrl.trim(),
-      });
-    }
-  };
-
-  inspect("", config);
-  inspect("azure.", config.azure);
-  inspect("tracker.", config.tracker);
-  inspect("gitHost.", config.gitHost);
-
-  // Check for mismatched org names
-  for (const { source, value } of candidateOrgs) {
-    const normalizedCandidate = value.toLowerCase();
-    if (normalizedCandidate !== embeddedOrg) {
-      return {
-        mismatch: true,
-        error: `Configuration mismatch: configured ${source} "${value}" and org in orgUrl "${embeddedOrg}" are distinct configurations and cannot be conflated.`,
-      };
-    }
-  }
-
-  // Check for nested orgUrls conflicting with top-level orgUrl
-  for (const { source, value } of candidateUrls) {
-    if (source === "orgUrl") continue;
-    const nestedEmbeddedOrg = extractOrgNameFromUrl(value);
-    if (nestedEmbeddedOrg && nestedEmbeddedOrg !== embeddedOrg) {
-      return {
-        mismatch: true,
-        error: `Configuration mismatch: nested ${source} "${value}" has organization "${nestedEmbeddedOrg}" which conflicts with orgUrl "${rawOrgUrl}" ("${embeddedOrg}").`,
-      };
-    }
-  }
-
   return { mismatch: false };
 }
 
@@ -328,16 +255,10 @@ export async function azureFetch(
 export function toUserError(
   raw: unknown,
   context: ProviderErrorContext,
-): ProviderError {
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "code" in raw &&
-    "context" in raw &&
-    typeof (raw as Record<string, unknown>).code === "string" &&
-    typeof (raw as Record<string, unknown>).context === "string"
-  ) {
-    return raw as ProviderError;
+): ProviderErrorEnvelope {
+  const fromGuard = normalizeRawObjectGuard(raw, context);
+  if (fromGuard) {
+    return fromGuard;
   }
 
   let status: number | undefined;
@@ -600,14 +521,22 @@ export function createAzureProvider(
     async verifyCredentials(
       config: ProviderConfig,
     ): Promise<VerificationResult> {
-      // 1. Defect H2 fix: Detect organization vs orgUrl mismatch
+      // The adapter reads typed config only: it never searches nested keys.
+      const parsed = azureConfigSchema.safeParse(config);
+      if (!parsed.success) {
+        throw new Error(`Invalid Azure configuration: ${parsed.error.message}`);
+      }
+
+      // Defect H2: a conflicting legacy organization is rejected, never
+      // silently stripped. This is the ONE migration run inside the adapter;
+      // callers already migrated through the shared entry point.
       const mismatch = detectOrganizationMismatch(config);
       if (mismatch.mismatch) {
         throw new Error(mismatch.error);
       }
 
       // 2. Context resolution and authentication
-      const context = await prepareAzureContext(config, executor);
+      const context = await prepareAzureContext(parsed.data, executor);
       const warnings: VerificationWarning[] = [];
 
       // 3. Repository read capability probe
@@ -878,58 +807,96 @@ export function createAzureProvider(
       if (!raw || !Array.isArray(raw.workItems) || raw.workItems.length === 0)
         return [];
 
-      const ids = raw.workItems.map((w) => w.id).slice(0, 50);
-      if (ids.length === 0) return [];
+      const allIds = raw.workItems.map((w) => w.id).filter(Boolean);
+      if (allIds.length === 0) return [];
 
-      const itemsUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/workitems?ids=${ids.join(",")}&api-version=7.1`;
-      const itemsRes = await azureFetch(itemsUrl, {
-        headers: { Authorization: authHeader, Accept: "application/json" },
-        fetchFn: getFetcher(),
-      });
+      const pageCap = resolvePageCap(options);
+      const batchSize = 200;
+      const allTickets: TrackerTicket[] = [];
+      const seenTicketIds = new Set<string>();
+      let pagesFetched = 0;
 
-      const itemsRaw = itemsRes.data as {
-        value?: Array<Record<string, unknown>>;
-      };
-      const items = Array.isArray(itemsRaw?.value) ? itemsRaw.value : [];
+      for (
+        let i = 0;
+        i < allIds.length && pagesFetched < pageCap;
+        i += batchSize
+      ) {
+        pagesFetched++;
+        const idsChunk = allIds.slice(i, i + batchSize);
 
-      return items.map((item: Record<string, unknown>) => {
-        const fields = (item.fields as Record<string, unknown>) || {};
-        const title = String(fields["System.Title"] || "");
-        const rawDesc = String(fields["System.Description"] || "");
-        const rawCriteria = String(
-          fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "",
-        );
-        const desc = stripHtml(rawDesc);
-        const criteriaText = rawCriteria ? stripHtml(rawCriteria) : desc;
-        let criteria = extractCriteria(criteriaText);
-        if (criteria.length === 0 && rawCriteria) {
-          const stripped = stripHtml(rawCriteria).trim();
-          if (stripped) {
-            criteria = stripped
-              .split(/\r?\n/)
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-          }
-        }
-        const tags = String(fields["System.Tags"] || "")
-          .split(";")
-          .map((s: string) => s.trim())
-          .filter(Boolean);
+        const itemsUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/workitems?ids=${idsChunk.join(",")}&api-version=7.1`;
+        const itemsRes = await azureFetch(itemsUrl, {
+          headers: { Authorization: authHeader, Accept: "application/json" },
+          fetchFn: getFetcher(),
+        });
 
-        const fallbackUrl = `${cleanOrgUrl}/${encodedProject}/_workitems/edit/${item.id}`;
-
-        return {
-          id: `AZ-${item.id}`,
-          title,
-          description: desc,
-          acceptanceCriteria: criteria,
-          labels: tags,
-          url:
-            (item._links as { html?: { href?: string } })?.html?.href ||
-            fallbackUrl,
-          provider: "azure" as const,
+        const itemsRaw = itemsRes.data as {
+          value?: Array<Record<string, unknown>>;
         };
-      });
+        const items = Array.isArray(itemsRaw?.value) ? itemsRaw.value : [];
+
+        for (const item of items) {
+          const rawId = item.id;
+          if (rawId === undefined || rawId === null) continue;
+          const ticketId = `AZ-${rawId}`;
+          if (seenTicketIds.has(ticketId)) continue;
+          seenTicketIds.add(ticketId);
+
+          const fields = (item.fields as Record<string, unknown>) || {};
+          const title = String(fields["System.Title"] || "");
+          const rawDesc = String(fields["System.Description"] || "");
+          const rawCriteria = String(
+            fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "",
+          );
+          const desc = stripHtml(rawDesc);
+
+          let criteria: string[] = [];
+          if (rawCriteria) {
+            const strippedCriteria = stripHtml(rawCriteria, {
+              convertHeadings: true,
+            }).trim();
+            if (strippedCriteria) {
+              criteria = extractAcceptanceCriteria(strippedCriteria);
+              if (criteria.length === 0) {
+                criteria = strippedCriteria
+                  .split(/\r?\n/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+              }
+            }
+          } else if (rawDesc) {
+            const criteriaText = stripHtml(rawDesc, {
+              convertHeadings: true,
+            });
+            criteria = extractAcceptanceCriteria(criteriaText);
+          }
+
+          const tags = String(fields["System.Tags"] || "")
+            .split(";")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+
+          const fallbackUrl = `${cleanOrgUrl}/${encodedProject}/_workitems/edit/${rawId}`;
+
+          allTickets.push({
+            id: ticketId,
+            title,
+            description: desc,
+            acceptanceCriteria: criteria,
+            labels: tags,
+            url:
+              (item._links as { html?: { href?: string } })?.html?.href ||
+              fallbackUrl,
+            provider: "azure" as const,
+          });
+        }
+      }
+
+      if (allIds.length > pagesFetched * batchSize && pagesFetched >= pageCap) {
+        emitTruncationWarning("azure", pageCap);
+      }
+
+      return allTickets;
     },
 
     async createPullRequest(
@@ -1101,50 +1068,18 @@ export function normalizeGitRef(branch: string): string {
   return `refs/heads/${trimmed}`;
 }
 
-function isSectionHeader(line: string): boolean {
-  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
-    line,
-  );
-}
-
-function sanitizeLine(line: string): string {
-  return line
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_`]/g, "")
-    .trim();
-}
-
-function parseBulletLine(line: string): string | null {
-  const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
-  return match?.[1] ? sanitizeLine(match[1]) : null;
-}
-
-export function extractCriteria(text: string): string[] {
-  if (!text || typeof text !== "string") return [];
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const headerIdx = lines.findIndex(isSectionHeader);
-  if (headerIdx >= 0) {
-    const sectionLines: string[] = [];
-    for (let i = headerIdx + 1; i < lines.length; i++) {
-      const currentLine = lines[i];
-      if (!currentLine) continue;
-      if (/^#+\s+/.test(currentLine)) break;
-      const bullet = parseBulletLine(currentLine);
-      if (bullet) sectionLines.push(bullet);
-      else if (currentLine.length > 5)
-        sectionLines.push(sanitizeLine(currentLine));
-    }
-    return sectionLines;
-  }
-  return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
-}
-
-export function stripHtml(html: string): string {
+export function stripHtml(
+  html: string,
+  options?: { convertHeadings?: boolean },
+): string {
   if (!html) return "";
-  return html
+  let text = html;
+  if (options?.convertHeadings) {
+    text = text
+      .replace(/<h[1-6][^>]*>/gi, "\n## ")
+      .replace(/<\/h[1-6]>/gi, "\n");
+  }
+  return text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<li>/gi, "- ")

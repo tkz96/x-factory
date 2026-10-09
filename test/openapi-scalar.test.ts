@@ -1,11 +1,19 @@
 // test/openapi-scalar.test.ts — Unit and route tests for OpenAPI 3.1.0 specification and Scalar API Reference integration.
 
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Repositories } from "../src/composition-root.js";
 import { getOpenApiSpec } from "../src/http/openapi.js";
 import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, "..", "public");
@@ -154,7 +162,7 @@ describe("OpenAPI 3.1 Specification Engine", () => {
 describe("OpenAPI HTTP Endpoint Routing", () => {
   it("serves OpenAPI spec at /api/openapi.json", async () => {
     const req = new Request("http://localhost:3777/api/openapi.json");
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe(
       "application/json; charset=utf-8",
@@ -166,7 +174,7 @@ describe("OpenAPI HTTP Endpoint Routing", () => {
 
   it("serves OpenAPI spec at /api/openapi alias", async () => {
     const req = new Request("http://localhost:3777/api/openapi");
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.openapi).toBe("3.1.0");

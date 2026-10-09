@@ -201,19 +201,41 @@ export class CommandRepository {
   }
 
   /**
+   * The one place a claimed command with a spent retry budget and an expired
+   * lease becomes failed. Returns how many commands it failed.
+   */
+  failExpiredCommands(now: string, txDb?: Database): number {
+    const conn = txDb || this.db;
+    return conn
+      .prepare(`
+        UPDATE run_commands
+        SET status = 'failed',
+            worker_id = NULL,
+            lease_until = NULL,
+            error = 'Command lease expired; retries exhausted',
+            processed_at = $now
+        WHERE status = 'claimed' AND lease_until < $now AND attempts >= max_attempts;
+      `)
+      .run({ $now: now }).changes;
+  }
+
+  /**
    * Claims all eligible pending commands for the given worker, resolving stale target workers.
    */
   claimPendingCommands(
     workerId: string,
-    leaseDurationMs = 30000,
-    heartbeatTtlMs = 30000,
+    leaseDurationMs: number,
+    heartbeatTtlMs: number,
     txDb?: Database,
+    nowMs = Date.now(),
   ): CommandRecord[] {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
     const cutoff = new Date(nowMs - heartbeatTtlMs).toISOString();
+
+    // Expired commands with no retries left are failed first by the lease
+    // module (`failExpiredCommands`), so the claim below never sees them.
 
     // 1. Resolve stale targeted commands (where target is a different worker)
     const pendingTargeted = conn
@@ -321,9 +343,9 @@ export class CommandRepository {
     workerId: string,
     result?: unknown,
     txDb?: Database,
+    now = new Date().toISOString(),
   ): boolean {
     const conn = txDb || this.db;
-    const now = new Date().toISOString();
     const serializedResult =
       result !== undefined
         ? typeof result === "string"
@@ -356,9 +378,9 @@ export class CommandRepository {
     workerId: string,
     error: string,
     txDb?: Database,
+    now = new Date().toISOString(),
   ): boolean {
     const conn = txDb || this.db;
-    const now = new Date().toISOString();
 
     const cmd = this.getCommand(id, conn);
     if (!cmd) return false;
@@ -390,9 +412,9 @@ export class CommandRepository {
     workerId: string,
     leaseDurationMs: number,
     txDb?: Database,
+    nowMs = Date.now(),
   ): boolean {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
     const res = conn

@@ -10,11 +10,12 @@
 // 7. configSchema is Zod with secret-field metadata; serializes through generic serializer
 // 8. Zero-mock tests except at the HTTP boundary
 
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
+import { toTypedProviderConfig } from "../src/providers/config-validation.js";
 import {
   hasCapability,
   isProviderError,
-  type ProviderError,
+  type ProviderErrorEnvelope,
   REQUIRED_WORKFLOW_LABEL,
 } from "../src/providers/contract.js";
 import {
@@ -27,6 +28,7 @@ import {
   resolveGitHubConfig,
   toGitHubUserError,
 } from "../src/providers/github-module.js";
+import { migrateLegacyProviderConfig } from "../src/providers/legacy-migration.js";
 import {
   getProvider,
   listProviders,
@@ -39,6 +41,21 @@ import {
 import { startServer } from "../src/server.js";
 import { jsonResponse, textResponse } from "./helpers/provider-test-helper.js";
 
+/**
+ * The path every caller takes: raw config -> the shared entry point (legacy
+ * migration, conflicts rejected, then the schema) -> the adapter (#186).
+ */
+async function verifyScopesThroughEntryPoint(
+  provider: ReturnType<typeof createGithubProvider>,
+  raw: Record<string, unknown>,
+) {
+  const typed = toTypedProviderConfig(provider, raw);
+  if (!typed.ok) {
+    throw new Error(typed.conflict ?? "Invalid GitHub configuration");
+  }
+  return provider.verifyScopes?.(typed.config);
+}
+
 describe("GitHub Provider Module (Ticket #138)", () => {
   describe("Registration & Contract Conformance", () => {
     it("is registered in the static provider registry with expected identity and roles", () => {
@@ -50,7 +67,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(provider?.iconRef).toBe("provider-github");
 
       const required = requireProvider("github");
-      expect(required).toBe(githubProvider);
+      expect(required.id).toBe(githubProvider.id);
+      expect(Object.getPrototypeOf(required)).toBe(githubProvider);
 
       const all = listProviders();
       expect(all.some((p) => p.id === "github")).toBe(true);
@@ -84,7 +102,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(descriptor?.capabilities).toContain("parseQuickUrl");
 
       const fields = serializeProviderConfigSchema(githubProvider.configSchema);
-      expect(fields.length).toBe(3);
+      expect(fields.length).toBe(4);
 
       const tokenField = fields.find((f) => f.name === "token");
       expect(tokenField).toBeDefined();
@@ -183,10 +201,10 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           repository: "backend-service",
         },
       };
-      const resolved = resolveGitHubConfig(config);
+      const resolved = migrateLegacyProviderConfig("github", config);
       expect(resolved.token).toBe("ghp_githost_token");
-      expect(resolved.owner).toBe("enterprise-org");
-      expect(resolved.repo).toBe("backend-service");
+      expect(resolved.repoOwner).toBe("enterprise-org");
+      expect(resolved.repository).toBe("backend-service");
     });
 
     it("resolves nested configurations inside connections array (#131 payload shape)", () => {
@@ -202,9 +220,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           },
         ],
       };
-      const resolved = resolveGitHubConfig(config);
+      const resolved = migrateLegacyProviderConfig("github", config);
       expect(resolved.token).toBe("ghp_conn_token");
-      expect(resolved.owner).toBe("vendifai");
+      expect(resolved.repoOwner).toBe("vendifai");
     });
 
     it("detects and rejects conflicting owner configurations across nested objects (#129)", () => {
@@ -220,9 +238,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(check.error).toContain("org-alpha");
       expect(check.error).toContain("org-beta");
 
-      expect(() => resolveGitHubConfig(conflictingOwner)).toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingOwner),
+      ).toThrow(/Configuration mismatch/);
     });
 
     it("detects and rejects conflicting token values across nested objects (#129)", () => {
@@ -235,9 +253,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(conflictingToken);
       expect(check.mismatch).toBe(true);
       expect(check.error).toContain("conflicting token values");
-      expect(() => resolveGitHubConfig(conflictingToken)).toThrow(
-        /conflicting token values/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingToken),
+      ).toThrow(/conflicting token values/);
     });
 
     it("detects and rejects conflicting repository values across nested objects (#129)", () => {
@@ -250,9 +268,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(conflictingRepo);
       expect(check.mismatch).toBe(true);
       expect(check.error).toContain("Configuration mismatch");
-      expect(() => resolveGitHubConfig(conflictingRepo)).toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingRepo),
+      ).toThrow(/Configuration mismatch/);
     });
 
     it("accepts consistent nested configurations without error", () => {
@@ -265,8 +283,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       };
       const check = detectGitHubConfigMismatch(consistent);
       expect(check.mismatch).toBe(false);
-      const resolved = resolveGitHubConfig(consistent);
-      expect(resolved.owner).toBe("my-org");
+      const resolved = migrateLegacyProviderConfig("github", consistent);
+      expect(resolved.repoOwner).toBe("my-org");
       expect(resolved.token).toBe("ghp_token_123");
     });
 
@@ -290,9 +308,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(mixedConfig);
       expect(check.mismatch).toBe(false);
 
-      const resolved = resolveGitHubConfig(mixedConfig);
-      expect(resolved.owner).toBe("acme-corp");
-      expect(resolved.repo).toBe("core-repo");
+      const resolved = migrateLegacyProviderConfig("github", mixedConfig);
+      expect(resolved.repoOwner).toBe("acme-corp");
+      expect(resolved.repository).toBe("core-repo");
       expect(resolved.token).toBe("ghp_github_secret_token");
     });
 
@@ -323,9 +341,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(mixedConnections);
       expect(check.mismatch).toBe(false);
 
-      const resolved = resolveGitHubConfig(mixedConnections);
-      expect(resolved.owner).toBe("enterprise-org");
-      expect(resolved.repo).toBe("service-repo");
+      const resolved = migrateLegacyProviderConfig("github", mixedConnections);
+      expect(resolved.repoOwner).toBe("enterprise-org");
+      expect(resolved.repository).toBe("service-repo");
       expect(resolved.token).toBe("ghp_conn_token");
     });
 
@@ -351,9 +369,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(conflictingMixed);
       expect(check.mismatch).toBe(true);
       expect(check.error).toContain("Configuration mismatch");
-      expect(() => resolveGitHubConfig(conflictingMixed)).toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingMixed),
+      ).toThrow(/Configuration mismatch/);
     });
 
     it("accepts identical nested baseUrl values including trailing-slash differences", () => {
@@ -365,7 +383,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       };
       const check = detectGitHubConfigMismatch(identicalBaseUrl);
       expect(check.mismatch).toBe(false);
-      const resolved = resolveGitHubConfig(identicalBaseUrl);
+      const resolved = migrateLegacyProviderConfig("github", identicalBaseUrl);
       expect(resolved.baseUrl).toBe("https://api.github.com");
     });
 
@@ -381,9 +399,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(check.error).toContain("Configuration mismatch");
       expect(check.error).toContain("baseUrl");
 
-      expect(() => resolveGitHubConfig(conflictingBaseUrl)).toThrow(
-        /Configuration mismatch.*baseUrl/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingBaseUrl),
+      ).toThrow(/Configuration mismatch.*baseUrl/);
     });
   });
 
@@ -533,7 +551,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
     });
 
     it("forwards a genuine provider error unchanged (code preserved, context re-scoped)", () => {
-      const genuine: ProviderError = {
+      const genuine: ProviderErrorEnvelope = {
         code: "RATE_LIMITED",
         context: "DISCOVERY",
         retryAfterMs: 5000,
@@ -700,12 +718,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
-      const repos = await provider.listRepositories?.({
-        gitHost: {
-          token: "ghp_valid_token",
-          repoOwner: "acme",
-        },
-      });
+      const repos = await provider.listRepositories?.(
+        migrateLegacyProviderConfig("github", {
+          gitHost: {
+            token: "ghp_valid_token",
+            repoOwner: "acme",
+          },
+        }),
+      );
 
       expect(repos).toHaveLength(2);
       expect(repos?.[0]).toEqual({
@@ -1362,13 +1382,13 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
       const tickets = await provider.listTickets?.(
-        {
+        migrateLegacyProviderConfig("github", {
           tracker: {
             token: "ghp_tracker_token",
             repoOwner: "octocat",
             repository: "tracker-repo",
           },
-        },
+        }),
         { requiredLabel: REQUIRED_WORKFLOW_LABEL },
       );
 
@@ -1470,6 +1490,75 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       expect(calls).toBe(1);
       expect(tickets?.map((ticket) => ticket.id)).toEqual(["GH-303"]);
+    });
+
+    it("fires truncation warning when GitHub pagination reaches page cap, and does not fire when within cap (#185)", async () => {
+      const pageOne = `https://api.github.com/repos/octocat/hello-world/issues?state=open&per_page=100&labels=${encodeURIComponent(REQUIRED_WORKFLOW_LABEL)}`;
+      const pageTwo = `${pageOne}&page=2`;
+
+      const issue = (number: number) => ({
+        number,
+        title: `Issue ${number}`,
+        body: "Acceptance Criteria:\n- Done",
+        labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+        html_url: `https://github.com/octocat/hello-world/issues/${number}`,
+      });
+
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        if (urlStr === pageOne) {
+          return jsonResponse([issue(1)], {
+            status: 200,
+            headers: {
+              link: `<${pageTwo}>; rel="next"`,
+            },
+          });
+        }
+        return jsonResponse([issue(2)], {
+          status: 200,
+        });
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+
+      // Case 1: Cap is 1, but page 1 has next link -> truncation occurs!
+      const warnCalls: string[] = [];
+      const warnSpy = spyOn(console, "warn").mockImplementation(
+        (msg: string) => {
+          warnCalls.push(String(msg));
+        },
+      );
+
+      try {
+        await provider.listTickets?.(
+          {
+            token: "ghp_token",
+            repoOwner: "octocat",
+            repository: "hello-world",
+          },
+          { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 1 },
+        );
+
+        expect(warnCalls).toHaveLength(1);
+        expect(warnCalls[0]).toContain("github");
+        expect(warnCalls[0]).toContain("1");
+        expect(warnCalls[0]).toContain("truncated");
+
+        // Case 2: Cap is 2, and all 2 pages are fetched -> NO truncation warning!
+        warnCalls.length = 0;
+        await provider.listTickets?.(
+          {
+            token: "ghp_token",
+            repoOwner: "octocat",
+            repository: "hello-world",
+          },
+          { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 2 },
+        );
+
+        expect(warnCalls).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 
@@ -1726,9 +1815,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         token: "ghp_token_one",
         gitHost: { token: "ghp_token_two" },
       };
-      await expect(provider.verifyScopes?.(conflictingToken)).rejects.toThrow(
-        /conflicting token values/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingToken),
+      ).toThrow(/conflicting token values/);
+      expect(httpCalls).toBe(0);
+      // The entry point a caller uses rejects it before the adapter runs.
+      await expect(
+        verifyScopesThroughEntryPoint(provider, conflictingToken),
+      ).rejects.toThrow(/conflicting token values/);
       expect(httpCalls).toBe(0);
 
       // Conflicting nested owner
@@ -1737,9 +1831,13 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         repoOwner: "org-alpha",
         github: { repoOwner: "org-beta" },
       };
-      await expect(provider.verifyScopes?.(conflictingOwner)).rejects.toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingOwner),
+      ).toThrow(/Configuration mismatch/);
+      expect(httpCalls).toBe(0);
+      await expect(
+        verifyScopesThroughEntryPoint(provider, conflictingOwner),
+      ).rejects.toThrow(/Configuration mismatch/);
       expect(httpCalls).toBe(0);
 
       // Consistent nested configuration works
@@ -1747,7 +1845,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         token: "ghp_valid_token",
         github: { token: "ghp_valid_token" },
       };
-      const report = await provider.verifyScopes?.(consistent);
+      const report = await verifyScopesThroughEntryPoint(provider, consistent);
       expect(report).toBeDefined();
       expect(httpCalls).toBe(1);
     });
@@ -1830,5 +1928,37 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(data.providerId).toBe("github");
       expect(data.inferredName).toBe("react");
     });
+  });
+});
+
+describe("resolveGitHubConfig on typed config (#186)", () => {
+  it("resolves owner, repo, token and baseUrl from the entry point's output", () => {
+    const typed = toTypedProviderConfig(createGithubProvider(), {
+      gitHost: { githubToken: "ghp_t", owner: "enterprise-org", repo: "svc" },
+      baseUrl: "https://ghe.example.com/api/v3",
+    });
+    expect(typed.ok).toBe(true);
+    if (!typed.ok) return;
+    expect(resolveGitHubConfig(typed.config)).toEqual({
+      token: "ghp_t",
+      owner: "enterprise-org",
+      repo: "svc",
+      baseUrl: "https://ghe.example.com/api/v3",
+    });
+  });
+
+  it("the entry point rejects every conflicting shape the resolver used to reject", () => {
+    for (const conflicting of [
+      { token: "a", gitHost: { token: "b" } },
+      { token: "a", repoOwner: "x", github: { repoOwner: "y" } },
+      { repository: "one", gitHost: { repo: "two" } },
+      {
+        baseUrl: "https://a.example.com",
+        github: { baseUrl: "https://b.example.com" },
+      },
+    ]) {
+      const typed = toTypedProviderConfig(createGithubProvider(), conflicting);
+      expect(typed.ok).toBe(false);
+    }
   });
 });

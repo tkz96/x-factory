@@ -1,35 +1,24 @@
 // src/diagnostics/worker-registry.ts — SQLite-backed registry for active worker heartbeats (XFM-69, XFM-70).
+//
+// The heartbeat repository is passed in by the caller, who holds the process's
+// one connection (composition root, #169). Nothing here pins a connection.
 
 import os from "node:os";
-import { WorkerHeartbeatRepository } from "../db/worker-heartbeat-repository.js";
-import { getDb } from "../runs.js";
-
-let heartbeatRepo: WorkerHeartbeatRepository | null = null;
-
-function getHeartbeatRepo(): WorkerHeartbeatRepository {
-  if (!heartbeatRepo) {
-    heartbeatRepo = new WorkerHeartbeatRepository(getDb());
-  }
-  return heartbeatRepo;
-}
-
-export function setHeartbeatRepoForTesting(
-  repo: WorkerHeartbeatRepository | null,
-): void {
-  heartbeatRepo = repo;
-}
+import type { WorkerHeartbeatRepository } from "../db/worker-heartbeat-repository.js";
+import type { LeaseManager } from "../lease.js";
 
 /**
  * Registers or updates a worker's heartbeat timestamp in SQLite.
  */
 export function registerWorkerHeartbeat(
+  heartbeats: WorkerHeartbeatRepository,
   workerId: string,
   metadata?: { hostname?: string | undefined; pid?: number | undefined },
 ): void {
   const pid = metadata?.pid ?? process.pid;
   const hostname = metadata?.hostname ?? os.hostname();
   try {
-    getHeartbeatRepo().upsert(workerId, pid, hostname);
+    heartbeats.upsert(workerId, pid, hostname);
   } catch {
     // Ignore if table does not exist yet (e.g. unmigrated database)
   }
@@ -38,31 +27,30 @@ export function registerWorkerHeartbeat(
 /**
  * Removes a worker from the active registry on shutdown.
  */
-export function unregisterWorker(workerId: string): void {
+export function unregisterWorker(
+  heartbeats: WorkerHeartbeatRepository,
+  workerId: string,
+): void {
   try {
-    getHeartbeatRepo().remove(workerId);
+    heartbeats.remove(workerId);
   } catch {
     // Ignore if table does not exist
   }
 }
 
 /**
- * Returns a list of all currently active workers whose heartbeat is within ttlMs.
+ * Returns a list of all currently active workers, by the lease module's policy and clock.
  */
 export function getActiveWorkers(
-  ttlMs = 30000,
+  lease: LeaseManager,
 ): Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }> {
   try {
-    const now = Date.now();
-    const records = getHeartbeatRepo().getActiveWorkers(ttlMs);
-    return records.map((r) => {
-      const ageMs = Math.max(0, now - new Date(r.lastHeartbeat).getTime());
-      return {
-        workerId: r.workerId,
-        lastHeartbeatAt: r.lastHeartbeat,
-        ageMs,
-      };
-    });
+    const now = lease.nowMs();
+    return lease.activeWorkers().map((r) => ({
+      workerId: r.workerId,
+      lastHeartbeatAt: r.lastHeartbeat,
+      ageMs: Math.max(0, now - new Date(r.lastHeartbeat).getTime()),
+    }));
   } catch {
     return [];
   }
@@ -71,18 +59,6 @@ export function getActiveWorkers(
 /**
  * Evaluates whether at least one worker is active and healthy via SQLite.
  */
-export function isWorkerReady(ttlMs = 30000): boolean {
-  return getHeartbeatRepo().isReady(ttlMs);
-}
-
-/**
- * Clears the registry for test isolation.
- */
-export function resetWorkerRegistryForTesting(): void {
-  heartbeatRepo = null;
-  try {
-    getDb().prepare("DELETE FROM worker_heartbeats;").run();
-  } catch {
-    // ignore if table doesn't exist yet in mock tests
-  }
+export function isWorkerReady(lease: LeaseManager): boolean {
+  return lease.isReady();
 }

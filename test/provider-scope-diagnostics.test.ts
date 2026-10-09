@@ -31,6 +31,7 @@ import { handleApi } from "../src/http/routes.js";
 import type { Provider, ProviderConfig } from "../src/providers/contract.js";
 import type { ProviderRegistry } from "../src/providers/registry.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
+import { createTestRepositories } from "./helpers/composition.js";
 
 const STORED_HOST = "https://stored.example";
 const STORED_PROJECT = "StoredProject";
@@ -163,7 +164,10 @@ function api(method: string, route: string, body?: unknown): Promise<Response> {
     init.headers = { "Content-Type": "application/json" };
     init.body = JSON.stringify(body);
   }
-  return handleApi(new Request(url, init), url, registry);
+  return handleApi(new Request(url, init), url, {
+    repos: createTestRepositories(),
+    providerRegistry: registry,
+  });
 }
 
 /**

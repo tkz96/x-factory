@@ -7,8 +7,10 @@ import {
   createAzureProvider,
   toUserError as toAzureUserError,
 } from "../src/providers/azure-module.js";
+import { ProviderError } from "../src/providers/errors.js";
 import { GitHubHttpError } from "../src/providers/github/errors.js";
 import { githubFetch } from "../src/providers/github/http.js";
+import { createGithubProvider } from "../src/providers/github-module.js";
 import {
   ProviderHttpError,
   parseRetryAfter,
@@ -19,6 +21,7 @@ import {
   JiraHttpError,
   toJiraUserError,
 } from "../src/providers/jira-module.js";
+import { wrapProvider } from "../src/providers/registry.js";
 import {
   createInMemoryTransport,
   htmlResponse,
@@ -626,6 +629,209 @@ describe("Provider HTTP Module (#173)", () => {
         expect(
           toJiraUserError(new Error("id 14290 missing"), "VERIFY").code,
         ).toBe("UNKNOWN");
+      });
+    });
+  });
+
+  describe("Normalized provider errors at provider transport seam (#184)", () => {
+    describe("AC 1: Raw-object guard on in-memory adapters", () => {
+      it("normalizes an object with code, context and extra fields to UNKNOWN across all adapters", () => {
+        const jira = createJiraProvider({
+          fetchFn: createInMemoryTransport([]),
+        });
+        const azure = createAzureProvider({
+          fetchFn: createInMemoryTransport([]),
+        });
+        const github = createGithubProvider({
+          fetchFn: createInMemoryTransport([]),
+        });
+
+        const impostor = {
+          code: "AUTH_INVALID",
+          context: "VERIFY",
+          extra: "leaked-secret",
+        };
+
+        expect(jira.toUserError(impostor, "VERIFY")).toEqual({
+          code: "UNKNOWN",
+          context: "VERIFY",
+        });
+        expect(azure.toUserError(impostor, "VERIFY")).toEqual({
+          code: "UNKNOWN",
+          context: "VERIFY",
+        });
+        expect(github.toUserError(impostor, "VERIFY")).toEqual({
+          code: "UNKNOWN",
+          context: "VERIFY",
+        });
+      });
+    });
+
+    describe("AC 2: Ticket-listing and PR errors reach caller as normalized messages, never raw text", () => {
+      it("wrapped Jira provider listTickets throws ProviderError with normalized message on 401", async () => {
+        const transport = createInMemoryTransport([
+          {
+            match: "/rest/api/3/search/jql",
+            handler: textResponse(
+              "Raw Jira error dump: com.atlassian.jira.security.login.SSOAuthException",
+              { status: 401 },
+            ),
+          },
+        ]);
+        const provider = wrapProvider(
+          createJiraProvider({ fetchFn: transport }),
+        );
+        if (!provider.listTickets) throw new Error("listTickets missing");
+
+        try {
+          await provider.listTickets(
+            {
+              host: "https://acme.atlassian.net",
+              email: "dev@example.com",
+              apiToken: "bad-token",
+              project: "ACME",
+            },
+            { requiredLabel: "agentic-workflow" },
+          );
+          expect().fail("listTickets should have thrown");
+        } catch (err: unknown) {
+          expect(err).toBeInstanceOf(ProviderError);
+          const pErr = err as ProviderError;
+          expect(pErr.code).toBe("AUTH_INVALID");
+          expect(pErr.context).toBe("TICKETS");
+          expect(pErr.message).toBe(
+            "The credentials were rejected while loading tickets. Check the token and try again.",
+          );
+          expect(pErr.message).not.toContain("SSOAuthException");
+          expect(pErr.message).not.toContain("Raw Jira error");
+        }
+      });
+
+      it("wrapped Azure provider listTickets throws ProviderError with normalized message on 403", async () => {
+        const transport = createInMemoryTransport([
+          {
+            match: "/_apis/wit/wiql",
+            handler: textResponse(
+              "TF400813: The user 'foo' is not authorized to access this resource: Work Item Read",
+              { status: 403 },
+            ),
+          },
+        ]);
+        const provider = wrapProvider(
+          createAzureProvider({ fetchFn: transport }),
+        );
+        if (!provider.listTickets) throw new Error("listTickets missing");
+
+        try {
+          await provider.listTickets(
+            {
+              orgUrl: "https://dev.azure.com/acme",
+              project: "Proj",
+              pat: "token",
+            },
+            { requiredLabel: "agentic-workflow" },
+          );
+          expect().fail("listTickets should have thrown");
+        } catch (err: unknown) {
+          expect(err).toBeInstanceOf(ProviderError);
+          const pErr = err as ProviderError;
+          expect(pErr.code).toBe("PERMISSION");
+          expect(pErr.context).toBe("TICKETS");
+          expect(pErr.message).toBe(
+            "The token does not have the permissions required to load tickets.",
+          );
+          expect(pErr.message).not.toContain("TF400813");
+          expect(pErr.message).not.toContain("Work Item Read");
+        }
+      });
+
+      it("wrapped GitHub provider createPullRequest throws ProviderError with normalized message on 401", async () => {
+        const transport = createInMemoryTransport([
+          {
+            match: "/repos/acme/repo/pulls",
+            handler: jsonResponse(
+              { message: "Bad credentials dump: internal auth trace" },
+              { status: 401 },
+            ),
+          },
+        ]);
+        const provider = wrapProvider(
+          createGithubProvider({ fetchFn: transport }),
+        );
+        if (!provider.createPullRequest)
+          throw new Error("createPullRequest missing");
+
+        try {
+          await provider.createPullRequest(
+            { token: "bad-token", repoOwner: "acme", repository: "repo" },
+            {
+              repository: "acme/repo",
+              title: "feat: something",
+              description: "desc",
+              sourceBranch: "feat",
+              targetBranch: "main",
+            },
+          );
+          expect().fail("createPullRequest should have thrown");
+        } catch (err: unknown) {
+          expect(err).toBeInstanceOf(ProviderError);
+          const pErr = err as ProviderError;
+          expect(pErr.code).toBe("AUTH_INVALID");
+          expect(pErr.context).toBe("PR");
+          expect(pErr.message).toBe(
+            "The credentials were rejected while creating the pull request. Check the token and try again.",
+          );
+          expect(pErr.message).not.toContain("Bad credentials dump");
+          expect(pErr.message).not.toContain("internal auth trace");
+        }
+      });
+
+      it("wrapped Azure provider createPullRequest throws ProviderError with normalized message and retryAfterMs on 429", async () => {
+        const transport = createInMemoryTransport([
+          {
+            match: "/_apis/git/repositories/repo-1/pullrequests",
+            handler: textResponse(
+              "TF400733: The request has been blocked due to exceeding usage of resource.",
+              {
+                status: 429,
+                headers: { "Retry-After": "30" },
+              },
+            ),
+          },
+        ]);
+        const provider = wrapProvider(
+          createAzureProvider({ fetchFn: transport }),
+        );
+        if (!provider.createPullRequest)
+          throw new Error("createPullRequest missing");
+
+        try {
+          await provider.createPullRequest(
+            {
+              orgUrl: "https://dev.azure.com/acme",
+              project: "Proj",
+              pat: "token",
+            },
+            {
+              repository: "repo-1",
+              title: "feat: something",
+              description: "desc",
+              sourceBranch: "feat",
+              targetBranch: "main",
+            },
+          );
+          expect().fail("createPullRequest should have thrown");
+        } catch (err: unknown) {
+          expect(err).toBeInstanceOf(ProviderError);
+          const pErr = err as ProviderError;
+          expect(pErr.code).toBe("RATE_LIMITED");
+          expect(pErr.context).toBe("PR");
+          expect(pErr.retryAfterMs).toBe(30_000);
+          expect(pErr.message).toBe(
+            "The provider is limiting requests, so the pull request could not be created. Wait a moment, then try again.",
+          );
+          expect(pErr.message).not.toContain("TF400733");
+        }
       });
     });
   });
