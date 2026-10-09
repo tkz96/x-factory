@@ -3,12 +3,13 @@
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
-import type { RunEvent, RunStatus } from "../shared/types.js";
+import type { RunStatus } from "../shared/types.js";
 import {
   catchHttpErrors,
   errorResponse,
   formatSSEMessage,
   jsonResponse,
+  toWireEvent,
   withValidatedBody,
 } from "./responses.js";
 import {
@@ -146,12 +147,7 @@ function handleRunEvents(runId: string, req?: Request): Response {
             sinceSequence: lastSequence,
           });
           for (const event of events) {
-            const wireEvent: RunEvent = {
-              id: event.sequence,
-              type: event.type,
-              payload: event.payload,
-              timestamp: event.createdAt,
-            } as RunEvent;
+            const wireEvent = toWireEvent(event);
             controller.enqueue(encoder.encode(formatSSEMessage(wireEvent)));
             lastSequence = event.sequence;
 

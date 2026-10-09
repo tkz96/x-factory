@@ -1,178 +1,272 @@
 // test/run-event-union.test.ts — Discriminated union of run events matching what the server emits (#171).
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import React from "react";
 import { renderToString } from "react-dom/server";
+import { runAttemptLoop } from "../src/attempt-loop.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
+import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
+import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
 import { RunRepository } from "../src/db/run-repository.js";
+import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import { PlanExecutor } from "../src/executors/plan.js";
+import { ReviewExecutor } from "../src/executors/review.js";
+import type { StageContext } from "../src/executors/types.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting, steerRun } from "../src/runs.js";
+import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type {
-  ChatAgentPayload,
-  ChatUserPayload,
-  ErrorEventPayload,
-  InfoEventPayload,
-  PiOutputChunkPayload,
-  PrStepPayload,
   PullRequest,
-  RalphProgressPayload,
-  ReviewEventPayload,
-  ReviewResult,
   Run,
   RunEvent,
-  RunEventPayload,
-  RunEventPayloadMap,
-  RunEventType,
-  StageEvidencePayload,
-  StatusEventPayload,
-  SteerEventPayload,
-  UserFeedbackPayload,
-  VerificationEventPayload,
   VerificationResult,
 } from "../src/shared/types.js";
+import {
+  PASSING_REVIEW_OUTPUT,
+  scriptedReviewSession,
+} from "./helpers/scripted-review-session.js";
 
 describe("Shared run-event union (#171)", () => {
-  it("includes all emitted event types in the union including steer", () => {
-    // Literal expectation of the canonical emitted run event types
-    const expectedTypes: readonly RunEventType[] = [
-      "status",
-      "stage_evidence",
-      "pr_step",
-      "chat_user",
-      "chat_agent",
-      "user_feedback",
-      "pi_output_chunk",
-      "verification",
-      "review",
-      "ralph_progress",
-      "steer",
-      "info",
-      "error",
-    ];
+  it("real producers write expected payload shapes: chat, steering, and transitions", async () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+    setDbForTesting(db);
 
-    expect(expectedTypes).toHaveLength(13);
+    const runRepo = new RunRepository(db);
+    const eventRepo = new EventRepository(db);
+    const runId = "run-producer-lifecycle-test";
 
-    // Static type assertion: every expected type is a valid RunEventType
-    for (const t of expectedTypes) {
-      expect(typeof t).toBe("string");
+    runRepo.create({
+      id: runId,
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-1", title: "Ticket 1", acceptanceCriteria: ["AC 1"] },
+      plan: "Plan",
+      branch: "factory/t-1",
+      status: "awaiting_plan_approval",
+      artifactsDir: `/tmp/artifacts-${runId}`,
+      worktreePath: `/tmp/worktrees-${runId}`,
+    });
+
+    // 1. chatWithRun producer via handleApi (emits chat_user and chat_agent)
+    const errSpy = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const chatReq = new Request(`http://localhost/api/runs/${runId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Can we verify edge cases?" }),
+      });
+      const chatRes = await handleApi(chatReq, new URL(chatReq.url));
+      expect(chatRes.status).toBe(200);
+    } finally {
+      errSpy.mockRestore();
     }
 
-    // Static check: "steer" must be assignable to RunEventType
-    type IsSteerInUnion = "steer" extends RunEventType ? true : false;
-    const steerInUnion: IsSteerInUnion = true;
-    expect(steerInUnion).toBe(true);
+    const eventsAfterChat = eventRepo.getEventsForRun(runId);
+    const chatUserEvt = eventsAfterChat.find((e) => e.type === "chat_user");
+    expect(chatUserEvt).toBeDefined();
+    expect(chatUserEvt?.payload).toEqual({ text: "Can we verify edge cases?" });
 
-    // Static check: RunEventPayloadMap maps each type to its payload
-    type StatusPayloadFromMap = RunEventPayloadMap["status"];
-    const testStatusPayload: StatusPayloadFromMap = { status: "queued" };
-    expect(testStatusPayload.status).toBe("queued");
+    const chatAgentEvt = eventsAfterChat.find((e) => e.type === "chat_agent");
+    expect(chatAgentEvt).toBeDefined();
+    expect(typeof chatAgentEvt?.payload.text).toBe("string");
 
-    // Static check: RunEventPayload discriminated union covers all members
-    const samplePayload: RunEventPayload = {
-      type: "status",
-      payload: { status: "queued" },
-    };
-    expect(samplePayload.type).toBe("status");
-  });
+    // 2. steerRun producer via handleApi (emits steer, requires executing status)
+    runRepo.update(runId, { status: "executing" }, db);
+    const steerReq = new Request(`http://localhost/api/runs/${runId}/steer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Focus on unit tests first" }),
+    });
+    const steerRes = await handleApi(steerReq, new URL(steerReq.url));
+    expect(steerRes.status).toBe(200);
 
-  it("models payload fields matching what producers write", () => {
-    const pullRequest: PullRequest = {
-      url: "https://github.com/example/repo/pull/1",
-      branch: "factory/ticket-1",
-      baseBranch: "main",
-      title: "Fix issue 1",
-    };
+    const steerEvt = eventRepo
+      .getEventsForRun(runId)
+      .find((e) => e.type === "steer");
+    expect(steerEvt).toBeDefined();
+    expect(steerEvt?.payload).toEqual({ message: "Focus on unit tests first" });
 
-    // 1. status with pull request, text, reason
-    const statusPayload: StatusEventPayload = {
-      status: "pr_created",
-      text: "Pull request created",
-      message: "PR opened",
-      reason: "Completed",
-      pullRequest,
-    };
-    expect(statusPayload.status).toBe("pr_created");
-    expect(statusPayload.pullRequest?.url).toBe(
-      "https://github.com/example/repo/pull/1",
+    // 3. handleTransition requeue producer via handleApi (emits user_feedback and status)
+    runRepo.update(runId, { status: "awaiting_review" }, db);
+    const requeueReq = new Request(
+      `http://localhost/api/runs/${runId}/transitions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "requeue",
+          payload: {
+            failingTasks: ["Task 1"],
+            chatNotes: "Please fix edge case handling",
+          },
+        }),
+      },
+    );
+    const requeueRes = await handleApi(requeueReq, new URL(requeueReq.url));
+    expect(requeueRes.status).toBe(200);
+
+    const feedbackEvt = eventRepo
+      .getEventsForRun(runId)
+      .find((e) => e.type === "user_feedback");
+    expect(feedbackEvt).toBeDefined();
+    expect(feedbackEvt?.payload).toEqual({
+      failingTasks: ["Task 1"],
+      notes: "Please fix edge case handling",
+      text: "Feedback provided: 1 failing tasks.",
+    });
+
+    const requeueStatusEvt = eventRepo
+      .getEventsForRun(runId)
+      .filter((e) => e.type === "status")
+      .at(-1);
+    expect(requeueStatusEvt?.payload).toEqual({
+      status: "planning",
+      text: "Requeueing run for fresh plan... Notes: Please fix edge case handling",
+    });
+
+    // 4. handleTransition restart producer (emits status)
+    runRepo.update(runId, { status: "awaiting_plan_approval" }, db);
+    const restartReq = new Request(
+      `http://localhost/api/runs/${runId}/transitions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restart" }),
+      },
+    );
+    const restartRes = await handleApi(restartReq, new URL(restartReq.url));
+    expect(restartRes.status).toBe(200);
+
+    const restartStatusEvt = eventRepo
+      .getEventsForRun(runId)
+      .filter((e) => e.type === "status")
+      .at(-1);
+    expect(restartStatusEvt?.payload).toEqual({
+      status: "understanding",
+      text: "Restarting plan context...",
+    });
+
+    // 5. handleTransition abort / stop producer (emits status)
+    runRepo.update(runId, { status: "awaiting_plan_approval" }, db);
+    const stopReq = new Request(`http://localhost/api/runs/${runId}/stop`, {
+      method: "POST",
+    });
+    const stopRes = await handleApi(stopReq, new URL(stopReq.url));
+    expect(stopRes.status).toBe(200);
+
+    const stopStatusEvt = eventRepo
+      .getEventsForRun(runId)
+      .filter((e) => e.type === "status")
+      .at(-1);
+    expect(stopStatusEvt?.payload).toEqual({
+      status: "stopped",
+      text: "Run stopped by user.",
+    });
+
+    // 6. Worker crash / recovery transition producer (emits status with reason)
+    runRepo.update(runId, { status: "executing" }, db);
+    runRepo.transitionRun(
+      runId,
+      "executing",
+      "recovery_required",
+      {
+        event: {
+          type: "status",
+          payload: {
+            status: "recovery_required",
+            reason: "Worker heartbeat expired",
+          },
+        },
+      },
+      db,
     );
 
-    // 2. stage_evidence matching prepare, understand, plan, execute, review producers
-    const prepareEvidence: StageEvidencePayload = {
-      stage: "prepare",
-      summary: "Branch prepared",
-      branch: "factory/ticket-1",
-      worktreePath: "/tmp/worktree",
+    const recoveryStatusEvt = eventRepo
+      .getEventsForRun(runId)
+      .filter((e) => e.type === "status")
+      .at(-1);
+    expect(recoveryStatusEvt?.payload).toEqual({
+      status: "recovery_required",
+      reason: "Worker heartbeat expired",
+    });
+
+    setDbForTesting(null);
+  });
+
+  it("real producers write expected payload shapes: plan, review, and deliver stages", async () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+    const runRepo = new RunRepository(db);
+    const eventRepo = new EventRepository(db);
+    const jobRepo = new JobRepository(db);
+    const stageAttemptRepo = new StageAttemptRepository(db);
+    const operationLedgerRepo = new OperationLedgerRepository(db);
+
+    const runId = "run-producer-stages-test";
+    const run = runRepo.create({
+      id: runId,
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-2", title: "Ticket 2", acceptanceCriteria: ["AC 2"] },
+      plan: "",
+      branch: "factory/t-2",
+      status: "planning",
+      artifactsDir: `/tmp/artifacts-${runId}`,
+      worktreePath: `/tmp/worktrees-${runId}`,
+    });
+
+    const job = jobRepo.createJob({ runId, stage: "plan" });
+    const attempt = stageAttemptRepo.recordStart(runId, "plan", 1);
+    const context: StageContext = {
+      run,
+      job,
+      project: {
+        id: "proj-1",
+        name: "Project 1",
+        workspacePath: "/tmp",
+        repositoryPath: "/tmp",
+        defaultBranch: "main",
+        testCommand: "true",
+        repositories: [],
+        issueTracker: { provider: "jira" },
+      },
+      workerId: "worker-stages-test",
+      db,
+      runRepo,
+      jobRepo,
+      eventRepo,
+      stageAttemptRepo,
+      operationLedgerRepo,
+      attemptId: attempt.id,
     };
-    const understandEvidence: StageEvidencePayload = {
-      stage: "understand",
-      summary: "Identified files",
-      relevantFiles: ["src/index.ts"],
-    };
-    const planEvidence: StageEvidencePayload = {
+
+    // 1. PlanExecutor producer (emits info and stage_evidence)
+    const planExecutor = new PlanExecutor();
+    await planExecutor.execute(context);
+
+    const eventsAfterPlan = eventRepo.getEventsForRun(runId);
+    const infoEvt = eventsAfterPlan.find((e) => e.type === "info");
+    expect(infoEvt).toBeDefined();
+    expect(infoEvt?.payload).toEqual({ text: "Generating execution plan…" });
+
+    const planEvidenceEvt = eventsAfterPlan.find(
+      (e) => e.type === "stage_evidence",
+    );
+    expect(planEvidenceEvt).toBeDefined();
+    expect(planEvidenceEvt?.payload).toEqual({
       stage: "plan",
-      summary: "Plan created",
-      data: { plan: "Step 1" },
-    };
-    const executeEvidence: StageEvidencePayload = {
-      stage: "execute",
-      summary: "Execution passed",
-      filesChanged: ["src/index.ts"],
-      testsPassed: true,
-    };
-    const reviewEvidence: StageEvidencePayload = {
-      stage: "review",
-      evidence: "Review approved",
-      passed: true,
-      findingsCount: 0,
-    };
-    expect(prepareEvidence.stage).toBe("prepare");
-    expect(understandEvidence.relevantFiles).toEqual(["src/index.ts"]);
-    expect(planEvidence.data).toEqual({ plan: "Step 1" });
-    expect(executeEvidence.testsPassed).toBe(true);
-    expect(reviewEvidence.evidence).toBe("Review approved");
+      evidence: expect.stringContaining("Generated execution plan"),
+    });
 
-    // 3. pr_step matching deliver and deliver-service producers
-    const branchPushedStep: PrStepPayload = {
-      step: "branch_pushed",
-      branch: "factory/ticket-1",
-      commitSha: "abc1234",
-    };
-    const prOpenedStep: PrStepPayload = {
-      step: "pr_opened",
-      url: "https://github.com/example/repo/pull/1",
-      branch: "factory/ticket-1",
-    };
-    const prCompletedStep: PrStepPayload = {
-      step: "pr_completed",
-      pullRequest,
-    };
-    expect(branchPushedStep.commitSha).toBe("abc1234");
-    expect(prOpenedStep.url).toBe("https://github.com/example/repo/pull/1");
-    expect(prCompletedStep.pullRequest?.title).toBe("Fix issue 1");
-
-    // 4. chat_user and chat_agent
-    const chatUser: ChatUserPayload = { text: "Hello agent" };
-    const chatAgent: ChatAgentPayload = { text: "Hello user" };
-    expect(chatUser.text).toBe("Hello agent");
-    expect(chatAgent.text).toBe("Hello user");
-
-    // 5. user_feedback matching requeue producer
-    const feedback: UserFeedbackPayload = {
-      failingTasks: ["Task 1"],
-      notes: "Please fix task 1",
-      text: "Feedback provided",
-    };
-    expect(feedback.failingTasks).toEqual(["Task 1"]);
-
-    // 6. pi_output_chunk matching execute producer
-    const piChunk: PiOutputChunkPayload = { chunk: "Compiling..." };
-    expect(piChunk.chunk).toBe("Compiling...");
-
-    // 7. verification and review results
-    const verificationResult: VerificationResult = {
+    // 2. ReviewExecutor producer (emits review and stage_evidence)
+    const mockVerification: VerificationResult = {
       passed: true,
       repairAttempt: 0,
       tests: {
@@ -188,41 +282,194 @@ describe("Shared run-event union (#171)", () => {
       hasPollution: false,
       summary: "All tests passed",
     };
-    const verificationPayload: VerificationEventPayload = {
-      result: verificationResult,
-    };
-    expect(verificationPayload.result.passed).toBe(true);
+    runRepo.update(runId, { verification: mockVerification }, db);
 
-    const reviewResult: ReviewResult = {
+    const reviewExecutor = new ReviewExecutor({
+      loadSettings: async () => ({}),
+      sessionFactory: async () => scriptedReviewSession(PASSING_REVIEW_OUTPUT),
+    });
+    await reviewExecutor.execute(context);
+
+    const eventsAfterReview = eventRepo.getEventsForRun(runId);
+    const reviewEvt = eventsAfterReview.find((e) => e.type === "review");
+    expect(reviewEvt).toBeDefined();
+    expect(reviewEvt?.payload.result.passed).toBe(true);
+
+    const reviewEvidenceEvt = eventsAfterReview
+      .filter((e) => e.type === "stage_evidence")
+      .find((e) => e.payload.stage === "review");
+    expect(reviewEvidenceEvt).toBeDefined();
+    expect(reviewEvidenceEvt?.payload).toEqual({
+      stage: "review",
+      evidence: expect.stringContaining("Review approved"),
+    });
+
+    // 3. finalizeDeliver producer (emits pr_step, stage_evidence, status)
+    runRepo.update(runId, { status: "ready_for_pr" }, db);
+    const pullRequest: PullRequest = {
+      url: "https://github.com/example/repo/pull/42",
+      branch: "factory/t-2",
+      baseBranch: "main",
+      title: "Deliver ticket 2",
+    };
+    finalizeDeliver(
+      db,
+      runRepo,
+      eventRepo,
+      undefined,
+      runId,
+      "",
+      "worker-stages-test",
+      pullRequest,
+    );
+
+    const eventsAfterDeliver = eventRepo.getEventsForRun(runId);
+    const prStepEvt = eventsAfterDeliver.find((e) => e.type === "pr_step");
+    expect(prStepEvt).toBeDefined();
+    expect(prStepEvt?.payload).toEqual({
+      step: "pr_created",
+      url: pullRequest.url,
+    });
+
+    const deliverEvidenceEvt = eventsAfterDeliver
+      .filter((e) => e.type === "stage_evidence")
+      .find((e) => e.payload.stage === "deliver");
+    expect(deliverEvidenceEvt).toBeDefined();
+    expect(deliverEvidenceEvt?.payload).toEqual({
+      stage: "deliver",
+      evidence: `Pull Request created: ${pullRequest.url}`,
+    });
+
+    const prStatusEvt = eventsAfterDeliver
+      .filter((e) => e.type === "status")
+      .find((e) => e.payload.status === "pr_created");
+    expect(prStatusEvt).toBeDefined();
+    expect(prStatusEvt?.payload).toEqual({
+      status: "pr_created",
+      text: `Pull Request created: ${pullRequest.url}`,
+      pullRequest,
+    });
+  });
+
+  it("real producers write expected payload shapes: attempt loop and verification", async () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+    const runRepo = new RunRepository(db);
+    const eventRepo = new EventRepository(db);
+
+    const tempDir = await mkdtemp(path.join(tmpdir(), "run-al-producer-test-"));
+    const worktreePath = path.join(tempDir, "worktree");
+    const artifactsDir = path.join(tempDir, "artifacts");
+    const binDir = path.join(tempDir, "bin");
+    await mkdir(worktreePath, { recursive: true });
+    await mkdir(artifactsDir, { recursive: true });
+    await mkdir(binDir, { recursive: true });
+
+    const sbxPath = path.join(binDir, "sbx");
+    await writeFile(
+      sbxPath,
+      '#!/usr/bin/env bash\necho "Iteration 1 of 25"\nexit 1\n',
+      { mode: 0o755 },
+    );
+    await chmod(sbxPath, 0o755);
+
+    const runId = "run-attempt-loop-producer-test";
+    const run = runRepo.create({
+      id: runId,
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-3", title: "Ticket 3", acceptanceCriteria: [] },
+      plan: "1. Step 1",
+      branch: "factory/t-3",
+      status: "executing",
+      artifactsDir,
+      worktreePath,
+    });
+
+    const oldPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${oldPath}`;
+
+    const mockVerification: VerificationResult = {
       passed: true,
-      findings: [],
-      criteriaChecked: [{ criterion: "Meets spec", satisfied: true }],
-      summary: "LGTM",
+      repairAttempt: 0,
+      tests: {
+        command: "bun test",
+        exitCode: 0,
+        stdout: "ok",
+        stderr: "",
+        passed: true,
+        durationMs: 40,
+      },
+      diff: "",
+      filesChanged: [],
+      hasPollution: false,
+      summary: "Verification passed",
     };
-    const reviewPayload: ReviewEventPayload = {
-      result: reviewResult,
-    };
-    expect(reviewPayload.result.passed).toBe(true);
 
-    // 8. ralph_progress
-    const ralphProgress: RalphProgressPayload = {
-      text: "Iteration 1 finished",
-      iteration: 1,
-      task: "Task 1",
-    };
-    expect(ralphProgress.iteration).toBe(1);
+    try {
+      await runAttemptLoop({
+        worktreePath,
+        artifactsDir,
+        ticket: run.ticket,
+        plan: run.plan || "",
+        project: {
+          id: "proj-1",
+          name: "Project 1",
+          workspacePath: worktreePath,
+          repositoryPath: worktreePath,
+          defaultBranch: "main",
+          testCommand: "true",
+          repositories: [],
+          issueTracker: { provider: "jira" },
+        },
+        baseline: { trackedFiles: new Set(), untrackedFiles: new Set() },
+        provider: "anthropic",
+        emit: (type, payload) => eventRepo.appendEvent(run.id, type, payload),
+        onVerification: (verification) => {
+          eventRepo.appendEvent(run.id, "verification", {
+            result: verification,
+          });
+        },
+      });
 
-    // 9. info and error
-    const infoPayload: InfoEventPayload = { message: "Starting process" };
-    const errorPayload: ErrorEventPayload = { message: "Failed process" };
-    expect(infoPayload.message).toBe("Starting process");
-    expect(errorPayload.message).toBe("Failed process");
+      // Verification result producer (as emitted by ExecuteExecutor.persistVerificationResult)
+      eventRepo.appendEvent(run.id, "verification", {
+        result: mockVerification,
+      });
+    } finally {
+      process.env.PATH = oldPath;
+      await rm(tempDir, { recursive: true, force: true });
+    }
 
-    // 10. steer matching steerRun producer
-    const steerPayload: SteerEventPayload = {
-      message: "Steer focus to edge cases",
-    };
-    expect(steerPayload.message).toBe("Steer focus to edge cases");
+    const events = eventRepo.getEventsForRun(runId);
+
+    const ralphProgressEvt = events.find((e) => e.type === "ralph_progress");
+    expect(ralphProgressEvt).toBeDefined();
+    expect(ralphProgressEvt?.payload).toEqual(
+      expect.objectContaining({
+        text: expect.stringContaining("Ralph Loop started"),
+        iteration: 1,
+      }),
+    );
+
+    const chunkEvt = events.find((e) => e.type === "pi_output_chunk");
+    expect(chunkEvt).toBeDefined();
+    expect(chunkEvt?.payload).toEqual(
+      expect.objectContaining({
+        role: "ralph",
+        text: expect.any(String),
+      }),
+    );
+
+    const errorEvt = events.find((e) => e.type === "error");
+    expect(errorEvt).toBeDefined();
+    expect(errorEvt?.payload).toEqual({
+      message: "Ralph Loop failed with exit code 1",
+    });
+
+    const verificationEvt = events.find((e) => e.type === "verification");
+    expect(verificationEvt).toBeDefined();
+    expect(verificationEvt?.payload.result.passed).toBe(true);
   });
 
   it("uses one string timestamp type for RunEvent", () => {
@@ -342,13 +589,11 @@ describe("Shared run-event union (#171)", () => {
     eventRepo.appendEvent(runId, "chat_user", { text: "Hello from user" });
     eventRepo.appendEvent(runId, "stage_evidence", {
       stage: "prepare",
-      summary: "Prepared worktree",
-      branch: "factory/t-1",
+      evidence: "Prepared worktree",
     });
     eventRepo.appendEvent(runId, "pr_step", {
       step: "branch_pushed",
-      branch: "factory/t-1",
-      commitSha: "feedbeef",
+      text: "feedbeef",
     });
 
     const req = new Request(`http://localhost/api/runs/${runId}/events`);
@@ -391,16 +636,20 @@ describe("Shared run-event union (#171)", () => {
     expect(event0?.id).toBe(1);
 
     expect(event1?.type).toBe("stage_evidence");
-    if (event1 && event1.type === "stage_evidence") {
-      expect(event1.payload.stage).toBe("prepare");
-      expect(event1.id).toBe(2);
+    if (event1?.type !== "stage_evidence") {
+      throw new Error(`Expected stage_evidence, got ${event1?.type}`);
     }
+    expect(event1.payload.stage).toBe("prepare");
+    expect(event1.payload.evidence).toBe("Prepared worktree");
+    expect(event1.id).toBe(2);
 
     expect(event2?.type).toBe("pr_step");
-    if (event2 && event2.type === "pr_step") {
-      expect(event2.payload.step).toBe("branch_pushed");
-      expect(event2.id).toBe(3);
+    if (event2?.type !== "pr_step") {
+      throw new Error(`Expected pr_step, got ${event2?.type}`);
     }
+    expect(event2.payload.step).toBe("branch_pushed");
+    expect(event2.payload.text).toBe("feedbeef");
+    expect(event2.id).toBe(3);
 
     setDbForTesting(null);
   });

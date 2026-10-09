@@ -13,11 +13,9 @@ import type {
 } from "../../shared/types.js";
 import { invalidateRun, patchRunCache } from "../lib/query-client.js";
 
-export type CanonicalWireEvent = RunEvent;
-
 export function useRunSSE(run: Run | undefined | null) {
   const queryClient = useQueryClient();
-  const [events, setEvents] = useState<CanonicalWireEvent[]>([]);
+  const [events, setEvents] = useState<RunEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const seenEventIdsRef = useRef<Set<number>>(new Set());
 
@@ -43,7 +41,7 @@ export function useRunSSE(run: Run | undefined | null) {
 
     eventSource.onmessage = (e) => {
       try {
-        const wireEvent = JSON.parse(e.data) as CanonicalWireEvent;
+        const wireEvent = JSON.parse(e.data) as RunEvent;
         if (!wireEvent || typeof wireEvent.id !== "number") {
           return;
         }

@@ -328,37 +328,28 @@ export interface PullRequest {
 }
 
 export interface StatusEventPayload {
-  status?: RunStatus | undefined;
+  status: RunStatus;
   text?: string | undefined;
-  message?: string | undefined;
   reason?: string | undefined;
   pullRequest?: PullRequest | null | undefined;
-  step?: number | undefined;
-  num?: number | undefined;
 }
 
 export interface StageEvidencePayload {
   stage: WorkflowStage;
-  summary?: string | undefined;
-  evidence?: string | undefined;
-  branch?: string | undefined;
-  worktreePath?: string | undefined;
-  relevantFiles?: string[] | undefined;
-  data?: Record<string, unknown> | undefined;
-  filesChanged?: string[] | undefined;
-  testsPassed?: boolean | undefined;
-  passed?: boolean | undefined;
-  findingsCount?: number | undefined;
+  evidence: string;
 }
 
-export interface PrStepPayload {
-  step?: string | undefined;
-  text?: string | undefined;
-  branch?: string | undefined;
-  commitSha?: string | undefined;
-  url?: string | undefined;
-  pullRequest?: PullRequest | undefined;
-}
+export type PrStepPayload =
+  | {
+      step: string;
+      text: string;
+      url?: undefined;
+    }
+  | {
+      step: string;
+      url: string;
+      text?: undefined;
+    };
 
 export interface ChatUserPayload {
   text: string;
@@ -369,14 +360,13 @@ export interface ChatAgentPayload {
 }
 
 export interface UserFeedbackPayload {
-  text?: string | undefined;
+  text: string;
   notes?: string | undefined;
   failingTasks?: string[] | undefined;
 }
 
 export interface PiOutputChunkPayload {
-  chunk?: string | undefined;
-  text?: string | undefined;
+  text: string;
   role?: string | undefined;
 }
 
@@ -391,27 +381,18 @@ export interface ReviewEventPayload {
 export interface RalphProgressPayload {
   text: string;
   iteration?: number | undefined;
-  task?: string | undefined;
 }
 
-export type InfoEventPayload =
-  | string
-  | {
-      message?: string | undefined;
-      text?: string | undefined;
-      msg?: string | undefined;
-      count?: number | undefined;
-    };
+export type InfoEventPayload = {
+  text: string;
+};
 
 export interface ErrorEventPayload {
-  message?: string | undefined;
-  text?: string | undefined;
-  error?: string | undefined;
+  message: string;
 }
 
 export interface SteerEventPayload {
-  message?: string | undefined;
-  text?: string | undefined;
+  message: string;
 }
 
 export type RunEventPayloadMap = {
@@ -425,6 +406,7 @@ export type RunEventPayloadMap = {
   verification: VerificationEventPayload;
   review: ReviewEventPayload;
   ralph_progress: RalphProgressPayload;
+  // TODO(#167): remove with steering
   steer: SteerEventPayload;
   info: InfoEventPayload;
   error: ErrorEventPayload;
