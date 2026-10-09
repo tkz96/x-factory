@@ -22,7 +22,7 @@ bun run start
 3. Confirm that the terminal displays:
 
 ```text
-X-Factory server running at http://localhost:3777
+X-Factory server running at http://127.0.0.1:3777
 ```
 
 ## Step 2: Start the Independent Worker Process
@@ -47,7 +47,7 @@ Worker started. Polling for pending jobs...
 2. Submit a run request for a configured project:
 
 ```bash
-curl -X POST http://localhost:3777/api/runs \
+curl -X POST http://127.0.0.1:3777/api/runs \
   -H "Content-Type: application/json" \
   -d '{"projectId": "converso", "ticketId": "SMOKE-1", "ticketTitle": "Smoke Test", "plan": "Verify real Pi process execution"}'
 ```
@@ -115,7 +115,7 @@ db.close();
 1. Inspect the real-time event stream for the run:
 
 ```bash
-curl -N http://localhost:3777/api/runs/<runId>/events
+curl -N http://127.0.0.1:3777/api/runs/<runId>/events
 ```
 
 2. Confirm that the server sends `data:` lines containing `stage_start`, `status`, or `error` events.

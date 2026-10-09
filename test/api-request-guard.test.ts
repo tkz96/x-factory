@@ -1,4 +1,4 @@
-// test/api-request-guard.test.ts — Local-only API boundary: cross-origin and content-type guards at the handleApi seam.
+// test/api-request-guard.test.ts — Local-only API boundary: Host, Origin and Content-Type guards at the handleApi seam.
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createDatabase } from "../src/db/connection.js";
@@ -7,7 +7,9 @@ import { resolveListenHost } from "../src/http/request-guard.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
 
-const API = "http://127.0.0.1:3777/api/health";
+const PORT = 3777;
+const API = `http://127.0.0.1:${PORT}/api/health`;
+const LOOPBACK_GUARD = { port: PORT, listenHost: "127.0.0.1" };
 
 function postTo(
   url: string,
@@ -20,8 +22,11 @@ function postTo(
   });
 }
 
-async function send(req: Request): Promise<Response> {
-  return handleApi(req, new URL(req.url));
+async function send(
+  req: Request,
+  guard: { port: number; listenHost: string } = LOOPBACK_GUARD,
+): Promise<Response> {
+  return handleApi(req, new URL(req.url), undefined, guard);
 }
 
 describe("API request guard (local-only boundary)", () => {
@@ -123,10 +128,34 @@ describe("API request guard (local-only boundary)", () => {
       );
       expect(res.status).toBe(200);
     });
+
+    it("uses the configured port, not the PORT env var", async () => {
+      const original = process.env.PORT;
+      process.env.PORT = "4444";
+      try {
+        const res = await send(
+          postTo("http://127.0.0.1:3900/api/health", {
+            headers: { Origin: "http://127.0.0.1:3900" },
+          }),
+          { port: 3900, listenHost: "127.0.0.1" },
+        );
+        expect(res.status).toBe(200);
+        const rejected = await send(
+          postTo("http://127.0.0.1:3900/api/health", {
+            headers: { Origin: "http://127.0.0.1:4444" },
+          }),
+          { port: 3900, listenHost: "127.0.0.1" },
+        );
+        expect(rejected.status).toBe(403);
+      } finally {
+        if (original === undefined) delete process.env.PORT;
+        else process.env.PORT = original;
+      }
+    });
   });
 
-  describe("JSON content type on bodies", () => {
-    it("rejects a text/plain body with 415", async () => {
+  describe("JSON content type on state-changing bodies", () => {
+    it("rejects a text/plain POST body with 415", async () => {
       const res = await send(
         postTo(API, {
           headers: { "Content-Type": "text/plain" },
@@ -136,12 +165,11 @@ describe("API request guard (local-only boundary)", () => {
       expect(res.status).toBe(415);
     });
 
-    it("rejects a form-encoded body with 415", async () => {
+    it("rejects a form-encoded PUT body with 415", async () => {
       const res = await send(
         postTo(API, {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
+          method: "PUT",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "a=1",
         }),
       );
@@ -175,10 +203,105 @@ describe("API request guard (local-only boundary)", () => {
       );
       expect(res.status).toBe(403);
     });
+
+    it("does not apply the content-type rule to GET", async () => {
+      const res = await send(
+        postTo(API, {
+          method: "GET",
+          headers: { "Content-Type": "text/plain" },
+          body: "x",
+        }),
+      );
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("Host header (DNS rebinding)", () => {
+    it("rejects a GET whose Host is a rebinding name with 403", async () => {
+      const res = await send(
+        new Request("http://evil.com:3777/api/health", {
+          headers: { Host: "evil.com:3777" },
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects a GET whose URL host is not loopback with 403", async () => {
+      const res = await send(new Request("http://evil.com:3777/api/health"));
+      expect(res.status).toBe(403);
+    });
+
+    it("allows a GET on localhost and 127.0.0.1 with the API port", async () => {
+      const local = await send(
+        new Request("http://localhost:3777/api/health", {
+          headers: { Host: "localhost:3777" },
+        }),
+      );
+      const loopback = await send(
+        new Request("http://127.0.0.1:3777/api/health", {
+          headers: { Host: "127.0.0.1:3777" },
+        }),
+      );
+      expect(local.status).toBe(200);
+      expect(loopback.status).toBe(200);
+    });
+
+    it("rejects a loopback Host on the wrong port with 403", async () => {
+      const res = await send(
+        new Request("http://127.0.0.1:9999/api/health", {
+          headers: { Host: "127.0.0.1:9999" },
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects a non-loopback Host when X_FACTORY_HOST is not set", async () => {
+      const res = await send(
+        new Request("http://192.168.1.5:3777/api/health", {
+          headers: { Host: "192.168.1.5:3777" },
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("accepts the configured X_FACTORY_HOST as Host", async () => {
+      const res = await send(
+        new Request("http://192.168.1.5:3777/api/health", {
+          headers: { Host: "192.168.1.5:3777" },
+        }),
+        { port: 3777, listenHost: "192.168.1.5" },
+      );
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("configured X_FACTORY_HOST as the server's own origin", () => {
+    it("accepts a POST whose Origin is the configured host", async () => {
+      const res = await send(
+        postTo("http://192.168.1.5:3777/api/health", {
+          headers: {
+            Origin: "http://192.168.1.5:3777",
+            "Content-Type": "application/json",
+          },
+          body: "{}",
+        }),
+        { port: 3777, listenHost: "192.168.1.5" },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects that same Origin when X_FACTORY_HOST is not set", async () => {
+      const res = await send(
+        postTo("http://192.168.1.5:3777/api/health", {
+          headers: { Origin: "http://192.168.1.5:3777" },
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
   });
 
   describe("safe methods", () => {
-    it("GET from a foreign origin is unaffected", async () => {
+    it("GET from a foreign Origin is unaffected", async () => {
       const res = await send(
         new Request(API, { headers: { Origin: "https://evil.example" } }),
       );

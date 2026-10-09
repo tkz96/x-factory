@@ -15,7 +15,11 @@ import { handleDocsRoute } from "./docs-controller.js";
 import { getOpenApiSpec } from "./openapi.js";
 import { handleProjectsRoute } from "./projects-controller.js";
 import { handleProvidersRoute } from "./providers-controller.js";
-import { guardApiRequest } from "./request-guard.js";
+import {
+  type ApiGuardConfig,
+  DEFAULT_API_GUARD,
+  guardApiRequest,
+} from "./request-guard.js";
 import { errorResponse, jsonResponse } from "./responses.js";
 import { handleRunsRoute } from "./runs-controller.js";
 import { handleSettingsRoute } from "./settings-controller.js";
@@ -99,6 +103,7 @@ export async function handleApi(
   req: Request,
   url: URL,
   customRegistry?: ProviderRegistry,
+  guardConfig: ApiGuardConfig = DEFAULT_API_GUARD,
 ): Promise<Response> {
   const method = req.method;
   const requestId = extractRequestId(req);
@@ -107,7 +112,7 @@ export async function handleApi(
     .split("/")
     .filter(Boolean);
 
-  const rejected = guardApiRequest(req);
+  const rejected = guardApiRequest(req, guardConfig);
   if (rejected) {
     rejected.headers.set("X-Request-ID", requestId);
     return rejected;
