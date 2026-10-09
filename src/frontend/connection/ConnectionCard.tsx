@@ -1,6 +1,7 @@
 // src/frontend/connection/ConnectionCard.tsx — Role-based connection card (spec #126, #130, #133, #143).
 
 import type React from "react";
+import type { ProjectConnectionRole } from "../../shared/types.js";
 import { ConnectionCardHeader } from "./ConnectionCardHeader.js";
 import { ConnectionFieldsList } from "./ConnectionFieldsList.js";
 import { ConnectionProviderSelect } from "./ConnectionProviderSelect.js";
@@ -8,7 +9,7 @@ import type { ProviderDescriptor, VerificationResult } from "./types.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionCardProps {
-  connectionRole: "tracker" | "gitHost";
+  connectionRole: ProjectConnectionRole;
   providerId: string | null;
   title: string;
   manifest: ProviderDescriptor[];

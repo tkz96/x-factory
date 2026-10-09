@@ -12,7 +12,11 @@
 // payload's RepositoryRole tag; the connection role a repository was listed
 // under ("gitHost") is NOT one of those, so it is never sent as one.
 
-import type { GitIdentity } from "../../../shared/types.js";
+import {
+  type GitIdentity,
+  PROJECT_CONNECTION_ROLES,
+  type ProjectConnectionRole,
+} from "../../../shared/types.js";
 import type {
   ProjectCreationPayload,
   ProjectCreationRepositoryPayload,
@@ -71,12 +75,11 @@ export function buildCreationPayload(
   discovered: readonly DiscoveredRepositoryDetail[],
   identity: GitIdentity,
 ): ProjectCreationPayload {
-  const { tracker, gitHost } = state.connect;
-  const rolesByProvider = new Map<string, ("tracker" | "gitHost")[]>();
-  for (const [role, connection] of [
-    ["tracker", tracker],
-    ["gitHost", gitHost],
-  ] as const) {
+  const rolesByProvider = new Map<string, ProjectConnectionRole[]>();
+  // THE role list, in report order: the payload's per-role entries come from
+  // the one list the whole frontend reads (#176), never a local pair.
+  for (const role of PROJECT_CONNECTION_ROLES) {
+    const connection = state.connect[role];
     if (!connection.providerId) continue;
     const roles = rolesByProvider.get(connection.providerId) ?? [];
     roles.push(role);

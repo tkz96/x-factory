@@ -6,8 +6,8 @@
 // into sentences from the copy map. Both belong to the post-creation surfaces,
 // so neither can live in `feedback/` (which imports nothing screen-specific).
 
+import type { ConnectionWarning } from "../connections/connection-view.js";
 import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
-import type { ConnectionWarning } from "./connection-integrity.js";
 
 /** The canonical message for one derived warning. */
 function formatConnectionWarning(warning: ConnectionWarning): string {

@@ -1,6 +1,6 @@
 // src/frontend/wizard/types.ts — Shared types, constants, and envelopes for the onboarding wizard (spec #133, #142).
 
-import type { GitIdentity } from "../../shared/types.js";
+import type { GitIdentity, ProjectConnectionRole } from "../../shared/types.js";
 import type { ProviderDescriptor } from "../connection/types.js";
 
 /**
@@ -29,8 +29,12 @@ export interface WizardBasicsState {
   workspacePath: string;
 }
 
-/** The two connection roles the wizard collects (spec #133). */
-export type WizardConnectionRole = "tracker" | "gitHost";
+/**
+ * The connection roles the wizard collects (spec #133) — THE shared role type,
+ * aliased rather than re-declared, so a role added to `ProjectConnectionRole`
+ * is a wizard role too and no second union can drift apart from it (#176).
+ */
+export type WizardConnectionRole = ProjectConnectionRole;
 
 /**
  * What the state records for one ROLE: which provider serves it, and whether

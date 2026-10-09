@@ -1,9 +1,10 @@
 // src/frontend/connection/ConnectionVerifyButton.tsx — Action button for verifying connection.
 
+import type { ProjectConnectionRole } from "../../shared/types.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionVerifyButtonProps {
-  connectionRole: "tracker" | "gitHost";
+  connectionRole: ProjectConnectionRole;
   status: "idle" | "pending" | "ok" | "degraded" | "error";
   disabled: boolean;
   onVerify: () => void;

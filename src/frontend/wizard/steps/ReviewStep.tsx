@@ -12,12 +12,12 @@
 // exactly once, in this request body.
 
 import { useQuery } from "@tanstack/react-query";
-import type { ProjectConnectionRole } from "../../../shared/types.js";
 import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
+import { comboTone } from "../../components/connections/connection-state.js";
 import {
-  comboSlotFromEvidence,
-  comboTone,
-} from "../../components/connections/connection-state.js";
+  CREATION_REQUIRED_ROLES,
+  draftComboSlots,
+} from "../../components/connections/connection-view.js";
 import {
   REVIEW_COPY,
   resolveFieldValidationError,
@@ -141,23 +141,28 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
     defaultBranch: row.defaultBranch,
   }));
 
-  // The combo line reads the SAME draft evidence the gate reads (#148): one
-  // model, one rendering, one tone rule, shared with the post-creation
-  // surfaces. Review is the creation gate, so BOTH roles are required here —
-  // a role with no verified connection is an error, never a warning (#133).
+  // The combo line reads the SAME draft evidence the gate reads, through the
+  // ONE derivation every surface uses (#176): draft in, line slots out, over
+  // THE one role list — the whole chain is one call on the one module.
+  // Review is the creation gate, so BOTH roles are required here — a role with
+  // no verified connection is an error, never a warning (#133).
   //
   // The identity is the provider's own (#133 story 34), read from the
   // configuration the draft holds (`connect.providerConfigs`) — its non-secret
   // fields only, so the credentials the user typed stay in the draft — through
   // the ONE wiring call every surface uses.
+  const draftSlots = draftComboSlots(
+    {
+      kind: "draft",
+      evidence: state.connect,
+      providerConfigs: state.connect.providerConfigs,
+    },
+    manifest,
+  );
   const comboSlots = useConnectionLine(
-    [
-      comboSlotFromEvidence("tracker", state.connect.tracker),
-      comboSlotFromEvidence("gitHost", state.connect.gitHost),
-    ],
+    draftSlots,
     draftConnectionIdentityTargets(state.connect, manifest),
   );
-  const requiredRoles: ProjectConnectionRole[] = ["tracker", "gitHost"];
 
   const handleSubmit = () => {
     if (!ready || !identity || submitState.isSubmitting) return;
@@ -187,7 +192,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       <ConnectionComboLine
         id="combo-summary"
         slots={comboSlots}
-        tone={comboTone(comboSlots, requiredRoles)}
+        tone={comboTone(comboSlots, CREATION_REQUIRED_ROLES)}
         descriptors={manifest}
       />
 

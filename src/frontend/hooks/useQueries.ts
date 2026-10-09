@@ -7,12 +7,12 @@ import {
   type ReadinessData,
   type SettingsData,
 } from "../lib/api-client.js";
-import {
-  invalidateRun,
-  invalidateRuns,
-  invalidateSettings,
-} from "../lib/query-client.js";
+import { invalidateSettings } from "../lib/query-client.js";
 import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
+import {
+  cacheRunAfterMutation,
+  refreshRunAfterMutation,
+} from "../lib/run-state.js";
 
 // ─── Query Hooks ─────────────────────────────────────────────────────────────
 
@@ -56,7 +56,14 @@ export function useRuns() {
   });
 }
 
-export function useRun(runId: string | null | undefined) {
+export function useRun(
+  runId: string | null | undefined,
+  options?: {
+    refetchInterval?: (query: {
+      state: { data: Run | undefined };
+    }) => number | false;
+  },
+) {
   return useQuery<Run>({
     queryKey: queryKeys.run(runId ?? ""),
     queryFn: () => {
@@ -65,6 +72,9 @@ export function useRun(runId: string | null | undefined) {
     },
     enabled: Boolean(runId),
     ...QUERY_POLICIES.run,
+    ...(options?.refetchInterval
+      ? { refetchInterval: options.refetchInterval }
+      : {}),
   });
 }
 
@@ -91,12 +101,7 @@ export function useCreateRun() {
   return useMutation({
     mutationFn: (payload: Parameters<typeof api.createRun>[0]) =>
       api.createRun(payload),
-    onSuccess: (newRun) => {
-      // Invalidate runs list so new run appears
-      void invalidateRuns(queryClient);
-      // Prepopulate the single run cache
-      queryClient.setQueryData(queryKeys.run(newRun.id), newRun);
-    },
+    onSuccess: (newRun) => cacheRunAfterMutation(queryClient, newRun),
   });
 }
 
@@ -104,10 +109,7 @@ export function useResumeRun() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (runId: string) => api.resumeRun(runId),
-    onSuccess: (data) => {
-      void invalidateRuns(queryClient);
-      queryClient.setQueryData(queryKeys.run(data.run.id), data.run);
-    },
+    onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
 }
 
@@ -116,10 +118,7 @@ export function useAbandonRun() {
   return useMutation({
     mutationFn: ({ runId, reason }: { runId: string; reason?: string }) =>
       api.abandonRun(runId, reason),
-    onSuccess: (data) => {
-      void invalidateRuns(queryClient);
-      queryClient.setQueryData(queryKeys.run(data.run.id), data.run);
-    },
+    onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
 }
 
@@ -135,10 +134,7 @@ export function useTransitionRun() {
       action: "approve" | "restart" | "abort" | "requeue";
       payload?: unknown;
     }) => api.transitionRun(runId, action, payload),
-    onSuccess: (data) => {
-      void invalidateRuns(queryClient);
-      queryClient.setQueryData(queryKeys.run(data.run.id), data.run);
-    },
+    onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
 }
 
@@ -146,10 +142,7 @@ export function useStopRun() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (runId: string) => api.stopRun(runId),
-    onSuccess: (data) => {
-      void invalidateRuns(queryClient);
-      queryClient.setQueryData(queryKeys.run(data.run.id), data.run);
-    },
+    onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
 }
 
@@ -157,10 +150,8 @@ export function usePrRun() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ runId }: { runId: string }) => api.prRun(runId),
-    onSuccess: (_, variables) => {
-      void invalidateRun(variables.runId, queryClient);
-      void invalidateRuns(queryClient);
-    },
+    onSuccess: (_, variables) =>
+      refreshRunAfterMutation(queryClient, variables.runId),
   });
 }
 

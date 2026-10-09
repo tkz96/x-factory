@@ -37,9 +37,20 @@ When a client connects to `GET /api/runs/:id/events`, the server executes two se
 This dual-path design solves the race condition where a user opens or refreshes a browser tab while a run is in progress.
 The user receives the full execution history first, followed immediately by live updates.
 
+Finished runs use the same endpoint rather than a REST events endpoint. The replay already carries the full history, so a second read path would only duplicate it. The client subscribes to a finished run in replay-only mode: the server closes the stream after the history, and the client closes it on error instead of letting `EventSource` reconnect and replay the same history forever.
+
 ## Frontend State Synchronization
 
 The frontend single page application uses TanStack Query to manage server state in the browser.
+
+### The run-state module
+
+`src/frontend/lib/run-state.ts` owns how a run's live state reaches the cache. Components read it through `useRunDetail`, and nothing else parses wire events.
+
+- **Event log.** Each run's events live in the query cache under `["run-events", runId]`, outside the `["runs", ...]` prefix so that run invalidation never drops them. An event is inserted in id order, and an event whose id is already present is ignored. A reconnect that replays history therefore changes nothing.
+- **Reducer.** `reduceRun(run, event)` is pure and exhaustive over the shared event union. A status event is applied only when the transition matrix allows it from the current status, so replayed history never moves a run backwards.
+- **Subscriber.** `subscribeRunEvents` feeds a transport (`EventSource` in production, a fake in tests) into the log and the reducer. Follow-up invalidations of the run are coalesced over a 100 ms window. Stopping the subscriber flushes a pending invalidation at once, because the replacement stream may not re-apply the same events.
+- **Subscription plan.** `runStreamPlan` returns nothing until the snapshot is loaded, then a replay-only subscription for a finished run and a live one otherwise.
 
 ### Direct Cache Updates
 When the client receives an event through the SSE stream, the application updates the local query cache directly.
@@ -48,9 +59,10 @@ This mechanism updates the user interface immediately with zero full-page flicke
 ### Declarative Polling Fallback
 Network proxies can terminate silent SSE connections.
 To maintain resilience against dropped connections, the client uses declarative polling policies:
-- Active runs poll the runs API endpoint every 2 seconds.
-- Idle runs poll every 15 seconds.
-- Diagnostics poll every 5 seconds when the diagnostics tab is visible.
+- An active run polls the run endpoint every 2 seconds, whatever the state of its stream (`ACTIVE_RUN_POLL_INTERVAL_MS` in `query-policies.ts`).
+- A finished run never polls. Its history comes from the replay.
+- The runs list has no interval. It refetches when its data is stale (15 seconds) and on window focus.
+- Diagnostics have no interval either. They refetch when stale (10 seconds) and on window focus.
 
 This layered approach guarantees that the user interface always reflects true system state.
 

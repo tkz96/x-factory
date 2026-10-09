@@ -3,7 +3,6 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { createDatabase } from "../src/db/connection.js";
@@ -18,9 +17,12 @@ import type { StageContext } from "../src/executors/types.js";
 import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
-import { useRunSSE } from "../src/frontend/hooks/useRunSSE.js";
 import { patchRunCache } from "../src/frontend/lib/query-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import {
+  type RunEventTransportHandlers,
+  subscribeRunEvents,
+} from "../src/frontend/lib/run-state.js";
 import type {
   Project,
   ReviewResult,
@@ -123,7 +125,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   function setupDomMock() {
     const origDocument = globalThis.document;
     const origWindow = globalThis.window;
-    const origEventSource = globalThis.EventSource;
     const origLocalStorage = globalThis.localStorage;
     const origAct = (
       globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -189,32 +190,10 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       length: 0,
     };
 
-    class MockEventSource {
-      static instances: MockEventSource[] = [];
-      url: string;
-      onopen: (() => void) | null = null;
-      onmessage: ((e: { data: string }) => void) | null = null;
-      onerror: (() => void) | null = null;
-      closed = false;
-
-      constructor(url: string) {
-        this.url = url;
-        MockEventSource.instances.push(this);
-      }
-
-      close() {
-        this.closed = true;
-      }
-    }
-    (
-      globalThis as unknown as { EventSource: typeof MockEventSource }
-    ).EventSource = MockEventSource;
-
     return {
       cleanup: () => {
         globalThis.document = origDocument;
         globalThis.window = origWindow;
-        globalThis.EventSource = origEventSource;
         globalThis.localStorage = origLocalStorage;
         (
           globalThis as unknown as {
@@ -222,7 +201,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
           }
         ).IS_REACT_ACT_ENVIRONMENT = origAct;
       },
-      MockEventSource,
       doc,
     };
   }
@@ -601,8 +579,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(finalHtml).toContain("btn-approve");
   });
 
-  it("end-to-end: useRunSSE receives canonical verification and review SSE events and updates UI without hard refresh", () => {
-    const { cleanup, MockEventSource, doc } = setupDomMock();
+  it("end-to-end: the run-state subscriber applies canonical verification and review events and updates UI without hard refresh", () => {
+    const { cleanup } = setupDomMock();
     try {
       const queryClient = new QueryClient();
       const runId = "run-e2e-sse";
@@ -629,40 +607,32 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
       queryClient.setQueryData(queryKeys.run(runId), initialRun);
 
-      function SseHarness({ run }: { run: Run }) {
-        useRunSSE(run);
-        return null;
-      }
-
-      // Render/mount useRunSSE for a non-terminal run
-      const rootEl = doc.createElement("div");
-      const root = createRoot(rootEl as unknown as HTMLElement);
-      act(() => {
-        root.render(
-          React.createElement(
-            QueryClientProvider,
-            { client: queryClient },
-            React.createElement(SseHarness, { run: initialRun }),
-          ),
-        );
+      // Stands in for the EventSource transport: records what the subscriber opened and sends wire events.
+      let handlers: RunEventTransportHandlers | null = null;
+      const opened: string[] = [];
+      const send = (wire: object) => {
+        handlers?.onMessage(JSON.stringify(wire));
+      };
+      subscribeRunEvents({
+        queryClient,
+        runId,
+        replayOnly: false,
+        transport: (id, h) => {
+          opened.push(id);
+          handlers = h;
+          h.onOpen();
+          return () => {};
+        },
       });
+      expect(opened).toEqual([runId]);
 
-      // Mock EventSource connection verified
-      expect(MockEventSource.instances.length).toBe(1);
-      const es = MockEventSource.instances[0];
-      if (!es) throw new Error("MockEventSource not instantiated");
-      expect(es.url).toBe(`/api/runs/${encodeURIComponent(runId)}/events`);
-
-      // 1. Emit canonical verification event through mocked EventSource
+      // 1. Canonical verification event
       act(() => {
-        es.onopen?.();
-        es.onmessage?.({
-          data: JSON.stringify({
-            id: 201,
-            type: "verification",
-            payload: { result: sampleVerification },
-            timestamp: new Date().toISOString(),
-          }),
+        send({
+          id: 201,
+          type: "verification",
+          payload: { result: sampleVerification },
+          timestamp: new Date().toISOString(),
         });
       });
 
@@ -673,15 +643,13 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       expect(cachedRun?.diff).toBe(sampleVerification.diff);
       expect(cachedRun?.repairAttempts).toBe(sampleVerification.repairAttempt);
 
-      // 2. Emit canonical review event through mocked EventSource
+      // 2. Canonical review event
       act(() => {
-        es.onmessage?.({
-          data: JSON.stringify({
-            id: 202,
-            type: "review",
-            payload: { result: sampleReview },
-            timestamp: new Date().toISOString(),
-          }),
+        send({
+          id: 202,
+          type: "review",
+          payload: { result: sampleReview },
+          timestamp: new Date().toISOString(),
         });
       });
 
@@ -689,15 +657,13 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       cachedRun = queryClient.getQueryData<Run>(queryKeys.run(runId));
       expect(cachedRun?.review).toEqual(sampleReview);
 
-      // 3. Emit canonical status event for awaiting_review
+      // 3. Canonical status event for awaiting_review
       act(() => {
-        es.onmessage?.({
-          data: JSON.stringify({
-            id: 203,
-            type: "status",
-            payload: { status: "awaiting_review" },
-            timestamp: new Date().toISOString(),
-          }),
+        send({
+          id: 203,
+          type: "status",
+          payload: { status: "awaiting_review" },
+          timestamp: new Date().toISOString(),
         });
       });
 
@@ -707,18 +673,16 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
       // 4. Verify duplicate event IDs are ignored
       act(() => {
-        es.onmessage?.({
-          data: JSON.stringify({
-            id: 201, // same ID as first verification event
-            type: "verification",
-            payload: {
-              result: {
-                ...sampleVerification,
-                summary: "TAMPERED DUPLICATE SHOULD BE IGNORED",
-              },
+        send({
+          id: 201, // same ID as first verification event
+          type: "verification",
+          payload: {
+            result: {
+              ...sampleVerification,
+              summary: "TAMPERED DUPLICATE SHOULD BE IGNORED",
             },
-            timestamp: new Date().toISOString(),
-          }),
+          },
+          timestamp: new Date().toISOString(),
         });
       });
 

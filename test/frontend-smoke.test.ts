@@ -16,7 +16,6 @@ import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js"
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
-import { EventLogViewer } from "../src/frontend/components/runs/EventLogViewer.js";
 import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
@@ -214,9 +213,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof DocsSidebarNav).toBe("function");
     });
 
-    it("ChatThread and EventLogViewer export functional components", () => {
+    it("ChatThread exports a functional component", () => {
       expect(typeof ChatThread).toBe("function");
-      expect(typeof EventLogViewer).toBe("function");
     });
 
     it("RunChat and DiffModal export functional components and render cleanly", () => {

@@ -1,4 +1,4 @@
-// src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and Ralph progress (Ticket 02).
+// src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and Ralph progress (Ticket 02, #191).
 
 import "./ChatThread.css";
 
@@ -7,12 +7,6 @@ import type { RunEvent } from "../../../shared/types.js";
 
 export interface ChatThreadProps {
   events: RunEvent[];
-}
-
-function getPayloadRecord(item: RunEvent): Record<string, unknown> {
-  return (
-    item.payload && typeof item.payload === "object" ? item.payload : {}
-  ) as Record<string, unknown>;
 }
 
 function formatFullTimestamp(iso: string): string {
@@ -31,16 +25,15 @@ function formatFullTimestamp(iso: string): string {
   }
 }
 
-function renderStatusBubble(item: RunEvent, payload: Record<string, unknown>) {
-  const status = typeof payload.status === "string" ? payload.status : "";
-  const text = typeof payload.text === "string" ? payload.text : "";
+function renderStatusBubble(item: RunEvent<"status">) {
+  const { status, text } = item.payload;
   return (
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-header">
         <span className="chat-bubble-badge">Status</span>
         <span>[{status.toUpperCase()}]</span>
       </div>
-      <div className="chat-bubble-body">{text}</div>
+      <div className="chat-bubble-body">{text ?? ""}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
         {formatFullTimestamp(item.timestamp)}
       </time>
@@ -48,19 +41,15 @@ function renderStatusBubble(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderEvidenceBubble(
-  item: RunEvent,
-  payload: Record<string, unknown>,
-) {
-  const stage = typeof payload.stage === "string" ? payload.stage : "";
-  const summary = typeof payload.evidence === "string" ? payload.evidence : "";
+function renderEvidenceBubble(item: RunEvent<"stage_evidence">) {
+  const { stage, evidence } = item.payload;
   return (
     <div key={item.id} className="chat-bubble bubble-evidence">
       <div className="chat-bubble-header">
         <span className="chat-bubble-badge">Evidence</span>
         {stage && <strong>{stage.toUpperCase()}</strong>}
       </div>
-      <div className="chat-bubble-body">✓ {summary}</div>
+      <div className="chat-bubble-body">✓ {evidence}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
         {formatFullTimestamp(item.timestamp)}
       </time>
@@ -68,9 +57,8 @@ function renderEvidenceBubble(
   );
 }
 
-function renderRalphBubble(item: RunEvent, payload: Record<string, unknown>) {
-  const text = typeof payload.text === "string" ? payload.text : "";
-  const iteration = payload.iteration;
+function renderRalphBubble(item: RunEvent<"ralph_progress">) {
+  const { text, iteration } = item.payload;
   return (
     <div key={item.id} className="chat-bubble bubble-ralph">
       <div className="chat-bubble-header">
@@ -85,9 +73,8 @@ function renderRalphBubble(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderPiChunkBubble(item: RunEvent, payload: Record<string, unknown>) {
-  const role = typeof payload.role === "string" ? payload.role : "agent";
-  const text = typeof payload.text === "string" ? payload.text : "";
+function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
+  const { role, text } = item.payload;
   const isRalph = role === "ralph";
   const bubbleClass = isRalph
     ? "chat-bubble bubble-ralph"
@@ -111,12 +98,12 @@ function renderPiChunkBubble(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderChatUserBubble(
-  item: RunEvent,
-  payload: Record<string, unknown>,
-) {
-  const text = typeof payload.text === "string" ? payload.text : "";
-  const snippet = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+function snippetOf(text: string): string {
+  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+}
+
+function renderChatUserBubble(item: RunEvent<"chat_user">) {
+  const snippet = snippetOf(item.payload.text);
   return (
     <div key={item.id} className="chat-bubble bubble-chat-user">
       <div className="chat-bubble-header">
@@ -133,12 +120,8 @@ function renderChatUserBubble(
   );
 }
 
-function renderChatAgentBubble(
-  item: RunEvent,
-  payload: Record<string, unknown>,
-) {
-  const text = typeof payload.text === "string" ? payload.text : "";
-  const snippet = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+function renderChatAgentBubble(item: RunEvent<"chat_agent">) {
+  const snippet = snippetOf(item.payload.text);
   return (
     <div key={item.id} className="chat-bubble bubble-chat-agent">
       <div className="chat-bubble-header">
@@ -155,14 +138,13 @@ function renderChatAgentBubble(
   );
 }
 
-function renderErrorBubble(item: RunEvent, payload: Record<string, unknown>) {
-  const text = typeof payload.message === "string" ? payload.message : "";
+function renderErrorBubble(item: RunEvent<"error">) {
   return (
     <div key={item.id} className="chat-bubble bubble-error">
       <div className="chat-bubble-header">
         <span className="chat-bubble-badge">Error</span>
       </div>
-      <div className="chat-bubble-body">{text}</div>
+      <div className="chat-bubble-body">{item.payload.message}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
         {formatFullTimestamp(item.timestamp)}
       </time>
@@ -170,14 +152,7 @@ function renderErrorBubble(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderDefaultBubble(item: RunEvent, payload: Record<string, unknown>) {
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : typeof item.payload === "string"
-        ? item.payload
-        : JSON.stringify(item.payload ?? item);
-
+function renderTextBubble(item: RunEvent, text: string) {
   return (
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-body">{text}</div>
@@ -188,26 +163,56 @@ function renderDefaultBubble(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderBubble(item: RunEvent) {
-  const payload = getPayloadRecord(item);
+/**
+ * A type this client does not know, such as a leftover `steer` row from an old database.
+ * It renders as a neutral line: the payload's text, its raw string, or its JSON.
+ */
+function renderFallbackBubble(item: RunEvent) {
+  const { payload } = item;
+  const text =
+    typeof payload === "string"
+      ? payload
+      : (payloadText(payload) ?? JSON.stringify(payload ?? item));
+  return renderTextBubble(item, text);
+}
 
+function payloadText(payload: unknown): string | undefined {
+  if (payload && typeof payload === "object" && "text" in payload) {
+    return typeof payload.text === "string" ? payload.text : undefined;
+  }
+  return undefined;
+}
+
+/** Renders one event. Each case reads the payload its event type declares, so there are no casts. */
+function renderBubble(item: RunEvent) {
   switch (item.type) {
     case "status":
-      return renderStatusBubble(item, payload);
+      return renderStatusBubble(item);
     case "stage_evidence":
-      return renderEvidenceBubble(item, payload);
+      return renderEvidenceBubble(item);
     case "ralph_progress":
-      return renderRalphBubble(item, payload);
+      return renderRalphBubble(item);
     case "pi_output_chunk":
-      return renderPiChunkBubble(item, payload);
+      return renderPiChunkBubble(item);
     case "chat_user":
-      return renderChatUserBubble(item, payload);
+      return renderChatUserBubble(item);
     case "chat_agent":
-      return renderChatAgentBubble(item, payload);
+      return renderChatAgentBubble(item);
     case "error":
-      return renderErrorBubble(item, payload);
+      return renderErrorBubble(item);
+    case "info":
+    case "user_feedback":
+      return renderTextBubble(item, item.payload.text);
+    case "pr_step":
+      return renderTextBubble(
+        item,
+        item.payload.text ?? item.payload.url ?? "",
+      );
+    case "verification":
+    case "review":
+      return renderTextBubble(item, JSON.stringify(item.payload));
     default:
-      return renderDefaultBubble(item, payload);
+      return renderFallbackBubble(item);
   }
 }
 

@@ -1,18 +1,21 @@
 // src/frontend/components/projects/connection-integrity.ts — Post-creation
-// connection surfacing (spec #133, ticket #147).
+// connection surfacing (spec #133, ticket #147; consolidated by #176).
 //
-// Turns a project's normalized `connections` payload (#145 / #131) into the
-// three-state descriptor every post-creation surface renders — connected,
-// degraded (warnings present), disconnected — plus the no-tracker INTEGRITY
-// FAILURE. Both connections are mandatory at creation (#133 §Wizard flow &
-// UX), so "a project with no tracker" is not a supported mode: it is a durable
-// configuration error with a repair path.
+// THE recorded-input adapter of the one connection view
+// (`components/connections/connection-view.ts`): a project's normalized
+// `connections` payload (#145 / #131) goes through `deriveConnectionView` and
+// comes back as the three-state descriptor every post-creation surface renders
+// — connected, degraded (warnings present), disconnected — plus the no-tracker
+// INTEGRITY FAILURE. Both connections are mandatory at creation (#133 §Wizard
+// flow & UX), so "a project with no tracker" is not a supported mode: it is a
+// durable configuration error with a repair path.
 //
 // Provider-agnosticism (spec #133, docs/reference/provider-api.md): this module never branches on a
 // provider id. Display names come from the providers manifest, the
 // "configuration is incomplete" check is driven by the manifest's own field
 // descriptors (`required` + `secret` + `roles`), and the legacy pre-#145
-// fallback looks the provider's configuration up by its own id.
+// fallback looks the provider's configuration up by its own id — all of it
+// owned by the ONE view module (#176).
 //
 // LEGACY PROJECTS: a project created before #145 has no `connections` array
 // and only an `issueTracker` record. It still renders a combo line: the
@@ -29,42 +32,19 @@ import type { ProviderDescriptor } from "../../connection/types.js";
 import {
   type ConnectionComboSlot,
   type ConnectionIdentityTarget,
-  type ConnectionState,
   identityConfig,
   resolveProviderLabel,
 } from "../connections/connection-state.js";
+import {
+  type ConnectionSlot,
+  type ConnectionWarning,
+  connectionComboSlots,
+  deriveConnectionView,
+  descriptorFor,
+  fieldsForRole,
+  slotsForRoles,
+} from "../connections/connection-view.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
-
-/** The three distinctions the combo line renders (one vocabulary, #148). */
-export type ConnectionSlotState = ConnectionState;
-
-/**
- * Why a slot is degraded. `details` carries the human-readable identifiers the
- * copy map interpolates: manifest configuration-field labels
- * (`CONFIG_INCOMPLETE`), the role name (`ROLE_NOT_RECORDED`), or the
- * unregistered provider id (`PROVIDER_UNKNOWN`).
- */
-export type ConnectionWarningKind =
-  | "ROLE_NOT_RECORDED"
-  | "CONFIG_INCOMPLETE"
-  | "PROVIDER_UNKNOWN";
-
-export interface ConnectionWarning {
-  readonly kind: ConnectionWarningKind;
-  readonly role: ProjectConnectionRole;
-  readonly details: readonly string[];
-}
-
-/** One role's connection as the surfaces render it. */
-export interface ConnectionSlot {
-  readonly role: ProjectConnectionRole;
-  readonly state: ConnectionSlotState;
-  readonly providerId: string | undefined;
-  readonly config: Readonly<Record<string, unknown>>;
-  /** The provider's declared capabilities, from the manifest (empty if unknown). */
-  readonly capabilities: readonly string[];
-  readonly warnings: readonly ConnectionWarning[];
-}
 
 /** The whole project's wiring, as derived for display. */
 export interface ConnectionIntegrity {
@@ -79,199 +59,29 @@ export interface ConnectionIntegrity {
   readonly warnings: readonly ConnectionWarning[];
 }
 
-/** The roles in render order. The combo line always reads left to right. */
-const ROLES: readonly ProjectConnectionRole[] = PROJECT_CONNECTION_ROLES;
-
-/** A connection record as it is derived (normalized or legacy). */
-interface DerivedConnection {
-  readonly providerId: string;
-  readonly roles: readonly ProjectConnectionRole[];
-  readonly config: Readonly<Record<string, unknown>>;
-  /**
-   * Legacy descriptors come from `issueTracker`; their configuration shape is
-   * pre-#145 and unverifiable, so they are never reported as incomplete
-   * (spec #133 keeps legacy config migration an open question).
-   */
-  readonly legacy: boolean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function asRoleList(roles: readonly string[]): ProjectConnectionRole[] {
-  return ROLES.filter((role) => roles.includes(role));
-}
-
-/**
- * The project's connections, normalized or derived.
- *
- * A present `connections` array is authoritative, empty or not: the ticket's
- * integrity failure is exactly "the normalized payload records no tracker".
- */
-function deriveConnections(project: Project): DerivedConnection[] {
-  const declared = project.connections;
-  if (Array.isArray(declared)) {
-    return declared.map((connection) => ({
-      providerId: connection.providerId,
-      roles: asRoleList(connection.roles),
-      config: isRecord(connection.config) ? connection.config : {},
-      legacy: false,
-    }));
-  }
-
-  // Legacy project: derive a display-only tracker descriptor from
-  // `issueTracker`. The lookup is by the record's own provider id — the
-  // pre-#145 record namespaces its configuration under that key.
-  const legacy = project.issueTracker as unknown as
-    | Record<string, unknown>
-    | undefined;
-  const providerId =
-    typeof legacy?.provider === "string"
-      ? legacy.provider
-      : typeof legacy?.connectionId === "string"
-        ? legacy.connectionId
-        : "";
-
-  if (!providerId.trim()) {
-    return [];
-  }
-
-  const namespaced = legacy?.[providerId];
-  return [
-    {
-      providerId,
-      roles: ["tracker"],
-      config: isRecord(namespaced) ? namespaced : {},
-      legacy: true,
-    },
-  ];
-}
-
-/** The slot's connection: the first record that declares the role. */
-function connectionForRole(
-  connections: readonly DerivedConnection[],
-  role: ProjectConnectionRole,
-): DerivedConnection | undefined {
-  return connections.find((connection) => connection.roles.includes(role));
-}
-
-function descriptorFor(
-  providerId: string | undefined,
-  descriptors: readonly ProviderDescriptor[],
-): ProviderDescriptor | undefined {
-  if (!providerId) {
-    return undefined;
-  }
-  return descriptors.find((descriptor) => descriptor.id === providerId);
-}
-
-/** Fields that apply to the role: role-scoped or unscoped (#128). */
-function fieldsForRole(
-  descriptor: ProviderDescriptor,
-  role: ProjectConnectionRole,
-) {
-  return descriptor.configFields.filter(
-    (field) =>
-      field.roles === undefined ||
-      field.roles.length === 0 ||
-      field.roles.includes(role),
-  );
-}
-
-/**
- * The slot's warnings. Nothing is reported before the manifest is loaded: an
- * unloaded manifest must never masquerade as an incomplete configuration.
- */
-function warningsFor(
-  role: ProjectConnectionRole,
-  connection: DerivedConnection | undefined,
-  descriptors: readonly ProviderDescriptor[],
-): ConnectionWarning[] {
-  if (!connection) {
-    return [{ kind: "ROLE_NOT_RECORDED", role, details: [role] }];
-  }
-
-  if (descriptors.length === 0) {
-    return [];
-  }
-
-  const descriptor = descriptorFor(connection.providerId, descriptors);
-
-  if (!descriptor) {
-    return [
-      { kind: "PROVIDER_UNKNOWN", role, details: [connection.providerId] },
-    ];
-  }
-
-  if (connection.legacy) {
-    return [];
-  }
-
-  const missing = fieldsForRole(descriptor, role)
-    .filter((field) => field.required && field.secret !== true)
-    .filter((field) => {
-      const value = connection.config[field.name];
-      return typeof value !== "string" || !value.trim();
-    })
-    .map((field) => field.label);
-
-  return missing.length > 0
-    ? [{ kind: "CONFIG_INCOMPLETE", role, details: missing }]
-    : [];
-}
-
-function slotState(
-  connection: DerivedConnection | undefined,
-  warnings: readonly ConnectionWarning[],
-): ConnectionSlotState {
-  if (!connection) {
-    return "disconnected";
-  }
-  return warnings.length > 0 ? "degraded" : "connected";
-}
-
-function buildSlot(
-  role: ProjectConnectionRole,
-  connections: readonly DerivedConnection[],
-  descriptors: readonly ProviderDescriptor[],
-): ConnectionSlot {
-  const connection = connectionForRole(connections, role);
-  const warnings = warningsFor(role, connection, descriptors);
-  return {
-    role,
-    state: slotState(connection, warnings),
-    providerId: connection?.providerId,
-    config: connection?.config ?? {},
-    capabilities: connection
-      ? (descriptorFor(connection.providerId, descriptors)?.capabilities ?? [])
-      : [],
-    warnings,
-  };
-}
-
 /**
  * Derives the whole project's connection wiring for display. Pure: the same
  * project and manifest always produce the same integrity.
  *
- * Each slot is built FOR ITS OWN ROLE (never read back by position), and the
- * render order is the line's own order: tracker first, then git host.
+ * The RECORDED half of the ONE connection view (#176): `deriveConnectionView`
+ * owns the slots — one per role of THE list, each built for its own role — and
+ * this adapter folds them into the integrity shape the post-creation surfaces
+ * read, in the line's render order: tracker first, then git host.
  */
 export function deriveConnectionIntegrity(
   project: Project,
   descriptors: readonly ProviderDescriptor[] = [],
 ): ConnectionIntegrity {
-  const connections = deriveConnections(project);
-  const tracker = buildSlot("tracker", connections, descriptors);
-  const gitHost = buildSlot("gitHost", connections, descriptors);
-  const slots = [tracker, gitHost];
+  const view = deriveConnectionView({ kind: "recorded", project }, descriptors);
+  // THE list's order is the render order: tracker first, then git host.
+  const slots = PROJECT_CONNECTION_ROLES.map((role) => view[role]);
   const warnings = slots.flatMap((slot) => slot.warnings);
-  const hasIntegrityFailure = tracker.state === "disconnected";
+  const hasIntegrityFailure = view.tracker.state === "disconnected";
 
   return {
     slots,
-    tracker,
-    gitHost,
+    tracker: view.tracker,
+    gitHost: view.gitHost,
     hasIntegrityFailure,
     isDegraded: !hasIntegrityFailure && warnings.length > 0,
     warnings,
@@ -282,22 +92,16 @@ export function deriveConnectionIntegrity(
  * The combo line's slots for a derived integrity: tracker first, then git host,
  * restricted to `roles` when the surface renders a single role.
  *
- * This is the persisted-connections producer of the ONE combo-line model (#148)
- * — the wizard's Review step produces the same shape from draft verification
- * evidence, and both render `ConnectionComboLine`.
+ * The recorded producer of the ONE combo-line model (#148/#176) — the wizard's
+ * Review step reaches the same shape from draft verification evidence through
+ * the same mapping (`connectionComboSlots`), and both render
+ * `ConnectionComboLine`.
  */
 export function comboSlots(
   integrity: ConnectionIntegrity,
   roles?: readonly ProjectConnectionRole[],
 ): ConnectionComboSlot[] {
-  const roleSet = roles !== undefined ? new Set(roles) : undefined;
-  return integrity.slots
-    .filter((slot) => roleSet === undefined || roleSet.has(slot.role))
-    .map((slot) => ({
-      role: slot.role,
-      state: slot.state,
-      providerId: slot.providerId ?? null,
-    }));
+  return connectionComboSlots(integrity.slots, roles);
 }
 
 /**
@@ -322,14 +126,11 @@ export function recordedConnectionIdentityTargets(
   roles: readonly ProjectConnectionRole[] | undefined,
   descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
-  const roleSet = roles !== undefined ? new Set(roles) : undefined;
-  return integrity.slots
-    .filter((slot) => roleSet === undefined || roleSet.has(slot.role))
-    .map((slot) => ({
-      role: slot.role,
-      providerId: slot.providerId ?? null,
-      config: identityConfig(slot.providerId ?? null, slot.config, descriptors),
-    }));
+  return slotsForRoles(integrity.slots, roles).map((slot) => ({
+    role: slot.role,
+    providerId: slot.providerId ?? null,
+    config: identityConfig(slot.providerId ?? null, slot.config, descriptors),
+  }));
 }
 
 /**

@@ -1,4 +1,4 @@
-// src/frontend/views/RunDetailView.tsx — Canonical Run Detail view with live SSE streaming (XFM-39, XFM-42, XFM-44, XFM-50).
+// src/frontend/views/RunDetailView.tsx — Canonical Run Detail view with live SSE streaming (XFM-39, XFM-42, XFM-44, XFM-50, #191).
 
 import "./RunDetailView.css";
 
@@ -12,15 +12,13 @@ import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
 import {
   useAbandonRun,
   useResumeRun,
-  useRun,
   useTransitionRun,
 } from "../hooks/useQueries.js";
-import { useRunSSE } from "../hooks/useRunSSE.js";
+import { useRunDetail } from "../hooks/useRunDetail.js";
 
 export function RunDetailView() {
   const { runId } = useParams<{ runId: string }>();
-  const { data: run, isLoading, error } = useRun(runId);
-  const { events, connected } = useRunSSE(run);
+  const { run, isLoading, error, events, connected } = useRunDetail(runId);
 
   const resumeMutation = useResumeRun();
   const abandonMutation = useAbandonRun();

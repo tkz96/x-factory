@@ -3,6 +3,9 @@
 import type { ProviderDescriptor } from "../connection/types.js";
 import { connectionConfigFingerprint } from "./connection-fingerprint.js";
 
+/** Polling fallback for an active run's detail query (docs/explanation/ui-state-and-event-streaming.md). */
+export const ACTIVE_RUN_POLL_INTERVAL_MS = 2000;
+
 export const queryKeys = {
   projects: (options?: { includeArchived?: boolean }) =>
     options?.includeArchived
@@ -12,6 +15,8 @@ export const queryKeys = {
   tickets: (projectId: string) => ["tickets", projectId] as const,
   runs: () => ["runs"] as const,
   run: (runId: string) => ["runs", runId] as const,
+  /** The per-run event log (#191). Outside the ["runs"] prefix so run invalidation never drops it. */
+  runEvents: (runId: string) => ["run-events", runId] as const,
   settings: () => ["settings"] as const,
   readiness: () => ["readiness"] as const,
   diagnostics: () => ["diagnostics"] as const,
@@ -116,7 +121,8 @@ export const QUERY_POLICIES = {
     refetchOnReconnect: true,
   },
 
-  // Single Run Detail: Real-time SSE updates patch the cache directly; fallback 10s
+  // Single Run Detail: SSE patches the cache directly (lib/run-state.ts). An active run
+  // also polls every ACTIVE_RUN_POLL_INTERVAL_MS, as the fallback for a dropped stream.
   run: {
     staleTime: 10 * 1000, // 10 seconds
     refetchOnWindowFocus: true,
