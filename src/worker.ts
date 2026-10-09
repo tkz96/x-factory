@@ -542,15 +542,19 @@ export class Worker {
           });
           return;
         }
-        // Any other command targeted at a dead worker fails cleanly,
-        // including leftover `steer` rows from before steering was
-        // removed (#167).
-        this.commandRepo.failCommand(
-          command.id,
-          this.workerId,
-          `Target worker ${command.targetWorkerId} is dead or inactive`,
-        );
-        return;
+        if (command.command !== "deliver") {
+          // Unknown or leftover command types targeted at a dead worker
+          // (e.g. `steer` rows from before steering was removed, #167) fail
+          // cleanly instead of being processed.
+          this.commandRepo.failCommand(
+            command.id,
+            this.workerId,
+            `Target worker ${command.targetWorkerId} is dead or inactive`,
+          );
+          return;
+        }
+        // A `deliver` targeted at a dead worker falls through and is
+        // processed by this live worker, so the PR is still created (#167).
       }
     }
 
