@@ -5,14 +5,11 @@ import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { backupDatabase } from "../src/db/backup.js";
 import { createDatabase } from "../src/db/connection.js";
-import {
-  getArtifactsDir,
-  getBackupsDir,
-  getDatabasePath,
-} from "../src/paths.js";
+import { getBackupLocations, getDatabasePath } from "../src/paths.js";
 
 async function main() {
-  const targetDir = process.env.BACKUP_DIR || getBackupsDir();
+  const { backupsDir, artifactsDir } = getBackupLocations();
+  const targetDir = process.env.BACKUP_DIR || backupsDir;
 
   if (!existsSync(targetDir)) {
     mkdirSync(targetDir, { recursive: true });
@@ -45,7 +42,6 @@ async function main() {
     );
 
     // Artifact filesystem backup guidance
-    const artifactsDir = getArtifactsDir();
     const artifactsTarPath = path.join(
       targetDir,
       `x-factory-artifacts-${timestamp}.tar.gz`,

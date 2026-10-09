@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  getBackupsDir,
+  getBackupLocations,
   getDatabasePath,
   getDataDir,
   getProjectsConfigPath,
@@ -52,7 +52,10 @@ describe("Runtime locations derive from X_FACTORY_DATA_DIR (#175)", () => {
     expect(getDataDir()).toBe(dataDir);
     expect(getSettingsPath()).toBe(path.join(dataDir, "settings.json"));
     expect(getDatabasePath()).toBe(path.join(dataDir, "x-factory.db"));
-    expect(getBackupsDir()).toBe(path.join(dataDir, "backups"));
+    expect(getBackupLocations()).toEqual({
+      backupsDir: path.join(dataDir, "backups"),
+      artifactsDir: path.join(dataDir, "artifacts"),
+    });
     expect(getRunDir("proj-1", "run-1")).toBe(
       path.join(dataDir, "projects", "proj-1", "runs", "run-1"),
     );
