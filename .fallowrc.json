@@ -53,7 +53,8 @@
           "src/understand.ts",
           "src/review.ts",
           "src/verification.ts",
-          "src/attempt-loop.ts"
+          "src/attempt-loop.ts",
+          "src/prompts.ts"
         ]
       },
       {

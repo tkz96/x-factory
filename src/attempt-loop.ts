@@ -3,18 +3,16 @@
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execCommand, resolveSanitizedEnv } from "./proc.js";
+import { buildRalphPrompt, buildRepairPrompt } from "./prompts.js";
 import type {
+  ImplementationContext,
   Project,
   RunEventPayloadMap,
   RunEventType,
   Ticket,
   VerificationResult,
 } from "./shared/types.js";
-import {
-  buildRepairPrompt,
-  MAX_REPAIR_ATTEMPTS,
-  runVerification,
-} from "./verification.js";
+import { MAX_REPAIR_ATTEMPTS, runVerification } from "./verification.js";
 import type { BaselineState } from "./worktree-state.js";
 
 const LOOP_TIMEOUT_MS = 15 * 60 * 1000;
@@ -166,76 +164,6 @@ export function formatTasksMarkdown(plan: string, ticket?: Ticket): string {
   return output.trim();
 }
 
-/**
- * Builds .agent/PROMPT.md injecting Matt Pocock's TDD & implementation protocols.
- */
-export function buildRalphPrompt(
-  ticket: Ticket,
-  plan: string,
-  project: Project,
-): string {
-  const acList =
-    ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0
-      ? ticket.acceptanceCriteria.map((ac) => `- ${ac}`).join("\n")
-      : "- Ensure all tests pass and implementation meets ticket description.";
-
-  const testCmd = project.testCommand || "bun test";
-  const typecheckCmd = project.typecheckCommand
-    ? `- Typecheck Command: \`${project.typecheckCommand}\``
-    : "";
-  const lintCmd = project.lintCommand
-    ? `- Lint Command: \`${project.lintCommand}\``
-    : "";
-
-  return `# Ralph Loop Task Execution Protocol (Matt Pocock TDD Protocol)
-
-## Ticket: #${ticket.id} — ${ticket.title}
-${ticket.description ? `${ticket.description}\n` : ""}
-### Acceptance Criteria:
-${acList}
-
-### Verification Commands:
-- Test Command: \`${testCmd}\`
-${typecheckCmd}
-${lintCmd}
-
----
-
-## Approved Execution Plan:
-${plan}
-
----
-
-## Autonomous Execution Rules
-
-You are the autonomous coding agent (Pi) executing tasks iteratively inside Ralph Loop.
-Follow these rules strictly:
-
-### 1. Test-Driven Development (TDD) Loop (Red-Green-Refactor)
-For EVERY task in \`.agent/tasks.md\`:
-1. **Red**: Write a failing test first that specifies the expected behavior.
-   - Run the test suite using the project's test command (\`${testCmd}\`).
-   - Verify that the test fails for the expected reason.
-2. **Green**: Write the minimal amount of implementation code to make the test pass.
-   - Do NOT add unnecessary abstractions or speculative code.
-   - Run the test suite and verify that the test passes.
-3. **Refactor**: Clean up the code.
-   - Run typecheck and lint to ensure code quality.
-   - Ensure all existing tests still pass.
-
-### 2. One Task Per Iteration
-- Open \`.agent/tasks.md\`.
-- Find the first unchecked \`- [ ]\` task or step.
-- Implement ONLY that task. Do not jump ahead or combine tasks.
-- When all steps for that task are verified and all tests pass, update \`.agent/tasks.md\` by checking off that task: change \`- [ ]\` to \`- [x]\`.
-
-### 3. Invariants
-- Never delete or disable existing tests to make a test pass.
-- All commands (test, typecheck, lint) must exit cleanly with code 0 before completing a task.
-- When all tasks in \`.agent/tasks.md\` are marked \`[x]\`, conclude your work.
-`;
-}
-
 /** The repair checklist: a fresh unchecked task so the loop script runs the agent again. */
 function formatRepairTasksMarkdown(attempt: number): string {
   return `# Task List
@@ -252,6 +180,8 @@ export interface AttemptLoopInput {
   ticket: Ticket;
   plan: string;
   project: Project;
+  /** What the understand stage learned; rendered into the loop and repair prompts. */
+  understanding?: ImplementationContext | null | undefined;
   baseline: BaselineState;
   /** Provider of the implementation session (session A); its credentials reach the loop. */
   provider: string;
@@ -281,7 +211,12 @@ async function scaffold(input: AttemptLoopInput): Promise<string> {
   );
   await writeFile(
     path.join(agentDir, "PROMPT.md"),
-    buildRalphPrompt(input.ticket, input.plan, input.project),
+    buildRalphPrompt(
+      input.ticket,
+      input.plan,
+      input.project,
+      input.understanding,
+    ),
     "utf-8",
   );
 
@@ -409,7 +344,13 @@ export async function runAttemptLoop(
     if (attempt < MAX_REPAIR_ATTEMPTS) {
       await writeFile(
         path.join(agentDir, "PROMPT.md"),
-        buildRepairPrompt(input.ticket, input.plan, verification, attempt),
+        buildRepairPrompt(
+          input.ticket,
+          input.plan,
+          verification,
+          attempt,
+          input.understanding,
+        ),
         "utf-8",
       );
       await writeFile(

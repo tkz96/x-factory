@@ -1,30 +1,5 @@
-import type { Ticket } from "../shared/types.js";
+import { generateDefaultPlan } from "../prompts.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
-
-export function generateDefaultPlan(ticket: Ticket): string {
-  const criteria =
-    ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0
-      ? ticket.acceptanceCriteria
-      : ["Implement required functionality according to ticket specifications"];
-
-  let plan = `# Execution Plan for #${ticket.id}: ${ticket.title}\n\n`;
-  plan += `## Task 1: Setup & Tests\n`;
-  plan += `- [ ] Create test fixtures and failing test cases for acceptance criteria\n`;
-  plan += `- [ ] Run test suite to verify failing (RED) state\n\n`;
-
-  plan += `## Task 2: Core Implementation\n`;
-  for (const ac of criteria) {
-    plan += `- [ ] Implement ${ac}\n`;
-  }
-  plan += `- [ ] Run test suite to verify passing (GREEN) state\n\n`;
-
-  plan += `## Task 3: Quality Verification & Refactor\n`;
-  plan += `- [ ] Refactor implementation for maintainability and clarity\n`;
-  plan += `- [ ] Run typecheck and lint to ensure clean build\n`;
-  plan += `- [ ] Ensure zero test regressions\n`;
-
-  return plan.trim();
-}
 
 export class PlanExecutor implements StageExecutor {
   readonly stage = "plan";

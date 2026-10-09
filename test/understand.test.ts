@@ -9,7 +9,6 @@ import { validateProject } from "../src/config.js";
 import type { Project, Ticket } from "../src/types.js";
 import {
   buildImplementationContext,
-  buildImplementationPrompt,
   buildProjectConstraints,
   checkKnowledgeNotes,
   extractMentionedFiles,
@@ -253,103 +252,6 @@ describe("Understand Stage (src/understand.ts)", () => {
       );
 
       await rm(tempDir, { recursive: true, force: true });
-    });
-  });
-
-  describe("buildImplementationPrompt", () => {
-    it("builds prompt interpolating ticket, criteria, context, and accessible knowledge", async () => {
-      const tempDir = await mkdtemp(path.join(os.tmpdir(), "xf-prm-"));
-      const project: Project = {
-        ...baseProject,
-        knowledgeRepositoryPath: tempDir,
-      };
-
-      const context = {
-        relevantFiles: ["src/auth.ts"],
-        architecturalNotes: "Clean repo",
-        existingBehavior: "Working",
-        constraints: ['Test command must pass: "bun test"'],
-        risks: ["None"],
-      };
-
-      const prompt = await buildImplementationPrompt(
-        project,
-        baseTicket,
-        "Implement auth handlers",
-        context,
-      );
-
-      assert.ok(prompt.includes("#ALPH-101 — Implement user authentication"));
-      assert.ok(prompt.includes("Add JWT token validation"));
-      assert.ok(prompt.includes("1. Valid JWT tokens allow access"));
-      assert.ok(prompt.includes("2. Expired tokens return 401"));
-      assert.ok(prompt.includes("Relevant files: src/auth.ts"));
-      assert.ok(
-        prompt.includes('Constraints: Test command must pass: "bun test"'),
-      );
-      assert.ok(prompt.includes("Knowledge repository is available at:"));
-
-      await rm(tempDir, { recursive: true, force: true });
-    });
-
-    it("handles ticket without description and without acceptance criteria", async () => {
-      const simpleTicket: Ticket = {
-        id: "ALPH-102",
-        title: "Trivial task",
-        acceptanceCriteria: [],
-      };
-
-      const context = {
-        relevantFiles: [],
-        architecturalNotes: "Standard",
-        existingBehavior: "Working",
-        constraints: [],
-        risks: [],
-      };
-
-      const prompt = await buildImplementationPrompt(
-        baseProject,
-        simpleTicket,
-        "Do it",
-        context,
-      );
-
-      assert.ok(prompt.includes("#ALPH-102 — Trivial task"));
-      assert.ok(!prompt.includes("Acceptance Criteria:"));
-      assert.ok(prompt.includes("Relevant files: None specified"));
-      assert.ok(
-        prompt.includes(
-          "No knowledge repository is configured for this project.",
-        ),
-      );
-    });
-
-    it("notes when knowledge repository is configured but inaccessible", async () => {
-      const project: Project = {
-        ...baseProject,
-        knowledgeRepositoryPath: "/inaccessible/knowledge/repo",
-      };
-
-      const context = {
-        relevantFiles: [],
-        architecturalNotes: "Standard",
-        existingBehavior: "Working",
-        constraints: [],
-        risks: [],
-      };
-
-      const prompt = await buildImplementationPrompt(
-        project,
-        baseTicket,
-        "Plan",
-        context,
-      );
-
-      assert.ok(
-        prompt.includes(
-          "Knowledge repository configured but directory is currently inaccessible.",
-        ),
-      );
     });
   });
 });
