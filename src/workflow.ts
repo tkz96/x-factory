@@ -68,17 +68,35 @@ export const RESUME_ROUTES: Readonly<Record<WorkflowStage, ResumeRoute>> = {
 };
 
 /**
+ * Stage names that older databases recorded in stage_attempts. Each maps to the current
+ * stage that re-runs the same work, so runs recorded under them can still be resumed.
+ */
+export const LEGACY_STAGE_ALIASES: Readonly<
+  Record<LegacyStage, WorkflowStage>
+> = {
+  verify: "execute",
+  implement: "execute",
+};
+
+export type LegacyStage = "verify" | "implement";
+
+function isLegacyStage(value: string): value is LegacyStage {
+  return Object.hasOwn(LEGACY_STAGE_ALIASES, value);
+}
+
+/**
  * The resume target for the stage of a run's last attempt. A run with no attempt restarts at
- * prepare. A recorded stage with no route is refused, not guessed at.
+ * prepare. A legacy stage name resumes as its alias. Any other unknown stage is refused, not
+ * guessed at.
  */
 export function resumeRouteFor(lastStage: string | undefined): ResumeRoute {
   if (lastStage === undefined) return RESUME_ROUTES.prepare;
-  if (!isWorkflowStage(lastStage)) {
-    throw new ConflictError(
-      `Cannot resume: no resume route for stage "${lastStage}".`,
-    );
-  }
-  return RESUME_ROUTES[lastStage];
+  if (isWorkflowStage(lastStage)) return RESUME_ROUTES[lastStage];
+  if (isLegacyStage(lastStage))
+    return RESUME_ROUTES[LEGACY_STAGE_ALIASES[lastStage]];
+  throw new ConflictError(
+    `Cannot resume: no resume route for stage "${lastStage}".`,
+  );
 }
 
 /** Where approving a run moves it, keyed by the gate it waits at. */
