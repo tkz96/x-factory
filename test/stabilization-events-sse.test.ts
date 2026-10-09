@@ -83,9 +83,9 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     const { eventRepo, run } = setupTest();
 
     // Worker writes to SQLite
-    eventRepo.appendEvent(run.id, "info", { msg: "First" });
-    eventRepo.appendEvent(run.id, "info", { msg: "Second" });
-    eventRepo.appendEvent(run.id, "info", { msg: "Third" });
+    eventRepo.appendEvent(run.id, "info", { text: "First" });
+    eventRepo.appendEvent(run.id, "info", { text: "Second" });
+    eventRepo.appendEvent(run.id, "info", { text: "Third" });
 
     // Client requests with Last-Event-ID: 2
     const req = new Request(`http://localhost/api/runs/${run.id}/events`, {

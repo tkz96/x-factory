@@ -1880,17 +1880,6 @@ export function getOpenApiSpec() {
             {
               type: "object",
               properties: {
-                events: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      type: { type: "string" },
-                      text: { type: "string" },
-                      timestamp: { type: "integer" },
-                    },
-                  },
-                },
                 prUrl: { type: "string" },
                 branch: { type: "string" },
                 worktreePath: { type: "string" },

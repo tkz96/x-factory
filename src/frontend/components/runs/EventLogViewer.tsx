@@ -3,22 +3,19 @@
 import "./EventLogViewer.css";
 
 import { useEffect, useRef } from "react";
-import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
+import type { RunEvent } from "../../../shared/types.js";
 
 interface EventLogViewerProps {
-  events: CanonicalWireEvent[];
+  events: RunEvent[];
 }
 
-function getPayloadRecord(item: CanonicalWireEvent): Record<string, unknown> {
+function getPayloadRecord(item: RunEvent): Record<string, unknown> {
   return (
     item.payload && typeof item.payload === "object" ? item.payload : {}
   ) as Record<string, unknown>;
 }
 
-function renderStatus(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderStatus(item: RunEvent, payload: Record<string, unknown>) {
   const status = typeof payload.status === "string" ? payload.status : "";
   const text = typeof payload.text === "string" ? payload.text : "";
   return (
@@ -28,17 +25,9 @@ function renderStatus(
   );
 }
 
-function renderEvidence(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderEvidence(item: RunEvent, payload: Record<string, unknown>) {
   const stage = typeof payload.stage === "string" ? payload.stage : "";
-  const summary =
-    typeof payload.summary === "string"
-      ? payload.summary
-      : typeof payload.evidence === "string"
-        ? payload.evidence
-        : "";
+  const summary = typeof payload.evidence === "string" ? payload.evidence : "";
   return (
     <div key={item.id} className="event-item event-evidence">
       <span className="event-prefix">✓ </span>
@@ -48,10 +37,7 @@ function renderEvidence(
   );
 }
 
-function renderPiChunk(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderPiChunk(item: RunEvent, payload: Record<string, unknown>) {
   const role = typeof payload.role === "string" ? payload.role : "";
   const text = typeof payload.text === "string" ? payload.text : "";
   const rolePrefix =
@@ -64,33 +50,27 @@ function renderPiChunk(
   );
 }
 
-function renderRalphProgress(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderRalphProgress(item: RunEvent, payload: Record<string, unknown>) {
   const text = typeof payload.text === "string" ? payload.text : "";
   const iteration = payload.iteration;
-  const task = payload.task;
   return (
     <div key={item.id} className="event-item event-ralph">
       <span className="event-prefix">⚙ [Ralph] </span>
       {iteration ? <span>[Iter #{String(iteration)}] </span> : null}
-      {task ? <strong>{String(task)}: </strong> : null}
       {text}
     </div>
   );
 }
 
-function renderPrStep(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderPrStep(item: RunEvent, payload: Record<string, unknown>) {
   const text =
     typeof payload.text === "string"
       ? payload.text
-      : typeof payload.step === "string"
-        ? payload.step
-        : "";
+      : typeof payload.url === "string"
+        ? payload.url
+        : typeof payload.step === "string"
+          ? payload.step
+          : "";
   return (
     <div key={item.id} className="event-item event-status">
       <span className="event-prefix">▸ </span>
@@ -100,7 +80,7 @@ function renderPrStep(
 }
 
 function renderEvalResult(
-  item: CanonicalWireEvent,
+  item: RunEvent,
   payload: Record<string, unknown>,
   label: "Verification" | "Review",
 ) {
@@ -121,18 +101,8 @@ function renderEvalResult(
   );
 }
 
-function renderError(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : typeof payload.error === "string"
-        ? payload.error
-        : typeof payload.message === "string"
-          ? payload.message
-          : "";
+function renderError(item: RunEvent, payload: Record<string, unknown>) {
+  const text = typeof payload.message === "string" ? payload.message : "";
   return (
     <div key={item.id} className="event-item event-error">
       Error: {text}
@@ -140,16 +110,8 @@ function renderError(
   );
 }
 
-function renderSteer(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : typeof payload.message === "string"
-        ? payload.message
-        : "";
+function renderSteer(item: RunEvent, payload: Record<string, unknown>) {
+  const text = typeof payload.message === "string" ? payload.message : "";
   return (
     <div key={item.id} className="event-item event-steer">
       <span className="event-prefix">→ Steer: </span>
@@ -158,16 +120,8 @@ function renderSteer(
   );
 }
 
-function renderInfo(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : typeof payload.message === "string"
-        ? payload.message
-        : "";
+function renderInfo(item: RunEvent, payload: Record<string, unknown>) {
+  const text = typeof payload.text === "string" ? payload.text : "";
   return (
     <div key={item.id} className="event-item text-muted">
       {text}
@@ -175,10 +129,7 @@ function renderInfo(
   );
 }
 
-function renderFallback(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderFallback(item: RunEvent, payload: Record<string, unknown>) {
   const text =
     typeof payload.text === "string"
       ? payload.text
@@ -192,7 +143,7 @@ function renderFallback(
   );
 }
 
-function renderEventItem(item: CanonicalWireEvent) {
+function renderEventItem(item: RunEvent) {
   const payload = getPayloadRecord(item);
 
   switch (item.type) {

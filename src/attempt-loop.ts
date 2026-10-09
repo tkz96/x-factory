@@ -3,7 +3,13 @@
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execCommand, resolveSanitizedEnv } from "./proc.js";
-import type { Project, Ticket, VerificationResult } from "./shared/types.js";
+import type {
+  Project,
+  RunEventPayloadMap,
+  RunEventType,
+  Ticket,
+  VerificationResult,
+} from "./shared/types.js";
 import {
   buildRepairPrompt,
   MAX_REPAIR_ATTEMPTS,
@@ -252,7 +258,10 @@ export interface AttemptLoopInput {
   signal?: AbortSignal | undefined;
   /** Loop timeout per attempt; defaults to 15 minutes. */
   timeoutMs?: number | undefined;
-  emit: (type: string, payload: unknown) => void;
+  emit: <T extends RunEventType>(
+    type: T,
+    payload: RunEventPayloadMap[T],
+  ) => void;
   /** Called after every verification, so the caller can persist the diff and result. */
   onVerification: (verification: VerificationResult) => void;
 }

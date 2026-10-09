@@ -252,7 +252,10 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
       {
         event: {
           type: "status",
-          payload: { text: "Transitioned to understanding" },
+          payload: {
+            status: "understanding",
+            text: "Transitioned to understanding",
+          },
         },
       },
     );
@@ -268,6 +271,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
     expect(events[0]?.sequence).toBe(1);
     expect(events[0]?.type).toBe("status");
     expect(events[0]?.payload).toEqual({
+      status: "understanding",
       text: "Transitioned to understanding",
     });
   });

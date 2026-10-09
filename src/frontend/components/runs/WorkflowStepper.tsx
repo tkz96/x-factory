@@ -7,8 +7,11 @@ import {
   STATUS_TO_STAGE,
   TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
-import type { RunStatus, WorkflowStage } from "../../../shared/types.js";
-import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
+import type {
+  RunEvent,
+  RunStatus,
+  WorkflowStage,
+} from "../../../shared/types.js";
 
 const STAGE_ORDER: WorkflowStage[] = [
   "prepare",
@@ -66,7 +69,7 @@ const STAGE_CONFIG: Array<{
 export interface WorkflowStepperProps {
   status: RunStatus;
   startedAt?: string | null;
-  events?: CanonicalWireEvent[];
+  events?: RunEvent[];
   evidenceByStage?: Record<string, string>;
   stepperId?: string;
 }
