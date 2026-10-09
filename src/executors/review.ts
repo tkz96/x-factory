@@ -51,6 +51,7 @@ export class ReviewExecutor implements StageExecutor {
       plan: context.run.plan,
       diff: context.run.diff || "",
       verification: currentRun.verification,
+      understanding: currentRun.implementationContext,
       modelConfig: settings.models?.sessionB,
       signal: context.signal,
       sessionFactory: this.deps.sessionFactory,

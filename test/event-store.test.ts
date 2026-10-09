@@ -45,11 +45,11 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
       status: "preparing",
     });
     const e2 = eventRepo.appendEvent("run-seq-1", "stage_evidence", {
-      stage: "parse",
-      summary: "Done",
+      stage: "prepare",
+      evidence: "Done",
     });
     const e3 = eventRepo.appendEvent("run-seq-1", "info", {
-      message: "Running",
+      text: "Running",
     });
 
     expect(e1.sequence).toBe(1);
@@ -62,10 +62,10 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
     setupRun("run-alpha");
     setupRun("run-beta");
 
-    const a1 = eventRepo.appendEvent("run-alpha", "info", "alpha 1");
-    const b1 = eventRepo.appendEvent("run-beta", "info", "beta 1");
-    const a2 = eventRepo.appendEvent("run-alpha", "info", "alpha 2");
-    const b2 = eventRepo.appendEvent("run-beta", "info", "beta 2");
+    const a1 = eventRepo.appendEvent("run-alpha", "info", { text: "alpha 1" });
+    const b1 = eventRepo.appendEvent("run-beta", "info", { text: "beta 1" });
+    const a2 = eventRepo.appendEvent("run-alpha", "info", { text: "alpha 2" });
+    const b2 = eventRepo.appendEvent("run-beta", "info", { text: "beta 2" });
 
     expect(a1.sequence).toBe(1);
     expect(a2.sequence).toBe(2);
@@ -75,7 +75,7 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
 
   it("enforces database-level UNIQUE(run_id, sequence) constraint", () => {
     setupRun("run-unique");
-    eventRepo.appendEvent("run-unique", "info", "evt 1");
+    eventRepo.appendEvent("run-unique", "info", { text: "evt 1" });
 
     // Manually inserting duplicate (run_unique, 1) should be rejected by SQLite
     expect(() => {
@@ -90,7 +90,7 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
     setupRun("run-replay");
 
     for (let i = 1; i <= 5; i++) {
-      eventRepo.appendEvent("run-replay", "info", { count: i });
+      eventRepo.appendEvent("run-replay", "info", { text: `count ${i}` });
     }
 
     // Replay since sequence 3: should return sequences 4 and 5

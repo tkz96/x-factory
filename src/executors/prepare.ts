@@ -5,6 +5,7 @@ import path from "node:path";
 import type { OperationLedgerRepository } from "../db/operation-ledger-repository.js";
 import * as git from "../git.js";
 import { ensureDir, getWorktreePath } from "../paths.js";
+import { renderTicketDoc } from "../prompts.js";
 import type { Project } from "../shared/types.js";
 import { baselinePathFor, recordBaseline } from "../worktree-state.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
@@ -123,10 +124,9 @@ export async function initializeArtifactFiles(
     encoding?: BufferEncoding,
   ) => Promise<void>,
 ): Promise<void> {
-  const ticketContent = `# Ticket ${ticket.id}: ${ticket.title}\n\n${ticket.description || ""}\n\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}`;
   await writeFileFn(
     path.join(artifactsDir, "ticket.md"),
-    ticketContent,
+    renderTicketDoc(ticket),
     "utf-8",
   );
   await writeFileFn(path.join(artifactsDir, "plan.md"), plan, "utf-8");

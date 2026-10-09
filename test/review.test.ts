@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { PiAgentSession } from "../src/agents/pi.js";
+import { buildReviewPrompt } from "../src/prompts.js";
 import {
-  buildReviewPrompt,
   createFallbackReview,
   evaluateReviewVerdict,
   extractReviewItems,

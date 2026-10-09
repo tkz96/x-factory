@@ -174,7 +174,6 @@ describe("Direct SSE Cache Patching (XFM-42)", () => {
       plan: "Test plan",
       branch: "factory/t-1",
       status,
-      events: [],
       startedAt: new Date().toISOString(),
       finishedAt: null,
       implementationContext: null,

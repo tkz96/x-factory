@@ -1,7 +1,7 @@
 // test/ralph-executor.test.ts — Unit and integration tests for Autonomous Ralph Loop Execution (Ticket 02).
 
 import { afterAll, describe, expect, it } from "bun:test";
-import { buildRalphPrompt, formatTasksMarkdown } from "../src/attempt-loop.js";
+import { formatTasksMarkdown } from "../src/attempt-loop.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -11,6 +11,7 @@ import { type RunRecord, RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import { PlanExecutor } from "../src/executors/plan.js";
 import type { StageContext } from "../src/executors/types.js";
+import { buildRalphPrompt } from "../src/prompts.js";
 import type { Project } from "../src/shared/types.js";
 import { tempArtifactsDirs } from "./helpers/scripted-review-session.js";
 

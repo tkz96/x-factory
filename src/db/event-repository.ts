@@ -1,15 +1,19 @@
 // src/db/event-repository.ts — Durable SQLite repository for run lifecycle events (XFM-12, XFM-13).
 
 import type { Database } from "bun:sqlite";
+import type { RunEventPayloadMap, RunEventType } from "../shared/types.js";
 
-export interface EventRecord {
-  id: number;
-  runId: string;
-  sequence: number;
-  type: string;
-  payload: unknown;
-  createdAt: string;
-}
+export type EventRecord<T extends RunEventType = RunEventType> =
+  T extends RunEventType
+    ? {
+        id: number;
+        runId: string;
+        sequence: number;
+        type: T;
+        payload: RunEventPayloadMap[T];
+        createdAt: string;
+      }
+    : never;
 
 export interface EventRow {
   id: number;
@@ -32,10 +36,10 @@ export function rowToEventRecord(row: EventRow): EventRecord {
     id: row.id,
     runId: row.run_id,
     sequence: row.sequence,
-    type: row.type,
-    payload: parsedPayload,
+    type: row.type as RunEventType,
+    payload: parsedPayload as RunEventPayloadMap[RunEventType],
     createdAt: row.created_at,
-  };
+  } as EventRecord;
 }
 
 export class EventRepository {
@@ -45,12 +49,12 @@ export class EventRepository {
    * Appends an event to the durable store with atomic monotonic sequence allocation (XFM-13).
    * Safe within external or internal transactions.
    */
-  appendEvent(
+  appendEvent<T extends RunEventType>(
     runId: string,
-    type: string,
-    payload: unknown,
+    type: T,
+    payload: RunEventPayloadMap[T],
     txDb?: Database,
-  ): EventRecord {
+  ): EventRecord<T> {
     const conn = txDb || this.db;
     const now = new Date().toISOString();
     const serializedPayload =
@@ -89,7 +93,7 @@ export class EventRepository {
       throw new Error(`Failed to append event for run ${runId}`);
     }
 
-    return rowToEventRecord(row);
+    return rowToEventRecord(row) as EventRecord<T>;
   }
 
   /**

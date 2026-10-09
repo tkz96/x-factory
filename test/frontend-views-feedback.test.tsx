@@ -77,7 +77,6 @@ function makeRun(status: string) {
     branch: "xf-tick-42",
     status,
     plan: "Implementation plan",
-    events: [],
     startedAt: "2026-09-20T12:00:00.000Z",
     finishedAt: "2026-09-20T12:05:00.000Z",
     implementationContext: null,

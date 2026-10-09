@@ -10,7 +10,11 @@ import {
   STATUS_TO_STAGE,
   UNSUCCESSFUL_TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
-import type { ImplementationContext, Run } from "../../../shared/types.js";
+import type {
+  ImplementationContext,
+  Run,
+  RunEvent,
+} from "../../../shared/types.js";
 import { api } from "../../lib/api-client.js";
 import {
   type ParsedDiffFile,
@@ -52,7 +56,7 @@ export interface ChatMessage {
 
 export interface RunChatProps {
   run: Run;
-  events: import("../../hooks/useRunSSE.js").CanonicalWireEvent[];
+  events: RunEvent[];
   onApprove?: () => void;
   onRestart?: () => void;
   onAbort?: () => void;

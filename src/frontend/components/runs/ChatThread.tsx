@@ -3,13 +3,13 @@
 import "./ChatThread.css";
 
 import { useEffect, useRef } from "react";
-import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
+import type { RunEvent } from "../../../shared/types.js";
 
 export interface ChatThreadProps {
-  events: CanonicalWireEvent[];
+  events: RunEvent[];
 }
 
-function getPayloadRecord(item: CanonicalWireEvent): Record<string, unknown> {
+function getPayloadRecord(item: RunEvent): Record<string, unknown> {
   return (
     item.payload && typeof item.payload === "object" ? item.payload : {}
   ) as Record<string, unknown>;
@@ -31,10 +31,7 @@ function formatFullTimestamp(iso: string): string {
   }
 }
 
-function renderStatusBubble(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderStatusBubble(item: RunEvent, payload: Record<string, unknown>) {
   const status = typeof payload.status === "string" ? payload.status : "";
   const text = typeof payload.text === "string" ? payload.text : "";
   return (
@@ -52,16 +49,11 @@ function renderStatusBubble(
 }
 
 function renderEvidenceBubble(
-  item: CanonicalWireEvent,
+  item: RunEvent,
   payload: Record<string, unknown>,
 ) {
   const stage = typeof payload.stage === "string" ? payload.stage : "";
-  const summary =
-    typeof payload.summary === "string"
-      ? payload.summary
-      : typeof payload.evidence === "string"
-        ? payload.evidence
-        : "";
+  const summary = typeof payload.evidence === "string" ? payload.evidence : "";
   return (
     <div key={item.id} className="chat-bubble bubble-evidence">
       <div className="chat-bubble-header">
@@ -76,19 +68,14 @@ function renderEvidenceBubble(
   );
 }
 
-function renderRalphBubble(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderRalphBubble(item: RunEvent, payload: Record<string, unknown>) {
   const text = typeof payload.text === "string" ? payload.text : "";
   const iteration = payload.iteration;
-  const task = payload.task;
   return (
     <div key={item.id} className="chat-bubble bubble-ralph">
       <div className="chat-bubble-header">
         <span className="chat-bubble-badge">Ralph Loop</span>
         {iteration ? <span>Iteration #{String(iteration)}</span> : null}
-        {task ? <span>· {String(task)}</span> : null}
       </div>
       <div className="chat-bubble-body">{text}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
@@ -98,10 +85,7 @@ function renderRalphBubble(
   );
 }
 
-function renderPiChunkBubble(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderPiChunkBubble(item: RunEvent, payload: Record<string, unknown>) {
   const role = typeof payload.role === "string" ? payload.role : "agent";
   const text = typeof payload.text === "string" ? payload.text : "";
   const isRalph = role === "ralph";
@@ -127,16 +111,8 @@ function renderPiChunkBubble(
   );
 }
 
-function renderSteerBubble(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : typeof payload.message === "string"
-        ? payload.message
-        : "";
+function renderSteerBubble(item: RunEvent, payload: Record<string, unknown>) {
+  const text = typeof payload.message === "string" ? payload.message : "";
   return (
     <div key={item.id} className="chat-bubble bubble-steer">
       <div className="chat-bubble-header">
@@ -151,7 +127,7 @@ function renderSteerBubble(
 }
 
 function renderChatUserBubble(
-  item: CanonicalWireEvent,
+  item: RunEvent,
   payload: Record<string, unknown>,
 ) {
   const text = typeof payload.text === "string" ? payload.text : "";
@@ -173,7 +149,7 @@ function renderChatUserBubble(
 }
 
 function renderChatAgentBubble(
-  item: CanonicalWireEvent,
+  item: RunEvent,
   payload: Record<string, unknown>,
 ) {
   const text = typeof payload.text === "string" ? payload.text : "";
@@ -194,18 +170,8 @@ function renderChatAgentBubble(
   );
 }
 
-function renderErrorBubble(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
-  const text =
-    typeof payload.text === "string"
-      ? payload.text
-      : typeof payload.error === "string"
-        ? payload.error
-        : typeof payload.message === "string"
-          ? payload.message
-          : "";
+function renderErrorBubble(item: RunEvent, payload: Record<string, unknown>) {
+  const text = typeof payload.message === "string" ? payload.message : "";
   return (
     <div key={item.id} className="chat-bubble bubble-error">
       <div className="chat-bubble-header">
@@ -219,10 +185,7 @@ function renderErrorBubble(
   );
 }
 
-function renderDefaultBubble(
-  item: CanonicalWireEvent,
-  payload: Record<string, unknown>,
-) {
+function renderDefaultBubble(item: RunEvent, payload: Record<string, unknown>) {
   const text =
     typeof payload.text === "string"
       ? payload.text
@@ -240,7 +203,7 @@ function renderDefaultBubble(
   );
 }
 
-function renderBubble(item: CanonicalWireEvent) {
+function renderBubble(item: RunEvent) {
   const payload = getPayloadRecord(item);
 
   switch (item.type) {

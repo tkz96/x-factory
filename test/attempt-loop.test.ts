@@ -246,6 +246,44 @@ describe("Attempt loop at the Worker seam", () => {
     );
   });
 
+  it("the prompt file the loop receives contains the run's understanding context", async () => {
+    await commitAndRecordBaseline();
+    await installSbx(
+      `${CHECK_OFF_FIRST_TASK}\necho "export const updated = true;" > src/app.ts`,
+    );
+    await configureProject("true");
+    const { run, runRepo, jobRepo, worker } = setup();
+
+    // The understand stage's output, persisted on the run exactly as UnderstandExecutor stores it.
+    runRepo.update(run.id, {
+      implementationContext: {
+        relevantFiles: ["src/auth.ts"],
+        architecturalNotes: "Token verification lives in src/auth.ts.",
+        existingBehavior: "Login returns a cookie named xf_session.",
+        constraints: ['Test command must pass: "true"'],
+        risks: ["Editing src/cache.ts breaks session invalidation"],
+      },
+      expectedRevision: run.revision,
+    });
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    const prompt = await readFile(
+      path.join(repo, ".agent", "PROMPT.md"),
+      "utf-8",
+    );
+    expect(prompt).toContain("## Codebase Understanding");
+    expect(prompt).toContain("Relevant files: src/auth.ts");
+    expect(prompt).toContain("Token verification lives in src/auth.ts.");
+    expect(prompt).toContain("Login returns a cookie named xf_session.");
+    expect(prompt).toContain(
+      "- Editing src/cache.ts breaks session invalidation",
+    );
+  });
+
   it("spends the repair budget: every attempt re-runs the agent on a fresh unchecked task", async () => {
     await commitAndRecordBaseline();
     const log = path.join(tempDir, "sbx.log");

@@ -3,11 +3,11 @@
 import "./ActivitySidebar.css";
 
 import { useEffect, useRef } from "react";
-import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
+import type { RunEvent } from "../../../shared/types.js";
 import { ChatThread } from "./ChatThread.js";
 
 interface ActivitySidebarProps {
-  events: CanonicalWireEvent[];
+  events: RunEvent[];
   connected: boolean;
 }
 

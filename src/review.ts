@@ -8,8 +8,10 @@ import {
   type SessionOptions,
 } from "./agents/pi.js";
 import { ensureDir } from "./paths.js";
+import { buildReviewPrompt } from "./prompts.js";
 import type {
   Finding,
+  ImplementationContext,
   ReviewResult,
   Ticket,
   VerificationResult,
@@ -23,6 +25,8 @@ export interface ReviewContext {
   plan: string;
   diff: string;
   verification: VerificationResult;
+  /** What the understand stage learned; rendered into the review prompt. */
+  understanding?: ImplementationContext | null | undefined;
   onEvent?: (event: {
     type: string;
     text?: string | undefined;
@@ -98,10 +102,24 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
 }
 
 async function runReview(context: ReviewContext): Promise<ReviewResult> {
-  const { worktreePath, ticket, plan, diff, verification, onEvent, signal } =
-    context;
+  const {
+    worktreePath,
+    ticket,
+    plan,
+    diff,
+    verification,
+    understanding,
+    onEvent,
+    signal,
+  } = context;
 
-  const reviewPrompt = buildReviewPrompt(ticket, plan, diff, verification);
+  const reviewPrompt = buildReviewPrompt(
+    ticket,
+    plan,
+    diff,
+    verification,
+    understanding,
+  );
 
   let reviewSession: PiAgentSession;
   try {
@@ -195,56 +213,6 @@ function hasReviewVerdict(output: string): boolean {
     extractReviewItems(output).criteriaChecked.length > 0 ||
     /VERDICT:\s*(PASSED|FAILED)/i.test(output)
   );
-}
-
-export function buildReviewPrompt(
-  ticket: Ticket,
-  plan: string,
-  diff: string,
-  verification: VerificationResult,
-): string {
-  const criteriaList =
-    ticket.acceptanceCriteria.length > 0
-      ? ticket.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")
-      : "1. The implementation must fulfill the ticket title and description without regressions.";
-
-  return `You are an independent, read-only code reviewer evaluating a completed implementation.
-You have access to read, grep, find, and ls tools. You CANNOT modify code or run commands.
-
-## Ticket
-#${ticket.id} — ${ticket.title}
-${ticket.description ? `Description: ${ticket.description}\n` : ""}
-### Acceptance Criteria:
-${criteriaList}
-
-## Implementation Plan
-${plan}
-
-## Verification Results
-${verification.summary}
-Changed files: ${verification.filesChanged.join(", ") || "None"}
-
-## Git Diff
-\`\`\`diff
-${diff.slice(0, 30_000)}
-\`\`\`
-
-## Your Task
-1. Inspect the diff and repository files to verify correctness.
-2. Check whether EVERY acceptance criterion is satisfied.
-3. Check for unintended modifications, style discrepancies, or bugs.
-4. Report your assessment.
-
-Format your response clearly:
-
-CRITERIA_CHECK:
-- [PASS|FAIL] <criterion description>
-
-FINDINGS:
-- [INFO|WARNING|ERROR] <finding description> (file:path, line:N if applicable)
-
-VERDICT:
-[PASSED|FAILED] - <concise summary>`;
 }
 
 export function parseFindingLine(trimmed: string): Finding | null {
