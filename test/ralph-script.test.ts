@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { DEFAULT_RALPH_SCRIPT } from "../src/executors/execute";
+import { DEFAULT_RALPH_SCRIPT } from "../src/attempt-loop";
 
 const execFileAsync = promisify(execFile);
 

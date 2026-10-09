@@ -1,9 +1,6 @@
 // test/canonical-verification-review-flow.test.ts — Tests for Issue #103: Canonical verification and review flow.
 
 import { afterAll, describe, expect, it } from "bun:test";
-import type { ChildProcess, spawn } from "node:child_process";
-import { EventEmitter } from "node:events";
-import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -16,7 +13,6 @@ import { runMigrations } from "../src/db/migrator.js";
 import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
 import { type RunRecord, RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
-import { ExecuteExecutor } from "../src/executors/execute.js";
 import { ReviewExecutor } from "../src/executors/review.js";
 import type { StageContext } from "../src/executors/types.js";
 import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
@@ -36,20 +32,6 @@ import {
   scriptedReviewSession,
   tempArtifactsDirs,
 } from "./helpers/scripted-review-session.js";
-
-function createMockSpawn() {
-  return ((_cmd: string, _args?: readonly string[]) => {
-    // biome-ignore lint/suspicious/noExplicitAny: mock
-    const mockChild = new EventEmitter() as any;
-    mockChild.stdout = new EventEmitter();
-    mockChild.stderr = new EventEmitter();
-    mockChild.kill = () => true;
-    setTimeout(() => {
-      mockChild.emit("close", 0);
-    }, 10);
-    return mockChild as unknown as ChildProcess;
-  }) as unknown as typeof spawn;
-}
 
 describe("Issue #103: Canonical Verification and Review Flow", () => {
   const artifactDirs = tempArtifactsDirs();
@@ -276,138 +258,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     ],
     summary: "All acceptance criteria verified and code quality approved.",
   };
-
-  it("successful deterministic verification -> persisted result -> verification SSE event", async () => {
-    const { context, runRepo, eventRepo } = setupTestContext();
-
-    const executor = new ExecuteExecutor({
-      loadSettings: async () => ({}),
-      buildRepairPrompt: () => "REPAIR_PROMPT",
-      writeFile: async () => {},
-      spawn: createMockSpawn(),
-      recordBaseline: async () => ({
-        trackedFiles: new Set(),
-        untrackedFiles: new Set(),
-      }),
-      runVerification: async () => sampleVerification,
-      getDiff: async () => ({
-        diff: sampleVerification.diff,
-        filesChanged: sampleVerification.filesChanged,
-      }),
-      reviewExecutor: {
-        stage: "review",
-        execute: async (ctx) => {
-          expect(ctx.run.verification).toEqual(sampleVerification);
-          return { status: "success", nextRunStatus: "awaiting_review" };
-        },
-      },
-    });
-
-    const result = await executor.execute(context);
-    expect(result.status).toBe("success");
-
-    // Persisted to SQLite
-    const persisted = runRepo.get(context.run.id);
-    expect(persisted?.verification).toEqual(sampleVerification);
-    expect(persisted?.diff).toBe(sampleVerification.diff);
-
-    // Canonical verification event emitted
-    const events = eventRepo.getEventsForRun(context.run.id);
-    const verifEvent = events.find((e) => e.type === "verification");
-    expect(verifEvent).toBeDefined();
-    if (!verifEvent) throw new Error("Expected verifEvent");
-    expect(
-      (verifEvent.payload as { result: VerificationResult }).result,
-    ).toEqual(sampleVerification);
-  });
-
-  it("verification failure -> repair flow -> final verification", async () => {
-    const { context, runRepo, eventRepo } = setupTestContext();
-    let attemptCount = 0;
-    const writtenFiles: Record<string, string> = {};
-
-    const failingVerification: VerificationResult = {
-      passed: false,
-      repairAttempt: 1,
-      tests: {
-        command: "bun test",
-        passed: false,
-        exitCode: 1,
-        stdout: "",
-        stderr: "AssertionError: expected true",
-        durationMs: 40,
-      },
-      diff: "diff --git a/src/app.ts",
-      filesChanged: ["src/app.ts"],
-      hasPollution: false,
-      summary: "Tests failed on attempt 1.",
-    };
-
-    const executor = new ExecuteExecutor({
-      loadSettings: async () => ({}),
-      buildRepairPrompt: (ticket, _plan, _v, attempt) =>
-        `REPAIR ATTEMPT ${attempt} FOR ${ticket.id}`,
-      writeFile: async (filepath: unknown, content: unknown) => {
-        writtenFiles[path.basename(String(filepath))] = String(content);
-      },
-      spawn: createMockSpawn(),
-      recordBaseline: async () => ({
-        trackedFiles: new Set(),
-        untrackedFiles: new Set(),
-      }),
-      runVerification: async (_w, _p, _b, attempt) => {
-        attemptCount++;
-        if (attempt === 1) {
-          return failingVerification;
-        }
-        return {
-          ...sampleVerification,
-          repairAttempt: 2,
-        };
-      },
-      getDiff: async () => ({
-        diff: sampleVerification.diff,
-        filesChanged: sampleVerification.filesChanged,
-      }),
-      reviewExecutor: {
-        stage: "review",
-        execute: async () => ({
-          status: "success",
-          nextRunStatus: "awaiting_review",
-        }),
-      },
-      MAX_REPAIR_ATTEMPTS: 2,
-    });
-
-    const result = await executor.execute(context);
-    expect(result.status).toBe("success");
-    expect(attemptCount).toBe(2);
-
-    // Repair prompt written for attempt 2
-    expect(writtenFiles["PROMPT.md"]).toContain("REPAIR ATTEMPT 1 FOR XF-103");
-
-    // Final passed verification persisted
-    const persisted = runRepo.get(context.run.id);
-    expect(persisted?.verification?.passed).toBe(true);
-    expect(persisted?.verification?.repairAttempt).toBe(2);
-
-    // Events emitted for both attempts
-    const verifEvents = eventRepo
-      .getEventsForRun(context.run.id)
-      .filter((e) => e.type === "verification");
-    expect(verifEvents.length).toBe(2);
-    const firstVerif = verifEvents[0];
-    const secondVerif = verifEvents[1];
-    expect(firstVerif).toBeDefined();
-    expect(secondVerif).toBeDefined();
-    if (!firstVerif || !secondVerif) throw new Error("Expected 2 events");
-    expect(
-      (firstVerif.payload as { result: VerificationResult }).result.passed,
-    ).toBe(false);
-    expect(
-      (secondVerif.payload as { result: VerificationResult }).result.passed,
-    ).toBe(true);
-  });
 
   it("successful review -> persisted review -> review SSE event", async () => {
     const { context, runRepo, eventRepo, db } = setupTestContext();
@@ -662,52 +512,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).toContain("AWAITING REVIEW");
     expect(html).toContain("No review results available yet.");
     expect(html).not.toContain("Deterministic checks passed");
-  });
-
-  it("complete canonical execution flow reaches awaiting_review", async () => {
-    const { context, runRepo, db } = setupTestContext();
-
-    const reviewSession = scriptedReviewSession(approvedOutput);
-    const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
-      sessionFactory: async () => {
-        // The review session starts only after verification is persisted
-        const persisted = runRepo.get(context.run.id, db);
-        expect(persisted?.verification).toEqual(sampleVerification);
-        return reviewSession;
-      },
-    });
-
-    const executeExecutor = new ExecuteExecutor({
-      loadSettings: async () => ({}),
-      buildRepairPrompt: () => "REPAIR",
-      writeFile: async () => {},
-      spawn: createMockSpawn(),
-      recordBaseline: async () => ({
-        trackedFiles: new Set(),
-        untrackedFiles: new Set(),
-      }),
-      runVerification: async () => sampleVerification,
-      getDiff: async () => ({
-        diff: sampleVerification.diff,
-        filesChanged: sampleVerification.filesChanged,
-      }),
-      reviewExecutor,
-    });
-
-    const result = await executeExecutor.execute(context);
-
-    expect(result.status).toBe("success");
-    expect(result.nextRunStatus).toBe("awaiting_review");
-
-    // Both verification and review persisted in SQLite
-    const finalRun = runRepo.get(context.run.id, db);
-    expect(finalRun?.verification).toEqual(sampleVerification);
-    expect(finalRun?.review).toEqual(approvedReview);
-    expect(reviewSession.prompts[0]).toContain(sampleVerification.summary);
-    expect(reviewSession.prompts[0]).toContain(
-      `Changed files: ${sampleVerification.filesChanged.join(", ")}`,
-    );
   });
 
   it("unit: patchRunCache updates cache and allows HumanCheckpointSection to re-render without refresh", () => {
