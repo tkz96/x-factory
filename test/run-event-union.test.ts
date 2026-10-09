@@ -27,6 +27,7 @@ import type {
   RunEvent,
   VerificationResult,
 } from "../src/shared/types.js";
+import { Worker } from "../src/worker.js";
 import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
@@ -171,22 +172,45 @@ describe("Shared run-event union (#171)", () => {
     });
 
     // 6. Worker crash / recovery transition producer (emits status with reason)
-    runRepo.update(runId, { status: "executing" }, db);
-    runRepo.transitionRun(
-      runId,
-      "executing",
-      "recovery_required",
-      {
-        event: {
-          type: "status",
-          payload: {
-            status: "recovery_required",
-            reason: "Worker heartbeat expired",
-          },
-        },
-      },
+    const worker = new Worker({
+      workerId: "test-recovery-worker",
       db,
-    );
+      pollIntervalMs: 100000,
+    });
+    const jobRepo = new JobRepository(db);
+
+    runRepo.update(runId, { status: "executing" }, db);
+    const pastTime = new Date(Date.now() - 60000).toISOString();
+    const job = jobRepo.createJob({
+      runId,
+      stage: "execute",
+      status: "pending",
+      maxAttempts: 3,
+    });
+    db.prepare(`
+      UPDATE jobs
+      SET status = 'claimed',
+          worker_id = 'dead-worker-pid-8888',
+          lease_until = $pastTime,
+          attempts = 3
+      WHERE id = $id;
+    `).run({ $pastTime: pastTime, $id: job.id });
+
+    // Also create an orphaned active run to exercise both recovery reason producers
+    const orphanedRunId = "run-producer-orphaned";
+    runRepo.create({
+      id: orphanedRunId,
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-orphan", title: "Orphaned", acceptanceCriteria: [] },
+      plan: "",
+      branch: "factory/orphan",
+      status: "understanding",
+      artifactsDir: `/tmp/artifacts-${orphanedRunId}`,
+      worktreePath: `/tmp/worktrees-${orphanedRunId}`,
+    });
+
+    await worker.recoverOnStartup();
 
     const recoveryStatusEvt = eventRepo
       .getEventsForRun(runId)
@@ -194,7 +218,28 @@ describe("Shared run-event union (#171)", () => {
       .at(-1);
     expect(recoveryStatusEvt?.payload).toEqual({
       status: "recovery_required",
-      reason: "Worker heartbeat expired",
+      reason: "Job attempts (3/3) exhausted for stage execute.",
+    });
+
+    const orphanRecoveryEvt = eventRepo
+      .getEventsForRun(orphanedRunId)
+      .filter((e) => e.type === "status")
+      .at(-1);
+    expect(orphanRecoveryEvt?.payload).toEqual({
+      status: "recovery_required",
+      reason:
+        "Active run found without any pending or claimed workflow jobs on worker startup.",
+    });
+
+    // Directly assert exact payload stored in SQLite run_events
+    const rawRunEvent = db
+      .prepare(
+        "SELECT payload FROM run_events WHERE run_id = $runId AND type = 'status' ORDER BY sequence DESC LIMIT 1",
+      )
+      .get({ $runId: runId }) as { payload: string };
+    expect(JSON.parse(rawRunEvent.payload)).toEqual({
+      status: "recovery_required",
+      reason: "Job attempts (3/3) exhausted for stage execute.",
     });
 
     setDbForTesting(null);
@@ -555,6 +600,13 @@ describe("Shared run-event union (#171)", () => {
 
     // @ts-expect-error Appending an invalid payload for status must fail typecheck
     eventRepo.appendEvent("run-1", "status", { status: "invalid_status" });
+
+    const nullPrPayload = { status: "ready_for_pr", pullRequest: null };
+    // @ts-expect-error Appending status with pullRequest as null must fail typecheck
+    eventRepo.appendEvent("run-1", "status", nullPrPayload);
+
+    // @ts-expect-error Appending pi_output_chunk without required role must fail typecheck
+    eventRepo.appendEvent("run-1", "pi_output_chunk", { text: "chunk" });
 
     const badStagePayload = { stage: "invalid_stage" };
     // @ts-expect-error Appending an invalid payload for stage_evidence must fail typecheck

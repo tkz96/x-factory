@@ -331,7 +331,7 @@ export interface StatusEventPayload {
   status: RunStatus;
   text?: string | undefined;
   reason?: string | undefined;
-  pullRequest?: PullRequest | null | undefined;
+  pullRequest?: PullRequest | undefined;
 }
 
 export interface StageEvidencePayload {
@@ -367,7 +367,7 @@ export interface UserFeedbackPayload {
 
 export interface PiOutputChunkPayload {
   text: string;
-  role?: string | undefined;
+  role: string;
 }
 
 export interface VerificationEventPayload {
