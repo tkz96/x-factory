@@ -125,7 +125,7 @@ function restoreEnv(key: string, value: string | undefined) {
 }
 
 function api(method: string, route: string, body?: unknown): Promise<Response> {
-  const url = new URL(`http://localhost/api/${route}`);
+  const url = new URL(`http://localhost:3777/api/${route}`);
   const init: RequestInit = { method };
   if (body !== undefined) {
     init.headers = { "Content-Type": "application/json" };
@@ -428,7 +428,7 @@ describe("tracker credentials and errors", () => {
       [recordingGitHub.id, recordingGitHub],
     ]);
     const url = new URL(
-      `http://localhost/api/projects/${PROJECT_ID}/tracker/credentials`,
+      `http://localhost:3777/api/projects/${PROJECT_ID}/tracker/credentials`,
     );
     const res = await handleApi(
       new Request(url, {
