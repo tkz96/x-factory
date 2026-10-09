@@ -8,6 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createDatabase } from "../src/db/connection.js";
+import { loadMigrations } from "../src/db/migrator.js";
 import { execStrict } from "../src/proc.js";
 
 const connectionModule = path.join(import.meta.dir, "../src/db/connection.ts");
@@ -30,6 +31,20 @@ try {
 }
 `;
 
+// The migrations on disk define what a complete run looks like, so the test
+// does not hardcode a count or a latest version.
+const expectedVersions = loadMigrations().map((m) => m.version);
+const latestVersion = expectedVersions[expectedVersions.length - 1] ?? 0;
+
+// Both children must boot before the shared start instant. Booting a Bun process
+// and loading the migrator takes well under a second on a laptop, but a loaded CI
+// host can take several. The margin is 5 seconds so both children are ready
+// before either starts migrating, and each child gets its own 60-second timeout
+// so a stuck boot fails the run instead of hanging it.
+const START_MARGIN_MS = 5_000;
+const CHILD_TIMEOUT_MS = 60_000;
+const ROUNDS = 4;
+
 const tempDirs: string[] = [];
 
 afterAll(() => {
@@ -43,52 +58,53 @@ function freshDbPath(): string {
 }
 
 describe("concurrent startup migrations", () => {
-  it("two processes migrating the same fresh file both succeed, each version once", async () => {
-    const rounds = 4;
-    for (let round = 0; round < rounds; round++) {
-      const dbPath = freshDbPath();
-      // Both children boot, then spin until this shared instant.
-      const startAt = String(Date.now() + 1500);
+  it(
+    "two processes migrating the same fresh file both succeed, each version once",
+    async () => {
+      for (let round = 0; round < ROUNDS; round++) {
+        const dbPath = freshDbPath();
+        const startAt = String(Date.now() + START_MARGIN_MS);
 
-      const runs = await Promise.all(
-        [1, 2].map(() =>
-          execStrict(process.execPath, ["-e", childScript], {
-            envPolicy: "inherit",
-            env: { RACE_DB_PATH: dbPath, RACE_START_AT: startAt },
-          }),
-        ),
-      );
+        const runs = await Promise.all(
+          [1, 2].map(() =>
+            execStrict(process.execPath, ["-e", childScript], {
+              envPolicy: "inherit",
+              timeoutMs: CHILD_TIMEOUT_MS,
+              env: { RACE_DB_PATH: dbPath, RACE_START_AT: startAt },
+            }),
+          ),
+        );
 
-      const results = runs.map(
-        (run) =>
-          JSON.parse(run.stdout.trim()) as {
-            applied: number;
-            currentVersion: number;
-          },
-      );
-      const appliedTotal = results.reduce((sum, r) => sum + r.applied, 0);
+        const results = runs.map(
+          (run) =>
+            JSON.parse(run.stdout.trim()) as {
+              applied: number;
+              currentVersion: number;
+            },
+        );
+        const appliedTotal = results.reduce((sum, r) => sum + r.applied, 0);
 
-      const db = createDatabase({ path: dbPath });
-      try {
-        const rows = db
-          .query(
-            "SELECT version, COUNT(*) AS n FROM schema_migrations GROUP BY version ORDER BY version;",
-          )
-          .all() as Array<{ version: number; n: number }>;
-        expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-        expect(rows.map((r) => r.n)).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        const db = createDatabase({ path: dbPath });
+        try {
+          const rows = db
+            .query(
+              "SELECT version, COUNT(*) AS n FROM schema_migrations GROUP BY version ORDER BY version;",
+            )
+            .all() as Array<{ version: number; n: number }>;
+          expect(rows.map((r) => r.version)).toEqual(expectedVersions);
+          expect(rows.map((r) => r.n)).toEqual(expectedVersions.map(() => 1));
+        } finally {
+          db.close();
+        }
 
-        const latest = db
-          .query("SELECT MAX(version) AS v FROM schema_migrations;")
-          .get() as { v: number };
-        expect(latest.v).toBe(9);
-      } finally {
-        db.close();
+        // Each migration is applied by exactly one of the two processes.
+        expect(appliedTotal).toBe(expectedVersions.length);
+        expect(results.map((r) => r.currentVersion)).toEqual([
+          latestVersion,
+          latestVersion,
+        ]);
       }
-
-      // Each migration is applied by exactly one of the two processes.
-      expect(appliedTotal).toBe(9);
-      expect(results.map((r) => r.currentVersion)).toEqual([9, 9]);
-    }
-  }, 60_000);
+    },
+    ROUNDS * (START_MARGIN_MS + 30_000),
+  );
 });
