@@ -128,16 +128,11 @@ function sorted(actions: readonly string[]): string[] {
 }
 
 describe("Shared run-status policy matches server guards (#170)", () => {
-  let db: Database;
+  let db: Database | undefined;
   let runRepo: RunRepository;
   let originalSettingsPath: string | undefined;
 
   beforeAll(() => {
-    db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-    setDbForTesting(db);
-    runRepo = new RunRepository(db);
-
     // Point chat at a settings file naming an unregistered provider so the
     // guard test stays offline: the model lookup fails and chatWithRun
     // degrades to its fallback reply instead of calling a real provider.
@@ -165,8 +160,17 @@ describe("Shared run-status policy matches server guards (#170)", () => {
       process.env.XF_SETTINGS_PATH = originalSettingsPath;
     }
     setDbForTesting(null);
-    db.close();
+    db?.close();
   });
+
+  // setDbForTesting stores the database in an AsyncLocalStorage context, so
+  // it must be called from the test body, not from beforeAll.
+  function setupTestDb(): void {
+    db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+    setDbForTesting(db);
+    runRepo = new RunRepository(db);
+  }
 
   function createRunAtStatus(id: string, status: RunStatus): void {
     runRepo.create({
@@ -187,6 +191,7 @@ describe("Shared run-status policy matches server guards (#170)", () => {
   }
 
   it("exercised server guards accept exactly the literal per-status actions", async () => {
+    setupTestDb();
     const exercised: Partial<Record<RunStatus, string[]>> = {};
 
     for (const status of ALL_RUN_STATUSES) {
@@ -206,9 +211,10 @@ describe("Shared run-status policy matches server guards (#170)", () => {
     }
 
     for (const status of ALL_RUN_STATUSES) {
-      expect(sorted(exercised[status] ?? [])).toEqual(
-        sorted(EXPECTED_GUARD_ACCEPTANCE[status]),
-      );
+      expect({ status, exercised: sorted(exercised[status] ?? []) }).toEqual({
+        status,
+        exercised: sorted(EXPECTED_GUARD_ACCEPTANCE[status]),
+      });
     }
   });
 

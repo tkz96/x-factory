@@ -22,7 +22,7 @@ import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
-import { STOPPABLE_RUN_STATUSES } from "./state-machine.js";
+import { STOPPABLE_RUN_STATUSES } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
 

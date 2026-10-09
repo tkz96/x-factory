@@ -2,7 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import { EXECUTABLE_RUN_STATUSES } from "../state-machine.js";
+import { EXECUTABLE_RUN_STATUSES } from "../shared/run-status-policy.js";
 
 const executableStatusesSql = Array.from(EXECUTABLE_RUN_STATUSES)
   .map((s) => `'${s}'`)

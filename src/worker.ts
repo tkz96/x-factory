@@ -32,8 +32,8 @@ import {
   type StageResult,
 } from "./executors/index.js";
 import { finalizeDeliver } from "./services/deliver-service.js";
+import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, PullRequest, RunStatus } from "./shared/types.js";
-import { canTransition } from "./state-machine.js";
 
 export interface WorkerLogEntry {
   timestamp: string;

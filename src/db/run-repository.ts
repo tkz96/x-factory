@@ -2,6 +2,10 @@
 
 import type { Database } from "bun:sqlite";
 import { ConflictError, NotFoundError } from "../errors.js";
+import {
+  canTransition,
+  TERMINAL_RUN_STATUSES,
+} from "../shared/run-status-policy.js";
 import type {
   ImplementationContext,
   PullRequest,
@@ -11,7 +15,6 @@ import type {
   Ticket,
   VerificationResult,
 } from "../shared/types.js";
-import { canTransition } from "../state-machine.js";
 import {
   type EventRecord,
   type EventRow,
@@ -226,16 +229,20 @@ export class RunRepository {
   }
 
   /**
-   * Retrieves all runs in an active, non-terminal state.
+   * Retrieves all runs in an active, non-terminal state. Runs in
+   * `recovery_required` hold no live work, so they are excluded alongside the
+   * terminal statuses.
    */
   listActive(txDb?: Database): RunRecord[] {
     const db = this.getDb(txDb);
+    const excludedStatuses = [...TERMINAL_RUN_STATUSES, "recovery_required"];
+    const placeholders = excludedStatuses.map(() => "?").join(", ");
     const stmt = db.prepare(`
       SELECT * FROM runs
-      WHERE status NOT IN ('pr_created', 'failed', 'stopped', 'recovery_required')
+      WHERE status NOT IN (${placeholders})
       ORDER BY created_at ASC;
     `);
-    const rows = stmt.all() as RunRow[];
+    const rows = stmt.all(...excludedStatuses) as RunRow[];
     return rows.map(rowToRunRecord);
   }
 
