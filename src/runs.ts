@@ -21,7 +21,7 @@ import {
 } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
-import { getRunDir, getWorktreePath } from "./paths.js";
+import { getDatabasePath, getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
@@ -31,8 +31,10 @@ let hydrationPromise: Promise<void> | null = null;
 
 const dbStorage = new AsyncLocalStorage<Database | null>();
 
-// Global fallback DB when not in a test context
+// Global fallback DB when not in a test context. It is tied to the database
+// path that was current when it was opened; see getDb().
 let defaultDbInstance: Database | null = null;
+let defaultDbPath: string | null = null;
 
 const runRepoCache = new WeakMap<Database, RunRepository>();
 const jobRepoCache = new WeakMap<Database, JobRepository>();
@@ -49,8 +51,13 @@ export function getDb(): Database {
   const storeDb = dbStorage.getStore();
   if (storeDb) return storeDb;
 
-  if (!defaultDbInstance) {
-    defaultDbInstance = createDatabase();
+  // Reopen when the configured database path changes, so the handle never
+  // outlives the file it points at (for example a data dir a test removed).
+  const dbPath = getDatabasePath();
+  if (!defaultDbInstance || defaultDbPath !== dbPath) {
+    defaultDbInstance?.close();
+    defaultDbInstance = createDatabase({ path: dbPath });
+    defaultDbPath = dbPath;
     runMigrations(defaultDbInstance);
   }
   return defaultDbInstance;
