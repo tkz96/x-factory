@@ -2,9 +2,12 @@
 // rendering exists in one module only, the loop/repair/review prompts render it literally,
 // and the dead implementation-prompt path (builder + prompts/ directory) stays deleted.
 //
-// The "one module only" rule is a structural property, so it is gated the same way the
-// provider-agnostic gate gates its rule: a source scan for the exact rendering markers,
-// with the module that owns rendering as the single expected offender.
+// "One module only" is gated two ways. The exact rendering markers must all live in
+// src/prompts.ts, and a property-access scan — not a variable-name scan — must find no
+// ticket rendering anywhere else in src/ except the two allowlisted entries, each with
+// the reason it is allowed. The scan matches `.acceptanceCriteria` interpolations and
+// heading-form `.title`/`.id` interpolations, so `run.ticket.id`, `t.title`, a renamed
+// receiver or a `": "` separator cannot slip past it the way `ticket.` could.
 
 import { describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -38,6 +41,61 @@ const RENDER_MARKERS: RegExp[] = [
   // the ticket.md heading
   /# Ticket \$\{ticket\.id\}/,
 ];
+
+/**
+ * The property-access rendering rules: outside src/prompts.ts, a template literal or
+ * string concatenation may not interpolate `.acceptanceCriteria`, and may not start a
+ * markdown heading with a ticket's `.title`/`.id`. These match property access, not
+ * variable names, so `run.ticket.id`, `t.title`, a renamed receiver and a `": "`
+ * separator are all in scope of the gate.
+ */
+const RENDER_RULES: { name: string; source: string }[] = [
+  {
+    name: "interpolates .acceptanceCriteria",
+    source:
+      "\\$\\{[^}]*\\.acceptanceCriteria\\b|[\"'`]\\s*\\+\\s*[^;]*\\.acceptanceCriteria\\b|\\.acceptanceCriteria\\b[^;'\"`]*\\+\\s*[\"'`]",
+  },
+  {
+    name: "heading-form .title/.id",
+    source:
+      "(?:`|\\n)\\s*#\\s*[^`]*?\\$\\{[^}]*\\.(?:title|id)\\b|[\"'\\n]\\s*#\\s*[^\"'`]*?\\+\\s*[^;]*\\.(?:title|id)\\b",
+  },
+];
+
+/**
+ * The only legitimate ticket rendering outside src/prompts.ts. Each entry carries the
+ * reason it exists, and the gate fails if an entry stops matching, so this list cannot
+ * quietly grow stale or oversized.
+ */
+const ALLOWLIST: {
+  reason: string;
+  allows: (file: string, source: string, index: number) => boolean;
+}[] = [
+  {
+    reason: "UI display in src/frontend/",
+    allows: (file) => file.startsWith("src/frontend/"),
+  },
+  {
+    reason: "task-checklist parsing in formatTasksMarkdown",
+    allows: (file, source, index) => {
+      if (file !== "src/attempt-loop.ts") return false;
+      const span = functionSpan(source, "formatTasksMarkdown");
+      return span !== null && index >= span[0] && index <= span[1];
+    },
+  },
+];
+
+/** The character span of one top-level function, ending at its column-0 closing brace. */
+function functionSpan(source: string, name: string): [number, number] | null {
+  const start = source.indexOf(`function ${name}`);
+  if (start === -1) return null;
+  const end = source.indexOf("\n}\n", start);
+  return [start, end === -1 ? source.length : end + 2];
+}
+
+function lineOf(source: string, index: number): number {
+  return source.slice(0, index).split("\n").length;
+}
 
 function sourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -104,6 +162,50 @@ describe("Prompt module (src/prompts.ts)", () => {
         .sort();
 
       expect(offenders).toEqual(["src/prompts.ts"]);
+    });
+
+    it("flags property-access ticket rendering outside the module, allowlisting only UI display and checklist parsing", () => {
+      const offenders: string[] = [];
+      const unusedReasons = new Set(ALLOWLIST.map((entry) => entry.reason));
+
+      for (const file of sourceFiles(SRC_ROOT)) {
+        const rel = relative(REPO_ROOT, file);
+        if (rel === "src/prompts.ts") continue; // the module that owns rendering
+        const source = readFileSync(file, "utf-8");
+        for (const rule of RENDER_RULES) {
+          for (const match of source.matchAll(new RegExp(rule.source, "g"))) {
+            const index = match.index ?? 0;
+            const allowed = ALLOWLIST.find((entry) =>
+              entry.allows(rel, source, index),
+            );
+            if (allowed) {
+              unusedReasons.delete(allowed.reason);
+              continue;
+            }
+            offenders.push(`${rel}:${lineOf(source, index)} (${rule.name})`);
+          }
+        }
+      }
+
+      expect(offenders).toEqual([]);
+      expect([...unusedReasons]).toEqual([]);
+    });
+
+    it("matches property access, so renamed receivers and separators cannot evade it", () => {
+      const criteria = new RegExp(RENDER_RULES[0]?.source ?? "$^");
+      const heading = new RegExp(RENDER_RULES[1]?.source ?? "$^");
+
+      // Synthetic sources written as templates (escaped ${ / `) so the snippets
+      // themselves do not read as template placeholders to the linter.
+      const criteriaSnippet = `plan += \`\n- \${run.ticket.acceptanceCriteria}\`;`;
+      const planHeadingSnippet = `const p = \`# Execution Plan for #\${run.ticket.id}: \${t.title}\`;`;
+      const taskHeadingSnippet = `const h = \`## \${t.title}\`;`;
+      const chatSnippet = `const s = \`Starting run for #\${run.ticket.id}\`;`;
+
+      expect(criteria.test(criteriaSnippet)).toBe(true);
+      expect(heading.test(planHeadingSnippet)).toBe(true);
+      expect(heading.test(taskHeadingSnippet)).toBe(true);
+      expect(heading.test(chatSnippet)).toBe(false);
     });
 
     it("renders the same ticket and acceptance criteria for the loop, repair and review prompts", () => {
