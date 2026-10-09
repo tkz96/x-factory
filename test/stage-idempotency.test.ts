@@ -1,30 +1,14 @@
 // test/stage-idempotency.test.ts — Unit tests for Stage Idempotency & Reconstructable Baseline (XFM-32, XFM-33, XFM-35).
 
 import { describe, expect, it } from "bun:test";
-import { createDatabase } from "../src/db/connection.js";
-import { EventRepository } from "../src/db/event-repository.js";
-import { JobRepository } from "../src/db/job-repository.js";
-import { runMigrations } from "../src/db/migrator.js";
-import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
-import { RunRepository } from "../src/db/run-repository.js";
-import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
-import {
-  DeliverExecutor,
-  PrepareExecutor,
-  type StageContext,
-} from "../src/executors/index.js";
-
+import { DeliverExecutor, PrepareExecutor } from "../src/executors/index.js";
 import type { Project } from "../src/shared/types.js";
+import { createTestRepositories } from "./helpers/composition.js";
+import { stageContext } from "./helpers/stage-harness.js";
 
 describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-35)", () => {
   function setupTest(stage: string) {
-    const db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-    const runRepo = new RunRepository(db);
-    const jobRepo = new JobRepository(db);
-    const eventRepo = new EventRepository(db);
-    const stageAttemptRepo = new StageAttemptRepository(db);
-    const operationLedgerRepo = new OperationLedgerRepository(db);
+    const repos = createTestRepositories();
 
     const project: Project = {
       id: "idempotency-proj",
@@ -37,7 +21,7 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
       issueTracker: { provider: "jira" },
     };
 
-    const run = runRepo.create({
+    const run = repos.runs.create({
       id: "run-idem-1",
       projectId: project.id,
       projectName: project.name,
@@ -53,31 +37,9 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
       worktreePath: "/tmp/worktrees/run-idem-1",
     });
 
-    const job = jobRepo.createJob({ runId: run.id, stage });
-    const attempt = stageAttemptRepo.recordStart(run.id, stage, 1);
+    const context = stageContext(repos, run, project, { stage });
 
-    const context: StageContext = {
-      run,
-      job,
-      project,
-      workerId: "test-worker-idem",
-      db,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      attemptId: attempt.id,
-    };
-
-    return {
-      context,
-      runRepo,
-      jobRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      db,
-    };
+    return { context, operationLedgerRepo: repos.operationLedger };
   }
 
   describe("PrepareExecutor Idempotency (XFM-32, XFM-35)", () => {

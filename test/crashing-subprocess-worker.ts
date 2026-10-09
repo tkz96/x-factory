@@ -15,6 +15,7 @@ const worker = new Worker({
   db,
   commandLeaseDurationMs: 150,
   deliverExecutor: {
+    stage: "deliver",
     async execute(): Promise<StageOutcome> {
       console.log("EXECUTOR_STARTED");
       await new Promise(() => {}); // hang forever

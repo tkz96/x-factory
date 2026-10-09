@@ -27,7 +27,7 @@ export class UnderstandExecutor implements StageExecutor {
     const { run, project } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
-    context.eventRepo.appendEvent(run.id, "info", {
+    context.emit("info", {
       text: "Analyzing codebase & synthesizing context…",
     });
 
@@ -45,22 +45,23 @@ export class UnderstandExecutor implements StageExecutor {
       "utf-8",
     );
 
-    // Update run record in SQLite with synthesized context
-    context.runRepo.update(run.id, {
-      implementationContext: implContext,
-      expectedRevision: run.revision,
-    });
-
-    context.eventRepo.appendEvent(run.id, "stage_evidence", {
-      stage: "understand",
-      evidence: `Identified ${implContext.relevantFiles.length} relevant files, ${implContext.constraints.length} constraints.`,
-    });
-
     return {
       outcome: "passed",
       output: {
         relevantFilesCount: implContext.relevantFiles.length,
         constraintsCount: implContext.constraints.length,
+      },
+      record: {
+        run: { implementationContext: implContext },
+        events: [
+          {
+            type: "stage_evidence",
+            payload: {
+              stage: "understand",
+              evidence: `Identified ${implContext.relevantFiles.length} relevant files, ${implContext.constraints.length} constraints.`,
+            },
+          },
+        ],
       },
     };
   }

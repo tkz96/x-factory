@@ -2,14 +2,18 @@
 
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { OperationLedgerRepository } from "../db/operation-ledger-repository.js";
 import * as git from "../git.js";
 import { ensureDir, getWorktreePath } from "../paths.js";
 import { renderTicketDoc } from "../prompts.js";
 import type { Project } from "../shared/types.js";
 import { baselinePathFor, recordBaseline } from "../worktree-state.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
-import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
+import type {
+  StageContext,
+  StageExecutor,
+  StageLedger,
+  StageOutcome,
+} from "./types.js";
 
 export interface PrepareDependencies {
   branchExists: typeof git.branchExists;
@@ -47,35 +51,30 @@ export const defaultPrepareDeps: PrepareDependencies = {
 };
 
 export async function prepareBranch(
-  operationLedgerRepo: OperationLedgerRepository,
-  runId: string,
+  ledger: StageLedger,
   project: Project,
   branch: string,
   branchExistsFn: typeof git.branchExists,
   createBranchFn: typeof git.createBranch,
 ): Promise<void> {
-  await operationLedgerRepo.executeWithLedger(
-    runId,
-    "create_branch",
-    async () => {
-      const branchExists = await branchExistsFn(project.repositoryPath, branch);
-      if (!branchExists) {
-        await createBranchFn(
-          project.repositoryPath,
-          branch,
-          project.defaultBranch,
-        );
-      }
-      return {
-        externalId: branch,
-        result: { branch },
-      };
-    },
-  );
+  await ledger.execute("create_branch", async () => {
+    const branchExists = await branchExistsFn(project.repositoryPath, branch);
+    if (!branchExists) {
+      await createBranchFn(
+        project.repositoryPath,
+        branch,
+        project.defaultBranch,
+      );
+    }
+    return {
+      externalId: branch,
+      result: { branch },
+    };
+  });
 }
 
 export async function prepareWorktree(
-  operationLedgerRepo: OperationLedgerRepository,
+  ledger: StageLedger,
   runId: string,
   project: Project,
   branch: string,
@@ -83,9 +82,9 @@ export async function prepareWorktree(
   worktreeExistsFn: (path: string) => Promise<boolean>,
   createWorktreeFn: typeof git.createWorktree,
 ): Promise<string> {
-  const worktreeResult = await operationLedgerRepo.executeWithLedger<{
+  const worktreeResult = await ledger.execute<{
     worktreePath: string;
-  }>(runId, "create_worktree", async () => {
+  }>("create_worktree", async () => {
     const exists = await worktreeExistsFn(expectedWorktreePath);
     if (exists) {
       return {
@@ -141,16 +140,13 @@ export class PrepareExecutor implements StageExecutor {
   }
 
   async execute(context: StageContext): Promise<StageOutcome> {
-    const { run, project, operationLedgerRepo } = context;
+    const { run, project, ledger } = context;
 
-    context.eventRepo.appendEvent(run.id, "info", {
-      text: `Preparing branch ${run.branch}…`,
-    });
+    context.emit("info", { text: `Preparing branch ${run.branch}…` });
 
     // 1. Idempotent Git branch verification/creation (XFM-32, XFM-33)
     await prepareBranch(
-      operationLedgerRepo,
-      run.id,
+      ledger,
       project,
       run.branch,
       this.deps.branchExists,
@@ -158,15 +154,13 @@ export class PrepareExecutor implements StageExecutor {
     );
 
     // 2. Idempotent external worktree creation (XFM-32, XFM-33)
-    context.eventRepo.appendEvent(run.id, "info", {
-      text: "Creating dedicated external worktree…",
-    });
+    context.emit("info", { text: "Creating dedicated external worktree…" });
 
     const expectedWorktreePath =
       run.worktreePath || getWorktreePath(project.id, run.id);
 
     const worktreePath = await prepareWorktree(
-      operationLedgerRepo,
+      ledger,
       run.id,
       project,
       run.branch,
@@ -193,22 +187,25 @@ export class PrepareExecutor implements StageExecutor {
       this.deps.writeFile,
     );
 
-    // 5. Update run record in SQLite with worktreePath
-    context.run = context.runRepo.update(run.id, {
-      worktreePath,
-    });
-
-    context.eventRepo.appendEvent(run.id, "stage_evidence", {
-      stage: "prepare",
-      evidence: `Worktree ready at external path; branch ${run.branch}; baseline recorded.`,
-    });
-
+    // 5. The run record gets its worktreePath when the runner commits this outcome.
     return {
       outcome: "passed",
       output: {
         worktreePath,
         branch: run.branch,
         trackedFilesCount: baseline.trackedFiles.size,
+      },
+      record: {
+        run: { worktreePath },
+        events: [
+          {
+            type: "stage_evidence",
+            payload: {
+              stage: "prepare",
+              evidence: `Worktree ready at external path; branch ${run.branch}; baseline recorded.`,
+            },
+          },
+        ],
       },
     };
   }

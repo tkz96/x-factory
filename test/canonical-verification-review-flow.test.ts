@@ -5,15 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { act } from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { createDatabase } from "../src/db/connection.js";
-import { EventRepository } from "../src/db/event-repository.js";
-import { JobRepository } from "../src/db/job-repository.js";
-import { runMigrations } from "../src/db/migrator.js";
-import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
-import { type RunRecord, RunRepository } from "../src/db/run-repository.js";
-import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import type { RunRecord } from "../src/db/run-repository.js";
 import { ReviewExecutor } from "../src/executors/review.js";
-import type { StageContext } from "../src/executors/types.js";
 import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
@@ -29,10 +22,12 @@ import type {
   Run,
   VerificationResult,
 } from "../src/shared/types.js";
+import { createTestRepositories } from "./helpers/composition.js";
 import {
   scriptedReviewSession,
   tempArtifactsDirs,
 } from "./helpers/scripted-review-session.js";
+import { executeStage } from "./helpers/stage-harness.js";
 
 describe("Issue #103: Canonical Verification and Review Flow", () => {
   const artifactDirs = tempArtifactsDirs();
@@ -54,14 +49,10 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   };
 
   function setupTestContext(overrides?: Partial<RunRecord>) {
-    const db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-
-    const runRepo = new RunRepository(db);
-    const jobRepo = new JobRepository(db);
-    const eventRepo = new EventRepository(db);
-    const stageAttemptRepo = new StageAttemptRepository(db);
-    const operationLedgerRepo = new OperationLedgerRepository(db);
+    const repos = createTestRepositories();
+    const runRepo = repos.runs;
+    const eventRepo = repos.events;
+    const db = repos.db;
 
     const project: Project = {
       id: "test-proj",
@@ -91,35 +82,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       ...overrides,
     });
 
-    const job = jobRepo.createJob({
-      runId: run.id,
-      stage: "execute",
-    });
-
-    const attempt = stageAttemptRepo.recordStart(run.id, "execute", 1);
-
-    const context: StageContext = {
-      run,
-      job,
-      project,
-      workerId: "test-worker-103",
-      db,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      attemptId: attempt.id,
-    };
-
-    return {
-      context,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      db,
-    };
+    return { run, repos, runRepo, eventRepo, db };
   }
 
   function setupDomMock() {
@@ -235,24 +198,24 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   };
 
   it("successful review -> persisted review -> review SSE event", async () => {
-    const { context, runRepo, eventRepo, db } = setupTestContext();
+    const { run, repos, runRepo, eventRepo, db } = setupTestContext();
     // Persist verification first
-    runRepo.update(context.run.id, { verification: sampleVerification }, db);
+    runRepo.update(run.id, { verification: sampleVerification }, db);
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
       sessionFactory: async () => scriptedReviewSession(approvedOutput),
     });
 
-    const result = await reviewExecutor.execute(context);
+    const result = await executeStage(repos, reviewExecutor, run.id, "review");
     expect(result.outcome).toBe("passed");
 
     // Persisted to SQLite
-    const persisted = runRepo.get(context.run.id);
+    const persisted = runRepo.get(run.id);
     expect(persisted?.review).toEqual(approvedReview);
 
     // Canonical review event emitted
-    const events = eventRepo.getEventsForRun(context.run.id);
+    const events = eventRepo.getEventsForRun(run.id);
     const reviewEvent = events.find((e) => e.type === "review");
     expect(reviewEvent).toBeDefined();
     if (!reviewEvent) throw new Error("Expected reviewEvent");
@@ -262,8 +225,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   });
 
   it("review failure does not produce awaiting_review", async () => {
-    const { context, runRepo, db } = setupTestContext();
-    runRepo.update(context.run.id, { verification: sampleVerification }, db);
+    const { run, repos, runRepo, db } = setupTestContext();
+    runRepo.update(run.id, { verification: sampleVerification }, db);
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
@@ -273,27 +236,25 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         ),
     });
 
-    const result = await reviewExecutor.execute(context);
+    const result = await executeStage(repos, reviewExecutor, run.id, "review");
     expect(result).toMatchObject({
       outcome: "rejected",
       reason: expect.stringContaining("Code review was not approved"),
     });
 
     // Persisted review record shows failed review
-    const persisted = runRepo.get(context.run.id);
+    const persisted = runRepo.get(run.id);
     expect(persisted?.review?.passed).toBe(false);
     expect(persisted?.review?.findings).toEqual([
       { severity: "error", message: "Critical bug detected" },
     ]);
   });
 
-  it("ReviewExecutor fails when context.run.verification exists in memory but SQLite verification is missing", async () => {
-    const { context, runRepo } = setupTestContext();
-    // context.run has in-memory verification
-    context.run.verification = sampleVerification;
+  it("ReviewExecutor fails when SQLite has no verification, because a stage runs on the run as stored", async () => {
+    const { run, repos, runRepo } = setupTestContext();
 
-    // Persisted SQLite run has null verification
-    const sqliteRun = runRepo.get(context.run.id);
+    // The persisted run has null verification
+    const sqliteRun = runRepo.get(run.id);
     expect(sqliteRun?.verification).toBeNull();
 
     let sessionsCreated = 0;
@@ -305,7 +266,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       },
     });
 
-    const result = await reviewExecutor.execute(context);
+    const result = await executeStage(repos, reviewExecutor, run.id, "review");
     expect(result.outcome).toBe("error");
     expect(result).toMatchObject({
       outcome: "error",

@@ -2,31 +2,21 @@
 
 import { afterAll, describe, expect, it } from "bun:test";
 import { formatTasksMarkdown } from "../src/attempt-loop.js";
-import { createDatabase } from "../src/db/connection.js";
-import { EventRepository } from "../src/db/event-repository.js";
-import { JobRepository } from "../src/db/job-repository.js";
-import { runMigrations } from "../src/db/migrator.js";
-import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
-import { type RunRecord, RunRepository } from "../src/db/run-repository.js";
-import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import type { RunRecord } from "../src/db/run-repository.js";
 import { PlanExecutor } from "../src/executors/plan.js";
-import type { StageContext } from "../src/executors/types.js";
 import { buildRalphPrompt } from "../src/prompts.js";
 import type { Project } from "../src/shared/types.js";
+import { createTestRepositories } from "./helpers/composition.js";
 import { tempArtifactsDirs } from "./helpers/scripted-review-session.js";
+import { executeStage } from "./helpers/stage-harness.js";
 
 describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
   const artifactDirs = tempArtifactsDirs();
   afterAll(() => artifactDirs.cleanup());
 
-  function setupTestContext(stage: string, overrides?: Partial<RunRecord>) {
-    const db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-    const runRepo = new RunRepository(db);
-    const jobRepo = new JobRepository(db);
-    const eventRepo = new EventRepository(db);
-    const stageAttemptRepo = new StageAttemptRepository(db);
-    const operationLedgerRepo = new OperationLedgerRepository(db);
+  function setupTestContext(overrides?: Partial<RunRecord>) {
+    const repos = createTestRepositories();
+    const runRepo = repos.runs;
 
     const project: Project = {
       id: "test-proj",
@@ -62,36 +52,7 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       ...overrides,
     });
 
-    const job = jobRepo.createJob({
-      runId: run.id,
-      stage,
-    });
-
-    const attempt = stageAttemptRepo.recordStart(run.id, stage, 1);
-
-    const context: StageContext = {
-      run,
-      job,
-      project,
-      workerId: "test-worker-ralph",
-      db,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      attemptId: attempt.id,
-    };
-
-    return {
-      context,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      db,
-      project,
-    };
+    return { run, runRepo, repos };
   }
 
   describe("formatTasksMarkdown", () => {
@@ -168,14 +129,17 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
 
   describe("PlanExecutor & Default Plan Synthesis", () => {
     it("generates structured execution plan when run.plan is missing", async () => {
-      const { context, runRepo } = setupTestContext("plan", { plan: "" });
+      const { run, runRepo, repos } = setupTestContext({
+        status: "planning",
+        plan: "",
+      });
       const executor = new PlanExecutor();
 
-      const result = await executor.execute(context);
+      const result = await executeStage(repos, executor, run.id, "plan");
 
       expect(result.outcome).toBe("passed");
 
-      const updatedRun = runRepo.get(context.run.id);
+      const updatedRun = runRepo.get(run.id);
       expect(updatedRun?.plan).toContain("Execution Plan for #T-200");
       expect(updatedRun?.plan).toContain("Task 1: Setup & Tests");
       expect(updatedRun?.plan).toContain("Task 2: Core Implementation");

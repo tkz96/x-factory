@@ -1,12 +1,16 @@
 // src/executors/execute.ts — ExecuteExecutor: events and persistence around the attempt loop (Ticket 02).
 
 import { runAttemptLoop } from "../attempt-loop.js";
-import type { RunRecord } from "../db/run-repository.js";
 import { loadSettings } from "../settings.js";
 import type { VerificationResult } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import { ReviewExecutor } from "./review.js";
-import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
+import type {
+  StageContext,
+  StageExecutor,
+  StageOutcome,
+  StageRecord,
+} from "./types.js";
 
 export interface ExecuteDependencies {
   loadSettings: typeof loadSettings;
@@ -20,41 +24,6 @@ export const defaultExecuteDeps: ExecuteDependencies = {
   },
 };
 
-function persistVerificationResult(
-  context: StageContext,
-  verification: VerificationResult,
-): RunRecord {
-  const currentRun = context.runRepo.get(context.run.id, context.db);
-  const expectedRevision = currentRun
-    ? currentRun.revision
-    : context.run.revision;
-
-  let updatedRun: RunRecord | undefined;
-  const tx = context.db.transaction(() => {
-    updatedRun = context.runRepo.update(
-      context.run.id,
-      {
-        diff: verification.diff,
-        verification,
-        expectedRevision,
-      },
-      context.db,
-    );
-
-    context.eventRepo.appendEvent(
-      context.run.id,
-      "verification",
-      {
-        result: verification,
-      },
-      context.db,
-    );
-  });
-  tx();
-
-  return updatedRun ?? context.run;
-}
-
 export class ExecuteExecutor implements StageExecutor {
   readonly stage = "execute";
   private deps: ExecuteDependencies;
@@ -67,7 +36,7 @@ export class ExecuteExecutor implements StageExecutor {
     const { run, project, signal } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
-    context.eventRepo.appendEvent(run.id, "info", {
+    context.emit("info", {
       text: "Preparing Ralph Loop workspace and artifacts…",
     });
 
@@ -86,6 +55,11 @@ export class ExecuteExecutor implements StageExecutor {
     const settings = await this.deps.loadSettings();
     const provider = settings.models?.sessionA?.provider || "anthropic";
 
+    // The latest verification is the stage's output; each one is also emitted as it happens.
+    let latest: VerificationResult | undefined;
+    const verificationRecord = (): StageRecord | undefined =>
+      latest ? { run: { verification: latest, diff: latest.diff } } : undefined;
+
     let result: Awaited<ReturnType<typeof runAttemptLoop>>;
     try {
       result = await runAttemptLoop({
@@ -98,10 +72,10 @@ export class ExecuteExecutor implements StageExecutor {
         baseline,
         provider,
         signal,
-        emit: (type, payload) =>
-          context.eventRepo.appendEvent(run.id, type, payload),
+        emit: context.emit,
         onVerification: (verification) => {
-          context.run = persistVerificationResult(context, verification);
+          latest = verification;
+          context.emit("verification", { result: verification });
         },
       });
     } catch (err: unknown) {
@@ -109,22 +83,47 @@ export class ExecuteExecutor implements StageExecutor {
       return {
         outcome: "error",
         error: `Ralph Loop execution failed: ${errorMsg}`,
+        record: verificationRecord(),
       };
     }
 
     if (result.outcome === "aborted") {
-      return { outcome: "error", error: "Execution stopped" };
+      return {
+        outcome: "error",
+        error: "Execution stopped",
+        record: verificationRecord(),
+      };
     }
     if (result.outcome === "failed") {
-      return { outcome: "error", error: result.error };
+      return {
+        outcome: "error",
+        error: result.error,
+        record: verificationRecord(),
+      };
     }
 
-    context.eventRepo.appendEvent(run.id, "stage_evidence", {
+    context.emit("stage_evidence", {
       stage: "execute",
       evidence: `Ralph Loop completed and verified; ${result.verification.filesChanged.length} files modified.`,
     });
 
-    // Delegate to ReviewExecutor now that execution is verified
-    return this.deps.reviewExecutor.execute(context);
+    // Delegate to ReviewExecutor now that execution is verified. It reads the verification
+    // from the run it is given, so hand it the run as this stage has updated it.
+    const verified = {
+      ...run,
+      verification: result.verification,
+      diff: result.verification.diff,
+    };
+    const review = await this.deps.reviewExecutor.execute({
+      ...context,
+      run: verified,
+    });
+    return {
+      ...review,
+      record: {
+        ...review.record,
+        run: { ...verificationRecord()?.run, ...review.record?.run },
+      },
+    };
   }
 }

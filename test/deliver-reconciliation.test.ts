@@ -1,18 +1,17 @@
 import { describe, expect, it } from "bun:test";
+import { createRepositories } from "../src/composition-root.js";
 import type { CommandRecord } from "../src/db/command-repository.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
-import type { EventRepository } from "../src/db/event-repository.js";
-import type { JobRecord, JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import type { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import {
   type DeliverDependencies,
   DeliverExecutor,
 } from "../src/executors/deliver.js";
 import { Worker } from "../src/worker.js";
+import { stageContext } from "./helpers/stage-harness.js";
 
 function claimFirstPendingCommand(
   commandRepo: CommandRepository,
@@ -343,7 +342,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
   });
 
   it("pending Azure PR + matching PR -> no duplicate create", async () => {
-    const { db, operationLedgerRepo, runRepo, run } = setupTest();
+    const { db, operationLedgerRepo, run } = setupTest();
 
     const project = {
       id: "proj-1",
@@ -387,19 +386,9 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       }),
     );
 
-    await deliverExecutor.execute({
-      run,
-      project,
-      job: {} as unknown as JobRecord,
-      workerId: "worker-1",
-      db,
-      runRepo,
-      jobRepo: {} as unknown as JobRepository,
-      eventRepo: { appendEvent: () => {} } as unknown as EventRepository,
-      stageAttemptRepo: {} as unknown as StageAttemptRepository,
-      operationLedgerRepo,
-      attemptId: "att-1",
-    });
+    await deliverExecutor.execute(
+      stageContext(createRepositories(db), run, project),
+    );
 
     expect(prCalls).toBe(0);
     expect(operationLedgerRepo.getOperation(run.id, "create_pr")?.status).toBe(
@@ -408,7 +397,7 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
   });
 
   it("pending Azure PR + no matching PR -> create once", async () => {
-    const { db, operationLedgerRepo, runRepo, run } = setupTest();
+    const { db, operationLedgerRepo, run } = setupTest();
 
     const project = {
       id: "proj-1",
@@ -446,19 +435,9 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
       }),
     );
 
-    await deliverExecutor.execute({
-      run,
-      project,
-      job: {} as unknown as JobRecord,
-      workerId: "worker-1",
-      db,
-      runRepo,
-      jobRepo: {} as unknown as JobRepository,
-      eventRepo: { appendEvent: () => {} } as unknown as EventRepository,
-      stageAttemptRepo: {} as unknown as StageAttemptRepository,
-      operationLedgerRepo,
-      attemptId: "att-1",
-    });
+    await deliverExecutor.execute(
+      stageContext(createRepositories(db), run, project),
+    );
 
     expect(prCalls).toBe(1);
     expect(operationLedgerRepo.getOperation(run.id, "create_pr")?.status).toBe(

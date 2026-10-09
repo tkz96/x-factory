@@ -13,6 +13,7 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 
 let repos: Repositories;
 
@@ -235,12 +236,13 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     // Mock DeliverExecutor
     const mockDeliverExecutor = {
       stage: "deliver" as const,
-      execute: async () => ({
-        url: "https://github.com/org/repo/pull/42",
-        branch: "factory/CP-1",
-        baseBranch: "main",
-        title: "Checkpointed Ticket",
-      }),
+      execute: async () =>
+        deliveredOutcome({
+          url: "https://github.com/org/repo/pull/42",
+          branch: "factory/CP-1",
+          baseBranch: "main",
+          title: "Checkpointed Ticket",
+        }),
     };
 
     const worker = new Worker({

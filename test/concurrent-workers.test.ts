@@ -80,7 +80,8 @@ describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)",
     const createSharedExecutor = (workerName: string): StageExecutor => ({
       stage: "execute",
       async execute(ctx: StageContext): Promise<StageOutcome> {
-        const jobId = ctx.job.id;
+        // One job per run, so the run identifies the job.
+        const jobId = ctx.run.id;
         if (jobWorkerMapping.has(jobId)) {
           processingCollisions.push(
             `Collision detected: Job ${jobId} was already claimed by ${jobWorkerMapping.get(jobId)} but is now being processed by ${workerName}!`,

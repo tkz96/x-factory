@@ -3,29 +3,23 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { createDatabase } from "../src/db/connection.js";
-import { EventRepository } from "../src/db/event-repository.js";
-import { JobRepository } from "../src/db/job-repository.js";
-import { runMigrations } from "../src/db/migrator.js";
-import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
-import { type RunRecord, RunRepository } from "../src/db/run-repository.js";
-import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import type { RunRecord } from "../src/db/run-repository.js";
 import {
   DeliverExecutor,
   PrepareExecutor,
   ReviewExecutor,
-  type StageContext,
   UnderstandExecutor,
 } from "../src/executors/index.js";
-import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type { Project, PullRequest } from "../src/shared/types.js";
 import type { BaselineState } from "../src/worktree-state.js";
+import { createTestRepositories } from "./helpers/composition.js";
 import {
   FAILING_REVIEW_OUTPUT,
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
   tempArtifactsDirs,
 } from "./helpers/scripted-review-session.js";
+import { executeStage, stageContext } from "./helpers/stage-harness.js";
 
 const artifactDirs = tempArtifactsDirs();
 afterAll(() => artifactDirs.cleanup());
@@ -37,13 +31,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
   };
 
   function setupTestContext(stage: string, overrides?: Partial<RunRecord>) {
-    const db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-    const runRepo = new RunRepository(db);
-    const jobRepo = new JobRepository(db);
-    const eventRepo = new EventRepository(db);
-    const stageAttemptRepo = new StageAttemptRepository(db);
-    const operationLedgerRepo = new OperationLedgerRepository(db);
+    const repos = createTestRepositories();
+    const runRepo = repos.runs;
 
     const project: Project = {
       id: "test-proj",
@@ -73,40 +62,14 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       ...overrides,
     });
 
-    const job = jobRepo.createJob({
-      runId: run.id,
-      stage,
-    });
+    const context = stageContext(repos, run, project, { stage });
 
-    const attempt = stageAttemptRepo.recordStart(run.id, stage, 1);
-
-    const context: StageContext = {
-      run,
-      job,
-      project,
-      workerId: "test-worker-exec",
-      db,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      attemptId: attempt.id,
-    };
-
-    return {
-      context,
-      runRepo,
-      jobRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      db,
-    };
+    return { context, runRepo, repos, db: repos.db };
   }
 
   describe("PrepareExecutor (XFM-28)", () => {
     it("initializes branch, external worktree, and baseline", async () => {
-      const { context, runRepo } = setupTestContext("prepare");
+      const { context, runRepo, repos } = setupTestContext("prepare");
 
       let branchCreated = false;
       let worktreeCreated = false;
@@ -127,7 +90,12 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         },
       });
 
-      const result = await executor.execute(context);
+      const result = await executeStage(
+        repos,
+        executor,
+        context.run.id,
+        "prepare",
+      );
 
       expect(branchCreated).toBe(true);
       expect(worktreeCreated).toBe(true);
@@ -140,7 +108,9 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
   describe("UnderstandExecutor (XFM-28)", () => {
     it("synthesizes implementation context and writes artifacts", async () => {
-      const { context, runRepo } = setupTestContext("understand");
+      const { context, runRepo, repos } = setupTestContext("understand", {
+        status: "understanding",
+      });
       const writtenFiles: Record<string, string> = {};
 
       const executor = new UnderstandExecutor({
@@ -158,7 +128,12 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         },
       });
 
-      const result = await executor.execute(context);
+      const result = await executeStage(
+        repos,
+        executor,
+        context.run.id,
+        "understand",
+      );
 
       expect(result.outcome).toBe("passed");
 
@@ -189,7 +164,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     };
 
     it("routes to deliver stage when review is approved", async () => {
-      const { context, runRepo, db } = setupTestContext("review", {
+      const { context, runRepo, db, repos } = setupTestContext("review", {
+        status: "executing",
         artifactsDir: artifactDirs.make(),
       });
       runRepo.update(context.run.id, { verification: mockVerification }, db);
@@ -204,7 +180,12 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         sessionFactory: async () => session,
       });
 
-      const result = await executor.execute(context);
+      const result = await executeStage(
+        repos,
+        executor,
+        context.run.id,
+        "review",
+      );
 
       expect(result.outcome).toBe("passed");
 
@@ -230,6 +211,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         artifactsDir: artifactDirs.make(),
       });
       runRepo.update(context.run.id, { verification: mockVerification }, db);
+      const persisted = runRepo.get(context.run.id, db);
+      if (persisted) context.run = persisted;
       const controller = new AbortController();
       context.signal = controller.signal;
 
@@ -269,7 +252,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         outcome: "rejected",
         reason: expect.stringContaining("Code review was not approved"),
       });
-      expect(context.run.review?.findings).toEqual([
+      expect(result.record?.run?.review?.findings).toEqual([
         { severity: "error", message: "Security concern found" },
       ]);
     });
@@ -308,6 +291,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         filesChanged: ["src/a.ts", "src/b.ts"],
       };
       runRepo.update(context.run.id, { verification }, db);
+      const persisted = runRepo.get(context.run.id, db);
+      if (persisted) context.run = persisted;
 
       const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
 
@@ -323,15 +308,13 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(session.prompts[0]).toContain("Changed files: src/a.ts, src/b.ts");
     });
 
-    it("fails when context.run.verification exists in memory but SQLite verification is missing", async () => {
-      const { context, runRepo } = setupTestContext("review", {
+    it("fails when no verification was persisted, because a stage runs on the run as stored", async () => {
+      const { context, repos } = setupTestContext("review", {
+        status: "executing",
         artifactsDir: artifactDirs.make(),
       });
-      // Set only in-memory context.run.verification without persisting to SQLite
-      context.run.verification = mockVerification;
-      // Ensure SQLite has null verification
-      const sqliteRun = runRepo.get(context.run.id);
-      expect(sqliteRun?.verification).toBeNull();
+      // The run in SQLite has no verification; the runner hands the executor that run.
+      expect(repos.runs.get(context.run.id)?.verification).toBeNull();
 
       let sessionsCreated = 0;
       const executor = new ReviewExecutor({
@@ -342,9 +325,13 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         },
       });
 
-      const result = await executor.execute(context);
+      const result = await executeStage(
+        repos,
+        executor,
+        context.run.id,
+        "review",
+      );
 
-      expect(result.outcome).toBe("error");
       expect(result).toMatchObject({
         outcome: "error",
         error: expect.stringContaining("Deterministic verification is missing"),
@@ -355,7 +342,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
   describe("DeliverExecutor (XFM-28)", () => {
     it("safely commits, pushes, and creates pull request", async () => {
-      const { context, runRepo } = setupTestContext("deliver", {
+      const { context, runRepo, repos } = setupTestContext("deliver", {
         status: "ready_for_pr",
       });
 
@@ -378,24 +365,18 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         getRemoteBranchSha: async () => null,
       });
 
-      const result = await executor.execute(context);
+      const result = await executeStage(
+        repos,
+        executor,
+        context.run.id,
+        "deliver",
+      );
 
       expect(committed).toBe(true);
       expect(pushed).toBe(true);
       expect(result.outcome).toBe("passed");
       expect((result.output as PullRequest).url).toBe(
         "https://github.com/org/repo/pull/42",
-      );
-
-      finalizeDeliver(
-        context.db,
-        context.runRepo,
-        context.eventRepo,
-        undefined,
-        context.run.id,
-        "cmd-test",
-        context.workerId,
-        result.output as PullRequest,
       );
 
       const updatedRun = runRepo.get(context.run.id);
