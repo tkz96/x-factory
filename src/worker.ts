@@ -997,8 +997,8 @@ export class Worker {
 
     const committed = this.db.transaction(() => {
       // Section 11: Worker Progression CAS verification
-      const j = this.jobRepo.getJob(job.id, this.db);
-      const r = this.runRepo.get(job.runId, this.db);
+      const j = this.jobRepo.getJob(job.id);
+      const r = this.runRepo.get(job.runId);
 
       if (
         j?.status !== "claimed" ||
@@ -1008,43 +1008,30 @@ export class Worker {
         return false;
       }
 
-      this.stageAttemptRepo.recordCompletion(
-        attempt.id,
-        result.output,
-        this.db,
-      );
+      this.stageAttemptRepo.recordCompletion(attempt.id, result.output);
 
       if (route && r.status !== route.to) {
-        this.runRepo.transitionRun(
-          job.runId,
-          r.status,
-          route.to,
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: route.to,
-                text: `Stage '${job.stage}' completed. Transitioning to '${route.to}'.`,
-              },
+        this.runRepo.transitionRun(job.runId, r.status, route.to, {
+          event: {
+            type: "status",
+            payload: {
+              status: route.to,
+              text: `Stage '${job.stage}' completed. Transitioning to '${route.to}'.`,
             },
           },
-          this.db,
-        );
+        });
       }
 
       // Section 15: the workflow route decides which stage runs next.
       if (route?.nextStage) {
-        this.jobRepo.createJob(
-          {
-            runId: job.runId,
-            stage: route.nextStage,
-            status: "pending",
-          },
-          this.db,
-        );
+        this.jobRepo.createJob({
+          runId: job.runId,
+          stage: route.nextStage,
+          status: "pending",
+        });
       }
 
-      this.jobRepo.completeJob(job.id, this.workerId, this.db);
+      this.jobRepo.completeJob(job.id, this.workerId);
       return true;
     })();
 
@@ -1092,8 +1079,8 @@ export class Worker {
 
     try {
       this.db.transaction(() => {
-        this.jobRepo.rejectJob(job.id, this.workerId, reason, this.db);
-        const latestRun = this.runRepo.get(run.id, this.db);
+        this.jobRepo.rejectJob(job.id, this.workerId, reason);
+        const latestRun = this.runRepo.get(run.id);
         if (!latestRun) return;
         if (canTransition(latestRun.status, REJECTED_RUN_STATUS)) {
           this.runRepo.transitionRun(
@@ -1109,11 +1096,10 @@ export class Worker {
                 },
               },
             },
-            this.db,
           );
         } else {
           const text = `Rejection not applied: run is in status "${latestRun.status}", which cannot transition to ${REJECTED_RUN_STATUS}.`;
-          this.eventRepo.appendEvent(run.id, "info", { text }, this.db);
+          this.eventRepo.appendEvent(run.id, "info", { text });
           this.error(`Run ${run.id}: ${text}`);
         }
       })();

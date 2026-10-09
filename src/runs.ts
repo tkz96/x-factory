@@ -3,7 +3,6 @@
 // Every entry point takes the process's `Repositories` bundle (composition
 // root, #169). This module never opens a connection of its own.
 
-import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
 import type { Repositories } from "./composition-root.js";
@@ -121,39 +120,28 @@ export async function createRun(
   let createdRun: RunRecord | null = null;
 
   const atomicInit = db.transaction(() => {
-    createdRun = runRepo.create(
-      {
-        id,
-        projectId: project.id,
-        projectName: project.name,
-        ticket,
-        plan,
-        branch: branchName,
-        status: "preparing",
-        artifactsDir,
-        worktreePath,
-      },
-      db,
-    );
-
-    jobRepo.createJob(
-      {
-        runId: id,
-        stage: "prepare",
-        status: "pending",
-      },
-      db,
-    );
-
-    eventRepo.appendEvent(
+    createdRun = runRepo.create({
       id,
-      "status",
-      {
-        status: "preparing",
-        text: "Preparing run workspace…",
-      },
-      db,
-    );
+      projectId: project.id,
+      projectName: project.name,
+      ticket,
+      plan,
+      branch: branchName,
+      status: "preparing",
+      artifactsDir,
+      worktreePath,
+    });
+
+    jobRepo.createJob({
+      runId: id,
+      stage: "prepare",
+      status: "pending",
+    });
+
+    eventRepo.appendEvent(id, "status", {
+      status: "preparing",
+      text: "Preparing run workspace…",
+    });
   });
   atomicInit();
 
@@ -171,7 +159,7 @@ export async function stopRun(
   const { db, runs: runRepo, jobs: jobRepo, commands: commandRepo } = repos;
 
   const tx = db.transaction((): RunRecord => {
-    const run = runRepo.get(id, db);
+    const run = runRepo.get(id);
     if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (run.status === "stopped") {
@@ -183,23 +171,17 @@ export async function stopRun(
     }
 
     // Capture active job before cancellation clears worker_id
-    const activeJob = jobRepo.findActiveJobForRun(id, db);
+    const activeJob = jobRepo.findActiveJobForRun(id);
 
-    const transitionResult = runRepo.transitionRun(
-      id,
-      run.status,
-      "stopped",
-      {
-        event: {
-          type: "status",
-          payload: {
-            status: "stopped",
-            text: "Run stopped by user.",
-          },
+    const transitionResult = runRepo.transitionRun(id, run.status, "stopped", {
+      event: {
+        type: "status",
+        payload: {
+          status: "stopped",
+          text: "Run stopped by user.",
         },
       },
-      db,
-    );
+    });
 
     cancelAndStopActiveJob(
       jobRepo,
@@ -207,7 +189,6 @@ export async function stopRun(
       id,
       activeJob,
       "Run stopped by user.",
-      db,
     );
 
     return transitionResult.run;
@@ -222,30 +203,25 @@ function cancelAndStopActiveJob(
   runId: string,
   activeJob: JobRecord | null,
   reason: string,
-  db: Database,
 ): void {
-  jobRepo.cancelJobsForRun(runId, reason, db);
+  jobRepo.cancelJobsForRun(runId, reason);
   if (activeJob?.workerId) {
-    commandRepo.insertOrRetryCommand(
-      {
-        runId,
-        command: "stop",
-        payload: { jobId: activeJob.id },
-        idempotencyKey: `stop:${runId}`,
-        targetWorkerId: activeJob.workerId,
-      },
-      db,
-    );
+    commandRepo.insertOrRetryCommand({
+      runId,
+      command: "stop",
+      payload: { jobId: activeJob.id },
+      idempotencyKey: `stop:${runId}`,
+      targetWorkerId: activeJob.workerId,
+    });
   }
 }
 
 function verifyRecoveryRequired(
   runRepo: RunRepository,
   id: string,
-  db: Database,
   action: RunAction,
 ): RunRecord {
-  const dbRun = runRepo.get(id, db);
+  const dbRun = runRepo.get(id);
   if (!dbRun) throw new NotFoundError(`Run ${id} not found.`);
   assertRunAction(dbRun.status, action);
   return dbRun;
@@ -273,7 +249,7 @@ export async function createPR(
   };
 
   const tx = db.transaction((): CreatePrResult => {
-    const run = runRepo.get(id, db);
+    const run = runRepo.get(id);
     if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (run.pullRequest) {
@@ -292,7 +268,7 @@ export async function createPR(
       );
     }
 
-    const existingCmd = commandRepo.getCommand(`deliver:${id}`, db);
+    const existingCmd = commandRepo.getCommand(`deliver:${id}`);
     if (existingCmd) {
       if (
         existingCmd.status === "pending" ||
@@ -301,7 +277,7 @@ export async function createPR(
         return { ok: true, queued: true };
       }
       if (existingCmd.status === "completed") {
-        const refreshed = runRepo.get(id, db);
+        const refreshed = runRepo.get(id);
         return {
           ok: true,
           completed: true,
@@ -311,33 +287,22 @@ export async function createPR(
         };
       }
       if (existingCmd.status === "failed") {
-        commandRepo.insertOrRetryCommand(
-          {
-            runId: id,
-            command: "deliver",
-            idempotencyKey: `deliver:${id}`,
-          },
-          db,
-        );
+        commandRepo.insertOrRetryCommand({
+          runId: id,
+          command: "deliver",
+          idempotencyKey: `deliver:${id}`,
+        });
         return { ok: true, queued: true };
       }
     }
 
-    commandRepo.insertOrRetryCommand(
-      {
-        runId: id,
-        command: "deliver",
-        idempotencyKey: `deliver:${id}`,
-      },
-      db,
-    );
+    commandRepo.insertOrRetryCommand({
+      runId: id,
+      command: "deliver",
+      idempotencyKey: `deliver:${id}`,
+    });
 
-    eventRepo.appendEvent(
-      id,
-      "info",
-      { text: "Pull Request delivery queued" },
-      db,
-    );
+    eventRepo.appendEvent(id, "info", { text: "Pull Request delivery queued" });
 
     return { ok: true, queued: true };
   });
@@ -353,9 +318,9 @@ export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
   const stageAttemptRepo = repos.stageAttempts;
 
   const tx = db.transaction((): RunRecord => {
-    verifyRecoveryRequired(runRepo, id, db, "resume");
+    verifyRecoveryRequired(runRepo, id, "resume");
 
-    const attempts = stageAttemptRepo.listForRun(id, db);
+    const attempts = stageAttemptRepo.listForRun(id);
     const attemptStages = attempts.map((attempt) => attempt.stage);
     const route = resumeRouteFor(attemptStages);
 
@@ -364,7 +329,6 @@ export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
       // ready_for_pr would strand the run with nothing left to run.
       const existing = commandRepo.getCommandByIdempotencyKey(
         `${route.command}:${id}`,
-        db,
       );
       if (existing?.status === "completed") {
         throw new ConflictError(
@@ -386,21 +350,17 @@ export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
           },
         },
       },
-      db,
     );
 
     if (route.command) {
-      commandRepo.insertOrRetryCommand(
-        {
-          runId: id,
-          command: route.command,
-          idempotencyKey: `${route.command}:${id}`,
-        },
-        db,
-      );
+      commandRepo.insertOrRetryCommand({
+        runId: id,
+        command: route.command,
+        idempotencyKey: `${route.command}:${id}`,
+      });
     }
     if (route.jobStage) {
-      jobRepo.createJob({ runId: id, stage: route.jobStage }, db);
+      jobRepo.createJob({ runId: id, stage: route.jobStage });
     }
     return transitionResult.run;
   });
@@ -418,9 +378,9 @@ export async function abandonRun(
   const commandRepo = repos.commands;
 
   const tx = db.transaction((): RunRecord => {
-    verifyRecoveryRequired(runRepo, id, db, "abandon");
+    verifyRecoveryRequired(runRepo, id, "abandon");
 
-    const activeJob = jobRepo.findActiveJobForRun(id, db);
+    const activeJob = jobRepo.findActiveJobForRun(id);
 
     const transitionResult = runRepo.transitionRun(
       id,
@@ -435,7 +395,6 @@ export async function abandonRun(
           },
         },
       },
-      db,
     );
 
     cancelAndStopActiveJob(
@@ -444,7 +403,6 @@ export async function abandonRun(
       id,
       activeJob,
       "Run abandoned by operator.",
-      db,
     );
 
     return transitionResult.run;
@@ -561,7 +519,7 @@ export async function handleTransition(
   const eventRepo = repos.events;
 
   const tx = db.transaction((): RunRecord => {
-    const run = runRepo.get(id, db);
+    const run = runRepo.get(id);
     if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (action === "approve") {
@@ -584,10 +542,9 @@ export async function handleTransition(
             payload: { status: approval.to, text: approval.text },
           },
         },
-        db,
       );
       if (approval.nextStage) {
-        jobRepo.createJob({ runId: id, stage: approval.nextStage }, db);
+        jobRepo.createJob({ runId: id, stage: approval.nextStage });
       }
       return transitionResult.run;
     }
@@ -595,7 +552,7 @@ export async function handleTransition(
     if (action === "restart") {
       assertRunAction(run.status, "restart");
       // Cancel any active jobs first
-      const activeJob = jobRepo.findActiveJobForRun(id, db);
+      const activeJob = jobRepo.findActiveJobForRun(id);
       if (activeJob) {
         cancelAndStopActiveJob(
           jobRepo,
@@ -603,7 +560,6 @@ export async function handleTransition(
           id,
           activeJob,
           "Run restarted.",
-          db,
         );
       }
 
@@ -620,9 +576,8 @@ export async function handleTransition(
             },
           },
         },
-        db,
       );
-      jobRepo.createJob({ runId: id, stage: RESTART_ROUTE.nextStage }, db);
+      jobRepo.createJob({ runId: id, stage: RESTART_ROUTE.nextStage });
       return transitionResult.run;
     }
 
@@ -645,7 +600,7 @@ export async function handleTransition(
         newPlan += `\nNotes: ${payload.chatNotes}\n`;
       }
 
-      runRepo.update(id, { plan: newPlan, expectedRevision: run.revision }, db);
+      runRepo.update(id, { plan: newPlan, expectedRevision: run.revision });
 
       const transitionResult = runRepo.transitionRun(
         id,
@@ -660,26 +615,20 @@ export async function handleTransition(
             },
           },
         },
-        db,
       );
 
       if (
         payload?.chatNotes ||
         (payload?.failingTasks && payload.failingTasks.length > 0)
       ) {
-        eventRepo.appendEvent(
-          id,
-          "user_feedback",
-          {
-            failingTasks: payload.failingTasks,
-            notes: payload.chatNotes,
-            text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
-          },
-          db,
-        );
+        eventRepo.appendEvent(id, "user_feedback", {
+          failingTasks: payload.failingTasks,
+          notes: payload.chatNotes,
+          text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
+        });
       }
 
-      jobRepo.createJob({ runId: id, stage: REQUEUE_ROUTE.nextStage }, db);
+      jobRepo.createJob({ runId: id, stage: REQUEUE_ROUTE.nextStage });
       return transitionResult.run;
     }
 

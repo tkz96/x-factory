@@ -18,64 +18,44 @@ export function finalizeDeliver(
 ): void {
   const tx = db.transaction(() => {
     // 1. Update runs.pullRequest
-    const currentRun = runRepo.get(runId, db);
+    const currentRun = runRepo.get(runId);
     if (!currentRun) {
       throw new Error(`Run ${runId} not found during deliver finalization.`);
     }
 
-    runRepo.update(
-      runId,
-      {
-        pullRequest: pr,
-        expectedRevision: currentRun.revision,
-      },
-      db,
-    );
+    runRepo.update(runId, {
+      pullRequest: pr,
+      expectedRevision: currentRun.revision,
+    });
 
     // 2. Append pr_step
-    eventRepo.appendEvent(
-      runId,
-      "pr_step",
-      {
-        step: "pr_created",
-        url: pr.url,
-      },
-      db,
-    );
+    eventRepo.appendEvent(runId, "pr_step", {
+      step: "pr_created",
+      url: pr.url,
+    });
 
     // 3. Append stage_evidence
-    eventRepo.appendEvent(
-      runId,
-      "stage_evidence",
-      {
-        stage: "deliver",
-        evidence: `Pull Request created: ${pr.url}`,
-      },
-      db,
-    );
+    eventRepo.appendEvent(runId, "stage_evidence", {
+      stage: "deliver",
+      evidence: `Pull Request created: ${pr.url}`,
+    });
 
     // 4. Transition ready_for_pr → pr_created
     // 5. Append status event
-    runRepo.transitionRun(
-      runId,
-      "ready_for_pr",
-      "pr_created",
-      {
-        event: {
-          type: "status",
-          payload: {
-            status: "pr_created",
-            text: `Pull Request created: ${pr.url}`,
-            pullRequest: pr,
-          },
+    runRepo.transitionRun(runId, "ready_for_pr", "pr_created", {
+      event: {
+        type: "status",
+        payload: {
+          status: "pr_created",
+          text: `Pull Request created: ${pr.url}`,
+          pullRequest: pr,
         },
       },
-      db,
-    );
+    });
 
     // 6. Complete deliver command if command repository and ID provided
     if (commandRepo && commandId) {
-      commandRepo.completeCommand(commandId, workerId, { prUrl: pr.url }, db);
+      commandRepo.completeCommand(commandId, workerId, { prUrl: pr.url });
     }
   });
 

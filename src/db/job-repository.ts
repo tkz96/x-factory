@@ -78,8 +78,8 @@ function rowToJobRecord(row: JobRow): JobRecord {
 export class JobRepository {
   constructor(private db: Database) {}
 
-  createJob(input: CreateJobInput, txDb?: Database): JobRecord {
-    const conn = txDb || this.db;
+  createJob(input: CreateJobInput): JobRecord {
+    const conn = this.db;
     const id = input.id || `job-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
     const availableAt = input.availableAt || now;
@@ -112,15 +112,15 @@ export class JobRepository {
     return rowToJobRecord(row);
   }
 
-  getJob(id: string, txDb?: Database): JobRecord | null {
-    const conn = txDb || this.db;
+  getJob(id: string): JobRecord | null {
+    const conn = this.db;
     const stmt = conn.prepare("SELECT * FROM jobs WHERE id = ?;");
     const row = stmt.get(id) as JobRow | null;
     return row ? rowToJobRecord(row) : null;
   }
 
-  listJobsForRun(runId: string, txDb?: Database): JobRecord[] {
-    const conn = txDb || this.db;
+  listJobsForRun(runId: string): JobRecord[] {
+    const conn = this.db;
     const stmt = conn.prepare(
       "SELECT * FROM jobs WHERE run_id = ? ORDER BY created_at ASC;",
     );
@@ -132,12 +132,8 @@ export class JobRepository {
    * Atomically claims the next claimable job for the given worker.
    * Only claims jobs whose parent run has an active executable status.
    */
-  claimNextJob(
-    workerId: string,
-    leaseDurationMs = 30000,
-    txDb?: Database,
-  ): JobRecord | null {
-    const conn = txDb || this.db;
+  claimNextJob(workerId: string, leaseDurationMs = 30000): JobRecord | null {
+    const conn = this.db;
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
@@ -179,9 +175,8 @@ export class JobRepository {
     runId: string,
     workerId: string,
     leaseDurationMs = 30000,
-    txDb?: Database,
   ): JobRecord | null {
-    const conn = txDb || this.db;
+    const conn = this.db;
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
@@ -225,9 +220,8 @@ export class JobRepository {
     jobId: string,
     workerId: string,
     leaseDurationMs = 30000,
-    txDb?: Database,
   ): boolean {
-    const conn = txDb || this.db;
+    const conn = this.db;
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
@@ -259,9 +253,8 @@ export class JobRepository {
     workerId: string,
     targetStatus: "completed" | "pending",
     newWorkerId: string | null,
-    txDb?: Database,
   ): boolean {
-    const conn = txDb || this.db;
+    const conn = this.db;
     const now = new Date().toISOString();
     const stmt = conn.prepare(`
       UPDATE jobs
@@ -286,14 +279,8 @@ export class JobRepository {
   /**
    * Marks a job as completed successfully.
    */
-  completeJob(jobId: string, workerId: string, txDb?: Database): boolean {
-    return this.transitionClaimedJob(
-      jobId,
-      workerId,
-      "completed",
-      workerId,
-      txDb,
-    );
+  completeJob(jobId: string, workerId: string): boolean {
+    return this.transitionClaimedJob(jobId, workerId, "completed", workerId);
   }
 
   /**
@@ -306,10 +293,9 @@ export class JobRepository {
     workerId: string,
     errorMsg: string,
     retryDelayMs = 5000,
-    txDb?: Database,
   ): { willRetry: boolean; attempts: number } {
-    const conn = txDb || this.db;
-    const current = this.getJob(jobId, conn);
+    const conn = this.db;
+    const current = this.getJob(jobId);
     if (!current) {
       throw new Error(`Job "${jobId}" not found.`);
     }
@@ -344,7 +330,7 @@ export class JobRepository {
         );
       }
     } else {
-      this.markClaimedJobFailed(jobId, workerId, errorMsg, now, conn);
+      this.markClaimedJobFailed(jobId, workerId, errorMsg, now);
     }
 
     return { willRetry, attempts: current.attempts };
@@ -354,18 +340,12 @@ export class JobRepository {
    * Ends a claimed job as failed with no retry. Used when a stage's outcome is a verdict
    * (a rejected review), not a fault worth another attempt (#181).
    */
-  rejectJob(
-    jobId: string,
-    workerId: string,
-    reason: string,
-    txDb?: Database,
-  ): void {
+  rejectJob(jobId: string, workerId: string, reason: string): void {
     this.markClaimedJobFailed(
       jobId,
       workerId,
       reason,
       new Date().toISOString(),
-      txDb || this.db,
     );
   }
 
@@ -374,9 +354,8 @@ export class JobRepository {
     workerId: string,
     errorMsg: string,
     now: string,
-    conn: Database,
   ): void {
-    const res = conn
+    const res = this.db
       .prepare(`
         UPDATE jobs
         SET status = 'failed',
@@ -402,15 +381,15 @@ export class JobRepository {
   /**
    * Voluntarily releases an active lease back to 'pending' (e.g. during graceful shutdown).
    */
-  releaseLease(jobId: string, workerId: string, txDb?: Database): boolean {
-    return this.transitionClaimedJob(jobId, workerId, "pending", null, txDb);
+  releaseLease(jobId: string, workerId: string): boolean {
+    return this.transitionClaimedJob(jobId, workerId, "pending", null);
   }
 
   /**
    * Finds all jobs currently claimed whose lease has expired (XFM-36).
    */
-  findStaleClaimedJobs(nowISO?: string, txDb?: Database): JobRecord[] {
-    const conn = txDb || this.db;
+  findStaleClaimedJobs(nowISO?: string): JobRecord[] {
+    const conn = this.db;
     const now = nowISO || new Date().toISOString();
     const stmt = conn.prepare(`
       SELECT * FROM jobs
@@ -424,8 +403,8 @@ export class JobRepository {
   /**
    * Re-queues a claimed job back to 'pending' (e.g. on recovery from a dead worker) (XFM-36).
    */
-  requeueJob(jobId: string, txDb?: Database): boolean {
-    const conn = txDb || this.db;
+  requeueJob(jobId: string): boolean {
+    const conn = this.db;
     const now = new Date().toISOString();
     const stmt = conn.prepare(`
       UPDATE jobs
@@ -443,8 +422,8 @@ export class JobRepository {
   /**
    * Finds all active (pending or claimed) jobs for a given run (XFM-36).
    */
-  findActiveJobsForRun(runId: string, txDb?: Database): JobRecord[] {
-    const conn = txDb || this.db;
+  findActiveJobsForRun(runId: string): JobRecord[] {
+    const conn = this.db;
     const stmt = conn.prepare(`
       SELECT * FROM jobs
       WHERE run_id = ? AND status IN ('pending', 'claimed')
@@ -457,8 +436,8 @@ export class JobRepository {
   /**
    * Finds the currently claimed job for a run, returning its workerId and job record (Phase 1, Item 7).
    */
-  findActiveJobForRun(runId: string, txDb?: Database): JobRecord | null {
-    const conn = txDb || this.db;
+  findActiveJobForRun(runId: string): JobRecord | null {
+    const conn = this.db;
     const stmt = conn.prepare(`
       SELECT * FROM jobs
       WHERE run_id = ? AND status = 'claimed'
@@ -472,12 +451,8 @@ export class JobRepository {
   /**
    * Terminally cancels all active jobs for a run (e.g. when run is stopped or abandoned) (XFM-37).
    */
-  cancelJobsForRun(
-    runId: string,
-    reason = "Run stopped.",
-    txDb?: Database,
-  ): void {
-    const conn = txDb || this.db;
+  cancelJobsForRun(runId: string, reason = "Run stopped."): void {
+    const conn = this.db;
     const now = new Date().toISOString();
     conn
       .prepare(`

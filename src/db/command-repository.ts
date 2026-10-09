@@ -2,6 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
 export type CommandType = "stop" | "deliver";
 export type CommandStatus = "pending" | "claimed" | "completed" | "failed";
@@ -43,20 +44,12 @@ interface CommandRow {
 }
 
 function rowToRecord(row: CommandRow): CommandRecord {
-  let parsedPayload: Record<string, unknown> | null = null;
-  if (row.payload) {
-    try {
-      parsedPayload = JSON.parse(row.payload);
-    } catch {
-      parsedPayload = null;
-    }
-  }
-
   return {
     id: row.id,
     runId: row.run_id,
     command: row.command as CommandType,
-    payload: parsedPayload,
+    // A malformed payload degrades to null; only this field is lost.
+    payload: parseJsonColumn<Record<string, unknown> | null>(row.payload, null),
     idempotencyKey: row.idempotency_key,
     targetWorkerId: row.target_worker_id,
     status: row.status as CommandStatus,
@@ -87,11 +80,8 @@ export class CommandRepository {
   /**
    * Inserts a new command, or recovers/resets a previously failed command with the same idempotency key.
    */
-  insertOrRetryCommand(
-    input: InsertCommandInput,
-    txDb?: Database,
-  ): CommandRecord {
-    const conn = txDb || this.db;
+  insertOrRetryCommand(input: InsertCommandInput): CommandRecord {
+    const conn = this.db;
     const now = new Date().toISOString();
 
     if (input.idempotencyKey) {
@@ -126,9 +116,7 @@ export class CommandRepository {
     }
 
     const id = input.id || `cmd-${randomUUID().slice(0, 8)}`;
-    const serializedPayload = input.payload
-      ? JSON.stringify(input.payload)
-      : null;
+    const serializedPayload = serializeJsonColumn(input.payload);
 
     const row = conn
       .prepare<
@@ -176,11 +164,8 @@ export class CommandRepository {
   /**
    * Retrieves the command stored under an idempotency key, if any.
    */
-  getCommandByIdempotencyKey(
-    key: string,
-    txDb?: Database,
-  ): CommandRecord | null {
-    const conn = txDb || this.db;
+  getCommandByIdempotencyKey(key: string): CommandRecord | null {
+    const conn = this.db;
     const row = conn
       .prepare<CommandRow, [string]>(
         "SELECT * FROM run_commands WHERE idempotency_key = ?;",
@@ -192,8 +177,8 @@ export class CommandRepository {
   /**
    * Retrieves a command by ID.
    */
-  getCommand(id: string, txDb?: Database): CommandRecord | null {
-    const conn = txDb || this.db;
+  getCommand(id: string): CommandRecord | null {
+    const conn = this.db;
     const row = conn
       .prepare<CommandRow, [string]>("SELECT * FROM run_commands WHERE id = ?;")
       .get(id);
@@ -207,9 +192,8 @@ export class CommandRepository {
     workerId: string,
     leaseDurationMs = 30000,
     heartbeatTtlMs = 30000,
-    txDb?: Database,
   ): CommandRecord[] {
-    const conn = txDb || this.db;
+    const conn = this.db;
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
@@ -302,9 +286,8 @@ export class CommandRepository {
   findCommandByRunAndType(
     runId: string,
     command: CommandType,
-    txDb?: Database,
   ): CommandRecord | null {
-    const conn = txDb || this.db;
+    const conn = this.db;
     const row = conn
       .prepare<CommandRow, [string, string]>(
         "SELECT * FROM run_commands WHERE run_id = ? AND command = ? ORDER BY created_at DESC LIMIT 1;",
@@ -316,20 +299,11 @@ export class CommandRepository {
   /**
    * Marks a command as completed.
    */
-  completeCommand(
-    id: string,
-    workerId: string,
-    result?: unknown,
-    txDb?: Database,
-  ): boolean {
-    const conn = txDb || this.db;
+  completeCommand(id: string, workerId: string, result?: unknown): boolean {
+    const conn = this.db;
     const now = new Date().toISOString();
     const serializedResult =
-      result !== undefined
-        ? typeof result === "string"
-          ? result
-          : JSON.stringify(result)
-        : null;
+      result !== undefined ? serializeJsonColumn(result) : null;
 
     const res = conn
       .prepare(`
@@ -351,16 +325,11 @@ export class CommandRepository {
   /**
    * Marks a command as failed.
    */
-  failCommand(
-    id: string,
-    workerId: string,
-    error: string,
-    txDb?: Database,
-  ): boolean {
-    const conn = txDb || this.db;
+  failCommand(id: string, workerId: string, error: string): boolean {
+    const conn = this.db;
     const now = new Date().toISOString();
 
-    const cmd = this.getCommand(id, conn);
+    const cmd = this.getCommand(id);
     if (!cmd) return false;
 
     const res = conn
@@ -385,13 +354,8 @@ export class CommandRepository {
   /**
    * Renews the lease on a claimed command.
    */
-  renewLease(
-    id: string,
-    workerId: string,
-    leaseDurationMs: number,
-    txDb?: Database,
-  ): boolean {
-    const conn = txDb || this.db;
+  renewLease(id: string, workerId: string, leaseDurationMs: number): boolean {
+    const conn = this.db;
     const nowMs = Date.now();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
