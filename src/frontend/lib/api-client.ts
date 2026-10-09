@@ -3,6 +3,7 @@ import type {
   GitIdentity,
   GitIdentityScope,
   Project,
+  ProjectConnectionRole,
   Run,
   Ticket,
 } from "../../shared/types.js";
@@ -79,7 +80,7 @@ export interface ReadinessData {
 export interface ProjectCreationConnectionPayload {
   providerId: string;
   /** Every role this one connection serves (a dual-role provider appears once). */
-  roles: ("tracker" | "gitHost")[];
+  roles: ProjectConnectionRole[];
   /** INCLUDING secret values, inline, exactly once. Never persisted client-side. */
   config: Record<string, unknown>;
 }
@@ -156,7 +157,7 @@ export const api = {
   // Providers (spec #133, ticket #143)
   providers: {
     async getManifest(
-      role?: "tracker" | "gitHost",
+      role?: ProjectConnectionRole,
     ): Promise<ProviderDescriptor[]> {
       const query = role ? `?role=${encodeURIComponent(role)}` : "";
       const res = await fetch(`/api/providers/manifest${query}`);

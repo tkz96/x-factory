@@ -12,7 +12,7 @@
 // exactly once, in this request body.
 
 import { useQuery } from "@tanstack/react-query";
-import type { ProjectConnectionRole } from "../../../shared/types.js";
+import { PROJECT_CONNECTION_ROLES } from "../../../shared/types.js";
 import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
 import {
   comboSlotFromEvidence,
@@ -157,7 +157,6 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
     ],
     draftConnectionIdentityTargets(state.connect, manifest),
   );
-  const requiredRoles: ProjectConnectionRole[] = ["tracker", "gitHost"];
 
   const handleSubmit = () => {
     if (!ready || !identity || submitState.isSubmitting) return;
@@ -187,7 +186,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       <ConnectionComboLine
         id="combo-summary"
         slots={comboSlots}
-        tone={comboTone(comboSlots, requiredRoles)}
+        tone={comboTone(comboSlots, PROJECT_CONNECTION_ROLES)}
         descriptors={manifest}
       />
 

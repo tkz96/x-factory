@@ -12,6 +12,7 @@
 // connection or re-inspecting the repository selection; `reviewBlockedReasons`
 // names each one so the step can explain itself through the copy map.
 
+import type { ProjectConnectionRole } from "../../../shared/types.js";
 import {
   type ConnectionEvidence,
   isConnectionUsable,
@@ -36,7 +37,7 @@ export type ReviewBlockedReason =
   | "identityPartial";
 
 function roleReason(
-  role: "tracker" | "gitHost",
+  role: ProjectConnectionRole,
   evidence: ConnectionEvidence,
 ): ReviewBlockedReason | null {
   if (isConnectionUsable(evidence)) {

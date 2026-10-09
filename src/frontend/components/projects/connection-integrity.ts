@@ -79,9 +79,6 @@ export interface ConnectionIntegrity {
   readonly warnings: readonly ConnectionWarning[];
 }
 
-/** The roles in render order. The combo line always reads left to right. */
-const ROLES: readonly ProjectConnectionRole[] = PROJECT_CONNECTION_ROLES;
-
 /** A connection record as it is derived (normalized or legacy). */
 interface DerivedConnection {
   readonly providerId: string;
@@ -100,7 +97,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function asRoleList(roles: readonly string[]): ProjectConnectionRole[] {
-  return ROLES.filter((role) => roles.includes(role));
+  return PROJECT_CONNECTION_ROLES.filter((role) => roles.includes(role));
 }
 
 /**

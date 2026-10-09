@@ -1,5 +1,6 @@
 // src/frontend/connection/ConnectionFieldsList.tsx — Config fields, feedback, and action button.
 
+import type { ProjectConnectionRole } from "../../shared/types.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { ConnectionCardFeedback } from "./ConnectionCardFeedback.js";
 import { ConnectionField } from "./ConnectionField.js";
@@ -9,7 +10,7 @@ import type { ProviderDescriptor, VerificationResult } from "./types.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionFieldsListProps {
-  connectionRole: "tracker" | "gitHost";
+  connectionRole: ProjectConnectionRole;
   selectedProvider?: ProviderDescriptor | undefined;
   config: Record<string, unknown>;
   disabled: boolean;
