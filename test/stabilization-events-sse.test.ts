@@ -2,24 +2,27 @@
 
 import { Database } from "bun:sqlite";
 import { afterAll, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { formatSSEMessage } from "../src/http/responses.js";
 import { handleApi } from "../src/http/routes.js";
 import { SSEStreamRegistry } from "../src/http/sse-registry.js";
-import { setDbForTesting } from "../src/runs.js";
+
+let repos: Repositories;
 
 describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   function setupTest() {
     const db = new Database(":memory:");
     db.exec("PRAGMA foreign_keys = ON;");
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const eventRepo = new EventRepository(db);
@@ -91,7 +94,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     const req = new Request(`http://localhost:3777/api/runs/${run.id}/events`, {
       headers: { "Last-Event-ID": "2" },
     });
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
     const reader = res.body?.getReader();
@@ -139,7 +142,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     runRepo.transitionRun(run.id, "executing", "recovery_required");
 
     const req1 = new Request(`http://localhost:3777/api/runs/${run.id}/events`);
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     const reader1 = res1.body?.getReader();
 
     // Stream remains active, reader is not done
@@ -151,7 +154,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     runRepo.transitionRun(run.id, "recovery_required", "failed");
 
     const req2 = new Request(`http://localhost:3777/api/runs/${run.id}/events`);
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     const reader2 = res2.body?.getReader();
 
     // Read until done

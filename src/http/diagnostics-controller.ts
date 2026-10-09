@@ -1,11 +1,11 @@
 // src/http/diagnostics-controller.ts — Endpoints for liveness, readiness, and runtime diagnostics (XFM-69, XFM-70).
 
+import type { Repositories } from "../composition-root.js";
 import { getLatestMigrationVersion } from "../db/migrator.js";
 import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
-import { getDiagnosticsRepository, getJobRepository } from "../runs.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -45,23 +45,22 @@ export interface ReadinessCheckResult {
   timestamp: string;
 }
 
-function computeReadinessStatus() {
+function computeReadinessStatus(repos: Repositories) {
   let dbReady = false;
   let schemaVersion = 0;
   let journalMode = "unknown";
   let dbError: string | undefined;
 
   try {
-    const diagnostics = getDiagnosticsRepository();
-    dbReady = diagnostics.ping();
-    schemaVersion = diagnostics.schemaVersion();
-    journalMode = diagnostics.journalMode();
+    dbReady = repos.diagnostics.ping();
+    schemaVersion = repos.diagnostics.schemaVersion();
+    journalMode = repos.diagnostics.journalMode();
   } catch (err: unknown) {
     dbReady = false;
     dbError = err instanceof Error ? err.message : String(err);
   }
 
-  const activeWorkers = getActiveWorkers();
+  const activeWorkers = getActiveWorkers(repos.heartbeats);
   const workerReady = activeWorkers.length > 0;
 
   const isReady =
@@ -109,8 +108,8 @@ function computeReadinessStatus() {
  * GET /api/ready (Readiness Probe)
  * Deep health check verifying that SQLite and background workers are available to accept work.
  */
-export function handleReadyRoute(): Response {
-  const { isReady, result } = computeReadinessStatus();
+export function handleReadyRoute(repos: Repositories): Response {
+  const { isReady, result } = computeReadinessStatus(repos);
   const statusCode = isReady ? 200 : 503;
   return jsonResponse(result, statusCode);
 }
@@ -119,8 +118,8 @@ export function handleReadyRoute(): Response {
  * GET /api/readiness (UI Readiness API)
  * Returns the full readiness assessment for the dashboard and UI banners.
  */
-export function handleReadinessRoute(): Response {
-  const { result } = computeReadinessStatus();
+export function handleReadinessRoute(repos: Repositories): Response {
+  const { result } = computeReadinessStatus(repos);
   return jsonResponse(result, 200);
 }
 
@@ -128,12 +127,11 @@ export function handleReadinessRoute(): Response {
  * GET /api/diagnostics
  * Detailed operational telemetry covering database counts, active/stale jobs, and worker fleet.
  */
-export function handleDiagnosticsRoute(): Response {
-  const diagnostics = getDiagnosticsRepository();
-  const jobRepo = getJobRepository();
+export function handleDiagnosticsRoute(repos: Repositories): Response {
+  const jobRepo = repos.jobs;
 
   const staleJobs = jobRepo.findStaleClaimedJobs();
-  const activeWorkers = getActiveWorkers();
+  const activeWorkers = getActiveWorkers(repos.heartbeats);
 
   return jsonResponse({
     status: "ok",
@@ -144,12 +142,12 @@ export function handleDiagnosticsRoute(): Response {
     },
     database: {
       status: "healthy",
-      version: diagnostics.schemaVersion(),
-      runs: { ...diagnostics.countRuns() },
-      jobs: { ...diagnostics.countJobs(), stale: staleJobs.length },
+      version: repos.diagnostics.schemaVersion(),
+      runs: { ...repos.diagnostics.countRuns() },
+      jobs: { ...repos.diagnostics.countJobs(), stale: staleJobs.length },
     },
     worker: {
-      status: isWorkerReady() ? "healthy" : "unavailable",
+      status: isWorkerReady(repos.heartbeats) ? "healthy" : "unavailable",
       activeCount: activeWorkers.length,
       fleet: activeWorkers,
     },

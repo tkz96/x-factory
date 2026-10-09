@@ -5,10 +5,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { Repositories } from "../src/composition-root.js";
 import { execStrict } from "../src/proc.js";
 import { startServer } from "../src/server.js";
+import { createTestRepositories } from "./helpers/composition.js";
 
 let server: ReturnType<typeof startServer>;
+let repos: Repositories;
 let baseUrl: string;
 let tempDir: string;
 let originalProjectsJson: string | null = null;
@@ -26,8 +29,9 @@ beforeAll(async () => {
     // ignore
   }
   tempDir = await mkdtemp(path.join(tmpdir(), "xf-proj-api-test-"));
-  // Run on an ephemeral port
-  server = startServer(0);
+  // Run on an ephemeral port; the server and the seeding share one connection.
+  repos = createTestRepositories();
+  server = startServer(0, undefined, repos.db);
   baseUrl = `http://localhost:${server.port}`;
 });
 
@@ -691,9 +695,8 @@ describe("Project Onboarding & Management APIs", () => {
   });
 
   it("POST /api/projects/:id/migrate blocks migration with 409 if project has active run", async () => {
-    const { getRunRepository } = await import("../src/runs.js");
     const activeRunId = `run-active-${Date.now()}`;
-    const runRepo = getRunRepository();
+    const runRepo = repos.runs;
     runRepo.create({
       id: activeRunId,
       projectId: trackerProjId,
