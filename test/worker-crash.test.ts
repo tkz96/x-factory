@@ -16,7 +16,7 @@ import {
   PrepareExecutor,
   type StageContext,
   type StageExecutor,
-  type StageResult,
+  type StageOutcome,
 } from "../src/executors/index.js";
 import type { RunStatus } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
@@ -57,7 +57,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
   function createMockExecutor(stage: string): StageExecutor {
     return {
       stage,
-      async execute(context: StageContext): Promise<StageResult> {
+      async execute(context: StageContext): Promise<StageOutcome> {
         switch (stage) {
           case "prepare": {
             // Use operation ledger like the real PrepareExecutor
@@ -70,33 +70,25 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
               }),
             );
             return {
-              status: "success",
-              nextStage: "understand",
-              nextRunStatus: "understanding",
+              outcome: "passed",
               output: { prepared: true },
             };
           }
           case "understand": {
             return {
-              status: "success",
-              nextStage: undefined,
-              nextRunStatus: "awaiting_understanding_approval",
+              outcome: "passed",
               output: { contextSynthesized: true },
             };
           }
           case "plan": {
             return {
-              status: "success",
-              nextStage: undefined,
-              nextRunStatus: "awaiting_plan_approval",
+              outcome: "passed",
               output: { implemented: true },
             };
           }
           case "execute": {
             return {
-              status: "success",
-              nextStage: undefined,
-              nextRunStatus: "awaiting_review",
+              outcome: "passed",
               output: { verified: true },
             };
           }
@@ -121,8 +113,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
               }),
             );
             return {
-              status: "success",
-              nextRunStatus: "pr_created",
+              outcome: "passed",
               output: { prUrl: "https://github.com/org/repo/pull/1" },
             };
           }
@@ -543,12 +534,12 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       commandLeaseDurationMs: 150,
       commandHeartbeatIntervalMs: 50,
       deliverExecutor: {
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           executorAStarted = true;
           while (!executorHalt) {
             await new Promise((r) => setTimeout(r, 10));
           }
-          return { status: "success", output: { prUrl: "url" } };
+          return { outcome: "passed", output: { prUrl: "url" } };
         },
       },
     });
@@ -581,9 +572,9 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       commandLeaseDurationMs: 150,
       commandHeartbeatIntervalMs: 50,
       deliverExecutor: {
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           executorBStarted = true;
-          return { status: "success", output: { prUrl: "url" } };
+          return { outcome: "passed", output: { prUrl: "url" } };
         },
       },
     });
@@ -677,9 +668,12 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       db,
       commandLeaseDurationMs: 150,
       deliverExecutor: {
-        async execute(): Promise<StageResult> {
+        async execute(): Promise<StageOutcome> {
           executorBStarted = true;
-          return { status: "success", output: { prUrl: "url" } } as StageResult;
+          return {
+            outcome: "passed",
+            output: { prUrl: "url" },
+          } as StageOutcome;
         },
       },
     });

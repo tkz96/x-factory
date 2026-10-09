@@ -34,9 +34,10 @@ import {
   verifyGitHubCredentials,
   verifyGitHubScopes,
 } from "./github/verification.js";
+import type { HttpTransport } from "./http.js";
 
 export interface GitHubProviderOptions {
-  fetchFn?: typeof fetch | undefined;
+  fetchFn?: HttpTransport | undefined;
 }
 
 /**

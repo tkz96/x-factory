@@ -93,7 +93,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     // Register active worker
     registerWorkerHeartbeat("worker-alpha", { hostname: "node-1", pid: 999 });
 
-    const req = new Request("http://localhost/api/diagnostics");
+    const req = new Request("http://localhost:3777/api/diagnostics");
     const res = await handleApi(req, new URL(req.url));
 
     expect(res.status).toBe(200);
@@ -134,14 +134,14 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   it("propagates client X-Request-ID header or auto-generates if missing (XFM-73)", async () => {
     // 1. Client provides explicit request ID
     const customReqId = "req-client-custom-42";
-    const req1 = new Request("http://localhost/api/health", {
+    const req1 = new Request("http://localhost:3777/api/health", {
       headers: { "X-Request-ID": customReqId },
     });
     const res1 = await handleApi(req1, new URL(req1.url));
     expect(res1.headers.get("X-Request-ID")).toBe(customReqId);
 
     // 2. Client provides no header -> auto-generated
-    const req2 = new Request("http://localhost/api/health");
+    const req2 = new Request("http://localhost:3777/api/health");
     const res2 = await handleApi(req2, new URL(req2.url));
     const generatedId = res2.headers.get("X-Request-ID");
     expect(generatedId).toBeDefined();

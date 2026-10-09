@@ -113,7 +113,7 @@ describe("Fire-and-Forget Execution Audit (XFM-75)", () => {
     });
 
     it("POST /api/runs returns HTTP 400 validation error for invalid body without triggering any work", async () => {
-      const req = new Request("http://localhost/api/runs", {
+      const req = new Request("http://localhost:3777/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
