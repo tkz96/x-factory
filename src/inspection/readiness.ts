@@ -4,7 +4,10 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { GitConfigError, ValidationError } from "../errors.js";
 import { execCommand } from "../proc.js";
-import { findConnectionForRole } from "../providers/project-connections.js";
+import {
+  findConnectionForRole,
+  storedConnectionConflict,
+} from "../providers/project-connections.js";
 import { normalizeGitRemoteUrl } from "../shared/git-remote.js";
 import type {
   ConfigureGitIdentityResult,
@@ -350,7 +353,10 @@ function validateProjectStructure(project: Project): string[] {
   if (!project.id?.trim())
     issues.push("Project is missing a valid identifier.");
   if (!project.name?.trim()) issues.push("Project is missing a display name.");
-  if (!findConnectionForRole(project, "tracker")) {
+  const conflict = storedConnectionConflict(project);
+  if (conflict) {
+    issues.push(conflict);
+  } else if (!findConnectionForRole(project, "tracker")) {
     issues.push("Project requires an issue tracker connection.");
   }
   if (!project.repositories || project.repositories.length === 0) {

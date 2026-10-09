@@ -2,6 +2,12 @@
 
 import { normalizeGitRemoteUrl } from "./git-remote.js";
 import {
+  AZURE_ORG_KEYS,
+  GITHUB_OWNER_KEYS,
+  GITHUB_REPO_KEYS,
+  NESTED_VIEW_KEYS,
+} from "./legacy-aliases.js";
+import {
   legacyTrackerConfig,
   legacyTrackerProviderId,
 } from "./legacy-tracker.js";
@@ -60,13 +66,70 @@ function providerIdsOf(p: Project): string[] {
 function providerConfigOf(
   p: Project,
   providerId: string,
+  view: (raw: Record<string, unknown>) => Record<string, unknown>,
 ): Record<string, unknown> | undefined {
   const connection = p.connections?.find(
     (c) => c.providerId.toLowerCase().trim() === providerId,
   );
-  if (connection) return connection.config;
+  if (connection) return view(connection.config);
   if (legacyProviderOf(p) !== providerId) return undefined;
-  return legacyTrackerConfig(p.issueTracker, providerId);
+  return view(legacyTrackerConfig(p.issueTracker, providerId));
+}
+
+/**
+ * Identity reads a stored config through the shared alias table
+ * (`legacy-aliases.ts`, the same one the provider migration step uses): layers
+ * a raw config with its nested provider views, first value present wins. It
+ * only reads, so it never rejects a conflict.
+ */
+function firstValueReader(
+  raw: Record<string, unknown>,
+): (...keys: string[]) => string {
+  const layers = [raw];
+  for (const key of NESTED_VIEW_KEYS) {
+    const nested = raw[key];
+    if (
+      nested !== null &&
+      typeof nested === "object" &&
+      !Array.isArray(nested)
+    ) {
+      layers.push(nested as Record<string, unknown>);
+    }
+  }
+  return (...keys) => {
+    for (const layer of layers) {
+      for (const key of keys) {
+        const value = layer[key];
+        if (typeof value === "string" && value.trim()) return value;
+      }
+    }
+    return "";
+  };
+}
+
+function azureIdentityView(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const first = firstValueReader(raw);
+  const org = first(...AZURE_ORG_KEYS);
+  return {
+    ...raw,
+    orgUrl:
+      first("orgUrl") || (org ? `https://dev.azure.com/${org.trim()}` : ""),
+    project: first("project"),
+  };
+}
+
+function githubIdentityView(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const first = firstValueReader(raw);
+  return {
+    ...raw,
+    repoOwner: first(...GITHUB_OWNER_KEYS),
+    repository: first(...GITHUB_REPO_KEYS),
+    repo: "",
+  };
 }
 
 function textField(config: Record<string, unknown> | undefined, key: string) {
@@ -79,7 +142,7 @@ function matchesAzureIdentity(
   targetOrgUrl: string,
   targetProject: string,
 ): boolean {
-  const config = providerConfigOf(p, "azure");
+  const config = providerConfigOf(p, "azure", azureIdentityView);
   if (!config) return false;
   const existingOrg = normalizeAzureOrganization(textField(config, "orgUrl"));
   const existingProj = normalizeAzureProject(textField(config, "project"));
@@ -101,7 +164,7 @@ function matchesGitHubIdentity(
   targetProject: string,
   targetOrgUrl: string,
 ): boolean {
-  const config = providerConfigOf(p, "github");
+  const config = providerConfigOf(p, "github", githubIdentityView);
   if (!config) return false;
   // A legacy view names the repository as `repo`; a wizard-created connection
   // names it as an owner and a repository.

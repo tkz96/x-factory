@@ -114,6 +114,9 @@ export function isHtmlResponse(
 /** Default per-request timeout applied by adapters; the HTTP module owns timeouts. */
 export const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
 
+/** Default page cap applied by provider pagination to prevent unbounded loops (#185). */
+export const DEFAULT_PAGE_CAP = 10;
+
 const LOGIN_HOST = /^(?:login|signin|sso)\./i;
 const LOGIN_PATH = /^\/(?:login|signin|sign-in)(?:[/?#]|$)/i;
 

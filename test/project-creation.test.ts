@@ -417,7 +417,7 @@ describe("POST /api/projects with a connections payload", () => {
     );
     expect(resolved?.provider.id).toBe("jira");
     expect(resolved?.config.host).toBe("https://rocket.atlassian.net");
-    expect(Object.values(resolved?.config ?? {})).toContain(MARKER_JIRA_TOKEN);
+    expect(resolved?.config.apiToken).toBe(MARKER_JIRA_TOKEN);
   });
 
   it("accepts one same-provider dual-role connection", async () => {

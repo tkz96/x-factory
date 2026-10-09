@@ -11,6 +11,7 @@ import {
   saveProject,
 } from "../config.js";
 import { isConnectionsProjectInput } from "../config-schema.js";
+import { ConnectionConflictError } from "../errors.js";
 import {
   checkProjectReadiness,
   configureGitIdentity,
@@ -19,12 +20,13 @@ import {
 } from "../inspection/index.js";
 import { expandUserPath, scanGitSubdirectories } from "../paths.js";
 import { loadProjectEnv, saveProjectEnv } from "../project-env.js";
+import { toTypedProviderConfig } from "../providers/config-validation.js";
 import {
   hasCapability,
   type Provider,
-  type ProviderConfig,
   REQUIRED_WORKFLOW_LABEL,
 } from "../providers/contract.js";
+import { ProviderError } from "../providers/errors.js";
 import {
   buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
@@ -54,6 +56,8 @@ import {
   errorResponse,
   jsonResponse,
   parseJsonBody,
+  providerErrorResponse,
+  translateDomainErrorToHttpResponse,
   validateAgainstSchema,
   withJsonBody,
   withValidatedBody,
@@ -202,7 +206,14 @@ async function handleDiscoverRepositories(
             400,
           );
         }
-        const repos = await provider.listRepositories(body as ProviderConfig);
+        const typed = toTypedProviderConfig(provider, body);
+        if (!typed.ok) {
+          return errorResponse(
+            "Connection settings are incomplete, invalid or conflicting.",
+            400,
+          );
+        }
+        const repos = await provider.listRepositories(typed.config);
         return jsonResponse({
           provider: providerId,
           repositories: repos,
@@ -309,8 +320,13 @@ async function handleGetProjectTickets(
   const requiredLabel =
     (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
 
-  const tickets = await provider.listTickets(config, { requiredLabel });
-  return jsonResponse(tickets);
+  try {
+    return jsonResponse(await provider.listTickets(config, { requiredLabel }));
+  } catch (err: unknown) {
+    // The registry's provider throws only normalized ProviderErrors.
+    if (err instanceof ProviderError) return providerErrorResponse(err);
+    throw err;
+  }
 }
 
 async function handleGetProjectTracker(
@@ -575,18 +591,22 @@ async function handleTestConnection(req: Request): Promise<Response> {
         });
       }
 
+      const typed = toTypedProviderConfig(provider, data);
+      if (!typed.ok) {
+        return jsonResponse({
+          ok: false,
+          error: "Connection settings are incomplete, invalid or conflicting.",
+        });
+      }
+
       try {
-        const verifyResult = await provider.verifyCredentials(
-          data as ProviderConfig,
-        );
+        const verifyResult = await provider.verifyCredentials(typed.config);
         const ok =
           verifyResult.status === "ok" || verifyResult.status === "degraded";
 
         if (data.validateScopes || data.pat) {
           if (hasCapability(provider, "verifyScopes")) {
-            const scopeResult = await provider.verifyScopes(
-              data as ProviderConfig,
-            );
+            const scopeResult = await provider.verifyScopes(typed.config);
             const scopeErrors: string[] = [];
             const scopeWarnings: string[] = [];
             const scopes: Record<string, boolean> = {};
@@ -690,8 +710,20 @@ async function handleTestProviderScopes(
           ],
         });
       }
+      const typed = toTypedProviderConfig(provider, data, {
+        diagnosticOnly: true,
+      });
+      if (!typed.ok) {
+        return jsonResponse({
+          ok: false,
+          scopes: {},
+          errors: [
+            "Connection settings are incomplete, invalid or conflicting.",
+          ],
+        });
+      }
       try {
-        const report = await provider.verifyScopes(data as ProviderConfig);
+        const report = await provider.verifyScopes(typed.config);
         const errors: string[] = [];
         const warnings: string[] = [];
         const scopes: Record<string, boolean> = {};
@@ -727,7 +759,26 @@ async function handleTestProviderScopes(
   );
 }
 
+/**
+ * Routes a project request. A stored record whose connection settings conflict
+ * answers 409 with its code instead of crashing the route.
+ */
 export async function handleProjectsRoute(
+  ...args: Parameters<typeof routeProjectsRequest>
+): Promise<Response | null> {
+  try {
+    return await routeProjectsRequest(...args);
+  } catch (err) {
+    const mapped =
+      err instanceof ConnectionConflictError
+        ? translateDomainErrorToHttpResponse(err)
+        : null;
+    if (mapped) return mapped;
+    throw err;
+  }
+}
+
+async function routeProjectsRequest(
   method: string,
   id: string | undefined,
   action: string | undefined,
