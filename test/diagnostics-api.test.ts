@@ -10,15 +10,15 @@ import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import {
-  extractRequestId,
-  formatStructuredLog,
-} from "../src/diagnostics/correlation.js";
-import {
   getActiveWorkers,
   registerWorkerHeartbeat,
   unregisterWorker,
 } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
+import {
+  extractRequestId,
+  formatStructuredLog,
+} from "../src/shared/correlation.js";
 
 let repos: Repositories;
 

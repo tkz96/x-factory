@@ -1,11 +1,17 @@
 // test/run-row-codec.test.ts — Regression tests for #179.
 //
 // Seam: HTTP API (handleApi with an in-memory SQLite connection from the
-// composition root). A run row with one malformed JSON column still lists via
-// GET /api/runs; only the malformed field degrades. Also guards, at typecheck
+// composition root) plus the repository seam for tables without their own
+// endpoint. A run row with one malformed JSON column still lists via
+// GET /api/runs; only the malformed field degrades, and the codec logs a
+// warning naming the table, column and row. Malformed columns in the other
+// JSON-bearing tables (run_events, run_commands, stage_attempts,
+// operation_ledger) degrade the same way, string values round-trip through
+// serialization, and chatWithRun consumes the codec-parsed
+// implementationContext without re-parsing it. Also guards, at typecheck
 // time, that no repository method takes a transaction-DB parameter.
 
-import { beforeEach, describe, it } from "bun:test";
+import { beforeEach, describe, it, spyOn } from "bun:test";
 import assert from "node:assert/strict";
 import type { Repositories } from "../src/composition-root.js";
 import { handleApi } from "../src/http/routes.js";
@@ -145,6 +151,202 @@ describe("a malformed run JSON column degrades only that field (#179)", () => {
       description: "Description",
       acceptanceCriteria: ["Criterion A", "Criterion B"],
     });
+  });
+});
+
+describe("a malformed JSON column in any table degrades only that field (#179)", () => {
+  it("run_events.payload degrades to its raw text", () => {
+    seedRun();
+    repos.events.appendEvent("run-1", "info", { text: "hello" });
+    repos.db.run(`UPDATE run_events SET payload = ? WHERE run_id = 'run-1';`, [
+      "not-json[",
+    ]);
+
+    const events = repos.events.getEventsForRun("run-1");
+    assert.equal(events.length, 1);
+    const event = events[0];
+    assert.ok(event);
+    assert.equal(event.type, "info");
+    assert.equal(event.payload as unknown, "not-json[");
+  });
+
+  it("run_commands.payload degrades to null", () => {
+    seedRun();
+    const cmd = repos.commands.insertOrRetryCommand({
+      runId: "run-1",
+      command: "deliver",
+      idempotencyKey: "deliver:run-1",
+      payload: { jobId: "job-1" },
+    });
+    repos.db.run(`UPDATE run_commands SET payload = ? WHERE id = ?;`, [
+      '{"jobId":',
+      cmd.id,
+    ]);
+
+    const fetched = repos.commands.getCommand(cmd.id);
+    assert.ok(fetched);
+    assert.equal(fetched.payload, null);
+    // Only the payload is lost.
+    assert.equal(fetched.command, "deliver");
+    assert.equal(fetched.status, "pending");
+  });
+
+  it("stage_attempts.output degrades to its raw text", () => {
+    seedRun();
+    const attempt = repos.stageAttempts.recordStart("run-1", "prepare");
+    repos.db.run(`UPDATE stage_attempts SET output = ? WHERE id = ?;`, [
+      "[1,2",
+      attempt.id,
+    ]);
+
+    const fetched = repos.stageAttempts.listForRun("run-1")[0];
+    assert.ok(fetched);
+    assert.equal(fetched.output, "[1,2");
+    assert.equal(fetched.status, "running");
+  });
+
+  it("operation_ledger.result degrades to its raw text", () => {
+    seedRun();
+    repos.operationLedger.recordCompleted("run-1", "create_pr", "pr-1", {
+      url: "https://example.com/pr/1",
+    });
+    repos.db.run(
+      `UPDATE operation_ledger SET result = ? WHERE run_id = 'run-1';`,
+      ['{"url":'],
+    );
+
+    const op = repos.operationLedger.listForRun("run-1")[0];
+    assert.ok(op);
+    assert.equal(op.result, '{"url":');
+    assert.equal(op.externalId, "pr-1");
+    assert.equal(op.status, "completed");
+  });
+});
+
+describe("a malformed column logs a warning naming table, column and row (#179)", () => {
+  interface WarningEntry {
+    level: string;
+    table: string;
+    column: string;
+    row_id: string;
+  }
+
+  function capturedWarnings(warnSpy: {
+    mock: { calls: unknown[][] };
+  }): WarningEntry[] {
+    return warnSpy.mock.calls
+      .map((call) => String(call[0]))
+      .map((line) => JSON.parse(line) as WarningEntry)
+      .filter((entry) => entry.level === "warn")
+      .map(({ level, table, column, row_id }) => ({
+        level,
+        table,
+        column,
+        row_id,
+      }));
+  }
+
+  it("warns with the column identity when runs.verification fails to parse", async () => {
+    seedRun();
+    repos.db.run(`UPDATE runs SET verification = ? WHERE id = 'run-1';`, [
+      "}{",
+    ]);
+
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { status } = await listRuns();
+      assert.equal(status, 200);
+      assert.deepEqual(capturedWarnings(warnSpy), [
+        {
+          level: "warn",
+          table: "runs",
+          column: "verification",
+          row_id: "run-1",
+        },
+      ]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("logs no warning when every column is well-formed", async () => {
+    seedRun();
+
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { status } = await listRuns();
+      assert.equal(status, 200);
+      assert.equal(warnSpy.mock.calls.length, 0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("string values round-trip through the codec (#179)", () => {
+  it("a stage-attempt output that looks like JSON comes back as the same string", () => {
+    seedRun();
+    const attempt = repos.stageAttempts.recordStart("run-1", "prepare");
+    repos.stageAttempts.recordCompletion(attempt.id, '{"looks":"like json"}');
+
+    const fetched = repos.stageAttempts.listForRun("run-1")[0];
+    assert.ok(fetched);
+    assert.equal(fetched.output, '{"looks":"like json"}');
+  });
+
+  it("an operation-ledger result that looks like JSON comes back as the same string", () => {
+    seedRun();
+    repos.operationLedger.recordCompleted(
+      "run-1",
+      "create_pr",
+      "pr-1",
+      '{"url":"https://example.com/pr/1"}',
+    );
+
+    const op = repos.operationLedger.listForRun("run-1")[0];
+    assert.ok(op);
+    assert.equal(op.result, '{"url":"https://example.com/pr/1"}');
+  });
+});
+
+describe("chatWithRun consumes the codec-parsed implementationContext (#179)", () => {
+  it("answers a chat on an approval gate without re-parsing the context", async () => {
+    seedRun();
+    repos.runs.update("run-1", { status: "awaiting_plan_approval" });
+    repos.runs.update("run-1", {
+      implementationContext: {
+        relevantFiles: ["src/runs.ts"],
+        architecturalNotes: "One row codec",
+        existingBehavior: "JSON.parse inline",
+        constraints: ["SQLite only"],
+        risks: ["silent degradation"],
+      },
+    });
+
+    const errSpy = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const req = new Request("http://localhost:3777/api/runs/run-1/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "What are the risks?" }),
+      });
+      const res = await handleApi(req, new URL(req.url), { repos });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { ok: boolean; message: string };
+      assert.equal(body.ok, true);
+
+      const events = repos.events.getEventsForRun("run-1");
+      const userEvt = events.find((e) => e.type === "chat_user");
+      assert.deepEqual(userEvt?.payload, { text: "What are the risks?" });
+      const agentEvt = events.find((e) => e.type === "chat_agent");
+      assert.ok(agentEvt);
+      assert.equal(
+        typeof (agentEvt.payload as { text?: unknown }).text,
+        "string",
+      );
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });
 

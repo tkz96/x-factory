@@ -128,6 +128,11 @@ function rowToRunRecord(row: RunRow): RunRecord {
     acceptanceCriteria: parseJsonColumn<string[]>(
       row.ticket_acceptance_criteria,
       [],
+      {
+        table: "runs",
+        column: "ticket_acceptance_criteria",
+        rowId: row.id,
+      },
     ),
   };
 
@@ -147,17 +152,37 @@ function rowToRunRecord(row: RunRow): RunRecord {
     artifactsDir: row.artifacts_dir,
     worktreePath: row.worktree_path,
     diff: row.diff,
+    // Each JSON column degrades to its typed fallback on malformed text; the
+    // codec logs a warning naming the column (see src/db/row-codec.ts).
     implementationContext: parseJsonColumn<ImplementationContext | null>(
       row.implementation_context,
       null,
+      {
+        table: "runs",
+        column: "implementation_context",
+        rowId: row.id,
+      },
     ),
     verification: parseJsonColumn<VerificationResult | null>(
       row.verification,
       null,
+      { table: "runs", column: "verification", rowId: row.id },
     ),
-    review: parseJsonColumn<ReviewResult | null>(row.review, null),
-    artifacts: parseJsonColumn<Run["artifacts"]>(row.artifacts, []),
-    pullRequest: parseJsonColumn<PullRequest | null>(row.pull_request, null),
+    review: parseJsonColumn<ReviewResult | null>(row.review, null, {
+      table: "runs",
+      column: "review",
+      rowId: row.id,
+    }),
+    artifacts: parseJsonColumn<Run["artifacts"]>(row.artifacts, [], {
+      table: "runs",
+      column: "artifacts",
+      rowId: row.id,
+    }),
+    pullRequest: parseJsonColumn<PullRequest | null>(row.pull_request, null, {
+      table: "runs",
+      column: "pull_request",
+      rowId: row.id,
+    }),
     revision: row.revision,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -168,11 +193,10 @@ export class RunRepository {
   constructor(private db: Database) {}
 
   create(input: CreateRunRecordInput): RunRecord {
-    const db = this.db;
     const now = new Date().toISOString();
     const startedAt = input.startedAt || now;
 
-    const stmt = db.prepare(`
+    const stmt = this.db.prepare(`
       INSERT INTO runs (
         id, project_id, project_name, ticket_id, ticket_title, ticket_description,
         ticket_acceptance_criteria, plan, branch, status, started_at, finished_at,
@@ -209,15 +233,15 @@ export class RunRepository {
   }
 
   get(id: string): RunRecord | null {
-    const db = this.db;
-    const stmt = db.prepare("SELECT * FROM runs WHERE id = ?;");
+    const stmt = this.db.prepare("SELECT * FROM runs WHERE id = ?;");
     const row = stmt.get(id) as RunRow | null;
     return row ? rowToRunRecord(row) : null;
   }
 
   list(): RunRecord[] {
-    const db = this.db;
-    const stmt = db.prepare("SELECT * FROM runs ORDER BY created_at DESC;");
+    const stmt = this.db.prepare(
+      "SELECT * FROM runs ORDER BY created_at DESC;",
+    );
     const rows = stmt.all() as RunRow[];
     return rows.map(rowToRunRecord);
   }
@@ -228,10 +252,9 @@ export class RunRepository {
    * terminal statuses.
    */
   listActive(): RunRecord[] {
-    const db = this.db;
     const excludedStatuses = [...NON_LIVE_RUN_STATUSES];
     const placeholders = excludedStatuses.map(() => "?").join(", ");
-    const stmt = db.prepare(`
+    const stmt = this.db.prepare(`
       SELECT * FROM runs
       WHERE status NOT IN (${placeholders})
       ORDER BY created_at ASC;
@@ -241,7 +264,6 @@ export class RunRepository {
   }
 
   update(id: string, updates: UpdateRunRecordInput): RunRecord {
-    const db = this.db;
     const current = this.get(id);
     if (!current) {
       throw new RunNotFoundError(id);
@@ -336,7 +358,7 @@ export class RunRepository {
       RETURNING *;
     `;
 
-    const row = db.prepare(sql).get(params) as RunRow | null;
+    const row = this.db.prepare(sql).get(params) as RunRow | null;
     if (!row) {
       const refreshed = this.get(id);
       if (!refreshed) {
@@ -371,8 +393,7 @@ export class RunRepository {
     }
 
     const execute = (): { run: RunRecord; event: EventRecord | null } => {
-      const db = this.db;
-      const selectStmt = db.prepare("SELECT * FROM runs WHERE id = ?;");
+      const selectStmt = this.db.prepare("SELECT * FROM runs WHERE id = ?;");
       const current = selectStmt.get(runId) as RunRow | null;
       if (!current) {
         throw new RunNotFoundError(runId);
@@ -405,7 +426,7 @@ export class RunRepository {
             ? now
             : current.finished_at;
 
-      const updateStmt = db.prepare(`
+      const updateStmt = this.db.prepare(`
         UPDATE runs
         SET status = $status,
             revision = $revision,
@@ -435,7 +456,7 @@ export class RunRepository {
       let insertedEvent: EventRecord | null = null;
       // 3. Atomically insert event into run_events table if specified (XFM-14)
       if (options?.event) {
-        const insertEventStmt = db.prepare(`
+        const insertEventStmt = this.db.prepare(`
           INSERT INTO run_events (run_id, sequence, type, payload, created_at)
           VALUES (
             $runId,
@@ -470,8 +491,7 @@ export class RunRepository {
   }
 
   delete(id: string): boolean {
-    const db = this.db;
-    const stmt = db.prepare("DELETE FROM runs WHERE id = ?;");
+    const stmt = this.db.prepare("DELETE FROM runs WHERE id = ?;");
     const result = stmt.run(id);
     return result.changes > 0;
   }

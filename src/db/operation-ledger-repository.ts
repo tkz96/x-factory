@@ -38,7 +38,13 @@ function rowToRecord(row: OperationLedgerRow): OperationLedgerRecord {
     status: row.status as OperationStatus,
     externalId: row.external_id,
     // A malformed result degrades to its raw text; only this field is lost.
-    result: parseJsonColumn(row.result, row.result),
+    // Free-form diagnostic payloads keep the corrupt text so operators can
+    // see what was stored (the rationale lives in src/db/row-codec.ts).
+    result: parseJsonColumn(row.result, row.result, {
+      table: "operation_ledger",
+      column: "result",
+      rowId: row.id,
+    }),
     error: row.error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

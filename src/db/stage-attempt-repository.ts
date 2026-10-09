@@ -48,7 +48,13 @@ function rowToRecord(row: StageAttemptRow): StageAttemptRecord {
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     // A malformed output degrades to its raw text; only this field is lost.
-    output: parseJsonColumn(row.output, row.output),
+    // Free-form diagnostic payloads keep the corrupt text so operators can
+    // see what was stored (the rationale lives in src/db/row-codec.ts).
+    output: parseJsonColumn(row.output, row.output, {
+      table: "stage_attempts",
+      column: "output",
+      rowId: row.id,
+    }),
     error: row.error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -66,7 +72,6 @@ export class StageAttemptRepository {
     stage: string,
     attempt?: number | undefined,
   ): StageAttemptRecord {
-    const db = this.db;
     const id = `att-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
 
@@ -85,7 +90,7 @@ export class StageAttemptRepository {
       RETURNING *;
     `;
 
-    const stmt = db.prepare<
+    const stmt = this.db.prepare<
       StageAttemptRow,
       {
         $id: string;
@@ -117,10 +122,8 @@ export class StageAttemptRepository {
    * Records the successful completion of a stage attempt.
    */
   recordCompletion(id: string, output?: unknown): StageAttemptRecord {
-    const db = this.db;
     const now = new Date().toISOString();
-    const serializedOutput =
-      output !== undefined ? serializeJsonColumn(output) : null;
+    const serializedOutput = serializeJsonColumn(output);
 
     const query = `
       UPDATE stage_attempts
@@ -132,7 +135,7 @@ export class StageAttemptRepository {
       RETURNING *;
     `;
 
-    const stmt = db.prepare<
+    const stmt = this.db.prepare<
       StageAttemptRow,
       {
         $id: string;
@@ -162,7 +165,6 @@ export class StageAttemptRepository {
     status: "failed" | "cancelled",
     error: string,
   ): StageAttemptRecord {
-    const db = this.db;
     const now = new Date().toISOString();
 
     const query = `
@@ -175,7 +177,7 @@ export class StageAttemptRepository {
       RETURNING *;
     `;
 
-    const stmt = db.prepare<
+    const stmt = this.db.prepare<
       StageAttemptRow,
       {
         $id: string;
@@ -214,14 +216,13 @@ export class StageAttemptRepository {
    * Lists all stage attempts for a run ordered chronologically.
    */
   listForRun(runId: string): StageAttemptRecord[] {
-    const db = this.db;
     const query = `
       SELECT * FROM stage_attempts
       WHERE run_id = $runId
       ORDER BY started_at ASC, rowid ASC;
     `;
 
-    const stmt = db.prepare<StageAttemptRow, { $runId: string }>(query);
+    const stmt = this.db.prepare<StageAttemptRow, { $runId: string }>(query);
     const rows = stmt.all({ $runId: runId });
     return rows.map(rowToRecord);
   }
@@ -230,7 +231,6 @@ export class StageAttemptRepository {
    * Retrieves the most recent attempt for a given stage in a run.
    */
   getLatestAttempt(runId: string, stage: string): StageAttemptRecord | null {
-    const db = this.db;
     const query = `
       SELECT * FROM stage_attempts
       WHERE run_id = $runId AND stage = $stage
@@ -238,7 +238,7 @@ export class StageAttemptRepository {
       LIMIT 1;
     `;
 
-    const stmt = db.prepare<
+    const stmt = this.db.prepare<
       StageAttemptRow,
       { $runId: string; $stage: string }
     >(query);

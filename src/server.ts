@@ -16,7 +16,6 @@ import {
 } from "./composition-root.js";
 import { loadProjects } from "./config.js";
 import { runMigrations } from "./db/migrator.js";
-import { emitStructuredLog } from "./diagnostics/correlation.js";
 import { reportStaleWorktrees } from "./git.js";
 import { getOpenApiSpec } from "./http/openapi.js";
 import { resolveListenHost } from "./http/request-guard.js";
@@ -25,6 +24,7 @@ import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
 import type { ProviderRegistry } from "./providers/registry.js";
+import { emitStructuredLog } from "./shared/correlation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function getPublicDir(): string {

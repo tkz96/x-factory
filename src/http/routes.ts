@@ -1,10 +1,7 @@
 // src/http/routes.ts — Thin HTTP routing dispatcher delegating to specialized controllers.
 
 import type { ApiContext } from "../composition-root.js";
-import {
-  emitStructuredLog,
-  extractRequestId,
-} from "../diagnostics/correlation.js";
+import { emitStructuredLog, extractRequestId } from "../shared/correlation.js";
 import {
   handleDiagnosticsRoute,
   handleHealthRoute,

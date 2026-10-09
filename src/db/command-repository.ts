@@ -48,8 +48,13 @@ function rowToRecord(row: CommandRow): CommandRecord {
     id: row.id,
     runId: row.run_id,
     command: row.command as CommandType,
-    // A malformed payload degrades to null; only this field is lost.
-    payload: parseJsonColumn<Record<string, unknown> | null>(row.payload, null),
+    // A malformed payload degrades to null; only this field is lost (the
+    // rationale lives in src/db/row-codec.ts).
+    payload: parseJsonColumn<Record<string, unknown> | null>(
+      row.payload,
+      null,
+      { table: "run_commands", column: "payload", rowId: row.id },
+    ),
     idempotencyKey: row.idempotency_key,
     targetWorkerId: row.target_worker_id,
     status: row.status as CommandStatus,
@@ -81,11 +86,10 @@ export class CommandRepository {
    * Inserts a new command, or recovers/resets a previously failed command with the same idempotency key.
    */
   insertOrRetryCommand(input: InsertCommandInput): CommandRecord {
-    const conn = this.db;
     const now = new Date().toISOString();
 
     if (input.idempotencyKey) {
-      const existing = conn
+      const existing = this.db
         .prepare<CommandRow, [string]>(
           "SELECT * FROM run_commands WHERE idempotency_key = ?;",
         )
@@ -94,7 +98,7 @@ export class CommandRepository {
       if (existing) {
         if (existing.status === "failed") {
           // Retry failed command: reset to pending
-          const updated = conn
+          const updated = this.db
             .prepare<CommandRow, { $key: string; $now: string }>(`
               UPDATE run_commands
               SET status = 'pending',
@@ -118,7 +122,7 @@ export class CommandRepository {
     const id = input.id || `cmd-${randomUUID().slice(0, 8)}`;
     const serializedPayload = serializeJsonColumn(input.payload);
 
-    const row = conn
+    const row = this.db
       .prepare<
         CommandRow,
         {
@@ -165,8 +169,7 @@ export class CommandRepository {
    * Retrieves the command stored under an idempotency key, if any.
    */
   getCommandByIdempotencyKey(key: string): CommandRecord | null {
-    const conn = this.db;
-    const row = conn
+    const row = this.db
       .prepare<CommandRow, [string]>(
         "SELECT * FROM run_commands WHERE idempotency_key = ?;",
       )
@@ -178,8 +181,7 @@ export class CommandRepository {
    * Retrieves a command by ID.
    */
   getCommand(id: string): CommandRecord | null {
-    const conn = this.db;
-    const row = conn
+    const row = this.db
       .prepare<CommandRow, [string]>("SELECT * FROM run_commands WHERE id = ?;")
       .get(id);
     return row ? rowToRecord(row) : null;
@@ -193,14 +195,13 @@ export class CommandRepository {
     leaseDurationMs = 30000,
     heartbeatTtlMs = 30000,
   ): CommandRecord[] {
-    const conn = this.db;
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
     const cutoff = new Date(nowMs - heartbeatTtlMs).toISOString();
 
     // 1. Resolve stale targeted commands (where target is a different worker)
-    const pendingTargeted = conn
+    const pendingTargeted = this.db
       .prepare<CommandRow & { target_heartbeat: string | null }, [string]>(`
         SELECT c.*, w.last_heartbeat as target_heartbeat
         FROM run_commands c
@@ -215,7 +216,7 @@ export class CommandRepository {
       const isDead = !cmd.target_heartbeat || cmd.target_heartbeat <= cutoff;
       if (isDead) {
         if (cmd.command === "stop") {
-          conn
+          this.db
             .prepare(`
               UPDATE run_commands
               SET status = 'completed',
@@ -227,7 +228,7 @@ export class CommandRepository {
         } else if (cmd.command !== "deliver") {
           // Leftover command types from versions that still had steering
           // (#167) fail cleanly instead of lingering unclaimable.
-          conn
+          this.db
             .prepare(`
               UPDATE run_commands
               SET status = 'failed',
@@ -262,7 +263,7 @@ export class CommandRepository {
       RETURNING *;
     `;
 
-    const rows = conn
+    const rows = this.db
       .prepare<
         CommandRow,
         {
@@ -287,8 +288,7 @@ export class CommandRepository {
     runId: string,
     command: CommandType,
   ): CommandRecord | null {
-    const conn = this.db;
-    const row = conn
+    const row = this.db
       .prepare<CommandRow, [string, string]>(
         "SELECT * FROM run_commands WHERE run_id = ? AND command = ? ORDER BY created_at DESC LIMIT 1;",
       )
@@ -300,12 +300,10 @@ export class CommandRepository {
    * Marks a command as completed.
    */
   completeCommand(id: string, workerId: string, result?: unknown): boolean {
-    const conn = this.db;
     const now = new Date().toISOString();
-    const serializedResult =
-      result !== undefined ? serializeJsonColumn(result) : null;
+    const serializedResult = serializeJsonColumn(result);
 
-    const res = conn
+    const res = this.db
       .prepare(`
         UPDATE run_commands
         SET status = 'completed',
@@ -326,13 +324,12 @@ export class CommandRepository {
    * Marks a command as failed.
    */
   failCommand(id: string, workerId: string, error: string): boolean {
-    const conn = this.db;
     const now = new Date().toISOString();
 
     const cmd = this.getCommand(id);
     if (!cmd) return false;
 
-    const res = conn
+    const res = this.db
       .prepare(`
         UPDATE run_commands
         SET status = 'failed',
@@ -355,11 +352,10 @@ export class CommandRepository {
    * Renews the lease on a claimed command.
    */
   renewLease(id: string, workerId: string, leaseDurationMs: number): boolean {
-    const conn = this.db;
     const nowMs = Date.now();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
-    const res = conn
+    const res = this.db
       .prepare(`
         UPDATE run_commands
         SET lease_until = $leaseUntil
