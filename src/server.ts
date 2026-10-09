@@ -14,6 +14,7 @@ import { runMigrations } from "./db/migrator.js";
 import { emitStructuredLog } from "./diagnostics/correlation.js";
 import { reportStaleWorktrees } from "./git.js";
 import { getOpenApiSpec } from "./http/openapi.js";
+import { resolveListenHost } from "./http/request-guard.js";
 import { jsonResponse } from "./http/responses.js";
 import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
@@ -88,6 +89,7 @@ export function startServer(
 
   const bunServer = Bun.serve({
     port,
+    hostname: resolveListenHost(),
     async fetch(req) {
       const url = new URL(req.url);
 

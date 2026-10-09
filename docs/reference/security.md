@@ -40,3 +40,13 @@ The selected LLM API credentials are not stored in configuration files (like `se
 - **Pi API Key (`PI_API_KEY`)**: The system universally allows `PI_API_KEY` through the sandbox boundary to support the `pi` execution agent.
 
 Credentials are provided strictly via environment variables. They are never injected as command-line arguments to the agent process, ensuring they do not leak into process listings (`ps`).
+
+## Local-Only API Boundary
+
+The API is a local control surface. It can rewrite the user's git identity and start agent work, so it must not be reachable from other machines or driven by web pages in the user's browser.
+
+1. **Loopback listen address**: the API listens on `127.0.0.1` by default. Set `X_FACTORY_HOST` to a different host (for example `0.0.0.0`) only when you deliberately want the API reachable from other machines. Doing so exposes every endpoint on that network.
+2. **Cross-origin rejection**: a `POST`, `PUT`, `PATCH` or `DELETE` request that carries an `Origin` header is rejected with `403` unless the origin is `http://localhost` or `http://127.0.0.1` on the API port (`PORT`, default `3777`) or on the Vite dev UI port `5173`. Requests with no `Origin` header (curl, server-to-server) are allowed. `GET` requests are not affected by this check.
+3. **JSON bodies only**: a request that carries a body must declare `Content-Type: application/json` (a charset parameter is allowed). Any other type is rejected with `415`. A cross-site HTML form or `text/plain` request therefore cannot reach a JSON endpoint.
+
+The Origin check runs before the Content-Type check. Both run in `handleApi` before routing, in `src/http/request-guard.ts`.
