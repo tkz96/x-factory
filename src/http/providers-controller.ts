@@ -15,7 +15,7 @@
 //   never fail to render because a description was unavailable.
 
 import { z } from "zod/v4";
-import { parseProviderConfig } from "../providers/config-validation.js";
+import { toTypedProviderConfig } from "../providers/config-validation.js";
 import type {
   Provider,
   ProviderConfig,
@@ -156,10 +156,7 @@ function resolveProviderRoutePrelude(
     };
   }
 
-  const parsed = parseProviderConfig(
-    routing.provider.configSchema,
-    body.config,
-  );
+  const parsed = toTypedProviderConfig(routing.provider, body.config);
   if (!parsed.ok) {
     return {
       ok: false,

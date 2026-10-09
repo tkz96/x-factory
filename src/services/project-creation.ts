@@ -37,7 +37,7 @@ import {
   loadProjectEnv,
   saveProjectEnv,
 } from "../project-env.js";
-import { parseProviderConfig } from "../providers/config-validation.js";
+import { toTypedProviderConfig } from "../providers/config-validation.js";
 import {
   hasCapability,
   type Provider,
@@ -139,7 +139,7 @@ function prepareConnection(
     throw new SemanticValidationError({ formErrors: ["UNKNOWN_PROVIDER"] });
   }
 
-  const parsed = parseProviderConfig(provider.configSchema, input.config);
+  const parsed = toTypedProviderConfig(provider, input.config);
   if (!parsed.ok) {
     throw new SemanticValidationError({ fieldErrors: parsed.fieldErrors });
   }
@@ -501,7 +501,7 @@ function prepareConnectionUpdate(
     }
   }
 
-  const parsed = parseProviderConfig(provider.configSchema, effective);
+  const parsed = toTypedProviderConfig(provider, effective);
   if (!parsed.ok) {
     throw new SemanticValidationError({ fieldErrors: parsed.fieldErrors });
   }
