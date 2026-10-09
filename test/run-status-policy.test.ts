@@ -130,16 +130,16 @@ function sorted(actions: readonly string[]): string[] {
 describe("Shared run-status policy matches server guards (#170)", () => {
   let db: Database | undefined;
   let runRepo: RunRepository;
-  let originalSettingsPath: string | undefined;
+  let originalDataDir: string | undefined;
 
   beforeAll(() => {
-    // Point chat at a settings file naming an unregistered provider so the
-    // guard test stays offline: the model lookup fails and chatWithRun
-    // degrades to its fallback reply instead of calling a real provider.
+    // Point chat at a data dir whose settings.json names an unregistered
+    // provider, so the guard test stays offline: the model lookup fails and
+    // chatWithRun degrades to its fallback reply instead of calling a real
+    // provider.
     const tempDir = mkdtempSync(path.join(tmpdir(), "run-status-policy-"));
-    const settingsFile = path.join(tempDir, "settings.json");
     writeFileSync(
-      settingsFile,
+      path.join(tempDir, "settings.json"),
       JSON.stringify({
         models: {
           sessionA: {
@@ -149,15 +149,15 @@ describe("Shared run-status policy matches server guards (#170)", () => {
         },
       }),
     );
-    originalSettingsPath = process.env.XF_SETTINGS_PATH;
-    process.env.XF_SETTINGS_PATH = settingsFile;
+    originalDataDir = process.env.X_FACTORY_DATA_DIR;
+    process.env.X_FACTORY_DATA_DIR = tempDir;
   });
 
   afterAll(() => {
-    if (originalSettingsPath === undefined) {
-      delete process.env.XF_SETTINGS_PATH;
+    if (originalDataDir === undefined) {
+      delete process.env.X_FACTORY_DATA_DIR;
     } else {
-      process.env.XF_SETTINGS_PATH = originalSettingsPath;
+      process.env.X_FACTORY_DATA_DIR = originalDataDir;
     }
     setDbForTesting(null);
     db?.close();

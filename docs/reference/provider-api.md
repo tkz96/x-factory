@@ -623,6 +623,7 @@ surfaces this contract owns plus the manifest.
 
 ### Test seam
 
-`X_FACTORY_CONFIG_PATH` overrides the projects configuration file path (the same
-injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`), so tests can point
+`X_FACTORY_CONFIG_PATH` overrides the projects configuration file path, which
+defaults to `./config/projects.json` (a repository file, deliberately not moved under
+the data dir). It is the same injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`, so tests can point
 both the project record and the env storage at a temp directory.
