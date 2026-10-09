@@ -7,7 +7,6 @@ import {
   formatEnvContent,
   getProjectSecret,
   loadProjectEnv,
-  PROJECT_ENV_KEYS,
   parseEnvContent,
   saveProjectEnv,
 } from "../src/project-env.js";
@@ -68,13 +67,13 @@ EMPTY_LINE=
 
     it("saves secrets and sets restrictive permissions (0o600)", async () => {
       await saveProjectEnv(testProjectId, {
-        [PROJECT_ENV_KEYS.AZURE_PAT]: "secret-pat-123",
-        [PROJECT_ENV_KEYS.GITHUB_TOKEN]: "ghp_secret456",
+        AZURE_DEVOPS_PAT: "secret-pat-123",
+        GITHUB_TOKEN: "ghp_secret456",
       });
 
       const loaded = await loadProjectEnv(testProjectId);
-      expect(loaded[PROJECT_ENV_KEYS.AZURE_PAT]).toBe("secret-pat-123");
-      expect(loaded[PROJECT_ENV_KEYS.GITHUB_TOKEN]).toBe("ghp_secret456");
+      expect(loaded.AZURE_DEVOPS_PAT).toBe("secret-pat-123");
+      expect(loaded.GITHUB_TOKEN).toBe("ghp_secret456");
 
       const envPath = getProjectEnvPath(testProjectId);
       const st = await stat(envPath);
@@ -85,18 +84,18 @@ EMPTY_LINE=
 
     it("merges new secrets and ignores masked values", async () => {
       await saveProjectEnv(testProjectId, {
-        [PROJECT_ENV_KEYS.AZURE_PAT]: "original-secret",
+        AZURE_DEVOPS_PAT: "original-secret",
         OTHER: "value",
       });
 
       // Attempt to save with masked secret (e.g. from UI)
       await saveProjectEnv(testProjectId, {
-        [PROJECT_ENV_KEYS.AZURE_PAT]: "••••••••cret",
+        AZURE_DEVOPS_PAT: "••••••••cret",
         NEW_KEY: "new_value",
       });
 
       const loaded = await loadProjectEnv(testProjectId);
-      expect(loaded[PROJECT_ENV_KEYS.AZURE_PAT]).toBe("original-secret");
+      expect(loaded.AZURE_DEVOPS_PAT).toBe("original-secret");
       expect(loaded.OTHER).toBe("value");
       expect(loaded.NEW_KEY).toBe("new_value");
     });

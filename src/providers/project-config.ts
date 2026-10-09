@@ -1,166 +1,64 @@
-// src/providers/project-config.ts — Project-level provider resolution, credential mapping, and migration helpers (#141).
+// src/providers/project-config.ts — Project tracker operations (#141, #172).
+//
+// Tracker operations resolve their connection through the project connections
+// module and read secret field names and env keys from the provider schema.
+// The only provider-keyed shape is the migration request (`ProjectMigrationInput`),
+// whose per-provider tracker fields are the wire contract for that route.
 
-import { PROJECT_ENV_KEYS } from "../project-env.js";
 import { maskSecret } from "../settings.js";
 import type {
   IssueTrackerProvider,
   Project,
+  ProjectConnection,
   ProjectIssueTracker,
 } from "../shared/types.js";
+import { parseProviderConfig } from "./config-validation.js";
 import type { Provider, ProviderConfig } from "./contract.js";
 import {
-  getProvider,
-  PROVIDER_REGISTRY,
-  type ProviderRegistry,
-  requireProvider,
-} from "./registry.js";
-
-export interface ResolvedProjectProvider {
-  provider: Provider;
-  config: ProviderConfig;
-  repository: string;
-}
+  findConnectionForRole,
+  mergeStoredSecrets,
+  secretRoutesOf,
+  storedSecretValue,
+} from "./project-connections.js";
+import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
 
 /**
- * Resolves the active provider, resolved config, and repository coordinate for a project.
- */
-export function resolveProjectProvider(
-  project: Project,
-  env: Record<string, string> = {},
-  registry: ProviderRegistry = PROVIDER_REGISTRY,
-): ResolvedProjectProvider {
-  // A hand-written (or pre-#145) record without a tracker keeps the legacy
-  // default, which is also the constant the runtime resolves here.
-  const providerId = (project.issueTracker?.provider ||
-    DEFAULT_ISSUE_TRACKER.provider) as IssueTrackerProvider;
-  const provider = requireProvider(providerId, registry);
-
-  const primaryRepo =
-    project.repositories?.find((r) => r.path === project.repositoryPath) ||
-    project.repositories?.[0];
-
-  let config: ProviderConfig = {};
-  let repository = "";
-
-  if (providerId === "azure") {
-    const azureCfg = project.issueTracker?.azure;
-    const orgUrl = azureCfg?.orgUrl || "";
-    const azureProject =
-      azureCfg?.project || project.issueTracker?.projectId || "";
-    const pat =
-      env[PROJECT_ENV_KEYS.AZURE_PAT] || process.env.AZURE_DEVOPS_PAT || "";
-    const requiredLabel = azureCfg?.requiredLabel;
-    repository =
-      primaryRepo?.name || primaryRepo?.id || project.name || project.id;
-    config = {
-      orgUrl,
-      project: azureProject,
-      pat,
-      ...(requiredLabel ? { requiredLabel } : {}),
-    };
-  } else if (providerId === "jira") {
-    const jiraCfg = project.issueTracker?.jira;
-    const host = jiraCfg?.host || "";
-    const email = jiraCfg?.email || "";
-    const token =
-      env[PROJECT_ENV_KEYS.JIRA_TOKEN] || process.env.JIRA_API_TOKEN || "";
-    const jiraProject =
-      jiraCfg?.project || project.issueTracker?.projectId || "";
-    const requiredLabel = jiraCfg?.requiredLabel;
-    repository =
-      primaryRepo?.name || primaryRepo?.id || project.name || project.id;
-    config = {
-      host,
-      email,
-      token,
-      project: jiraProject,
-      ...(requiredLabel ? { requiredLabel } : {}),
-    };
-  } else {
-    // Default to GitHub
-    const ghCfg = project.issueTracker?.github;
-    const token =
-      env[PROJECT_ENV_KEYS.GITHUB_TOKEN] || process.env.GITHUB_TOKEN || "";
-    const requiredLabel = ghCfg?.requiredLabel;
-    repository = ghCfg?.repo || primaryRepo?.name || project.name || project.id;
-    config = {
-      repo: repository,
-      token,
-      ...(requiredLabel ? { requiredLabel } : {}),
-    };
-  }
-
-  return { provider, config, repository };
-}
-
-/**
- * The legacy tracker view for a project that has no tracker connection: the
- * pre-existing default `_parseIssueTracker` applies, preserved so the runtime
- * still resolves something for hand-written records. Resolved by
- * `resolveProjectProvider` for exactly that case; the creation path never uses
- * it, because a tracker connection is mandatory at creation (#133).
- */
-export const DEFAULT_ISSUE_TRACKER: ProjectIssueTracker = {
-  provider: "github",
-  connectionId: "github",
-};
-
-/**
- * The provider id a LEGACY `issueTracker` record names, or `null` when it names
- * none (#133 correction 1).
+ * Maps a request's secret value onto a provider's own secret field name.
  *
- * A legacy record carries no `connections` array, so its tracker is named in one
- * of exactly two ways, and this function reads both without knowing a provider
- * by name:
- *
- *   * explicitly, as `provider` (or its historical alias `connectionId`);
- *   * implicitly, by the NAMESPACED VIEW its configuration lives under — the
- *     same keying `deriveIssueTracker` writes (`tracker[providerId] = config`),
- *     so a hand-written `{ azure: {...} }` or `{ github: {...} }` view is read
- *     as the id of that view's provider. A key the registry does not know is not
- *     a tracker identity, so it is skipped.
- *
- * `null` means the record supplies no tracker identity at all, which is what the
- * create path rejects: a project whose tracker is only the hand-written default
- * is a project X-Factory cannot operate.
+ * A body keyed by the schema's field name is taken as it is. A body keyed by one
+ * of the generic aliases (`token`, `secret`, `pat`) is accepted only for a
+ * provider with exactly one secret field, where the alias cannot be ambiguous.
  */
-export function legacyTrackerProviderId(
-  issueTracker: unknown,
-  registry: ProviderRegistry = PROVIDER_REGISTRY,
-): string | null {
-  if (typeof issueTracker !== "object" || issueTracker === null) {
-    return null;
-  }
-  const record = issueTracker as Record<string, unknown>;
-  for (const key of ["provider", "connectionId"] as const) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return value.trim();
+function secretBodyValues(
+  provider: Provider,
+  body: Record<string, unknown>,
+): Record<string, string> {
+  const routes = secretRoutesOf(provider);
+  const values: Record<string, string> = {};
+  for (const route of routes) {
+    const direct = body[route.name];
+    if (typeof direct === "string") {
+      values[route.name] = direct;
     }
   }
-  for (const [key, view] of Object.entries(record)) {
-    if (
-      view !== null &&
-      typeof view === "object" &&
-      !Array.isArray(view) &&
-      registry.get(key) !== undefined
-    ) {
-      return key;
+  const [only] = routes;
+  if (routes.length === 1 && only && values[only.name] === undefined) {
+    for (const alias of ["token", "secret", "pat"]) {
+      const aliased = body[alias];
+      if (typeof aliased === "string") {
+        values[only.name] = aliased;
+        break;
+      }
     }
   }
-  return null;
+  return values;
 }
 
 /**
- * Derives the legacy `ProjectIssueTracker` view from the connection that
- * carries the `tracker` role (#145).
+ * Derives the legacy `ProjectIssueTracker` mirror from the tracker connection.
  *
- * `connections` is the normalized source of truth from #131, but the runtime
- * (queue, deliver, readiness, tickets) still resolves the tracker through the
- * `issueTracker` record. The mapping is generic: the legacy view mirrors the
- * connection's own config, namespaced under the provider id, plus the legacy
- * flat fields that share a config field's name. No provider conditionals live
- * here — a new provider is picked up with no change to this function.
+ * The mirror is written on every record for API compatibility. The runtime never
+ * reads it back: resolution goes through the project connections module.
  */
 export function deriveIssueTracker(
   providerId: string,
@@ -187,7 +85,7 @@ export function deriveIssueTracker(
 }
 
 export interface ProjectTrackerSummary {
-  provider: IssueTrackerProvider;
+  provider: string;
   config: Record<string, unknown>;
   hasSecret: boolean;
   secretMask: string;
@@ -195,91 +93,55 @@ export interface ProjectTrackerSummary {
 }
 
 /**
- * Resolves secret status, masked value, and provider configuration for a project's issue tracker.
+ * The project's tracker connection: its provider, non-secret config, and the
+ * status of its first secret (where it is stored and whether a value exists).
  */
 export function resolveProjectTrackerSummary(
-  tracker: ProjectIssueTracker | undefined,
+  project: Project,
   env: Record<string, string>,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ProjectTrackerSummary {
-  const provider = (tracker?.provider ||
-    tracker?.connectionId ||
-    "github") as IssueTrackerProvider;
+  const connection = findConnectionForRole(project, "tracker", registry);
+  const provider = connection ? registry.get(connection.providerId) : undefined;
+  const [route] = provider ? secretRoutesOf(provider) : [];
 
-  let hasSecret = false;
-  let secretMask = "";
-  let secretKey = "";
-
-  if (provider === "azure") {
-    secretKey = PROJECT_ENV_KEYS.AZURE_PAT;
-    const pat = env[secretKey] || process.env.AZURE_DEVOPS_PAT;
-    hasSecret = Boolean(pat?.trim());
-    secretMask = hasSecret ? maskSecret(pat) : "";
-  } else if (provider === "jira") {
-    secretKey = PROJECT_ENV_KEYS.JIRA_TOKEN;
-    const token = env[secretKey] || process.env.JIRA_API_TOKEN;
-    hasSecret = Boolean(token?.trim());
-    secretMask = hasSecret ? maskSecret(token) : "";
-  } else if (provider === "github") {
-    secretKey = PROJECT_ENV_KEYS.GITHUB_TOKEN;
-    const token = env[secretKey] || process.env.GITHUB_TOKEN;
-    hasSecret = Boolean(token?.trim());
-    secretMask = hasSecret ? maskSecret(token) : "";
-  }
-
-  const trackerConfig = (tracker?.[provider] || {}) as Record<string, unknown>;
+  const secret = route ? storedSecretValue(route.envKey, env) : "";
+  const hasSecret = Boolean(secret.trim());
 
   return {
-    provider,
-    config: trackerConfig,
+    provider: connection?.providerId ?? "",
+    config: { ...(connection?.config ?? {}) },
     hasSecret,
-    secretMask,
-    secretKey,
+    secretMask: hasSecret ? maskSecret(secret) : "",
+    secretKey: route?.envKey ?? "",
   };
 }
 
 /**
- * Extracts and maps credential values (including aliases) into PROJECT_ENV_KEYS.
+ * Maps a credentials request onto the env keys the provider's secrets live
+ * under. Returns nothing for a provider the registry does not know.
  */
 export function extractTrackerCredentialsToSave(
-  body: Record<string, string>,
-  provider: string,
+  body: Record<string, unknown>,
+  provider: Provider | undefined,
 ): Record<string, string> {
+  if (!provider) return {};
+  const values = secretBodyValues(provider, body);
   const varsToSave: Record<string, string> = {};
-
-  const azurePat = body[PROJECT_ENV_KEYS.AZURE_PAT];
-  if (typeof azurePat === "string") {
-    varsToSave[PROJECT_ENV_KEYS.AZURE_PAT] = azurePat;
+  for (const route of secretRoutesOf(provider)) {
+    const value = values[route.name];
+    if (value !== undefined) varsToSave[route.envKey] = value;
   }
-  const ghToken = body[PROJECT_ENV_KEYS.GITHUB_TOKEN];
-  if (typeof ghToken === "string") {
-    varsToSave[PROJECT_ENV_KEYS.GITHUB_TOKEN] = ghToken;
-  }
-  const jiraToken = body[PROJECT_ENV_KEYS.JIRA_TOKEN];
-  if (typeof jiraToken === "string") {
-    varsToSave[PROJECT_ENV_KEYS.JIRA_TOKEN] = jiraToken;
-  }
-
-  if (typeof body.pat === "string") {
-    varsToSave[PROJECT_ENV_KEYS.AZURE_PAT] = body.pat;
-  }
-  if (typeof body.token === "string") {
-    if (provider === "jira") {
-      varsToSave[PROJECT_ENV_KEYS.JIRA_TOKEN] = body.token;
-    } else {
-      varsToSave[PROJECT_ENV_KEYS.GITHUB_TOKEN] = body.token;
-    }
-  }
-  if (typeof body.secret === "string") {
-    if (provider === "azure") {
-      varsToSave[PROJECT_ENV_KEYS.AZURE_PAT] = body.secret;
-    } else if (provider === "jira") {
-      varsToSave[PROJECT_ENV_KEYS.JIRA_TOKEN] = body.secret;
-    } else {
-      varsToSave[PROJECT_ENV_KEYS.GITHUB_TOKEN] = body.secret;
-    }
-  }
-
   return varsToSave;
+}
+
+/** `text` with every occurrence of each non-empty secret value masked. */
+function redactValues(text: string, values: readonly string[]): string {
+  let redacted = text;
+  for (const value of [...values].sort((a, b) => b.length - a.length)) {
+    redacted = redacted.split(value).join("[redacted]");
+  }
+  return redacted;
 }
 
 export interface TrackerTestResult {
@@ -289,65 +151,69 @@ export interface TrackerTestResult {
 }
 
 /**
- * Executes a live connection probe using the registered provider.
+ * Executes a live connection probe with the provider. The config is the
+ * project's tracker connection when the request names that same provider, with
+ * the stored secrets and any non-empty request values layered over it.
  */
 export async function testProjectTrackerConnection(
-  providerId: IssueTrackerProvider,
-  tracker: ProjectIssueTracker | undefined,
+  providerId: string,
+  project: Project,
   env: Record<string, string>,
   bodyData: Record<string, unknown>,
   repositoryPath: string,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<TrackerTestResult> {
-  const provider = getProvider(providerId);
+  const provider = registry.get(providerId);
   if (!provider) {
     return { ok: false, error: `Unsupported provider: ${providerId}` };
   }
 
-  let config: ProviderConfig = { ...bodyData };
+  const connection = findConnectionForRole(project, "tracker", registry);
+  const base = connection?.providerId === providerId ? connection.config : {};
 
-  if (providerId === "azure") {
-    const orgUrl = (bodyData.orgUrl as string) || tracker?.azure?.orgUrl;
-    const project =
-      (bodyData.project as string) ||
-      tracker?.azure?.project ||
-      tracker?.projectId;
-    const pat =
-      (bodyData.pat as string) ||
-      env[PROJECT_ENV_KEYS.AZURE_PAT] ||
-      process.env.AZURE_DEVOPS_PAT;
-    config = { ...config, orgUrl, project, pat };
-  } else if (providerId === "jira") {
-    const host = (bodyData.host as string) || tracker?.jira?.host;
-    const email = (bodyData.email as string) || tracker?.jira?.email;
-    const token =
-      (bodyData.token as string) ||
-      env[PROJECT_ENV_KEYS.JIRA_TOKEN] ||
-      process.env.JIRA_API_TOKEN;
-    const project =
-      (bodyData.project as string) ||
-      tracker?.jira?.project ||
-      tracker?.projectId;
-    if (!host || !email || !token) {
-      return { ok: false, error: "Jira host, email, and token are required." };
-    }
-    config = { ...config, host, email, token, project };
-  } else if (providerId === "github") {
-    const repo = (bodyData.repo as string) || tracker?.github?.repo;
-    const token =
-      (bodyData.token as string) ||
-      env[PROJECT_ENV_KEYS.GITHUB_TOKEN] ||
-      process.env.GITHUB_TOKEN;
-    config = { ...config, repo, token, cwd: repositoryPath };
+  const overlay: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(bodyData)) {
+    if (key === "provider" || value === undefined || value === null) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    overlay[key] = value;
+  }
+  for (const [name, value] of Object.entries(
+    secretBodyValues(provider, bodyData),
+  )) {
+    overlay[name] = value;
   }
 
+  const config: ProviderConfig = {
+    ...mergeStoredSecrets(provider, base, env),
+    ...overlay,
+  };
+
+  const check = parseProviderConfig(provider.configSchema, config);
+  if (!check.ok) {
+    return {
+      ok: false,
+      error: "Connection settings are incomplete or invalid.",
+    };
+  }
+
+  // Secret values never leave this function: a provider's failure text can echo
+  // a token, so every stored or supplied secret is masked from the message.
+  const secretValues = secretRoutesOf(provider)
+    .map((route) => config[route.name])
+    .filter(
+      (value): value is string => typeof value === "string" && value !== "",
+    );
   try {
-    await provider.verifyCredentials(config);
+    await provider.verifyCredentials({ ...config, cwd: repositoryPath });
     return {
       ok: true,
       message: `${provider.displayName} connection successful.`,
     };
   } catch (err: unknown) {
-    return { ok: false, error: (err as Error).message };
+    return {
+      ok: false,
+      error: redactValues((err as Error).message, secretValues),
+    };
   }
 }
 
@@ -370,6 +236,42 @@ export interface ProjectMigrationInput {
   secrets?: { pat?: string; token?: string } | undefined;
 }
 
+/**
+ * The connections the migrated project has: the target tracker, plus every
+ * other connection with its tracker role removed, so a surviving git host keeps
+ * serving the project. A project with no connections stays legacy (`undefined`).
+ */
+function migratedConnections(
+  project: Project,
+  body: ProjectMigrationInput,
+): ProjectConnection[] | undefined {
+  if (!project.connections || project.connections.length === 0) {
+    return undefined;
+  }
+  const target = body.targetProvider;
+  const previous = project.connections.find((c) => c.providerId === target);
+  const trackerConfig = Object.fromEntries(
+    Object.entries(
+      ((body as unknown as Record<string, unknown>)[target] ?? {}) as Record<
+        string,
+        unknown
+      >,
+    ).filter(([, value]) => value !== undefined),
+  );
+  const targetConnection: ProjectConnection = {
+    providerId: target,
+    roles: previous?.roles.includes("gitHost")
+      ? ["tracker", "gitHost"]
+      : ["tracker"],
+    config: { ...(previous?.config ?? {}), ...trackerConfig },
+  };
+  const survivors = project.connections
+    .filter((c) => c.providerId !== target)
+    .map((c) => ({ ...c, roles: c.roles.filter((r) => r !== "tracker") }))
+    .filter((c) => c.roles.length > 0);
+  return [targetConnection, ...survivors];
+}
+
 export interface MigrationPlan {
   newId: string;
   newProject: Project;
@@ -383,6 +285,8 @@ export interface MigrationPlan {
 export function buildProjectMigrationPlan(
   project: Project,
   body: ProjectMigrationInput,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+  storedEnv: Record<string, string> = {},
 ): MigrationPlan {
   const newId =
     body.newProjectId?.trim() || `${project.id}-${body.targetProvider}`;
@@ -395,11 +299,13 @@ export function buildProjectMigrationPlan(
     github: body.targetProvider === "github" ? body.github : undefined,
   };
 
+  const connections = migratedConnections(project, body);
   const newProject: Project = {
     ...project,
     id: newId,
     name: body.name?.trim() || project.name,
     issueTracker: newIssueTracker,
+    connections,
     archived: false,
     archivedAt: undefined,
     successorId: undefined,
@@ -414,13 +320,24 @@ export function buildProjectMigrationPlan(
   };
 
   const secretsToSave: Record<string, string> = {};
-  if (body.secrets) {
-    if (body.targetProvider === "azure" && body.secrets.pat) {
-      secretsToSave[PROJECT_ENV_KEYS.AZURE_PAT] = body.secrets.pat;
-    } else if (body.targetProvider === "jira" && body.secrets.token) {
-      secretsToSave[PROJECT_ENV_KEYS.JIRA_TOKEN] = body.secrets.token;
-    } else if (body.targetProvider === "github" && body.secrets.token) {
-      secretsToSave[PROJECT_ENV_KEYS.GITHUB_TOKEN] = body.secrets.token;
+  const provider = registry.get(body.targetProvider);
+  const [route] = provider ? secretRoutesOf(provider) : [];
+  const secret = Object.values(body.secrets ?? {}).find(
+    (value): value is string => typeof value === "string" && value !== "",
+  );
+  if (route && secret) {
+    secretsToSave[route.envKey] = secret;
+  }
+  // Secrets the surviving connections already hold move with them to the new
+  // project id; the target's own secret, when supplied, takes precedence.
+  for (const connection of connections ?? []) {
+    const connectionProvider = registry.get(connection.providerId);
+    if (!connectionProvider) continue;
+    for (const { envKey } of secretRoutesOf(connectionProvider)) {
+      const carried = storedEnv[envKey];
+      if (carried && secretsToSave[envKey] === undefined) {
+        secretsToSave[envKey] = carried;
+      }
     }
   }
 

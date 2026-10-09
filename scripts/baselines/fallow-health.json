@@ -1,12 +1,6 @@
 {
   "kind": "health",
-  "finding_counts": {
-    "src/providers/project-config.ts": {
-      "complexity_critical": {
-        "count": 1
-      }
-    }
-  },
+  "finding_counts": {},
   "runtime_coverage_findings": [],
   "target_keys": [
     "src/frontend/wizard/storage.ts:high impact",
