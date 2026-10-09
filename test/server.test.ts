@@ -8,6 +8,9 @@ import {
   type ServerInstance,
   startServer,
 } from "../src/server.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 let server: ServerInstance;
 let baseUrl: string;

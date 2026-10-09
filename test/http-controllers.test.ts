@@ -21,6 +21,9 @@ import { execStrict } from "../src/proc.js";
 import * as runs from "../src/runs.js";
 import { getRunRepository } from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 describe("HTTP Routing & Controllers (src/http)", () => {
   describe("parseAcceptanceCriteria", () => {

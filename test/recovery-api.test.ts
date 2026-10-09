@@ -4,6 +4,9 @@ import { describe, expect, it } from "bun:test";
 import { handleApi } from "../src/http/routes.js";
 import { getJobRepository, getRunRepository } from "../src/runs.js";
 import type { RunStatus } from "../src/types.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 describe("Recovery-Required HTTP API (XFM-37)", () => {
   function createTestRun(status: RunStatus = "recovery_required") {

@@ -3,6 +3,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { getEventRepository, getRunRepository } from "../src/runs.js";
 import { type ServerInstance, startServer } from "../src/server.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 let server: ServerInstance;
 let baseUrl: string;

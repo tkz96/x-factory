@@ -18,6 +18,9 @@ import {
 } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   beforeEach(() => {

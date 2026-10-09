@@ -12,6 +12,9 @@ import {
 } from "../src/http/responses.js";
 import { handleRunsRoute } from "../src/http/runs-controller.js";
 import { getRunRepository } from "../src/runs.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 describe("HTTP Layer Error Translation", () => {
   it("translates neutral NotFoundError into standard 404 response", async () => {

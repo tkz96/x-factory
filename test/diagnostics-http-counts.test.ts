@@ -10,6 +10,9 @@ import { RunRepository } from "../src/db/run-repository.js";
 import { resetWorkerRegistryForTesting } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 function seedRun(repo: RunRepository, id: string, status: string): void {
   repo.create({

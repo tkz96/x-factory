@@ -11,6 +11,9 @@ import {
   parseEnvContent,
   saveProjectEnv,
 } from "../src/project-env.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 describe("Project Environment Secret Storage (src/project-env.ts)", () => {
   const testProjectId = `test-env-proj-${Date.now()}`;

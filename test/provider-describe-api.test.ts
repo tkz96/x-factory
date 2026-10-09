@@ -25,6 +25,9 @@ import { githubProvider } from "../src/providers/github-module.js";
 import { jiraProvider } from "../src/providers/jira-module.js";
 import { startServer } from "../src/server.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
+import { isolateDataDir } from "./helpers/isolated-data-dir.js";
+
+isolateDataDir();
 
 /** Distinctive synthetic markers — never real credentials. */
 const GITHUB_TOKEN_MARKER = "ghp_describe_marker_github_11ce";
