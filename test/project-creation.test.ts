@@ -281,6 +281,38 @@ async function readStoredProject(id: string): Promise<Project | undefined> {
   return raw.projects.find((p) => p.id === id);
 }
 
+/**
+ * A VALID payload (#133) for the store failure-injection tests: it must clear
+ * the pre-write validation ladder so the ordered writes actually RUN and the
+ * injected store failure is what stops them.
+ */
+function storeFailurePayload(id: string): ConnectionsProjectInput {
+  return {
+    id,
+    name: "Store Failure Injection",
+    workspacePath: tempDir,
+    connections: [
+      {
+        providerId: "stub-capable",
+        roles: ["tracker", "gitHost"],
+        config: {
+          host: "https://stub.example",
+          apiToken: MARKER_STUB_TOKEN,
+          project: "store-failure",
+        },
+      },
+    ],
+    repositories: [
+      {
+        id: `${id}-web`,
+        name: "web",
+        localPath: path.join(tempDir, "web"),
+        role: "backend",
+      },
+    ],
+  };
+}
+
 describe("POST /api/projects with a connections payload", () => {
   it("creates the project, keeps legacy runtime fields populated and stores a secret-free connection record", async () => {
     const projectId = `rocket-${Date.now()}-a`;
@@ -1193,35 +1225,6 @@ describe("POST /api/projects with a connections payload", () => {
 });
 
 describe("Shared write plan: ordered writes through the injected store (#187)", () => {
-  function crashPayload(id: string): ConnectionsProjectInput {
-    return {
-      id,
-      name: "Crash Test",
-      workspacePath: tempDir,
-      connections: [
-        {
-          providerId: "stub-capable",
-          // A VALID set (#133): these tests need the ordered writes to RUN, so
-          // the payload must clear the pre-write validation ladder.
-          roles: ["tracker", "gitHost"],
-          config: {
-            host: "https://stub.example",
-            apiToken: MARKER_STUB_TOKEN,
-            project: "crash",
-          },
-        },
-      ],
-      repositories: [
-        {
-          id: `${id}-web`,
-          name: "web",
-          localPath: path.join(tempDir, "web"),
-          role: "backend",
-        },
-      ],
-    };
-  }
-
   /**
    * The shipped file-backed store with named methods replaced: failures are
    * injected THROUGH the store (#187), never by mutating `process.env` or file
@@ -1234,7 +1237,7 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
   }
 
   it("creates no project at all when the store's env write fails", async () => {
-    const id = `crash-secret-${Date.now()}`;
+    const id = `store-failure-secret-${Date.now()}`;
     const store = storeFailingOn({
       saveProjectEnv: async () => {
         throw new Error("env store unavailable");
@@ -1242,7 +1245,7 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
     });
 
     await expect(
-      createProjectFromConnections(crashPayload(id), {
+      createProjectFromConnections(storeFailurePayload(id), {
         registry: testRegistry,
         configPath,
         store,
@@ -1258,7 +1261,7 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
   });
 
   it("leaves the secrets and no project when the store's record write fails, then converges on retry", async () => {
-    const id = `crash-commit-${Date.now()}`;
+    const id = `store-failure-commit-${Date.now()}`;
     let recordWriteFails = true;
     const store = storeFailingOn({
       appendProjectRecord: async (record, pathArg) => {
@@ -1268,7 +1271,7 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
     });
 
     await expect(
-      createProjectFromConnections(crashPayload(id), {
+      createProjectFromConnections(storeFailurePayload(id), {
         registry: testRegistry,
         configPath,
         store,
@@ -1284,7 +1287,7 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
 
     // A retry after the failure converges: same secret, one record.
     recordWriteFails = false;
-    const saved = await createProjectFromConnections(crashPayload(id), {
+    const saved = await createProjectFromConnections(storeFailurePayload(id), {
       registry: testRegistry,
       configPath,
       store,
