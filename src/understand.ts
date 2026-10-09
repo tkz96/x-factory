@@ -1,7 +1,6 @@
 // src/understand.ts — Understand stage: context synthesis and typed ImplementationContext artifact generation.
 
-import { access, readdir, readFile } from "node:fs/promises";
-import path from "node:path";
+import { access, readdir } from "node:fs/promises";
 import type { ImplementationContext, Project, Ticket } from "./types.js";
 
 /**
@@ -138,50 +137,4 @@ export async function buildImplementationContext(
     constraints,
     risks,
   };
-}
-
-/**
- * Build the full implementation prompt for Pi Session A using the ImplementationContext.
- */
-export async function buildImplementationPrompt(
-  project: Project,
-  ticket: Ticket,
-  plan: string,
-  context: ImplementationContext,
-): Promise<string> {
-  const templatePath = path.join(process.cwd(), "prompts", "implementation.md");
-  let template = "";
-  try {
-    template = await readFile(templatePath, "utf-8");
-  } catch {
-    // Fallback if template missing
-    template = `You are implementing a production ticket.\n\n## Ticket\n{{TICKET}}\n\n## Implementation Plan\n{{PLAN}}\n\n## Knowledge Repository\n{{KNOWLEDGE_NOTE}}`;
-  }
-
-  const criteriaBlock =
-    ticket.acceptanceCriteria.length > 0
-      ? `\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
-      : "";
-
-  const ticketBlock = `#${ticket.id} — ${ticket.title}${ticket.description ? `\n\n${ticket.description}` : ""}${criteriaBlock}`;
-  template = template.replace("{{TICKET}}", ticketBlock);
-
-  // Add context to plan
-  const contextBlock = `\n\n### Implementation Context:\n- Relevant files: ${context.relevantFiles.join(", ") || "None specified"}\n- Constraints: ${context.constraints.join("; ")}\n- Architectural notes: ${context.architecturalNotes}`;
-  template = template.replace("{{PLAN}}", `${plan}${contextBlock}`);
-
-  // Knowledge note
-  let knowledgeNote = "No knowledge repository is configured for this project.";
-  if (project.knowledgeRepositoryPath) {
-    try {
-      await access(project.knowledgeRepositoryPath);
-      knowledgeNote = `Knowledge repository is available at: ${project.knowledgeRepositoryPath}\nConsult it for patterns, architecture, and standards.`;
-    } catch {
-      knowledgeNote =
-        "Knowledge repository configured but directory is currently inaccessible.";
-    }
-  }
-  template = template.replace("{{KNOWLEDGE_NOTE}}", knowledgeNote);
-
-  return template;
 }
