@@ -705,6 +705,41 @@ describe("Jira provider module (#140)", () => {
       expect(capturedRequests).toHaveLength(2);
     });
 
+    it("caps pagination requests at the page cap (#185)", async () => {
+      let requestCount = 0;
+      const transport = async () => {
+        requestCount++;
+        // If not stopped by page cap, returns token up to 5 times
+        const hasNext = requestCount < 5;
+        return jsonResponse({
+          ...(hasNext
+            ? { nextPageToken: `token-page-${requestCount + 1}` }
+            : {}),
+          issues: [
+            {
+              key: `T-${requestCount}`,
+              fields: { summary: `Issue ${requestCount}` },
+            },
+          ],
+        });
+      };
+
+      const provider = createJiraProvider({ fetchFn: transport, pageCap: 2 });
+      const tickets = await provider.listTickets?.(
+        {
+          host: "https://acme.atlassian.net",
+          email: "bot@acme.com",
+          apiToken: "bot-token",
+          project: "ENG",
+        },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 2 },
+      );
+
+      expect(requestCount).toBe(2);
+      expect(tickets).toHaveLength(2);
+      expect(tickets?.map((t) => t.id)).toEqual(["T-1", "T-2"]);
+    });
+
     it("propagates HTTP failure on later pagination page using provider error mapping", async () => {
       let requestCount = 0;
       const transport = async () => {

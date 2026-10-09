@@ -6,6 +6,10 @@ import type {
   TrackerTicket,
 } from "../contract.js";
 import { type HttpTransport, parseLinkNextUrl } from "../http.js";
+import {
+  DEFAULT_PAGE_CAP,
+  extractAcceptanceCriteria,
+} from "../ticket-normalization.js";
 import { resolveGitHubConfig } from "./config.js";
 import {
   DEFAULT_GITHUB_API_ROOT,
@@ -27,51 +31,6 @@ interface RawGitHubIssue {
   updated_at?: string;
   pull_request?: unknown;
   labels?: Array<string | RawGitHubLabel>;
-}
-
-function isSectionHeader(line: string): boolean {
-  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
-    line,
-  );
-}
-
-function sanitizeLine(line: string): string {
-  return line
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_`]/g, "")
-    .trim();
-}
-
-function parseBulletLine(line: string): string | null {
-  const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
-  return match?.[1] ? sanitizeLine(match[1]) : null;
-}
-
-function extractAcceptanceCriteria(text?: string | null): string[] {
-  if (!text || typeof text !== "string") return [];
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const headerIdx = lines.findIndex(isSectionHeader);
-
-  if (headerIdx >= 0) {
-    const sectionLines: string[] = [];
-    for (let i = headerIdx + 1; i < lines.length; i++) {
-      const currentLine = lines[i];
-      if (!currentLine) continue;
-      if (/^#+\s+/.test(currentLine)) break;
-      const bullet = parseBulletLine(currentLine);
-      if (bullet) {
-        sectionLines.push(bullet);
-      } else if (currentLine.length > 5) {
-        sectionLines.push(sanitizeLine(currentLine));
-      }
-    }
-    return sectionLines;
-  }
-
-  return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
 }
 
 function normalizeLabels(rawLabels?: Array<string | RawGitHubLabel>): string[] {
@@ -113,10 +72,8 @@ function toTrackerTicket(
 /**
  * Lists tickets (issues) from a GitHub repository, filtering out pull requests.
  *
- * Follows every `Link: rel="next"` page so the full result set is collected;
- * a visited-URL set breaks repeated-link loops. There is deliberately no
- * page-count cap — pagination terminates when the API stops advertising a
- * next page, or when a link repeats.
+ * Follows `Link: rel="next"` pages up to the page cap; a visited-URL set breaks
+ * repeated-link loops.
  */
 export async function listGitHubTickets(
   config: ProviderConfig,
@@ -162,7 +119,11 @@ export async function listGitHubTickets(
   const visited = new Set<string>();
   const tickets: TrackerTicket[] = [];
 
-  while (nextUrl && !visited.has(nextUrl)) {
+  const pageCap = options.pageCap ?? DEFAULT_PAGE_CAP;
+  let pagesFetched = 0;
+
+  while (nextUrl && !visited.has(nextUrl) && pagesFetched < pageCap) {
+    pagesFetched++;
     visited.add(nextUrl);
 
     const res = await githubFetch(nextUrl, { headers, fetchFn });

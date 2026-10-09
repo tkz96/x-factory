@@ -851,6 +851,68 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       expect(tickets[0]?.provider).toBe("azure");
     });
 
+    it("lists more than 50 matching tickets by paginating work items in batches (#185)", async () => {
+      const totalTickets = 60;
+      const workItemRefs = Array.from({ length: totalTickets }, (_, i) => ({
+        id: 1000 + i,
+        url: `https://dev.azure.com/org/proj/_apis/wit/workitems/${1000 + i}`,
+      }));
+
+      const batchRequests: string[] = [];
+      const transport = createInMemoryTransport([
+        {
+          match: "/_apis/wit/wiql",
+          handler: jsonResponse({
+            workItems: workItemRefs,
+          }),
+        },
+        {
+          match: "/_apis/wit/workitems",
+          handler: (url: string) => {
+            batchRequests.push(url);
+            const parsedUrl = new URL(url);
+            const idsParam = parsedUrl.searchParams.get("ids") || "";
+            const ids = idsParam.split(",").map(Number).filter(Boolean);
+
+            const items = ids.map((id) => ({
+              id,
+              fields: {
+                "System.Title": `Task ${id}`,
+                "System.Description": `<p>Description for ${id}</p>`,
+                "System.Tags": "backend; x-factory",
+              },
+              _links: {
+                html: {
+                  href: `https://dev.azure.com/org/proj/_workitems/edit/${id}`,
+                },
+              },
+            }));
+
+            return jsonResponse({ value: items });
+          },
+        },
+      ]);
+
+      const provider = createAzureProvider({ fetchFn: transport });
+      if (!provider.listTickets) {
+        throw new Error("listTickets is not defined");
+      }
+      const tickets = await provider.listTickets(
+        {
+          orgUrl: "https://dev.azure.com/org",
+          project: "proj",
+          pat: "valid-pat",
+        },
+        { requiredLabel: "x-factory" },
+      );
+
+      expect(tickets).toHaveLength(60);
+      expect(tickets.map((t) => t.id)).toEqual(
+        workItemRefs.map((w) => `AZ-${w.id}`),
+      );
+      expect(batchRequests.length).toBeGreaterThan(1);
+    });
+
     it("extracts and sanitizes markdown formatting and links in acceptance criteria", () => {
       const criteria = extractCriteria(
         "Requirements:\n- [Azure Doc](https://learn.microsoft.com) must be *reviewed*",

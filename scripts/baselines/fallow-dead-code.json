@@ -60,8 +60,7 @@
   "duplicate_exports": [
     "duplicate-export:ProviderConfigFieldDescriptor:src/frontend/connection/types.ts|src/providers/serializer.ts",
     "duplicate-export:ProviderDescriptor:src/frontend/connection/types.ts|src/providers/serializer.ts",
-    "duplicate-export:VerificationResult:src/frontend/connection/types.ts|src/providers/contract.ts|src/shared/types.ts",
-    "duplicate-export:extractCriteria:src/providers/azure-module.ts|src/providers/jira-module.ts"
+    "duplicate-export:VerificationResult:src/frontend/connection/types.ts|src/providers/contract.ts|src/shared/types.ts"
   ],
   "type_only_dependencies": [],
   "test_only_dependencies": [],
