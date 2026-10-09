@@ -11,11 +11,11 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: "http://localhost:3777",
+        target: "http://127.0.0.1:3777",
         changeOrigin: true,
       },
       "/reference": {
-        target: "http://localhost:3777",
+        target: "http://127.0.0.1:3777",
         changeOrigin: true,
       },
     },

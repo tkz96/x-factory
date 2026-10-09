@@ -115,7 +115,7 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
 
       // 1. First execution: creates branch, creates worktree, writes baseline.json
       const result1 = await executor.execute(context);
-      expect(result1.status).toBe("success");
+      expect(result1.outcome).toBe("passed");
       expect(branchCreateCalls).toBe(1);
       expect(worktreeCreateCalls).toBe(1);
       expect(
@@ -134,7 +134,7 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
 
       // 2. Second execution (retry/re-run): must NOT recreate branch or worktree
       const result2 = await executor.execute(context);
-      expect(result2.status).toBe("success");
+      expect(result2.outcome).toBe("passed");
       expect(branchCreateCalls).toBe(1); // Unchanged!
       expect(worktreeCreateCalls).toBe(1); // Unchanged!
     });
@@ -172,7 +172,7 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
 
       // First run: calls API and creates PR
       const result1 = await executor.execute(context);
-      expect(result1.status).toBe("success");
+      expect(result1.outcome).toBe("passed");
       expect(apiCalls).toBe(1);
       expect(commitCalls).toBe(1);
       expect(pushCalls).toBe(1);
@@ -184,7 +184,7 @@ describe("Stage Idempotency & Reconstructable Verification (XFM-32, XFM-33, XFM-
 
       // Second run (e.g. deliver job retry or rerun): must reuse PR from ledger
       const result2 = await executor.execute(context);
-      expect(result2.status).toBe("success");
+      expect(result2.outcome).toBe("passed");
       expect(apiCalls).toBe(1); // API was NOT called again!
       expect(commitCalls).toBe(1); // Commit was NOT run again!
       expect(pushCalls).toBe(1); // Push was NOT run again!

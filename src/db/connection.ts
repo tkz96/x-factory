@@ -14,6 +14,25 @@ export interface DatabaseOptions {
 }
 
 /**
+ * Switches the file to WAL mode. When two processes open a fresh file together, the
+ * switch can fail with SQLITE_BUSY at once, without waiting on busy_timeout. Retry
+ * until the same deadline busy_timeout would have used.
+ */
+function enableWalMode(db: Database, timeoutMs: number): void {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      db.exec("PRAGMA journal_mode = WAL;");
+      return;
+    } catch (err: unknown) {
+      const busy = (err as { code?: string }).code === "SQLITE_BUSY";
+      if (!busy || Date.now() >= deadline) throw err;
+      Bun.sleepSync(5);
+    }
+  }
+}
+
+/**
  * Creates and configures a fresh SQLite database connection.
  */
 export function createDatabase(options?: DatabaseOptions): Database {
@@ -28,10 +47,15 @@ export function createDatabase(options?: DatabaseOptions): Database {
     readonly: options?.readonly ?? false,
   });
 
+  // Set the busy timeout first. Switching a fresh file to WAL takes a lock, and
+  // without a timeout that switch fails at once when another process holds it.
+  const timeout = options?.busyTimeoutMs ?? 5000;
+  db.exec(`PRAGMA busy_timeout = ${timeout};`);
+
   // Standard production SQLite PRAGMAs
   if (!options?.readonly) {
     if (options?.wal !== false && dbPath !== ":memory:") {
-      db.exec("PRAGMA journal_mode = WAL;");
+      enableWalMode(db, timeout);
     }
 
     if (options?.foreignKeys !== false) {
@@ -42,9 +66,6 @@ export function createDatabase(options?: DatabaseOptions): Database {
     // application crash and only an OS crash can lose the latest ones.
     db.exec("PRAGMA synchronous = NORMAL;");
   }
-
-  const timeout = options?.busyTimeoutMs ?? 5000;
-  db.exec(`PRAGMA busy_timeout = ${timeout};`);
 
   return db;
 }

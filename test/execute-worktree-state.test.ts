@@ -146,8 +146,7 @@ async function execute(files: Array<[string, string]>): Promise<{
     reviewExecutor: {
       stage: "review",
       execute: async () => ({
-        status: "success",
-        nextRunStatus: "awaiting_review",
+        outcome: "passed",
       }),
     },
   });

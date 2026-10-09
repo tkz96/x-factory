@@ -52,6 +52,43 @@ export function getDatabasePath(): string {
 }
 
 /**
+ * Global settings file (theme, models):
+ * ~/.x-factory/settings.json
+ */
+export function getSettingsPath(): string {
+  return path.join(getDataDir(), "settings.json");
+}
+
+/**
+ * Projects configuration file (the target project list):
+ * ./config/projects.json, or X_FACTORY_CONFIG_PATH when set. The file is an
+ * authored input in the repository, not runtime state, so it is not moved
+ * under the data dir.
+ */
+export function getProjectsConfigPath(): string {
+  return (
+    process.env.X_FACTORY_CONFIG_PATH ||
+    path.join(process.cwd(), "config", "projects.json")
+  );
+}
+
+/**
+ * Default directory for database backups written by scripts/backup.ts:
+ * ~/.x-factory/backups/ (BACKUP_DIR overrides it at the call site).
+ */
+export function getBackupsDir(): string {
+  return path.join(getDataDir(), "backups");
+}
+
+/**
+ * Top-level artifacts directory that scripts/backup.ts archives when present:
+ * ~/.x-factory/artifacts/
+ */
+export function getArtifactsDir(): string {
+  return path.join(getDataDir(), "artifacts");
+}
+
+/**
  * Directory holding cross-process claim/lock files:
  * ~/.x-factory/locks/
  *

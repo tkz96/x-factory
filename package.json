@@ -24,7 +24,7 @@
     "lint:fix": "biome check --write .",
     "knip": "knip",
     "check:knip": "bun scripts/knip-baseline.ts",
-    "check:fallow": "bunx fallow dead-code --baseline scripts/baselines/fallow-dead-code.json --fail-on-stale-baseline && bunx fallow dupes --baseline scripts/baselines/fallow-dupes.json --fail-on-stale-baseline && bunx fallow health --baseline scripts/baselines/fallow-health.json --fail-on-stale-baseline",
+    "check:fallow": "bunx fallow@3.33.0 dead-code --baseline scripts/baselines/fallow-dead-code.json --fail-on-stale-baseline && bunx fallow@3.33.0 dupes --baseline scripts/baselines/fallow-dupes.json --fail-on-stale-baseline && bunx fallow@3.33.0 health --baseline scripts/baselines/fallow-health.json --fail-on-stale-baseline",
     "docs:schema": "bun scripts/generate-schema-doc.ts",
     "docs:schema:check": "bun scripts/generate-schema-doc.ts --check",
     "check:all": "bun scripts/check-all.ts",

@@ -9,7 +9,7 @@ import {
 import { resolveProjectProvider } from "../providers/project-config.js";
 import type { Project, PullRequest } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
-import type { StageContext, StageExecutor, StageResult } from "./types.js";
+import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
 export interface PrMetadata {
   commitMsg: string;
@@ -164,13 +164,16 @@ export class DeliverExecutor implements StageExecutor {
 
   async deliver(context: StageContext): Promise<PullRequest> {
     const result = await this.execute(context);
-    if (result.status !== "success" || !result.output) {
-      throw new Error(result.error || "Deliver failed without output");
+    if (result.outcome !== "passed" || !result.output) {
+      throw new Error(
+        (result.outcome === "error" && result.error) ||
+          "Deliver failed without output",
+      );
     }
     return result.output as PullRequest;
   }
 
-  async execute(context: StageContext): Promise<StageResult> {
+  async execute(context: StageContext): Promise<StageOutcome> {
     const { run, project, operationLedgerRepo } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
@@ -354,7 +357,7 @@ export class DeliverExecutor implements StageExecutor {
     // Note: State finalization (updating pullRequest, stage evidence, transition to pr_created)
     // is delegated to finalizeDeliver in src/services/deliver-service.ts to ensure single-transaction atomicity.
     return {
-      status: "success",
+      outcome: "passed",
       output: pr,
     };
   }

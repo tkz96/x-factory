@@ -9,7 +9,7 @@ import { renderTicketDoc } from "../prompts.js";
 import type { Project } from "../shared/types.js";
 import { baselinePathFor, recordBaseline } from "../worktree-state.js";
 import { resolveWorktreeBaseline } from "./baseline.js";
-import type { StageContext, StageExecutor, StageResult } from "./types.js";
+import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
 export interface PrepareDependencies {
   branchExists: typeof git.branchExists;
@@ -140,7 +140,7 @@ export class PrepareExecutor implements StageExecutor {
     this.deps = { ...defaultPrepareDeps, ...deps };
   }
 
-  async execute(context: StageContext): Promise<StageResult> {
+  async execute(context: StageContext): Promise<StageOutcome> {
     const { run, project, operationLedgerRepo } = context;
 
     context.eventRepo.appendEvent(run.id, "info", {
@@ -204,9 +204,7 @@ export class PrepareExecutor implements StageExecutor {
     });
 
     return {
-      status: "success",
-      nextStage: "understand",
-      nextRunStatus: "understanding",
+      outcome: "passed",
       output: {
         worktreePath,
         branch: run.branch,

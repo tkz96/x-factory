@@ -173,9 +173,7 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
 
       const result = await executor.execute(context);
 
-      expect(result.status).toBe("success");
-      expect(result.nextStage).toBeUndefined();
-      expect(result.nextRunStatus).toBe("awaiting_plan_approval");
+      expect(result.outcome).toBe("passed");
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.plan).toContain("Execution Plan for #T-200");

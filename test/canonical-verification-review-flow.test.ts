@@ -248,8 +248,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     });
 
     const result = await reviewExecutor.execute(context);
-    expect(result.status).toBe("success");
-    expect(result.nextRunStatus).toBe("awaiting_review");
+    expect(result.outcome).toBe("passed");
 
     // Persisted to SQLite
     const persisted = runRepo.get(context.run.id);
@@ -278,10 +277,10 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     });
 
     const result = await reviewExecutor.execute(context);
-    expect(result.status).toBe("failed");
-    expect(result.nextRunStatus).toBe("failed");
-    expect(result.nextRunStatus).not.toBe("awaiting_review");
-    expect(result.error).toContain("Code review was not approved");
+    expect(result).toMatchObject({
+      outcome: "rejected",
+      reason: expect.stringContaining("Code review was not approved"),
+    });
 
     // Persisted review record shows failed review
     const persisted = runRepo.get(context.run.id);
@@ -310,10 +309,11 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     });
 
     const result = await reviewExecutor.execute(context);
-    expect(result.status).toBe("failed");
-    expect(result.nextRunStatus).toBe("failed");
-    expect(result.nextRunStatus).not.toBe("awaiting_review");
-    expect(result.error).toContain("Deterministic verification is missing");
+    expect(result.outcome).toBe("error");
+    expect(result).toMatchObject({
+      outcome: "error",
+      error: expect.stringContaining("Deterministic verification is missing"),
+    });
     expect(sessionsCreated).toBe(0);
   });
 
