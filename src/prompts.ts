@@ -13,14 +13,16 @@ import { MAX_REPAIR_ATTEMPTS } from "./verification.js";
 
 /**
  * The em-dash ticket heading shared by every prompt. Pass `hash: false` for the
- * bare `ID — Title` line used by the PR body.
+ * bare `ID — Title` line used by the PR body, or `separator` to join id and title
+ * with something other than ` — ` (the execution plan heading uses `": "`).
  */
 export function renderTicketHeading(
   ticket: Ticket,
-  options?: { hash?: boolean },
+  options?: { hash?: boolean; separator?: string },
 ): string {
-  if (options?.hash === false) return `${ticket.id} — ${ticket.title}`;
-  return `#${ticket.id} — ${ticket.title}`;
+  const heading = `${ticket.id}${options?.separator ?? " — "}${ticket.title}`;
+  if (options?.hash === false) return heading;
+  return `#${heading}`;
 }
 
 /**
@@ -65,6 +67,37 @@ function renderUnderstanding(
     lines.push("", "Risks:", ...context.risks.map((r) => `- ${r}`));
   }
   return `${lines.join("\n")}\n\n`;
+}
+
+/**
+ * The default execution plan for a ticket with no custom plan. It lives here so
+ * the ticket heading and criteria list render through this module, and its output
+ * is byte-for-byte what the plan executor has always produced (pinned by literal
+ * tests in test/prompt-module.test.ts).
+ */
+export function generateDefaultPlan(ticket: Ticket): string {
+  const criteria =
+    ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0
+      ? ticket.acceptanceCriteria
+      : ["Implement required functionality according to ticket specifications"];
+
+  let plan = `# Execution Plan for ${renderTicketHeading(ticket, { separator: ": " })}\n\n`;
+  plan += `## Task 1: Setup & Tests\n`;
+  plan += `- [ ] Create test fixtures and failing test cases for acceptance criteria\n`;
+  plan += `- [ ] Run test suite to verify failing (RED) state\n\n`;
+
+  plan += `## Task 2: Core Implementation\n`;
+  for (const ac of criteria) {
+    plan += `- [ ] Implement ${ac}\n`;
+  }
+  plan += `- [ ] Run test suite to verify passing (GREEN) state\n\n`;
+
+  plan += `## Task 3: Quality Verification & Refactor\n`;
+  plan += `- [ ] Refactor implementation for maintainability and clarity\n`;
+  plan += `- [ ] Run typecheck and lint to ensure clean build\n`;
+  plan += `- [ ] Ensure zero test regressions\n`;
+
+  return plan.trim();
 }
 
 /**
