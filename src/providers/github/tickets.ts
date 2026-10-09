@@ -5,6 +5,7 @@ import type {
   TicketQueryOptions,
   TrackerTicket,
 } from "../contract.js";
+import { type HttpTransport, parseLinkNextUrl } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import {
   DEFAULT_GITHUB_API_ROOT,
@@ -81,21 +82,6 @@ function normalizeLabels(rawLabels?: Array<string | RawGitHubLabel>): string[] {
 }
 
 /**
- * Extracts the `rel="next"` URL from a GitHub `Link` response header, when present.
- * GitHub paginates with `Link: <...>; rel="next", <...>; rel="last"`.
- */
-function parseGitHubNextPageLink(
-  linkHeader: string | null | undefined,
-): string | undefined {
-  if (!linkHeader) return undefined;
-  for (const segment of linkHeader.split(",")) {
-    const match = segment.match(/<([^>]+)>\s*;\s*rel="next"/);
-    if (match?.[1]) return match[1];
-  }
-  return undefined;
-}
-
-/**
  * Converts a raw GitHub issue into a normalized TrackerTicket, or null when the
  * issue is a pull request or does not carry the required label.
  */
@@ -135,7 +121,7 @@ function toTrackerTicket(
 export async function listGitHubTickets(
   config: ProviderConfig,
   options: TicketQueryOptions,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<TrackerTicket[]> {
   const {
     token,
@@ -195,7 +181,7 @@ export async function listGitHubTickets(
       if (ticket) tickets.push(ticket);
     }
 
-    nextUrl = parseGitHubNextPageLink(res.headers.get("link"));
+    nextUrl = parseLinkNextUrl(res.headers.get("link")) ?? undefined;
   }
 
   return tickets;

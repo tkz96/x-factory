@@ -7,6 +7,7 @@ import type {
   VerificationResult,
   VerificationWarning,
 } from "../contract.js";
+import type { HttpTransport } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import { GitHubHttpError, toGitHubUserError } from "./errors.js";
 import {
@@ -18,7 +19,7 @@ import {
 interface GitHubTransport {
   root: string;
   token?: string | undefined;
-  fetchFn?: typeof fetch | undefined;
+  fetchFn?: typeof fetch | HttpTransport | undefined;
 }
 
 function parseOAuthScopes(headers: Headers): string[] {
@@ -149,7 +150,7 @@ async function probePublicOwner(
  */
 export async function verifyGitHubCredentials(
   config: ProviderConfig,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<VerificationResult> {
   const { token, owner, baseUrl } = resolveGitHubConfig(config);
   const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
@@ -210,7 +211,7 @@ export async function verifyGitHubCredentials(
  */
 export async function verifyGitHubScopes(
   config: ProviderConfig,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<ScopeVerificationReport> {
   const { token, baseUrl } = resolveGitHubConfig(config);
   const root = baseUrl || DEFAULT_GITHUB_API_ROOT;

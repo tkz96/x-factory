@@ -7,6 +7,7 @@ import {
   type ProviderConfig,
   type ProviderPullRequest,
 } from "../contract.js";
+import type { HttpTransport } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import { GitHubHttpError } from "./errors.js";
 import {
@@ -112,7 +113,7 @@ function parsePullRequestResponse(
 export async function createGitHubPullRequest(
   config: ProviderConfig,
   input: CreatePullRequestInput,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<ProviderPullRequest> {
   const { token, owner, repo, root } = prepareGitHubPrContext(
     config,
@@ -142,7 +143,7 @@ export async function createGitHubPullRequest(
 export async function findExistingGitHubPullRequest(
   config: ProviderConfig,
   input: FindPullRequestInput,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<ProviderPullRequest | null> {
   const { token, owner, repo, root } = prepareGitHubPrContext(
     config,

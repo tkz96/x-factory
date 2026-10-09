@@ -1,5 +1,11 @@
-// src/providers/github/http.ts — GitHub HTTP transport and response handling (#138).
-
+import {
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  extractErrorMessage,
+  type HttpTransport,
+  isLoginRedirect,
+  type ProviderFetchOptions,
+  providerFetch,
+} from "../http.js";
 import {
   GitHubHttpError,
   isGitHubRateLimited,
@@ -34,7 +40,8 @@ export interface GitHubFetchOptions {
   headers?: Headers | undefined;
   method?: string | undefined;
   body?: string | undefined;
-  fetchFn?: typeof fetch | undefined;
+  fetchFn?: HttpTransport | undefined;
+  timeoutMs?: number | undefined;
 }
 
 export interface GitHubFetchResponse {
@@ -50,64 +57,51 @@ export async function githubFetch(
   url: string,
   options: GitHubFetchOptions = {},
 ): Promise<GitHubFetchResponse> {
-  const customFetch = options.fetchFn || fetch;
-  const requestInit: RequestInit = {
-    method: options.method || "GET",
-    ...(options.headers ? { headers: options.headers } : {}),
-    ...(options.body ? { body: options.body } : {}),
+  const fetchOpts: ProviderFetchOptions = {
+    headers: options.headers,
+    fetchFn: options.fetchFn,
+    timeoutMs: options.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+    // GitHub's API has no sign-in flow: only a 203 or a redirect to a login page counts.
+    isSignInRedirect: (res) => res.status === 203 || isLoginRedirect(res),
+    isRateLimited: (status, headers, text) =>
+      isGitHubRateLimited(status, headers, text),
+    errorFactory: (msg, opts) => {
+      const fallback = `GitHub API request failed with HTTP ${opts.status}`;
+      const isChallenge =
+        opts.isHtml && opts.status >= 200 && opts.status < 300;
+      let message: string;
+      if (opts.status === 0 || isChallenge) {
+        message = msg;
+      } else if (opts.isHtml) {
+        message = fallback;
+      } else {
+        message = extractErrorMessage(opts.data, fallback);
+      }
+
+      return new GitHubHttpError(message, {
+        status: opts.status,
+        headers: opts.headers,
+        bodyText: opts.bodyText,
+        retryAfterMs: opts.retryAfterMs ?? parseGitHubRetryAfter(opts.headers),
+        isRateLimit: opts.isRateLimit,
+        data: opts.data,
+        isHtml: opts.isHtml,
+        isTimeout: opts.isTimeout,
+        cause: opts.cause,
+      });
+    },
   };
-
-  let res: Response;
-  try {
-    res = await customFetch(url, requestInit);
-  } catch (networkErr) {
-    const message =
-      networkErr instanceof Error
-        ? networkErr.message
-        : "Network request to GitHub failed";
-    throw new GitHubHttpError(message, {
-      status: 0,
-      headers: new Headers(),
-    });
+  if (options.method !== undefined) {
+    fetchOpts.method = options.method;
   }
-
-  const text = await res.text();
-  let parsed: unknown = null;
-  if (text.trim()) {
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = text;
-    }
+  if (options.body !== undefined) {
+    fetchOpts.body = options.body;
   }
-
-  if (!res.ok) {
-    const isRateLimit = isGitHubRateLimited(res.status, res.headers, text);
-    const retryAfterMs = parseGitHubRetryAfter(res.headers);
-    let errorMessage = `GitHub API request failed with HTTP ${res.status}`;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "message" in parsed &&
-      typeof (parsed as { message: unknown }).message === "string"
-    ) {
-      errorMessage = (parsed as { message: string }).message;
-    } else if (typeof parsed === "string" && parsed.trim()) {
-      errorMessage = parsed.trim();
-    }
-
-    throw new GitHubHttpError(errorMessage, {
-      status: res.status,
-      headers: res.headers,
-      bodyText: text,
-      retryAfterMs,
-      isRateLimit,
-    });
-  }
+  const res = await providerFetch(url, fetchOpts);
 
   return {
     status: res.status,
     headers: res.headers,
-    data: parsed,
+    data: res.data,
   };
 }

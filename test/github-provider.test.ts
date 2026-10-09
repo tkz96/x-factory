@@ -37,6 +37,7 @@ import {
   serializeProviderConfigSchema,
 } from "../src/providers/serializer.js";
 import { startServer } from "../src/server.js";
+import { jsonResponse, textResponse } from "./helpers/provider-test-helper.js";
 
 describe("GitHub Provider Module (Ticket #138)", () => {
   describe("Registration & Contract Conformance", () => {
@@ -675,8 +676,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         expect(urlStr).toContain("/orgs/acme/repos?per_page=100&type=all");
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               id: 101,
               name: "frontend-app",
@@ -691,10 +692,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
               html_url: "https://github.com/acme/service-gateway",
               default_branch: "develop",
             },
-          ]),
+          ],
           {
             status: 200,
-            headers: { "Content-Type": "application/json" },
           },
         );
       }) as typeof fetch;
@@ -724,14 +724,16 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         const urlStr = String(url);
         calls.push(urlStr);
         if (urlStr.includes("/orgs/")) {
-          return new Response(JSON.stringify({ message: "Not Found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return jsonResponse(
+            { message: "Not Found" },
+            {
+              status: 404,
+            },
+          );
         }
         if (urlStr.includes("/users/")) {
-          return new Response(
-            JSON.stringify([
+          return jsonResponse(
+            [
               {
                 id: 201,
                 name: "personal-portfolio",
@@ -739,11 +741,11 @@ describe("GitHub Provider Module (Ticket #138)", () => {
                 html_url: "https://github.com/octocat/personal-portfolio",
                 default_branch: "main",
               },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            ],
+            { status: 200 },
           );
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -763,16 +765,16 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       let requestedUrl = "";
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         requestedUrl = String(url);
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               id: 301,
               name: "my-collab-repo",
               clone_url: "https://github.com/collab/my-collab-repo.git",
               default_branch: "main",
             },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          ],
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -791,26 +793,20 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async () => {
         if (page === 1) {
           page++;
-          return new Response(
-            JSON.stringify([
-              { id: 1, name: "repo-page-1", default_branch: "main" },
-            ]),
+          return jsonResponse(
+            [{ id: 1, name: "repo-page-1", default_branch: "main" }],
             {
               status: 200,
               headers: {
-                "Content-Type": "application/json",
                 Link: '<https://api.github.com/orgs/myorg/repos?page=2>; rel="next"',
               },
             },
           );
         }
-        return new Response(
-          JSON.stringify([
-            { id: 2, name: "repo-page-2", default_branch: "main" },
-          ]),
+        return jsonResponse(
+          [{ id: 2, name: "repo-page-2", default_branch: "main" }],
           {
             status: 200,
-            headers: { "Content-Type": "application/json" },
           },
         );
       }) as unknown as typeof fetch;
@@ -839,14 +835,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           headers.Link = `<https://api.github.com/orgs/myorg/repos?page=${currentPage + 1}>; rel="next"`;
         }
 
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               id: currentPage,
               name: `repo-page-${currentPage}`,
               default_branch: "main",
             },
-          ]),
+          ],
           { status: 200, headers },
         );
       }) as unknown as typeof fetch;
@@ -870,28 +866,22 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         calls.push(urlStr);
 
         if (urlStr.includes("page=2")) {
-          return new Response(
-            JSON.stringify([
-              { id: 2, name: "repo-page-2", default_branch: "main" },
-            ]),
+          return jsonResponse(
+            [{ id: 2, name: "repo-page-2", default_branch: "main" }],
             {
               status: 200,
               headers: {
-                "Content-Type": "application/json",
                 Link: '<https://api.github.com/orgs/myorg/repos?page=2>; rel="next"',
               },
             },
           );
         }
 
-        return new Response(
-          JSON.stringify([
-            { id: 1, name: "repo-page-1", default_branch: "main" },
-          ]),
+        return jsonResponse(
+          [{ id: 1, name: "repo-page-1", default_branch: "main" }],
           {
             status: 200,
             headers: {
-              "Content-Type": "application/json",
               Link: '<https://api.github.com/orgs/myorg/repos?page=2>; rel="next"',
             },
           },
@@ -934,14 +924,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           capturedPayload = JSON.parse(String(init.body));
         }
 
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             html_url: "https://github.com/octocat/hello-world/pull/42",
             state: "open",
             head: { ref: "feature-branch", sha: "commit-sha-abc123" },
             base: { ref: "main" },
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } },
+          },
+          { status: 201 },
         );
       }) as typeof fetch;
 
@@ -978,9 +968,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("propagates REST API failure directly without fallback on pull request creation", async () => {
       const failingFetch: typeof fetch = (async () => {
-        return new Response(
-          JSON.stringify({ message: "Must have push access to repository" }),
-          { status: 403, headers: { "Content-Type": "application/json" } },
+        return jsonResponse(
+          { message: "Must have push access to repository" },
+          { status: 403 },
         );
       }) as unknown as typeof fetch;
 
@@ -1016,14 +1006,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("throws provider error and normalizes without leaking when 201 response lacks html_url", async () => {
       const malformedFetch: typeof fetch = (async () => {
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             id: 999,
             state: "open",
             head: { ref: "feature-branch" },
             base: { ref: "main" },
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } },
+          },
+          { status: 201 },
         );
       }) as unknown as typeof fetch;
 
@@ -1061,22 +1051,19 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         const urlStr = String(url);
         expect(urlStr).toContain("/pulls?");
         if (urlStr.includes("head=octocat%3Aexisting-branch")) {
-          return new Response(
-            JSON.stringify([
+          return jsonResponse(
+            [
               {
                 html_url: "https://github.com/octocat/hello-world/pull/77",
                 state: "open",
                 head: { ref: "existing-branch", sha: "sha-777" },
                 base: { ref: "main" },
               },
-            ]),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            ],
+            { status: 200 },
           );
         }
-        return new Response("[]", {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse([]);
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1110,11 +1097,10 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("throws when findExistingPullRequest receives a non-array 200 response body", async () => {
       const nonArrayFetch: typeof fetch = (async () => {
-        return new Response(
-          JSON.stringify({ message: "Malformed response, not an array" }),
+        return jsonResponse(
+          { message: "Malformed response, not an array" },
           {
             status: 200,
-            headers: { "Content-Type": "application/json" },
           },
         );
       }) as unknown as typeof fetch;
@@ -1130,17 +1116,16 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("throws when findExistingPullRequest matches a PR missing html_url", async () => {
       const missingUrlFetch: typeof fetch = (async () => {
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               state: "open",
               head: { ref: "feature-branch" },
               base: { ref: "main" },
             },
-          ]),
+          ],
           {
             status: 200,
-            headers: { "Content-Type": "application/json" },
           },
         );
       }) as unknown as typeof fetch;
@@ -1156,18 +1141,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("throws when findExistingPullRequest matches a PR whose html_url is empty", async () => {
       const emptyUrlFetch: typeof fetch = (async () => {
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               html_url: "   ",
               state: "open",
               head: { ref: "feature-branch" },
               base: { ref: "main" },
             },
-          ]),
+          ],
           {
             status: 200,
-            headers: { "Content-Type": "application/json" },
           },
         );
       }) as unknown as typeof fetch;
@@ -1183,10 +1167,12 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("throws on 403 from findExistingPullRequest instead of returning null", async () => {
       const forbiddenFetch: typeof fetch = (async () => {
-        return new Response(JSON.stringify({ message: "Forbidden" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse(
+          { message: "Forbidden" },
+          {
+            status: 403,
+          },
+        );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: forbiddenFetch });
@@ -1208,11 +1194,10 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("throws on 500 from findExistingPullRequest instead of returning null", async () => {
       const serverErrorFetch: typeof fetch = (async () => {
-        return new Response(
-          JSON.stringify({ message: "Internal Server Error" }),
+        return jsonResponse(
+          { message: "Internal Server Error" },
           {
             status: 500,
-            headers: { "Content-Type": "application/json" },
           },
         );
       }) as unknown as typeof fetch;
@@ -1237,10 +1222,12 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       // cannot be resolved — bad owner/repo config. It does NOT mean "no PR exists".
       // The correct response is to throw so the caller can surface the config error.
       const notFoundFetch: typeof fetch = (async () => {
-        return new Response(JSON.stringify({ message: "Not Found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse(
+          { message: "Not Found" },
+          {
+            status: 404,
+          },
+        );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: notFoundFetch });
@@ -1268,8 +1255,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         expect(urlStr).toContain(
           `labels=${encodeURIComponent(REQUIRED_WORKFLOW_LABEL)}`,
         );
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               number: 10,
               title: "Implement GitHub Module",
@@ -1288,8 +1275,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
               pull_request: { url: "https://..." },
               labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
             },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          ],
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -1322,8 +1309,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         capturedUrl = String(url);
         // Fake API honours state=open like the real GitHub API:
         // only the open issue is returned; the closed one is absent.
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               number: 20,
               title: "Open issue",
@@ -1332,8 +1319,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
               labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
               html_url: "https://github.com/octocat/hello-world/issues/20",
             },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          ],
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -1358,8 +1345,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       let capturedUrl = "";
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         capturedUrl = String(url);
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               number: 30,
               title: "Tracker issue",
@@ -1368,8 +1355,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
               labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
               html_url: "https://github.com/octocat/tracker-repo/issues/30",
             },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          ],
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -1410,20 +1397,16 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         requested.push(urlStr);
 
         if (urlStr === pageOne) {
-          return new Response(
-            JSON.stringify([issue(101, "First page issue")]),
-            {
-              status: 200,
-              headers: {
-                "Content-Type": "application/json",
-                link: `<${pageTwo}>; rel="next", <${pageTwo}>; rel="last"`,
-              },
+          return jsonResponse([issue(101, "First page issue")], {
+            status: 200,
+            headers: {
+              link: `<${pageTwo}>; rel="next", <${pageTwo}>; rel="last"`,
             },
-          );
+          });
         }
 
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             issue(202, "Second page issue"),
             {
               number: 203,
@@ -1433,8 +1416,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
               },
               labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
             },
-          ]),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          ],
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -1461,19 +1444,18 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       const fakeFetch: typeof fetch = (async (_url: string | URL | Request) => {
         calls += 1;
-        return new Response(
-          JSON.stringify([
+        return jsonResponse(
+          [
             {
               number: 303,
               title: "Only issue",
               labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
               html_url: "https://github.com/octocat/hello-world/issues/303",
             },
-          ]),
+          ],
           {
             status: 200,
             headers: {
-              "Content-Type": "application/json",
               link: `<${pageOne}>; rel="next"`,
             },
           },
@@ -1496,18 +1478,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
-          return new Response(JSON.stringify({ login: "octocat" }), {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "x-oauth-scopes": "repo, read:org",
+          return jsonResponse(
+            { login: "octocat" },
+            {
+              status: 200,
+              headers: {
+                "x-oauth-scopes": "repo, read:org",
+              },
             },
-          });
+          );
         }
-        return new Response("{}", {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({});
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1525,15 +1506,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
-          return new Response(JSON.stringify({ login: "octocat" }), {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "x-oauth-scopes": "read:user, public_repo",
+          return jsonResponse(
+            { login: "octocat" },
+            {
+              status: 200,
+              headers: {
+                "x-oauth-scopes": "read:user, public_repo",
+              },
             },
-          });
+          );
         }
-        return new Response("{}", { status: 200 });
+        return textResponse("{}", { status: 200 });
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1555,12 +1538,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
-          return new Response(JSON.stringify({ login: "fine-grained-user" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return jsonResponse(
+            { login: "fine-grained-user" },
+            {
+              status: 200,
+            },
+          );
         }
-        return new Response("{}", { status: 200 });
+        return textResponse("{}", { status: 200 });
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1582,15 +1567,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
-          return new Response(JSON.stringify({ login: "octocat" }), {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "x-oauth-scopes": "repo, delete_repo, admin:org",
+          return jsonResponse(
+            { login: "octocat" },
+            {
+              status: 200,
+              headers: {
+                "x-oauth-scopes": "repo, delete_repo, admin:org",
+              },
             },
-          });
+          );
         }
-        return new Response("{}", { status: 200 });
+        return textResponse("{}", { status: 200 });
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1606,15 +1593,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
-          return new Response(JSON.stringify({ login: "octocat" }), {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "x-oauth-scopes": "repo, workflow",
+          return jsonResponse(
+            { login: "octocat" },
+            {
+              status: 200,
+              headers: {
+                "x-oauth-scopes": "repo, workflow",
+              },
             },
-          });
+          );
         }
-        return new Response("{}", { status: 200 });
+        return textResponse("{}", { status: 200 });
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1629,13 +1618,15 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("reports scope findings and overPrivileged status via verifyScopes", async () => {
       const fakeFetch: typeof fetch = (async () => {
-        return new Response(JSON.stringify({ login: "admin-user" }), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "x-oauth-scopes": "repo, delete_repo, admin:org",
+        return jsonResponse(
+          { login: "admin-user" },
+          {
+            status: 200,
+            headers: {
+              "x-oauth-scopes": "repo, delete_repo, admin:org",
+            },
           },
-        });
+        );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1659,11 +1650,13 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       // Fine-grained PATs do not return x-oauth-scopes. Absence of the header means
       // we cannot confirm capabilities from scope introspection — they must be unconfirmed.
       const fakeFetch: typeof fetch = (async () => {
-        return new Response(JSON.stringify({ login: "fine-grained-user" }), {
-          status: 200,
-          // No x-oauth-scopes header — fine-grained PAT behaviour
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse(
+          { login: "fine-grained-user" },
+          {
+            status: 200,
+            // No x-oauth-scopes header — fine-grained PAT behaviour
+          },
+        );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1688,13 +1681,15 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
     it("verifyScopes reports createPullRequest as missing when x-oauth-scopes header lacks repo", async () => {
       const fakeFetch: typeof fetch = (async () => {
-        return new Response(JSON.stringify({ login: "public-user" }), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "x-oauth-scopes": "read:user, public_repo",
+        return jsonResponse(
+          { login: "public-user" },
+          {
+            status: 200,
+            headers: {
+              "x-oauth-scopes": "read:user, public_repo",
+            },
           },
-        });
+        );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1713,13 +1708,15 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       let httpCalls = 0;
       const fakeFetch: typeof fetch = (async () => {
         httpCalls++;
-        return new Response(JSON.stringify({ login: "user" }), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "x-oauth-scopes": "repo",
+        return jsonResponse(
+          { login: "user" },
+          {
+            status: 200,
+            headers: {
+              "x-oauth-scopes": "repo",
+            },
           },
-        });
+        );
       }) as unknown as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
@@ -1759,15 +1756,20 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
-          return new Response(JSON.stringify({ login: "octocat" }), {
-            status: 200,
-            headers: { "x-oauth-scopes": "repo" },
-          });
+          return jsonResponse(
+            { login: "octocat" },
+            {
+              status: 200,
+              headers: { "x-oauth-scopes": "repo" },
+            },
+          );
         }
-        return new Response(JSON.stringify({ message: "Not Found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse(
+          { message: "Not Found" },
+          {
+            status: 404,
+          },
+        );
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });

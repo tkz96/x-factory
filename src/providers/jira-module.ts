@@ -27,6 +27,13 @@ import type {
   VerificationWarning,
 } from "./contract.js";
 import { REQUIRED_WORKFLOW_LABEL } from "./contract.js";
+import {
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  type HttpTransport,
+  ProviderHttpError,
+  parseRetryAfter,
+  providerFetch,
+} from "./http.js";
 
 /** Remediated JQL search endpoint name constant (#140). */
 export const SEARCH_JQL_ENDPOINT = "/rest/api/3/search/jql" as const;
@@ -104,15 +111,26 @@ export function describeJiraConnection(config: ProviderConfig): string | null {
 // HTTP Boundary & Error Types
 // ---------------------------------------------------------------------------
 
-export class JiraHttpError extends Error {
+export class JiraHttpError extends ProviderHttpError {
+  readonly responseBody?: unknown;
+
   constructor(
     message: string,
-    public readonly status: number,
-    public readonly headers: Headers,
-    public readonly responseBody?: unknown,
+    status: number,
+    headers?: Headers,
+    responseBody?: unknown,
+    extra?: { isTimeout?: boolean | undefined; cause?: unknown },
   ) {
-    super(message);
+    super(message, {
+      status,
+      isTimeout: extra?.isTimeout,
+      cause: extra?.cause,
+      headers: headers ?? new Headers(),
+      data: responseBody,
+      bodyText: typeof responseBody === "string" ? responseBody : undefined,
+    });
     this.name = "JiraHttpError";
+    this.responseBody = responseBody;
   }
 }
 
@@ -122,23 +140,6 @@ function cleanHost(host: string): string {
 
 function buildBasicAuth(email: string, token: string): string {
   return Buffer.from(`${email}:${token}`).toString("base64");
-}
-
-function parseRetryAfterMs(
-  headerValue: string | null | undefined,
-): number | undefined {
-  if (!headerValue) return undefined;
-  const trimmed = headerValue.trim();
-  const seconds = Number(trimmed);
-  if (!Number.isNaN(seconds) && seconds > 0) {
-    return Math.round(seconds * 1000);
-  }
-  const parsedDate = Date.parse(trimmed);
-  if (!Number.isNaN(parsedDate)) {
-    const diff = parsedDate - Date.now();
-    return diff > 0 ? diff : undefined;
-  }
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +176,7 @@ function mapStatusToProviderError(
     return { code: "AUTH_LOCKED", context };
   }
   if (status === 429) {
-    const retryAfterMs = parseRetryAfterMs(headers.get("retry-after"));
+    const retryAfterMs = parseRetryAfter(headers.get("retry-after"));
     return {
       code: "RATE_LIMITED",
       context,
@@ -190,6 +191,7 @@ function mapStatusToProviderError(
   return { code: "UNKNOWN", context };
 }
 
+/** Message fallback, used only for errors that carry no HTTP status. */
 function mapErrorMessageToProviderError(
   message: string,
   context: ProviderErrorContext,
@@ -197,11 +199,15 @@ function mapErrorMessageToProviderError(
   if (/AUTHENTICATION_DENIED|captcha/i.test(message)) {
     return { code: "AUTH_LOCKED", context };
   }
-  if (/429|rate limit/i.test(message)) return { code: "RATE_LIMITED", context };
-  if (/401|unauthorized/i.test(message))
+  // Anchored so "4012" or "14290" never match a status code.
+  if (/(?<!\d)429(?!\d)|rate limit/i.test(message))
+    return { code: "RATE_LIMITED", context };
+  if (/(?<!\d)401(?!\d)|unauthorized/i.test(message))
     return { code: "AUTH_INVALID", context };
-  if (/403|forbidden/i.test(message)) return { code: "PERMISSION", context };
-  if (/404|not found/i.test(message)) return { code: "NOT_FOUND", context };
+  if (/(?<!\d)403(?!\d)|forbidden/i.test(message))
+    return { code: "PERMISSION", context };
+  if (/(?<!\d)404(?!\d)|not found/i.test(message))
+    return { code: "NOT_FOUND", context };
   return { code: "UNKNOWN", context };
 }
 
@@ -354,212 +360,210 @@ export function extractCriteria(text: string): string[] {
 // Provider Implementation
 // ---------------------------------------------------------------------------
 
-export const jiraProvider: Provider<"jira"> = {
-  id: "jira",
-  displayName: "Jira Cloud",
-  roles: ["tracker"] as const,
-  iconRef: "provider-jira",
-  configSchema: jiraConfigSchema,
+export interface JiraProviderOptions {
+  fetchFn?: HttpTransport | undefined;
+}
 
-  async verifyCredentials(config: ProviderConfig): Promise<VerificationResult> {
-    const parsed = jiraConfigSchema.parse(config);
-    const host = cleanHost(parsed.host);
-    const auth = buildBasicAuth(parsed.email, parsed.apiToken);
+export function createJiraProvider(
+  options: JiraProviderOptions = {},
+): Provider<"jira"> {
+  const fetchFn = options.fetchFn;
 
-    // 1. Primary credential verification via GET /rest/api/3/myself
-    const myselfUrl = `https://${host}/rest/api/3/myself`;
-    const res = await fetch(myselfUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        Accept: "application/json",
-      },
-    });
+  return {
+    id: "jira",
+    displayName: "Jira Cloud",
+    roles: ["tracker"] as const,
+    iconRef: "provider-jira",
+    configSchema: jiraConfigSchema,
 
-    if (!res.ok) {
-      let body: unknown;
-      try {
-        body = await res.json();
-      } catch {
-        // non-JSON body
-      }
-      throw new JiraHttpError(
-        `Jira credential verification failed: HTTP ${res.status}`,
-        res.status,
-        res.headers,
-        body,
-      );
-    }
+    async verifyCredentials(
+      config: ProviderConfig,
+    ): Promise<VerificationResult> {
+      const parsed = jiraConfigSchema.parse(config);
+      const host = cleanHost(parsed.host);
+      const auth = buildBasicAuth(parsed.email, parsed.apiToken);
 
-    // 2. Behavioral permission probe via GET /rest/api/3/mypermissions
-    // Checks BROWSE_PROJECTS (and projectKey if configured)
-    const warnings: VerificationWarning[] = [];
-    try {
-      const queryParams = new URLSearchParams({
-        permissions: "BROWSE_PROJECTS",
-      });
-      if (parsed.project && parsed.project.trim().length > 0) {
-        queryParams.set("projectKey", parsed.project.trim());
-      }
-
-      const probeUrl = `https://${host}/rest/api/3/mypermissions?${queryParams.toString()}`;
-      const probeRes = await fetch(probeUrl, {
+      // 1. Primary credential verification via GET /rest/api/3/myself
+      const myselfUrl = `https://${host}/rest/api/3/myself`;
+      await providerFetch(myselfUrl, {
         method: "GET",
         headers: {
           Authorization: `Basic ${auth}`,
           Accept: "application/json",
         },
+        fetchFn,
+        timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
+        errorFactory: (_msg, opts) =>
+          new JiraHttpError(
+            `Jira credential verification failed: HTTP ${opts.status}`,
+            opts.status,
+            opts.headers,
+            opts.data,
+            opts,
+          ),
       });
 
-      if (!probeRes.ok) {
-        // Inconclusive / probe failure degrades gracefully
-        warnings.push({
-          kind: "CAPABILITY_UNCONFIRMED",
-          capability: "listTickets",
+      // 2. Behavioral permission probe via GET /rest/api/3/mypermissions
+      // Checks BROWSE_PROJECTS (and projectKey if configured)
+      const warnings: VerificationWarning[] = [];
+      try {
+        const queryParams = new URLSearchParams({
+          permissions: "BROWSE_PROJECTS",
         });
-      } else {
-        const probeData = (await probeRes.json()) as {
+        if (parsed.project && parsed.project.trim().length > 0) {
+          queryParams.set("projectKey", parsed.project.trim());
+        }
+
+        const probeUrl = `https://${host}/rest/api/3/mypermissions?${queryParams.toString()}`;
+        const probeRes = await providerFetch<{
           permissions?: {
             BROWSE_PROJECTS?: { havePermission?: boolean };
           };
-        };
+        }>(probeUrl, {
+          method: "GET",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            Accept: "application/json",
+          },
+          fetchFn,
+          timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
+          errorFactory: (msg, opts) =>
+            new JiraHttpError(msg, opts.status, opts.headers, opts.data, opts),
+        });
+
         const hasBrowse =
-          probeData?.permissions?.BROWSE_PROJECTS?.havePermission === true;
+          probeRes.data?.permissions?.BROWSE_PROJECTS?.havePermission === true;
         if (!hasBrowse) {
           warnings.push({
             kind: "CAPABILITY_UNCONFIRMED",
             capability: "listTickets",
           });
         }
-      }
-    } catch {
-      // Best-effort probe failure is evidence of degradation, not a hard error
-      warnings.push({
-        kind: "CAPABILITY_UNCONFIRMED",
-        capability: "listTickets",
-      });
-    }
-
-    if (warnings.length > 0) {
-      return {
-        status: "degraded",
-        warnings,
-      };
-    }
-
-    return {
-      status: "ok",
-      warnings: [],
-    };
-  },
-
-  toUserError(raw: unknown, context: ProviderErrorContext): ProviderError {
-    return toJiraUserError(raw, context);
-  },
-
-  async listTickets(
-    config: ProviderConfig,
-    options: TicketQueryOptions,
-  ): Promise<TrackerTicket[]> {
-    const parsed = jiraConfigSchema.parse(config);
-    const host = cleanHost(parsed.host);
-    const auth = buildBasicAuth(parsed.email, parsed.apiToken);
-    const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
-    const project =
-      typeof parsed.project === "string" && parsed.project.trim().length > 0
-        ? parsed.project.trim()
-        : undefined;
-    if (project && !/^[A-Za-z][A-Za-z0-9]+$/.test(project)) {
-      throw new Error(`Invalid Jira project key format: ${project}`);
-    }
-
-    const maxResults = 50;
-    const jql = `labels = "${label}"${project ? ` AND project = "${project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
-
-    const allTickets: TrackerTicket[] = [];
-    const seenTicketIds = new Set<string>();
-    let nextPageToken: string | undefined;
-
-    do {
-      let searchUrl = `https://${host}${SEARCH_JQL_ENDPOINT}?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`;
-      if (nextPageToken) {
-        searchUrl += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
-      }
-
-      const res = await fetch(searchUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        let body: unknown;
-        try {
-          body = await res.json();
-        } catch {
-          // non-JSON body
-        }
-        throw new JiraHttpError(
-          `Jira search/jql failed: HTTP ${res.status}`,
-          res.status,
-          res.headers,
-          body,
-        );
-      }
-
-      const raw = (await res.json()) as {
-        nextPageToken?: string;
-        issues?: Array<{
-          key: string;
-          fields?: {
-            summary?: string;
-            description?: unknown;
-            labels?: string[];
-          };
-        }>;
-      };
-
-      const issues = raw.issues ?? [];
-      for (const issue of issues) {
-        if (!issue.key || seenTicketIds.has(issue.key)) {
-          continue;
-        }
-        seenTicketIds.add(issue.key);
-        let desc = "";
-        if (typeof issue.fields?.description === "string") {
-          desc = issue.fields.description;
-        } else if (issue.fields?.description) {
-          desc = parseAdfToText(issue.fields.description);
-        }
-
-        const labels = Array.isArray(issue.fields?.labels)
-          ? issue.fields.labels
-          : [];
-
-        allTickets.push({
-          id: issue.key,
-          title: issue.fields?.summary || "",
-          description: desc,
-          acceptanceCriteria: extractCriteria(desc),
-          labels,
-          url: `https://${host}/browse/${issue.key}`,
-          provider: "jira" as const,
+      } catch {
+        // Best-effort probe failure is evidence of degradation, not a hard error
+        warnings.push({
+          kind: "CAPABILITY_UNCONFIRMED",
+          capability: "listTickets",
         });
       }
 
-      nextPageToken = raw.nextPageToken;
-    } while (nextPageToken);
+      if (warnings.length > 0) {
+        return {
+          status: "degraded",
+          warnings,
+        };
+      }
 
-    return allTickets;
-  },
+      return {
+        status: "ok",
+        warnings: [],
+      };
+    },
 
-  parseQuickUrl(url: string): QuickUrlDraft | null {
-    return parseJiraQuickUrl(url);
-  },
+    toUserError(raw: unknown, context: ProviderErrorContext): ProviderError {
+      return toJiraUserError(raw, context);
+    },
 
-  describeConnection(config: ProviderConfig): string | null {
-    return describeJiraConnection(config);
-  },
-};
+    async listTickets(
+      config: ProviderConfig,
+      options: TicketQueryOptions,
+    ): Promise<TrackerTicket[]> {
+      const parsed = jiraConfigSchema.parse(config);
+      const host = cleanHost(parsed.host);
+      const auth = buildBasicAuth(parsed.email, parsed.apiToken);
+      const label = options.requiredLabel || REQUIRED_WORKFLOW_LABEL;
+      const project =
+        typeof parsed.project === "string" && parsed.project.trim().length > 0
+          ? parsed.project.trim()
+          : undefined;
+      if (project && !/^[A-Za-z][A-Za-z0-9]+$/.test(project)) {
+        throw new Error(`Invalid Jira project key format: ${project}`);
+      }
+
+      const maxResults = 50;
+      const jql = `labels = "${label}"${project ? ` AND project = "${project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
+
+      const allTickets: TrackerTicket[] = [];
+      const seenTicketIds = new Set<string>();
+      let nextPageToken: string | undefined;
+
+      do {
+        let searchUrl = `https://${host}${SEARCH_JQL_ENDPOINT}?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`;
+        if (nextPageToken) {
+          searchUrl += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
+        }
+
+        const res = await providerFetch<{
+          nextPageToken?: string;
+          issues?: Array<{
+            key: string;
+            fields?: {
+              summary?: string;
+              description?: unknown;
+              labels?: string[];
+            };
+          }>;
+        }>(searchUrl, {
+          method: "GET",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            Accept: "application/json",
+          },
+          fetchFn,
+          timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
+          errorFactory: (_msg, opts) =>
+            new JiraHttpError(
+              `Jira search/jql failed: HTTP ${opts.status}`,
+              opts.status,
+              opts.headers,
+              opts.data,
+              opts,
+            ),
+        });
+
+        const raw = res.data;
+        const issues = raw?.issues ?? [];
+        for (const issue of issues) {
+          if (!issue.key || seenTicketIds.has(issue.key)) {
+            continue;
+          }
+          seenTicketIds.add(issue.key);
+          let desc = "";
+          if (typeof issue.fields?.description === "string") {
+            desc = issue.fields.description;
+          } else if (issue.fields?.description) {
+            desc = parseAdfToText(issue.fields.description);
+          }
+
+          const labels = Array.isArray(issue.fields?.labels)
+            ? issue.fields.labels
+            : [];
+
+          allTickets.push({
+            id: issue.key,
+            title: issue.fields?.summary || "",
+            description: desc,
+            acceptanceCriteria: extractCriteria(desc),
+            labels,
+            url: `https://${host}/browse/${issue.key}`,
+            provider: "jira" as const,
+          });
+        }
+
+        nextPageToken = raw?.nextPageToken;
+      } while (nextPageToken);
+
+      return allTickets;
+    },
+
+    parseQuickUrl(url: string): QuickUrlDraft | null {
+      return parseJiraQuickUrl(url);
+    },
+
+    describeConnection(config: ProviderConfig): string | null {
+      return describeJiraConnection(config);
+    },
+  };
+}
+
+export const jiraProvider: Provider<"jira"> = createJiraProvider();
