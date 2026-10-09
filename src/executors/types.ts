@@ -6,7 +6,7 @@ import type { JobRecord, JobRepository } from "../db/job-repository.js";
 import type { OperationLedgerRepository } from "../db/operation-ledger-repository.js";
 import type { RunRecord, RunRepository } from "../db/run-repository.js";
 import type { StageAttemptRepository } from "../db/stage-attempt-repository.js";
-import type { Project, RunStatus } from "../shared/types.js";
+import type { Project } from "../shared/types.js";
 
 export interface StageContext {
   run: RunRecord;
@@ -23,15 +23,17 @@ export interface StageContext {
   signal?: AbortSignal | undefined;
 }
 
-export interface StageResult {
-  status: "success" | "failed" | "retry";
-  nextStage?: string | undefined;
-  nextRunStatus?: RunStatus | undefined;
-  output?: unknown;
-  error?: string | undefined;
-}
+/**
+ * What a stage produced. Executors return only an outcome; where the run goes next is decided
+ * by the workflow module (src/workflow.ts). A rejection is a terminal verdict, not a failure
+ * to retry.
+ */
+export type StageOutcome =
+  | { outcome: "passed"; output?: unknown }
+  | { outcome: "rejected"; reason: string; output?: unknown }
+  | { outcome: "error"; error: string; output?: unknown };
 
 export interface StageExecutor {
   readonly stage: string;
-  execute(context: StageContext): Promise<StageResult>;
+  execute(context: StageContext): Promise<StageOutcome>;
 }

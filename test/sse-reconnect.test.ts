@@ -69,7 +69,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     });
 
     // 2. Client #1 connects from beginning
-    const req1 = new Request(`http://localhost/api/runs/${runId}/events`);
+    const req1 = new Request(`http://localhost:3777/api/runs/${runId}/events`);
     const res1 = await handleApi(req1, new URL(req1.url));
     expect(res1.status).toBe(200);
     expect(res1.headers.get("Content-Type")).toContain("text/event-stream");
@@ -104,7 +104,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     });
 
     // 5. Client reconnects with Last-Event-ID: 3 header
-    const req2 = new Request(`http://localhost/api/runs/${runId}/events`, {
+    const req2 = new Request(`http://localhost:3777/api/runs/${runId}/events`, {
       headers: { "Last-Event-ID": "3" },
     });
     const res2 = await handleApi(req2, new URL(req2.url));
@@ -169,7 +169,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     });
 
     const req = new Request(
-      `http://localhost/api/runs/${runId}/events?last_event_id=2`,
+      `http://localhost:3777/api/runs/${runId}/events?last_event_id=2`,
     );
     const res = await handleApi(req, new URL(req.url));
     expect(res.status).toBe(200);

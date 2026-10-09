@@ -15,6 +15,7 @@ import {
   ACTIONS_BY_STATUS,
   ACTIVE_RUN_STATUSES,
   allowedActionsFor,
+  canRunAction,
   EXECUTABLE_RUN_STATUSES,
   type RunAction,
   runStatusLabel,
@@ -108,7 +109,7 @@ const GUARDED_ACTION_ENDPOINTS: Record<RunAction, (runId: string) => Request> =
   };
 
 function postRequest(urlPath: string, body?: unknown): Request {
-  return new Request(`http://localhost${urlPath}`, {
+  return new Request(`http://localhost:3777${urlPath}`, {
     method: "POST",
     ...(body !== undefined
       ? {
@@ -130,16 +131,16 @@ function sorted(actions: readonly string[]): string[] {
 describe("Shared run-status policy matches server guards (#170)", () => {
   let db: Database | undefined;
   let runRepo: RunRepository;
-  let originalSettingsPath: string | undefined;
+  let originalDataDir: string | undefined;
 
   beforeAll(() => {
-    // Point chat at a settings file naming an unregistered provider so the
-    // guard test stays offline: the model lookup fails and chatWithRun
-    // degrades to its fallback reply instead of calling a real provider.
+    // Point chat at a data dir whose settings.json names an unregistered
+    // provider, so the guard test stays offline: the model lookup fails and
+    // chatWithRun degrades to its fallback reply instead of calling a real
+    // provider.
     const tempDir = mkdtempSync(path.join(tmpdir(), "run-status-policy-"));
-    const settingsFile = path.join(tempDir, "settings.json");
     writeFileSync(
-      settingsFile,
+      path.join(tempDir, "settings.json"),
       JSON.stringify({
         models: {
           sessionA: {
@@ -149,15 +150,15 @@ describe("Shared run-status policy matches server guards (#170)", () => {
         },
       }),
     );
-    originalSettingsPath = process.env.XF_SETTINGS_PATH;
-    process.env.XF_SETTINGS_PATH = settingsFile;
+    originalDataDir = process.env.X_FACTORY_DATA_DIR;
+    process.env.X_FACTORY_DATA_DIR = tempDir;
   });
 
   afterAll(() => {
-    if (originalSettingsPath === undefined) {
-      delete process.env.XF_SETTINGS_PATH;
+    if (originalDataDir === undefined) {
+      delete process.env.X_FACTORY_DATA_DIR;
     } else {
-      process.env.XF_SETTINGS_PATH = originalSettingsPath;
+      process.env.X_FACTORY_DATA_DIR = originalDataDir;
     }
     setDbForTesting(null);
     db?.close();
@@ -231,6 +232,27 @@ describe("Shared run-status policy matches server guards (#170)", () => {
 
   it("the shared actions table equals the literal expectation", () => {
     expect(ACTIONS_BY_STATUS).toEqual(EXPECTED_ACTIONS_BY_STATUS);
+  });
+
+  it("chat is allowed at exactly the approval gates and review, and its guard names the chat action", () => {
+    expect(
+      ALL_RUN_STATUSES.filter((status) => canRunAction(status, "chat")),
+    ).toEqual([
+      "awaiting_understanding_approval",
+      "awaiting_plan_approval",
+      "awaiting_review",
+    ]);
+    // chatWithRun must check "chat", not "approve": the two share statuses today,
+    // so only the action name keeps a future policy change from drifting apart.
+    const source = readFileSync(
+      path.join(process.cwd(), "src", "runs.ts"),
+      "utf-8",
+    );
+    const start = source.indexOf("export async function chatWithRun(");
+    const end = source.indexOf('eventRepo.appendEvent(id, "chat_user"', start);
+    const guard = source.slice(start, end);
+    expect(guard).toContain('canRunAction(run.status, "chat")');
+    expect(guard).not.toContain('"approve"');
   });
 
   it("allowedActionsFor returns the table row, or [] for an unknown status", () => {

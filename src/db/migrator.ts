@@ -119,18 +119,22 @@ export function runMigrations(
 
     // Each statement runs on its own. Bun's multi-statement exec does not throw
     // on a foreign-key violation, so a failure would otherwise be silently skipped.
-    const executeMigration = db.transaction(() => {
+    // IMMEDIATE takes the write lock before the first read, so a second process that
+    // reaches the same migration waits here and then sees the first commit. The
+    // version is read again inside the lock because the read above can be stale.
+    const executeMigration = db.transaction((): boolean => {
+      if (getSchemaVersion(db) >= m.version) return false;
       for (const statement of splitStatements(m.sql)) {
         db.prepare(statement).run();
       }
       db.prepare(
         "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?);",
       ).run(m.version, m.name, new Date().toISOString());
+      return true;
     });
 
     try {
-      executeMigration();
-      appliedCount++;
+      if (executeMigration.immediate()) appliedCount++;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(

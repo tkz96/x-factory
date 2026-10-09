@@ -1331,7 +1331,7 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
 
   describe("HTTP Controller Routes with Azure Provider (#137 integration)", () => {
     it("serves Azure descriptor via GET /api/providers/manifest", async () => {
-      const url = new URL("http://localhost/api/providers/manifest");
+      const url = new URL("http://localhost:3777/api/providers/manifest");
       const req = new Request(url);
       const res = await handleManifestRoute(req, url);
       expect(res.status).toBe(200);
@@ -1357,7 +1357,7 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
     });
 
     it("handles POST /api/providers/verify with schema validation 409 on missing Azure fields", async () => {
-      const req = new Request("http://localhost/api/providers/verify", {
+      const req = new Request("http://localhost:3777/api/providers/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1375,7 +1375,7 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
     });
 
     it("resolves Azure quick URL via POST /api/providers/parse-url", async () => {
-      const req = new Request("http://localhost/api/providers/parse-url", {
+      const req = new Request("http://localhost:3777/api/providers/parse-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

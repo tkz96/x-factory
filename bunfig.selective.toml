@@ -2,4 +2,5 @@
 # Disables global coverage enforcement so individual test files do not falsely fail the 80% whole-codebase ratchet.
 
 [test]
+preload = ["./test/helpers/preload-data-dir.ts"]
 coverage = false

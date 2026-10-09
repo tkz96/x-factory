@@ -6,7 +6,7 @@ import { loadSettings } from "../settings.js";
 import type { VerificationResult } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import { ReviewExecutor } from "./review.js";
-import type { StageContext, StageExecutor, StageResult } from "./types.js";
+import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
 export interface ExecuteDependencies {
   loadSettings: typeof loadSettings;
@@ -63,7 +63,7 @@ export class ExecuteExecutor implements StageExecutor {
     this.deps = { ...defaultExecuteDeps, ...deps };
   }
 
-  async execute(context: StageContext): Promise<StageResult> {
+  async execute(context: StageContext): Promise<StageOutcome> {
     const { run, project, signal } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
@@ -78,7 +78,7 @@ export class ExecuteExecutor implements StageExecutor {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return {
-        status: "failed",
+        outcome: "error",
         error: `Execution failed: no baseline was recorded during preparation (${message})`,
       };
     }
@@ -107,16 +107,16 @@ export class ExecuteExecutor implements StageExecutor {
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       return {
-        status: "failed",
+        outcome: "error",
         error: `Ralph Loop execution failed: ${errorMsg}`,
       };
     }
 
     if (result.outcome === "aborted") {
-      return { status: "failed", error: "Execution stopped" };
+      return { outcome: "error", error: "Execution stopped" };
     }
     if (result.outcome === "failed") {
-      return { status: "failed", error: result.error };
+      return { outcome: "error", error: result.error };
     }
 
     context.eventRepo.appendEvent(run.id, "stage_evidence", {
