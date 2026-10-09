@@ -19,10 +19,10 @@ import {
 } from "../inspection/index.js";
 import { expandUserPath, scanGitSubdirectories } from "../paths.js";
 import { loadProjectEnv, saveProjectEnv } from "../project-env.js";
+import { toTypedProviderConfig } from "../providers/config-validation.js";
 import {
   hasCapability,
   type Provider,
-  type ProviderConfig,
   REQUIRED_WORKFLOW_LABEL,
 } from "../providers/contract.js";
 import {
@@ -199,7 +199,14 @@ async function handleDiscoverRepositories(
             400,
           );
         }
-        const repos = await provider.listRepositories(body as ProviderConfig);
+        const typed = toTypedProviderConfig(provider, body);
+        if (!typed.ok) {
+          return errorResponse(
+            "Connection settings are incomplete, invalid or conflicting.",
+            400,
+          );
+        }
+        const repos = await provider.listRepositories(typed.config);
         return jsonResponse({
           provider: providerId,
           repositories: repos,
@@ -570,18 +577,22 @@ async function handleTestConnection(req: Request): Promise<Response> {
         });
       }
 
+      const typed = toTypedProviderConfig(provider, data);
+      if (!typed.ok) {
+        return jsonResponse({
+          ok: false,
+          error: "Connection settings are incomplete, invalid or conflicting.",
+        });
+      }
+
       try {
-        const verifyResult = await provider.verifyCredentials(
-          data as ProviderConfig,
-        );
+        const verifyResult = await provider.verifyCredentials(typed.config);
         const ok =
           verifyResult.status === "ok" || verifyResult.status === "degraded";
 
         if (data.validateScopes || data.pat) {
           if (hasCapability(provider, "verifyScopes")) {
-            const scopeResult = await provider.verifyScopes(
-              data as ProviderConfig,
-            );
+            const scopeResult = await provider.verifyScopes(typed.config);
             const scopeErrors: string[] = [];
             const scopeWarnings: string[] = [];
             const scopes: Record<string, boolean> = {};
@@ -685,8 +696,20 @@ async function handleTestProviderScopes(
           ],
         });
       }
+      const typed = toTypedProviderConfig(provider, data, {
+        allowIncomplete: true,
+      });
+      if (!typed.ok) {
+        return jsonResponse({
+          ok: false,
+          scopes: {},
+          errors: [
+            "Connection settings are incomplete, invalid or conflicting.",
+          ],
+        });
+      }
       try {
-        const report = await provider.verifyScopes(data as ProviderConfig);
+        const report = await provider.verifyScopes(typed.config);
         const errors: string[] = [];
         const warnings: string[] = [];
         const scopes: Record<string, boolean> = {};

@@ -12,7 +12,7 @@ import type {
   ProjectConnection,
   ProjectIssueTracker,
 } from "../shared/types.js";
-import { parseProviderConfig } from "./config-validation.js";
+import { toTypedProviderConfig } from "./config-validation.js";
 import type { Provider, ProviderConfig } from "./contract.js";
 import {
   findConnectionForRole,
@@ -188,7 +188,7 @@ export async function testProjectTrackerConnection(
     ...overlay,
   };
 
-  const check = parseProviderConfig(provider.configSchema, config);
+  const check = toTypedProviderConfig(provider, config);
   if (!check.ok) {
     return {
       ok: false,
@@ -204,7 +204,7 @@ export async function testProjectTrackerConnection(
       (value): value is string => typeof value === "string" && value !== "",
     );
   try {
-    await provider.verifyCredentials({ ...config, cwd: repositoryPath });
+    await provider.verifyCredentials({ ...check.config, cwd: repositoryPath });
     return {
       ok: true,
       message: `${provider.displayName} connection successful.`,

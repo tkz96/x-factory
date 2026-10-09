@@ -391,7 +391,8 @@ Two details bound what the gate can hide and what it can see:
   shape appears legitimately in the legacy tracker view
   (`src/config-schema.ts`, `src/providers/project-config.ts`) and in
   `src/shared/project-identity.ts`, which cannot delegate to the provider
-  registry because `.fallowrc.json` lets `shared` import nothing while the
+  registry or the migration step because `.fallowrc.json` lets `shared` import
+  nothing (it reads the same historical aliases itself, read-only) while the
   duplicate check runs in the browser. Both limits are recorded rather than
   hidden: the gate is a text scanner over shipped source, and a rule for either
   shape would report far more legitimate code than it would catch.
@@ -428,6 +429,42 @@ retro-sanctioned on #138).
 tickets only — the inspection flow consumes actionable tickets; closed tickets
 are deliberately excluded. Providers that gain a consumer needing a different
 state filter must extend the contract input, not the query behind it.
+
+### Typed provider config (#186)
+Adapters receive **typed config** and nothing else: the shape their own
+`configSchema` declares. They never search for aliased or nested keys.
+
+- **Declared fields.** The GitHub schema declares `token`, `repoOwner`,
+  `repository` and `baseUrl` (a GitHub Enterprise API base URL, validated as a
+  URL, optional, default `https://api.github.com`). `resolveGitHubConfig` reads
+  those four fields directly.
+- **One migration step.** `src/providers/legacy-migration.ts` is the only place
+  historical shapes are reconciled: aliases (`owner`, `org`, `organization`,
+  `repo`, `githubToken`, `jiraHost`, ...), `repo: "owner/name"`, URL hints, and
+  nested views (`github`, `gitHost`, `tracker`, `azure`, `jira`, `config`,
+  `connections[]`). A legacy Azure `org`/`organization` maps to
+  `https://dev.azure.com/<org>` as `orgUrl`. Fields the step does not own (for
+  example `requiredLabel`) are kept. Providers with no legacy shapes pass
+  through unchanged.
+- **Where it runs.** (1) When stored connections are read:
+  `loadProjectConnections` migrates every stored connection and the legacy
+  `issueTracker` fallback (narrowed to the provider's own section plus flat
+  scalar keys), so ticket listing and delivery resolve legacy records. (2) On
+  every request body, through **`toTypedProviderConfig(provider, raw)`** in
+  `src/providers/config-validation.ts`: migration first, then the provider's
+  schema. It backs `/api/providers/verify|repositories`, the project routes
+  `test-connection`, `discover-repositories` and `test-scopes`, project creation
+  and connection updates, and the project connection test. The Azure adapter
+  keeps one defensive conflict check of its own. Duplicate detection in
+  `src/shared` reads the same aliases without importing the step.
+- **Where conflicts are rejected.** Two legacy values that disagree (two owners,
+  two tokens, two repositories, two base URLs, an organization that is not the
+  one in `orgUrl`) are a conflict, never silently collapsed or stripped. At the
+  entry point the result is `{ ok: false, conflict }`: provider routes answer
+  `409 { fieldErrors: { config: "INVALID" } }` (codes only), and the project
+  routes answer with a generic "incomplete, invalid or conflicting" message. No
+  provider HTTP call is made. Reading a stored connection whose shapes conflict
+  throws.
 
 ---
 

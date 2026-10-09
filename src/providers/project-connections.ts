@@ -20,7 +20,7 @@ import {
 } from "../shared/legacy-tracker.js";
 import type { Project, ProjectConnection } from "../shared/types.js";
 import type { Provider, ProviderConfig, ProviderRole } from "./contract.js";
-import { migrateLegacyProviderConfig } from "./legacy-migration.js";
+import { migrateConfigForProvider } from "./legacy-migration.js";
 import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
 import { getSecretFieldRoutes } from "./secret-routing.js";
 
@@ -48,6 +48,31 @@ export function registryTrackerProviderId(
 }
 
 /**
+ * What the migration step reads from a legacy `issueTracker`: the provider's
+ * own namespaced section plus the record's flat scalar keys (`repo`, `owner`,
+ * `projectId`, ...). Sibling sections of OTHER providers never reach it, so a
+ * stale `azure` view cannot conflict with a GitHub config.
+ */
+function legacyMigrationInput(
+  issueTracker: unknown,
+  providerId: string,
+): Record<string, unknown> {
+  const own = legacyTrackerConfig(issueTracker, providerId);
+  if (typeof issueTracker !== "object" || issueTracker === null) return own;
+  const flat: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(issueTracker)) {
+    if (
+      typeof value === "string" &&
+      key !== "provider" &&
+      key !== "connectionId"
+    ) {
+      flat[key] = value;
+    }
+  }
+  return { ...flat, ...own };
+}
+
+/**
  * The connections a project has, as the runtime reads them.
  *
  * A record with a `connections` array is returned as stored. A legacy record is
@@ -60,21 +85,25 @@ export function loadProjectConnections(
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ProjectConnection[] {
   if (project.connections && project.connections.length > 0) {
-    return project.connections;
+    // A stored connection may hold a historical shape (owner/repo, nested
+    // github/gitHost views): the one migration step reads it as typed config.
+    return project.connections.map((connection) => ({
+      ...connection,
+      config: migrateConfigForProvider(
+        connection.providerId,
+        connection.config,
+      ),
+    }));
   }
 
   const providerId = registryTrackerProviderId(project.issueTracker, registry);
   if (providerId === null) return [];
   const provider = registry.get(providerId);
   if (!provider) return [];
-  const rawConfig = legacyTrackerConfig(project.issueTracker, providerId);
-  const config = migrateLegacyProviderConfig(providerId, {
-    ...rawConfig,
-    ...(typeof project.issueTracker === "object" &&
-    project.issueTracker !== null
-      ? (project.issueTracker as unknown as Record<string, unknown>)
-      : {}),
-  });
+  const config = migrateConfigForProvider(
+    providerId,
+    legacyMigrationInput(project.issueTracker, providerId),
+  );
 
   const roles = provider.roles.filter(
     (role): role is ProviderRole => role === "tracker" || role === "gitHost",

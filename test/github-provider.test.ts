@@ -11,6 +11,7 @@
 // 8. Zero-mock tests except at the HTTP boundary
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { toTypedProviderConfig } from "../src/providers/config-validation.js";
 import {
   hasCapability,
   isProviderError,
@@ -39,6 +40,21 @@ import {
 } from "../src/providers/serializer.js";
 import { startServer } from "../src/server.js";
 import { jsonResponse, textResponse } from "./helpers/provider-test-helper.js";
+
+/**
+ * The path every caller takes: raw config -> the shared entry point (legacy
+ * migration, conflicts rejected, then the schema) -> the adapter (#186).
+ */
+async function verifyScopesThroughEntryPoint(
+  provider: ReturnType<typeof createGithubProvider>,
+  raw: Record<string, unknown>,
+) {
+  const typed = toTypedProviderConfig(provider, raw);
+  if (!typed.ok) {
+    throw new Error(typed.conflict ?? "Invalid GitHub configuration");
+  }
+  return provider.verifyScopes?.(typed.config);
+}
 
 describe("GitHub Provider Module (Ticket #138)", () => {
   describe("Registration & Contract Conformance", () => {
@@ -1733,6 +1749,11 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         migrateLegacyProviderConfig("github", conflictingToken),
       ).toThrow(/conflicting token values/);
       expect(httpCalls).toBe(0);
+      // The entry point a caller uses rejects it before the adapter runs.
+      await expect(
+        verifyScopesThroughEntryPoint(provider, conflictingToken),
+      ).rejects.toThrow(/conflicting token values/);
+      expect(httpCalls).toBe(0);
 
       // Conflicting nested owner
       const conflictingOwner = {
@@ -1744,14 +1765,17 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         migrateLegacyProviderConfig("github", conflictingOwner),
       ).toThrow(/Configuration mismatch/);
       expect(httpCalls).toBe(0);
+      await expect(
+        verifyScopesThroughEntryPoint(provider, conflictingOwner),
+      ).rejects.toThrow(/Configuration mismatch/);
+      expect(httpCalls).toBe(0);
 
       // Consistent nested configuration works
       const consistent = {
         token: "ghp_valid_token",
         github: { token: "ghp_valid_token" },
       };
-      const migrated = migrateLegacyProviderConfig("github", consistent);
-      const report = await provider.verifyScopes?.(migrated);
+      const report = await verifyScopesThroughEntryPoint(provider, consistent);
       expect(report).toBeDefined();
       expect(httpCalls).toBe(1);
     });
@@ -1834,5 +1858,37 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(data.providerId).toBe("github");
       expect(data.inferredName).toBe("react");
     });
+  });
+});
+
+describe("resolveGitHubConfig on typed config (#186)", () => {
+  it("resolves owner, repo, token and baseUrl from the entry point's output", () => {
+    const typed = toTypedProviderConfig(createGithubProvider(), {
+      gitHost: { githubToken: "ghp_t", owner: "enterprise-org", repo: "svc" },
+      baseUrl: "https://ghe.example.com/api/v3",
+    });
+    expect(typed.ok).toBe(true);
+    if (!typed.ok) return;
+    expect(resolveGitHubConfig(typed.config)).toEqual({
+      token: "ghp_t",
+      owner: "enterprise-org",
+      repo: "svc",
+      baseUrl: "https://ghe.example.com/api/v3",
+    });
+  });
+
+  it("the entry point rejects every conflicting shape the resolver used to reject", () => {
+    for (const conflicting of [
+      { token: "a", gitHost: { token: "b" } },
+      { token: "a", repoOwner: "x", github: { repoOwner: "y" } },
+      { repository: "one", gitHost: { repo: "two" } },
+      {
+        baseUrl: "https://a.example.com",
+        github: { baseUrl: "https://b.example.com" },
+      },
+    ]) {
+      const typed = toTypedProviderConfig(createGithubProvider(), conflicting);
+      expect(typed.ok).toBe(false);
+    }
   });
 });

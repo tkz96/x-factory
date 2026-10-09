@@ -11,6 +11,7 @@
 // - parseQuickUrl pre-fills both tracker and git-host drafts
 
 import { z } from "zod/v4";
+import { toTypedProviderConfig } from "./config-validation.js";
 import {
   identityField,
   joinIdentityParts,
@@ -40,7 +41,6 @@ import {
   ProviderHttpError,
   providerFetch,
 } from "./http.js";
-import { migrateLegacyProviderConfig } from "./legacy-migration.js";
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
 export const azureConfigSchema = z.object({
@@ -166,12 +166,14 @@ export function detectOrganizationMismatch(config: Record<string, unknown>): {
   mismatch: boolean;
   error?: string;
 } {
-  try {
-    migrateLegacyProviderConfig("azure", config);
-    return { mismatch: false };
-  } catch (err) {
-    return { mismatch: true, error: (err as Error).message };
+  const typed = toTypedProviderConfig(
+    { id: "azure", configSchema: azureConfigSchema },
+    config,
+  );
+  if (!typed.ok && typed.conflict !== undefined) {
+    return { mismatch: true, error: typed.conflict };
   }
+  return { mismatch: false };
 }
 
 /**
@@ -519,20 +521,22 @@ export function createAzureProvider(
     async verifyCredentials(
       config: ProviderConfig,
     ): Promise<VerificationResult> {
-      // Schema validation: adapters do not search nested keys
+      // The adapter reads typed config only: it never searches nested keys.
       const parsed = azureConfigSchema.safeParse(config);
       if (!parsed.success) {
         throw new Error(`Invalid Azure configuration: ${parsed.error.message}`);
       }
 
-      // 1. Defect H2 fix: Detect organization vs orgUrl mismatch
+      // Defect H2: a conflicting legacy organization is rejected, never
+      // silently stripped. This is the ONE migration run inside the adapter;
+      // callers already migrated through the shared entry point.
       const mismatch = detectOrganizationMismatch(config);
       if (mismatch.mismatch) {
         throw new Error(mismatch.error);
       }
 
       // 2. Context resolution and authentication
-      const context = await prepareAzureContext(config, executor);
+      const context = await prepareAzureContext(parsed.data, executor);
       const warnings: VerificationWarning[] = [];
 
       // 3. Repository read capability probe

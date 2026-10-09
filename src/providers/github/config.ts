@@ -1,9 +1,9 @@
 // src/providers/github/config.ts — GitHub configuration schema, resolution, and mismatch detection (#138, #186).
 
 import { z } from "zod/v4";
+import { toTypedProviderConfig } from "../config-validation.js";
 import { identityField, joinIdentityParts } from "../connection-identity.js";
 import type { ProviderConfig } from "../contract.js";
-import { migrateLegacyProviderConfig } from "../legacy-migration.js";
 
 /**
  * Presentation metadata keys for Zod schema fields.
@@ -57,18 +57,20 @@ export interface ResolvedGitHubConfig {
 
 /**
  * Detects whether configuration input contains conflicting GitHub values.
- * Delegates to the unified legacy migration step (#186).
+ * Delegates to the shared typed-config entry point (#186).
  */
 export function detectGitHubConfigMismatch(config: ProviderConfig): {
   mismatch: boolean;
   error?: string;
 } {
-  try {
-    migrateLegacyProviderConfig("github", config);
-    return { mismatch: false };
-  } catch (err) {
-    return { mismatch: true, error: (err as Error).message };
+  const typed = toTypedProviderConfig(
+    { id: "github", configSchema: githubConfigSchema },
+    config,
+  );
+  if (!typed.ok && typed.conflict !== undefined) {
+    return { mismatch: true, error: typed.conflict };
   }
+  return { mismatch: false };
 }
 
 /**

@@ -294,6 +294,7 @@ function migrateAzureConfig(root: Record<string, unknown>): ProviderConfig {
     gatherAzureCandidates(root);
 
   checkAzureOrgUrlConsistency(candidateUrls, candidateOrgs);
+  checkDisagreements(candidateOrgs, true, "organization");
   checkDisagreements(candidateProjects, true, "project");
   checkDisagreements(candidatePats, false, "token");
 
@@ -308,7 +309,12 @@ function migrateAzureConfig(root: Record<string, unknown>): ProviderConfig {
   delete result.organization;
   delete result.token;
 
-  if (candidateUrls[0]?.value) result.orgUrl = candidateUrls[0].value;
+  if (candidateUrls[0]?.value) {
+    result.orgUrl = candidateUrls[0].value;
+  } else if (candidateOrgs[0]?.value) {
+    // A legacy record that names only the organization maps to its Azure URL.
+    result.orgUrl = `https://dev.azure.com/${encodeURIComponent(candidateOrgs[0].value)}`;
+  }
   if (candidateProjects[0]?.value) result.project = candidateProjects[0].value;
   if (candidatePats[0]?.value) result.pat = candidatePats[0].value;
 
@@ -398,4 +404,64 @@ export function migrateLegacyProviderConfig(
       return { ...view };
     }
   }
+}
+
+/** Providers whose historical config shapes the migration step reconciles. */
+const LEGACY_MIGRATED_PROVIDERS: ReadonlySet<string> = new Set([
+  "github",
+  "azure",
+  "jira",
+]);
+
+/** Root keys the migration step consumes: aliases, URL hints and containers. */
+const CONSUMED_ROOT_KEYS: ReadonlySet<string> = new Set([
+  "provider",
+  "providerId",
+  "connectionId",
+  "owner",
+  "org",
+  "organization",
+  "repo",
+  "githubToken",
+  "token",
+  "pat",
+  "apiToken",
+  "jiraHost",
+  "jiraEmail",
+  "jiraToken",
+  "projectId",
+  "url",
+  "webUrl",
+  "remoteUrl",
+  "config",
+  "connections",
+  "tracker",
+  "gitHost",
+  "github",
+  "azure",
+  "jira",
+]);
+
+/**
+ * The migration step every config path runs before a config is typed (#186):
+ * a provider with legacy shapes is reconciled (conflicts throw); any other
+ * provider's config is already its typed shape and passes through unchanged.
+ * Root keys the migration does not consume (for example `requiredLabel`) are
+ * kept, so migrating a stored config never drops a field it does not own.
+ */
+export function migrateConfigForProvider(
+  providerId: string,
+  raw: unknown,
+): ProviderConfig {
+  const rootRecord =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  if (!LEGACY_MIGRATED_PROVIDERS.has(providerId)) return { ...rootRecord };
+  const migrated = migrateLegacyProviderConfig(providerId, raw);
+  const kept: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rootRecord)) {
+    if (!CONSUMED_ROOT_KEYS.has(key) && !(key in migrated)) kept[key] = value;
+  }
+  return { ...kept, ...migrated };
 }
