@@ -4,6 +4,7 @@
 
 import type { Database } from "bun:sqlite";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
+import type { JobStatus } from "./job-repository.js";
 
 export interface RunCounts {
   total: number;
@@ -65,16 +66,18 @@ export class DiagnosticsRepository {
     return { total: row?.total ?? 0, active: row?.active ?? 0 };
   }
 
-  /** Job counts by status. */
+  /** Job counts by status. Each status literal is checked against JobStatus. */
   countJobs(): JobCounts {
+    const statusCase = (status: JobStatus) =>
+      `SUM(CASE WHEN status = '${status}' THEN 1 ELSE 0 END)`;
     const row = this.db
       .query(
         `SELECT
           COUNT(*) AS total,
-          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
-          SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) AS claimed,
-          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
-          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+          ${statusCase("pending")} AS pending,
+          ${statusCase("claimed")} AS claimed,
+          ${statusCase("completed")} AS completed,
+          ${statusCase("failed")} AS failed
         FROM jobs;`,
       )
       .get() as JobCountRow | null;
