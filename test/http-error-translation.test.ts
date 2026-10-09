@@ -127,7 +127,7 @@ describe("HTTP Layer Error Translation", () => {
     expect(body).toEqual({ error: 'Project "nonexistent-proj" not found.' });
   });
 
-  it("projects controller translates neutral ValidationError to 400 response on discover-repositories", async () => {
+  it("projects controller no longer claims the flat discovery route (#183)", async () => {
     const req = new Request(
       "http://localhost:3777/api/projects/discover-repositories",
       {
@@ -145,10 +145,10 @@ describe("HTTP Layer Error Translation", () => {
       2,
       req,
     );
-    expect(res).not.toBeNull();
-    expect(res?.status).toBe(400);
-    const body = await res?.json();
-    expect(body.error).toContain("Unsupported discovery provider");
+    // The duplicate provider route is deleted: the projects controller declines
+    // the path, and the canonical POST /api/providers/repositories is the only
+    // discovery action.
+    expect(res).toBeNull();
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on stop", async () => {

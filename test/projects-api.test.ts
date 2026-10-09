@@ -208,16 +208,28 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.isGitRepo, true);
   });
 
-  it("POST /api/projects/discover-repositories rejects unsupported provider", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/discover-repositories`, {
+  // Rewritten for #183: the flat provider aliases in the projects controller are
+  // deleted. The coverage these tests pinned for the deleted routes is replaced
+  // at this seam by asserting they are gone, and by the canonical providers
+  // route still answering for the same request shape.
+  it("POST /api/projects/discover-repositories is gone; the providers route is canonical (#183)", async () => {
+    const flat = await fetch(`${baseUrl}/api/projects/discover-repositories`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: "nonexistent" }),
     });
+    assert.equal(flat.status, 404);
+    assert.deepEqual(await flat.json(), { error: "Endpoint not found." });
 
-    assert.equal(res.status, 400);
-    const err = (await res.json()) as { error: string };
-    assert.ok(err.error.includes("Unsupported discovery provider"));
+    const canonical = await fetch(`${baseUrl}/api/providers/repositories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "nonexistent", config: {} }),
+    });
+    assert.equal(canonical.status, 409);
+    assert.deepEqual(await canonical.json(), {
+      formErrors: ["UNKNOWN_PROVIDER"],
+    });
   });
 
   it("DELETE /api/projects/:id removes project", async () => {
@@ -244,41 +256,30 @@ describe("Project Onboarding & Management APIs", () => {
     assert.ok(Array.isArray(body.gitRepos));
   });
 
-  it("POST /api/projects/test-connection validates connection parameters", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-connection`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
-    });
+  // Rewritten for #183. The flat connection-test and scope-diagnostic aliases
+  // are deleted: connection testing is `POST /api/providers/verify` (or the
+  // project-scoped `POST /api/projects/{id}/tracker/test`), and scope
+  // verification is `POST /api/projects/{id}/tracker/scopes` — both covered at
+  // the HTTP API seam in test/provider-scope-diagnostics.test.ts and
+  // test/project-connections-api.test.ts.
+  it("the flat connection-test and scope-diagnostic aliases are gone (#183)", async () => {
+    const aliases = [
+      "test-connection",
+      "test-tracker",
+      "test-scopes",
+      "test-azure-scopes",
+    ];
 
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(body.ok, false);
-  });
+    for (const alias of aliases) {
+      const res = await fetch(`${baseUrl}/api/projects/${alias}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
+      });
 
-  it("POST /api/projects/test-connection rejects missing provider with 400", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-connection`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project: "nonexistent" }),
-    });
-
-    assert.equal(res.status, 400);
-    const body = (await res.json()) as { error: string };
-    assert.ok(body.error.includes("Provider is required"));
-  });
-
-  it("POST /api/projects/test-scopes verifies scopes through generic endpoint", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-scopes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ providerId: "jira" }),
-    });
-
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean; errors: string[] };
-    assert.equal(body.ok, false);
-    assert.ok(body.errors[0]?.includes("does not support scope verification"));
+      assert.equal(res.status, 404);
+      assert.deepEqual(await res.json(), { error: "Endpoint not found." });
+    }
   });
 
   it("POST /api/projects/validate-path routes to path checking and returns existsLocally", async () => {
@@ -297,18 +298,6 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.exists, true);
     assert.equal(body.existsLocally, true);
     assert.ok(body.resolvedPath.length > 0);
-  });
-
-  it("POST /api/projects/test-tracker routes to connection test", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-tracker`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
-    });
-
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(body.ok, false);
   });
 
   it("POST /api/projects/inspect-repository includes readiness status", async () => {

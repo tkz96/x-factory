@@ -40,13 +40,19 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     expect(paths).toContain("/api/projects/{id}/tickets");
     expect(paths).toContain("/api/projects/{id}/env");
     expect(paths).toContain("/api/projects/{id}/repos");
-    expect(paths).toContain("/api/projects/{id}/test-connection");
+    // The project-scoped tracker actions are the canonical ones; the flat
+    // provider aliases are gone (#183).
+    expect(paths).toContain("/api/projects/{id}/tracker/test");
+    expect(paths).toContain("/api/projects/{id}/tracker/scopes");
+    expect(paths).not.toContain("/api/projects/{id}/test-connection");
+    expect(paths).not.toContain("/api/projects/discover-repositories");
+    expect(paths).not.toContain("/api/projects/test-scopes");
+    expect(paths).not.toContain("/api/projects/test-azure-scopes");
+    expect(paths).not.toContain("/api/projects/test-connection");
+    expect(paths).not.toContain("/api/projects/test-tracker");
 
     // Discovery & Inspection
-    expect(paths).toContain("/api/projects/discover-repositories");
     expect(paths).toContain("/api/projects/inspect-repository");
-    expect(paths).toContain("/api/projects/test-scopes");
-    expect(paths).toContain("/api/projects/test-azure-scopes");
     expect(paths).toContain("/api/projects/check-path");
 
     // Runs
