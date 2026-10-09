@@ -40,6 +40,10 @@ import {
   serializeProvider,
   serializeProviderConfigSchema,
 } from "../src/providers/serializer.js";
+import {
+  createInMemoryTransport,
+  jsonResponse,
+} from "./helpers/provider-test-helper.js";
 
 describe("Azure DevOps Provider Module (Ticket #139)", () => {
   describe("Registration & Contract Conformance", () => {
@@ -783,69 +787,59 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
 
   describe("listTickets", () => {
     it("fetches tickets using WIQL query and batch endpoint", async () => {
-      const originalFetch = globalThis.fetch;
-      try {
-        globalThis.fetch = (async (url: string | URL | Request) => {
-          const urlStr = String(url);
-          if (urlStr.includes("/_apis/wit/wiql?")) {
-            return new Response(
-              JSON.stringify({
-                workItems: [
-                  {
-                    id: 101,
-                    url: "https://dev.azure.com/org/proj/_apis/wit/workitems/101",
+      const transport = createInMemoryTransport([
+        {
+          match: "/_apis/wit/wiql",
+          handler: jsonResponse({
+            workItems: [
+              {
+                id: 101,
+                url: "https://dev.azure.com/org/proj/_apis/wit/workitems/101",
+              },
+            ],
+          }),
+        },
+        {
+          match: "/_apis/wit/workitems",
+          handler: jsonResponse({
+            value: [
+              {
+                id: 101,
+                fields: {
+                  "System.Title": "Task 101: Test ticket",
+                  "System.Description": "<p>Description</p>",
+                  "Microsoft.VSTS.Common.AcceptanceCriteria":
+                    "Criteria 1\nCriteria 2",
+                  "System.Tags": "backend; x-factory",
+                },
+                _links: {
+                  html: {
+                    href: "https://dev.azure.com/org/proj/_workitems/edit/101",
                   },
-                ],
-              }),
-              { status: 200, headers: { "Content-Type": "application/json" } },
-            );
-          }
-          if (urlStr.includes("/_apis/wit/workitems?ids=")) {
-            return new Response(
-              JSON.stringify({
-                value: [
-                  {
-                    id: 101,
-                    fields: {
-                      "System.Title": "Task 101: Test ticket",
-                      "System.Description": "<p>Description</p>",
-                      "Microsoft.VSTS.Common.AcceptanceCriteria":
-                        "Criteria 1\nCriteria 2",
-                      "System.Tags": "backend; x-factory",
-                    },
-                    _links: {
-                      html: {
-                        href: "https://dev.azure.com/org/proj/_workitems/edit/101",
-                      },
-                    },
-                  },
-                ],
-              }),
-              { status: 200, headers: { "Content-Type": "application/json" } },
-            );
-          }
-          return new Response("Not found", { status: 404 });
-        }) as typeof fetch;
+                },
+              },
+            ],
+          }),
+        },
+      ]);
 
-        if (!azureProvider.listTickets) {
-          throw new Error("listTickets is not defined");
-        }
-        const tickets = await azureProvider.listTickets(
-          {
-            orgUrl: "https://dev.azure.com/org",
-            project: "proj",
-            pat: "valid-pat",
-          },
-          { requiredLabel: "x-factory" },
-        );
-
-        expect(tickets).toHaveLength(1);
-        expect(tickets[0]?.id).toBe("AZ-101");
-        expect(tickets[0]?.title).toBe("Task 101: Test ticket");
-        expect(tickets[0]?.provider).toBe("azure");
-      } finally {
-        globalThis.fetch = originalFetch;
+      const provider = createAzureProvider({ fetchFn: transport });
+      if (!provider.listTickets) {
+        throw new Error("listTickets is not defined");
       }
+      const tickets = await provider.listTickets(
+        {
+          orgUrl: "https://dev.azure.com/org",
+          project: "proj",
+          pat: "valid-pat",
+        },
+        { requiredLabel: "x-factory" },
+      );
+
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0]?.id).toBe("AZ-101");
+      expect(tickets[0]?.title).toBe("Task 101: Test ticket");
+      expect(tickets[0]?.provider).toBe("azure");
     });
 
     it("extracts and sanitizes markdown formatting and links in acceptance criteria", () => {

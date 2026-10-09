@@ -33,6 +33,12 @@ import {
   type VerificationResult,
   type VerificationWarning,
 } from "./contract.js";
+import {
+  type HttpTransport,
+  isHtmlResponse,
+  ProviderHttpError,
+  providerFetch,
+} from "./http.js";
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
 export const azureConfigSchema = z.object({
@@ -116,13 +122,7 @@ export function describeAzureConnection(config: ProviderConfig): string | null {
  * Provider-internal API error class preserving HTTP status, headers, and classification.
  * The raw error never crosses the provider/API boundary — translated via toUserError.
  */
-export class AzureApiError extends Error {
-  readonly status?: number | undefined;
-  readonly headers?: Headers | undefined;
-  readonly isHtml?: boolean | undefined;
-  readonly isRateLimit?: boolean | undefined;
-  readonly retryAfterMs?: number | undefined;
-
+export class AzureApiError extends ProviderHttpError {
   constructor(
     message: string,
     options?: {
@@ -131,15 +131,20 @@ export class AzureApiError extends Error {
       isHtml?: boolean | undefined;
       isRateLimit?: boolean | undefined;
       retryAfterMs?: number | undefined;
+      bodyText?: string | undefined;
+      data?: unknown | undefined;
     },
   ) {
-    super(message);
+    super(message, {
+      status: options?.status ?? 0,
+      headers: options?.headers,
+      isHtml: options?.isHtml,
+      isRateLimit: options?.isRateLimit,
+      retryAfterMs: options?.retryAfterMs,
+      bodyText: options?.bodyText,
+      data: options?.data,
+    });
     this.name = "AzureApiError";
-    this.status = options?.status;
-    this.headers = options?.headers;
-    this.isHtml = options?.isHtml;
-    this.isRateLimit = options?.isRateLimit;
-    this.retryAfterMs = options?.retryAfterMs;
   }
 }
 
@@ -263,40 +268,10 @@ export async function resolveAzureAuth(
 /**
  * Detect HTML response content on 2xx or 203 (Azure portal redirect / AAD login challenge).
  */
-export function isHtmlResponse(
-  contentType?: string | null,
-  text?: string,
-): boolean {
-  if (contentType?.toLowerCase().includes("text/html")) {
-    return true;
-  }
-  if (!text) return false;
-  const trimmed = text.trimStart().toLowerCase();
-  return (
-    trimmed.startsWith("<!doctype html") ||
-    trimmed.startsWith("<html") ||
-    trimmed.startsWith("<head") ||
-    trimmed.startsWith("<body") ||
-    /<(?:!doctype\s+html|html|head|body)[^>]*>/i.test(text)
-  );
-}
-
-function parseRetryAfter(headerValue?: string | null): number | undefined {
-  if (!headerValue) return undefined;
-  const seconds = Number(headerValue);
-  if (!Number.isNaN(seconds) && seconds >= 0) {
-    return Math.round(seconds * 1000);
-  }
-  const dateMs = Date.parse(headerValue);
-  if (!Number.isNaN(dateMs)) {
-    const diff = dateMs - Date.now();
-    return diff > 0 ? diff : 0;
-  }
-  return undefined;
-}
+export { isHtmlResponse } from "./http.js";
 
 export interface AzureFetchOptions extends RequestInit {
-  fetchFn?: typeof fetch;
+  fetchFn?: typeof fetch | HttpTransport | undefined;
 }
 
 /**
@@ -306,55 +281,26 @@ export async function azureFetch(
   url: string,
   options: AzureFetchOptions = {},
 ): Promise<{ status: number; text: string; data: unknown; headers: Headers }> {
-  const fetcher = options.fetchFn || globalThis.fetch;
-  const res = await fetcher(url, options);
-  const contentType = res.headers.get("content-type") || "";
-  const bodyText = await res.text();
-
-  if (
-    res.status === 203 ||
-    isHtmlResponse(contentType, bodyText) ||
-    (res.redirected &&
-      (res.url.includes("login.microsoftonline.com") ||
-        res.url.includes("signin")))
-  ) {
-    throw new AzureApiError(
-      "Azure DevOps returned an HTML sign-in page or authentication redirect.",
-      {
-        status: res.status,
-        headers: res.headers,
-        isHtml: true,
-      },
-    );
-  }
-
-  if (!res.ok) {
-    const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
-    const isRate = res.status === 429 || bodyText.includes("TF400733");
-    throw new AzureApiError(
-      `Azure DevOps request failed with status ${res.status}: ${bodyText.slice(0, 300)}`,
-      {
-        status: res.status,
-        headers: res.headers,
-        isRateLimit: isRate,
-        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
-      },
-    );
-  }
-
-  let data: unknown = null;
-  if (bodyText.trim()) {
-    try {
-      data = JSON.parse(bodyText);
-    } catch {
-      // not JSON
-    }
-  }
+  const res = await providerFetch(url, {
+    ...options,
+    transport: options.fetchFn,
+    isRateLimited: (status, _headers, text) =>
+      status === 429 || text.includes("TF400733"),
+    isSignInRedirect: (r, text) =>
+      r.status === 203 ||
+      isHtmlResponse(r.headers.get("content-type"), text) ||
+      (Boolean(r.redirected) &&
+        Boolean(
+          r.url?.includes("login.microsoftonline.com") ||
+            r.url?.includes("signin"),
+        )),
+    errorFactory: (msg, opts) => new AzureApiError(msg, opts),
+  });
 
   return {
     status: res.status,
-    text: bodyText,
-    data,
+    text: res.text,
+    data: res.data,
     headers: res.headers,
   };
 }
@@ -421,8 +367,11 @@ export function toUserError(
         : {}),
     };
   }
+  if (status !== undefined && status > 0) {
+    return { code: "UNKNOWN", context };
+  }
 
-  // 2. Message Heuristics Fallback
+  // 2. Message Heuristics Fallback (strictly for status-less errors)
   const lowerMsg = message.toLowerCase();
   if (
     lowerMsg.includes("tf400733") ||
@@ -439,12 +388,10 @@ export function toUserError(
   }
 
   if (
-    lowerMsg.includes("auth") ||
-    lowerMsg.includes("token") ||
-    lowerMsg.includes("pat") ||
-    lowerMsg.includes("sign-in") ||
-    lowerMsg.includes("unauthorized") ||
-    lowerMsg.includes("html response")
+    /\b(?:token|sign-in|unauthorized)\b/i.test(lowerMsg) ||
+    lowerMsg.includes("html response") ||
+    /\bpat\b/i.test(lowerMsg) ||
+    /\bauth\b/i.test(lowerMsg)
   ) {
     return { code: "AUTH_INVALID", context };
   }
@@ -469,8 +416,10 @@ export function toUserError(
 
 /** Dependencies for provider injection in unit tests */
 export interface AzureProviderDependencies {
-  fetchFn?: typeof fetch;
-  executor?: CliCommandExecutor;
+  fetchFn?: typeof fetch | HttpTransport | undefined;
+  transport?: HttpTransport | undefined;
+  executor?: CliCommandExecutor | undefined;
+  probeTimeoutMs?: number | undefined;
 }
 
 export interface ResolvedAzureContext {
@@ -515,7 +464,7 @@ export interface ProbeRepositoryResult {
 
 export async function probeRepositoriesCapability(
   context: ResolvedAzureContext,
-  fetchFn: typeof fetch = globalThis.fetch,
+  fetchFn: typeof fetch | HttpTransport = globalThis.fetch,
 ): Promise<ProbeRepositoryResult> {
   const reposUrl = `${context.cleanOrgUrl}/${context.encodedProject}/_apis/git/repositories?api-version=7.1`;
   try {
@@ -525,7 +474,7 @@ export async function probeRepositoriesCapability(
         Accept: "application/json",
       },
       fetchFn,
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(5000),
     });
 
     const reposPayload = reposRes.data as
@@ -568,11 +517,11 @@ export interface ProbeTicketResult {
 
 export async function probeTicketsCapability(
   context: ResolvedAzureContext,
-  fetchFn: typeof fetch = globalThis.fetch,
+  fetchFn: typeof fetch | HttpTransport = globalThis.fetch,
 ): Promise<ProbeTicketResult> {
   const wiqlUrl = `${context.cleanOrgUrl}/${context.encodedProject}/_apis/wit/wiql?api-version=7.1`;
   try {
-    const wiqlRes = await fetchFn(wiqlUrl, {
+    const wiqlRes = await azureFetch(wiqlUrl, {
       method: "POST",
       headers: {
         Authorization: context.authHeader,
@@ -583,29 +532,13 @@ export async function probeTicketsCapability(
         query:
           "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project ORDER BY [System.Id] DESC",
       }),
+      fetchFn,
       signal: AbortSignal.timeout(5000),
     });
 
-    if (
-      wiqlRes.status === 401 ||
-      isHtmlResponse(wiqlRes.headers.get("content-type"))
-    ) {
-      throw new AzureApiError("Authentication invalid on work items probe", {
-        status: 401,
-      });
-    }
-    if (wiqlRes.status === 403) {
-      return {
-        confirmed: false,
-        warning: {
-          kind: "CAPABILITY_UNCONFIRMED",
-          capability: "listTickets",
-        },
-      };
-    }
     return { confirmed: wiqlRes.status === 200 };
   } catch (err) {
-    if (err instanceof AzureApiError && err.status === 401) {
+    if (err instanceof AzureApiError && (err.status === 401 || err.isHtml)) {
       throw err;
     }
     return {
@@ -632,8 +565,9 @@ export function composeVerificationResult(
 export function createAzureProvider(
   deps: AzureProviderDependencies = {},
 ): Provider<"azure"> {
-  const getFetcher = () => deps.fetchFn || globalThis.fetch;
+  const getFetcher = () => deps.transport ?? deps.fetchFn ?? globalThis.fetch;
   const executor = deps.executor;
+  const probeTimeout = deps.probeTimeoutMs ?? 5000;
 
   return {
     id: "azure",
@@ -701,7 +635,7 @@ export function createAzureProvider(
       // 1. Tickets (Work Items) read
       try {
         const wiqlUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/wiql?api-version=7.1`;
-        const res = await getFetcher()(wiqlUrl, {
+        const res = await azureFetch(wiqlUrl, {
           method: "POST",
           headers: {
             Authorization: authHeader,
@@ -711,6 +645,8 @@ export function createAzureProvider(
           body: JSON.stringify({
             query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project`,
           }),
+          fetchFn: getFetcher(),
+          signal: AbortSignal.timeout(probeTimeout),
         });
         findings.push({
           capability: "listTickets",
@@ -721,15 +657,26 @@ export function createAzureProvider(
                 ? "missing"
                 : "unconfirmed",
         });
-      } catch {
-        findings.push({ capability: "listTickets", status: "unconfirmed" });
+      } catch (err) {
+        if (
+          err instanceof AzureApiError &&
+          err.status === 403 &&
+          !err.isRateLimit &&
+          !err.isHtml
+        ) {
+          findings.push({ capability: "listTickets", status: "missing" });
+        } else {
+          findings.push({ capability: "listTickets", status: "unconfirmed" });
+        }
       }
 
       // 2. Repositories read probe
       try {
         const reposUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories?api-version=7.1`;
-        const res = await getFetcher()(reposUrl, {
+        const res = await azureFetch(reposUrl, {
           headers: { Authorization: authHeader, Accept: "application/json" },
+          fetchFn: getFetcher(),
+          signal: AbortSignal.timeout(probeTimeout),
         });
         if (res.status === 200) {
           findings.push({
@@ -742,11 +689,20 @@ export function createAzureProvider(
             status: res.status === 403 ? "missing" : "unconfirmed",
           });
         }
-      } catch {
-        findings.push({
-          capability: "listRepositories",
-          status: "unconfirmed",
-        });
+      } catch (err) {
+        if (
+          err instanceof AzureApiError &&
+          err.status === 403 &&
+          !err.isRateLimit &&
+          !err.isHtml
+        ) {
+          findings.push({ capability: "listRepositories", status: "missing" });
+        } else {
+          findings.push({
+            capability: "listRepositories",
+            status: "unconfirmed",
+          });
+        }
       }
 
       // 3. Pull request write capability cannot be safely verified via mutation probe
@@ -758,8 +714,10 @@ export function createAzureProvider(
       // 4. Overprivilege checks: recycle bin (Code: Full / admin access)
       try {
         const binUrl = `${cleanOrgUrl}/${encodedProject}/_apis/git/recycleBin/repositories?api-version=7.1`;
-        const res = await getFetcher()(binUrl, {
+        const res = await azureFetch(binUrl, {
           headers: { Authorization: authHeader, Accept: "application/json" },
+          fetchFn: getFetcher(),
+          signal: AbortSignal.timeout(probeTimeout),
         });
         if (res.status === 200) {
           overPrivileged = true;
