@@ -1,11 +1,19 @@
 import type {
   ConfigureGitIdentityResult,
+  DiagnosticsResponse,
+  DocDetailResponse,
+  DocsCatalogResponse,
+  DocsSearchResponse,
   GitIdentity,
   GitIdentityScope,
   Project,
   ProjectConnectionRole,
+  ReadinessResponse,
   Run,
+  SettingsUpdateRequest,
+  StopRunResponse,
   Ticket,
+  WorkbenchSettings,
 } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
@@ -18,25 +26,6 @@ import type {
   VerificationResult,
   VerifyCredentialsPayload,
 } from "../connection/types.js";
-
-export interface SettingsData {
-  models?: {
-    sessionA?: string | undefined;
-    sessionB?: string | undefined;
-    review?: string | undefined;
-  };
-  tracker?: {
-    provider?: string | undefined;
-    jiraHost?: string | undefined;
-    jiraEmail?: string | undefined;
-    azureOrgUrl?: string | undefined;
-    azureProject?: string | undefined;
-  };
-  limits?: {
-    maxRuns?: number | undefined;
-    maxArtifactsMb?: number | undefined;
-  };
-}
 
 export interface InspectRepositoryResponse {
   path: string;
@@ -61,15 +50,6 @@ export interface InspectRepositoryResponse {
     status: "ready" | "pending_setup" | "error";
     message: string;
   };
-}
-
-export interface ReadinessData {
-  ready: boolean;
-  checks: Array<{
-    name: string;
-    status: "pass" | "warn" | "fail";
-    message: string;
-  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,11 +337,11 @@ export const api = {
     return handleResponse<{ ok: boolean; run: Run }>(res);
   },
 
-  async stopRun(runId: string): Promise<{ ok: boolean; run: Run }> {
+  async stopRun(runId: string): Promise<StopRunResponse> {
     const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/stop`, {
       method: "POST",
     });
-    return handleResponse<{ ok: boolean; run: Run }>(res);
+    return handleResponse<StopRunResponse>(res);
   },
 
   async prRun(
@@ -419,28 +399,30 @@ export const api = {
   },
 
   // Settings & Readiness
-  async getSettings(): Promise<SettingsData> {
+  async getSettings(): Promise<WorkbenchSettings> {
     const res = await fetch("/api/settings");
-    return handleResponse<SettingsData>(res);
+    return handleResponse<WorkbenchSettings>(res);
   },
 
-  async saveSettings(payload: Partial<SettingsData>): Promise<{ ok: boolean }> {
+  async saveSettings(
+    payload: SettingsUpdateRequest,
+  ): Promise<WorkbenchSettings> {
     const res = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    return handleResponse<{ ok: boolean }>(res);
+    return handleResponse<WorkbenchSettings>(res);
   },
 
-  async getReadiness(): Promise<ReadinessData> {
+  async getReadiness(): Promise<ReadinessResponse> {
     const res = await fetch("/api/readiness");
-    return handleResponse<ReadinessData>(res);
+    return handleResponse<ReadinessResponse>(res);
   },
 
-  async getDiagnostics(): Promise<DiagnosticsData> {
+  async getDiagnostics(): Promise<DiagnosticsResponse> {
     const res = await fetch("/api/diagnostics");
-    return handleResponse<DiagnosticsData>(res);
+    return handleResponse<DiagnosticsResponse>(res);
   },
 
   async getDocsCatalog(): Promise<DocsCatalogResponse> {
@@ -460,79 +442,3 @@ export const api = {
     return handleResponse<DocDetailResponse>(res);
   },
 };
-
-export interface DocSearchMatch {
-  heading: string;
-  headingId: string;
-  snippet: string;
-  matchCount: number;
-}
-
-export interface DocSearchResult {
-  category: string;
-  categoryName: string;
-  slug: string;
-  title: string;
-  totalMatches: number;
-  sections: DocSearchMatch[];
-}
-
-export interface DocsSearchResponse {
-  query: string;
-  totalMatches: number;
-  results: DocSearchResult[];
-}
-
-export interface DocItem {
-  slug: string;
-  title: string;
-  description: string;
-  path: string;
-}
-
-export interface DocCategory {
-  id: string;
-  name: string;
-  description: string;
-  docs: DocItem[];
-}
-
-export interface DocsCatalogResponse {
-  categories: DocCategory[];
-}
-
-export interface DocDetailResponse {
-  category: string;
-  slug: string;
-  title: string;
-  description: string;
-  markdown: string;
-}
-
-export interface DiagnosticsData {
-  status: string;
-  system: {
-    uptime: number;
-    nodeVersion: string;
-    memory: Record<string, number>;
-  };
-  database: {
-    status: string;
-    version: number;
-    runs: { total: number; active: number };
-    jobs: {
-      total: number;
-      pending: number;
-      claimed: number;
-      completed: number;
-      failed: number;
-      stale: number;
-    };
-  };
-  worker: {
-    status: string;
-    activeCount: number;
-    fleet: Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }>;
-  };
-  timestamp: string;
-}
