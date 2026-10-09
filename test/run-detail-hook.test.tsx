@@ -79,7 +79,34 @@ function mountProbe(client: QueryClient, runId: string) {
   );
 }
 
+/** The refetch interval the mounted run query actually uses, resolved from its live observer. */
+function effectiveRefetchInterval(client: QueryClient, runId: string): unknown {
+  const query = client.getQueryCache().find({ queryKey: queryKeys.run(runId) });
+  const observer = query?.observers[0];
+  const option = observer?.options.refetchInterval;
+  if (!query || !observer || option === undefined) return undefined;
+  return typeof option === "function" ? option(query) : option;
+}
+
 describe("useRunDetail (#191)", () => {
+  it("keeps the active run's 2 s polling after its stream drops", () => {
+    FakeEventSource.instances = [];
+    const runId = "localhost-3777-run-dropped";
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.run(runId), runSnapshot(runId, "executing"));
+
+    const view = mountProbe(client, runId);
+    const source = FakeEventSource.instances[0];
+    expect(effectiveRefetchInterval(client, runId)).toBe(2000);
+
+    source?.onerror?.();
+
+    expect(source?.closed).toBe(false);
+    expect(effectiveRefetchInterval(client, runId)).toBe(2000);
+    view.unmount();
+    cleanup();
+  });
+
   it("returns the cached snapshot and event log, and opens one live stream for an active run", () => {
     FakeEventSource.instances = [];
     const runId = "run-hook-active";

@@ -3,12 +3,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { ensureDir, getProjectDir, getProjectEnvPath } from "./paths.js";
 
-export const PROJECT_ENV_KEYS = {
-  AZURE_PAT: "AZURE_DEVOPS_PAT",
-  GITHUB_TOKEN: "GITHUB_TOKEN",
-  JIRA_TOKEN: "JIRA_API_TOKEN",
-} as const;
-
 /**
  * Parse lines of a .env file into key-value pairs.
  */

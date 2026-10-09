@@ -283,7 +283,6 @@ describe("client run-state module (#191)", () => {
       verification: { result: sampleVerification },
       review: { result: sampleReview },
       ralph_progress: { text: "iteration 2", iteration: 2 },
-      steer: { message: "steer" },
       info: { text: "info" },
       error: { message: "boom" },
     };

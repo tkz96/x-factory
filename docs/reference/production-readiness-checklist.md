@@ -27,7 +27,7 @@ Every production deployment must satisfy the requirements across twelve architec
 
 ### 4. Idempotency and Duplicate Action Safety
 - The `operation_ledger` table enforces single-execution semantics through unique keys.
-- Duplicate user actions on stop, steer, or pull request creation endpoints return cached responses without side effects.
+- Duplicate user actions on stop or pull request creation endpoints return cached responses without side effects.
 
 ### 5. Observability, Correlation, and Diagnostics
 - The system propagates the `X-Request-ID` header from clients to server handlers and log entries.

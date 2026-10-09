@@ -73,13 +73,15 @@ export function reduceRun(run: Run, event: RunEvent): Run {
     case "user_feedback":
     case "pi_output_chunk":
     case "ralph_progress":
-    case "steer":
     case "info":
     case "error":
       return run;
     default: {
-      const unhandled: never = event;
-      return unhandled;
+      // Compile-time exhaustiveness: a new union member must be handled above. At runtime an
+      // unknown type (a leftover row from an old database) leaves the run unchanged.
+      const exhaustive: never = event;
+      void exhaustive;
+      return run;
     }
   }
 }

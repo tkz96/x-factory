@@ -7,7 +7,7 @@ export function getOpenApiSpec() {
       title: "X-Factory API",
       version: "0.1.0",
       description:
-        "Software engineering workbench REST API: ticket → Pi agent → implementation → tests → PR. Provides programmatic control over multi-repository projects, repository discovery and inspection, execution runs, steering, pull requests, and workbench settings.",
+        "Software engineering workbench REST API: ticket → Pi agent → implementation → tests → PR. Provides programmatic control over multi-repository projects, repository discovery and inspection, execution runs, pull requests, and workbench settings.",
       contact: {
         name: "X-Factory Team",
         url: "https://github.com/scalar/scalar",
@@ -45,7 +45,7 @@ export function getOpenApiSpec() {
       {
         name: "Runs",
         description:
-          "Agent execution lifecycle, event streaming, real-time steering, and PR delivery",
+          "Agent execution lifecycle, event streaming, and PR delivery",
       },
       {
         name: "Settings",
@@ -881,47 +881,6 @@ export function getOpenApiSpec() {
             },
             "404": {
               $ref: "#/components/responses/NotFoundError",
-            },
-          },
-        },
-      },
-      "/api/runs/{id}/steer": {
-        post: {
-          tags: ["Runs"],
-          summary: "Steer Running Agent",
-          description:
-            "Injects user instructions or corrections into the active Pi agent loop during execution.",
-          operationId: "steerRun",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Run identifier",
-              schema: { type: "string" },
-            },
-          ],
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/SteerRunRequest",
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Steer instruction accepted",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    properties: { ok: { type: "boolean", example: true } },
-                  },
-                },
-              },
             },
           },
         },
@@ -1832,16 +1791,6 @@ export function getOpenApiSpec() {
               example: "Documentation task for OpenAPI & Scalar",
             },
             branch: { type: "string", example: "main" },
-          },
-        },
-        SteerRunRequest: {
-          type: "object",
-          required: ["message"],
-          properties: {
-            message: {
-              type: "string",
-              example: "Also include support for /scalar alias",
-            },
           },
         },
         RunSummary: {

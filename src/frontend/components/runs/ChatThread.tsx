@@ -98,20 +98,6 @@ function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
   );
 }
 
-function renderSteerBubble(item: RunEvent<"steer">) {
-  return (
-    <div key={item.id} className="chat-bubble bubble-steer">
-      <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Steer Action</span>
-      </div>
-      <div className="chat-bubble-body">{item.payload.message}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
 function snippetOf(text: string): string {
   return text.length > 80 ? `${text.slice(0, 80)}…` : text;
 }
@@ -177,6 +163,26 @@ function renderTextBubble(item: RunEvent, text: string) {
   );
 }
 
+/**
+ * A type this client does not know, such as a leftover `steer` row from an old database.
+ * It renders as a neutral line: the payload's text, its raw string, or its JSON.
+ */
+function renderFallbackBubble(item: RunEvent) {
+  const { payload } = item;
+  const text =
+    typeof payload === "string"
+      ? payload
+      : (payloadText(payload) ?? JSON.stringify(payload ?? item));
+  return renderTextBubble(item, text);
+}
+
+function payloadText(payload: unknown): string | undefined {
+  if (payload && typeof payload === "object" && "text" in payload) {
+    return typeof payload.text === "string" ? payload.text : undefined;
+  }
+  return undefined;
+}
+
 /** Renders one event. Each case reads the payload its event type declares, so there are no casts. */
 function renderBubble(item: RunEvent) {
   switch (item.type) {
@@ -188,8 +194,6 @@ function renderBubble(item: RunEvent) {
       return renderRalphBubble(item);
     case "pi_output_chunk":
       return renderPiChunkBubble(item);
-    case "steer":
-      return renderSteerBubble(item);
     case "chat_user":
       return renderChatUserBubble(item);
     case "chat_agent":
@@ -207,10 +211,8 @@ function renderBubble(item: RunEvent) {
     case "verification":
     case "review":
       return renderTextBubble(item, JSON.stringify(item.payload));
-    default: {
-      const unhandled: never = item;
-      return unhandled;
-    }
+    default:
+      return renderFallbackBubble(item);
   }
 }
 
