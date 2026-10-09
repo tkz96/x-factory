@@ -17,6 +17,7 @@ import { RunRepository } from "./db/run-repository.js";
 import { StageAttemptRepository } from "./db/stage-attempt-repository.js";
 import { WorkerHeartbeatRepository } from "./db/worker-heartbeat-repository.js";
 import type { ProviderRegistry } from "./providers/registry.js";
+import type { ProjectWriteStore } from "./services/connection-write-plan.js";
 
 export interface Repositories {
   db: Database;
@@ -38,6 +39,12 @@ export interface Repositories {
 export interface ApiContext {
   repos: Repositories;
   providerRegistry?: ProviderRegistry | undefined;
+  /**
+   * The project record store and env store for the connection-set write plan
+   * (#187); defaults to the shipped file-backed store. Injectable so HTTP-level
+   * failure-injection tests can fail a persistence step through the store.
+   */
+  projectWriteStore?: ProjectWriteStore | undefined;
   /**
    * Host/Origin/Content-Type boundary (http/request-guard.ts); defaults to the
    * loopback API. Typed structurally so this module stays free of http imports.

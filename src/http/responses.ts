@@ -15,7 +15,13 @@ import type {
   RunEventType,
 } from "../shared/types.js";
 
-export function jsonResponse(data: unknown, status = 200): Response {
+/**
+ * A JSON response for a body of type T (#182). Handlers pass the shared wire
+ * type explicitly — `jsonResponse<ResumeRunResponse>(...)` — so a controller
+ * that stops matching the declared response shape fails the typecheck instead
+ * of shipping a drift.
+ */
+export function jsonResponse<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {

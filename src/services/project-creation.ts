@@ -4,8 +4,16 @@
 // Persistence-only by construction: this module never executes a workflow and
 // never calls a provider capability. It validates the complete request in
 // memory, writes the secrets to per-project env storage first (idempotent), and
-// commits the project record last — a crash before the commit leaves only a
-// benign orphaned env file, and a project can never exist without its secrets.
+// commits the project record as the commit point (dropped connections' env
+// keys are removed only AFTER that commit) — a crash before the commit leaves
+// only a benign orphaned env file, and a project can never exist without its
+// secrets.
+//
+// Both paths run the ONE connection-set write plan (#187, see
+// `connection-write-plan.ts`): validate → route secrets → role coverage → env
+// writes → record commit → env deletes, with replace and remove semantics on
+// update. The record store and env store are injectable together through
+// `options.store`.
 //
 // Layering (all before any write): transport shape (zod, in the controller) →
 // provider config schema → role/capability compatibility → required-role
@@ -14,15 +22,8 @@
 
 import path from "node:path";
 import {
-  appendProjectRecord,
-  getProject,
-  loadProjects,
-  saveProject,
-} from "../config.js";
-import {
   type ConnectionsProjectInput,
   MISSING_CONNECTION_ROLE_CODES,
-  missingConnectionRoleCodes,
   type ProjectConnectionInput,
 } from "../config-schema.js";
 import { emitStructuredLog } from "../diagnostics/correlation.js";
@@ -32,11 +33,6 @@ import {
   SemanticValidationError,
 } from "../errors.js";
 import { getProjectsConfigPath } from "../paths.js";
-import {
-  deleteProjectEnvKeys,
-  loadProjectEnv,
-  saveProjectEnv,
-} from "../project-env.js";
 import { toTypedProviderConfig } from "../providers/config-validation.js";
 import {
   hasCapability,
@@ -62,6 +58,15 @@ import type {
   ProjectRepository,
 } from "../types.js";
 import {
+  applyConnectionSetPlan,
+  FILE_PROJECT_WRITE_STORE,
+  incompatibleConfiguration,
+  type PreparedConnection,
+  type ProjectWriteStore,
+  planConnectionSetWrite,
+  removedConnectionEnvKeys,
+} from "./connection-write-plan.js";
+import {
   type CreationClaim,
   type CreationClaimOptions,
   translateClaimError,
@@ -74,13 +79,6 @@ const ROLE_CAPABILITIES: Record<ProviderRole, readonly ProviderCapability[]> = {
   gitHost: ["listRepositories", "createPullRequest", "findExistingPullRequest"],
 };
 
-/** 409 `formErrors` code for a role/capability or connection-shape mismatch. */
-function incompatibleConfiguration(): SemanticValidationError {
-  return new SemanticValidationError({
-    formErrors: ["INCOMPATIBLE_CONFIGURATION"],
-  });
-}
-
 export interface ProjectCreationOptions {
   /** Injected provider registry (tests); defaults to the static registry. */
   registry?: ProviderRegistry;
@@ -88,15 +86,12 @@ export interface ProjectCreationOptions {
   configPath?: string;
   /** Creation-claim tuning (tests); defaults to the documented TTL and bound. */
   claim?: CreationClaimOptions;
-}
-
-interface PreparedConnection {
-  providerId: string;
-  roles: ProviderRole[];
-  /** Secret-free connection as persisted on the project record. */
-  connection: ProjectConnection;
-  /** Non-empty secret values keyed by their declared envKey. */
-  secrets: Record<string, string>;
+  /**
+   * The record store and env store, injectable together as one store (#187);
+   * defaults to the shipped file-backed store. `| undefined` so a controller
+   * can forward an absent ApiContext store unchanged.
+   */
+  store?: ProjectWriteStore | undefined;
 }
 
 /** Asserts that a provider can serve a role, via `hasCapability` only. */
@@ -160,73 +155,6 @@ function prepareConnection(
     connection: { providerId: provider.id, roles, config },
     secrets,
   };
-}
-
-/**
- * The role-coverage gate (#133/CORR-1): a connection set is valid only when it
- * covers BOTH required roles — as two connections, one per role, or as one
- * dual-role connection. It runs inside the PRE-WRITE validation ladder of both
- * creation and update (for an update, against the MERGED result), so no secret
- * is ever written for a set that will be rejected.
- *
- * Each required role must have exactly one owner (#133 / PR #158 Task 1). If a
- * required role is covered by more than one connection, it is rejected with
- * `incompatibleConfiguration()`. If a required role is missing, it is rejected
- * with `missingConnectionRoleCodes(connections)`.
- *
- * It returns the connection carrying each role, so the record builder derives
- * the legacy tracker mirror from the same lookup that proved the role exists —
- * never from a second, weaker check.
- */
-export function assertConnectionRoleCoverage<
-  T extends { roles: readonly ProviderRole[] },
->(connections: readonly T[]): { tracker: T; gitHost: T } {
-  const trackerOwners = connections.filter((connection) =>
-    connection.roles.includes("tracker"),
-  );
-  const gitHostOwners = connections.filter((connection) =>
-    connection.roles.includes("gitHost"),
-  );
-
-  if (trackerOwners.length === 0 || gitHostOwners.length === 0) {
-    throw new SemanticValidationError({
-      formErrors: missingConnectionRoleCodes(connections),
-    });
-  }
-
-  // Exactly one connection must own each required role.
-  // One connection may own both roles.
-  if (trackerOwners.length !== 1 || gitHostOwners.length !== 1) {
-    throw incompatibleConfiguration();
-  }
-
-  const tracker = trackerOwners[0];
-  const gitHost = gitHostOwners[0];
-  if (!tracker || !gitHost) {
-    throw incompatibleConfiguration();
-  }
-
-  return { tracker, gitHost };
-}
-
-/**
- * Merges the routed secrets of every connection. Distinct providers declaring
- * the same env key with different values is a configuration conflict, never a
- * silent overwrite.
- */
-function mergeConnectionSecrets(
-  prepared: readonly PreparedConnection[],
-): Record<string, string> {
-  const secrets: Record<string, string> = {};
-  for (const connection of prepared) {
-    for (const [envKey, value] of Object.entries(connection.secrets)) {
-      if (secrets[envKey] !== undefined && secrets[envKey] !== value) {
-        throw incompatibleConfiguration();
-      }
-      secrets[envKey] = value;
-    }
-  }
-  return secrets;
 }
 
 interface BuiltRepository {
@@ -360,6 +288,7 @@ export async function createProjectFromConnections(
 ): Promise<Project> {
   const registry = options.registry ?? PROVIDER_REGISTRY;
   const configPath = options.configPath ?? getProjectsConfigPath();
+  const store = options.store ?? FILE_PROJECT_WRITE_STORE;
 
   // (1) Validate the complete request in memory, before any write. Pure, so it
   // stays outside the claim: an invalid payload must not contend for one.
@@ -367,11 +296,12 @@ export async function createProjectFromConnections(
   const prepared = input.connections.map((connection) =>
     prepareConnection(connection, registry),
   );
-  // Both roles must be covered before ANY write: a tracker-only or git-host-only
-  // connection set must never reach the secret store (#133).
-  const coverage = assertConnectionRoleCoverage(prepared);
-  const secrets = mergeConnectionSecrets(prepared);
-  const record = buildProjectRecord(input, prepared, coverage.tracker);
+  // Both roles must be covered, and the secrets conflict-free, before ANY
+  // write: the shared plan (#187) rejects a set that will never be written — a
+  // tracker-only or git-host-only connection set, or two providers claiming
+  // the same env key with different values, must never reach the secret store.
+  const plan = planConnectionSetWrite(prepared);
+  const record = buildProjectRecord(input, prepared, plan.coverage.tracker);
 
   try {
     return await withCreationClaim(
@@ -379,24 +309,23 @@ export async function createProjectFromConnections(
       async (claim) => {
         // (2) The duplicate check runs inside the claim, so "no project with
         // this id exists" keeps holding for the whole write sequence below.
-        const existing = await loadProjects(configPath);
+        const existing = await store.loadProjects(configPath);
         if (existing.some((p) => p.id === input.id)) {
           throw new ConflictError(
             `Project with ID "${input.id}" already exists.`,
           );
         }
 
-        // Fencing check: verify claim is still held before mutating secret store.
-        await claim.assertHeld();
-
-        // (3) Secrets first — overwriting is safe, so a retry converges.
-        await saveProjectEnv(input.id, secrets);
-
-        // Fencing check: verify claim is still held before committing project record.
-        await claim.assertHeld();
-
-        // (4) The project record is the commit point.
-        const saved = await appendProjectRecord(record, configPath);
+        // (3)+(4) The shared write plan (#187): secrets first — overwriting is
+        // safe, so a retry converges — then the project record as the commit
+        // point, with a fencing check before each write.
+        const saved = await applyConnectionSetPlan({
+          store,
+          projectId: input.id,
+          plan,
+          writeRecord: () => store.appendProjectRecord(record, configPath),
+          claim,
+        });
 
         emitStructuredLog(
           "info",
@@ -515,29 +444,22 @@ function prepareConnectionUpdate(
   };
 }
 
-/** Replaces the updated provider connections in place, appending new ones. */
-function mergeConnections(
-  existing: readonly ProjectConnection[] | undefined,
-  updates: readonly ProjectConnection[],
-): ProjectConnection[] {
-  const merged = [...(existing ?? [])];
-  for (const update of updates) {
-    const index = merged.findIndex((c) => c.providerId === update.providerId);
-    if (index >= 0) merged[index] = update;
-    else merged.push(update);
-  }
-  return merged;
-}
-
 /**
- * Updates project connections and their secrets.
+ * Updates project connections and their secrets, through the shared write plan
+ * (#187): the request's `connections` REPLACE the stored set wholesale, and the
+ * env entries of connections it does not name are REMOVED, so swapping a
+ * project's connections works.
  *
  * `clearSecrets` is applied before validation; a missing or empty secret means
  * keep (an empty string never means delete); clearing a required secret fails
- * with `fieldErrors`. The MERGED connection set is then checked for required
- * role coverage — an update that would leave the project without a tracker or
- * without a git host is rejected with `formErrors` before any secret is
- * written. Secrets are written first, the project record last.
+ * with `fieldErrors`. The REPLACEMENT connection set is then checked for
+ * required role coverage and env-key conflicts — an update that would leave
+ * the project without a tracker or without a git host, or that declares the
+ * same env key on two providers with different values, is rejected with
+ * `formErrors` before any secret is written. Secrets are written first, the
+ * project record commits next, and the dropped connections' env entries are
+ * removed only AFTER that commit succeeds — so a failed commit leaves the old
+ * record AND the old secrets intact, and a retry converges.
  */
 async function updateProjectConnectionsInternal(
   project: Project,
@@ -547,6 +469,7 @@ async function updateProjectConnectionsInternal(
 ): Promise<Project> {
   const registry = options.registry ?? PROVIDER_REGISTRY;
   const configPath = options.configPath ?? getProjectsConfigPath();
+  const store = options.store ?? FILE_PROJECT_WRITE_STORE;
   const clearSecrets = input.clearSecrets ?? [];
 
   assertDistinctProviders(input.connections.map((c) => c.providerId));
@@ -576,9 +499,11 @@ async function updateProjectConnectionsInternal(
   }
 
   // Load latest project env
-  const storedEnv = await loadProjectEnv(project.id);
+  const storedEnv = await store.loadProjectEnv(project.id);
 
-  // Prepare updates and merge with current connections
+  // Prepare the REPLACEMENT set: each incoming connection replaces a stored
+  // connection of the same provider, keeping stored secrets that were not
+  // replaced or cleared.
   const updates = input.connections.map((connection) =>
     prepareConnectionUpdate(
       project,
@@ -588,29 +513,20 @@ async function updateProjectConnectionsInternal(
       registry,
     ),
   );
-  const connections = mergeConnections(
-    project.connections,
-    updates.map((update) => update.connection),
-  );
-
-  // Validate merged role coverage
-  const coverage = assertConnectionRoleCoverage(connections);
-
-  const secrets: Record<string, string> = {};
-  const clearedKeys: string[] = [];
-  for (const update of updates) {
-    Object.assign(secrets, update.secrets);
-    clearedKeys.push(...update.clearedKeys);
-  }
-
-  // Save secrets and delete cleared keys
-  await saveProjectEnv(project.id, secrets);
-  await deleteProjectEnvKeys(project.id, clearedKeys);
-
-  // Perform fencing check: verify claim is still held before committing project record
-  if (claim) {
-    await claim.assertHeld();
-  }
+  const prepared: PreparedConnection[] = updates.map((update) => ({
+    providerId: update.connection.providerId,
+    roles: update.connection.roles,
+    connection: update.connection,
+    secrets: update.secrets,
+  }));
+  // Replace AND remove (#187): the request's connections are the complete new
+  // set — the stored set is NOT merged into it — and the env entries owned by
+  // the connections it drops (plus the explicitly cleared keys) are deleted
+  // only AFTER the record commit succeeds.
+  const plan = planConnectionSetWrite(prepared, [
+    ...updates.flatMap((update) => update.clearedKeys),
+    ...removedConnectionEnvKeys(project.connections, prepared, registry),
+  ]);
 
   // Save updated project record
   const next: Project = {
@@ -618,14 +534,20 @@ async function updateProjectConnectionsInternal(
     name: input.name?.trim() || project.name,
     workspacePath: input.workspacePath?.trim() || project.workspacePath,
     gitIdentity: input.gitIdentity ?? project.gitIdentity,
-    connections,
+    connections: plan.connections,
     issueTracker: deriveIssueTracker(
-      coverage.tracker.providerId,
-      coverage.tracker.config,
+      plan.coverage.tracker.providerId,
+      plan.coverage.tracker.connection.config,
     ),
   };
 
-  const saved = await saveProject(next, configPath);
+  const saved = await applyConnectionSetPlan({
+    store,
+    projectId: project.id,
+    plan,
+    writeRecord: () => store.saveProject(next, configPath),
+    claim,
+  });
 
   emitStructuredLog(
     "info",
@@ -647,13 +569,14 @@ export async function updateProjectConnectionsById(
   options: ProjectCreationOptions = {},
 ): Promise<Project> {
   const configPath = options.configPath ?? getProjectsConfigPath();
+  const store = options.store ?? FILE_PROJECT_WRITE_STORE;
 
   try {
     return await withCreationClaim(
       projectId,
       async (claim) => {
         // Critical: fresh read INSIDE the claim.
-        const project = await getProject(projectId, false, configPath);
+        const project = await store.getProject(projectId, false, configPath);
 
         if (!project) {
           throw new NotFoundError(`Project "${projectId}" not found.`);

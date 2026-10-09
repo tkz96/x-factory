@@ -414,11 +414,19 @@ export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
 export async function abandonRun(
   repos: Repositories,
   id: string,
+  reason?: string,
 ): Promise<Run> {
   const { db } = repos;
   const runRepo = repos.runs;
   const jobRepo = repos.jobs;
   const commandRepo = repos.commands;
+
+  // The operator's reason rides the abandon request (#182) and is recorded on
+  // the terminal status event; without one, the generic text stands.
+  const trimmedReason = reason?.trim();
+  const statusText = trimmedReason
+    ? `Run abandoned by operator: ${trimmedReason}`
+    : "Run abandoned by operator.";
 
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, db, "abandon");
@@ -434,21 +442,14 @@ export async function abandonRun(
           type: "status",
           payload: {
             status: "failed",
-            text: "Run abandoned by operator.",
+            text: statusText,
           },
         },
       },
       db,
     );
 
-    cancelAndStopActiveJob(
-      jobRepo,
-      commandRepo,
-      id,
-      activeJob,
-      "Run abandoned by operator.",
-      db,
-    );
+    cancelAndStopActiveJob(jobRepo, commandRepo, id, activeJob, statusText, db);
 
     return transitionResult.run;
   });

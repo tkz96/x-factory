@@ -5,11 +5,8 @@ import "./DocsSidebarNav.css";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
-import {
-  api,
-  type DocCategory,
-  type DocSearchResult,
-} from "../../lib/api-client.js";
+import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
+import { api } from "../../lib/api-client.js";
 
 const SECURITY_ITEMS = [
   { id: "least-privilege", label: "Least Privilege" },
