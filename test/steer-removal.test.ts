@@ -23,6 +23,7 @@ import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
 import type { RunEvent } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
 
 function setupTest() {
   const db = createDatabase({ path: ":memory:" });
@@ -81,16 +82,11 @@ describe("Steering removed (#167)", () => {
     // repository no longer accepts "steer" as a CommandType, so insert the
     // legacy row exactly as it exists on disk.
     const commandId = "cmd-leftover-steer";
-    db.run(
-      `INSERT INTO run_commands (id, run_id, command, payload, status, attempts, max_attempts, created_at)
-       VALUES (?, ?, 'steer', ?, 'pending', 0, 3, ?);`,
-      [
-        commandId,
-        runId,
-        JSON.stringify({ message: "legacy steer" }),
-        new Date().toISOString(),
-      ],
-    );
+    insertLegacySteerCommand(db, {
+      id: commandId,
+      runId,
+      message: "legacy steer",
+    });
 
     const commandRepo = new CommandRepository(db);
     const worker = new Worker({ db, workerId: "worker-steer-leftover" });
@@ -105,6 +101,51 @@ describe("Steering removed (#167)", () => {
     const updated = commandRepo.getCommand(commandId);
     expect(updated?.status).toBe("failed");
     expect(updated?.error).toBe('Unsupported command type "steer"');
+  });
+
+  // Lease-expiry reclaim (#167): the reclaim query no longer excludes steer,
+  // so a leftover CLAIMED steer row with an expired lease is handed back to
+  // the pool, failed by the worker with "Unsupported command type", and never
+  // retried forever.
+  it("reclaims an expired claimed steer row, fails it once, and never retries it", async () => {
+    const { db, runRepo } = setupTest();
+    const runId = "run-steer-expired-claim";
+    createRun(runRepo, runId);
+
+    const commandId = "cmd-steer-expired-claim";
+    const expiredLease = new Date(Date.now() - 60000).toISOString();
+    insertLegacySteerCommand(db, {
+      id: commandId,
+      runId,
+      message: "expired lease steer",
+      status: "claimed",
+      workerId: "crashed-worker",
+      leaseUntil: expiredLease,
+      attempts: 1,
+      maxAttempts: 3,
+    });
+
+    const commandRepo = new CommandRepository(db);
+    const worker = new Worker({ db, workerId: "worker-live" });
+
+    // Step 1: the expired lease hands the row back to the pool.
+    const reclaimed = commandRepo.claimPendingCommands("worker-live", 30000);
+    const row = reclaimed.find((c) => c.id === commandId);
+    expect(row).toBeDefined();
+    expect(row?.status).toBe("claimed");
+    expect(row?.workerId).toBe("worker-live");
+    expect(row?.attempts).toBe(2);
+
+    // Step 2: the worker fails it as an unsupported command type.
+    if (row) await worker.processCommand(row);
+    const updated = commandRepo.getCommand(commandId);
+    expect(updated?.status).toBe("failed");
+    expect(updated?.error).toBe('Unsupported command type "steer"');
+
+    // Step 3: terminal — never reclaimed again, attempts stay bounded.
+    const again = commandRepo.claimPendingCommands("worker-live", 30000);
+    expect(again.find((c) => c.id === commandId)).toBeUndefined();
+    expect(commandRepo.getCommand(commandId)?.attempts).toBe(2);
   });
 
   it("renders a leftover steer event as a neutral fallback", () => {
