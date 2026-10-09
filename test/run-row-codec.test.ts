@@ -221,6 +221,27 @@ describe("a malformed JSON column in any table degrades only that field (#179)",
     assert.equal(op.externalId, "pr-1");
     assert.equal(op.status, "completed");
   });
+
+  it("run_commands.result degrades to its raw text", () => {
+    seedRun();
+    const cmd = repos.commands.insertOrRetryCommand({
+      runId: "run-1",
+      command: "deliver",
+      idempotencyKey: "deliver:run-1",
+      payload: { jobId: "job-1" },
+    });
+    repos.db.run(`UPDATE run_commands SET result = ? WHERE id = ?;`, [
+      '{"prUrl":',
+      cmd.id,
+    ]);
+
+    const fetched = repos.commands.getCommand(cmd.id);
+    assert.ok(fetched);
+    assert.equal(fetched.result, '{"prUrl":');
+    // Only the result is lost.
+    assert.equal(fetched.command, "deliver");
+    assert.equal(fetched.status, "pending");
+  });
 });
 
 describe("a malformed column logs a warning naming table, column and row (#179)", () => {
@@ -305,6 +326,35 @@ describe("a malformed column logs a warning naming table, column and row (#179)"
           `warning leaked token "${token}": ${serialized}`,
         );
       }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("warns with the column identity when run_commands.result fails to parse", () => {
+    seedRun();
+    const cmd = repos.commands.insertOrRetryCommand({
+      runId: "run-1",
+      command: "deliver",
+      idempotencyKey: "deliver:run-1",
+      payload: { jobId: "job-1" },
+    });
+    repos.db.run(`UPDATE run_commands SET result = ? WHERE id = ?;`, [
+      '{"prUrl":',
+      cmd.id,
+    ]);
+
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      assert.ok(repos.commands.getCommand(cmd.id));
+      assert.deepEqual(capturedWarnings(warnSpy), [
+        {
+          level: "warn",
+          table: "run_commands",
+          column: "result",
+          row_id: cmd.id,
+        },
+      ]);
     } finally {
       warnSpy.mockRestore();
     }

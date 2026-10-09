@@ -20,7 +20,7 @@ export interface CommandRecord {
   attempts: number;
   maxAttempts: number;
   error: string | null;
-  result: string | null;
+  result: unknown;
   createdAt: string;
   processedAt: string | null;
 }
@@ -63,7 +63,14 @@ function rowToRecord(row: CommandRow): CommandRecord {
     attempts: row.attempts,
     maxAttempts: row.max_attempts,
     error: row.error,
-    result: row.result,
+    // A malformed result degrades to its raw text; only this field is lost.
+    // Free-form diagnostic payloads keep the corrupt text so operators can
+    // see what was stored (the rationale lives in src/db/row-codec.ts).
+    result: parseJsonColumn(row.result, row.result, {
+      table: "run_commands",
+      column: "result",
+      rowId: row.id,
+    }),
     createdAt: row.created_at,
     processedAt: row.processed_at,
   };

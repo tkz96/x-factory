@@ -14,8 +14,9 @@
 //   a re-delivery. The warning emitted on every failed parse is what makes
 //   that visible.
 // - Free-form diagnostic payloads — run_events.payload,
-//   stage_attempts.output and operation_ledger.result — degrade to their raw
-//   text, so the corruption stays visible to operators instead of vanishing.
+//   stage_attempts.output, operation_ledger.result and run_commands.result —
+//   degrade to their raw text, so the corruption stays visible to operators
+//   instead of vanishing.
 //
 // Either way, a parse failure logs a structured warning naming the table,
 // column and row id, so silent degradation is never actually silent. The
