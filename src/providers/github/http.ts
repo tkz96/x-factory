@@ -1,5 +1,8 @@
-// src/providers/github/http.ts — GitHub HTTP transport and response handling (#138).
-
+import {
+  type HttpTransport,
+  type ProviderFetchOptions,
+  providerFetch,
+} from "../http.js";
 import {
   GitHubHttpError,
   isGitHubRateLimited,
@@ -34,7 +37,8 @@ export interface GitHubFetchOptions {
   headers?: Headers | undefined;
   method?: string | undefined;
   body?: string | undefined;
-  fetchFn?: typeof fetch | undefined;
+  fetchFn?: typeof fetch | HttpTransport | undefined;
+  transport?: HttpTransport | undefined;
 }
 
 export interface GitHubFetchResponse {
@@ -50,64 +54,46 @@ export async function githubFetch(
   url: string,
   options: GitHubFetchOptions = {},
 ): Promise<GitHubFetchResponse> {
-  const customFetch = options.fetchFn || fetch;
-  const requestInit: RequestInit = {
-    method: options.method || "GET",
-    ...(options.headers ? { headers: options.headers } : {}),
-    ...(options.body ? { body: options.body } : {}),
+  const fetchOpts: ProviderFetchOptions = {
+    headers: options.headers,
+    transport: options.transport || options.fetchFn,
+    isRateLimited: (status, headers, text) =>
+      isGitHubRateLimited(status, headers, text),
+    errorFactory: (msg, opts) => {
+      let errorMessage = `GitHub API request failed with HTTP ${opts.status}`;
+      if (
+        opts.data &&
+        typeof opts.data === "object" &&
+        "message" in opts.data &&
+        typeof (opts.data as { message: unknown }).message === "string"
+      ) {
+        errorMessage = (opts.data as { message: string }).message;
+      } else if (typeof opts.data === "string" && opts.data.trim()) {
+        errorMessage = opts.data.trim();
+      } else if (msg && opts.status === 0) {
+        errorMessage = msg;
+      }
+
+      return new GitHubHttpError(errorMessage, {
+        status: opts.status,
+        headers: opts.headers,
+        bodyText: opts.bodyText,
+        retryAfterMs: opts.retryAfterMs ?? parseGitHubRetryAfter(opts.headers),
+        isRateLimit: opts.isRateLimit,
+      });
+    },
   };
-
-  let res: Response;
-  try {
-    res = await customFetch(url, requestInit);
-  } catch (networkErr) {
-    const message =
-      networkErr instanceof Error
-        ? networkErr.message
-        : "Network request to GitHub failed";
-    throw new GitHubHttpError(message, {
-      status: 0,
-      headers: new Headers(),
-    });
+  if (options.method !== undefined) {
+    fetchOpts.method = options.method;
   }
-
-  const text = await res.text();
-  let parsed: unknown = null;
-  if (text.trim()) {
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = text;
-    }
+  if (options.body !== undefined) {
+    fetchOpts.body = options.body;
   }
-
-  if (!res.ok) {
-    const isRateLimit = isGitHubRateLimited(res.status, res.headers, text);
-    const retryAfterMs = parseGitHubRetryAfter(res.headers);
-    let errorMessage = `GitHub API request failed with HTTP ${res.status}`;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "message" in parsed &&
-      typeof (parsed as { message: unknown }).message === "string"
-    ) {
-      errorMessage = (parsed as { message: string }).message;
-    } else if (typeof parsed === "string" && parsed.trim()) {
-      errorMessage = parsed.trim();
-    }
-
-    throw new GitHubHttpError(errorMessage, {
-      status: res.status,
-      headers: res.headers,
-      bodyText: text,
-      retryAfterMs,
-      isRateLimit,
-    });
-  }
+  const res = await providerFetch(url, fetchOpts);
 
   return {
     status: res.status,
     headers: res.headers,
-    data: parsed,
+    data: res.data,
   };
 }

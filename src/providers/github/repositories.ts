@@ -1,6 +1,7 @@
 // src/providers/github/repositories.ts — GitHub repository discovery and pagination (#138).
 
 import type { ProviderConfig, ProviderRepository } from "../contract.js";
+import { type HttpTransport, parseLinkNextUrl } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import { GitHubHttpError } from "./errors.js";
 import {
@@ -19,18 +20,7 @@ interface RawGitHubRepo {
 }
 
 function parseNextPageUrl(linkHeader: string | null): string | null {
-  if (!linkHeader) return null;
-  const parts = linkHeader.split(",");
-  for (const part of parts) {
-    const section = part.split(";");
-    if (section.length >= 2 && section[1]?.includes('rel="next"')) {
-      const urlMatch = section[0]?.trim().match(/<([^>]+)>/);
-      if (urlMatch?.[1]) {
-        return urlMatch[1];
-      }
-    }
-  }
-  return null;
+  return parseLinkNextUrl(linkHeader);
 }
 
 function mapToProviderRepo(item: RawGitHubRepo): ProviderRepository | null {
@@ -58,7 +48,7 @@ function mapToProviderRepo(item: RawGitHubRepo): ProviderRepository | null {
  */
 export async function listGitHubRepositories(
   config: ProviderConfig,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<ProviderRepository[]> {
   const { token, owner, baseUrl } = resolveGitHubConfig(config);
   const root = baseUrl || DEFAULT_GITHUB_API_ROOT;

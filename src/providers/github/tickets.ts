@@ -5,6 +5,7 @@ import type {
   TicketQueryOptions,
   TrackerTicket,
 } from "../contract.js";
+import type { HttpTransport } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import {
   DEFAULT_GITHUB_API_ROOT,
@@ -135,7 +136,7 @@ function toTrackerTicket(
 export async function listGitHubTickets(
   config: ProviderConfig,
   options: TicketQueryOptions,
-  fetchFn?: typeof fetch,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<TrackerTicket[]> {
   const {
     token,

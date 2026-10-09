@@ -34,9 +34,11 @@ import {
   verifyGitHubCredentials,
   verifyGitHubScopes,
 } from "./github/verification.js";
+import type { HttpTransport } from "./http.js";
 
 export interface GitHubProviderOptions {
   fetchFn?: typeof fetch | undefined;
+  transport?: HttpTransport | undefined;
 }
 
 /**
@@ -45,7 +47,7 @@ export interface GitHubProviderOptions {
 export function createGithubProvider(
   options: GitHubProviderOptions = {},
 ): Provider<"github"> {
-  const fetchFn = options.fetchFn;
+  const fetchFn = options.transport || options.fetchFn;
 
   const provider: Provider<"github"> = {
     id: "github",

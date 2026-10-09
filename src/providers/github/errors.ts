@@ -6,17 +6,12 @@ import {
   type ProviderErrorCode,
   type ProviderErrorContext,
 } from "../contract.js";
+import { ProviderHttpError, parseRetryAfter } from "../http.js";
 
 /**
  * HTTP error thrown by GitHub API requests.
  */
-export class GitHubHttpError extends Error {
-  readonly status: number;
-  readonly headers: Headers;
-  readonly bodyText?: string | undefined;
-  readonly retryAfterMs?: number | undefined;
-  readonly isRateLimit?: boolean | undefined;
-
+export class GitHubHttpError extends ProviderHttpError {
   constructor(
     message: string,
     options: {
@@ -27,16 +22,20 @@ export class GitHubHttpError extends Error {
       isRateLimit?: boolean | undefined;
     },
   ) {
-    super(message);
-    this.name = "GitHubHttpError";
-    this.status = options.status;
-    this.headers = options.headers ?? new Headers();
-    this.bodyText = options.bodyText;
-    this.retryAfterMs =
-      options.retryAfterMs ?? parseGitHubRetryAfter(this.headers);
-    this.isRateLimit =
+    const headers = options.headers ?? new Headers();
+    const isRate =
       options.isRateLimit ??
-      isGitHubRateLimited(this.status, this.headers, this.bodyText);
+      isGitHubRateLimited(options.status, headers, options.bodyText);
+    const retryAfter = options.retryAfterMs ?? parseGitHubRetryAfter(headers);
+
+    super(message, {
+      status: options.status,
+      headers,
+      bodyText: options.bodyText,
+      retryAfterMs: retryAfter,
+      isRateLimit: isRate,
+    });
+    this.name = "GitHubHttpError";
   }
 }
 
@@ -49,17 +48,9 @@ export function parseGitHubRetryAfter(
 ): number | undefined {
   if (!headers) return undefined;
 
-  const retryAfter = headers.get("retry-after");
-  if (retryAfter) {
-    const seconds = Number.parseInt(retryAfter, 10);
-    if (!Number.isNaN(seconds) && seconds > 0) {
-      return seconds * 1000;
-    }
-    const dateMs = Date.parse(retryAfter);
-    if (!Number.isNaN(dateMs)) {
-      const diff = dateMs - Date.now();
-      if (diff > 0) return diff;
-    }
+  const retryAfter = parseRetryAfter(headers);
+  if (retryAfter !== undefined) {
+    return retryAfter;
   }
 
   const resetHeader = headers.get("x-ratelimit-reset");
