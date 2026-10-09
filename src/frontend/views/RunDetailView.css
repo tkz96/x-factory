@@ -109,22 +109,6 @@
   margin-bottom: 0;
 }
 
-/* ── Steer Bar ───────────────────────────────────────────────────────── */
-
-.steer-bar {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.steer-bar input {
-  flex: 1;
-}
-
-.steer-bar button {
-  flex-shrink: 0;
-}
-
 /* ── Run Actions ─────────────────────────────────────────────────────── */
 
 .run-actions {

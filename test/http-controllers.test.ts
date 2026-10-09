@@ -5,10 +5,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  type PiAgentSession,
-  registerActiveSession,
-} from "../src/agents/pi.js";
 import type { Repositories } from "../src/composition-root.js";
 import { deleteProject, saveProject, validateProject } from "../src/config.js";
 import { handleProjectsRoute } from "../src/http/projects-controller.js";
@@ -310,13 +306,13 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.equal(res.status, 404);
     });
 
-    it("POST /api/runs/:id/steer validates message field", async () => {
+    it("POST /api/runs/:id/steer is no longer a known route", async () => {
       const req = new Request(
         "http://localhost:3777/api/runs/nonexistent-run/steer",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: "   " }),
+          body: JSON.stringify({ message: "steer msg" }),
         },
       );
       const res = await handleRunsRoute(
@@ -327,10 +323,8 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         req,
         repos,
       );
-      assert.ok(res);
-      assert.equal(res.status, 400);
-      const data = await res.json();
-      assert.equal(data.error, "Message is required.");
+      // Steering was removed (#167); handleApi turns this into a 404.
+      assert.equal(res, null);
     });
 
     it("POST /api/runs/:id/chat validates message field", async () => {
@@ -419,13 +413,6 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       };
 
       const runId = `test-http-run-${Date.now()}`;
-      const sessionMock = {
-        steer: async () => {},
-        abort: async () => {},
-        prompt: async () => {},
-        subscribe: () => () => {},
-      };
-      registerActiveSession(runId, sessionMock as unknown as PiAgentSession);
 
       const runRepo = repos.runs;
       runRepo.create({
@@ -479,28 +466,6 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const chunk = await reader.read();
       assert.equal(chunk.done, false);
       await reader.cancel();
-
-      // POST /api/runs/:id/steer
-      const steerReq = new Request(
-        `http://localhost:3777/api/runs/${runId}/steer`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: "Focus on auth.ts" }),
-        },
-      );
-      const steerRes = await handleRunsRoute(
-        "POST",
-        runId,
-        "steer",
-        3,
-        steerReq,
-        repos,
-      );
-      assert.ok(steerRes);
-      assert.equal(steerRes.status, 200);
-      const steerData = await steerRes.json();
-      assert.equal(steerData.ok, true);
 
       // POST /api/runs/:id/chat (returns 409 because run is in executing state)
       const chatFailReq = new Request(

@@ -63,7 +63,7 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     expect(spec.paths["/api/runs"].post).toBeDefined();
     expect(paths).toContain("/api/runs/{id}");
     expect(paths).toContain("/api/runs/{id}/events");
-    expect(paths).toContain("/api/runs/{id}/steer");
+    expect(paths).not.toContain("/api/runs/{id}/steer");
     expect(paths).toContain("/api/runs/{id}/stop");
     expect(paths).toContain("/api/runs/{id}/pr");
 
@@ -85,7 +85,7 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     expect(schemas.Run).toBeDefined();
     expect(schemas.RunSummary).toBeDefined();
     expect(schemas.CreateRunRequest).toBeDefined();
-    expect(schemas.SteerRunRequest).toBeDefined();
+    expect("SteerRunRequest" in schemas).toBe(false);
     expect(schemas.FactorySettings).toBeDefined();
     expect(schemas.ErrorResponse).toBeDefined();
   });

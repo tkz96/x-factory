@@ -111,21 +111,6 @@ function renderPiChunkBubble(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderSteerBubble(item: RunEvent, payload: Record<string, unknown>) {
-  const text = typeof payload.message === "string" ? payload.message : "";
-  return (
-    <div key={item.id} className="chat-bubble bubble-steer">
-      <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Steer Action</span>
-      </div>
-      <div className="chat-bubble-body">{text}</div>
-      <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
-      </time>
-    </div>
-  );
-}
-
 function renderChatUserBubble(
   item: RunEvent,
   payload: Record<string, unknown>,
@@ -215,8 +200,6 @@ function renderBubble(item: RunEvent) {
       return renderRalphBubble(item, payload);
     case "pi_output_chunk":
       return renderPiChunkBubble(item, payload);
-    case "steer":
-      return renderSteerBubble(item, payload);
     case "chat_user":
       return renderChatUserBubble(item, payload);
     case "chat_agent":

@@ -1,4 +1,4 @@
-// src/agents/pi.ts — Decoupled Pi coding agent SDK adapter for implementation and read-only review.
+// src/agents/pi.ts — Decoupled Pi coding agent SDK adapter for read-only review.
 
 import {
   type AgentSession,
@@ -27,7 +27,6 @@ type PiEventListener = (event: {
 export interface PiAgentSession {
   readonly session: AgentSession;
   prompt(text: string): Promise<void>;
-  steer(message: string): Promise<void>;
   abort(): Promise<void>;
   /** Release the underlying session. Safe to call once the session is no longer needed. */
   dispose(): void;
@@ -134,9 +133,6 @@ function wrapSession(session: AgentSession): PiAgentSession {
         throw err;
       }
     },
-    async steer(message: string): Promise<void> {
-      await session.steer(message);
-    },
     async abort(): Promise<void> {
       await session.abort();
     },
@@ -189,21 +185,6 @@ async function createConfiguredSession(
 }
 
 /**
- * Create Pi Implementation Session A.
- * Full tools enabled: read, bash, edit, write.
- */
-export async function createImplementationSession(
-  worktreePath: string,
-  options?: SessionOptions,
-): Promise<PiAgentSession> {
-  return createConfiguredSession(
-    worktreePath,
-    ["read", "bash", "edit", "write"],
-    options,
-  );
-}
-
-/**
  * Create Pi Review Session B.
  * Genuinely read-only tools enabled: read, grep, find, ls.
  * Review session cannot modify code or run arbitrary bash.
@@ -217,25 +198,6 @@ export async function createReviewSession(
     ["read", "grep", "find", "ls"],
     options,
   );
-}
-
-// Active session registry for in-flight Pi sessions (XFM-74)
-const activeSessions = new Map<string, PiAgentSession>();
-
-export function registerActiveSession(
-  runId: string,
-  session: PiAgentSession,
-): () => void {
-  activeSessions.set(runId, session);
-  return () => {
-    if (activeSessions.get(runId) === session) {
-      activeSessions.delete(runId);
-    }
-  };
-}
-
-export function getActiveSession(runId: string): PiAgentSession | undefined {
-  return activeSessions.get(runId);
 }
 
 export interface ChatMessageInput {

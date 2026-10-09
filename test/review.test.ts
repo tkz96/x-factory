@@ -385,7 +385,6 @@ FAILED
             });
           }
         },
-        steer: async () => {},
         abort: async () => {},
         dispose: () => {},
         subscribe: (cb: Parameters<PiAgentSession["subscribe"]>[0]) => {
@@ -443,7 +442,6 @@ FAILED
         prompt: async () => {
           throw new Error("Prompt crashed immediately");
         },
-        steer: async () => {},
         abort: async () => {},
         dispose: () => {},
         subscribe: () => () => {},

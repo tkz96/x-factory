@@ -15,7 +15,7 @@ import {
   ValidationError,
 } from "../src/errors.js";
 import { HttpError } from "../src/http/responses.js";
-import { chatWithRun, steerRun, stopRun } from "../src/runs.js";
+import { chatWithRun, stopRun } from "../src/runs.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
 let repos: Repositories;
@@ -88,17 +88,6 @@ describe("Neutral Domain Errors", () => {
     let thrownError: unknown;
     try {
       await chatWithRun(repos, "nonexistent-test-run", "hello");
-    } catch (err) {
-      thrownError = err;
-    }
-    expect(thrownError).toBeInstanceOf(NotFoundError);
-    expect(thrownError).not.toBeInstanceOf(HttpError);
-    expect((thrownError as Error).message).toBe(
-      "Run nonexistent-test-run not found.",
-    );
-
-    try {
-      await steerRun(repos, "nonexistent-test-run", "steer command");
     } catch (err) {
       thrownError = err;
     }

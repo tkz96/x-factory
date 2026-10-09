@@ -4,8 +4,6 @@ import { describe, expect, it, spyOn } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import React from "react";
-import { renderToString } from "react-dom/server";
 import { runAttemptLoop } from "../src/attempt-loop.js";
 import {
   createRepositories,
@@ -21,9 +19,7 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import { PlanExecutor } from "../src/executors/plan.js";
 import { ReviewExecutor } from "../src/executors/review.js";
 import type { StageContext } from "../src/executors/types.js";
-import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { handleApi } from "../src/http/routes.js";
-import { steerRun } from "../src/runs.js";
 import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type {
   PullRequest,
@@ -40,7 +36,7 @@ import {
 let repos: Repositories;
 
 describe("Shared run-event union (#171)", () => {
-  it("real producers write expected payload shapes: chat, steering, and transitions", async () => {
+  it("real producers write expected payload shapes: chat and transitions", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
     repos = createRepositories(db);
@@ -87,28 +83,7 @@ describe("Shared run-event union (#171)", () => {
     expect(chatAgentEvt).toBeDefined();
     expect(typeof chatAgentEvt?.payload.text).toBe("string");
 
-    // 2. steerRun producer via handleApi (emits steer, requires executing status)
-    runRepo.update(runId, { status: "executing" }, db);
-    const steerReq = new Request(
-      `http://localhost:3777/api/runs/${runId}/steer`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Focus on unit tests first" }),
-      },
-    );
-    const steerRes = await handleApi(steerReq, new URL(steerReq.url), {
-      repos,
-    });
-    expect(steerRes.status).toBe(200);
-
-    const steerEvt = eventRepo
-      .getEventsForRun(runId)
-      .find((e) => e.type === "steer");
-    expect(steerEvt).toBeDefined();
-    expect(steerEvt?.payload).toEqual({ message: "Focus on unit tests first" });
-
-    // 3. handleTransition requeue producer via handleApi (emits user_feedback and status)
+    // 2. handleTransition requeue producer via handleApi (emits user_feedback and status)
     runRepo.update(runId, { status: "awaiting_review" }, db);
     const requeueReq = new Request(
       `http://localhost:3777/api/runs/${runId}/transitions`,
@@ -148,7 +123,7 @@ describe("Shared run-event union (#171)", () => {
       text: "Requeueing run for fresh plan... Notes: Please fix edge case handling",
     });
 
-    // 4. handleTransition restart producer (emits status)
+    // 3. handleTransition restart producer (emits status)
     runRepo.update(runId, { status: "awaiting_plan_approval" }, db);
     const restartReq = new Request(
       `http://localhost:3777/api/runs/${runId}/transitions`,
@@ -172,7 +147,7 @@ describe("Shared run-event union (#171)", () => {
       text: "Restarting plan context...",
     });
 
-    // 5. handleTransition abort / stop producer (emits status)
+    // 4. handleTransition abort / stop producer (emits status)
     runRepo.update(runId, { status: "awaiting_plan_approval" }, db);
     const stopReq = new Request(
       `http://localhost:3777/api/runs/${runId}/stop`,
@@ -192,7 +167,7 @@ describe("Shared run-event union (#171)", () => {
       text: "Run stopped by user.",
     });
 
-    // 6. Worker crash / recovery transition producer (emits status with reason)
+    // 5. Worker crash / recovery transition producer (emits status with reason)
     const worker = new Worker({
       workerId: "test-recovery-worker",
       db,
@@ -602,15 +577,6 @@ describe("Shared run-event union (#171)", () => {
     // @ts-expect-error Appending an unknown event type must fail typecheck
     eventRepo.appendEvent("run-1", "unknown_event_type", {});
 
-    const steerEvt = eventRepo.appendEvent("run-1", "steer", {
-      message: "steer msg",
-    });
-    expect(steerEvt.type).toBe("steer");
-    expect(steerEvt.payload).toEqual({ message: "steer msg" });
-
-    // @ts-expect-error Appending an invalid payload for steer must fail typecheck
-    eventRepo.appendEvent("run-1", "steer", { message: 12345 });
-
     // @ts-expect-error Appending an invalid payload for chat_user must fail typecheck
     eventRepo.appendEvent("run-1", "chat_user", { wrongField: 123 });
 
@@ -721,50 +687,5 @@ describe("Shared run-event union (#171)", () => {
     expect(event2.payload.step).toBe("branch_pushed");
     expect(event2.payload.text).toBe("feedbeef");
     expect(event2.id).toBe(3);
-  });
-
-  it("steering a run appends a steer event with the message and renders in ChatThread", async () => {
-    const db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-    repos = createRepositories(db);
-
-    const runRepo = new RunRepository(db);
-    const eventRepo = new EventRepository(db);
-
-    const runId = "run-steer-render-test";
-    runRepo.create({
-      id: runId,
-      projectId: "proj-1",
-      projectName: "Project 1",
-      ticket: { id: "T-1", title: "Ticket 1", acceptanceCriteria: [] },
-      plan: "Plan",
-      branch: "factory/t-1",
-      status: "executing",
-      artifactsDir: `/tmp/artifacts-${runId}`,
-      worktreePath: `/tmp/worktrees-${runId}`,
-    });
-
-    const steerMsg = "Focus on resolving the unit tests first";
-    await steerRun(repos, runId, steerMsg);
-
-    const events = eventRepo.getEventsForRun(runId);
-    const steerEvent = events.find((e) => e.type === "steer");
-    expect(steerEvent).toBeDefined();
-    expect(steerEvent?.payload).toEqual({ message: steerMsg });
-
-    // Verify ChatThread renders the steer bubble with badge and message
-    const wireEvents: RunEvent[] = events.map((e) => ({
-      id: e.sequence,
-      timestamp: e.createdAt,
-      type: e.type,
-      payload: e.payload,
-    })) as RunEvent[];
-
-    const html = renderToString(
-      React.createElement(ChatThread, { events: wireEvents }),
-    );
-    expect(html).toContain("bubble-steer");
-    expect(html).toContain("Steer Action");
-    expect(html).toContain(steerMsg);
   });
 });

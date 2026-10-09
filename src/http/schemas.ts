@@ -22,18 +22,6 @@ export const CreateRunBodySchema = z
   })
   .passthrough();
 
-/** Request body schema for POST /api/runs/:id/steer */
-export const SteerRunBodySchema = z
-  .object({
-    message: z
-      .string({ error: "Message is required." })
-      .trim()
-      .min(1, "Message is required."),
-    commandId: z.string().optional(),
-    command_id: z.string().optional(),
-  })
-  .passthrough();
-
 /** Request body schema for POST /api/runs/:id/chat */
 export const ChatRunBodySchema = z
   .object({

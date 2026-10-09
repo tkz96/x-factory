@@ -1,26 +1,40 @@
 // test/stabilization-commands.test.ts — Unit tests for command repository, leasing, idempotency, and heartbeats (v5.5).
 
 import { Database } from "bun:sqlite";
-import { describe, expect, it } from "bun:test";
-import { createRepositories } from "../src/composition-root.js";
-import { CommandRepository } from "../src/db/command-repository.js";
+import { beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
+import {
+  type CommandRecord,
+  CommandRepository,
+} from "../src/db/command-repository.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { WorkerHeartbeatRepository } from "../src/db/worker-heartbeat-repository.js";
 import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { createTestRepositories } from "./helpers/composition.js";
+import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 function setupTest() {
   const db = new Database(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   runMigrations(db);
+  repos = createRepositories(db);
 
   const runRepo = new RunRepository(db);
   const commandRepo = new CommandRepository(db);
   const eventRepo = new EventRepository(db);
   const heartbeatRepo = new WorkerHeartbeatRepository(db);
-  const repos = createRepositories(db);
 
   const run = runRepo.create({
     id: "run-cmd-test-1",
@@ -34,7 +48,7 @@ function setupTest() {
     worktreePath: "/tmp",
   });
 
-  return { db, repos, runRepo, commandRepo, eventRepo, heartbeatRepo, run };
+  return { db, runRepo, commandRepo, eventRepo, heartbeatRepo, run };
 }
 
 describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
@@ -85,7 +99,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
   });
 
   // Test 3: Stale targeted worker handling
-  it("handles dead target workers: completes stop as no-op and fails steer", async () => {
+  it("handles dead target workers: completes stop as no-op and fails a leftover steer command", async () => {
     const { db, commandRepo, heartbeatRepo, run } = setupTest();
 
     // Register dead worker with old heartbeat (>30s ago)
@@ -107,14 +121,19 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       targetWorkerId: "dead-worker",
     });
 
-    // 2. Steer targeted to dead worker
-    const steerCmd = commandRepo.insertOrRetryCommand({
+    // 2. Leftover steer command from a pre-#167 database, targeted to the
+    // dead worker. The repository no longer accepts "steer" as a CommandType,
+    // so the legacy row is inserted exactly as it exists on disk.
+    const legacySteerId = "cmd-legacy-steer-dead-target";
+    insertLegacySteerCommand(db, {
+      id: legacySteerId,
       runId: run.id,
-      command: "steer",
-      payload: { message: "stale steer" },
+      message: "stale steer",
       idempotencyKey: "steer:stale",
       targetWorkerId: "dead-worker",
     });
+    const steerCmd = commandRepo.getCommand(legacySteerId);
+    expect(steerCmd).toBeDefined();
 
     const worker = new Worker({
       db,
@@ -130,22 +149,133 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     const updatedStop = commandRepo.getCommand(stopCmd.id);
     expect(updatedStop?.status).toBe("completed");
 
-    // Surviving worker runs command cycle on steer
-    const claimedSteer = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
-      .find((c) => c.id === steerCmd.id);
-    if (claimedSteer) await worker.processCommand(claimedSteer);
-    else await worker.processCommand(steerCmd);
-    const updatedSteer = commandRepo.getCommand(steerCmd.id);
+    // The leftover steer command targeted at the dead worker is failed
+    // during claim resolution, then a processCommand pass on the stale
+    // record must not crash or change it.
+    if (steerCmd) await worker.processCommand(steerCmd);
+    const updatedSteer = commandRepo.getCommand(legacySteerId);
     expect(updatedSteer?.status).toBe("failed");
-    expect(updatedSteer?.error).toContain(
-      "Target worker dead; steer session lost",
+    expect(updatedSteer?.error).toBe("Target worker dead; command discarded");
+  });
+
+  // Test 3b: A deliver command targeted at a dead worker must be PROCESSED by
+  // the live worker that holds it, exactly as on main before #167 removed the
+  // steer branch — only `stop` completes and only unknown types fail (#167).
+  it("processes a deliver command targeted at a dead worker instead of failing it", async () => {
+    const { db, commandRepo, heartbeatRepo, run } = setupTest();
+
+    // Dead worker: heartbeat older than the 30s TTL.
+    const deadTime = new Date(Date.now() - 60000).toISOString();
+    heartbeatRepo.upsert({
+      workerId: "dead-worker",
+      pid: 9999,
+      hostname: "test-host",
+      lastHeartbeat: deadTime,
+      startedAt: deadTime,
+    });
+
+    const deliverCmd = commandRepo.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+      payload: {},
+      idempotencyKey: "deliver:dead-target",
+      targetWorkerId: "dead-worker",
+    });
+
+    // Write the claim state directly: claimPendingCommands only hands a
+    // command to the worker it targets, but processCommand must still handle
+    // a record it holds on a row targeting a dead worker.
+    db.run(
+      `UPDATE run_commands SET status = 'claimed', worker_id = ?, lease_until = ? WHERE id = ?`,
+      [
+        "surviving-worker",
+        new Date(Date.now() + 30000).toISOString(),
+        deliverCmd.id,
+      ],
+    );
+    const claimed = commandRepo.getCommand(deliverCmd.id);
+    expect(claimed?.status).toBe("claimed");
+
+    let deliverRuns = 0;
+    const worker = new Worker({
+      db,
+      workerId: "surviving-worker",
+      deliverExecutor: {
+        deliver: async () => {
+          deliverRuns += 1;
+          return {
+            url: "https://example.test/pr/1",
+            branch: "factory/cmd-1",
+            baseBranch: "main",
+            title: "Deliver from dead target",
+          };
+        },
+      },
+    });
+    await worker.processCommand(claimed as CommandRecord);
+
+    expect(deliverRuns).toBe(1);
+    const updated = commandRepo.getCommand(deliverCmd.id);
+    expect(updated?.status).toBe("completed");
+    expect(updated?.error).toBeNull();
+  });
+
+  // Test 3c: Claim resolution (command-repository step 1) at a dead target:
+  // stop completes, deliver keeps its current fall-through handling, and only
+  // non-stop/non-deliver types such as a leftover steer row are failed (#167).
+  it("claim resolution completes stop, keeps deliver pending, and fails only unknown types at a dead target", () => {
+    const { db, commandRepo, heartbeatRepo, run } = setupTest();
+
+    const deadTime = new Date(Date.now() - 60000).toISOString();
+    heartbeatRepo.upsert({
+      workerId: "dead-worker",
+      pid: 9999,
+      hostname: "test-host",
+      lastHeartbeat: deadTime,
+      startedAt: deadTime,
+    });
+
+    const stopCmd = commandRepo.insertOrRetryCommand({
+      runId: run.id,
+      command: "stop",
+      payload: { jobId: "job-dead" },
+      idempotencyKey: "stop:dead-target",
+      targetWorkerId: "dead-worker",
+    });
+    const deliverCmd = commandRepo.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+      payload: {},
+      idempotencyKey: "deliver:dead-target-2",
+      targetWorkerId: "dead-worker",
+    });
+    insertLegacySteerCommand(db, {
+      id: "cmd-steer-dead-target-step1",
+      runId: run.id,
+      message: "stale steer",
+      idempotencyKey: "steer:dead-target",
+      targetWorkerId: "dead-worker",
+    });
+
+    const claimed = commandRepo.claimPendingCommands("surviving-worker", 10000);
+
+    expect(commandRepo.getCommand(stopCmd.id)?.status).toBe("completed");
+    // Deliver keeps its step-1 handling: not completed, not failed.
+    expect(commandRepo.getCommand(deliverCmd.id)?.status).toBe("pending");
+    const steer = commandRepo.getCommand("cmd-steer-dead-target-step1");
+    expect(steer?.status).toBe("failed");
+    expect(steer?.error).toBe("Target worker dead; command discarded");
+    // The dead-target rows were not handed to the surviving worker.
+    expect(claimed.map((c) => c.id)).not.toContain(stopCmd.id);
+    expect(claimed.map((c) => c.id)).not.toContain(deliverCmd.id);
+    expect(claimed.map((c) => c.id)).not.toContain(
+      "cmd-steer-dead-target-step1",
     );
   });
 
   // Test 10: Create PR atomicity & deduplication
   it("createPR returns completed if PR already exists, or queued if deliver command pending", async () => {
-    const { repos, commandRepo, run } = setupTest();
+    const { commandRepo, run } = setupTest();
 
     // First createPR call queues command
     const res1 = await createPR(repos, run.id);
@@ -163,7 +293,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
   // Test 12: Deliver retry on failed command
   it("createPR resets failed deliver command back to pending for retry", async () => {
-    const { repos, commandRepo, run } = setupTest();
+    const { commandRepo, run } = setupTest();
 
     // Insert failed deliver command
     const cmd = commandRepo.insertOrRetryCommand({

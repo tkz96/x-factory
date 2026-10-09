@@ -123,13 +123,6 @@ export function useAbandonRun() {
   });
 }
 
-export function useSteerRun() {
-  return useMutation({
-    mutationFn: ({ runId, message }: { runId: string; message: string }) =>
-      api.steerRun(runId, message),
-  });
-}
-
 export function useTransitionRun() {
   const queryClient = useQueryClient();
   return useMutation({

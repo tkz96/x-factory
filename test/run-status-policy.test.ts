@@ -59,7 +59,7 @@ const EXPECTED_GUARD_ACCEPTANCE: Record<RunStatus, readonly RunAction[]> = {
   awaiting_understanding_approval: ["approve", "restart", "chat", "stop"],
   planning: ["stop"],
   awaiting_plan_approval: ["approve", "restart", "chat", "stop"],
-  executing: ["steer", "stop"],
+  executing: ["stop"],
   awaiting_review: ["approve", "requeue", "chat", "stop"],
   ready_for_pr: ["deliver"],
   pr_created: [],
@@ -80,7 +80,7 @@ const EXPECTED_ACTIONS_BY_STATUS: Record<RunStatus, readonly RunAction[]> = {
   awaiting_understanding_approval: ["approve", "restart", "chat", "stop"],
   planning: ["stop"],
   awaiting_plan_approval: ["approve", "restart", "chat", "stop"],
-  executing: ["steer", "stop"],
+  executing: ["stop"],
   awaiting_review: ["approve", "requeue", "chat", "stop"],
   ready_for_pr: ["deliver"],
   pr_created: [],
@@ -109,8 +109,6 @@ const GUARDED_ACTION_ENDPOINTS: Record<RunAction, (runId: string) => Request> =
     abandon: (runId) => postRequest(`/api/runs/${runId}/abandon`),
     chat: (runId) =>
       postRequest(`/api/runs/${runId}/chat`, { message: "ping" }),
-    steer: (runId) =>
-      postRequest(`/api/runs/${runId}/steer`, { message: "ping" }),
   };
 
 function postRequest(urlPath: string, body?: unknown): Request {

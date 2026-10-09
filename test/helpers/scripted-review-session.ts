@@ -45,7 +45,6 @@ export function scriptedReviewSession(
         for (const cb of listeners) cb({ type: "text", text: output });
       if (options.promptError) throw options.promptError;
     },
-    steer: async () => {},
     abort: async () => {
       state.abortCalls++;
       rejectPrompt?.(new Error("session aborted"));

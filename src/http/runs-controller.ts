@@ -1,4 +1,4 @@
-// src/http/runs-controller.ts — Execution run lifecycle, streaming events, and steering endpoints.
+// src/http/runs-controller.ts — Execution run lifecycle and streaming events.
 
 import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
@@ -16,7 +16,6 @@ import {
 import {
   ChatRunBodySchema,
   CreateRunBodySchema,
-  SteerRunBodySchema,
   TransitionRunBodySchema,
 } from "./schemas.js";
 import { defaultSSERegistry } from "./sse-registry.js";
@@ -251,30 +250,6 @@ function handleRunEvents(
   });
 }
 
-async function handleSteerRun(
-  repos: Repositories,
-  req: Request,
-  runId: string,
-): Promise<Response> {
-  return withValidatedBody(
-    req,
-    SteerRunBodySchema,
-    (body) =>
-      catchHttpErrors(async () => {
-        const commandId =
-          body.commandId || (body as { command_id?: string }).command_id;
-        const deduplicated = await runs.steerRun(
-          repos,
-          runId,
-          body.message,
-          commandId,
-        );
-        return jsonResponse({ ok: true, deduplicated });
-      }),
-    "Invalid JSON in request body.",
-  );
-}
-
 async function handleChatMessage(
   repos: Repositories,
   req: Request,
@@ -366,8 +341,6 @@ async function handleRunAction(
   }
   if (method === "POST") {
     switch (action) {
-      case "steer":
-        return handleSteerRun(repos, req, runId);
       case "chat":
         return handleChatMessage(repos, req, runId);
       case "transitions":

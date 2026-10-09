@@ -164,64 +164,6 @@ export async function createRun(
   return createdRun;
 }
 
-export async function steerRun(
-  repos: Repositories,
-  id: string,
-  message: string,
-  commandId?: string,
-): Promise<boolean> {
-  const { db } = repos;
-  const runRepo = repos.runs;
-  const jobRepo = repos.jobs;
-  const commandRepo = repos.commands;
-  const eventRepo = repos.events;
-
-  const idempotencyKey = commandId
-    ? `steer:${commandId}`
-    : `steer:${randomUUID()}`;
-  let alreadyExisted = false;
-
-  const tx = db.transaction(() => {
-    const run = runRepo.get(id, db);
-    if (!run) throw new NotFoundError(`Run ${id} not found.`);
-    if (!canRunAction(run.status, "steer")) {
-      throw new ConflictError(`Cannot steer in status "${run.status}".`);
-    }
-
-    if (commandId) {
-      const existingCmd = db
-        .prepare<{ id: string }, [string]>(
-          "SELECT id FROM run_commands WHERE idempotency_key = ?;",
-        )
-        .get(idempotencyKey);
-
-      if (existingCmd) {
-        alreadyExisted = true;
-        return;
-      }
-    }
-
-    const activeJob = jobRepo.findActiveJobForRun(id, db);
-    const targetWorkerId = activeJob?.workerId || null;
-
-    commandRepo.insertOrRetryCommand(
-      {
-        runId: id,
-        command: "steer",
-        payload: { message },
-        idempotencyKey,
-        targetWorkerId,
-      },
-      db,
-    );
-
-    eventRepo.appendEvent(id, "steer", { message }, db);
-  });
-  tx();
-
-  return alreadyExisted;
-}
-
 export async function stopRun(
   repos: Repositories,
   id: string,
