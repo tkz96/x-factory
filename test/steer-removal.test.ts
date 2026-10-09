@@ -62,7 +62,7 @@ describe("Steering removed (#167)", () => {
     const runId = "run-steer-removed-404";
     createRun(runRepo, runId);
 
-    const req = new Request(`http://localhost/api/runs/${runId}/steer`, {
+    const req = new Request(`http://localhost:3777/api/runs/${runId}/steer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Focus on auth.ts" }),
