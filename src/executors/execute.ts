@@ -94,6 +94,7 @@ export class ExecuteExecutor implements StageExecutor {
         ticket: run.ticket,
         plan: run.plan || "",
         project,
+        understanding: run.implementationContext,
         baseline,
         provider,
         signal,

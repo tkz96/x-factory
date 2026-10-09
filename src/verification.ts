@@ -2,12 +2,7 @@
 
 import { getDiffText } from "./git.js";
 import { execCommand } from "./proc.js";
-import type {
-  CommandResult,
-  Project,
-  Ticket,
-  VerificationResult,
-} from "./types.js";
+import type { CommandResult, Project, VerificationResult } from "./types.js";
 import { type BaselineState, readWorktreeState } from "./worktree-state.js";
 
 export const MAX_REPAIR_ATTEMPTS = 3;
@@ -133,67 +128,4 @@ export async function runVerification(
     pollutionDetails: state.hasPollution ? state.pollutionDetails : undefined,
     summary,
   };
-}
-
-/**
- * Format a tightly scoped repair prompt for Pi when deterministic verification fails.
- */
-export function buildRepairPrompt(
-  ticket: Ticket,
-  plan: string,
-  verification: VerificationResult,
-  attempt: number,
-): string {
-  const failedParts: string[] = [];
-
-  if (!verification.tests.passed) {
-    failedParts.push(
-      `### Test Failure (${verification.tests.command}):\n\`\`\`\n${verification.tests.stderr || verification.tests.stdout}\n\`\`\``,
-    );
-  }
-  if (verification.typecheck && !verification.typecheck.passed) {
-    failedParts.push(
-      `### Typecheck Failure (${verification.typecheck.command}):\n\`\`\`\n${verification.typecheck.stderr || verification.typecheck.stdout}\n\`\`\``,
-    );
-  }
-  if (verification.lint && !verification.lint.passed) {
-    failedParts.push(
-      `### Lint Failure (${verification.lint.command}):\n\`\`\`\n${verification.lint.stderr || verification.lint.stdout}\n\`\`\``,
-    );
-  }
-  if (verification.hasPollution && verification.pollutionDetails) {
-    failedParts.push(
-      `### Pollution Detected:\n${verification.pollutionDetails.join("\n")}`,
-    );
-  }
-  if (verification.filesChanged.length === 0) {
-    failedParts.push(
-      `### No Changes:\nNo code changes were made to address the ticket.`,
-    );
-  }
-
-  const criteriaBlock =
-    ticket.acceptanceCriteria.length > 0
-      ? `\n### Acceptance Criteria:\n${ticket.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
-      : "";
-
-  return `Deterministic verification checks failed on attempt ${attempt} of ${MAX_REPAIR_ATTEMPTS}.
-
-## Ticket
-#${ticket.id} — ${ticket.title}${criteriaBlock}
-
-## Implementation Plan
-${plan}
-
-## Verification Failures
-${failedParts.join("\n\n")}
-
-## Current Changed Files
-${verification.filesChanged.join("\n") || "None"}
-
-## Repair Instructions
-1. Fix ONLY the issues required to make verification checks and tests pass.
-2. Do NOT rewrite unrelated code or introduce speculative changes.
-3. Clean up any temporary or debug files.
-4. Ensure the implementation completely satisfies the ticket and acceptance criteria.`;
 }
