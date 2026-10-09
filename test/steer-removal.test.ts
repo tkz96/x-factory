@@ -10,13 +10,18 @@
 //      fallback in ChatThread / EventLogViewer instead of crashing.
 
 import { afterAll, describe, expect, it } from "bun:test";
+import React from "react";
+import { renderToString } from "react-dom/server";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
+import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
+import { EventLogViewer } from "../src/frontend/components/runs/EventLogViewer.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
+import type { RunEvent } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 
 function setupTest() {
@@ -100,5 +105,40 @@ describe("Steering removed (#167)", () => {
     const updated = commandRepo.getCommand(commandId);
     expect(updated?.status).toBe("failed");
     expect(updated?.error).toBe('Unsupported command type "steer"');
+  });
+
+  it("renders a leftover steer event as a neutral fallback", () => {
+    const { db, runRepo, eventRepo } = setupTest();
+    const runId = "run-steer-leftover-event";
+    createRun(runRepo, runId);
+
+    // Simulate an old database row: the event type is gone from the union,
+    // so write it straight into run_events and read it back.
+    const message = "legacy steer note";
+    db.run(
+      `INSERT INTO run_events (run_id, sequence, type, payload, created_at)
+       VALUES (?, 1, 'steer', ?, ?);`,
+      [runId, JSON.stringify({ message }), new Date().toISOString()],
+    );
+
+    const wireEvents = eventRepo.getEventsForRun(runId).map((e) => ({
+      id: e.sequence,
+      timestamp: e.createdAt,
+      type: e.type,
+      payload: e.payload,
+    })) as unknown as RunEvent[];
+
+    const chatHtml = renderToString(
+      React.createElement(ChatThread, { events: wireEvents }),
+    );
+    expect(chatHtml).not.toContain("bubble-steer");
+    expect(chatHtml).not.toContain("Steer Action");
+    expect(chatHtml).toContain(message);
+
+    const logHtml = renderToString(
+      React.createElement(EventLogViewer, { events: wireEvents }),
+    );
+    expect(logHtml).not.toContain("Steer:");
+    expect(logHtml).toContain(message);
   });
 });

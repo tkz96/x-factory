@@ -110,16 +110,6 @@ function renderError(item: RunEvent, payload: Record<string, unknown>) {
   );
 }
 
-function renderSteer(item: RunEvent, payload: Record<string, unknown>) {
-  const text = typeof payload.message === "string" ? payload.message : "";
-  return (
-    <div key={item.id} className="event-item event-steer">
-      <span className="event-prefix">→ Steer: </span>
-      {text}
-    </div>
-  );
-}
-
 function renderInfo(item: RunEvent, payload: Record<string, unknown>) {
   const text = typeof payload.text === "string" ? payload.text : "";
   return (
@@ -161,8 +151,6 @@ function renderEventItem(item: RunEvent) {
       return renderEvalResult(item, payload, "Review");
     case "error":
       return renderError(item, payload);
-    case "steer":
-      return renderSteer(item, payload);
     case "ralph_progress":
       return renderRalphProgress(item, payload);
     case "info":

@@ -33,10 +33,6 @@
   color: var(--red);
 }
 
-.event-log .event.event-steer {
-  color: var(--yellow);
-}
-
 .event-log .event.event-tool {
   color: var(--text-dim);
 }
