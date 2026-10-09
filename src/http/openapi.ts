@@ -454,7 +454,7 @@ export function getOpenApiSpec() {
           tags: ["Projects"],
           summary: "Test Project Tracker Connection",
           description:
-            "Tests the project's STORED tracker connection: connectivity, authentication, and permission scopes. The connection is resolved from the recorded `connections` plus the project's stored secrets; the request body carries no configuration.",
+            "Probes the project's STORED tracker connection: connectivity, authentication, and permission scopes. The connection is resolved through the project connections module from the recorded `connections` plus the project's stored secrets; the request body carries no configuration (it is ignored). A thrown provider failure returns the normalized ProviderError status and body — raw provider text never crosses the boundary.",
           operationId: "testProjectTracker",
           parameters: [
             {
@@ -476,6 +476,12 @@ export function getOpenApiSpec() {
                 },
               },
             },
+            "401": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "403": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "404": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "423": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "429": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "502": { $ref: "#/components/responses/ProviderErrorResponse" },
           },
         },
       },
@@ -576,7 +582,7 @@ export function getOpenApiSpec() {
           tags: ["Projects"],
           summary: "Verify Project Tracker Scopes",
           description:
-            "Probes the project's STORED tracker connection for the capabilities its provider must hold. The connection is resolved from the recorded `connections` plus the project's stored secrets — never from the request body, which is ignored. A provider that does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for; a thrown provider failure crosses the boundary as the normalized (code, context) envelope.",
+            "Probes the project's STORED tracker connection for the capabilities its provider must hold. The connection is resolved through the project connections module from the recorded `connections` plus the project's stored secrets — never from the request body, which is ignored. A provider that does not declare the `verifyScopes` capability is reported as a capability gap (200 with `ok: false`); a thrown provider failure returns the normalized ProviderError status and body, never raw provider text.",
           operationId: "verifyProjectScopes",
           parameters: [
             {
@@ -589,7 +595,8 @@ export function getOpenApiSpec() {
           ],
           responses: {
             "200": {
-              description: "Provider scope audit report",
+              description:
+                "Provider scope audit report, including the capability-gap result",
               content: {
                 "application/json": {
                   schema: {
@@ -599,7 +606,14 @@ export function getOpenApiSpec() {
               },
             },
             "400": { description: "The project records no tracker connection" },
-            "404": { description: "Project not found" },
+            "401": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "403": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "404": {
+              description: "Project not found, or provider NOT_FOUND",
+            },
+            "423": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "429": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "502": { $ref: "#/components/responses/ProviderErrorResponse" },
           },
         },
       },
@@ -1250,6 +1264,17 @@ export function getOpenApiSpec() {
             },
           },
         },
+        ProviderErrorResponse: {
+          description:
+            "Normalized provider failure: canonical copy plus (code, context), never raw provider text",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ProviderErrorResponseBody",
+              },
+            },
+          },
+        },
         NotFoundError: {
           description: "Requested resource not found",
           content: {
@@ -1872,6 +1897,37 @@ export function getOpenApiSpec() {
               type: "boolean",
               example: false,
             },
+          },
+        },
+        ProviderErrorResponseBody: {
+          type: "object",
+          required: ["error", "code", "context"],
+          properties: {
+            error: {
+              type: "string",
+              description:
+                "Canonical copy resolved from (code, context); never raw provider text",
+              example:
+                "The credentials were rejected. Check the token and try again.",
+            },
+            code: {
+              type: "string",
+              enum: [
+                "AUTH_INVALID",
+                "AUTH_LOCKED",
+                "NOT_FOUND",
+                "RATE_LIMITED",
+                "PERMISSION",
+                "UNKNOWN",
+              ],
+              example: "AUTH_INVALID",
+            },
+            context: {
+              type: "string",
+              enum: ["VERIFY", "DISCOVERY", "TICKETS", "PR"],
+              example: "VERIFY",
+            },
+            retryAfterMs: { type: "number", example: 30000 },
           },
         },
         ProviderError: {

@@ -668,7 +668,7 @@ write through `createProject`, after the tracker gate above.
 | Two distinct providers in one set declare the same env key with different values (create or update) | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
-| Provider failure on `GET /api/projects/:id/tickets` (and any route that lets a `ProviderError` reach the domain-error ladder) | by code, below | `{ error, code, context, retryAfterMs? }` |
+| Provider failure on `GET /api/projects/:id/tickets` and `POST /api/projects/:id/tracker/test` and `/tracker/scopes` | by code, below | `{ error, code, context, retryAfterMs? }` |
 
 Codes only — provider and zod messages never cross the boundary. Upstream
 failures use the separate `ProviderError` envelope.
@@ -709,13 +709,55 @@ Outcomes, in order:
    `{ ok: false, overPrivileged: false, scopes: {}, errors: ["The resolved
    tracker provider does not support scope verification."], warnings: [] }` — a
    capability gap reported in provider-agnostic copy, never substituted for;
-4. the provider throws → 200 with the normalized `ProviderError` under `error`,
-   and empty `errors`/`warnings`. The thrown text, which may quote the
-   configuration, never crosses the boundary.
+4. the provider throws → the normalized `ProviderError` status by code with
+   `{ error, code, context, retryAfterMs? }`, the same mapping the tickets route
+   uses. The thrown text, which may quote the configuration, never crosses the
+   boundary. 200 with `ok: false` is reserved for a normal audit result (a
+   missing or unconfirmed scope), never for a thrown failure.
 
 `test/provider-scope-diagnostics.test.ts` covers all of it against an injected
 registry at the HTTP API seam; `test/integration.test.ts` covers the stored
 connection end to end against the shipped registry.
+
+### Tracker connection test (`POST /api/projects/{id}/tracker/test`, #183)
+
+The tracker connection test is a project-scoped tracker action, and — like the
+scope diagnostic — it has no flat or provider-named alias. It resolves the
+project's OWN tracker connection through the project connections module: the
+recorded `connections` entry for the `tracker` role, with the project's stored
+secrets merged in by each provider schema's `envKey`. **Nothing from the request
+body reaches the provider.** The body is not used as configuration at all; it is
+parsed only so malformed JSON still answers 400 `{ error }`. A client cannot
+substitute a provider or config, and cannot send a secret across the boundary.
+
+Outcomes:
+
+1. no such project → 404 `{ error }`;
+2. the project records no tracker connection → 400 `{ error }`;
+3. the provider confirms the connection → 200 with
+   `{ ok: true, message: "<provider display name> connection successful." }`;
+4. the provider throws → the normalized `ProviderError` status by code with
+   `{ error, code, context: "VERIFY", retryAfterMs? }`. The raw thrown text —
+   which may quote a token or the configuration — never crosses the boundary;
+   no secret-masking of the raw text is needed because the raw text is never
+   sent.
+
+`test/provider-scope-diagnostics.test.ts` pins both the stored-config dispatch
+and the no-raw-text guarantee at the HTTP API seam with an injected registry;
+`test/project-connections-api.test.ts` covers the shipped Jira provider.
+
+### Tracker summary and credentials (stored connection)
+
+`GET /api/projects/{id}/tracker` and `PUT /api/projects/{id}/tracker/credentials`
+also resolve the tracker connection through the project connections module
+(`resolveConnectionForRole`), not by reading the legacy mirror. Their responses
+are unchanged: the summary reports the provider, the recorded non-secret config,
+and the status of the first stored secret (its env key and mask), and the
+credentials update maps the body's values onto the provider schema's own secret
+env keys. The one distinction the summary and the credentials update still draw
+is between "no tracker connection" and "a connection that names an unregistered
+provider"; the credentials update answers 400 with copy that names each case and
+saves nothing for the latter.
 
 ### Secret update semantics
 

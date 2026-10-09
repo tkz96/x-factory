@@ -34,8 +34,8 @@ import {
   testProjectTrackerConnection,
 } from "../providers/project-config.js";
 import {
-  findConnectionForRole,
   type ResolvedProjectConnection,
+  resolveConnectionForRole,
   resolveProjectConnection,
 } from "../providers/project-connections.js";
 import { redactConfigForProvider } from "../providers/redaction.js";
@@ -335,18 +335,23 @@ async function handleUpdateProjectTrackerCredentials(
   return withJsonBody<Record<string, string>>(
     req,
     async (body) => {
-      const connection = findConnectionForRole(project, "tracker", registry);
-      if (!connection) {
+      // The tracker connection comes from the project connections module; its
+      // provider is resolved there, so "no tracker" and "unknown provider" keep
+      // their distinct, fail-closed messages.
+      const resolved = resolveConnectionForRole(project, "tracker", registry);
+      if (!resolved) {
         return errorResponse("Missing issue tracker provider.", 400);
       }
-      const provider = registry.get(connection.providerId);
-      if (!provider) {
+      if (!resolved.provider) {
         return errorResponse(
-          `Issue tracker provider "${connection.providerId}" is not registered; no credentials were saved.`,
+          `Issue tracker provider "${resolved.connection.providerId}" is not registered; no credentials were saved.`,
           400,
         );
       }
-      const varsToSave = extractTrackerCredentialsToSave(body, provider);
+      const varsToSave = extractTrackerCredentialsToSave(
+        body,
+        resolved.provider,
+      );
       await saveProjectEnv(projectId, varsToSave);
       return jsonResponse({ ok: true, message: "Credentials updated." });
     },
@@ -354,6 +359,13 @@ async function handleUpdateProjectTrackerCredentials(
   );
 }
 
+/**
+ * POST /api/projects/:id/tracker/test — probes the project's STORED tracker
+ * connection (#183). The connection is resolved through the project connections
+ * module, so the request body's values never reach the provider; the body is
+ * parsed only so malformed JSON still answers 400. A thrown provider failure
+ * crosses the boundary as the normalized provider error (status by code).
+ */
 async function handleTestProjectTracker(
   projectId: string,
   req: Request,
@@ -362,28 +374,26 @@ async function handleTestProjectTracker(
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
-  const processRequest = async (bodyData: Record<string, unknown>) => {
-    const provider =
-      (bodyData.provider as string | undefined) ||
-      findConnectionForRole(project, "tracker", registry)?.providerId;
-    if (!provider) {
-      return errorResponse("Missing issue tracker provider.", 400);
-    }
-    const env = await loadProjectEnv(projectId);
+  const processRequest = async () => {
+    const resolved = await resolveProjectTrackerConnection(project, registry);
+    if (!resolved.ok) return resolved.response;
 
     const result = await testProjectTrackerConnection(
-      provider,
-      project,
-      env,
-      bodyData,
+      resolved.connection,
       project.repositoryPath,
-      registry,
     );
+    if (!result.ok) {
+      return providerErrorResponse(
+        new ProviderError(result.error.code, result.error.context, {
+          retryAfterMs: result.error.retryAfterMs,
+        }),
+      );
+    }
     return jsonResponse(result);
   };
 
   if (!req.body) {
-    return processRequest({});
+    return processRequest();
   }
 
   return withJsonBody(req, processRequest, "Invalid JSON for tracker test.");
@@ -588,16 +598,11 @@ async function handleVerifyProjectScopes(
   try {
     report = await provider.verifyScopes(config);
   } catch (err: unknown) {
-    // Normalized envelope only: the thrown text (which may quote the
-    // configuration) never crosses this boundary.
-    return jsonResponse({
-      ok: false,
-      overPrivileged: false,
-      scopes: {},
-      errors: [],
-      warnings: [],
-      error: provider.toUserError(err, "VERIFY"),
-    });
+    // The registry normalizes a capability throw to a ProviderError, so the
+    // failure crosses the boundary with its status by code and the canonical
+    // body — the thrown text (which may quote the configuration) never does.
+    if (err instanceof ProviderError) return providerErrorResponse(err);
+    throw err;
   }
 
   const errors: string[] = [];
