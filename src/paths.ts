@@ -73,19 +73,19 @@ export function getProjectsConfigPath(): string {
 }
 
 /**
- * Locations used by scripts/backup.ts, both under the data dir:
- * - backupsDir: ~/.x-factory/backups/ (BACKUP_DIR overrides it at the call site)
- * - artifactsDir: ~/.x-factory/artifacts/, a top-level directory that is
- *   archived when it exists
+ * Default directory for database backups written by scripts/backup.ts:
+ * ~/.x-factory/backups/ (BACKUP_DIR overrides it at the call site).
  */
-export function getBackupLocations(): {
-  backupsDir: string;
-  artifactsDir: string;
-} {
-  return {
-    backupsDir: path.join(getDataDir(), "backups"),
-    artifactsDir: path.join(getDataDir(), "artifacts"),
-  };
+export function getBackupsDir(): string {
+  return path.join(getDataDir(), "backups");
+}
+
+/**
+ * Top-level artifacts directory that scripts/backup.ts archives when present:
+ * ~/.x-factory/artifacts/
+ */
+export function getArtifactsDir(): string {
+  return path.join(getDataDir(), "artifacts");
 }
 
 /**

@@ -133,9 +133,10 @@ describe("Shared run-status policy matches server guards (#170)", () => {
   let originalDataDir: string | undefined;
 
   beforeAll(() => {
-    // Point chat at a data dir whose settings.json names an unregistered provider so the
-    // guard test stays offline: the model lookup fails and chatWithRun
-    // degrades to its fallback reply instead of calling a real provider.
+    // Point chat at a data dir whose settings.json names an unregistered
+    // provider, so the guard test stays offline: the model lookup fails and
+    // chatWithRun degrades to its fallback reply instead of calling a real
+    // provider.
     const tempDir = mkdtempSync(path.join(tmpdir(), "run-status-policy-"));
     writeFileSync(
       path.join(tempDir, "settings.json"),

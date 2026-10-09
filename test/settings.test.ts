@@ -42,13 +42,13 @@ describe("Settings Secret Masking", () => {
 describe("Settings Storage & Persistence", () => {
   let previousDataDir: string | undefined;
   let dataDir: string;
-  let TEST_SETTINGS_PATH: string;
+  let settingsPath: string;
 
   beforeEach(async () => {
     previousDataDir = process.env.X_FACTORY_DATA_DIR;
     dataDir = await mkdtemp(path.join(tmpdir(), "xf-test-settings-"));
     process.env.X_FACTORY_DATA_DIR = dataDir;
-    TEST_SETTINGS_PATH = path.join(dataDir, "settings.json");
+    settingsPath = path.join(dataDir, "settings.json");
   });
 
   afterEach(async () => {
@@ -71,13 +71,13 @@ describe("Settings Storage & Persistence", () => {
       },
     });
 
-    const fileStat = await stat(TEST_SETTINGS_PATH);
+    const fileStat = await stat(settingsPath);
     // On POSIX, check mode & 0o777 === 0o600
     if (process.platform !== "win32") {
       expect(fileStat.mode & 0o777).toBe(0o600);
     }
 
-    const raw = await readFile(TEST_SETTINGS_PATH, "utf-8");
+    const raw = await readFile(settingsPath, "utf-8");
     const onDisk = JSON.parse(raw);
     expect(onDisk.theme).toBe("light");
     expect(onDisk.models?.sessionA?.model).toBe("qwen2.5-coder:32b");
