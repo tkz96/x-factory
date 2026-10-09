@@ -7,6 +7,17 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Repositories } from "../src/composition-root.js";
 import { execStrict } from "../src/proc.js";
+import { azureProvider } from "../src/providers/azure-module.js";
+import type {
+  Provider,
+  ProviderConfig,
+  ProviderErrorContext,
+  ProviderErrorEnvelope,
+  VerificationResult,
+} from "../src/providers/contract.js";
+import { githubProvider } from "../src/providers/github-module.js";
+import { jiraProvider } from "../src/providers/jira-module.js";
+import type { ProviderRegistry } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
@@ -31,7 +42,7 @@ beforeAll(async () => {
   tempDir = await mkdtemp(path.join(tmpdir(), "xf-proj-api-test-"));
   // Run on an ephemeral port; the server and the seeding share one connection.
   repos = createTestRepositories();
-  server = startServer(0, undefined, repos.db);
+  server = startServer(0, undefined, repos.db, testRegistry);
   baseUrl = `http://localhost:${server.port}`;
 });
 
@@ -46,26 +57,39 @@ afterAll(async () => {
 });
 
 /**
- * The tracker test route probes the project's STORED connection (#183). A
- * placeholder credential is rejected by the live provider, so the route answers
- * either the success body (200) or the normalized provider-error envelope
- * (status by `code`) — never raw provider text.
+ * Deterministic provider probes (#183). These tests must never touch the
+ * network, so the three providers keep their REAL config schemas while their
+ * network calls are recorded stubs. `verifyCredentials` succeeds by default;
+ * `trackerVerifyFailure` turns the next probe into a normalized AUTH_INVALID
+ * failure (401 at the boundary) so both outcomes are asserted exactly.
  */
-async function assertTrackerTestAnswer(res: Response): Promise<void> {
-  const body = (await res.json()) as {
-    ok?: boolean;
-    error?: string;
-    code?: string;
-    context?: string;
+const trackerVerifyCalls: ProviderConfig[] = [];
+let trackerVerifyFailure: Error | null = null;
+
+function withDeterministicProbe(provider: Provider): Provider {
+  return {
+    ...provider,
+    async verifyCredentials(
+      config: ProviderConfig,
+    ): Promise<VerificationResult> {
+      trackerVerifyCalls.push(config);
+      if (trackerVerifyFailure !== null) throw trackerVerifyFailure;
+      return { status: "ok", warnings: [] };
+    },
+    toUserError(
+      _raw: unknown,
+      context: ProviderErrorContext,
+    ): ProviderErrorEnvelope {
+      return { code: "AUTH_INVALID", context };
+    },
   };
-  if (res.status === 200) {
-    assert.equal(typeof body.ok, "boolean");
-    return;
-  }
-  assert.equal(typeof body.code, "string");
-  assert.equal(body.context, "VERIFY");
-  assert.equal(typeof body.error, "string");
 }
+
+const testRegistry: ProviderRegistry = new Map<string, Provider>([
+  [azureProvider.id, withDeterministicProbe(azureProvider)],
+  [githubProvider.id, withDeterministicProbe(githubProvider)],
+  [jiraProvider.id, withDeterministicProbe(jiraProvider)],
+]);
 
 describe("Project Onboarding & Management APIs", () => {
   const testProjectId = `proj-${Date.now()}`;
@@ -622,8 +646,20 @@ describe("Project Onboarding & Management APIs", () => {
         body: JSON.stringify({}),
       },
     );
-    await assertTrackerTestAnswer(res);
-  }, 15000);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      message: "Azure DevOps connection successful.",
+    });
+    // The probe received the project's STORED connection: recorded config plus
+    // the secret merged back from per-project env storage.
+    assert.equal(
+      trackerVerifyCalls.at(-1)?.orgUrl,
+      "https://dev.azure.com/testorg",
+    );
+    assert.equal(trackerVerifyCalls.at(-1)?.project, "TestProject");
+    assert.equal(trackerVerifyCalls.at(-1)?.pat, "test-azure-pat-9999");
+  });
 
   it("POST /api/projects/:id/tracker/test rejects malformed JSON with 400", async () => {
     const res = await fetch(
@@ -646,7 +682,46 @@ describe("Project Onboarding & Management APIs", () => {
         method: "POST",
       },
     );
-    await assertTrackerTestAnswer(res);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      message: "Azure DevOps connection successful.",
+    });
+  });
+
+  it("POST /api/projects/:id/tracker/test maps a provider throw to the normalized envelope without raw text", async () => {
+    // A thrown provider failure crosses the boundary as the normalized
+    // provider error (AUTH_INVALID → 401); the raw text, which may quote the
+    // stored token, never reaches the client.
+    trackerVerifyFailure = new Error(
+      "verify exploded for token test-azure-pat-9999",
+    );
+    try {
+      const res = await fetch(
+        `${baseUrl}/api/projects/${trackerProjId}/tracker/test`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+      assert.equal(res.status, 401);
+      const body = (await res.json()) as {
+        error: string;
+        code: string;
+        context: string;
+      };
+      assert.deepEqual(body, {
+        error: "The credentials were rejected. Check the token and try again.",
+        code: "AUTH_INVALID",
+        context: "VERIFY",
+      });
+      const wire = JSON.stringify(body);
+      assert.ok(!wire.includes("verify exploded"));
+      assert.ok(!wire.includes("test-azure-pat-9999"));
+    } finally {
+      trackerVerifyFailure = null;
+    }
   });
 
   it("tracker credentials and test endpoints fail closed with 400 when project has no tracker configured", async () => {
@@ -826,8 +901,12 @@ describe("Project Onboarding & Management APIs", () => {
         body: JSON.stringify({ repo: "my-org/my-repo" }),
       },
     );
-    await assertTrackerTestAnswer(testRes);
-  }, 15000);
+    assert.equal(testRes.status, 200);
+    assert.deepEqual(await testRes.json(), {
+      ok: true,
+      message: "GitHub connection successful.",
+    });
+  });
 
   it("tests Jira tracker endpoints", async () => {
     const jiraProjId = `proj-jira-${Date.now()}`;
@@ -884,8 +963,12 @@ describe("Project Onboarding & Management APIs", () => {
         body: JSON.stringify({}),
       },
     );
-    await assertTrackerTestAnswer(testRes);
-  }, 15000);
+    assert.equal(testRes.status, 200);
+    assert.deepEqual(await testRes.json(), {
+      ok: true,
+      message: "Jira Cloud connection successful.",
+    });
+  });
 
   it("POST /api/projects creates and persists a 14-repository Azure/Converso project with real metadata (#114)", async () => {
     const fourteenRepoProjId = `proj-azure-converso-14-${Date.now()}`;
