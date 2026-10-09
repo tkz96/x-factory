@@ -108,10 +108,9 @@ export class WorkerHeartbeatRepository {
    * Retrieves active workers that heartbeated within the specified TTL.
    */
   getActiveWorkers(ttlMs = 30000): WorkerHeartbeatRecord[] {
-    const conn = this.db;
     const cutoff = new Date(Date.now() - ttlMs).toISOString();
 
-    const rows = conn
+    const rows = this.db
       .prepare<WorkerHeartbeatRow, [string]>(
         "SELECT * FROM worker_heartbeats WHERE last_heartbeat > ? ORDER BY last_heartbeat DESC;",
       )
@@ -124,10 +123,9 @@ export class WorkerHeartbeatRepository {
    * Determines if at least one worker has heartbeated within the TTL.
    */
   isReady(ttlMs = 30000): boolean {
-    const conn = this.db;
     const cutoff = new Date(Date.now() - ttlMs).toISOString();
 
-    const row = conn
+    const row = this.db
       .prepare<{ cnt: number }, [string]>(
         "SELECT COUNT(*) as cnt FROM worker_heartbeats WHERE last_heartbeat > ?;",
       )
@@ -140,10 +138,9 @@ export class WorkerHeartbeatRepository {
    * Determines if a specific worker has heartbeated within the TTL.
    */
   isWorkerActive(workerId: string, ttlMs = 30000): boolean {
-    const conn = this.db;
     const cutoff = new Date(Date.now() - ttlMs).toISOString();
 
-    const row = conn
+    const row = this.db
       .prepare<{ cnt: number }, [string, string]>(
         "SELECT COUNT(*) as cnt FROM worker_heartbeats WHERE worker_id = ? AND last_heartbeat > ?;",
       )
@@ -156,8 +153,7 @@ export class WorkerHeartbeatRepository {
    * Removes a worker heartbeat upon graceful shutdown.
    */
   remove(workerId: string): boolean {
-    const conn = this.db;
-    const result = conn
+    const result = this.db
       .prepare("DELETE FROM worker_heartbeats WHERE worker_id = ?;")
       .run(workerId);
     return result.changes > 0;
