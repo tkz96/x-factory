@@ -54,7 +54,7 @@ export const azureConfigSchema = z.object({
     secret: true,
     envKey: "AZURE_DEVOPS_PAT",
     placeholder: "••••••••",
-    help: "Personal Access Token with Code and Work Items scopes (optional if authenticated via Azure CLI)",
+    help: "Personal Access Token with required scopes: Code (Read & Write) and Work Items (Read & Write) (optional if authenticated via Azure CLI).",
   }),
 });
 

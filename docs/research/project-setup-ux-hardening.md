@@ -245,3 +245,72 @@ Verified with Playwright Chromium against running application at 1280px, 768px, 
 
 PASS
 
+---
+
+# Ticket #162
+
+## Reproduction
+
+Examined the connection verification workflow and provider forms in the wizard (Step 2 Connect Providers):
+1. **Scope requirements undisclosed upfront**: The connection form did not display required token scopes (`repo`, `workflow`) in user-friendly terminology before verification.
+2. **Technical capability jargon on degraded verification**: Missing capabilities (`createPullRequest`, `listRepositories`, `listTickets`) were rendered in raw technical terms without mapping to human-readable permission requirements or actionable remediation instructions.
+3. **No over-privileged detection/warning**: Tokens possessing excessive scopes (such as `delete_repo`, `admin:org`, `admin:repo_hook`) did not trigger an over-privileged warning banner advising least-privilege scoping.
+4. **Technical exceptions exposed**: Technical errors (such as GraphQL mutation names or unhandled exceptions) lacked user-friendly translation.
+
+## RED
+
+Test added: `test/connection-verification-feedback.test.tsx` testing AC1 (upfront user-friendly scope requirements), AC2 (human-readable missing permissions with remediation advice), AC3 (over-privileged token banner and persistence), and AC4 (technical error translation).
+
+Failure observed: **5/5 tests failed** initially (missing elements, unmapped strings, missing `overPrivileged` flags).
+
+## Existing backend logic reused
+
+- Contract `VerificationResult` and `VerificationWarning` from `src/providers/contract.ts`.
+- OAuth scope parsing utilities (`parseOAuthScopes`, `hasAnyScope`, `checkScopeWarnings`) in `src/providers/github/verification.ts`.
+- Normalized error resolution (`resolveErrorCopy`, `isNormalizedError`) in `src/frontend/components/feedback/copy-map.ts`.
+- Shared feedback UI component `FeedbackBanner` with warning/error tones.
+
+## Minimal fix
+
+1. **Provider metadata**: Updated config schemas (`src/providers/github/config.ts`, `src/providers/azure-module.ts`) to clearly articulate required token scopes in user-friendly terms.
+2. **Provider-agnostic scope feedback**: Created `src/frontend/connection/scope-feedback.ts` mapping technical capabilities (`createPullRequest`, `listRepositories`, `listTickets`, `verifyScopes`) to user-friendly permission descriptions and actionable guidance, plus `translateTechnicalError` to mask raw GraphQL/technical errors.
+3. **Upfront scope display**: Added `.connection-required-scopes` in `ConnectionFieldsList.tsx` showing required scopes directly below provider selection.
+4. **Over-privileged detection & presentation**: Extended `VerificationResult` and wizard state to track `overPrivileged`. Updated GitHub credential verification (`src/providers/github/verification.ts`) to flag excessive scopes (`delete_repo`, `admin:org`, `admin:repo_hook`). Rendered warning banner (`.connection-overprivileged-container`) in `ConnectionCardFeedback.tsx`.
+5. **Remediation guidance**: Enhanced `ConnectionDegradedBanner.tsx` with explicit instructions on updating tokens and re-verifying.
+6. **Token-based styles**: Styled new feedback containers in `src/frontend/connection/ConnectionCard.css` using existing design tokens.
+
+## GREEN
+
+- `test/connection-verification-feedback.test.tsx` → 5/5 pass.
+- All wizard and provider suites pass (`provider-journeys.test.tsx`, `connect-step.test.tsx`, `jira-provider.test.ts`, etc.).
+- `bun run check:all` → 13/13 gates green (typecheck, lint, fallow, cycles, knip, docs:schema, agent-docs, build, test:coverage, test:frontend-smoke, test:integration, test:integration:production).
+
+## Browser verification
+
+Executed Playwright with Chromium against the dev server behind the mutex lock at viewports 1280px, 768px, and 480px:
+- Verified required scopes notice rendered on provider selection at all widths.
+- Verified degraded banner with capability-to-permission mapping and actionable remediation text.
+- Verified over-privileged warning banner displayed with warning styling and advice on least privilege.
+- Verified technical error translation concealing raw GraphQL mutation names.
+- Captured and visually confirmed screenshots at all widths in both standard, degraded, over-privileged, and error states.
+
+## Blockers
+
+- Reticle overlay interception: Reticle's presentation scrim/workspace container (`[data-reticle-overlay]`, `.reticle-workspace-wrap`) intercepted Playwright click actions during automated browser checks. Neutralized in the driver script via expanded init script CSS hiding Reticle test instrumentation elements and utilizing Playwright forced clicks.
+- Initial SQLite migration race: Spawning server and worker concurrently in dev mode on a fresh throwaway data directory could race on initial schema migrations. Resolved in the runner script by pre-migrating the throwaway database before starting the dev server.
+
+## Code Review Follow-Up (Round 1)
+
+1. **Provider-agnostic frontend enforced**: Removed hardcoded GitHub scope names (`repo`, `public_repo`) and GraphQL sniffing from `src/frontend/connection/scope-feedback.ts`. Capability copy is phrased strictly by capability.
+2. **`workflow` removed from over-privileged list**: Removed `workflow` from over-privileged detection in `src/providers/github/verification.ts` and extracted a shared `OVER_PRIVILEGED_SCOPES` constant.
+3. **Unconfirmed reported as unconfirmed**: Degraded capabilities state that permission could not be confirmed and guide the user on checking settings rather than asserting missing scopes.
+4. **Real server error translation**: `translateTechnicalError` inspects `NormalizedError.code` first (e.g. `PERMISSION`) before falling back to narrowed error message regexes. AC4 test updated to test realistic `NormalizedError` payload.
+5. **Backend over-privilege testing**: Added tests in `test/github-provider.test.ts` for classic tokens with excessive privileges, standard scopes (`repo`, `workflow`), and fine-grained tokens without scopes headers.
+6. **Icon corrected**: Replaced non-existent `#icon-shield` with `#icon-shield-check` in `ConnectionFieldsList.tsx`.
+7. **Over-privileged copy deduplicated**: Extracted `<OverPrivilegedNotice>` using canonical `CONNECTIONS_COPY.overPrivileged`.
+8. **Contract documented**: Updated `docs/reference/provider-api.md` (§B "Execution (200 OK)") with `overPrivileged` field.
+9. **Minor polish**: Restored Azure CLI note in PAT help text, restored `ConnectionCardFeedback.tsx` file header, used sentence case in "Required permissions & scopes", and updated `ConnectionDegradedBanner.tsx` to open with explicit limited access notice without raw capability IDs.
+
+## Result
+
+PASS

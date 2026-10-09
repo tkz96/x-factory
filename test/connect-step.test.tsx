@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import {
+  CONNECTIONS_COPY,
   ERROR_COPY,
   STATE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
@@ -589,8 +590,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     // Shows partial banner with capability name
     const gitHostCard = getEl("connection-card-gitHost");
     expect(gitHostCard.textContent).toContain("Degraded");
-    expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
-    expect(gitHostCard.textContent).toContain("createPullRequest");
+    expect(gitHostCard.textContent).toContain(CONNECTIONS_COPY.degradedLead);
+    expect(gitHostCard.textContent).toContain("Pull request creation");
   });
 
   it("AUTH_LOCKED: ProviderError {code:'AUTH_LOCKED',context:'VERIFY'} → canonical copy-map remediation text renders verbatim", async () => {
@@ -883,7 +884,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     // Tracker is ok, GitHost is degraded -> the partial state is on the card...
     const gitHostCard = getEl("connection-card-gitHost");
     expect(gitHostCard.textContent).toContain("Degraded");
-    expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
+    expect(gitHostCard.textContent).toContain(CONNECTIONS_COPY.degradedLead);
 
     // ...and Next is ENABLED: there is no acknowledgement to collect.
     expect(document.getElementById("btn-accept-degraded-gitHost")).toBeNull();
@@ -1177,8 +1178,8 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       // The partial state is rendered, naming the unconfirmed capability.
       const gitHostCard = getEl("connection-card-gitHost");
       expect(gitHostCard.textContent).toContain("Degraded");
-      expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
-      expect(gitHostCard.textContent).toContain("createPullRequest");
+      expect(gitHostCard.textContent).toContain("limited access");
+      expect(gitHostCard.textContent).toContain("Pull request creation");
 
       // Tracker is ideal (ok), GitHost is degraded -> permitted: no gate.
       const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
@@ -1249,7 +1250,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       for (const role of ["tracker", "gitHost"]) {
         const card = getEl(`connection-card-${role}`);
         expect(card.textContent).toContain("Degraded");
-        expect(card.textContent).toContain("someCapability");
+        expect(card.textContent).toContain("Some Capability");
       }
 
       const nextBtn = getEl<HTMLButtonElement>("btn-step-2-next");
@@ -2073,7 +2074,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         "Degraded",
       );
       expect(getEl("connection-card-gitHost").textContent).toContain(
-        "createPullRequest",
+        "Pull request creation",
       );
 
       leaveConnectAndReturn();
@@ -2083,10 +2084,10 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       // back with it.
       const gitHostCard = getEl("connection-card-gitHost");
       expect(gitHostCard.textContent).toContain("Degraded");
-      expect(gitHostCard.textContent).toContain(STATE_COPY.partial);
-      expect(gitHostCard.textContent).toContain("createPullRequest");
+      expect(gitHostCard.textContent).toContain("limited access");
+      expect(gitHostCard.textContent).toContain("Pull request creation");
       expect(getEl("connection-card-tracker").textContent).toContain(
-        "createPullRequest",
+        "Pull request creation",
       );
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
       // Still no acknowledgement to collect after the round trip (#133).

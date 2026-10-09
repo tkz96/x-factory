@@ -191,6 +191,7 @@ export function writeProviderConfig(
       // carries over from the configuration that was replaced.
       verified: false,
       unconfirmedCapabilities: [],
+      missingScopes: undefined,
     };
   }
   return next;
@@ -234,6 +235,7 @@ export function selectProvider(
       // exactly the stale value the wizard must never carry forward.
       verified: false,
       unconfirmedCapabilities: [],
+      missingScopes: undefined,
     },
   });
 }

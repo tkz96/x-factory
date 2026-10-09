@@ -69,13 +69,17 @@ export function resolveVerificationDisplay(
   if (!isConnectionUsable(evidence)) return null;
   if (verification) return verification;
   const unconfirmed = evidence.unconfirmedCapabilities ?? [];
-  if (unconfirmed.length === 0) return null;
+  if (unconfirmed.length === 0 && !evidence.overPrivileged) return null;
   return {
-    status: "degraded",
+    status: unconfirmed.length > 0 ? "degraded" : "ok",
     warnings: unconfirmed.map((capability) => ({
       kind: "CAPABILITY_UNCONFIRMED" as const,
       capability,
+      ...(evidence.missingScopes?.[capability]
+        ? { missingScopes: evidence.missingScopes[capability] }
+        : {}),
     })),
+    ...(evidence.overPrivileged ? { overPrivileged: true } : {}),
   };
 }
 

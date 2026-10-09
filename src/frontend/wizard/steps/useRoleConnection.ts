@@ -171,6 +171,7 @@ export function useRoleConnection(
           generation,
           verified: false,
           unconfirmedCapabilities: [],
+          missingScopes: undefined,
         });
       } else {
         setAttempt({
@@ -186,6 +187,20 @@ export function useRoleConnection(
         // verified flag is what survives a step change: the provider accepted
         // the credentials, and a later step can only re-verify it, never
         // re-invent it.
+        const missingScopesMap: Record<string, string[]> = {};
+        if (res.status === "degraded") {
+          for (const w of res.warnings) {
+            if (
+              w.kind === "CAPABILITY_UNCONFIRMED" &&
+              w.missingScopes &&
+              w.missingScopes.length > 0
+            ) {
+              missingScopesMap[w.capability] = [...w.missingScopes];
+            }
+          }
+        }
+        const hasMissingScopes = Object.keys(missingScopesMap).length > 0;
+
         dispatch({
           type: "RECORD_VERIFICATION",
           role,
@@ -198,6 +213,10 @@ export function useRoleConnection(
                   .filter((w) => w.kind === "CAPABILITY_UNCONFIRMED")
                   .map((w) => w.capability)
               : [],
+          missingScopes: hasMissingScopes ? missingScopesMap : undefined,
+          ...(res.overPrivileged !== undefined
+            ? { overPrivileged: res.overPrivileged }
+            : {}),
         });
       }
     } catch (err) {
@@ -218,6 +237,7 @@ export function useRoleConnection(
         generation,
         verified: false,
         unconfirmedCapabilities: [],
+        missingScopes: undefined,
       });
     }
   };

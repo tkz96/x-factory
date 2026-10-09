@@ -102,7 +102,7 @@ therefore true for `connected` and `degraded` alike, and there is no
 acknowledgement to collect — the wizard carries no `degradedAccepted` field, and
 `CONNECTIONS_COPY.stateLabel` has exactly one label per state. The warnings stay
 VISIBLE in three places: the Connect card's partial banner (naming each
-unconfirmed capability, with retry), the combo line's `degraded` state at Review
+unconfirmed capability in human-readable terms, with retry), the combo line's `degraded` state at Review
 and on the post-creation surfaces, and the post-creation warning banner. This is
 deliberately narrower than the staleness rule above: a STALE value still blocks,
 and only re-verification clears it.

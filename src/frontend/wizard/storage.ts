@@ -181,6 +181,12 @@ function isConnectionRoleState(value: unknown): boolean {
       (Array.isArray(value.unconfirmedCapabilities) &&
         value.unconfirmedCapabilities.every(
           (capability) => typeof capability === "string",
+        ))) &&
+    (value.missingScopes === undefined ||
+      (isRecord(value.missingScopes) &&
+        Object.values(value.missingScopes).every(
+          (scopes) =>
+            Array.isArray(scopes) && scopes.every((s) => typeof s === "string"),
         )))
   );
 }

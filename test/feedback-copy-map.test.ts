@@ -3,6 +3,8 @@
 
 import { describe, expect, it } from "bun:test";
 import {
+  CONNECTIONS_COPY,
+  DEGRADED_CAPABILITY_COPY,
   ERROR_COPY,
   formatRetryCountdown,
   getErrorCopy,
@@ -162,5 +164,53 @@ describe("feedback copy map", () => {
       expect(copy).not.toContain("MISSING_");
     }
     expect(tracker).not.toBe(gitHost);
+  });
+
+  it("carries canonical degraded connection copy constants and capability mappings", () => {
+    expect(CONNECTIONS_COPY.verified).toBe("Connection verified");
+    expect(CONNECTIONS_COPY.degradedLead).toBe(
+      "Connection verified with limited access. The following permissions could not be confirmed:",
+    );
+    expect(CONNECTIONS_COPY.degradedRemediation).toBe(
+      "Update your token in your provider settings to grant the required permissions, then click Re-verify to proceed.",
+    );
+    expect(CONNECTIONS_COPY.degradedRemediationUnconfirmed).toBe(
+      "This permission can only be confirmed when X-Factory first creates a pull request.",
+    );
+    expect(CONNECTIONS_COPY.requiredScopesTitle).toBe(
+      "Required permissions & scopes",
+    );
+    expect(CONNECTIONS_COPY.requiredScopesFallbackHelp).toBe(
+      "Ensure your credential has the required permissions for repository and issue tracking operations.",
+    );
+
+    const capabilities = [
+      "createPullRequest",
+      "listRepositories",
+      "listTickets",
+      "verifyScopes",
+    ] as const;
+    for (const cap of capabilities) {
+      const entry = DEGRADED_CAPABILITY_COPY[cap];
+      expect(entry).toBeDefined();
+      expect(entry.label.length).toBeGreaterThan(0);
+      expect(entry.unconfirmed).toContain(entry.label);
+      expect(entry.missing("repo")).toContain(entry.label);
+      expect(entry.missing("repo")).toContain("Missing: repo");
+      expect(entry.remediation.length).toBeGreaterThan(0);
+    }
+
+    expect(DEGRADED_CAPABILITY_COPY.createPullRequest.remediation).toBe(
+      CONNECTIONS_COPY.degradedRemediationUnconfirmed,
+    );
+    expect(DEGRADED_CAPABILITY_COPY.listRepositories.remediation).toBe(
+      CONNECTIONS_COPY.degradedRemediation,
+    );
+    expect(DEGRADED_CAPABILITY_COPY.listTickets.remediation).toBe(
+      CONNECTIONS_COPY.degradedRemediation,
+    );
+    expect(DEGRADED_CAPABILITY_COPY.verifyScopes.remediation).toBe(
+      CONNECTIONS_COPY.degradedRemediation,
+    );
   });
 });

@@ -1,5 +1,6 @@
 // src/frontend/connection/ConnectionFieldsList.tsx — Config fields, feedback, and action button.
 
+import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { ConnectionCardFeedback } from "./ConnectionCardFeedback.js";
 import { ConnectionField } from "./ConnectionField.js";
 import { ConnectionVerifyButton } from "./ConnectionVerifyButton.js";
@@ -53,9 +54,27 @@ export function ConnectionFieldsList({
     fieldErrors && Object.keys(fieldErrors).length > 0,
   );
   const isVerifyDisabled = disabled || isPending;
+  const secretField = roleFields.find((f) => f.secret || f.type === "secret");
 
   return (
     <div className="connection-card-fields">
+      <div
+        className="connection-required-scopes"
+        id={`connection-required-scopes-${connectionRole}`}
+      >
+        <div className="connection-required-scopes-header">
+          <svg className="icon icon-sm" aria-hidden="true">
+            <use href="/assets/icons/sprite.svg#icon-shield-check" />
+          </svg>
+          <span className="connection-required-scopes-title">
+            {CONNECTIONS_COPY.requiredScopesTitle}
+          </span>
+        </div>
+        <p className="connection-required-scopes-text">
+          {secretField?.help ?? CONNECTIONS_COPY.requiredScopesFallbackHelp}
+        </p>
+      </div>
+
       {roleFields.map((field) => {
         const fieldError = fieldErrors?.[field.name];
         return (
