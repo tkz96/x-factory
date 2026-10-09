@@ -32,7 +32,10 @@ import {
   type StageResult,
 } from "./executors/index.js";
 import { finalizeDeliver } from "./services/deliver-service.js";
-import { canTransition } from "./shared/run-status-policy.js";
+import {
+  AWAITING_HUMAN_RUN_STATUSES,
+  canTransition,
+} from "./shared/run-status-policy.js";
 import type { Project, PullRequest, RunStatus } from "./shared/types.js";
 
 export interface WorkerLogEntry {
@@ -230,12 +233,7 @@ export class Worker {
   }
 
   private reclaimOrphanedRun(run: RunRecord): boolean {
-    if (
-      run.status === "ready_for_pr" ||
-      run.status === "awaiting_review" ||
-      run.status === "awaiting_plan_approval" ||
-      run.status === "awaiting_understanding_approval"
-    ) {
+    if (AWAITING_HUMAN_RUN_STATUSES.has(run.status)) {
       return false;
     }
 

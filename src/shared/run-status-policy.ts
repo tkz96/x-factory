@@ -96,6 +96,39 @@ export const ACTIVE_RUN_STATUSES = new Set<RunStatus>(
   ),
 );
 
+/** Terminal statuses where the run ended without a pull request. */
+export const UNSUCCESSFUL_TERMINAL_RUN_STATUSES = new Set<RunStatus>([
+  "failed",
+  "stopped",
+]);
+
+/** Statuses at or past delivery: the run is ready for, or has, a pull request. */
+export const DELIVERY_RUN_STATUSES = new Set<RunStatus>([
+  "ready_for_pr",
+  "pr_created",
+]);
+
+/** Statuses that show the human checkpoint / delivery section of a run. */
+export const CHECKPOINT_RUN_STATUSES = new Set<RunStatus>([
+  "awaiting_review",
+  "ready_for_pr",
+  "pr_created",
+]);
+
+/** Statuses where the run waits on a human and holds no worker-driven work. */
+export const AWAITING_HUMAN_RUN_STATUSES = new Set<RunStatus>([
+  "awaiting_understanding_approval",
+  "awaiting_plan_approval",
+  "awaiting_review",
+  "ready_for_pr",
+]);
+
+/** Statuses that hold no live work: terminal runs plus `recovery_required`. */
+export const NON_LIVE_RUN_STATUSES = new Set<RunStatus>([
+  ...TERMINAL_RUN_STATUSES,
+  "recovery_required",
+]);
+
 /**
  * User-triggered run actions guarded by the server (see `src/runs.ts` and
  * `src/http/runs-controller.ts`). `abort` is absent because the server maps it

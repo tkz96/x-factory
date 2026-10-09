@@ -4,6 +4,7 @@ import type { Database } from "bun:sqlite";
 import { ConflictError, NotFoundError } from "../errors.js";
 import {
   canTransition,
+  NON_LIVE_RUN_STATUSES,
   TERMINAL_RUN_STATUSES,
 } from "../shared/run-status-policy.js";
 import type {
@@ -235,7 +236,7 @@ export class RunRepository {
    */
   listActive(txDb?: Database): RunRecord[] {
     const db = this.getDb(txDb);
-    const excludedStatuses = [...TERMINAL_RUN_STATUSES, "recovery_required"];
+    const excludedStatuses = [...NON_LIVE_RUN_STATUSES];
     const placeholders = excludedStatuses.map(() => "?").join(", ");
     const stmt = db.prepare(`
       SELECT * FROM runs
@@ -417,9 +418,7 @@ export class RunRepository {
       const finishedAt =
         options?.finishedAt !== undefined
           ? options.finishedAt
-          : toState === "pr_created" ||
-              toState === "failed" ||
-              toState === "stopped"
+          : TERMINAL_RUN_STATUSES.has(toState)
             ? now
             : current.finished_at;
 
