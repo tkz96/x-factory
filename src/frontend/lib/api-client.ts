@@ -375,47 +375,32 @@ export const api = {
     );
   },
 
-  async testScopes(payload: {
-    projectId?: string | undefined;
-    providerId?: string | undefined;
-    organization?: string | undefined;
-    project?: string | undefined;
-    pat?: string | undefined;
-    [key: string]: unknown;
-  }): Promise<{
+  /**
+   * "Verify scopes" on an existing project (#183): the canonical project-scoped
+   * tracker action. The server resolves the project's STORED tracker connection
+   * (recorded config + stored secrets); the request carries no configuration.
+   * A provider failure arrives as the normalized envelope, never raw text.
+   */
+  async verifyProjectScopes(projectId: string): Promise<{
     ok: boolean;
     overPrivileged?: boolean | undefined;
     scopes?: Record<string, unknown> | undefined;
     errors?: string[] | undefined;
     warnings?: string[] | undefined;
-    error?: string | undefined;
+    error?: NormalizedError | undefined;
   }> {
-    const res = await fetch("/api/projects/test-scopes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/tracker/scopes`,
+      { method: "POST" },
+    );
     return handleResponse<{
       ok: boolean;
       overPrivileged?: boolean | undefined;
       scopes?: Record<string, unknown> | undefined;
       errors?: string[] | undefined;
       warnings?: string[] | undefined;
-      error?: string | undefined;
+      error?: NormalizedError | undefined;
     }>(res);
-  },
-
-  /**
-   * @deprecated Use `testScopes` instead. Retained for backwards compatibility.
-   */
-  async testAzureScopes(payload: {
-    projectId?: string | undefined;
-    organization?: string | undefined;
-    project?: string | undefined;
-    pat?: string | undefined;
-    [key: string]: unknown;
-  }) {
-    return this.testScopes(payload);
   },
 
   // Settings & Readiness

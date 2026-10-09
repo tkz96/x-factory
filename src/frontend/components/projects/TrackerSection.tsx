@@ -96,12 +96,13 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
   // The action is gated on the connection's DECLARED CAPABILITY, never on a
   // provider id: a provider that adds `verifyScopes` gets the action with no
-  // change here. The call dispatches through the generic api.testScopes endpoint.
+  // change here. The call is the canonical project-scoped tracker action, which
+  // probes the project's STORED connection (#183).
   const handleVerifyScopes = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await api.testScopes({ projectId: project.id });
+      const res = await api.verifyProjectScopes(project.id);
       setTestResult({ ok: res.ok, overPrivileged: res.overPrivileged });
     } catch {
       setTestResult({ ok: false });

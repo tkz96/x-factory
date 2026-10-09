@@ -447,13 +447,13 @@ export function getOpenApiSpec() {
           },
         },
       },
-      "/api/projects/{id}/test-connection": {
+      "/api/projects/{id}/tracker/test": {
         post: {
           tags: ["Projects"],
           summary: "Test Project Tracker Connection",
           description:
-            "Tests connectivity, authentication, and permission scopes for the project's configured issue tracker.",
-          operationId: "testProjectConnection",
+            "Tests the project's STORED tracker connection: connectivity, authentication, and permission scopes. The connection is resolved from the recorded `connections` plus the project's stored secrets; the request body carries no configuration.",
+          operationId: "testProjectTracker",
           parameters: [
             {
               name: "id",
@@ -470,62 +470,6 @@ export function getOpenApiSpec() {
                 "application/json": {
                   schema: {
                     $ref: "#/components/schemas/ConnectionTestResult",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      "/api/projects/discover-repositories": {
-        post: {
-          tags: ["Discovery"],
-          summary: "Discover Repositories (Legacy)",
-          description:
-            "Legacy wire endpoint for repository discovery. Retained for backward compatibility; delegates to the provider registry. The canonical endpoint is POST /api/providers/repositories.",
-          deprecated: true,
-          operationId: "discoverRepositories",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  required: ["provider"],
-                  properties: {
-                    provider: {
-                      type: "string",
-                      enum: ["azure", "github", "gitlab", "jira", "local"],
-                      example: "azure",
-                    },
-                    orgUrl: {
-                      type: "string",
-                      example: "https://dev.azure.com/my-org",
-                    },
-                    project: { type: "string", example: "CorePlatform" },
-                    pat: { type: "string", example: "••••••••" },
-                    localPath: { type: "string", example: "~/code/workbench" },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Discovered repositories",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    properties: {
-                      ok: { type: "boolean" },
-                      repositories: {
-                        type: "array",
-                        items: {
-                          $ref: "#/components/schemas/DiscoveredRepository",
-                        },
-                      },
-                    },
                   },
                 },
               },
@@ -625,36 +569,22 @@ export function getOpenApiSpec() {
           },
         },
       },
-      "/api/projects/test-scopes": {
+      "/api/projects/{id}/tracker/scopes": {
         post: {
-          tags: ["Discovery"],
-          summary: "Verify Tracker Provider Scopes",
+          tags: ["Projects"],
+          summary: "Verify Project Tracker Scopes",
           description:
-            "Probes the resolved tracker provider's credentials for the capabilities that provider must hold. The provider is resolved from `providerId`, or from the tracker connection recorded on `projectId`; a connection whose provider does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for.",
-          operationId: "testScopes",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    providerId: {
-                      type: "string",
-                      example: "azure",
-                    },
-                    projectId: { type: "string", example: "proj-1" },
-                    orgUrl: {
-                      type: "string",
-                      example: "https://dev.azure.com/my-org",
-                    },
-                    project: { type: "string", example: "Platform" },
-                    pat: { type: "string", example: "token-string" },
-                  },
-                },
-              },
+            "Probes the project's STORED tracker connection for the capabilities its provider must hold. The connection is resolved from the recorded `connections` plus the project's stored secrets — never from the request body, which is ignored. A provider that does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for; a thrown provider failure crosses the boundary as the normalized (code, context) envelope.",
+          operationId: "verifyProjectScopes",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              description: "Project identifier",
+              schema: { type: "string" },
             },
-          },
+          ],
           responses: {
             "200": {
               description: "Provider scope audit report",
@@ -666,54 +596,8 @@ export function getOpenApiSpec() {
                 },
               },
             },
-          },
-        },
-      },
-      "/api/projects/test-azure-scopes": {
-        post: {
-          tags: ["Discovery"],
-          summary: "Verify Tracker Provider Scopes (Legacy Wire Alias)",
-          description:
-            "Legacy wire alias for `/api/projects/test-scopes`. Probes the resolved tracker provider's credentials for required capabilities. Kept for backward compatibility with older clients.",
-          deprecated: true,
-          operationId: "testAzureScopes",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    // The registry's own id. The example is the id that a
-                    // client can actually send; `azure-devops` is not a
-                    // registered provider.
-                    providerId: {
-                      type: "string",
-                      example: "azure",
-                    },
-                    projectId: { type: "string", example: "proj-1" },
-                    orgUrl: {
-                      type: "string",
-                      example: "https://dev.azure.com/my-org",
-                    },
-                    project: { type: "string", example: "Platform" },
-                    pat: { type: "string", example: "token-string" },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Provider scope audit report",
-              content: {
-                "application/json": {
-                  schema: {
-                    $ref: "#/components/schemas/ScopeVerificationResult",
-                  },
-                },
-              },
-            },
+            "400": { description: "The project records no tracker connection" },
+            "404": { description: "Project not found" },
           },
         },
       },

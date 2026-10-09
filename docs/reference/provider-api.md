@@ -566,34 +566,35 @@ write through `createProject`, after the tracker gate above.
 Codes only — provider and zod messages never cross the boundary. Upstream
 failures use the separate `ProviderError` envelope.
 
-### Scope diagnostic (`POST /api/projects/test-scopes`, legacy alias `POST /api/projects/test-azure-scopes`)
+### Scope diagnostic (`POST /api/projects/{id}/tracker/scopes`, #183)
 
-The canonical endpoint is `POST /api/projects/test-scopes`, with `POST /api/projects/test-azure-scopes`
-retained as a legacy wire alias for backward compatibility. Its RESOLUTION names no
-provider (#141). The provider a diagnostic runs against is resolved in this
-order, and nothing else is consulted:
+The scope diagnostic is a project-scoped tracker action. It has no flat or
+provider-named alias: `POST /api/projects/test-scopes` and its historical
+`test-azure-scopes` twin were deleted with the duplicate provider routes, and
+the request body is not read at all (#183).
 
-1. an explicit `providerId` in the body, which must be registered;
-2. otherwise the tracker connection recorded on the body's `projectId`;
-3. otherwise nothing resolves, and the request is answered with the honest
-   `{ ok: false, scopes: {}, errors: ["No tracker connection resolved …"] }`
-   copy.
+The connection it probes is the project's OWN tracker connection, resolved
+through the project connections module: the recorded `connections` entry for
+the `tracker` role, with the project's stored secrets merged in by each
+provider schema's `envKey`. Nothing from the request body reaches the provider,
+so a client cannot substitute a configuration — and cannot try to send a secret
+across the boundary.
 
-The resolved provider is then dispatched through
-`hasCapability(provider, "verifyScopes")`: a provider that does not declare the
-capability is reported as a capability gap in provider-agnostic copy, never
-substituted for, and a provider that does declare it answers with the findings
-for its own capabilities.
+Outcomes, in order:
 
-The historical Azure-shaped body (`{ orgUrl, project, pat }`) names NEITHER a
-provider nor a project, so it resolves nothing and is answered as unresolved —
-the route does not fall back to a provider-shaped body, because a generic
-consumer must not branch on a concrete provider identity. A client that wants a
-diagnostic for a specific connection sends `providerId` or `projectId`
-(`src/http/openapi.ts` documents the accepted body, with the registry's real id
-as the example). `test/provider-scope-diagnostics.test.ts` covers the resolution
-order and the gap copy against an injected registry; `test/integration.test.ts`
-covers both outcomes against the shipped one.
+1. no such project → 404 `{ error }`;
+2. the project records no tracker connection → 400 `{ error }`;
+3. the resolved provider does not declare `verifyScopes` → 200 with
+   `{ ok: false, overPrivileged: false, scopes: {}, errors: ["The resolved
+   tracker provider does not support scope verification."], warnings: [] }` — a
+   capability gap reported in provider-agnostic copy, never substituted for;
+4. the provider throws → 200 with the normalized `ProviderError` under `error`,
+   and empty `errors`/`warnings`. The thrown text, which may quote the
+   configuration, never crosses the boundary.
+
+`test/provider-scope-diagnostics.test.ts` covers all of it against an injected
+registry at the HTTP API seam; `test/integration.test.ts` covers the stored
+connection end to end against the shipped registry.
 
 ### Secret update semantics
 
