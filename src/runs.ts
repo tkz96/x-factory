@@ -292,7 +292,10 @@ export async function createPR(
       );
     }
 
-    const existingCmd = commandRepo.getCommand(`deliver:${id}`, db);
+    const existingCmd = commandRepo.getCommandByIdempotencyKey(
+      `deliver:${id}`,
+      db,
+    );
     if (existingCmd) {
       if (
         existingCmd.status === "pending" ||

@@ -208,12 +208,25 @@ export class CommandRepository {
     leaseDurationMs = 30000,
     heartbeatTtlMs = 30000,
     txDb?: Database,
+    nowMs = Date.now(),
   ): CommandRecord[] {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
     const cutoff = new Date(nowMs - heartbeatTtlMs).toISOString();
+
+    // 0. Fail expired claimed commands that cannot be retried (attempts >= max_attempts)
+    conn
+      .prepare(`
+        UPDATE run_commands
+        SET status = 'failed',
+            worker_id = NULL,
+            lease_until = NULL,
+            error = 'Command lease expired; retries exhausted',
+            processed_at = $now
+        WHERE status = 'claimed' AND lease_until < $now AND attempts >= max_attempts;
+      `)
+      .run({ $now: now });
 
     // 1. Resolve stale targeted commands (where target is a different worker)
     const pendingTargeted = conn
@@ -390,9 +403,9 @@ export class CommandRepository {
     workerId: string,
     leaseDurationMs: number,
     txDb?: Database,
+    nowMs = Date.now(),
   ): boolean {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
     const res = conn

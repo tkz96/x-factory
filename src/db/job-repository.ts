@@ -136,9 +136,9 @@ export class JobRepository {
     workerId: string,
     leaseDurationMs = 30000,
     txDb?: Database,
+    nowMs = Date.now(),
   ): JobRecord | null {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -180,9 +180,9 @@ export class JobRepository {
     workerId: string,
     leaseDurationMs = 30000,
     txDb?: Database,
+    nowMs = Date.now(),
   ): JobRecord | null {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -226,9 +226,9 @@ export class JobRepository {
     workerId: string,
     leaseDurationMs = 30000,
     txDb?: Database,
+    nowMs = Date.now(),
   ): boolean {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
