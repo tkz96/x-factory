@@ -58,7 +58,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       expect(provider?.iconRef).toBe("provider-azure");
 
       const required = requireProvider("azure");
-      expect(required).toBe(azureProvider);
+      expect(required.id).toBe(azureProvider.id);
+      expect(Object.getPrototypeOf(required)).toBe(azureProvider);
 
       const all = listProviders();
       expect(all.some((p) => p.id === "azure")).toBe(true);

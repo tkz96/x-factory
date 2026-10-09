@@ -11,7 +11,12 @@
 // throw already-normalized ProviderError tagged with operation context (#184).
 
 import { azureProvider } from "./azure-module.js";
-import type { Provider, ProviderErrorContext, ProviderId } from "./contract.js";
+import {
+  markCapabilityAbsent,
+  type Provider,
+  type ProviderErrorContext,
+  type ProviderId,
+} from "./contract.js";
 import { ProviderError } from "./errors.js";
 import { githubProvider } from "./github-module.js";
 import { jiraProvider } from "./jira-module.js";
@@ -26,74 +31,87 @@ export type ProviderLookupId = ProviderId | (string & {});
 /** A set of providers keyed by id. Injectable so tests can use stubs. */
 export type ProviderRegistry = ReadonlyMap<string, Provider>;
 
-const WRAPPED_SYMBOL = Symbol.for("x-factory.provider.wrapped");
+type CapabilityName = keyof typeof CAPABILITY_CONTEXTS;
 
-const CAPABILITY_CONTEXTS: Readonly<
-  Record<
-    | "verifyCredentials"
-    | "verifyScopes"
-    | "listRepositories"
-    | "listTickets"
-    | "createPullRequest"
-    | "findExistingPullRequest",
-    ProviderErrorContext
-  >
-> = {
+const CAPABILITY_CONTEXTS = {
   verifyCredentials: "VERIFY",
   verifyScopes: "VERIFY",
   listRepositories: "DISCOVERY",
   listTickets: "TICKETS",
   createPullRequest: "PR",
   findExistingPullRequest: "PR",
-};
+} as const satisfies Record<string, ProviderErrorContext>;
 
 /**
- * Wraps a provider instance so that every capability call throws an
- * already-normalized `ProviderError` tagged with its context (#184).
- *
- * In-place wrapping with an idempotent symbol marker preserves referential
- * equality (`provider === stubProvider`).
+ * A provider as the registry hands it out. `createPullRequest` is always
+ * callable: when the underlying provider lacks it, the call throws a
+ * normalized `ProviderError` (`hasCapability` still reports it as absent), so
+ * callers never re-check the capability themselves.
  */
-export function wrapProvider<P extends Provider>(provider: P): P {
-  if (
-    (provider as unknown as Record<symbol, unknown>)[WRAPPED_SYMBOL] === true
-  ) {
-    return provider;
-  }
+export type RegisteredProvider<Id extends string = string> = Provider<Id> &
+  Required<Pick<Provider, "createPullRequest">>;
 
-  for (const [methodName, context] of Object.entries(CAPABILITY_CONTEXTS)) {
-    const original = (provider as unknown as Record<string, unknown>)[
-      methodName
-    ];
+/** Every registry-made wrapper, so a wrapper is never wrapped again. */
+const WRAPPERS = new WeakSet<object>();
+/** One wrapper per provider object, so identity is stable across lookups. */
+const WRAPPER_OF = new WeakMap<object, RegisteredProvider>();
+
+function normalizeFailure(
+  provider: Provider,
+  err: unknown,
+  context: ProviderErrorContext,
+): ProviderError {
+  if (err instanceof ProviderError) {
+    return new ProviderError(err.code, context, {
+      retryAfterMs: err.retryAfterMs,
+      cause: err.cause,
+    });
+  }
+  const normalized = provider.toUserError(err, context);
+  return new ProviderError(normalized.code, context, {
+    retryAfterMs: normalized.retryAfterMs,
+    cause: err,
+  });
+}
+
+/**
+ * Returns a wrapper around `provider` in which every capability call throws an
+ * already-normalized `ProviderError` tagged with its context (#184). The
+ * provider object itself is never modified; the wrapper is built once per
+ * provider and reused.
+ */
+export function wrapProvider<Id extends string>(
+  provider: Provider<Id>,
+): RegisteredProvider<Id> {
+  if (WRAPPERS.has(provider)) return provider as RegisteredProvider<Id>;
+  const cached = WRAPPER_OF.get(provider);
+  if (cached) return cached as RegisteredProvider<Id>;
+
+  const wrapper = Object.create(provider) as Record<string, unknown>;
+  for (const name of Object.keys(CAPABILITY_CONTEXTS) as CapabilityName[]) {
+    const context = CAPABILITY_CONTEXTS[name];
+    const original = provider[name] as
+      | ((...args: unknown[]) => Promise<unknown>)
+      | undefined;
     if (typeof original === "function") {
-      (provider as unknown as Record<string, unknown>)[methodName] = async (
-        ...args: unknown[]
-      ) => {
+      wrapper[name] = async (...args: unknown[]) => {
         try {
-          return await (
-            original as (...args: unknown[]) => Promise<unknown>
-          ).apply(provider, args);
+          return await original.apply(provider, args);
         } catch (err: unknown) {
-          if (err instanceof ProviderError) {
-            throw err;
-          }
-          const normalized = provider.toUserError(err, context);
-          throw new ProviderError(normalized.code, normalized.context, {
-            retryAfterMs: normalized.retryAfterMs,
-            cause: err,
-          });
+          throw normalizeFailure(provider, err, context);
         }
       };
     }
   }
+  if (typeof provider.createPullRequest !== "function") {
+    wrapper.createPullRequest = markCapabilityAbsent(async () => {
+      throw new ProviderError("UNKNOWN", "PR");
+    });
+  }
 
-  Object.defineProperty(provider, WRAPPED_SYMBOL, {
-    value: true,
-    enumerable: false,
-    configurable: false,
-  });
-
-  return provider;
+  WRAPPERS.add(wrapper);
+  WRAPPER_OF.set(provider, wrapper as unknown as RegisteredProvider);
+  return wrapper as unknown as RegisteredProvider<Id>;
 }
 
 /** Built-in providers, wrapped with normalized errors (#184). */
@@ -111,7 +129,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry = new Map<string, Provider>(
 /** Lists every registered provider, wrapped with normalized errors (#184). */
 export function listProviders(
   registry: ProviderRegistry = PROVIDER_REGISTRY,
-): readonly Provider[] {
+): readonly RegisteredProvider[] {
   return [...registry.values()].map((provider) => wrapProvider(provider));
 }
 
@@ -119,7 +137,7 @@ export function listProviders(
 export function getProvider(
   id: ProviderLookupId,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
-): Provider | undefined {
+): RegisteredProvider | undefined {
   const provider = registry.get(id);
   return provider ? wrapProvider(provider) : undefined;
 }
@@ -128,7 +146,7 @@ export function getProvider(
 export function requireProvider(
   id: ProviderLookupId,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
-): Provider {
+): RegisteredProvider {
   const provider = registry.get(id);
   if (!provider) {
     const known = [...registry.keys()].join(", ") || "(none)";

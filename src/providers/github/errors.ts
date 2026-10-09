@@ -1,9 +1,9 @@
 // src/providers/github/errors.ts — GitHub error normalization and HTTP error class (#138).
 
 import type {
-  ProviderError,
   ProviderErrorCode,
   ProviderErrorContext,
+  ProviderErrorEnvelope,
 } from "../contract.js";
 import { normalizeRawObjectGuard } from "../errors.js";
 import { ProviderHttpError, parseRetryAfter } from "../http.js";
@@ -166,7 +166,7 @@ function resolveCodeFromMessage(message: string): ProviderErrorCode {
 function extractFromGitHubHttpError(
   error: GitHubHttpError,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   const code = error.isRateLimit
     ? "RATE_LIMITED"
     : resolveCodeFromStatus(error.status, error.headers, error.bodyText);
@@ -181,7 +181,7 @@ function extractFromGitHubHttpError(
 function extractFromStatusLikeObject(
   error: Record<string, unknown>,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   const status = typeof error.status === "number" ? error.status : 0;
   const headers = error.headers instanceof Headers ? error.headers : undefined;
   const bodyText =
@@ -207,7 +207,7 @@ function extractFromStatusLikeObject(
 function extractFromStandardError(
   error: Error,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   const code = resolveCodeFromMessage(error.message);
   const retryAfterMs =
     code === "RATE_LIMITED" && "retryAfterMs" in error
@@ -222,12 +222,12 @@ function extractFromStandardError(
 }
 
 /**
- * Normalizes an error into the canonical ProviderError shape.
+ * Normalizes an error into the canonical ProviderErrorEnvelope shape.
  */
 export function toGitHubUserError(
   error: unknown,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   const existing = normalizeRawObjectGuard(error, context);
   if (existing) return existing;
 

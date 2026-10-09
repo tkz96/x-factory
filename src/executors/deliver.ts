@@ -71,14 +71,7 @@ export async function defaultCreatePullRequest(
     return existing.url;
   }
 
-  const createPullRequest = provider.createPullRequest;
-  if (!createPullRequest) {
-    throw new Error(
-      `Provider "${provider.id}" does not support createPullRequest.`,
-    );
-  }
-
-  const pr = await createPullRequest(config, {
+  const pr = await provider.createPullRequest(config, {
     repository,
     title: params.prTitle,
     description: params.prBody,

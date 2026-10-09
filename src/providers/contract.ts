@@ -93,14 +93,16 @@ export type ProviderErrorContext =
  * Structured error envelope. `retryAfterMs` is provider-computed, positive,
  * milliseconds and is present only when actually known.
  */
-export interface ProviderError {
+export interface ProviderErrorEnvelope {
   code: ProviderErrorCode;
   context: ProviderErrorContext;
   retryAfterMs?: number;
 }
 
 /** Runtime guard for values crossing the API boundary as error envelopes. */
-export function isProviderError(value: unknown): value is ProviderError {
+export function isProviderError(
+  value: unknown,
+): value is ProviderErrorEnvelope {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -301,7 +303,10 @@ export interface Provider<Id extends string = string> {
    * Normalizes provider-specific status/body/header semantics into the
    * error envelope. The raw error never crosses the provider/API boundary.
    */
-  toUserError(raw: unknown, context: ProviderErrorContext): ProviderError;
+  toUserError(
+    raw: unknown,
+    context: ProviderErrorContext,
+  ): ProviderErrorEnvelope;
   /** Structured scope report with findings and an over-privilege signal. */
   verifyScopes?(config: ProviderConfig): Promise<ScopeVerificationReport>;
   /** Repository discovery. Optional — Jira Cloud has no repo-discovery API. */
@@ -347,7 +352,23 @@ export function hasCapability<Capability extends ProviderCapability>(
   provider: Provider,
   capability: Capability,
 ): provider is Provider & Required<Pick<Provider, Capability>> {
-  return typeof provider[capability] === "function";
+  const method = provider[capability];
+  return typeof method === "function" && !ABSENT_CAPABILITY_STUBS.has(method);
+}
+
+/**
+ * Methods the registry installs to make a missing capability fail with a
+ * normalized error (#184). They are callable but are NOT capabilities:
+ * `hasCapability` reports them as absent.
+ */
+const ABSENT_CAPABILITY_STUBS = new WeakSet<object>();
+
+/** Marks `stub` as a placeholder for a capability the provider lacks. */
+export function markCapabilityAbsent<F extends (...args: never[]) => unknown>(
+  stub: F,
+): F {
+  ABSENT_CAPABILITY_STUBS.add(stub);
+  return stub;
 }
 
 /**

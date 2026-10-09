@@ -21,8 +21,8 @@ import {
   type FindPullRequestInput,
   type Provider,
   type ProviderConfig,
-  type ProviderError,
   type ProviderErrorContext,
+  type ProviderErrorEnvelope,
   type ProviderPullRequest,
   type ProviderRepository,
   REQUIRED_WORKFLOW_LABEL,
@@ -329,7 +329,7 @@ export async function azureFetch(
 export function toUserError(
   raw: unknown,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   const fromGuard = normalizeRawObjectGuard(raw, context);
   if (fromGuard) {
     return fromGuard;

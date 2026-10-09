@@ -25,7 +25,7 @@ import {
   type ProviderConfig,
   REQUIRED_WORKFLOW_LABEL,
 } from "../providers/contract.js";
-import { getProviderErrorMessage, ProviderError } from "../providers/errors.js";
+import { ProviderError } from "../providers/errors.js";
 import {
   buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
@@ -54,6 +54,7 @@ import {
   errorResponse,
   jsonResponse,
   parseJsonBody,
+  providerErrorResponse,
   validateAgainstSchema,
   withJsonBody,
   withValidatedBody,
@@ -308,35 +309,11 @@ async function handleGetProjectTickets(
     (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
 
   try {
-    const tickets = await provider.listTickets(config, { requiredLabel });
-    return jsonResponse(tickets);
+    return jsonResponse(await provider.listTickets(config, { requiredLabel }));
   } catch (err: unknown) {
-    if (err instanceof ProviderError) {
-      return jsonResponse(
-        {
-          error: err.message,
-          code: err.code,
-          context: err.context,
-          ...(err.retryAfterMs !== undefined
-            ? { retryAfterMs: err.retryAfterMs }
-            : {}),
-        },
-        500,
-      );
-    }
-    const userError = provider.toUserError(err, "TICKETS");
-    const message = getProviderErrorMessage(userError.code, userError.context);
-    return jsonResponse(
-      {
-        error: message,
-        code: userError.code,
-        context: userError.context,
-        ...(userError.retryAfterMs !== undefined
-          ? { retryAfterMs: userError.retryAfterMs }
-          : {}),
-      },
-      500,
-    );
+    // The registry's provider throws only normalized ProviderErrors.
+    if (err instanceof ProviderError) return providerErrorResponse(err);
+    throw err;
   }
 }
 

@@ -12,7 +12,7 @@ import {
   isProviderError,
   type ProviderErrorCode,
   type ProviderErrorContext,
-  type ProviderError as ProviderErrorEnvelope,
+  type ProviderErrorEnvelope,
 } from "./contract.js";
 
 /**
@@ -77,17 +77,12 @@ export const PROVIDER_ERROR_MESSAGES: Readonly<
   },
 };
 
-/** Resolves canonical copy for a known (code, context) pair. */
+/** Resolves canonical copy for a (code, context) pair. */
 export function getProviderErrorMessage(
   code: ProviderErrorCode,
   context: ProviderErrorContext,
 ): string {
-  const byCode = PROVIDER_ERROR_MESSAGES[code];
-  if (byCode) {
-    const msg = byCode[context];
-    if (msg) return msg;
-  }
-  return PROVIDER_ERROR_MESSAGES.UNKNOWN[context];
+  return PROVIDER_ERROR_MESSAGES[code][context];
 }
 
 export interface ProviderErrorOptions {
@@ -98,6 +93,8 @@ export interface ProviderErrorOptions {
 /**
  * Normalized provider error thrown by provider capability calls.
  * Carries the contract code, context, optional retryAfterMs, and the canonical message.
+ * The raw provider failure is kept only as `cause`, for the code that handles
+ * the error; it is never part of the message and must never be logged.
  */
 export class ProviderError extends Error {
   readonly code: ProviderErrorCode;
@@ -107,15 +104,17 @@ export class ProviderError extends Error {
   constructor(
     code: ProviderErrorCode,
     context: ProviderErrorContext,
-    options?: ProviderErrorOptions | number,
+    options?: ProviderErrorOptions,
   ) {
-    const retry = typeof options === "number" ? options : options?.retryAfterMs;
-    const cause = typeof options === "object" ? options?.cause : undefined;
-    const message = getProviderErrorMessage(code, context);
-    super(message, cause !== undefined ? { cause } : undefined);
+    const cause = options?.cause;
+    super(
+      getProviderErrorMessage(code, context),
+      cause !== undefined ? { cause } : undefined,
+    );
     this.name = "ProviderError";
     this.code = code;
     this.context = context;
+    const retry = options?.retryAfterMs;
     if (retry !== undefined && retry > 0) {
       this.retryAfterMs = retry;
     }

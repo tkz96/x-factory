@@ -12,7 +12,7 @@ import {
   hasCapability,
   isProviderError,
   type Provider,
-  type ProviderError,
+  type ProviderErrorEnvelope,
   REQUIRED_WORKFLOW_LABEL,
   type VerificationResult,
 } from "../src/providers/contract.js";
@@ -156,7 +156,7 @@ describe("provider error envelope", () => {
   });
 
   test("accepts retryAfterMs when actually known", () => {
-    const envelope: ProviderError = {
+    const envelope: ProviderErrorEnvelope = {
       code: "RATE_LIMITED",
       context: "DISCOVERY",
       retryAfterMs: 30_000,
@@ -247,10 +247,10 @@ describe("registry-injection extensibility gate (#127 acceptance a)", () => {
 
   test("a stub provider functions with zero edits outside its module", async () => {
     const provider = requireProvider("stub", injected);
-    expect(provider).toBe(stubProvider);
+    expect(Object.getPrototypeOf(provider)).toBe(stubProvider);
     expect(typeof provider.verifyCredentials).toBe("function");
     expect(typeof provider.toUserError).toBe("function");
-    expect(getProvider("stub", injected)).toBe(stubProvider);
+    expect(getProvider("stub", injected)).toBe(provider);
     // The stub is NOT in the static registry — no production file was touched.
     expect(getProvider("stub")).toBeUndefined();
 

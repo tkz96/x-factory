@@ -20,13 +20,18 @@ import {
 } from "../shared/legacy-tracker.js";
 import type { Project, ProjectConnection } from "../shared/types.js";
 import type { Provider, ProviderConfig, ProviderRole } from "./contract.js";
-import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
+import {
+  getProvider,
+  PROVIDER_REGISTRY,
+  type ProviderRegistry,
+  type RegisteredProvider,
+} from "./registry.js";
 import { getSecretFieldRoutes } from "./secret-routing.js";
 
 /** A connection resolved for one role, ready to call the provider with. */
 export interface ResolvedProjectConnection {
   providerId: string;
-  provider: Provider;
+  provider: RegisteredProvider;
   /** Non-secret configuration with the stored secrets merged in by envKey. */
   config: ProviderConfig;
   /** The repository coordinate the provider calls are scoped to. */
@@ -133,7 +138,7 @@ export function resolveProjectConnection(
 ): ResolvedProjectConnection | undefined {
   const connection = findConnectionForRole(project, role, registry);
   if (!connection) return undefined;
-  const provider = registry.get(connection.providerId);
+  const provider = getProvider(connection.providerId, registry);
   if (!provider) return undefined;
 
   const config = mergeStoredSecrets(provider, connection.config, env);
