@@ -37,6 +37,10 @@ export function createDatabase(options?: DatabaseOptions): Database {
     if (options?.foreignKeys !== false) {
       db.exec("PRAGMA foreign_keys = ON;");
     }
+
+    // NORMAL is the usual pairing with WAL: commits stay durable across an
+    // application crash and only an OS crash can lose the latest ones.
+    db.exec("PRAGMA synchronous = NORMAL;");
   }
 
   const timeout = options?.busyTimeoutMs ?? 5000;

@@ -54,7 +54,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
     expect(body.status).toBe("unavailable");
     expect(body.database.status).toBe("ready");
-    expect(body.database.version).toBe(8);
+    expect(body.database.version).toBe(9);
     expect(body.worker.status).toBe("unavailable");
     expect(body.worker.activeWorkers).toBe(0);
     expect(body.worker.reason).toContain("No active background worker");
@@ -76,7 +76,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
     expect(body.status).toBe("ready");
     expect(body.database.status).toBe("ready");
-    expect(body.database.version).toBe(8);
+    expect(body.database.version).toBe(9);
     expect(body.worker.status).toBe("ready");
     expect(body.worker.activeWorkers).toBe(1);
   });
