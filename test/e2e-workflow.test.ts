@@ -9,7 +9,7 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type {
   StageContext,
   StageExecutor,
-  StageResult,
+  StageOutcome,
 } from "../src/executors/index.js";
 import { createPR, setDbForTesting } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
@@ -56,55 +56,47 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     const mockExecutors: Record<string, StageExecutor> = {
       prepare: {
         stage: "prepare",
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           stageCalls.push("prepare");
           return {
-            status: "success",
-            nextStage: "understand",
-            nextRunStatus: "understanding",
+            outcome: "passed",
             output: { prepared: true },
           };
         },
       },
       understand: {
         stage: "understand",
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           stageCalls.push("understand");
           return {
-            status: "success",
-            nextStage: undefined,
-            nextRunStatus: "awaiting_understanding_approval",
+            outcome: "passed",
             output: { understood: true },
           };
         },
       },
       plan: {
         stage: "plan",
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           stageCalls.push("plan");
           return {
-            status: "success",
-            nextStage: undefined,
-            nextRunStatus: "awaiting_plan_approval",
+            outcome: "passed",
             output: { planned: true },
           };
         },
       },
       execute: {
         stage: "execute",
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           stageCalls.push("execute");
           return {
-            status: "success",
-            nextStage: undefined,
-            nextRunStatus: "awaiting_review",
+            outcome: "passed",
             output: { executed: true },
           };
         },
       },
       deliver: {
         stage: "deliver",
-        async execute(ctx: StageContext): Promise<StageResult> {
+        async execute(ctx: StageContext): Promise<StageOutcome> {
           stageCalls.push("deliver");
           const pr = {
             url: "https://github.com/org/repo/pull/77",
@@ -114,8 +106,7 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
           };
           ctx.runRepo.update(ctx.run.id, { pullRequest: pr });
           return {
-            status: "success",
-            nextRunStatus: "pr_created",
+            outcome: "passed",
             output: pr,
           };
         },

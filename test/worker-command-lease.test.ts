@@ -5,7 +5,7 @@ import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import type { StageContext, StageResult } from "../src/executors/index.js";
+import type { StageContext, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 
 describe("Command Lease Renewal", () => {
@@ -61,14 +61,14 @@ describe("Command Lease Renewal", () => {
       commandLeaseDurationMs: 1000,
       commandHeartbeatIntervalMs: 100,
       deliverExecutor: {
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           deliverRunning = true;
           // Wait 3000ms, which is 3x the lease duration.
           // It should survive because the heartbeat renews it.
           await new Promise((r) => setTimeout(r, 3000));
           deliverFinished = true;
           return {
-            status: "success",
+            outcome: "passed",
             output: { prUrl: "http://pr" },
           };
         },
@@ -163,13 +163,13 @@ describe("Command Lease Renewal", () => {
       commandLeaseDurationMs: 1000,
       commandHeartbeatIntervalMs: 100,
       deliverExecutor: {
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           executorStarted = true;
           // Simulate hanging worker that stops renewing without completing
           while (!executorHalt) {
             await new Promise((r) => setTimeout(r, 10));
           }
-          return { status: "success", output: { prUrl: "url" } };
+          return { outcome: "passed", output: { prUrl: "url" } };
         },
       },
     });
@@ -187,8 +187,8 @@ describe("Command Lease Renewal", () => {
       workerId: "worker-D",
       db,
       deliverExecutor: {
-        async execute(_ctx: StageContext): Promise<StageResult> {
-          return { status: "success", output: { prUrl: "url" } };
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
+          return { outcome: "passed", output: { prUrl: "url" } };
         },
       },
     });
@@ -238,7 +238,7 @@ describe("Command Lease Renewal", () => {
       commandLeaseDurationMs: 100,
       commandHeartbeatIntervalMs: 33,
       deliverExecutor: {
-        async execute(_ctx: StageContext): Promise<StageResult> {
+        async execute(_ctx: StageContext): Promise<StageOutcome> {
           throw new Error("Intentional failure");
         },
       },

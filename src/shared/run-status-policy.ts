@@ -49,6 +49,7 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
     "understanding",
     "planning",
     "executing",
+    "ready_for_pr",
     "failed",
     "stopped",
   ],
