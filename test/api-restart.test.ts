@@ -1,6 +1,7 @@
 // test/api-restart.test.ts — API process restart resilience while worker continues executing (XFM-58).
 
 import { afterAll, describe, expect, it } from "bun:test";
+import type { Server } from "bun";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -27,12 +28,15 @@ describe("API Process Restart Resilience (XFM-58)", () => {
 
   function startTestServer(port = 0) {
     const publicDir = getPublicDir();
-    return Bun.serve({
+    const server: Server<unknown> = Bun.serve({
       port,
       async fetch(req) {
         const url = new URL(req.url);
         if (url.pathname.startsWith("/api/")) {
-          return handleApi(req, url);
+          return handleApi(req, url, undefined, {
+            port: server.port ?? port,
+            listenHost: "127.0.0.1",
+          });
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());
@@ -40,6 +44,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
         return serveStatic(url.pathname, publicDir);
       },
     });
+    return server;
   }
 
   it("worker executes uninterrupted across API server shutdown and restart", async () => {

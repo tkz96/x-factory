@@ -109,7 +109,7 @@ const GUARDED_ACTION_ENDPOINTS: Record<RunAction, (runId: string) => Request> =
   };
 
 function postRequest(urlPath: string, body?: unknown): Request {
-  return new Request(`http://localhost${urlPath}`, {
+  return new Request(`http://localhost:3777${urlPath}`, {
     method: "POST",
     ...(body !== undefined
       ? {
