@@ -1,4 +1,11 @@
 import { z } from "zod/v4";
+import {
+  ConflictError,
+  GitConfigError,
+  NotFoundError,
+  SemanticValidationError,
+  ValidationError,
+} from "../errors.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -25,22 +32,60 @@ export class HttpError extends Error {
 }
 
 /**
- * The name a domain error is matched against.
+ * Family membership for the name → status ladder, consulted once.
  *
- * Matching is by NAME, not by class identity: an error that crossed a realm
- * boundary (worker, VM, another module registry) still carries the right name
- * but would fail `instanceof`. Anything that is not an `Error` has no name.
+ * An error belongs to a family by prototype chain — `RunNotFoundError`,
+ * `StaleRevisionError` and `IllegalStateTransitionError` carry their own
+ * names but are still NotFound/Conflict family members — or, for an error
+ * that crossed a realm boundary (worker, VM, another module registry) by
+ * exact family name: it carries the right name but would fail `instanceof`.
+ * Anything that is not an `Error` belongs to no family.
  */
-function domainErrorName(err: unknown): string | undefined {
-  return err instanceof Error ? err.name : undefined;
+function inErrorFamily(
+  err: unknown,
+  family: abstract new (...args: never[]) => Error,
+): boolean {
+  if (err instanceof family) return true;
+  return err instanceof Error && err.name === family.name;
+}
+
+/**
+ * The stable machine-readable code a domain error carries, or `fallback`.
+ * The single server-side home of the "has a string `code`" duck-type read;
+ * family members are read defensively because an error that matched by name
+ * alone may carry neither the class nor the fields.
+ */
+function errorCodeOf(err: unknown, fallback?: string): string | undefined {
+  if (
+    err &&
+    typeof err === "object" &&
+    "code" in err &&
+    typeof (err as { code: unknown }).code === "string"
+  ) {
+    return (err as { code: string }).code;
+  }
+  return fallback;
+}
+
+/** The HTTP status a domain error carries, or `fallback`. Read defensively, like `errorCodeOf`. */
+function errorStatusOf(err: unknown, fallback: number): number {
+  if (
+    err &&
+    typeof err === "object" &&
+    "status" in err &&
+    typeof (err as { status: unknown }).status === "number"
+  ) {
+    return (err as { status: number }).status;
+  }
+  return fallback;
 }
 
 /**
  * The 409 envelope for a semantic validation error: codes only, never messages.
  *
- * The members are read defensively because matching is by name: a duck-typed
- * error may carry neither, and a translator that throws would turn an intended
- * 409 into an unhandled failure.
+ * The members are read defensively because matching is by family name as well
+ * as by prototype chain: a duck-typed error may carry neither, and a
+ * translator that throws would turn an intended 409 into an unhandled failure.
  */
 function semanticErrorEnvelope(err: unknown): Record<string, unknown> {
   const source = err as {
@@ -68,53 +113,34 @@ function semanticErrorEnvelope(err: unknown): Record<string, unknown> {
 /**
  * Translates domain/application errors into presentation-layer HTTP responses.
  *
- * One name → status ladder, consulted once: the fallback idiom for a
- * non-`instanceof`-able error exists in exactly one place.
+ * One family → status ladder, consulted once: family membership is decided by
+ * `inErrorFamily` (prototype chain or exact name), and the fallback idiom for
+ * a non-`instanceof`-able error exists in exactly one place.
  */
 export function translateDomainErrorToHttpResponse(
   err: unknown,
 ): Response | null {
-  const name = domainErrorName(err);
   const message = err instanceof Error ? err.message : "";
 
-  if (name === "NotFoundError") {
+  if (inErrorFamily(err, NotFoundError)) {
     return errorResponse(message, 404);
   }
-  if (name === "ValidationError") {
-    const code =
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      typeof (err as { code: unknown }).code === "string"
-        ? (err as { code: string }).code
-        : undefined;
+  if (inErrorFamily(err, ValidationError)) {
+    const code = errorCodeOf(err);
     return jsonResponse(
       code ? { error: message, code } : { error: message },
       400,
     );
   }
-  if (name === "ConflictError") {
+  if (inErrorFamily(err, ConflictError)) {
     return errorResponse(message, 409);
   }
-  if (name === "SemanticValidationError") {
+  if (inErrorFamily(err, SemanticValidationError)) {
     return jsonResponse(semanticErrorEnvelope(err), 409);
   }
-  if (name === "GitConfigError") {
-    const code =
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      typeof (err as { code: unknown }).code === "string"
-        ? (err as { code: string }).code
-        : "GIT_CONFIG_WRITE_FAILED";
-    const status =
-      err &&
-      typeof err === "object" &&
-      "status" in err &&
-      typeof (err as { status: unknown }).status === "number"
-        ? (err as { status: number }).status
-        : 500;
-    return jsonResponse({ error: message, code }, status);
+  if (inErrorFamily(err, GitConfigError)) {
+    const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
+    return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
   }
   if (err instanceof HttpError) {
     return jsonResponse(
