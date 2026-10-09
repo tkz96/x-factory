@@ -329,18 +329,6 @@ export const api = {
     return handleResponse<{ ok: boolean; run: Run }>(res);
   },
 
-  async steerRun(
-    runId: string,
-    message: string,
-  ): Promise<{ ok: boolean; runId: string }> {
-    const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/steer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
-    });
-    return handleResponse<{ ok: boolean; runId: string }>(res);
-  },
-
   async chatWithRun(
     runId: string,
     message: string,

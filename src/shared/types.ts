@@ -391,10 +391,6 @@ export interface ErrorEventPayload {
   message: string;
 }
 
-export interface SteerEventPayload {
-  message: string;
-}
-
 export type RunEventPayloadMap = {
   status: StatusEventPayload;
   stage_evidence: StageEvidencePayload;
@@ -406,8 +402,6 @@ export type RunEventPayloadMap = {
   verification: VerificationEventPayload;
   review: ReviewEventPayload;
   ralph_progress: RalphProgressPayload;
-  // TODO(#167): remove with steering
-  steer: SteerEventPayload;
   info: InfoEventPayload;
   error: ErrorEventPayload;
 };

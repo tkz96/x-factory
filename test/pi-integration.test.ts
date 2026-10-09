@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createImplementationSession } from "../src/agents/pi.js";
+import { createReviewSession } from "../src/agents/pi.js";
 
 const shouldRunLive = process.env.XF_TEST_PI === "1";
 
@@ -19,7 +19,7 @@ describe("Live Pi Integration (Gated)", () => {
 
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-live-"));
     try {
-      const pi = await createImplementationSession(tmp);
+      const pi = await createReviewSession(tmp);
       let receivedText = false;
 
       pi.subscribe((e) => {

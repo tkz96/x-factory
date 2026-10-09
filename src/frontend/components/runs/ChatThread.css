@@ -59,13 +59,6 @@
   color: var(--text-primary);
 }
 
-.chat-bubble.bubble-steer {
-  align-self: flex-end;
-  background: var(--accent);
-  color: var(--color-white, #ffffff);
-  max-width: 80%;
-}
-
 .chat-bubble.bubble-error {
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
