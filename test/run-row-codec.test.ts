@@ -37,9 +37,9 @@ beforeEach(() => {
   repos = createTestRepositories();
 });
 
-function seedRun(): void {
+function seedRun(id = "run-1"): void {
   repos.runs.create({
-    id: "run-1",
+    id,
     projectId: "proj-1",
     projectName: "Proj 1",
     ticket: {
@@ -264,6 +264,47 @@ describe("a malformed column logs a warning naming table, column and row (#179)"
           row_id: "run-1",
         },
       ]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("never puts any part of the malformed value into the warning (#179)", async () => {
+    seedRun("run-leak-1");
+    const malformed = "sk-secret-abc123 xyz";
+    repos.db.run(`UPDATE runs SET verification = ? WHERE id = 'run-leak-1';`, [
+      malformed,
+    ]);
+
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { status } = await listRuns();
+      assert.equal(status, 200);
+
+      // The full serialized warning, unmapped — the mapped helper above
+      // discards exactly the field where the leak hides.
+      const serialized = warnSpy.mock.calls
+        .map((call) => call.map(String).join(" "))
+        .join("\n");
+      // Red first: a warning must exist so the leak check isn't vacuous.
+      assert.ok(
+        warnSpy.mock.calls.length > 0,
+        "expected a malformed-column warning",
+      );
+      // The warning must not echo the column value or any token from it.
+      // JSON parse errors quote raw content (Bun: `JSON Parse error:
+      // Unexpected identifier "sk"`), and these columns hold run output that
+      // can contain secrets.
+      assert.ok(
+        !serialized.includes(malformed),
+        `warning leaked the malformed text: ${serialized}`,
+      );
+      for (const token of ["sk", "secret", "abc123", "xyz"]) {
+        assert.ok(
+          !serialized.includes(token),
+          `warning leaked token "${token}": ${serialized}`,
+        );
+      }
     } finally {
       warnSpy.mockRestore();
     }

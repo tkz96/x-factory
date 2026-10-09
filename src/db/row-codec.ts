@@ -18,7 +18,10 @@
 //   text, so the corruption stays visible to operators instead of vanishing.
 //
 // Either way, a parse failure logs a structured warning naming the table,
-// column and row id, so silent degradation is never actually silent.
+// column and row id, so silent degradation is never actually silent. The
+// warning never contains any part of the column value: JSON parse errors
+// quote raw content, and these columns hold run output that can contain
+// secrets.
 
 import { emitStructuredLog } from "../shared/correlation.js";
 
@@ -47,7 +50,12 @@ export function parseJsonColumn<T>(
         table: ref.table,
         column: ref.column,
         row_id: ref.rowId,
-        parse_error: err instanceof Error ? err.message : String(err),
+        // Never the parse error itself: JSON engines quote the raw column
+        // value in their messages (Bun: `Unexpected identifier "sk"`), and
+        // these columns hold run output that can contain secrets. The error
+        // class name and the column length leak nothing about the content.
+        parse_error: err instanceof Error ? err.constructor.name : typeof err,
+        column_length: raw.length,
       },
     );
     return fallback;
