@@ -7,6 +7,7 @@ import {
   SemanticValidationError,
   ValidationError,
 } from "../errors.js";
+import { ProviderError } from "../providers/errors.js";
 import type {
   RunEvent,
   RunEventPayloadMap,
@@ -147,6 +148,18 @@ export function translateDomainErrorToHttpResponse(
   if (inErrorFamily(err, GitConfigError)) {
     const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
     return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
+  }
+  if (inErrorFamily(err, ProviderError)) {
+    const code = errorCodeOf(err);
+    const context = (err as { context?: string }).context;
+    return jsonResponse(
+      {
+        error: message,
+        ...(code ? { code } : {}),
+        ...(context ? { context } : {}),
+      },
+      500,
+    );
   }
   if (err instanceof HttpError) {
     return jsonResponse(

@@ -24,6 +24,7 @@ import {
   type ProviderConfig,
   REQUIRED_WORKFLOW_LABEL,
 } from "../providers/contract.js";
+import { getProviderErrorMessage, ProviderError } from "../providers/errors.js";
 import {
   buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
@@ -306,8 +307,37 @@ async function handleGetProjectTickets(
   const requiredLabel =
     (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
 
-  const tickets = await provider.listTickets(config, { requiredLabel });
-  return jsonResponse(tickets);
+  try {
+    const tickets = await provider.listTickets(config, { requiredLabel });
+    return jsonResponse(tickets);
+  } catch (err: unknown) {
+    if (err instanceof ProviderError) {
+      return jsonResponse(
+        {
+          error: err.message,
+          code: err.code,
+          context: err.context,
+          ...(err.retryAfterMs !== undefined
+            ? { retryAfterMs: err.retryAfterMs }
+            : {}),
+        },
+        500,
+      );
+    }
+    const userError = provider.toUserError(err, "TICKETS");
+    const message = getProviderErrorMessage(userError.code, userError.context);
+    return jsonResponse(
+      {
+        error: message,
+        code: userError.code,
+        context: userError.context,
+        ...(userError.retryAfterMs !== undefined
+          ? { retryAfterMs: userError.retryAfterMs }
+          : {}),
+      },
+      500,
+    );
+  }
 }
 
 async function handleGetProjectTracker(

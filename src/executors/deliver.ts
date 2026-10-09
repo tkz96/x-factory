@@ -3,10 +3,7 @@
 import * as git from "../git.js";
 import { loadProjectEnv } from "../project-env.js";
 import { renderAcceptanceCriteria, renderTicketHeading } from "../prompts.js";
-import {
-  hasCapability,
-  type ProviderPullRequest,
-} from "../providers/contract.js";
+import type { ProviderPullRequest } from "../providers/contract.js";
 import { resolveProjectConnection } from "../providers/project-connections.js";
 import {
   PROVIDER_REGISTRY,
@@ -66,23 +63,22 @@ export async function defaultCreatePullRequest(
     registry,
   );
 
-  if (hasCapability(provider, "findExistingPullRequest")) {
-    const existing = await provider.findExistingPullRequest(config, {
-      repository,
-      sourceBranch: params.branch,
-    });
-    if (existing?.url) {
-      return existing.url;
-    }
+  const existing = await provider.findExistingPullRequest?.(config, {
+    repository,
+    sourceBranch: params.branch,
+  });
+  if (existing?.url) {
+    return existing.url;
   }
 
-  if (!hasCapability(provider, "createPullRequest")) {
+  const createPullRequest = provider.createPullRequest;
+  if (!createPullRequest) {
     throw new Error(
-      `Provider "${provider.id}" does not support createPullRequest capability.`,
+      `Provider "${provider.id}" does not support createPullRequest.`,
     );
   }
 
-  const pr = await provider.createPullRequest(config, {
+  const pr = await createPullRequest(config, {
     repository,
     title: params.prTitle,
     description: params.prBody,
@@ -106,14 +102,12 @@ export async function defaultFindExistingPullRequest(
     registry,
   );
 
-  if (!hasCapability(provider, "findExistingPullRequest")) {
-    return null;
-  }
-
-  return provider.findExistingPullRequest(config, {
-    repository,
-    sourceBranch: params.branch,
-  });
+  return (
+    provider.findExistingPullRequest?.(config, {
+      repository,
+      sourceBranch: params.branch,
+    }) ?? null
+  );
 }
 
 export async function createPullRequestWithFallback(

@@ -27,6 +27,7 @@ import type {
   VerificationWarning,
 } from "./contract.js";
 import { REQUIRED_WORKFLOW_LABEL } from "./contract.js";
+import { normalizeRawObjectGuard } from "./errors.js";
 import {
   DEFAULT_PROVIDER_TIMEOUT_MS,
   type HttpTransport,
@@ -215,6 +216,11 @@ export function toJiraUserError(
   raw: unknown,
   context: ProviderErrorContext,
 ): ProviderError {
+  const fromGuard = normalizeRawObjectGuard(raw, context);
+  if (fromGuard) {
+    return fromGuard;
+  }
+
   const http = extractHttpStatusAndHeaders(raw);
   if (http) {
     return mapStatusToProviderError(http.status, http.headers, context);

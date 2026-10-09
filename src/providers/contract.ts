@@ -104,7 +104,13 @@ export function isProviderError(value: unknown): value is ProviderError {
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const candidate = value as Partial<ProviderError>;
+  const candidate = value as Record<string, unknown>;
+  const keys = Object.keys(candidate);
+  for (const key of keys) {
+    if (key !== "code" && key !== "context" && key !== "retryAfterMs") {
+      return false;
+    }
+  }
   return (
     typeof candidate.code === "string" &&
     typeof candidate.context === "string" &&
