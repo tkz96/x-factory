@@ -3,12 +3,17 @@
 import { describe, expect, it } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { handleRunsRoute } from "../src/http/runs-controller.js";
-import { setDbForTesting } from "../src/runs.js";
+
+let repos: Repositories;
 
 describe("Fire-and-Forget Execution Audit (XFM-75)", () => {
   describe("Static Architectural Boundary Audit", () => {
@@ -53,7 +58,7 @@ describe("Fire-and-Forget Execution Audit (XFM-75)", () => {
     it("POST /api/runs enqueues pending job in SQLite and returns immediately without executing", async () => {
       const db = createDatabase({ path: ":memory:" });
       runMigrations(db);
-      setDbForTesting(db);
+      repos = createRepositories(db);
 
       try {
         const runRepo = new RunRepository(db);
@@ -108,7 +113,6 @@ describe("Fire-and-Forget Execution Audit (XFM-75)", () => {
         expect(claimed?.status).toBe("claimed");
         expect(claimed?.workerId).toBe("worker-node-1");
       } finally {
-        setDbForTesting(null);
       }
     });
 
@@ -119,7 +123,14 @@ describe("Fire-and-Forget Execution Audit (XFM-75)", () => {
         body: JSON.stringify({}),
       });
 
-      const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+      const res = await handleRunsRoute(
+        "POST",
+        undefined,
+        undefined,
+        1,
+        req,
+        repos,
+      );
       expect(res).not.toBeNull();
       if (res) {
         expect(res.status).toBe(400);

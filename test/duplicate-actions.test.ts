@@ -3,23 +3,26 @@ import {
   type PiAgentSession,
   registerActiveSession,
 } from "../src/agents/pi.js";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 
+let repos: Repositories;
+
 describe("Duplicate-Action Idempotency (XFM-62)", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   function setupTest() {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
     const runRepo = new RunRepository(db);
 
     return { db, runRepo };
@@ -45,7 +48,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const req1 = new Request(`http://localhost/api/runs/${runId}/stop`, {
       method: "POST",
     });
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     expect(res1.status).toBe(200);
     const body1 = (await res1.json()) as { ok: boolean };
     expect(body1.ok).toBe(true);
@@ -57,7 +60,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const req2 = new Request(`http://localhost/api/runs/${runId}/stop`, {
       method: "POST",
     });
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     expect(res2.status).toBe(200);
     const body2 = (await res2.json()) as { ok: boolean };
     expect(body2.ok).toBe(true);
@@ -97,7 +100,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const req1 = new Request(`http://localhost/api/runs/${runId}/pr`, {
       method: "POST",
     });
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     expect(res1.status).toBe(200);
     const body1 = (await res1.json()) as typeof prPayload;
     expect(body1.url).toBe(prPayload.url);
@@ -106,7 +109,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const req2 = new Request(`http://localhost/api/runs/${runId}/pr`, {
       method: "POST",
     });
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     expect(res2.status).toBe(200);
     const body2 = (await res2.json()) as typeof prPayload;
     expect(body2.url).toBe(prPayload.url);
@@ -152,7 +155,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
         commandId,
       }),
     });
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     expect(res1.status).toBe(200);
     const body1 = (await res1.json()) as { ok: boolean; deduplicated: boolean };
     expect(body1.ok).toBe(true);
@@ -181,7 +184,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
         command_id: commandId,
       }),
     });
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     expect(res2.status).toBe(200);
     const body2 = (await res2.json()) as { ok: boolean; deduplicated: boolean };
     expect(body2.ok).toBe(true);

@@ -21,7 +21,6 @@ import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { useRunSSE } from "../src/frontend/hooks/useRunSSE.js";
 import { patchRunCache } from "../src/frontend/lib/query-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
-import { setDbForTesting } from "../src/runs.js";
 import type {
   Project,
   ReviewResult,
@@ -36,7 +35,6 @@ import {
 describe("Issue #103: Canonical Verification and Review Flow", () => {
   const artifactDirs = tempArtifactsDirs();
   afterAll(() => {
-    setDbForTesting(null);
     artifactDirs.cleanup();
   });
 
@@ -56,7 +54,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   function setupTestContext(overrides?: Partial<RunRecord>) {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
 
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);

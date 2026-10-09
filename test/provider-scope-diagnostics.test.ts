@@ -15,6 +15,7 @@ import path from "node:path";
 import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import type { Provider } from "../src/providers/contract.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
+import { createTestRepositories } from "./helpers/composition.js";
 
 let baseDir: string;
 const savedConfigPath = process.env.X_FACTORY_CONFIG_PATH;
@@ -68,7 +69,7 @@ async function postScopes(
     2,
     req,
     undefined,
-    registry,
+    { repos: createTestRepositories(), providerRegistry: registry },
   );
   return {
     status: res?.status ?? 0,

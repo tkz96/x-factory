@@ -4,9 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { CommandRepository } from "../src/db/command-repository.js";
+import { createRepositories } from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
-import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
@@ -209,11 +208,9 @@ describe("Subprocess safety at Worker seam", () => {
 
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
+    const repos = createRepositories(db);
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
-    const commandRepo = new CommandRepository(db);
-    const eventRepo = new EventRepository(db);
-
     const run = runRepo.create({
       id: "run-worker-abort-check",
       projectId: PROJECT_ID,
@@ -257,7 +254,7 @@ describe("Subprocess safety at Worker seam", () => {
       expect(grandchildPid).toBeGreaterThan(0);
 
       // Drive a real run stop command through the Worker
-      await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
+      await stopRun(repos, run.id);
       await worker.stepCommandOnce();
       await processPromise;
 

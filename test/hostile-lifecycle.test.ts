@@ -2,6 +2,10 @@
 
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -10,18 +14,17 @@ import { patchRunCache } from "../src/frontend/lib/query-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { handleApi } from "../src/http/routes.js";
 import { defaultSSERegistry } from "../src/http/sse-registry.js";
-import { setDbForTesting } from "../src/runs.js";
 import type { Run, RunStatus } from "../src/shared/types.js";
 
+let repos: Repositories;
+
 describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   function setupTest() {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
     const runRepo = new RunRepository(db);
     const eventRepo = new EventRepository(db);
 
@@ -90,7 +93,7 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
 
     // 1. Client connects via SSE
     const req = new Request(`http://localhost/api/runs/${run.id}/events`);
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
     const reader = res.body?.getReader();
@@ -114,13 +117,13 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
 
     // Connect client to Run 1
     const req1 = new Request(`http://localhost/api/runs/${run1.id}/events`);
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     const reader1 = res1.body?.getReader();
     expect(reader1).toBeDefined();
 
     // Connect client to Run 2
     const req2 = new Request(`http://localhost/api/runs/${run2.id}/events`);
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     const reader2 = res2.body?.getReader();
     expect(reader2).toBeDefined();
 

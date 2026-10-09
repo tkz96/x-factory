@@ -8,6 +8,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { type ApiContext, createRepositories } from "./composition-root.js";
 import { loadProjects } from "./config.js";
 import { createDatabase } from "./db/connection.js";
 import { runMigrations } from "./db/migrator.js";
@@ -19,7 +20,6 @@ import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
 import type { ProviderRegistry } from "./providers/registry.js";
-import * as runs from "./runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function getPublicDir(): string {
@@ -68,7 +68,8 @@ export function startServer(
   const publicDir = customPublicDir ?? getPublicDir();
   let db: Database;
 
-  // Initialize SQLite and verify migrations
+  // Composition root (#169): this process opens one connection, migrates it
+  // once, and hands the same repository bundle to every request.
   try {
     db = customDb ?? createDatabase();
     runMigrations(db);
@@ -76,9 +77,10 @@ export function startServer(
     console.error("[X-Factory] Failed to initialize SQLite database:", err);
     throw err;
   }
-
-  // Hydrate historical runs from disk
-  runs.initRuns().catch(() => {});
+  const apiContext: ApiContext = {
+    repos: createRepositories(db),
+    providerRegistry: customProviderRegistry,
+  };
 
   // Non-destructive startup check for orphaned worktrees
   checkOrphanedWorktrees();
@@ -110,7 +112,7 @@ export function startServer(
       inFlightRequests++;
       try {
         if (url.pathname.startsWith("/api/")) {
-          return await handleApi(req, url, customProviderRegistry);
+          return await handleApi(req, url, apiContext);
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());

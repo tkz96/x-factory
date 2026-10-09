@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runAttemptLoop } from "../src/attempt-loop.js";
+import { createRepositories } from "../src/composition-root.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
@@ -107,6 +108,7 @@ function setup(
 ) {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
+  const repos = createRepositories(db);
   const runRepo = new RunRepository(db);
   const jobRepo = new JobRepository(db);
   const commandRepo = new CommandRepository(db);
@@ -132,7 +134,7 @@ function setup(
     db,
     getStageExecutor: () => executor,
   });
-  return { db, runRepo, jobRepo, commandRepo, eventRepo, run, worker };
+  return { db, repos, runRepo, jobRepo, commandRepo, eventRepo, run, worker };
 }
 
 async function lines(file: string): Promise<string[]> {
@@ -591,8 +593,7 @@ ${CHECK_OFF_FIRST_TASK}
 `);
     // Verification hangs on a background child until the stop arrives.
     await configureProject(`sh -c 'sleep 60 & echo $! > "${pidFile}"; wait'`);
-    const { run, runRepo, jobRepo, commandRepo, eventRepo, db, worker } =
-      setup();
+    const { run, repos, runRepo, worker } = setup();
 
     const started = Date.now();
     const processing = worker.stepRun(run.id);
@@ -603,7 +604,7 @@ ${CHECK_OFF_FIRST_TASK}
         return pid > 0 ? pid : undefined;
       });
 
-      await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
+      await stopRun(repos, run.id);
       await worker.stepCommandOnce();
       await processing;
 
@@ -625,8 +626,7 @@ ${CHECK_OFF_FIRST_TASK}
     const pidFile = path.join(tempDir, "agent.pid");
     await installSbx(`echo $$ > "${pidFile}"\nsleep 60`);
     await configureProject("true");
-    const { run, runRepo, jobRepo, commandRepo, eventRepo, db, worker } =
-      setup();
+    const { run, repos, runRepo, worker } = setup();
 
     const processing = worker.stepRun(run.id);
     let agentPid = 0;
@@ -636,7 +636,7 @@ ${CHECK_OFF_FIRST_TASK}
         return pid > 0 ? pid : undefined;
       });
 
-      await stopRun(run.id, { db, runRepo, jobRepo, commandRepo, eventRepo });
+      await stopRun(repos, run.id);
       await worker.stepCommandOnce();
       await processing;
 

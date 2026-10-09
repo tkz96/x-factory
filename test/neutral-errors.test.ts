@@ -1,6 +1,7 @@
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import type { Repositories } from "../src/composition-root.js";
 import { deleteProject } from "../src/config.js";
 import {
   IllegalStateTransitionError,
@@ -15,6 +16,13 @@ import {
 } from "../src/errors.js";
 import { HttpError } from "../src/http/responses.js";
 import { chatWithRun, steerRun, stopRun } from "../src/runs.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 describe("Neutral Domain Errors", () => {
   it("defines presentation-agnostic error hierarchy", () => {
@@ -79,7 +87,7 @@ describe("Neutral Domain Errors", () => {
   it("src/runs.ts throws neutral NotFoundError with preserved message", async () => {
     let thrownError: unknown;
     try {
-      await chatWithRun("nonexistent-test-run", "hello");
+      await chatWithRun(repos, "nonexistent-test-run", "hello");
     } catch (err) {
       thrownError = err;
     }
@@ -90,7 +98,7 @@ describe("Neutral Domain Errors", () => {
     );
 
     try {
-      await steerRun("nonexistent-test-run", "steer command");
+      await steerRun(repos, "nonexistent-test-run", "steer command");
     } catch (err) {
       thrownError = err;
     }
@@ -101,7 +109,7 @@ describe("Neutral Domain Errors", () => {
     );
 
     try {
-      await stopRun("nonexistent-test-run");
+      await stopRun(repos, "nonexistent-test-run");
     } catch (err) {
       thrownError = err;
     }

@@ -1,10 +1,10 @@
 // src/http/routes.ts — Thin HTTP routing dispatcher delegating to specialized controllers.
 
+import type { ApiContext } from "../composition-root.js";
 import {
   emitStructuredLog,
   extractRequestId,
 } from "../diagnostics/correlation.js";
-import type { ProviderRegistry } from "../providers/registry.js";
 import {
   handleDiagnosticsRoute,
   handleHealthRoute,
@@ -23,7 +23,7 @@ async function routeApiRequest(
   method: string,
   parts: string[],
   req: Request,
-  customRegistry?: ProviderRegistry,
+  ctx: ApiContext,
 ): Promise<Response | null> {
   const [resource, id, action, subaction] = parts;
 
@@ -39,17 +39,17 @@ async function routeApiRequest(
 
   // Readiness probe (XFM-69)
   if (resource === "ready") {
-    return handleReadyRoute();
+    return handleReadyRoute(ctx.repos);
   }
 
   // UI Readiness check (XFM-48)
   if (resource === "readiness") {
-    return handleReadinessRoute();
+    return handleReadinessRoute(ctx.repos);
   }
 
   // Operational diagnostics (XFM-70)
   if (resource === "diagnostics") {
-    return handleDiagnosticsRoute();
+    return handleDiagnosticsRoute(ctx.repos);
   }
 
   if (resource === "openapi.json" || resource === "openapi") {
@@ -68,12 +68,12 @@ async function routeApiRequest(
       subaction,
       parts.length,
       req,
-      customRegistry,
+      ctx,
     );
   }
 
   if (resource === "runs") {
-    return handleRunsRoute(method, id, action, parts.length, req);
+    return handleRunsRoute(method, id, action, parts.length, req, ctx.repos);
   }
 
   if (resource === "settings") {
@@ -87,7 +87,7 @@ async function routeApiRequest(
       parts.slice(1),
       req,
       url,
-      customRegistry,
+      ctx.providerRegistry,
     );
   }
 
@@ -97,7 +97,7 @@ async function routeApiRequest(
 export async function handleApi(
   req: Request,
   url: URL,
-  customRegistry?: ProviderRegistry,
+  ctx: ApiContext,
 ): Promise<Response> {
   const method = req.method;
   const requestId = extractRequestId(req);
@@ -108,7 +108,7 @@ export async function handleApi(
 
   try {
     const response =
-      (await routeApiRequest(method, parts, req, customRegistry)) ||
+      (await routeApiRequest(method, parts, req, ctx)) ||
       errorResponse("Endpoint not found.", 404);
 
     // Propagate standard correlation ID in HTTP headers (XFM-73)

@@ -1,6 +1,10 @@
 // test/api-restart.test.ts — API process restart resilience while worker continues executing (XFM-58).
 
 import { afterAll, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -16,14 +20,13 @@ import { getOpenApiSpec } from "../src/http/openapi.js";
 import { jsonResponse } from "../src/http/responses.js";
 import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
-import { setDbForTesting } from "../src/runs.js";
 import { getPublicDir } from "../src/server.js";
 import { Worker } from "../src/worker.js";
 
+let repos: Repositories;
+
 describe("API Process Restart Resilience (XFM-58)", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   function startTestServer(port = 0) {
     const publicDir = getPublicDir();
@@ -32,7 +35,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
       async fetch(req) {
         const url = new URL(req.url);
         if (url.pathname.startsWith("/api/")) {
-          return handleApi(req, url);
+          return handleApi(req, url, { repos });
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());
@@ -46,7 +49,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
     // Shared SQLite database between API server and Worker
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);

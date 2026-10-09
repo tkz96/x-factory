@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import type { Repositories } from "../src/composition-root.js";
 import {
   ConflictError,
   NotFoundError,
@@ -11,7 +12,13 @@ import {
   translateDomainErrorToHttpResponse,
 } from "../src/http/responses.js";
 import { handleRunsRoute } from "../src/http/runs-controller.js";
-import { getRunRepository } from "../src/runs.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 describe("HTTP Layer Error Translation", () => {
   it("translates neutral NotFoundError into standard 404 response", async () => {
@@ -95,6 +102,7 @@ describe("HTTP Layer Error Translation", () => {
       "chat",
       3,
       req,
+      repos,
     );
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
@@ -156,6 +164,7 @@ describe("HTTP Layer Error Translation", () => {
       "stop",
       3,
       req,
+      repos,
     );
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
@@ -168,7 +177,14 @@ describe("HTTP Layer Error Translation", () => {
       method: "POST",
     });
 
-    const res = await handleRunsRoute("POST", "nonexistent-run", "pr", 3, req);
+    const res = await handleRunsRoute(
+      "POST",
+      "nonexistent-run",
+      "pr",
+      3,
+      req,
+      repos,
+    );
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -189,6 +205,7 @@ describe("HTTP Layer Error Translation", () => {
       "resume",
       3,
       req,
+      repos,
     );
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
@@ -210,6 +227,7 @@ describe("HTTP Layer Error Translation", () => {
       "abandon",
       3,
       req,
+      repos,
     );
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
@@ -218,7 +236,7 @@ describe("HTTP Layer Error Translation", () => {
   });
 
   it("runs controller translates ConflictError to 409 response when action conflicts with run state", async () => {
-    const runRepo = getRunRepository();
+    const runRepo = repos.runs;
     const runId = `conflict-test-run-${Date.now()}`;
     runRepo.create({
       id: runId,
@@ -236,7 +254,7 @@ describe("HTTP Layer Error Translation", () => {
     const prReq = new Request(`http://localhost/api/runs/${runId}/pr`, {
       method: "POST",
     });
-    const prRes = await handleRunsRoute("POST", runId, "pr", 3, prReq);
+    const prRes = await handleRunsRoute("POST", runId, "pr", 3, prReq, repos);
     expect(prRes).not.toBeNull();
     expect(prRes?.status).toBe(409);
     const prBody = await prRes?.json();
@@ -254,6 +272,7 @@ describe("HTTP Layer Error Translation", () => {
       "resume",
       3,
       resumeReq,
+      repos,
     );
     expect(resumeRes).not.toBeNull();
     expect(resumeRes?.status).toBe(409);
@@ -275,6 +294,7 @@ describe("HTTP Layer Error Translation", () => {
       "abandon",
       3,
       abandonReq,
+      repos,
     );
     expect(abandonRes).not.toBeNull();
     expect(abandonRes?.status).toBe(409);
@@ -312,6 +332,7 @@ describe("HTTP Layer Error Translation", () => {
       "stop",
       3,
       stopReq,
+      repos,
     );
     expect(stopRes).not.toBeNull();
     expect(stopRes?.status).toBe(409);

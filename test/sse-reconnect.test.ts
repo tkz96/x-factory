@@ -1,22 +1,25 @@
 // test/sse-reconnect.test.ts — Gapless SSE replay across disconnects with Last-Event-ID (XFM-61).
 
 import { afterAll, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
+
+let repos: Repositories;
 
 describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   function setupTest() {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const eventRepo = new EventRepository(db);
@@ -70,7 +73,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
 
     // 2. Client #1 connects from beginning
     const req1 = new Request(`http://localhost/api/runs/${runId}/events`);
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     expect(res1.status).toBe(200);
     expect(res1.headers.get("Content-Type")).toContain("text/event-stream");
 
@@ -107,7 +110,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     const req2 = new Request(`http://localhost/api/runs/${runId}/events`, {
       headers: { "Last-Event-ID": "3" },
     });
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     expect(res2.status).toBe(200);
 
     const reader2 = res2.body?.getReader();
@@ -171,7 +174,7 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     const req = new Request(
       `http://localhost/api/runs/${runId}/events?last_event_id=2`,
     );
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
     const reader = res.body?.getReader();
