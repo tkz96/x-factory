@@ -30,6 +30,21 @@ export function loadMigrations(migrationsDir?: string): Migration[] {
   return migrations.sort((a, b) => a.version - b.version);
 }
 
+/**
+ * Splits migration SQL into single statements. Line comments are removed first,
+ * so a semicolon inside a comment cannot split a statement. The migrations contain
+ * no triggers and no semicolons inside string literals, which this split relies on.
+ */
+export function splitStatements(sql: string): string[] {
+  return sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((stmt) => stmt.trim())
+    .filter((stmt) => stmt.length > 0);
+}
+
 let cachedLatestMigrationVersion: number | null = null;
 
 export function resetMigrationVersionCacheForTesting(): void {
@@ -102,8 +117,12 @@ export function runMigrations(
   for (const m of migrations) {
     if (m.version <= currentDbVersion) continue;
 
+    // Each statement runs on its own. Bun's multi-statement exec does not throw
+    // on a foreign-key violation, so a failure would otherwise be silently skipped.
     const executeMigration = db.transaction(() => {
-      db.exec(m.sql);
+      for (const statement of splitStatements(m.sql)) {
+        db.prepare(statement).run();
+      }
       db.prepare(
         "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?);",
       ).run(m.version, m.name, new Date().toISOString());

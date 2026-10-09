@@ -20,10 +20,11 @@ Every writable connection initializes SQLite with:
 ```sql
 PRAGMA journal_mode = WAL;   -- file-backed databases only
 PRAGMA foreign_keys = ON;
+PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 5000;
 ```
 
-`PRAGMA synchronous` is currently left at SQLite's default (`FULL`). Setting it to `NORMAL`, the usual WAL pairing, is tracked in #163.
+`synchronous = NORMAL` is safe under WAL: a commit stays durable across an application crash, and only an operating-system crash or power loss can drop the most recent commits. Without WAL (in-memory databases, or `wal: false`), `NORMAL` is weaker than `FULL`: a power loss can corrupt a rollback-journal database, not only lose recent commits. The pragma is set explicitly on every writable connection, so the setting does not depend on the journal-mode default.
 
 ## Entity Purposes and Invariants
 
@@ -33,7 +34,7 @@ PRAGMA busy_timeout = 5000;
 - **`run_events`**: the append-only event log for a run, ordered by a per-run `sequence`. It backs the SSE stream and historical replay.
 - **`stage_attempts`**: telemetry for each execution attempt of a stage (status, output, timing).
 - **`operation_ledger`**: idempotency for side-effecting external operations (for example PR creation). There is at most one row per `(run_id, operation)`.
-- **`run_commands`**: durable operator commands (`stop`, `deliver`) handed from the API process to a worker, with their own lease and attempt bounds.
+- **`run_commands`**: durable operator commands (`stop`, `deliver`) handed from the API process to a worker, with their own lease and attempt bounds. Deleting a run deletes its commands (`ON DELETE CASCADE`, migration 009). Upgrading to migration 009 drops orphan `run_commands` rows, those whose run was already gone, because the cascade would remove them anyway and copying them would fail the foreign key.
 - **`worker_heartbeats`**: liveness of worker processes, used for orphan recovery and diagnostics. It stores the worker's OS PID and hostname for diagnostics only. PIDs are never used to signal or control processes.
 
 ## Runtime-Only Entities
@@ -60,6 +61,7 @@ Large artifacts (logs, transcripts, diffs) live on disk under the data dir. SQLi
 - **v6** `006_operation_ledger.sql`
 - **v7** `007_run_commands.sql`
 - **v8** `008_worker_heartbeats.sql`
+- **v9** `009_run_commands_cascade.sql`
 
 ### Table: `jobs`
 
@@ -108,7 +110,7 @@ Indexes and constraints:
 | Column | Type | Null | Default | Key | References |
 |---|---|---|---|---|---|
 | `id` | TEXT | NULL |  | PK |  |
-| `run_id` | TEXT | NOT NULL |  |  | runs(id) |
+| `run_id` | TEXT | NOT NULL |  |  | runs(id) ON DELETE CASCADE |
 | `command` | TEXT | NOT NULL |  |  |  |
 | `payload` | TEXT | NULL |  |  |  |
 | `idempotency_key` | TEXT | NULL |  |  |  |
