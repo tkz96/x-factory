@@ -1,6 +1,7 @@
 // src/understand.ts — Understand stage: context synthesis and typed ImplementationContext artifact generation.
 
 import { access, readdir } from "node:fs/promises";
+import { renderCriterionConstraints } from "./prompts.js";
 import type { ImplementationContext, Project, Ticket } from "./types.js";
 
 /**
@@ -85,10 +86,7 @@ export function buildProjectConstraints(
   project: Project,
   ticket: Ticket,
 ): string[] {
-  const constraints = (ticket.acceptanceCriteria || [])
-    .map((ac) => ac.trim())
-    .filter((ac) => ac && ac !== "-" && ac !== "–" && ac !== "—")
-    .map((ac) => `Criterion: ${ac}`);
+  const constraints = renderCriterionConstraints(ticket);
 
   if (project.testCommand?.trim()) {
     constraints.push(`Test command must pass: "${project.testCommand.trim()}"`);

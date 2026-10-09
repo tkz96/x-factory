@@ -46,6 +46,19 @@ export function renderTicketDoc(ticket: Ticket): string {
 }
 
 /**
+ * Each acceptance criterion as an understanding-stage constraint line. The criteria
+ * text that reaches the prompt's Constraints block is formatted here, so this is
+ * prompt rendering too; blank and dash-only criteria are dropped and the surviving
+ * text is unchanged (`Criterion: <criterion>`).
+ */
+export function renderCriterionConstraints(ticket: Ticket): string[] {
+  return (ticket.acceptanceCriteria || [])
+    .map((ac) => ac.trim())
+    .filter((ac) => ac && ac !== "-" && ac !== "–" && ac !== "—")
+    .map((ac) => `Criterion: ${ac}`);
+}
+
+/**
  * What the understand stage learned, rendered as a prompt section. Returns "" when
  * the run has no understanding context, so prompts without it are unchanged.
  */
