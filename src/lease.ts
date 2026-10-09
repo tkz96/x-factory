@@ -6,6 +6,7 @@
 import type { Repositories } from "./composition-root.js";
 import type { CommandRecord } from "./db/command-repository.js";
 import type { JobRecord } from "./db/job-repository.js";
+import type { WorkerHeartbeatRecord } from "./db/worker-heartbeat-repository.js";
 import { canTransition } from "./shared/run-status-policy.js";
 
 export interface LeasePolicy {
@@ -28,26 +29,46 @@ export interface Clock {
   now(): number;
 }
 
-export type ClockLike = Clock | (() => number);
-
-export function getClockMs(clock?: ClockLike): number {
-  if (!clock) return Date.now();
-  if (typeof clock === "function") return clock();
-  return clock.now();
-}
-
-export interface LeaseStructuredLogEntry {
-  result: "recovered" | "recovery_required" | "claimed" | "renewed";
-  run_id?: string | undefined;
+/** One structured log entry shape, shared by the lease module and the worker. */
+export interface StructuredLogEntry {
+  timestamp: string;
+  worker_id: string;
   job_id?: string | undefined;
+  run_id?: string | undefined;
   stage?: string | undefined;
   attempt?: number | undefined;
+  duration_ms?: number | undefined;
+  result:
+    | "claimed"
+    | "renewed"
+    | "success"
+    | "retry"
+    | "failure"
+    | "shutdown"
+    | "heartbeat_lost"
+    | "recovered"
+    | "recovery_required"
+    | "cancelled"
+    | "error";
   message?: string | undefined;
+  error?: string | undefined;
 }
 
+/** What the lease module reports: the worker adds the timestamp and its id. */
+export type LeaseStructuredLogEntry = Omit<
+  StructuredLogEntry,
+  "timestamp" | "worker_id"
+>;
+
+/** The one reason recorded on a stage attempt closed because its lease expired. */
+const LEASE_EXPIRED_REASON =
+  "Worker lease expired; Worker process terminated during execution.";
+
 export interface LeaseManagerOptions {
-  clock?: ClockLike | undefined;
-  policy?: Partial<LeasePolicy> | undefined;
+  clock?: Clock | undefined;
+  policy?:
+    | { [K in keyof LeasePolicy]?: LeasePolicy[K] | undefined }
+    | undefined;
   onLog?: ((entry: LeaseStructuredLogEntry) => void) | undefined;
 }
 
@@ -56,31 +77,53 @@ export interface ExpireJobsResult {
   recoveryRequiredCount: number;
 }
 
+export interface RecoverJobsResult extends ExpireJobsResult {
+  recoveredCount: number;
+}
+
 export interface ExpireCommandsResult {
   expiredCount: number;
 }
 
+function definedEntries<T extends object>(value: Partial<T> | undefined) {
+  return Object.fromEntries(
+    Object.entries(value ?? {}).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
+}
+
 export class LeaseManager {
   private repos: Repositories;
-  private clock?: ClockLike | undefined;
+  private clock?: Clock | undefined;
   readonly policy: LeasePolicy;
   private onLog?: ((entry: LeaseStructuredLogEntry) => void) | undefined;
 
   constructor(repos: Repositories, options?: LeaseManagerOptions) {
     this.repos = repos;
     this.clock = options?.clock;
+    const overrides = definedEntries<LeasePolicy>(
+      options?.policy as Partial<LeasePolicy>,
+    );
     this.policy = {
       ...DEFAULT_LEASE_POLICY,
-      ...options?.policy,
+      // A command heartbeat that is not set follows its lease: a third of it.
+      ...(overrides.commandLeaseTtlMs !== undefined &&
+      overrides.commandHeartbeatIntervalMs === undefined
+        ? {
+            commandHeartbeatIntervalMs: Math.floor(
+              overrides.commandLeaseTtlMs / 3,
+            ),
+          }
+        : {}),
+      ...overrides,
     };
     this.onLog = options?.onLog;
   }
 
-  private nowMs(): number {
-    return getClockMs(this.clock);
+  nowMs(): number {
+    return this.clock ? this.clock.now() : Date.now();
   }
 
-  private nowIso(): string {
+  nowIso(): string {
     return new Date(this.nowMs()).toISOString();
   }
 
@@ -95,19 +138,25 @@ export class LeaseManager {
   }
 
   /**
-   * Closes any currently running stage attempt for a run and stage due to lease expiry.
+   * Closes any currently running stage attempt for a run and stage because its
+   * lease expired. Returns true when an attempt was closed.
    */
   private closeRunningStageAttempt(
     runId: string,
     stage: string,
-    reason = "Worker lease expired",
+    now: string,
   ): boolean {
     const latestAttempt = this.repos.stageAttempts.getLatestAttempt(
       runId,
       stage,
     );
     if (latestAttempt && latestAttempt.status === "running") {
-      this.repos.stageAttempts.recordFailure(latestAttempt.id, reason);
+      this.repos.stageAttempts.recordFailure(
+        latestAttempt.id,
+        LEASE_EXPIRED_REASON,
+        undefined,
+        now,
+      );
       return true;
     }
     return false;
@@ -117,74 +166,83 @@ export class LeaseManager {
    * Expires stale claimed jobs and transitions exhausted runs to recovery_required.
    * An expired lease always closes the previous running stage attempt.
    */
-  expireJobs(workerId?: string): ExpireJobsResult {
-    let expiredCount = 0;
-    let recoveryRequiredCount = 0;
-    const now = this.nowIso();
-
-    const staleJobs = this.repos.jobs.findStaleClaimedJobs(now);
-
-    for (const job of staleJobs) {
-      expiredCount++;
-      // An expired lease always closes the previous stage attempt.
-      this.closeRunningStageAttempt(
-        job.runId,
-        job.stage,
-        "Worker lease expired",
-      );
-
-      if (job.attempts >= job.maxAttempts) {
-        if (this.exhaustJob(job, workerId)) {
-          recoveryRequiredCount++;
-        }
-      }
-    }
-
+  expireJobs(): ExpireJobsResult {
+    const { expiredCount, recoveryRequiredCount } = this.sweepStaleJobs(false);
     return { expiredCount, recoveryRequiredCount };
   }
 
   /**
-   * Moves a job with exhausted attempts to failed and the parent run to recovery_required.
+   * Startup recovery: like `expireJobs`, and a stale job that still has
+   * attempts left goes back to pending so any worker can claim it.
    */
-  exhaustJob(job: JobRecord, _workerId?: string): boolean {
+  recoverStaleJobs(): RecoverJobsResult {
+    return this.sweepStaleJobs(true);
+  }
+
+  private sweepStaleJobs(requeue: boolean): RecoverJobsResult {
+    let expiredCount = 0;
+    let recoveryRequiredCount = 0;
+    let recoveredCount = 0;
+    const now = this.nowIso();
+
+    for (const job of this.repos.jobs.findStaleClaimedJobs(now)) {
+      expiredCount++;
+      if (job.attempts >= job.maxAttempts) {
+        if (this.exhaustJob(job)) {
+          recoveryRequiredCount++;
+          continue;
+        }
+      }
+      // The expired lease closes the attempt even when the job cannot be exhausted.
+      this.closeRunningStageAttempt(job.runId, job.stage, now);
+      if (job.attempts >= job.maxAttempts) continue;
+      if (requeue && this.repos.jobs.requeueJob(job.id, undefined, now)) {
+        recoveredCount++;
+        this.emitLog({
+          result: "recovered",
+          run_id: job.runId,
+          job_id: job.id,
+          stage: job.stage,
+          attempt: job.attempts,
+          message: `Recovered stale claimed job ${job.id} for run ${job.runId} (stage: ${job.stage}). Re-queued for execution.`,
+        });
+      }
+    }
+
+    return { expiredCount, recoveryRequiredCount, recoveredCount };
+  }
+
+  /**
+   * Moves a job with exhausted attempts to failed and the parent run to
+   * recovery_required. The job failure, the stage-attempt close and the run
+   * transition are one transaction: if any of them throws, none is kept.
+   * Returns false, having changed nothing, when the run is missing or cannot
+   * move to recovery_required, or when the job is no longer claimed.
+   */
+  exhaustJob(job: JobRecord): boolean {
     const now = this.nowIso();
     const conn = this.repos.db;
 
-    // Close any open stage attempt
-    this.closeRunningStageAttempt(job.runId, job.stage, "Worker lease expired");
-
-    // Fail the job in the database
-    conn
-      .prepare(`
-        UPDATE jobs
-        SET status = 'failed',
-            worker_id = NULL,
-            lease_until = NULL,
-            error = $error,
-            updated_at = $now
-        WHERE id = $id AND status = 'claimed';
-      `)
-      .run({
-        $id: job.id,
-        $error: "Maximum retry attempts exhausted across worker lifetimes.",
-        $now: now,
-      });
-
     const run = this.repos.runs.get(job.runId);
-    if (!run) return false;
+    if (!run || !canTransition(run.status, "recovery_required")) return false;
 
-    this.emitLog({
-      result: "recovery_required",
-      run_id: run.id,
-      job_id: job.id,
-      stage: job.stage,
-      attempt: job.attempts,
-      message: `Job ${job.id} for run ${run.id} exhausted maximum attempts (${job.attempts}/${job.maxAttempts}). Transitioning run to recovery_required.`,
-    });
+    const exhausted = conn.transaction(() => {
+      const failed = this.repos.jobs.failExhaustedJob(
+        job.id,
+        "Maximum retry attempts exhausted across worker lifetimes.",
+        conn,
+        now,
+      );
+      if (!failed) return false;
 
-    if (canTransition(run.status, "recovery_required")) {
-      try {
-        this.repos.runs.transitionRun(run.id, run.status, "recovery_required", {
+      this.closeRunningStageAttempt(job.runId, job.stage, now);
+      this.repos.runs.transitionRun(
+        run.id,
+        run.status,
+        "recovery_required",
+        {
+          expectedRevision: run.revision,
+          now,
           event: {
             type: "status",
             payload: {
@@ -192,18 +250,23 @@ export class LeaseManager {
               reason: `Job attempts (${job.attempts}/${job.maxAttempts}) exhausted for stage ${job.stage}.`,
             },
           },
-        });
-        return true;
-      } catch (err) {
-        console.error(
-          `Failed to transition run ${run.id} to recovery_required:`,
-          err,
-        );
-        return false;
-      }
-    }
+        },
+        conn,
+      );
+      return true;
+    })();
 
-    return false;
+    if (exhausted) {
+      this.emitLog({
+        result: "recovery_required",
+        run_id: run.id,
+        job_id: job.id,
+        stage: job.stage,
+        attempt: job.attempts,
+        message: `Job ${job.id} for run ${run.id} exhausted maximum attempts (${job.attempts}/${job.maxAttempts}). Transitioned run to recovery_required.`,
+      });
+    }
+    return exhausted;
   }
 
   /**
@@ -214,8 +277,8 @@ export class LeaseManager {
     workerId: string,
     leaseDurationMs = this.policy.jobLeaseTtlMs,
   ): JobRecord | null {
-    // Run an expiry check to sweep exhausted jobs to recovery_required and close stale attempts
-    this.expireJobs(workerId);
+    // Sweep exhausted jobs to recovery_required and close stale attempts first.
+    this.expireJobs();
 
     const claimed = this.repos.jobs.claimNextJob(
       workerId,
@@ -223,16 +286,7 @@ export class LeaseManager {
       undefined,
       this.nowMs(),
     );
-
-    if (claimed && claimed.attempts > 1) {
-      // Reclaiming an expired job: ensure the prior running attempt is closed.
-      this.closeRunningStageAttempt(
-        claimed.runId,
-        claimed.stage,
-        "Worker lease expired",
-      );
-    }
-
+    this.closePriorAttempt(claimed);
     return claimed;
   }
 
@@ -244,7 +298,7 @@ export class LeaseManager {
     workerId: string,
     leaseDurationMs = this.policy.jobLeaseTtlMs,
   ): JobRecord | null {
-    this.expireJobs(workerId);
+    this.expireJobs();
 
     const claimed = this.repos.jobs.claimJobForRun(
       runId,
@@ -253,16 +307,19 @@ export class LeaseManager {
       undefined,
       this.nowMs(),
     );
+    this.closePriorAttempt(claimed);
+    return claimed;
+  }
 
+  // Reclaiming an expired job: the prior running attempt must be closed.
+  private closePriorAttempt(claimed: JobRecord | null): void {
     if (claimed && claimed.attempts > 1) {
       this.closeRunningStageAttempt(
         claimed.runId,
         claimed.stage,
-        "Worker lease expired",
+        this.nowIso(),
       );
     }
-
-    return claimed;
   }
 
   /**
@@ -286,7 +343,12 @@ export class LeaseManager {
    * Releases an active lease back to 'pending' (e.g. during graceful shutdown).
    */
   releaseJobLease(jobId: string, workerId: string): boolean {
-    return this.repos.jobs.releaseLease(jobId, workerId);
+    return this.repos.jobs.releaseLease(
+      jobId,
+      workerId,
+      undefined,
+      this.nowIso(),
+    );
   }
 
   /**
@@ -294,26 +356,14 @@ export class LeaseManager {
    * Marked failed instead of being left claimed.
    */
   expireCommands(): ExpireCommandsResult {
-    const now = this.nowIso();
-    const conn = this.repos.db;
-
-    const res = conn
-      .prepare(`
-        UPDATE run_commands
-        SET status = 'failed',
-            worker_id = NULL,
-            lease_until = NULL,
-            error = 'Command lease expired; retries exhausted',
-            processed_at = $now
-        WHERE status = 'claimed' AND lease_until < $now AND attempts >= max_attempts;
-      `)
-      .run({ $now: now });
-
-    return { expiredCount: res.changes };
+    return {
+      expiredCount: this.repos.commands.failExpiredCommands(this.nowIso()),
+    };
   }
 
   /**
-   * Claims all eligible pending commands for the given worker.
+   * Claims all eligible pending commands for the given worker. Expired
+   * commands with no retries left are failed first.
    */
   claimCommands(
     workerId: string,
@@ -321,7 +371,6 @@ export class LeaseManager {
     heartbeatTtlMs = this.policy.heartbeatTtlMs,
   ): CommandRecord[] {
     this.expireCommands();
-
     return this.repos.commands.claimPendingCommands(
       workerId,
       leaseDurationMs,
@@ -343,6 +392,57 @@ export class LeaseManager {
       commandId,
       workerId,
       leaseDurationMs,
+      undefined,
+      this.nowMs(),
+    );
+  }
+
+  completeCommand(
+    commandId: string,
+    workerId: string,
+    result?: unknown,
+  ): boolean {
+    return this.repos.commands.completeCommand(
+      commandId,
+      workerId,
+      result,
+      undefined,
+      this.nowIso(),
+    );
+  }
+
+  failCommand(commandId: string, workerId: string, error: string): boolean {
+    return this.repos.commands.failCommand(
+      commandId,
+      workerId,
+      error,
+      undefined,
+      this.nowIso(),
+    );
+  }
+
+  /** Is this worker's heartbeat within the policy TTL, by the injected clock? */
+  isWorkerActive(workerId: string): boolean {
+    return this.repos.heartbeats.isWorkerActive(
+      workerId,
+      this.policy.heartbeatTtlMs,
+      undefined,
+      this.nowMs(),
+    );
+  }
+
+  /** Has any worker heartbeated within the policy TTL, by the injected clock? */
+  isReady(): boolean {
+    return this.repos.heartbeats.isReady(
+      this.policy.heartbeatTtlMs,
+      undefined,
+      this.nowMs(),
+    );
+  }
+
+  activeWorkers(): WorkerHeartbeatRecord[] {
+    return this.repos.heartbeats.getActiveWorkers(
+      this.policy.heartbeatTtlMs,
       undefined,
       this.nowMs(),
     );

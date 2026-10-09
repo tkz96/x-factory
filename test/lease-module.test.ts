@@ -285,4 +285,246 @@ describe("Lease module (#180)", () => {
     expect(resolvedStop?.status).toBe("completed");
     expect(resolvedStop?.result).toContain("Target worker dead");
   });
+
+  describe("review fixes", () => {
+    function seedExhaustedClaim(
+      db: ReturnType<typeof setupTest>["db"],
+      repos: Repositories,
+      runId: string,
+      leaseUntilMs: number,
+    ) {
+      const job = repos.jobs.createJob({
+        runId,
+        stage: "execute",
+        status: "pending",
+        maxAttempts: 3,
+      });
+      db.prepare(`
+        UPDATE jobs
+        SET status = 'claimed', worker_id = 'crashed-worker',
+            lease_until = $leaseUntil, attempts = 3
+        WHERE id = $id;
+      `).run({
+        $leaseUntil: new Date(leaseUntilMs).toISOString(),
+        $id: job.id,
+      });
+      const attempt = repos.stageAttempts.recordStart(runId, "execute", 3);
+      return { job, attempt };
+    }
+
+    function blockRunTransitions(db: ReturnType<typeof setupTest>["db"]) {
+      db.exec(`
+        CREATE TRIGGER block_run_update BEFORE UPDATE ON runs
+        BEGIN SELECT RAISE(ABORT, 'run update blocked'); END;
+      `);
+    }
+
+    it("exhausting a job is atomic: a failed run transition leaves the job, attempt and run untouched", async () => {
+      const { db, repos } = setupTest();
+      const runId = "run-exhaust-atomic";
+      createExecutingRun(repos, runId);
+      let currentTime = Date.parse("2020-01-01T00:00:00.000Z");
+      const clock = { now: () => currentTime };
+      const { job, attempt } = seedExhaustedClaim(
+        db,
+        repos,
+        runId,
+        currentTime + 30_000,
+      );
+      currentTime += 35_000;
+
+      blockRunTransitions(db);
+      const worker = new Worker({ db, workerId: "live-worker", clock });
+      let thrown: unknown = null;
+      try {
+        await worker.stepOnce();
+      } catch (err) {
+        thrown = err;
+      }
+      expect(String(thrown)).toContain("run update blocked");
+      expect(repos.jobs.getJob(job.id)?.status).toBe("claimed");
+      expect(repos.stageAttempts.getLatestAttempt(runId, "execute")?.id).toBe(
+        attempt.id,
+      );
+      expect(
+        repos.stageAttempts.getLatestAttempt(runId, "execute")?.status,
+      ).toBe("running");
+      expect(repos.runs.get(runId)?.status).toBe("executing");
+
+      // Once the fault clears, the same sweep completes all three changes.
+      db.exec("DROP TRIGGER block_run_update;");
+      await worker.stepOnce();
+      expect(repos.jobs.getJob(job.id)?.status).toBe("failed");
+      expect(repos.runs.get(runId)?.status).toBe("recovery_required");
+      expect(
+        repos.stageAttempts.getLatestAttempt(runId, "execute")?.status,
+      ).toBe("failed");
+    });
+
+    it("startup recovery uses the same exhaust path, so a failed transition rolls back", async () => {
+      const { db, repos } = setupTest();
+      const runId = "run-startup-exhaust-atomic";
+      createExecutingRun(repos, runId);
+      const now = Date.parse("2020-06-01T00:00:00.000Z");
+      const { job } = seedExhaustedClaim(db, repos, runId, now - 5_000);
+
+      blockRunTransitions(db);
+      const worker = new Worker({
+        db,
+        workerId: "startup",
+        clock: { now: () => now },
+      });
+      let thrown: unknown = null;
+      try {
+        await worker.recoverOnStartup();
+      } catch (err) {
+        thrown = err;
+      }
+      expect(String(thrown)).toContain("run update blocked");
+      expect(repos.jobs.getJob(job.id)?.status).toBe("claimed");
+      expect(repos.runs.get(runId)?.status).toBe("executing");
+
+      db.exec("DROP TRIGGER block_run_update;");
+      const recovery = await worker.recoverOnStartup();
+      expect(recovery.recoveryRequiredRuns).toBe(1);
+      expect(repos.runs.get(runId)?.status).toBe("recovery_required");
+      expect(repos.jobs.getJob(job.id)?.status).toBe("failed");
+    });
+
+    it("exhaust and command expiry each live in one place in src", async () => {
+      const { Glob } = await import("bun");
+      const { readFileSync } = await import("node:fs");
+      const files = Array.from(new Glob("src/**/*.ts").scanSync("."));
+      const count = (needle: string) =>
+        files.filter((f) => readFileSync(f, "utf8").includes(needle));
+      expect(count("Command lease expired; retries exhausted")).toHaveLength(1);
+      expect(
+        count("Maximum retry attempts exhausted across worker lifetimes"),
+      ).toHaveLength(1);
+      expect(count("Job attempts (")).toHaveLength(1);
+    });
+
+    it("the lease TTL and heartbeat TTL literals exist only in src/lease.ts", async () => {
+      const { Glob } = await import("bun");
+      const { readFileSync } = await import("node:fs");
+      // Everything that claims, renews, expires or measures liveness.
+      const files = [
+        ...new Glob("src/db/**/*.ts").scanSync("."),
+        ...new Glob("src/diagnostics/**/*.ts").scanSync("."),
+        "src/worker.ts",
+        "src/server.ts",
+        "src/http/diagnostics-controller.ts",
+      ];
+      const offenders = files.filter((f) =>
+        /\b(30_?000|300_?000|10_?000|100_?000)\b/.test(readFileSync(f, "utf8")),
+      );
+      expect(offenders).toEqual([]);
+    });
+
+    it("changing only the policy changes liveness and expiry decisions", async () => {
+      const { LeaseManager } = await import("../src/lease.js");
+      const { db, repos } = setupTest();
+      createExecutingRun(repos, "run-policy");
+      const t0 = Date.parse("2020-01-01T00:00:00.000Z");
+      repos.jobs.createJob({
+        runId: "run-policy",
+        stage: "execute",
+        availableAt: new Date(t0).toISOString(),
+      });
+      let now = t0;
+      const short = new LeaseManager(repos, {
+        clock: { now: () => now },
+        policy: { jobLeaseTtlMs: 1_000, heartbeatTtlMs: 1_000 },
+      });
+      const claimed = short.claimNextJob("w1");
+      expect(claimed?.leaseUntil).toBe(new Date(t0 + 1_000).toISOString());
+      repos.heartbeats.upsert({
+        workerId: "w1",
+        pid: 1,
+        hostname: "h",
+        lastHeartbeat: new Date(t0).toISOString(),
+      });
+      now = t0 + 5_000;
+      expect(short.isWorkerActive("w1")).toBe(false);
+      const long = new LeaseManager(repos, {
+        clock: { now: () => now },
+        policy: { heartbeatTtlMs: 60_000 },
+      });
+      expect(long.isWorkerActive("w1")).toBe(true);
+      expect(db).toBeDefined();
+    });
+
+    it("every decision follows the injected clock, even when real time disagrees", async () => {
+      const { LeaseManager } = await import("../src/lease.js");
+      const { db, repos } = setupTest();
+      const fakeStart = Date.parse("2020-03-01T00:00:00.000Z");
+      let fake = fakeStart;
+      const clock = { now: () => fake };
+      const iso = (ms: number) => new Date(ms).toISOString();
+      const lease = new LeaseManager(repos, { clock });
+
+      // Liveness: a heartbeat written at fake time is alive until fake time passes the TTL.
+      repos.heartbeats.upsert({
+        workerId: "peer",
+        pid: 1,
+        hostname: "h",
+        lastHeartbeat: iso(fake),
+      });
+      expect(lease.isWorkerActive("peer")).toBe(true);
+      expect(lease.isReady()).toBe(true);
+      expect(lease.activeWorkers().map((w) => w.workerId)).toEqual(["peer"]);
+      fake += 31_000;
+      expect(lease.isWorkerActive("peer")).toBe(false);
+      expect(lease.isReady()).toBe(false);
+
+      // Release stamps updated_at with the fake clock.
+      createExecutingRun(repos, "run-clock-release");
+      repos.jobs.createJob({
+        runId: "run-clock-release",
+        stage: "execute",
+        availableAt: iso(fake),
+      });
+      const claimed = lease.claimNextJob("w1");
+      expect(claimed?.updatedAt).toBe(iso(fake));
+      fake += 1_000;
+      expect(lease.releaseJobLease(claimed?.id ?? "", "w1")).toBe(true);
+      expect(repos.jobs.getJob(claimed?.id ?? "")?.updatedAt).toBe(iso(fake));
+
+      // Startup recovery requeue and the exhaust transition use the fake clock.
+      createExecutingRun(repos, "run-clock-requeue");
+      createExecutingRun(repos, "run-clock-exhaust");
+      const requeueJob = repos.jobs.createJob({
+        runId: "run-clock-requeue",
+        stage: "execute",
+      });
+      const exhaustJob = repos.jobs.createJob({
+        runId: "run-clock-exhaust",
+        stage: "execute",
+      });
+      db.prepare(
+        `UPDATE jobs SET status='claimed', worker_id='dead', lease_until=$l, attempts=1 WHERE id=$id`,
+      ).run({ $l: iso(fake - 1_000), $id: requeueJob.id });
+      db.prepare(
+        `UPDATE jobs SET status='claimed', worker_id='dead', lease_until=$l, attempts=3 WHERE id=$id`,
+      ).run({ $l: iso(fake - 1_000), $id: exhaustJob.id });
+      const worker = new Worker({ db, workerId: "recoverer", clock });
+      await worker.recoverOnStartup();
+      expect(repos.jobs.getJob(requeueJob.id)?.status).toBe("pending");
+      expect(repos.jobs.getJob(requeueJob.id)?.updatedAt).toBe(iso(fake));
+      expect(repos.jobs.getJob(exhaustJob.id)?.updatedAt).toBe(iso(fake));
+      expect(repos.runs.get("run-clock-exhaust")?.updatedAt).toBe(iso(fake));
+      const exhaustEvents = repos.events.getEventsForRun("run-clock-exhaust");
+      expect(exhaustEvents.at(-1)?.createdAt).toBe(iso(fake));
+
+      // Command completion stamps processed_at with the fake clock.
+      createReadyForPrRun(repos, "run-clock-cmd");
+      const cmd = repos.commands.insertOrRetryCommand({
+        runId: "run-clock-cmd",
+        command: "stop",
+      });
+      await worker.stepCommandOnce();
+      expect(repos.commands.getCommand(cmd.id)?.status).toBe("completed");
+      expect(repos.commands.getCommand(cmd.id)?.processedAt).toBe(iso(fake));
+    });
+  });
 });

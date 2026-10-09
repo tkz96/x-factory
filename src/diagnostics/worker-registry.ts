@@ -42,7 +42,7 @@ export function unregisterWorker(
  */
 export function getActiveWorkers(
   heartbeats: WorkerHeartbeatRepository,
-  ttlMs = 30000,
+  ttlMs: number,
 ): Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }> {
   try {
     const now = Date.now();
@@ -65,7 +65,7 @@ export function getActiveWorkers(
  */
 export function isWorkerReady(
   heartbeats: WorkerHeartbeatRepository,
-  ttlMs = 30000,
+  ttlMs: number,
 ): boolean {
   return heartbeats.isReady(ttlMs);
 }

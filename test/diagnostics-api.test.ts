@@ -183,14 +183,14 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   it("unregisters workers and supports test heartbeat repo injection", () => {
     registerWorkerHeartbeat(repos.heartbeats, "worker-test-unreg");
     expect(
-      getActiveWorkers(repos.heartbeats).some(
+      getActiveWorkers(repos.heartbeats, 30_000).some(
         (w) => w.workerId === "worker-test-unreg",
       ),
     ).toBe(true);
 
     unregisterWorker(repos.heartbeats, "worker-test-unreg");
     expect(
-      getActiveWorkers(repos.heartbeats).some(
+      getActiveWorkers(repos.heartbeats, 30_000).some(
         (w) => w.workerId === "worker-test-unreg",
       ),
     ).toBe(false);

@@ -6,6 +6,7 @@ import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
+import { DEFAULT_LEASE_POLICY } from "../lease.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -60,7 +61,10 @@ function computeReadinessStatus(repos: Repositories) {
     dbError = err instanceof Error ? err.message : String(err);
   }
 
-  const activeWorkers = getActiveWorkers(repos.heartbeats);
+  const activeWorkers = getActiveWorkers(
+    repos.heartbeats,
+    DEFAULT_LEASE_POLICY.heartbeatTtlMs,
+  );
   const workerReady = activeWorkers.length > 0;
 
   const isReady =
@@ -131,7 +135,10 @@ export function handleDiagnosticsRoute(repos: Repositories): Response {
   const jobRepo = repos.jobs;
 
   const staleJobs = jobRepo.findStaleClaimedJobs();
-  const activeWorkers = getActiveWorkers(repos.heartbeats);
+  const activeWorkers = getActiveWorkers(
+    repos.heartbeats,
+    DEFAULT_LEASE_POLICY.heartbeatTtlMs,
+  );
 
   return jsonResponse({
     status: "ok",
@@ -147,7 +154,12 @@ export function handleDiagnosticsRoute(repos: Repositories): Response {
       jobs: { ...repos.diagnostics.countJobs(), stale: staleJobs.length },
     },
     worker: {
-      status: isWorkerReady(repos.heartbeats) ? "healthy" : "unavailable",
+      status: isWorkerReady(
+        repos.heartbeats,
+        DEFAULT_LEASE_POLICY.heartbeatTtlMs,
+      )
+        ? "healthy"
+        : "unavailable",
       activeCount: activeWorkers.length,
       fleet: activeWorkers,
     },
