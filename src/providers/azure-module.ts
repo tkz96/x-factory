@@ -21,8 +21,8 @@ import {
   type FindPullRequestInput,
   type Provider,
   type ProviderConfig,
-  type ProviderError,
   type ProviderErrorContext,
+  type ProviderErrorEnvelope,
   type ProviderPullRequest,
   type ProviderRepository,
   REQUIRED_WORKFLOW_LABEL,
@@ -33,6 +33,7 @@ import {
   type VerificationResult,
   type VerificationWarning,
 } from "./contract.js";
+import { normalizeRawObjectGuard } from "./errors.js";
 import {
   type HttpTransport,
   isHtmlResponse,
@@ -333,16 +334,10 @@ export async function azureFetch(
 export function toUserError(
   raw: unknown,
   context: ProviderErrorContext,
-): ProviderError {
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "code" in raw &&
-    "context" in raw &&
-    typeof (raw as Record<string, unknown>).code === "string" &&
-    typeof (raw as Record<string, unknown>).context === "string"
-  ) {
-    return raw as ProviderError;
+): ProviderErrorEnvelope {
+  const fromGuard = normalizeRawObjectGuard(raw, context);
+  if (fromGuard) {
+    return fromGuard;
   }
 
   let status: number | undefined;

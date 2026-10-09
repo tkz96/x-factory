@@ -404,6 +404,39 @@ provider error envelope; they are never retried against a local CLI. The
 ticket-write path therefore never hard-depends on the `gh` CLI runtime (deviation
 retro-sanctioned on #138).
 
+How PR failures surface (#184): the registry hands out providers whose
+capability calls throw a normalized `ProviderError` (see "Registry error
+contract" below), so a failed `createPullRequest` or `findExistingPullRequest`
+reaches delivery already carrying `PR` context and canonical copy. Delivery does
+not check capabilities or normalize errors itself. A provider without
+`createPullRequest` is wrapped so the call throws the canonical `PR` error
+(`UNKNOWN`: "An unexpected error occurred while creating the pull request. Try
+again."), while `hasCapability` still reports the capability as absent. The
+deliver stage fails with exactly that message, and the worker logs only the
+message, never the raw provider failure kept as `cause`.
+
+### Registry error contract (#184)
+
+`getProvider`, `requireProvider` and `listProviders` return a wrapper around the
+registered provider; the provider object itself is never modified, and one
+wrapper is built per provider and reused. Every call to `verifyCredentials`,
+`verifyScopes`, `listRepositories`, `listTickets`, `createPullRequest` and
+`findExistingPullRequest` either resolves or throws a `ProviderError` class
+instance (distinct from the `ProviderErrorEnvelope` wire type in the contract)
+with:
+
+- `code` and `context` from the provider's `toUserError`, with the context
+  fixed by the capability (`VERIFY`: `verifyCredentials`, `verifyScopes`;
+  `DISCOVERY`: `listRepositories`; `TICKETS`: `listTickets`; `PR`:
+  `createPullRequest`, `findExistingPullRequest`);
+- `message` set to the canonical copy for that `(code, context)` pair
+  (`PROVIDER_ERROR_MESSAGES` in `src/providers/errors.ts`), never provider text;
+- `retryAfterMs` only when the provider supplied a positive wait;
+- the raw failure only as `cause`.
+
+A `ProviderError` thrown by a provider is re-tagged with the capability's
+context. Callers catch `ProviderError`; they do not call `toUserError`.
+
 ### `parseQuickUrl` accepted URL shapes (GitHub reference)
 - `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
   (owner + repo) plus inferred project name.
@@ -592,9 +625,24 @@ write through `createProject`, after the tracker gate above.
 | Connection set covers only one role (create), the merged set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
+| Provider failure on `GET /api/projects/:id/tickets` (and any route that lets a `ProviderError` reach the domain-error ladder) | by code, below | `{ error, code, context, retryAfterMs? }` |
 
 Codes only — provider and zod messages never cross the boundary. Upstream
 failures use the separate `ProviderError` envelope.
+
+The provider-failure body is built in one place (`providerErrorResponse` in
+`src/http/responses.ts`): `error` is the canonical copy, `code` and `context`
+come from the `ProviderError`, and `retryAfterMs` is present only when known.
+The status follows the code:
+
+| `code` | Status |
+| --- | --- |
+| `AUTH_INVALID` | 401 |
+| `PERMISSION` | 403 |
+| `NOT_FOUND` | 404 |
+| `AUTH_LOCKED` | 423 |
+| `RATE_LIMITED` | 429, with a `Retry-After` header in whole seconds when `retryAfterMs` is known |
+| `UNKNOWN` | 502 |
 
 ### Scope diagnostic (`POST /api/projects/test-scopes`, legacy alias `POST /api/projects/test-azure-scopes`)
 

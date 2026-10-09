@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import {
   hasCapability,
   isProviderError,
-  type ProviderError,
+  type ProviderErrorEnvelope,
   REQUIRED_WORKFLOW_LABEL,
 } from "../src/providers/contract.js";
 import {
@@ -50,7 +50,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(provider?.iconRef).toBe("provider-github");
 
       const required = requireProvider("github");
-      expect(required).toBe(githubProvider);
+      expect(required.id).toBe(githubProvider.id);
+      expect(Object.getPrototypeOf(required)).toBe(githubProvider);
 
       const all = listProviders();
       expect(all.some((p) => p.id === "github")).toBe(true);
@@ -533,7 +534,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
     });
 
     it("forwards a genuine provider error unchanged (code preserved, context re-scoped)", () => {
-      const genuine: ProviderError = {
+      const genuine: ProviderErrorEnvelope = {
         code: "RATE_LIMITED",
         context: "DISCOVERY",
         retryAfterMs: 5000,

@@ -18,8 +18,8 @@ import type {
   Provider,
   ProviderConfig,
   ProviderConfigFieldMeta,
-  ProviderError,
   ProviderErrorContext,
+  ProviderErrorEnvelope,
   QuickUrlDraft,
   TicketQueryOptions,
   TrackerTicket,
@@ -27,6 +27,7 @@ import type {
   VerificationWarning,
 } from "./contract.js";
 import { REQUIRED_WORKFLOW_LABEL } from "./contract.js";
+import { normalizeRawObjectGuard } from "./errors.js";
 import {
   DEFAULT_PROVIDER_TIMEOUT_MS,
   type HttpTransport,
@@ -175,7 +176,7 @@ function mapStatusToProviderError(
   status: number,
   headers: Headers,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   const seraphReason = headers.get("x-seraph-loginreason") ?? "";
   if (/AUTHENTICATION_DENIED/i.test(seraphReason)) {
     return { code: "AUTH_LOCKED", context };
@@ -200,7 +201,7 @@ function mapStatusToProviderError(
 function mapErrorMessageToProviderError(
   message: string,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
   if (/AUTHENTICATION_DENIED|captcha/i.test(message)) {
     return { code: "AUTH_LOCKED", context };
   }
@@ -219,7 +220,12 @@ function mapErrorMessageToProviderError(
 export function toJiraUserError(
   raw: unknown,
   context: ProviderErrorContext,
-): ProviderError {
+): ProviderErrorEnvelope {
+  const fromGuard = normalizeRawObjectGuard(raw, context);
+  if (fromGuard) {
+    return fromGuard;
+  }
+
   const http = extractHttpStatusAndHeaders(raw);
   if (http) {
     return mapStatusToProviderError(http.status, http.headers, context);
@@ -438,7 +444,10 @@ export function createJiraProvider(
       };
     },
 
-    toUserError(raw: unknown, context: ProviderErrorContext): ProviderError {
+    toUserError(
+      raw: unknown,
+      context: ProviderErrorContext,
+    ): ProviderErrorEnvelope {
       return toJiraUserError(raw, context);
     },
 
