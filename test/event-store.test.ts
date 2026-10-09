@@ -45,7 +45,7 @@ describe("Durable Event Store & SSE Replay (XFM-12, XFM-13, XFM-15)", () => {
       status: "preparing",
     });
     const e2 = eventRepo.appendEvent("run-seq-1", "stage_evidence", {
-      stage: "parse",
+      stage: "prepare",
       summary: "Done",
     });
     const e3 = eventRepo.appendEvent("run-seq-1", "info", {

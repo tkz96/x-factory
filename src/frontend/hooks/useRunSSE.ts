@@ -7,17 +7,13 @@ import type {
   PullRequest,
   ReviewResult,
   Run,
+  RunEvent,
   RunStatus,
   VerificationResult,
 } from "../../shared/types.js";
 import { invalidateRun, patchRunCache } from "../lib/query-client.js";
 
-export interface CanonicalWireEvent {
-  id: number;
-  type: string;
-  payload: unknown;
-  timestamp: string;
-}
+export type CanonicalWireEvent = RunEvent;
 
 export function useRunSSE(run: Run | undefined | null) {
   const queryClient = useQueryClient();

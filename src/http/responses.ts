@@ -222,15 +222,14 @@ export async function catchHttpErrors(
   }
 }
 
-export interface WireSSEEvent {
-  id: number;
-  type: string;
-  payload: unknown;
-  timestamp: string;
-}
+import type {
+  RunEvent,
+  RunEventPayloadMap,
+  RunEventType,
+} from "../shared/types.js";
 
 export function formatSSEMessage(
-  event: WireSSEEvent | Record<string, unknown>,
+  event: RunEvent | Record<string, unknown>,
 ): string {
   const obj = event as Record<string, unknown>;
   const id =
@@ -247,12 +246,12 @@ export function formatSSEMessage(
         ? obj.createdAt
         : new Date().toISOString();
 
-  const canonicalEvent: WireSSEEvent = {
+  const canonicalEvent: RunEvent = {
     id: id ?? 0,
-    type: String(obj.type || ""),
-    payload: obj.payload ?? {},
+    type: String(obj.type || "") as RunEventType,
+    payload: (obj.payload ?? {}) as RunEventPayloadMap[RunEventType],
     timestamp,
-  };
+  } as RunEvent;
 
   let out = "";
   if (id !== undefined && id !== null) {

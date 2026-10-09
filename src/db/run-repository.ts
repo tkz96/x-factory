@@ -12,6 +12,7 @@ import type {
   PullRequest,
   ReviewResult,
   Run,
+  RunEventPayload,
   RunStatus,
   Ticket,
   VerificationResult,
@@ -143,7 +144,6 @@ function rowToRunRecord(row: RunRow): RunRecord {
     plan: row.plan,
     branch: row.branch,
     status: row.status as RunStatus,
-    events: [],
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     repairAttempts: row.repair_attempts,
@@ -376,7 +376,7 @@ export class RunRepository {
     toState: RunStatus,
     options?: {
       expectedRevision?: number | undefined;
-      event?: { type: string; payload: unknown } | undefined;
+      event?: RunEventPayload | undefined;
       finishedAt?: string | null | undefined;
     },
     txDb?: Database,

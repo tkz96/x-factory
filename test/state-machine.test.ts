@@ -81,7 +81,6 @@ describe("Run Object Shape", () => {
       plan: "1. Do work\n2. Verify",
       branch: "xfactory/PROJ-101-abc12345",
       status: "preparing",
-      events: [],
       startedAt: new Date().toISOString(),
       finishedAt: null,
       implementationContext: null,

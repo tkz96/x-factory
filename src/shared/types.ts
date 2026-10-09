@@ -327,30 +327,134 @@ export interface PullRequest {
   title: string;
 }
 
-/**
- * Run event payloads without timestamp.
- */
-export type RunEventPayload =
-  | { type: "status"; status: RunStatus; text: string }
-  | { type: "stage_evidence"; stage: WorkflowStage; summary: string }
-  | { type: "info"; text: string }
-  | { type: "error"; text: string }
+export interface StatusEventPayload {
+  status?: RunStatus | undefined;
+  text?: string | undefined;
+  message?: string | undefined;
+  reason?: string | undefined;
+  pullRequest?: PullRequest | null | undefined;
+  step?: number | undefined;
+  num?: number | undefined;
+}
+
+export interface StageEvidencePayload {
+  stage: WorkflowStage;
+  summary?: string | undefined;
+  evidence?: string | undefined;
+  branch?: string | undefined;
+  worktreePath?: string | undefined;
+  relevantFiles?: string[] | undefined;
+  data?: Record<string, unknown> | undefined;
+  filesChanged?: string[] | undefined;
+  testsPassed?: boolean | undefined;
+  passed?: boolean | undefined;
+  findingsCount?: number | undefined;
+}
+
+export interface PrStepPayload {
+  step?: string | undefined;
+  text?: string | undefined;
+  branch?: string | undefined;
+  commitSha?: string | undefined;
+  url?: string | undefined;
+  pullRequest?: PullRequest | undefined;
+}
+
+export interface ChatUserPayload {
+  text: string;
+}
+
+export interface ChatAgentPayload {
+  text: string;
+}
+
+export interface UserFeedbackPayload {
+  text?: string | undefined;
+  notes?: string | undefined;
+  failingTasks?: string[] | undefined;
+}
+
+export interface PiOutputChunkPayload {
+  chunk?: string | undefined;
+  text?: string | undefined;
+  role?: string | undefined;
+}
+
+export interface VerificationEventPayload {
+  result: VerificationResult;
+}
+
+export interface ReviewEventPayload {
+  result: ReviewResult;
+}
+
+export interface RalphProgressPayload {
+  text: string;
+  iteration?: number | undefined;
+  task?: string | undefined;
+}
+
+export type InfoEventPayload =
+  | string
   | {
-      type: "ralph_progress";
-      text: string;
-      iteration?: number | undefined;
-      task?: string | undefined;
-    }
-  | { type: "steer"; text: string }
-  | { type: "verification"; result: VerificationResult }
-  | { type: "review"; result: ReviewResult }
-  | { type: "pr_step"; text: string }
-  | { type: "server_shutdown"; text: string };
+      message?: string | undefined;
+      text?: string | undefined;
+      msg?: string | undefined;
+      count?: number | undefined;
+    };
+
+export interface ErrorEventPayload {
+  message?: string | undefined;
+  text?: string | undefined;
+  error?: string | undefined;
+}
+
+export interface SteerEventPayload {
+  message?: string | undefined;
+  text?: string | undefined;
+}
+
+export type RunEventPayloadMap = {
+  status: StatusEventPayload;
+  stage_evidence: StageEvidencePayload;
+  pr_step: PrStepPayload;
+  chat_user: ChatUserPayload;
+  chat_agent: ChatAgentPayload;
+  user_feedback: UserFeedbackPayload;
+  pi_output_chunk: PiOutputChunkPayload;
+  verification: VerificationEventPayload;
+  review: ReviewEventPayload;
+  ralph_progress: RalphProgressPayload;
+  steer: SteerEventPayload;
+  info: InfoEventPayload;
+  error: ErrorEventPayload;
+};
+
+export type RunEventType = keyof RunEventPayloadMap;
+
+/**
+ * Discriminated union of run event types and payloads matching what the server emits.
+ */
+export type RunEventPayload<T extends RunEventType = RunEventType> =
+  T extends RunEventType
+    ? {
+        type: T;
+        payload: RunEventPayloadMap[T];
+      }
+    : never;
 
 /**
  * Discriminated union of SSE events emitted to connected clients.
  */
-export type RunEvent = RunEventPayload & { timestamp: number };
+export type RunEvent<T extends RunEventType = RunEventType> =
+  T extends RunEventType
+    ? {
+        id: number;
+        timestamp: string;
+        type: T;
+        payload: RunEventPayloadMap[T];
+      }
+    : never;
 
 /**
  * Public run shape exposed via API.
@@ -362,7 +466,6 @@ export interface Run {
   plan: string;
   branch: string;
   status: RunStatus;
-  events: RunEvent[];
   startedAt: string;
   finishedAt: string | null;
   implementationContext: ImplementationContext | null;
