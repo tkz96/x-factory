@@ -5,7 +5,10 @@ import "./RunChat.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   canRunAction,
+  DELIVERY_RUN_STATUSES,
   runStatusLabel,
+  STATUS_TO_STAGE,
+  UNSUCCESSFUL_TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
 import type { ImplementationContext, Run } from "../../../shared/types.js";
 import { api } from "../../lib/api-client.js";
@@ -108,7 +111,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     timestamp: now,
   });
 
-  if (run.status === "queued" || run.status === "preparing") {
+  if (STATUS_TO_STAGE[run.status] === "prepare") {
     messages.push({
       id: "agent-preparing",
       role: "agent",
@@ -520,10 +523,10 @@ export function RunChat({
       return "Waiting for agent to finish codebase analysis…";
     }
 
-    if (run.status === "pr_created" || run.status === "ready_for_pr") {
+    if (DELIVERY_RUN_STATUSES.has(run.status)) {
       return "Pull request stage reached.";
     }
-    if (run.status === "stopped" || run.status === "failed") {
+    if (UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(run.status)) {
       return "Run execution ended.";
     }
     return `Waiting for agent (${run.status})…`;

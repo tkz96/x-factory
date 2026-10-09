@@ -6,7 +6,10 @@ import {
   useLocation,
   useSearchParams,
 } from "react-router-dom";
-import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
+import {
+  ACTIVE_RUN_STATUSES,
+  STOPPABLE_RUN_STATUSES,
+} from "../../shared/run-status-policy.js";
 import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import {
@@ -499,11 +502,8 @@ function AppShellContent() {
   const { data: tickets = [] } = useTickets(selectedProjectId);
   const { data: readiness } = useReadiness();
 
-  const activeRunsCount = runs.filter(
-    (r) =>
-      r.status !== "pr_created" &&
-      r.status !== "failed" &&
-      r.status !== "stopped",
+  const activeRunsCount = runs.filter((r) =>
+    ACTIVE_RUN_STATUSES.has(r.status),
   ).length;
 
   const queueCount = tickets.length;

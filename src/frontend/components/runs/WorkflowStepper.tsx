@@ -114,12 +114,7 @@ export function WorkflowStepper({
   }, [events]);
 
   const getStepClass = (idx: number) => {
-    if (
-      (status === "failed" ||
-        status === "stopped" ||
-        status === "recovery_required") &&
-      idx === currentIdx
-    ) {
+    if (currentStage === null && idx === currentIdx) {
       return "failed";
     }
     if (status === "pr_created" || (currentIdx !== -1 && idx < currentIdx)) {
