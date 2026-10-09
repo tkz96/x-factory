@@ -11,10 +11,13 @@ import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import {
+  cacheRunAfterMutation,
   type RunEventTransport,
   type RunEventTransportHandlers,
   reduceRun,
   runPollIntervalMs,
+  runRefetchInterval,
+  runStreamPlan,
   subscribeRunEvents,
 } from "../src/frontend/lib/run-state.js";
 import { toWireEvent } from "../src/http/responses.js";
@@ -301,5 +304,67 @@ describe("client run-state module (#191)", () => {
     expect(runPollIntervalMs(runSnapshot("recovery_required"))).toBe(2000);
     expect(runPollIntervalMs(runSnapshot("pr_created"))).toBe(false);
     expect(runPollIntervalMs(undefined)).toBe(false);
+  });
+
+  it("stop() flushes the pending invalidation at once and cancels its timer", async () => {
+    const records = recordDeliveredRun();
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.run(RUN_ID), runSnapshot("queued"));
+    let invalidations = 0;
+    const original = queryClient.invalidateQueries.bind(queryClient);
+    queryClient.invalidateQueries = (filters, options) => {
+      invalidations += 1;
+      return original(filters, options);
+    };
+    const stop = subscribeRunEvents({
+      queryClient,
+      runId: RUN_ID,
+      replayOnly: false,
+      transport: replayTransport(records).transport,
+    });
+    stop();
+    expect(invalidations).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(invalidations).toBe(1);
+  });
+
+  it("a dropped stream leaves the run's polling fallback in place", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.run(RUN_ID), runSnapshot("executing"));
+    const stream = replayTransport([]);
+    const stop = subscribeRunEvents({
+      queryClient,
+      runId: RUN_ID,
+      replayOnly: false,
+      transport: stream.transport,
+    });
+    stream.fail();
+    stop();
+
+    // The polling interval depends on the run, never on the stream, so a drop cannot disable it.
+    const run = queryClient.getQueryData<Run>(queryKeys.run(RUN_ID));
+    expect(runRefetchInterval({ state: { data: run } })).toBe(2000);
+  });
+
+  it("runStreamPlan subscribes live for an active run, replay-only for a finished one, and waits for the snapshot", () => {
+    expect(runStreamPlan(undefined)).toBeNull();
+    expect(runStreamPlan(runSnapshot("executing"))).toEqual({
+      replayOnly: false,
+    });
+    expect(runStreamPlan(runSnapshot("pr_created"))).toEqual({
+      replayOnly: true,
+    });
+  });
+
+  it("cacheRunAfterMutation writes the run snapshot and marks the runs list stale", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.runs(), [runSnapshot("stopped")]);
+    cacheRunAfterMutation(queryClient, runSnapshot("queued"));
+    expect(queryClient.getQueryData<Run>(queryKeys.run(RUN_ID))?.status).toBe(
+      "queued",
+    );
+    expect(queryClient.getQueryState(queryKeys.runs())?.isInvalidated).toBe(
+      true,
+    );
   });
 });

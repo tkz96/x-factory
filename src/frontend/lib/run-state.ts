@@ -14,13 +14,15 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   ACTIVE_RUN_STATUSES,
   canTransition,
+  TERMINAL_RUN_STATUSES,
 } from "../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunEventType } from "../../shared/types.js";
-import { invalidateRun, patchRunCache } from "./query-client.js";
-import { queryKeys } from "./query-policies.js";
-
-/** The documented polling fallback for an active run (docs/explanation/ui-state-and-event-streaming.md). */
-export const ACTIVE_RUN_POLL_INTERVAL_MS = 2000;
+import {
+  invalidateRun,
+  invalidateRuns,
+  patchRunCache,
+} from "./query-client.js";
+import { ACTIVE_RUN_POLL_INTERVAL_MS, queryKeys } from "./query-policies.js";
 
 /** Trailing delay that merges the invalidations of one burst of events into one. */
 const INVALIDATION_DELAY_MS = 100;
@@ -101,6 +103,42 @@ export function runPollIntervalMs(run: Run | undefined): number | false {
     : false;
 }
 
+/** The `refetchInterval` of a run detail query: the polling fallback, whatever the stream is doing. */
+export function runRefetchInterval(query: {
+  state: { data: Run | undefined };
+}): number | false {
+  return runPollIntervalMs(query.state.data);
+}
+
+/**
+ * What the run's live stream should be: null until the snapshot is loaded, then
+ * replay-only for a finished run (its history is shown, then the stream closes).
+ */
+export function runStreamPlan(
+  run: Run | undefined,
+): { replayOnly: boolean } | null {
+  if (!run) return null;
+  return { replayOnly: TERMINAL_RUN_STATUSES.has(run.status) };
+}
+
+/** Writes a run returned by a mutation and marks the runs list stale. */
+export function cacheRunAfterMutation(
+  queryClient: QueryClient,
+  run: Run,
+): void {
+  queryClient.setQueryData(queryKeys.run(run.id), run);
+  void invalidateRuns(queryClient);
+}
+
+/** Refreshes a run after a mutation whose response does not carry the run. */
+export function refreshRunAfterMutation(
+  queryClient: QueryClient,
+  runId: string,
+): void {
+  void invalidateRun(runId, queryClient);
+  void invalidateRuns(queryClient);
+}
+
 // ─── Transport seam ──────────────────────────────────────────────────────────
 
 export interface RunEventTransportHandlers {
@@ -145,6 +183,19 @@ const pendingInvalidations = new WeakMap<
   QueryClient,
   Map<string, ReturnType<typeof setTimeout>>
 >();
+
+/** Clears the pending invalidation for a run and returns whether there was one. */
+function takePendingInvalidation(
+  queryClient: QueryClient,
+  runId: string,
+): boolean {
+  const pending = pendingInvalidations.get(queryClient);
+  const timer = pending?.get(runId);
+  if (!pending || timer === undefined) return false;
+  clearTimeout(timer);
+  pending.delete(runId);
+  return true;
+}
 
 function scheduleRunInvalidation(queryClient: QueryClient, runId: string) {
   let pending = pendingInvalidations.get(queryClient);
@@ -211,6 +262,11 @@ export function subscribeRunEvents({
   const stop = () => {
     if (stopped) return;
     stopped = true;
+    // Flush a pending invalidation rather than drop it: the replacement stream
+    // may not re-apply the same events, so nothing else would refresh the run.
+    if (takePendingInvalidation(queryClient, runId)) {
+      void invalidateRun(runId, queryClient);
+    }
     close?.();
     close = null;
     onConnectionChange?.(false);
