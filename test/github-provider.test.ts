@@ -27,6 +27,7 @@ import {
   resolveGitHubConfig,
   toGitHubUserError,
 } from "../src/providers/github-module.js";
+import { migrateLegacyProviderConfig } from "../src/providers/legacy-migration.js";
 import {
   getProvider,
   listProviders,
@@ -84,7 +85,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(descriptor?.capabilities).toContain("parseQuickUrl");
 
       const fields = serializeProviderConfigSchema(githubProvider.configSchema);
-      expect(fields.length).toBe(3);
+      expect(fields.length).toBe(4);
 
       const tokenField = fields.find((f) => f.name === "token");
       expect(tokenField).toBeDefined();
@@ -183,10 +184,10 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           repository: "backend-service",
         },
       };
-      const resolved = resolveGitHubConfig(config);
+      const resolved = migrateLegacyProviderConfig("github", config);
       expect(resolved.token).toBe("ghp_githost_token");
-      expect(resolved.owner).toBe("enterprise-org");
-      expect(resolved.repo).toBe("backend-service");
+      expect(resolved.repoOwner).toBe("enterprise-org");
+      expect(resolved.repository).toBe("backend-service");
     });
 
     it("resolves nested configurations inside connections array (#131 payload shape)", () => {
@@ -202,9 +203,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           },
         ],
       };
-      const resolved = resolveGitHubConfig(config);
+      const resolved = migrateLegacyProviderConfig("github", config);
       expect(resolved.token).toBe("ghp_conn_token");
-      expect(resolved.owner).toBe("vendifai");
+      expect(resolved.repoOwner).toBe("vendifai");
     });
 
     it("detects and rejects conflicting owner configurations across nested objects (#129)", () => {
@@ -220,9 +221,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(check.error).toContain("org-alpha");
       expect(check.error).toContain("org-beta");
 
-      expect(() => resolveGitHubConfig(conflictingOwner)).toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingOwner),
+      ).toThrow(/Configuration mismatch/);
     });
 
     it("detects and rejects conflicting token values across nested objects (#129)", () => {
@@ -235,9 +236,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(conflictingToken);
       expect(check.mismatch).toBe(true);
       expect(check.error).toContain("conflicting token values");
-      expect(() => resolveGitHubConfig(conflictingToken)).toThrow(
-        /conflicting token values/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingToken),
+      ).toThrow(/conflicting token values/);
     });
 
     it("detects and rejects conflicting repository values across nested objects (#129)", () => {
@@ -250,9 +251,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(conflictingRepo);
       expect(check.mismatch).toBe(true);
       expect(check.error).toContain("Configuration mismatch");
-      expect(() => resolveGitHubConfig(conflictingRepo)).toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingRepo),
+      ).toThrow(/Configuration mismatch/);
     });
 
     it("accepts consistent nested configurations without error", () => {
@@ -265,8 +266,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       };
       const check = detectGitHubConfigMismatch(consistent);
       expect(check.mismatch).toBe(false);
-      const resolved = resolveGitHubConfig(consistent);
-      expect(resolved.owner).toBe("my-org");
+      const resolved = migrateLegacyProviderConfig("github", consistent);
+      expect(resolved.repoOwner).toBe("my-org");
       expect(resolved.token).toBe("ghp_token_123");
     });
 
@@ -290,9 +291,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(mixedConfig);
       expect(check.mismatch).toBe(false);
 
-      const resolved = resolveGitHubConfig(mixedConfig);
-      expect(resolved.owner).toBe("acme-corp");
-      expect(resolved.repo).toBe("core-repo");
+      const resolved = migrateLegacyProviderConfig("github", mixedConfig);
+      expect(resolved.repoOwner).toBe("acme-corp");
+      expect(resolved.repository).toBe("core-repo");
       expect(resolved.token).toBe("ghp_github_secret_token");
     });
 
@@ -323,9 +324,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(mixedConnections);
       expect(check.mismatch).toBe(false);
 
-      const resolved = resolveGitHubConfig(mixedConnections);
-      expect(resolved.owner).toBe("enterprise-org");
-      expect(resolved.repo).toBe("service-repo");
+      const resolved = migrateLegacyProviderConfig("github", mixedConnections);
+      expect(resolved.repoOwner).toBe("enterprise-org");
+      expect(resolved.repository).toBe("service-repo");
       expect(resolved.token).toBe("ghp_conn_token");
     });
 
@@ -351,9 +352,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const check = detectGitHubConfigMismatch(conflictingMixed);
       expect(check.mismatch).toBe(true);
       expect(check.error).toContain("Configuration mismatch");
-      expect(() => resolveGitHubConfig(conflictingMixed)).toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingMixed),
+      ).toThrow(/Configuration mismatch/);
     });
 
     it("accepts identical nested baseUrl values including trailing-slash differences", () => {
@@ -365,7 +366,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       };
       const check = detectGitHubConfigMismatch(identicalBaseUrl);
       expect(check.mismatch).toBe(false);
-      const resolved = resolveGitHubConfig(identicalBaseUrl);
+      const resolved = migrateLegacyProviderConfig("github", identicalBaseUrl);
       expect(resolved.baseUrl).toBe("https://api.github.com");
     });
 
@@ -381,9 +382,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(check.error).toContain("Configuration mismatch");
       expect(check.error).toContain("baseUrl");
 
-      expect(() => resolveGitHubConfig(conflictingBaseUrl)).toThrow(
-        /Configuration mismatch.*baseUrl/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingBaseUrl),
+      ).toThrow(/Configuration mismatch.*baseUrl/);
     });
   });
 
@@ -700,12 +701,14 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
-      const repos = await provider.listRepositories?.({
-        gitHost: {
-          token: "ghp_valid_token",
-          repoOwner: "acme",
-        },
-      });
+      const repos = await provider.listRepositories?.(
+        migrateLegacyProviderConfig("github", {
+          gitHost: {
+            token: "ghp_valid_token",
+            repoOwner: "acme",
+          },
+        }),
+      );
 
       expect(repos).toHaveLength(2);
       expect(repos?.[0]).toEqual({
@@ -1362,13 +1365,13 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
       const tickets = await provider.listTickets?.(
-        {
+        migrateLegacyProviderConfig("github", {
           tracker: {
             token: "ghp_tracker_token",
             repoOwner: "octocat",
             repository: "tracker-repo",
           },
-        },
+        }),
         { requiredLabel: REQUIRED_WORKFLOW_LABEL },
       );
 
@@ -1726,9 +1729,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         token: "ghp_token_one",
         gitHost: { token: "ghp_token_two" },
       };
-      await expect(provider.verifyScopes?.(conflictingToken)).rejects.toThrow(
-        /conflicting token values/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingToken),
+      ).toThrow(/conflicting token values/);
       expect(httpCalls).toBe(0);
 
       // Conflicting nested owner
@@ -1737,9 +1740,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         repoOwner: "org-alpha",
         github: { repoOwner: "org-beta" },
       };
-      await expect(provider.verifyScopes?.(conflictingOwner)).rejects.toThrow(
-        /Configuration mismatch/,
-      );
+      expect(() =>
+        migrateLegacyProviderConfig("github", conflictingOwner),
+      ).toThrow(/Configuration mismatch/);
       expect(httpCalls).toBe(0);
 
       // Consistent nested configuration works
@@ -1747,7 +1750,8 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         token: "ghp_valid_token",
         github: { token: "ghp_valid_token" },
       };
-      const report = await provider.verifyScopes?.(consistent);
+      const migrated = migrateLegacyProviderConfig("github", consistent);
+      const report = await provider.verifyScopes?.(migrated);
       expect(report).toBeDefined();
       expect(httpCalls).toBe(1);
     });

@@ -20,6 +20,7 @@ import {
 } from "../shared/legacy-tracker.js";
 import type { Project, ProjectConnection } from "../shared/types.js";
 import type { Provider, ProviderConfig, ProviderRole } from "./contract.js";
+import { migrateLegacyProviderConfig } from "./legacy-migration.js";
 import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
 import { getSecretFieldRoutes } from "./secret-routing.js";
 
@@ -66,7 +67,14 @@ export function loadProjectConnections(
   if (providerId === null) return [];
   const provider = registry.get(providerId);
   if (!provider) return [];
-  const config = legacyTrackerConfig(project.issueTracker, providerId);
+  const rawConfig = legacyTrackerConfig(project.issueTracker, providerId);
+  const config = migrateLegacyProviderConfig(providerId, {
+    ...rawConfig,
+    ...(typeof project.issueTracker === "object" &&
+    project.issueTracker !== null
+      ? (project.issueTracker as unknown as Record<string, unknown>)
+      : {}),
+  });
 
   const roles = provider.roles.filter(
     (role): role is ProviderRole => role === "tracker" || role === "gitHost",

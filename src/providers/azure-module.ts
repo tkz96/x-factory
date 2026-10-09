@@ -40,6 +40,7 @@ import {
   ProviderHttpError,
   providerFetch,
 } from "./http.js";
+import { migrateLegacyProviderConfig } from "./legacy-migration.js";
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
 export const azureConfigSchema = z.object({
@@ -153,106 +154,24 @@ export class AzureApiError extends ProviderHttpError {
   }
 }
 
-/**
- * Extract canonical organization name from an Azure DevOps URL.
- */
-export function extractOrgNameFromUrl(orgUrl: string): string | null {
-  const trimmed = orgUrl.trim().replace(/\/+$/, "");
-  // dev.azure.com/<org>
-  const devAzureMatch = trimmed.match(
-    /^(?:https?:\/\/)?dev\.azure\.com\/([^/]+)/i,
-  );
-  if (devAzureMatch?.[1]) {
-    return decodeURIComponent(devAzureMatch[1]).toLowerCase();
-  }
-  // <org>.visualstudio.com
-  const vsMatch = trimmed.match(/^(?:https?:\/\/)?([^.]+)\.visualstudio\.com/i);
-  if (vsMatch?.[1]) {
-    return decodeURIComponent(vsMatch[1]).toLowerCase();
-  }
-  // ssh.dev.azure.com:v3/<org>
-  const sshMatch = trimmed.match(/^(?:git@)?ssh\.dev\.azure\.com:v3\/([^/]+)/i);
-  if (sshMatch?.[1]) {
-    return decodeURIComponent(sshMatch[1]).toLowerCase();
-  }
-  return null;
-}
+export { extractOrgNameFromUrl } from "./azure-urls.js";
 
 /**
  * Defect H2 fix: Detect organization vs orgUrl configuration mismatch.
  *
- * Detects whether the configured organization and the org embedded in orgUrl
- * are distinct configurations (also honoring #129 nested-config detection),
- * ensuring they are NEVER silently conflated.
+ * Delegates to the unified legacy migration step (#186), ensuring conflicting
+ * configurations are NEVER silently conflated.
  */
 export function detectOrganizationMismatch(config: Record<string, unknown>): {
   mismatch: boolean;
   error?: string;
 } {
-  const rawOrgUrl =
-    typeof config.orgUrl === "string" ? config.orgUrl.trim() : "";
-  if (!rawOrgUrl) {
+  try {
+    migrateLegacyProviderConfig("azure", config);
     return { mismatch: false };
+  } catch (err) {
+    return { mismatch: true, error: (err as Error).message };
   }
-
-  const embeddedOrg = extractOrgNameFromUrl(rawOrgUrl);
-  if (!embeddedOrg) {
-    return { mismatch: false };
-  }
-
-  // Gather explicit organization candidates across top-level and nested config objects
-  const candidateOrgs: Array<{ source: string; value: string }> = [];
-  const candidateUrls: Array<{ source: string; value: string }> = [];
-
-  const inspect = (prefix: string, obj: unknown) => {
-    if (!obj || typeof obj !== "object") return;
-    const rec = obj as Record<string, unknown>;
-    if (typeof rec.organization === "string" && rec.organization.trim()) {
-      candidateOrgs.push({
-        source: `${prefix}organization`,
-        value: rec.organization.trim(),
-      });
-    }
-    if (typeof rec.org === "string" && rec.org.trim()) {
-      candidateOrgs.push({ source: `${prefix}org`, value: rec.org.trim() });
-    }
-    if (typeof rec.orgUrl === "string" && rec.orgUrl.trim()) {
-      candidateUrls.push({
-        source: `${prefix}orgUrl`,
-        value: rec.orgUrl.trim(),
-      });
-    }
-  };
-
-  inspect("", config);
-  inspect("azure.", config.azure);
-  inspect("tracker.", config.tracker);
-  inspect("gitHost.", config.gitHost);
-
-  // Check for mismatched org names
-  for (const { source, value } of candidateOrgs) {
-    const normalizedCandidate = value.toLowerCase();
-    if (normalizedCandidate !== embeddedOrg) {
-      return {
-        mismatch: true,
-        error: `Configuration mismatch: configured ${source} "${value}" and org in orgUrl "${embeddedOrg}" are distinct configurations and cannot be conflated.`,
-      };
-    }
-  }
-
-  // Check for nested orgUrls conflicting with top-level orgUrl
-  for (const { source, value } of candidateUrls) {
-    if (source === "orgUrl") continue;
-    const nestedEmbeddedOrg = extractOrgNameFromUrl(value);
-    if (nestedEmbeddedOrg && nestedEmbeddedOrg !== embeddedOrg) {
-      return {
-        mismatch: true,
-        error: `Configuration mismatch: nested ${source} "${value}" has organization "${nestedEmbeddedOrg}" which conflicts with orgUrl "${rawOrgUrl}" ("${embeddedOrg}").`,
-      };
-    }
-  }
-
-  return { mismatch: false };
 }
 
 /**
@@ -600,6 +519,12 @@ export function createAzureProvider(
     async verifyCredentials(
       config: ProviderConfig,
     ): Promise<VerificationResult> {
+      // Schema validation: adapters do not search nested keys
+      const parsed = azureConfigSchema.safeParse(config);
+      if (!parsed.success) {
+        throw new Error(`Invalid Azure configuration: ${parsed.error.message}`);
+      }
+
       // 1. Defect H2 fix: Detect organization vs orgUrl mismatch
       const mismatch = detectOrganizationMismatch(config);
       if (mismatch.mismatch) {

@@ -228,11 +228,19 @@ export interface ProjectMigrationInput {
     | {
         host: string;
         email: string;
-        project: string;
+        project?: string | undefined;
         requiredLabel?: string | undefined;
       }
     | undefined;
-  github?: { repo: string; requiredLabel?: string | undefined } | undefined;
+  github?:
+    | {
+        repo?: string | undefined;
+        repoOwner?: string | undefined;
+        repository?: string | undefined;
+        baseUrl?: string | undefined;
+        requiredLabel?: string | undefined;
+      }
+    | undefined;
   secrets?: { pat?: string; token?: string } | undefined;
 }
 
