@@ -115,7 +115,11 @@ async function deliverWith(host: Provider) {
     payload: {},
     idempotencyKey: `d:${run.id}`,
   });
-  const [command] = commandRepo.claimPendingCommands("worker-1", 10_000);
+  const [command] = commandRepo.claimPendingCommands(
+    "worker-1",
+    10_000,
+    30_000,
+  );
   if (!command) throw new Error("Expected a pending command");
 
   const spy = spyOn(console, "error").mockImplementation(() => {});
