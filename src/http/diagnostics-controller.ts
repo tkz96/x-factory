@@ -6,6 +6,10 @@ import {
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
 import { getDiagnosticsRepository, getJobRepository } from "../runs.js";
+import type {
+  DiagnosticsResponse,
+  ReadinessResponse,
+} from "../shared/types.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -19,30 +23,6 @@ export function handleHealthRoute(): Response {
     version: "0.1.0",
     timestamp: new Date().toISOString(),
   });
-}
-
-export interface ReadinessCheckResult {
-  ready?: boolean | undefined;
-  status: "ready" | "unavailable";
-  database: {
-    status: "ready" | "unavailable";
-    version?: number | undefined;
-    journalMode?: string | undefined;
-    error?: string | undefined;
-  };
-  worker: {
-    status: "ready" | "unavailable";
-    activeWorkers: number;
-    reason?: string | undefined;
-  };
-  checks?:
-    | Array<{
-        name: string;
-        status: "pass" | "warn" | "fail";
-        message: string;
-      }>
-    | undefined;
-  timestamp: string;
 }
 
 function computeReadinessStatus() {
@@ -67,7 +47,7 @@ function computeReadinessStatus() {
   const isReady =
     dbReady && schemaVersion >= getLatestMigrationVersion() && workerReady;
 
-  const result: ReadinessCheckResult = {
+  const result: ReadinessResponse = {
     ready: isReady,
     status: isReady ? "ready" : "unavailable",
     database: {
@@ -135,12 +115,12 @@ export function handleDiagnosticsRoute(): Response {
   const staleJobs = jobRepo.findStaleClaimedJobs();
   const activeWorkers = getActiveWorkers();
 
-  return jsonResponse({
+  const body: DiagnosticsResponse = {
     status: "ok",
     system: {
       uptime: Math.floor(process.uptime()),
       nodeVersion: process.version,
-      memory: process.memoryUsage(),
+      memory: { ...process.memoryUsage() },
     },
     database: {
       status: "healthy",
@@ -154,5 +134,6 @@ export function handleDiagnosticsRoute(): Response {
       fleet: activeWorkers,
     },
     timestamp: new Date().toISOString(),
-  });
+  };
+  return jsonResponse(body);
 }

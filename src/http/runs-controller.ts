@@ -3,7 +3,7 @@
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
-import type { RunStatus } from "../shared/types.js";
+import type { RunStatus, StopRunResponse } from "../shared/types.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -259,8 +259,11 @@ async function handleChatMessage(
 
 async function handleStopRun(runId: string): Promise<Response> {
   return catchHttpErrors(async () => {
-    await runs.stopRun(runId);
-    return jsonResponse({ ok: true });
+    const body: StopRunResponse = {
+      ok: true,
+      run: await runs.stopRun(runId),
+    };
+    return jsonResponse(body);
   });
 }
 

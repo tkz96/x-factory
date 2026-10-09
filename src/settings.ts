@@ -3,21 +3,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getSettingsPath } from "./paths.js";
+import type { WorkbenchSettings } from "./shared/types.js";
 
-interface ModelStageConfig {
-  provider?: string | undefined;
-  model?: string | undefined;
-}
-
-interface ModelConfig {
-  sessionA?: ModelStageConfig | undefined;
-  sessionB?: ModelStageConfig | undefined;
-}
-
-export interface FactorySettings {
-  theme?: ("dark" | "light") | undefined;
-  models?: ModelConfig | undefined;
-}
+// The file format and the wire format are one contract, declared once in the
+// shared module (#182): settings.json, GET /api/settings and POST /api/settings
+// are all `WorkbenchSettings`.
+export type FactorySettings = WorkbenchSettings;
 
 // Default settings applied on initial startup. Provider and model pairs
 // are fully user-configurable via the Settings UI or environment variables.

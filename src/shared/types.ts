@@ -478,11 +478,18 @@ export interface AzureConnectionResult {
   repositories?: string[] | undefined;
 }
 
+// ─── HTTP wire contract (#182) ─────────────────────────────────────────────
+// Request and response types for a route are declared ONCE, here. The
+// controller that serves the route and the API client that calls it are both
+// annotated against these types, so changing a response shape on either side
+// fails the typecheck. The route table (#192) consumes them later.
+
 /**
- * Workbench settings shape.
+ * Workbench settings shape — the body of `GET /api/settings`, the response of
+ * `POST /api/settings`, and the on-disk `settings.json` contract.
  */
 export interface WorkbenchSettings {
-  theme?: string | undefined;
+  theme?: "dark" | "light" | undefined;
   models?:
     | {
         sessionA?:
@@ -493,4 +500,127 @@ export interface WorkbenchSettings {
           | undefined;
       }
     | undefined;
+}
+
+/** Request body of `POST /api/settings`: a patch merged into stored settings. */
+export type SettingsUpdateRequest = Partial<WorkbenchSettings>;
+
+/** One named check inside a readiness response. */
+export interface ReadinessCheck {
+  name: string;
+  status: "pass" | "warn" | "fail";
+  message: string;
+}
+
+/** Response body of `GET /api/ready` (503 when unavailable) and `GET /api/readiness`. */
+export interface ReadinessResponse {
+  ready?: boolean | undefined;
+  status: "ready" | "unavailable";
+  database: {
+    status: "ready" | "unavailable";
+    version?: number | undefined;
+    journalMode?: string | undefined;
+    error?: string | undefined;
+  };
+  worker: {
+    status: "ready" | "unavailable";
+    activeWorkers: number;
+    reason?: string | undefined;
+  };
+  checks?: ReadinessCheck[] | undefined;
+  timestamp: string;
+}
+
+/** Response body of `GET /api/diagnostics`. */
+export interface DiagnosticsResponse {
+  status: string;
+  system: {
+    uptime: number;
+    nodeVersion: string;
+    memory: Record<string, number>;
+  };
+  database: {
+    status: string;
+    version: number;
+    runs: { total: number; active: number };
+    jobs: {
+      total: number;
+      pending: number;
+      claimed: number;
+      completed: number;
+      failed: number;
+      stale: number;
+    };
+  };
+  worker: {
+    status: string;
+    activeCount: number;
+    fleet: Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }>;
+  };
+  timestamp: string;
+}
+
+/**
+ * Response body of `POST /api/runs/:id/stop` (#182): the stop command returns
+ * the run it stopped, so the caller can write it straight into the query
+ * cache instead of refetching.
+ */
+export interface StopRunResponse {
+  ok: boolean;
+  run: Run;
+}
+
+/** One document entry in the in-app docs catalog. */
+export interface DocItem {
+  slug: string;
+  title: string;
+  description: string;
+  path: string;
+}
+
+/** One Diátaxis docs category (tutorials, how-to, reference, …). */
+export interface DocCategory {
+  id: string;
+  name: string;
+  description: string;
+  docs: DocItem[];
+}
+
+/** Response body of `GET /api/docs`. */
+export interface DocsCatalogResponse {
+  categories: DocCategory[];
+}
+
+/** One matched heading inside a docs search result. */
+export interface DocSearchMatch {
+  heading: string;
+  headingId: string;
+  snippet: string;
+  matchCount: number;
+}
+
+/** One matched document in a docs search response. */
+export interface DocSearchResult {
+  category: string;
+  categoryName: string;
+  slug: string;
+  title: string;
+  totalMatches: number;
+  sections: DocSearchMatch[];
+}
+
+/** Response body of `GET /api/docs/search?q=…`. */
+export interface DocsSearchResponse {
+  query: string;
+  totalMatches: number;
+  results: DocSearchResult[];
+}
+
+/** Response body of `GET /api/docs/:category/:slug`. */
+export interface DocDetailResponse {
+  category: string;
+  slug: string;
+  title: string;
+  description: string;
+  markdown: string;
 }
