@@ -119,15 +119,20 @@ one implementation:
   provider id branch or a hardcoded id→name table, and a provider added by
   registry registration alone renders correctly.
 - `components/connections/connection-state.ts` — the combo-line model
-  (`ConnectionComboSlot`, `ConnectionComboTone`), the three-state derivation
-  (`deriveConnectionState`), the usability predicate the Review gate reads, the
-  ONE tone rule (`comboTone`), and `resolveProviderLabel`.
+  (`ConnectionComboSlot`, `ConnectionComboTone`), THE one three-state rule
+  (`deriveConnectionState(usable, degraded)` — the ONLY place
+  connected/degraded/disconnected is decided, and both `connection-view`
+  branches call it), the usability predicate the Review gate reads
+  (`isConnectionUsable`), the ONE tone rule (`comboTone`), and
+  `resolveProviderLabel`.
 - `components/connections/connection-view.ts` — THE one derivation (#176):
   `deriveConnectionView` takes exactly two inputs — the wizard's DRAFT
   (verification evidence per role) or a project's RECORDED connections — and
   produces the slots over THE one role list (`PROJECT_CONNECTION_ROLES`), plus
-  the shared slot→combo-line mapping (`connectionComboSlots`). Both producers
-  of a line meet here.
+  the shared slot→combo-line mapping (`connectionComboSlots`), the Review
+  step's one-call draft chain (`draftComboSlots`), and the creation gate's
+  required roles (`CREATION_REQUIRED_ROLES`). Both producers of a line meet
+  here.
 - `components/projects/connection-integrity.ts` — the recorded-input adapter:
   `deriveConnectionIntegrity` folds the view into the post-creation integrity
   shape, plus the combo-line mapping for those surfaces (`comboSlots`),
@@ -139,12 +144,12 @@ one implementation:
 rendering of the three-distinction combo line, and `comboTone` is its only tone
 rule: the worst slot decides the tone, and a warning never takes the error tone.
 The wizard's Review step renders the line from draft verification evidence
-(`deriveConnectionView({ kind: "draft", … })` + `comboTone(slots,
-PROJECT_CONNECTION_ROLES)` — Review is the creation gate, so both roles are
-required); the post-creation surfaces render it from a project's persisted
-`connections` (`comboSlots` + `comboTone(integrity)`, which requires the
-tracker alone — a pre-#145 project's absent git host is a warning, never an
-invented error). Both inputs flow through the ONE `deriveConnectionView` (#176),
+(`draftComboSlots(…)` — one call hiding derive → render order → line mapping —
+plus `comboTone(comboSlots, CREATION_REQUIRED_ROLES)` — Review is the creation
+gate, so every role is required); the post-creation surfaces render it from a
+project's persisted `connections` (`comboSlots` + `comboTone(integrity)`, which
+requires the tracker alone — a pre-#145 project's absent git host is a warning,
+never an invented error). Both inputs flow through the ONE `deriveConnectionView` (#176),
 so the two renderings and the two copy structures that #146 and #147 produced
 in parallel stay collapsed: `ComboSummary` and `CONNECTION_STATE_COPY` are
 deleted, and `CONNECTIONS_COPY` is the single vocabulary — with one label per
