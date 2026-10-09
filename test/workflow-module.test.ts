@@ -2,6 +2,10 @@
 // a rejected review ends the run without retries, and resume returns a run to its stage.
 
 import { afterEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -14,8 +18,10 @@ import type {
   StageExecutor,
   StageOutcome,
 } from "../src/executors/index.js";
-import { resumeRun, setDbForTesting } from "../src/runs.js";
+import { resumeRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+
+let repos: Repositories;
 
 function setup(status: "executing" | "recovery_required" | "planning") {
   const db = createDatabase({ path: ":memory:" });
@@ -54,9 +60,7 @@ function executorReturning(
 }
 
 describe("Workflow module (#181)", () => {
-  afterEach(() => {
-    setDbForTesting(null);
-  });
+  afterEach(() => {});
 
   it("a rejected review ends the run with the rejection and retries no job", async () => {
     const { db, runRepo, jobRepo, run } = setup("executing");
@@ -207,10 +211,10 @@ describe("Workflow module (#181)", () => {
     it(`resume of a run whose last recorded stage is the legacy "${legacy}" returns it to executing`, async () => {
       const { db, runRepo, jobRepo, stageAttemptRepo, run } =
         setup("recovery_required");
-      setDbForTesting(db);
+      repos = createRepositories(db);
       stageAttemptRepo.recordStart(run.id, legacy, 1);
 
-      const resumed = await resumeRun(run.id);
+      const resumed = await resumeRun(repos, run.id);
 
       expect(resumed.status).toBe("executing");
       expect(runRepo.get(run.id)?.status).toBe("executing");
@@ -224,10 +228,10 @@ describe("Workflow module (#181)", () => {
   it('resume of a run whose last recorded stage is the legacy "preparing" returns it to preparing', async () => {
     const { db, runRepo, jobRepo, stageAttemptRepo, run } =
       setup("recovery_required");
-    setDbForTesting(db);
+    repos = createRepositories(db);
     stageAttemptRepo.recordStart(run.id, "preparing", 1);
 
-    const resumed = await resumeRun(run.id);
+    const resumed = await resumeRun(repos, run.id);
 
     expect(resumed.status).toBe("preparing");
     expect(runRepo.get(run.id)?.status).toBe("preparing");
@@ -240,11 +244,11 @@ describe("Workflow module (#181)", () => {
   it("resume skips a newer pi_checkpoint attempt and resumes the execute stage before it", async () => {
     const { db, runRepo, jobRepo, stageAttemptRepo, run } =
       setup("recovery_required");
-    setDbForTesting(db);
+    repos = createRepositories(db);
     stageAttemptRepo.recordStart(run.id, "execute", 1);
     stageAttemptRepo.recordStart(run.id, "pi_checkpoint", 1);
 
-    const resumed = await resumeRun(run.id);
+    const resumed = await resumeRun(repos, run.id);
 
     expect(resumed.status).toBe("executing");
     expect(runRepo.get(run.id)?.status).toBe("executing");
@@ -256,17 +260,19 @@ describe("Workflow module (#181)", () => {
 
   it("resume of a run whose last recorded stage is unknown is refused with a 409", async () => {
     const { db, runRepo, stageAttemptRepo, run } = setup("recovery_required");
-    setDbForTesting(db);
+    repos = createRepositories(db);
     stageAttemptRepo.recordStart(run.id, "mystery_stage", 1);
 
-    await expect(resumeRun(run.id)).rejects.toBeInstanceOf(ConflictError);
+    await expect(resumeRun(repos, run.id)).rejects.toBeInstanceOf(
+      ConflictError,
+    );
     expect(runRepo.get(run.id)?.status).toBe("recovery_required");
   });
 
   describe("resume into deliver with an existing deliver command", () => {
     function resumeWithCommand(commandStatus: string | null) {
       const { db, runRepo, stageAttemptRepo, run } = setup("recovery_required");
-      setDbForTesting(db);
+      repos = createRepositories(db);
       stageAttemptRepo.recordStart(run.id, "deliver", 1);
       if (commandStatus !== null) {
         db.prepare(
@@ -290,7 +296,7 @@ describe("Workflow module (#181)", () => {
 
     it("a pending deliver command is kept and the run returns to ready_for_pr", async () => {
       const { runRepo, run, commandRows } = resumeWithCommand("pending");
-      const resumed = await resumeRun(run.id);
+      const resumed = await resumeRun(repos, run.id);
       expect(resumed.status).toBe("ready_for_pr");
       expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
       expect(commandRows()).toEqual([{ status: "pending" }]);
@@ -298,7 +304,7 @@ describe("Workflow module (#181)", () => {
 
     it("a claimed deliver command is kept and the run returns to ready_for_pr", async () => {
       const { runRepo, run, commandRows } = resumeWithCommand("claimed");
-      const resumed = await resumeRun(run.id);
+      const resumed = await resumeRun(repos, run.id);
       expect(resumed.status).toBe("ready_for_pr");
       expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
       expect(commandRows()).toEqual([{ status: "claimed" }]);
@@ -306,7 +312,7 @@ describe("Workflow module (#181)", () => {
 
     it("a failed deliver command is reset to pending so the run is not stranded", async () => {
       const { runRepo, run, commandRows } = resumeWithCommand("failed");
-      const resumed = await resumeRun(run.id);
+      const resumed = await resumeRun(repos, run.id);
       expect(resumed.status).toBe("ready_for_pr");
       expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
       expect(commandRows()).toEqual([{ status: "pending" }]);
@@ -314,7 +320,9 @@ describe("Workflow module (#181)", () => {
 
     it("a completed deliver command refuses the resume and leaves the run in recovery_required", async () => {
       const { runRepo, run, commandRows } = resumeWithCommand("completed");
-      await expect(resumeRun(run.id)).rejects.toBeInstanceOf(ConflictError);
+      await expect(resumeRun(repos, run.id)).rejects.toBeInstanceOf(
+        ConflictError,
+      );
       expect(runRepo.get(run.id)?.status).toBe("recovery_required");
       expect(commandRows()).toEqual([{ status: "completed" }]);
     });
@@ -356,10 +364,10 @@ describe("Workflow module (#181)", () => {
 
   it("resume returns a recovery_required run to the stage it was in", async () => {
     const { db, jobRepo, stageAttemptRepo, run } = setup("recovery_required");
-    setDbForTesting(db);
+    repos = createRepositories(db);
     stageAttemptRepo.recordStart(run.id, "plan", 1);
 
-    const resumed = await resumeRun(run.id);
+    const resumed = await resumeRun(repos, run.id);
 
     expect(resumed.status).toBe("planning");
     const planJobs = jobRepo
@@ -370,10 +378,10 @@ describe("Workflow module (#181)", () => {
 
   it("resume into deliver returns the run to ready_for_pr and enqueues the deliver command", async () => {
     const { db, runRepo, stageAttemptRepo, run } = setup("recovery_required");
-    setDbForTesting(db);
+    repos = createRepositories(db);
     stageAttemptRepo.recordStart(run.id, "deliver", 1);
 
-    const resumed = await resumeRun(run.id);
+    const resumed = await resumeRun(repos, run.id);
 
     expect(resumed.status).toBe("ready_for_pr");
     expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");

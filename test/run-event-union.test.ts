@@ -5,6 +5,10 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runAttemptLoop } from "../src/attempt-loop.js";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -16,7 +20,6 @@ import { PlanExecutor } from "../src/executors/plan.js";
 import { ReviewExecutor } from "../src/executors/review.js";
 import type { StageContext } from "../src/executors/types.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
 import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type {
   PullRequest,
@@ -30,11 +33,13 @@ import {
   scriptedReviewSession,
 } from "./helpers/scripted-review-session.js";
 
+let repos: Repositories;
+
 describe("Shared run-event union (#171)", () => {
   it("real producers write expected payload shapes: chat and transitions", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const eventRepo = new EventRepository(db);
@@ -63,7 +68,7 @@ describe("Shared run-event union (#171)", () => {
           body: JSON.stringify({ message: "Can we verify edge cases?" }),
         },
       );
-      const chatRes = await handleApi(chatReq, new URL(chatReq.url));
+      const chatRes = await handleApi(chatReq, new URL(chatReq.url), { repos });
       expect(chatRes.status).toBe(200);
     } finally {
       errSpy.mockRestore();
@@ -94,7 +99,9 @@ describe("Shared run-event union (#171)", () => {
         }),
       },
     );
-    const requeueRes = await handleApi(requeueReq, new URL(requeueReq.url));
+    const requeueRes = await handleApi(requeueReq, new URL(requeueReq.url), {
+      repos,
+    });
     expect(requeueRes.status).toBe(200);
 
     const feedbackEvt = eventRepo
@@ -126,7 +133,9 @@ describe("Shared run-event union (#171)", () => {
         body: JSON.stringify({ action: "restart" }),
       },
     );
-    const restartRes = await handleApi(restartReq, new URL(restartReq.url));
+    const restartRes = await handleApi(restartReq, new URL(restartReq.url), {
+      repos,
+    });
     expect(restartRes.status).toBe(200);
 
     const restartStatusEvt = eventRepo
@@ -146,7 +155,7 @@ describe("Shared run-event union (#171)", () => {
         method: "POST",
       },
     );
-    const stopRes = await handleApi(stopReq, new URL(stopReq.url));
+    const stopRes = await handleApi(stopReq, new URL(stopReq.url), { repos });
     expect(stopRes.status).toBe(200);
 
     const stopStatusEvt = eventRepo
@@ -228,8 +237,6 @@ describe("Shared run-event union (#171)", () => {
       status: "recovery_required",
       reason: "Job attempts (3/3) exhausted for stage execute.",
     });
-
-    setDbForTesting(null);
   });
 
   it("real producers write expected payload shapes: plan, review, and deliver stages", async () => {
@@ -597,7 +604,7 @@ describe("Shared run-event union (#171)", () => {
   it("emits canonical events over the SSE public seam matching the union", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const eventRepo = new EventRepository(db);
@@ -627,7 +634,7 @@ describe("Shared run-event union (#171)", () => {
     });
 
     const req = new Request(`http://localhost:3777/api/runs/${runId}/events`);
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
     const reader = res.body?.getReader();
@@ -680,7 +687,5 @@ describe("Shared run-event union (#171)", () => {
     expect(event2.payload.step).toBe("branch_pushed");
     expect(event2.payload.text).toBe("feedbeef");
     expect(event2.id).toBe(3);
-
-    setDbForTesting(null);
   });
 });

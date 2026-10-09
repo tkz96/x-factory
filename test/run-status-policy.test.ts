@@ -6,11 +6,14 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
 import {
   ACTIONS_BY_STATUS,
   ACTIVE_RUN_STATUSES,
@@ -24,6 +27,8 @@ import {
   TERMINAL_RUN_STATUSES,
 } from "../src/shared/run-status-policy.js";
 import type { RunStatus } from "../src/shared/types.js";
+
+let repos: Repositories;
 
 const ALL_RUN_STATUSES: readonly RunStatus[] = [
   "queued",
@@ -158,16 +163,15 @@ describe("Shared run-status policy matches server guards (#170)", () => {
     } else {
       process.env.X_FACTORY_DATA_DIR = originalDataDir;
     }
-    setDbForTesting(null);
     db?.close();
   });
 
-  // setDbForTesting stores the database in an AsyncLocalStorage context, so
-  // it must be called from the test body, not from beforeAll.
+  // Each call gives the test a fresh in-memory database and the repository
+  // bundle built over it.
   function setupTestDb(): void {
     db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
     runRepo = new RunRepository(db);
   }
 
@@ -202,7 +206,7 @@ describe("Shared run-status policy matches server guards (#170)", () => {
         createRunAtStatus(runId, status);
 
         const req = GUARDED_ACTION_ENDPOINTS[action](runId);
-        const res = await handleApi(req, new URL(req.url));
+        const res = await handleApi(req, new URL(req.url), { repos });
         if (res.status >= 200 && res.status < 300) {
           exercised[status]?.push(action);
         }

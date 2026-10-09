@@ -1,6 +1,10 @@
 // test/e2e-workflow.test.ts — End-to-end workflow execution with human approval gate boundary at ready_for_pr (XFM-67).
 
 import { afterAll, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -11,18 +15,18 @@ import type {
   StageExecutor,
   StageOutcome,
 } from "../src/executors/index.js";
-import { createPR, setDbForTesting } from "../src/runs.js";
+import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 
+let repos: Repositories;
+
 describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   it("advances through all stages, strictly stops at ready_for_pr human gate, and completes on approval", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
@@ -190,7 +194,7 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
 
     // 3. Human Gate Approval: Operator clicks "Create PR"
     // Triggers deliver command via createPR into the durable WAL command queue
-    await createPR(run.id, { db });
+    await createPR(repos, run.id);
 
     // 4. Worker automatically claims the deliver command and creates PR
     const prTimeout = Date.now() + 5000;
