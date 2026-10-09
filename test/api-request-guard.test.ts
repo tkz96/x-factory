@@ -275,6 +275,81 @@ describe("API request guard (local-only boundary)", () => {
     });
   });
 
+  describe("exact-host rule for X_FACTORY_HOST", () => {
+    it("a wildcard listen host does not admit LAN clients", async () => {
+      const res = await send(
+        new Request("http://192.168.1.5:3777/api/health", {
+          headers: { Host: "192.168.1.5:3777" },
+        }),
+        { port: 3777, listenHost: "0.0.0.0" },
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("a LAN client is admitted only when X_FACTORY_HOST is its exact address", async () => {
+      const otherHost = await send(
+        new Request("http://192.168.1.6:3777/api/health", {
+          headers: { Host: "192.168.1.6:3777" },
+        }),
+        { port: 3777, listenHost: "192.168.1.5" },
+      );
+      expect(otherHost.status).toBe(403);
+    });
+
+    it("accepts an IPv6 X_FACTORY_HOST as a bracketed Host", async () => {
+      const res = await send(
+        new Request("http://[::1]:3777/api/health", {
+          headers: { Host: "[::1]:3777" },
+        }),
+        { port: 3777, listenHost: "::1" },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("accepts an IPv6 X_FACTORY_HOST as a bracketed Origin", async () => {
+      const res = await send(
+        postTo("http://[::1]:3777/api/health", {
+          headers: {
+            Origin: "http://[::1]:3777",
+            "Content-Type": "application/json",
+          },
+          body: "{}",
+        }),
+        { port: 3777, listenHost: "::1" },
+      );
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("Host normalisation", () => {
+    it("allows an uppercase loopback Host", async () => {
+      const res = await send(
+        new Request("http://LOCALHOST:3777/api/health", {
+          headers: { Host: "LOCALHOST:3777" },
+        }),
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects a loopback Host with a trailing dot", async () => {
+      const res = await send(
+        new Request("http://localhost.:3777/api/health", {
+          headers: { Host: "localhost.:3777" },
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects [::1] unless it is the configured X_FACTORY_HOST", async () => {
+      const res = await send(
+        new Request("http://[::1]:3777/api/health", {
+          headers: { Host: "[::1]:3777" },
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe("configured X_FACTORY_HOST as the server's own origin", () => {
     it("accepts a POST whose Origin is the configured host", async () => {
       const res = await send(

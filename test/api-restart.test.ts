@@ -1,7 +1,7 @@
-import type { Server } from "bun";
 // test/api-restart.test.ts — API process restart resilience while worker continues executing (XFM-58).
 
 import { afterAll, describe, expect, it } from "bun:test";
+import type { Server } from "bun";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";

@@ -30,14 +30,20 @@ function isLoopbackListen(listenHost: string): boolean {
   return LOOPBACK_HOSTNAMES.includes(listenHost);
 }
 
+/** `host:port` as it appears in a Host header; IPv6 literals are bracketed. */
+function authority(host: string, port: number): string {
+  const bare = host.replace(/^\[(.*)\]$/, "$1");
+  return bare.includes(":") ? `[${bare}]:${port}` : `${bare}:${port}`;
+}
+
 /** Host header values the API accepts (DNS rebinding defence). */
 function allowedHosts(config: ApiGuardConfig): Set<string> {
   const hosts = new Set<string>();
   for (const name of LOOPBACK_HOSTNAMES) {
-    hosts.add(`${name}:${config.port}`);
+    hosts.add(authority(name, config.port));
   }
   if (!isLoopbackListen(config.listenHost)) {
-    hosts.add(`${config.listenHost}:${config.port}`.toLowerCase());
+    hosts.add(authority(config.listenHost, config.port).toLowerCase());
   }
   return hosts;
 }
@@ -50,7 +56,9 @@ function allowedOrigins(config: ApiGuardConfig): Set<string> {
     origins.add(`http://${name}:${VITE_DEV_PORT}`);
   }
   if (!isLoopbackListen(config.listenHost)) {
-    origins.add(`http://${config.listenHost}:${config.port}`.toLowerCase());
+    origins.add(
+      `http://${authority(config.listenHost, config.port)}`.toLowerCase(),
+    );
   }
   return origins;
 }
