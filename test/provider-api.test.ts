@@ -508,7 +508,7 @@ describe("Curl-demoable flow with stub provider", () => {
     const manifestCurl = await execStrict(
       "curl",
       ["-s", `${baseUrl}/api/providers/manifest`],
-      { cwd: process.cwd() },
+      { envPolicy: "inherit", cwd: process.cwd() },
     );
     const manifestJson = JSON.parse(manifestCurl.stdout);
     expect(Array.isArray(manifestJson)).toBe(true);
@@ -537,7 +537,7 @@ describe("Curl-demoable flow with stub provider", () => {
           },
         }),
       ],
-      { cwd: process.cwd() },
+      { envPolicy: "inherit", cwd: process.cwd() },
     );
     const verifyJson = JSON.parse(verifyCurl.stdout);
     expect(verifyJson).toEqual({ status: "ok", warnings: [] });
@@ -557,7 +557,7 @@ describe("Curl-demoable flow with stub provider", () => {
           url: "https://stub.example/acme/rocket",
         }),
       ],
-      { cwd: process.cwd() },
+      { envPolicy: "inherit", cwd: process.cwd() },
     );
     const parseUrlJson = JSON.parse(parseUrlCurl.stdout);
     expect(parseUrlJson).toEqual({

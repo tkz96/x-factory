@@ -106,11 +106,13 @@ beforeAll(async () => {
   );
   process.env.X_FACTORY_DB_PATH = path.join(baseDir, "xf.db");
 
-  await execStrict("git", ["init", workspacePath]);
+  await execStrict("git", ["init", workspacePath], { envPolicy: "inherit" });
   await execStrict("git", ["config", "user.name", WORKSPACE_IDENTITY.name], {
+    envPolicy: "inherit",
     cwd: workspacePath,
   });
   await execStrict("git", ["config", "user.email", WORKSPACE_IDENTITY.email], {
+    envPolicy: "inherit",
     cwd: workspacePath,
   });
 });

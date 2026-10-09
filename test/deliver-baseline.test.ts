@@ -30,16 +30,23 @@ beforeEach(async () => {
   artifactsDir = path.join(tempDir, "artifacts");
   await mkdir(artifactsDir, { recursive: true });
 
-  await execStrict("git", ["init", "--initial-branch=main", repo]);
+  await execStrict("git", ["init", "--initial-branch=main", repo], {
+    envPolicy: "inherit",
+  });
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await writeFile(path.join(repo, "README.md"), "# Fixture\n");
-  await execStrict("git", ["add", "-A"], { cwd: repo });
-  await execStrict("git", ["commit", "-m", "Initial commit"], { cwd: repo });
+  await execStrict("git", ["add", "-A"], { envPolicy: "inherit", cwd: repo });
+  await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
+    cwd: repo,
+  });
 });
 
 afterEach(async () => {
@@ -97,7 +104,7 @@ async function headFiles(): Promise<string[]> {
   const result = await execStrict(
     "git",
     ["show", "--name-only", "--format=", "HEAD"],
-    { cwd: repo },
+    { envPolicy: "inherit", cwd: repo },
   );
   return result.stdout.split("\n").filter(Boolean).sort();
 }

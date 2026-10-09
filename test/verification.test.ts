@@ -18,17 +18,23 @@ beforeAll(async () => {
   baseTempDir = await mkdtemp(path.join(tmpdir(), "xf-verify-test-"));
   fixtureRepo = path.join(baseTempDir, "repo");
 
-  await execStrict("git", ["init", fixtureRepo]);
+  await execStrict("git", ["init", fixtureRepo], { envPolicy: "inherit" });
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
 
   await writeFile(path.join(fixtureRepo, "README.md"), "# Verify Fixture\n");
-  await execStrict("git", ["add", "-A"], { cwd: fixtureRepo });
+  await execStrict("git", ["add", "-A"], {
+    envPolicy: "inherit",
+    cwd: fixtureRepo,
+  });
   await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
 });
@@ -147,6 +153,7 @@ describe("Deterministic Verification Pipeline", () => {
     assert.deepEqual(result.filesChanged, ["README.md"]);
 
     await execStrict("git", ["checkout", "--", "README.md"], {
+      envPolicy: "inherit",
       cwd: fixtureRepo,
     });
     await rm(path.join(fixtureRepo, "ralph.sh"));
@@ -173,6 +180,7 @@ describe("Deterministic Verification Pipeline", () => {
     assert.ok(!result.diff.includes("ralph.sh"));
 
     await execStrict("git", ["checkout", "--", "README.md"], {
+      envPolicy: "inherit",
       cwd: fixtureRepo,
     });
     await rm(path.join(fixtureRepo, "added.ts"));
@@ -181,8 +189,12 @@ describe("Deterministic Verification Pipeline", () => {
 
   it("fails when a tracked .env is modified", async () => {
     await writeFile(path.join(fixtureRepo, ".env"), "TOKEN=committed\n");
-    await execStrict("git", ["add", ".env"], { cwd: fixtureRepo });
+    await execStrict("git", ["add", ".env"], {
+      envPolicy: "inherit",
+      cwd: fixtureRepo,
+    });
     await execStrict("git", ["commit", "-m", "Track .env"], {
+      envPolicy: "inherit",
       cwd: fixtureRepo,
     });
     const baseline = await recordBaseline(fixtureRepo);
@@ -196,7 +208,10 @@ describe("Deterministic Verification Pipeline", () => {
     assert.ok(result.pollutionDetails?.some((d) => d.includes('".env"')));
 
     await rm(path.join(fixtureRepo, "feature.ts"));
-    await execStrict("git", ["checkout", "--", ".env"], { cwd: fixtureRepo });
+    await execStrict("git", ["checkout", "--", ".env"], {
+      envPolicy: "inherit",
+      cwd: fixtureRepo,
+    });
   });
 });
 

@@ -22,11 +22,15 @@ async function write(relPath: string, content: string): Promise<void> {
 
 beforeEach(async () => {
   repo = await mkdtemp(path.join(tmpdir(), "xf-worktree-state-"));
-  await execStrict("git", ["init", "--initial-branch=main", repo]);
+  await execStrict("git", ["init", "--initial-branch=main", repo], {
+    envPolicy: "inherit",
+  });
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await write("README.md", "# Fixture\n");
@@ -34,8 +38,11 @@ beforeEach(async () => {
   await write(".env", "TOKEN=committed\n");
   await write(".gitignore", "node_modules/\n");
   await write(".github/workflows/ci.yml", "name: ci\n");
-  await execStrict("git", ["add", "-A"], { cwd: repo });
-  await execStrict("git", ["commit", "-m", "Initial commit"], { cwd: repo });
+  await execStrict("git", ["add", "-A"], { envPolicy: "inherit", cwd: repo });
+  await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
+    cwd: repo,
+  });
 });
 
 afterEach(async () => {
@@ -77,6 +84,7 @@ describe("readWorktreeState", () => {
   it("reports a renamed file once, under its new path", async () => {
     const baseline = await recordBaseline(repo);
     await execStrict("git", ["mv", "src/app.ts", "src/main.ts"], {
+      envPolicy: "inherit",
       cwd: repo,
     });
 
@@ -160,6 +168,7 @@ describe("readWorktreeState", () => {
     const baseline = await recordBaseline(repo);
     await mkdir(path.join(repo, ".agent"), { recursive: true });
     await execStrict("git", ["mv", "src/app.ts", ".agent/app.ts"], {
+      envPolicy: "inherit",
       cwd: repo,
     });
 
