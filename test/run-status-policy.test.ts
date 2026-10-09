@@ -15,6 +15,7 @@ import {
   ACTIONS_BY_STATUS,
   ACTIVE_RUN_STATUSES,
   allowedActionsFor,
+  canRunAction,
   EXECUTABLE_RUN_STATUSES,
   type RunAction,
   runStatusLabel,
@@ -231,6 +232,27 @@ describe("Shared run-status policy matches server guards (#170)", () => {
 
   it("the shared actions table equals the literal expectation", () => {
     expect(ACTIONS_BY_STATUS).toEqual(EXPECTED_ACTIONS_BY_STATUS);
+  });
+
+  it("chat is allowed at exactly the approval gates and review, and its guard names the chat action", () => {
+    expect(
+      ALL_RUN_STATUSES.filter((status) => canRunAction(status, "chat")),
+    ).toEqual([
+      "awaiting_understanding_approval",
+      "awaiting_plan_approval",
+      "awaiting_review",
+    ]);
+    // chatWithRun must check "chat", not "approve": the two share statuses today,
+    // so only the action name keeps a future policy change from drifting apart.
+    const source = readFileSync(
+      path.join(process.cwd(), "src", "runs.ts"),
+      "utf-8",
+    );
+    const start = source.indexOf("export async function chatWithRun(");
+    const end = source.indexOf('eventRepo.appendEvent(id, "chat_user"', start);
+    const guard = source.slice(start, end);
+    expect(guard).toContain('canRunAction(run.status, "chat")');
+    expect(guard).not.toContain('"approve"');
   });
 
   it("allowedActionsFor returns the table row, or [] for an unknown status", () => {
