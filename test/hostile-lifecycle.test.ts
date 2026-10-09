@@ -126,7 +126,10 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
 
     // Append events to SQLite
     eventRepo.appendEvent(run1.id, "info", { text: "Run 1 unique payload" });
-    eventRepo.appendEvent(run2.id, "pr_step", { text: "Run 2 unique payload" });
+    eventRepo.appendEvent(run2.id, "pr_step", {
+      step: "test_step",
+      text: "Run 2 unique payload",
+    });
 
     // Read from client 1
     const read1Promise = reader1?.read();

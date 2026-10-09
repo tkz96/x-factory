@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import type { EventRecord } from "../db/event-repository.js";
 import {
   ConflictError,
   GitConfigError,
@@ -6,6 +7,11 @@ import {
   SemanticValidationError,
   ValidationError,
 } from "../errors.js";
+import type {
+  RunEvent,
+  RunEventPayloadMap,
+  RunEventType,
+} from "../shared/types.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -248,42 +254,72 @@ export async function catchHttpErrors(
   }
 }
 
-export interface WireSSEEvent {
-  id: number;
-  type: string;
-  payload: unknown;
-  timestamp: string;
+export function toWireEvent<T extends RunEventType = RunEventType>(
+  record:
+    | EventRecord<T>
+    | {
+        sequence: number;
+        type: T;
+        payload: RunEventPayloadMap[T];
+        createdAt?: string | undefined;
+      },
+): RunEvent<T> {
+  return {
+    id: record.sequence,
+    type: record.type,
+    payload: record.payload,
+    timestamp:
+      "createdAt" in record && record.createdAt
+        ? record.createdAt
+        : new Date().toISOString(),
+  } as RunEvent<T>;
 }
 
 export function formatSSEMessage(
-  event: WireSSEEvent | Record<string, unknown>,
+  event:
+    | RunEvent
+    | EventRecord
+    | {
+        sequence: number;
+        type: RunEventType;
+        payload: RunEventPayloadMap[RunEventType];
+        createdAt?: string | undefined;
+      }
+    | Record<string, unknown>,
 ): string {
-  const obj = event as Record<string, unknown>;
-  const id =
-    "sequence" in obj && typeof obj.sequence === "number"
-      ? obj.sequence
-      : "id" in obj && typeof obj.id === "number"
-        ? obj.id
-        : undefined;
-
-  const timestamp =
-    "timestamp" in obj && typeof obj.timestamp === "string"
-      ? obj.timestamp
-      : "createdAt" in obj && typeof obj.createdAt === "string"
-        ? obj.createdAt
+  let wireEvent: RunEvent;
+  if ("sequence" in event && typeof event.sequence === "number") {
+    wireEvent = toWireEvent(
+      event as
+        | EventRecord
+        | {
+            sequence: number;
+            type: RunEventType;
+            payload: RunEventPayloadMap[RunEventType];
+            createdAt?: string | undefined;
+          },
+    );
+  } else if ("timestamp" in event && "id" in event && "type" in event) {
+    wireEvent = event as RunEvent;
+  } else {
+    const obj = event as Record<string, unknown>;
+    const id = typeof obj.id === "number" ? obj.id : 0;
+    const timestamp =
+      typeof obj.timestamp === "string"
+        ? obj.timestamp
         : new Date().toISOString();
-
-  const canonicalEvent: WireSSEEvent = {
-    id: id ?? 0,
-    type: String(obj.type || ""),
-    payload: obj.payload ?? {},
-    timestamp,
-  };
+    wireEvent = {
+      id,
+      type: String(obj.type || "") as RunEventType,
+      payload: (obj.payload ?? {}) as RunEventPayloadMap[RunEventType],
+      timestamp,
+    } as RunEvent;
+  }
 
   let out = "";
-  if (id !== undefined && id !== null) {
-    out += `id: ${id}\n`;
+  if (wireEvent.id !== undefined && wireEvent.id !== null) {
+    out += `id: ${wireEvent.id}\n`;
   }
-  out += `data: ${JSON.stringify(canonicalEvent)}\n\n`;
+  out += `data: ${JSON.stringify(wireEvent)}\n\n`;
   return out;
 }

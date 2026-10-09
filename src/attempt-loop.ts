@@ -7,6 +7,8 @@ import { buildRalphPrompt, buildRepairPrompt } from "./prompts.js";
 import type {
   ImplementationContext,
   Project,
+  RunEventPayloadMap,
+  RunEventType,
   Ticket,
   VerificationResult,
 } from "./shared/types.js";
@@ -186,7 +188,10 @@ export interface AttemptLoopInput {
   signal?: AbortSignal | undefined;
   /** Loop timeout per attempt; defaults to 15 minutes. */
   timeoutMs?: number | undefined;
-  emit: (type: string, payload: unknown) => void;
+  emit: <T extends RunEventType>(
+    type: T,
+    payload: RunEventPayloadMap[T],
+  ) => void;
   /** Called after every verification, so the caller can persist the diff and result. */
   onVerification: (verification: VerificationResult) => void;
 }

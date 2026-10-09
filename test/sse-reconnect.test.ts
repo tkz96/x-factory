@@ -55,9 +55,18 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     const { eventRepo, runId } = setupTest();
 
     // 1. Emit events 1, 2, 3 into SQLite
-    eventRepo.appendEvent(runId, "status", { step: 1, message: "Event 1" });
-    eventRepo.appendEvent(runId, "status", { step: 2, message: "Event 2" });
-    eventRepo.appendEvent(runId, "status", { step: 3, message: "Event 3" });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "Event 1",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "Event 2",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "Event 3",
+    });
 
     // 2. Client #1 connects from beginning
     const req1 = new Request(`http://localhost/api/runs/${runId}/events`);
@@ -81,9 +90,18 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     await reader1?.cancel();
 
     // 4. Server emits events 4, 5, 6 while client is offline
-    eventRepo.appendEvent(runId, "status", { step: 4, message: "Event 4" });
-    eventRepo.appendEvent(runId, "status", { step: 5, message: "Event 5" });
-    eventRepo.appendEvent(runId, "status", { step: 6, message: "Event 6" });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "Event 4",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "Event 5",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "Event 6",
+    });
 
     // 5. Client reconnects with Last-Event-ID: 3 header
     const req2 = new Request(`http://localhost/api/runs/${runId}/events`, {
@@ -133,10 +151,22 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
   it("supports gapless replay via last_event_id query parameter fallback", async () => {
     const { eventRepo, runId } = setupTest();
 
-    eventRepo.appendEvent(runId, "status", { num: 1 });
-    eventRepo.appendEvent(runId, "status", { num: 2 });
-    eventRepo.appendEvent(runId, "status", { num: 3 });
-    eventRepo.appendEvent(runId, "status", { num: 4 });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "num-1",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "num-2",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "num-3",
+    });
+    eventRepo.appendEvent(runId, "status", {
+      status: "executing",
+      text: "num-4",
+    });
 
     const req = new Request(
       `http://localhost/api/runs/${runId}/events?last_event_id=2`,
@@ -151,10 +181,10 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     expect(events.length).toBe(2);
 
     const text = events.join("\n");
-    expect(text).not.toContain('"num":1');
-    expect(text).not.toContain('"num":2');
-    expect(text).toContain('"num":3');
-    expect(text).toContain('"num":4');
+    expect(text).not.toContain("num-1");
+    expect(text).not.toContain("num-2");
+    expect(text).toContain("num-3");
+    expect(text).toContain("num-4");
 
     await reader?.cancel();
   });

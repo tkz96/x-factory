@@ -327,30 +327,116 @@ export interface PullRequest {
   title: string;
 }
 
-/**
- * Run event payloads without timestamp.
- */
-export type RunEventPayload =
-  | { type: "status"; status: RunStatus; text: string }
-  | { type: "stage_evidence"; stage: WorkflowStage; summary: string }
-  | { type: "info"; text: string }
-  | { type: "error"; text: string }
+export interface StatusEventPayload {
+  status: RunStatus;
+  text?: string | undefined;
+  reason?: string | undefined;
+  pullRequest?: PullRequest | undefined;
+}
+
+export interface StageEvidencePayload {
+  stage: WorkflowStage;
+  evidence: string;
+}
+
+export type PrStepPayload =
   | {
-      type: "ralph_progress";
+      step: string;
       text: string;
-      iteration?: number | undefined;
-      task?: string | undefined;
+      url?: undefined;
     }
-  | { type: "steer"; text: string }
-  | { type: "verification"; result: VerificationResult }
-  | { type: "review"; result: ReviewResult }
-  | { type: "pr_step"; text: string }
-  | { type: "server_shutdown"; text: string };
+  | {
+      step: string;
+      url: string;
+      text?: undefined;
+    };
+
+export interface ChatUserPayload {
+  text: string;
+}
+
+export interface ChatAgentPayload {
+  text: string;
+}
+
+export interface UserFeedbackPayload {
+  text: string;
+  notes?: string | undefined;
+  failingTasks?: string[] | undefined;
+}
+
+export interface PiOutputChunkPayload {
+  text: string;
+  role: string;
+}
+
+export interface VerificationEventPayload {
+  result: VerificationResult;
+}
+
+export interface ReviewEventPayload {
+  result: ReviewResult;
+}
+
+export interface RalphProgressPayload {
+  text: string;
+  iteration?: number | undefined;
+}
+
+export type InfoEventPayload = {
+  text: string;
+};
+
+export interface ErrorEventPayload {
+  message: string;
+}
+
+export interface SteerEventPayload {
+  message: string;
+}
+
+export type RunEventPayloadMap = {
+  status: StatusEventPayload;
+  stage_evidence: StageEvidencePayload;
+  pr_step: PrStepPayload;
+  chat_user: ChatUserPayload;
+  chat_agent: ChatAgentPayload;
+  user_feedback: UserFeedbackPayload;
+  pi_output_chunk: PiOutputChunkPayload;
+  verification: VerificationEventPayload;
+  review: ReviewEventPayload;
+  ralph_progress: RalphProgressPayload;
+  // TODO(#167): remove with steering
+  steer: SteerEventPayload;
+  info: InfoEventPayload;
+  error: ErrorEventPayload;
+};
+
+export type RunEventType = keyof RunEventPayloadMap;
+
+/**
+ * Discriminated union of run event types and payloads matching what the server emits.
+ */
+export type RunEventPayload<T extends RunEventType = RunEventType> =
+  T extends RunEventType
+    ? {
+        type: T;
+        payload: RunEventPayloadMap[T];
+      }
+    : never;
 
 /**
  * Discriminated union of SSE events emitted to connected clients.
  */
-export type RunEvent = RunEventPayload & { timestamp: number };
+export type RunEvent<T extends RunEventType = RunEventType> =
+  T extends RunEventType
+    ? {
+        id: number;
+        timestamp: string;
+        type: T;
+        payload: RunEventPayloadMap[T];
+      }
+    : never;
 
 /**
  * Public run shape exposed via API.
@@ -362,7 +448,6 @@ export interface Run {
   plan: string;
   branch: string;
   status: RunStatus;
-  events: RunEvent[];
   startedAt: string;
   finishedAt: string | null;
   implementationContext: ImplementationContext | null;
