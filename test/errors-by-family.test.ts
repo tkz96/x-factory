@@ -31,8 +31,8 @@ afterAll(() => {
   db?.close();
 });
 
-// setDbForTesting stores the database in an AsyncLocalStorage context, so it
-// must be called from the test body, not from beforeAll.
+// Each call gives the test a fresh in-memory database and the repository
+// bundle built over it.
 function setupTestDb(): RunRepository {
   db?.close();
   db = createDatabase({ path: ":memory:" });

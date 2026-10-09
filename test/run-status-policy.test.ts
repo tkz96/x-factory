@@ -167,8 +167,8 @@ describe("Shared run-status policy matches server guards (#170)", () => {
     db?.close();
   });
 
-  // setDbForTesting stores the database in an AsyncLocalStorage context, so
-  // it must be called from the test body, not from beforeAll.
+  // Each call gives the test a fresh in-memory database and the repository
+  // bundle built over it.
   function setupTestDb(): void {
     db = createDatabase({ path: ":memory:" });
     runMigrations(db);

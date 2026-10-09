@@ -8,9 +8,12 @@ import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type ApiContext, createRepositories } from "./composition-root.js";
+import {
+  type ApiContext,
+  createRepositories,
+  openProcessDatabase,
+} from "./composition-root.js";
 import { loadProjects } from "./config.js";
-import { createDatabase } from "./db/connection.js";
 import { runMigrations } from "./db/migrator.js";
 import { emitStructuredLog } from "./diagnostics/correlation.js";
 import { reportStaleWorktrees } from "./git.js";
@@ -71,8 +74,12 @@ export function startServer(
   // Composition root (#169): this process opens one connection, migrates it
   // once, and hands the same repository bundle to every request.
   try {
-    db = customDb ?? createDatabase();
-    runMigrations(db);
+    if (customDb) {
+      runMigrations(customDb);
+      db = customDb;
+    } else {
+      db = openProcessDatabase();
+    }
   } catch (err: unknown) {
     console.error("[X-Factory] Failed to initialize SQLite database:", err);
     throw err;

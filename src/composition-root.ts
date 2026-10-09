@@ -7,9 +7,11 @@
 
 import type { Database } from "bun:sqlite";
 import { CommandRepository } from "./db/command-repository.js";
+import { createDatabase, type DatabaseOptions } from "./db/connection.js";
 import { DiagnosticsRepository } from "./db/diagnostics-repository.js";
 import { EventRepository } from "./db/event-repository.js";
 import { JobRepository } from "./db/job-repository.js";
+import { runMigrations } from "./db/migrator.js";
 import { OperationLedgerRepository } from "./db/operation-ledger-repository.js";
 import { RunRepository } from "./db/run-repository.js";
 import { StageAttemptRepository } from "./db/stage-attempt-repository.js";
@@ -36,6 +38,16 @@ export interface Repositories {
 export interface ApiContext {
   repos: Repositories;
   providerRegistry?: ProviderRegistry | undefined;
+}
+
+/**
+ * Opens the process's one connection with the production PRAGMAs and migrates
+ * it. Both the API server and the worker open their connection here.
+ */
+export function openProcessDatabase(options?: DatabaseOptions): Database {
+  const db = createDatabase(options);
+  runMigrations(db);
+  return db;
 }
 
 /**

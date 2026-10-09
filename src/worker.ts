@@ -8,22 +8,22 @@ import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { getActiveSession } from "./agents/pi.js";
+import { createRepositories, openProcessDatabase } from "./composition-root.js";
 import { getProject } from "./config.js";
-import {
-  type CommandRecord,
+import type {
+  CommandRecord,
   CommandRepository,
 } from "./db/command-repository.js";
-import { createDatabase } from "./db/connection.js";
-import { EventRepository } from "./db/event-repository.js";
-import { type JobRecord, JobRepository } from "./db/job-repository.js";
+import type { EventRepository } from "./db/event-repository.js";
+import type { JobRecord, JobRepository } from "./db/job-repository.js";
 import { runMigrations } from "./db/migrator.js";
-import { OperationLedgerRepository } from "./db/operation-ledger-repository.js";
-import { type RunRecord, RunRepository } from "./db/run-repository.js";
-import {
-  type StageAttemptRecord,
+import type { OperationLedgerRepository } from "./db/operation-ledger-repository.js";
+import type { RunRecord, RunRepository } from "./db/run-repository.js";
+import type {
+  StageAttemptRecord,
   StageAttemptRepository,
 } from "./db/stage-attempt-repository.js";
-import { WorkerHeartbeatRepository } from "./db/worker-heartbeat-repository.js";
+import type { WorkerHeartbeatRepository } from "./db/worker-heartbeat-repository.js";
 import { DeliverExecutor } from "./executors/deliver.js";
 import {
   getStageExecutor,
@@ -85,6 +85,8 @@ export interface WorkerOptions {
 export class Worker {
   readonly workerId: string;
   private db: Database;
+  /** True when the worker opened its own connection and so closes it on stop. */
+  private ownsDb: boolean;
   private runRepo: RunRepository;
   private jobRepo: JobRepository;
   private commandRepo: CommandRepository;
@@ -118,14 +120,16 @@ export class Worker {
   constructor(options?: WorkerOptions) {
     this.workerId =
       options?.workerId || `worker-${process.pid}-${randomUUID().slice(0, 6)}`;
-    this.db = options?.db || createDatabase();
-    this.runRepo = new RunRepository(this.db);
-    this.jobRepo = new JobRepository(this.db);
-    this.commandRepo = new CommandRepository(this.db);
-    this.heartbeatRepo = new WorkerHeartbeatRepository(this.db);
-    this.stageAttemptRepo = new StageAttemptRepository(this.db);
-    this.eventRepo = new EventRepository(this.db);
-    this.operationLedgerRepo = new OperationLedgerRepository(this.db);
+    this.ownsDb = !options?.db;
+    this.db = options?.db ?? openProcessDatabase();
+    const repos = createRepositories(this.db);
+    this.runRepo = repos.runs;
+    this.jobRepo = repos.jobs;
+    this.commandRepo = repos.commands;
+    this.heartbeatRepo = repos.heartbeats;
+    this.stageAttemptRepo = repos.stageAttempts;
+    this.eventRepo = repos.events;
+    this.operationLedgerRepo = repos.operationLedger;
     this.deliverExecutor = options?.deliverExecutor;
     this.stageExecutorResolver = options?.getStageExecutor ?? getStageExecutor;
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
@@ -419,6 +423,14 @@ export class Worker {
       this.heartbeatRepo.remove(this.workerId);
     } catch {
       // ignore errors during shutdown
+    }
+
+    if (this.ownsDb) {
+      try {
+        this.db.close();
+      } catch {
+        // Ignore if already closed
+      }
     }
 
     this.log("Worker stopped.");
