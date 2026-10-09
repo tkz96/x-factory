@@ -36,7 +36,7 @@ Owner: [Workflow state machine and transition contracts](../reference/state-mach
 
 Owner: [Database schema and durable entities](../reference/database-schema.md).
 
-- Change the structure only with a new migration in `src/db/migrations/`. Then run `bun run docs:schema`. CI fails if the generated section of the doc is stale.
+- Change the structure only with a new migration in `src/db/migrations/`. Then run `bun run docs:schema`. CI fails if the generated section of the doc is stale. The migrator runs each migration in an IMMEDIATE transaction that re-reads the version under the write lock, so API and worker can start together on a fresh database; `test/migration-race.test.ts` guards this.
 
 ## Frontend data flow
 
