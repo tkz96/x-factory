@@ -193,9 +193,25 @@ export async function getDiff(
 }
 
 /**
- * Safely commit all changes.
- * 1. Verifies no pollution against baseline.
- * 2. Stages all changes with git add -A.
+ * Paths travel as command-line arguments, so a huge list can exceed the OS
+ * argument limit (E2BIG). Each git call receives at most this many paths.
+ */
+const PATHS_PER_GIT_CALL = 1000;
+
+function chunkPaths(paths: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < paths.length; i += PATHS_PER_GIT_CALL) {
+    chunks.push(paths.slice(i, i + PATHS_PER_GIT_CALL));
+  }
+  return chunks;
+}
+
+/**
+ * Commit exactly the changes classified as implementation since the baseline.
+ * 1. Verifies no pollution against baseline, before anything is staged.
+ * 2. Unstages scaffold and baseline-untracked paths a prior staging step left
+ *    in the index, then stages the implementation paths explicitly —
+ *    additions, modifications, deletions and renames. Never `git add -A`.
  * 3. Verifies something is staged.
  * 4. Commits with provided message.
  */
@@ -211,16 +227,55 @@ export async function safeCommitAll(
     );
   }
 
-  await execStrict("git", ["add", "-A"], {
-    cwd: worktreePath,
-    envPolicy: "inherit",
-  });
+  // Scaffold, and anything untracked at baseline, must not reach the commit —
+  // including when an earlier `git add` (e.g. a rename into `.agent/`) staged it.
+  const toUnstage = state.changes
+    .filter(
+      (c) =>
+        (c.kind === "scaffold" || baseline.untrackedFiles.has(c.path)) &&
+        c.status[0] !== " " &&
+        c.status[0] !== "?",
+    )
+    .map((c) => c.path);
+  if (toUnstage.length > 0) {
+    for (const paths of chunkPaths(toUnstage)) {
+      await execStrict(
+        "git",
+        ["--literal-pathspecs", "restore", "--staged", "--", ...paths],
+        { cwd: worktreePath, envPolicy: "inherit" },
+      );
+    }
+  }
 
-  const statusCheck = await execStrict("git", ["status", "--porcelain"], {
+  // Stage implementation changes whose worktree differs from the index. A
+  // change already staged as-is (`R `, `D `, `M `) is skipped: it is already in
+  // the index, and re-adding a fully removed path fails the pathspec match.
+  // A path untracked at baseline is never staged, whatever its status: it is
+  // not a change the run made — an `AM` path was staged by a prior step and
+  // was just unstaged above.
+  const toStage = state.changes
+    .filter(
+      (c) =>
+        c.kind === "implementation" &&
+        !baseline.untrackedFiles.has(c.path) &&
+        c.status[1] !== " ",
+    )
+    .map((c) => c.path);
+  if (toStage.length > 0) {
+    for (const paths of chunkPaths(toStage)) {
+      await execStrict(
+        "git",
+        ["--literal-pathspecs", "add", "-A", "--", ...paths],
+        { cwd: worktreePath, envPolicy: "inherit" },
+      );
+    }
+  }
+
+  const staged = await execStrict("git", ["diff", "--cached", "--name-only"], {
     cwd: worktreePath,
     envPolicy: "inherit",
   });
-  if (statusCheck.stdout.length === 0) {
+  if (staged.stdout.length === 0) {
     throw new Error("Nothing to commit — working tree is clean.");
   }
 
