@@ -261,8 +261,9 @@ function jiraAndGithubPayload(id: string): ConnectionsPayload {
 
 async function createProject(
   payload: unknown,
+  base: string = baseUrl,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(`${baseUrl}/api/projects`, {
+  const res = await fetch(`${base}/api/projects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1295,6 +1296,84 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
     expect(saved.id).toBe(id);
     const stored = (await loadProjects(configPath)).filter((p) => p.id === id);
     expect(stored).toHaveLength(1);
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+  });
+});
+
+describe("HTTP persistence failures through the injected store (#187)", () => {
+  // Armed per test and reset after each: the injected store delegates to the
+  // shipped one unless a failure is armed, so only these tests are affected.
+  const armed = { envWrite: false, appendRecord: false, saveRecord: false };
+  let failureServer: ReturnType<typeof startServer>;
+  let storeBaseUrl: string;
+
+  beforeAll(() => {
+    const store: ProjectWriteStore = {
+      ...FILE_PROJECT_WRITE_STORE,
+      saveProjectEnv: async (projectId, vars) => {
+        if (armed.envWrite) throw new Error("env store unavailable");
+        return FILE_PROJECT_WRITE_STORE.saveProjectEnv(projectId, vars);
+      },
+      appendProjectRecord: async (record, pathArg) => {
+        if (armed.appendRecord) throw new Error("record store unavailable");
+        return FILE_PROJECT_WRITE_STORE.appendProjectRecord(record, pathArg);
+      },
+      saveProject: async (record, pathArg) => {
+        if (armed.saveRecord) throw new Error("record store unavailable");
+        return FILE_PROJECT_WRITE_STORE.saveProject(record, pathArg);
+      },
+    };
+    failureServer = startServer(0, undefined, undefined, testRegistry, store);
+    storeBaseUrl = `http://localhost:${failureServer.port}`;
+  });
+
+  afterEach(() => {
+    armed.envWrite = false;
+    armed.appendRecord = false;
+    armed.saveRecord = false;
+  });
+
+  afterAll(() => failureServer.stop(true));
+
+  it("POST /api/projects returns 500 and creates no project and no env file when the store's env write fails", async () => {
+    const id = `store-failure-http-env-${Date.now()}`;
+    armed.envWrite = true;
+
+    const { status } = await createProject(
+      storeFailurePayload(id),
+      storeBaseUrl,
+    );
+    expect(status).toBe(500);
+
+    // No project record…
+    expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+      false,
+    );
+    // …and no env file: a project never exists without its secrets.
+    await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
+  });
+
+  it("POST /api/projects returns 500 at the commit point with secrets landed and no record, then a retry converges with 201", async () => {
+    const id = `store-failure-http-commit-${Date.now()}`;
+    armed.appendRecord = true;
+
+    const first = await createProject(storeFailurePayload(id), storeBaseUrl);
+    expect(first.status).toBe(500);
+
+    // Secrets landed first (idempotent, retry-safe)…
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+    // …and the record did not commit.
+    expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+      false,
+    );
+
+    // A retry after the failure converges over HTTP: same secret, one record.
+    armed.appendRecord = false;
+    const retry = await createProject(storeFailurePayload(id), storeBaseUrl);
+    expect(retry.status).toBe(201);
+    expect(
+      (await loadProjects(configPath)).filter((p) => p.id === id),
+    ).toHaveLength(1);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
   });
 });

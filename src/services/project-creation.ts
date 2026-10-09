@@ -86,9 +86,10 @@ export interface ProjectCreationOptions {
   claim?: CreationClaimOptions;
   /**
    * The record store and env store, injectable together as one store (#187);
-   * defaults to the shipped file-backed store.
+   * defaults to the shipped file-backed store. `| undefined` so a controller
+   * can forward an absent ApiContext store unchanged.
    */
-  store?: ProjectWriteStore;
+  store?: ProjectWriteStore | undefined;
 }
 
 /** Asserts that a provider can serve a role, via `hasCapability` only. */

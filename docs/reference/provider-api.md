@@ -630,7 +630,9 @@ semantics:
 Both paths run the one plan in `src/services/connection-write-plan.ts`, whose
 record store and env store are injectable together as one `ProjectWriteStore` —
 failure-injection tests go through that store, never through `process.env` or
-file permissions.
+file permissions. The service takes it as `options.store`; the HTTP surface
+forwards `ApiContext.projectWriteStore` (`startServer`'s fifth argument), so the
+500 mapping is asserted through a store injected at the API seam as well.
 
 ### Known limitation
 
