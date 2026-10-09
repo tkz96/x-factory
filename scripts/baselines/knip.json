@@ -1,7 +1,6 @@
 [
   "src/db/migrator.ts:exports:resetMigrationVersionCacheForTesting",
   "src/frontend/hooks/useQueries.ts:exports:useProject",
-  "src/frontend/hooks/useQueries.ts:exports:useSteerRun",
   "src/providers/azure-module.ts:types:AzureConfig",
   "src/providers/jira-module.ts:exports:SEARCH_JQL",
   "src/runs.ts:exports:getOperationLedger",

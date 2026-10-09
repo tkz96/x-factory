@@ -17,7 +17,6 @@
   "unused_exports": [
     "unused-export:src/db/migrator.ts:resetMigrationVersionCacheForTesting",
     "unused-export:src/frontend/hooks/useQueries.ts:useProject",
-    "unused-export:src/frontend/hooks/useQueries.ts:useSteerRun",
     "unused-export:src/providers/github-module.ts:describeGitHubConnection",
     "unused-export:src/providers/jira-module.ts:SEARCH_JQL",
     "unused-export:src/runs.ts:getOperationLedger",
