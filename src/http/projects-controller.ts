@@ -43,6 +43,7 @@ import {
   createProjectFromConnections,
   updateProjectConnectionsById,
 } from "../services/project-creation.js";
+import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type { IssueTrackerProvider } from "../shared/types.js";
 import {
   catchHttpErrors,
@@ -371,9 +372,7 @@ async function handleMigrateProject(
   // Active run guard
   const runs = getRunRepository().list();
   const activeRun = runs.find(
-    (r) =>
-      r.project.id === projectId &&
-      !["pr_created", "failed", "stopped"].includes(r.status),
+    (r) => r.project.id === projectId && !TERMINAL_RUN_STATUSES.has(r.status),
   );
   if (activeRun) {
     return errorResponse(

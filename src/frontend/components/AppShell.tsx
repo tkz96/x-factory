@@ -6,6 +6,10 @@ import {
   useLocation,
   useSearchParams,
 } from "react-router-dom";
+import {
+  ACTIVE_RUN_STATUSES,
+  STOPPABLE_RUN_STATUSES,
+} from "../../shared/run-status-policy.js";
 import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import {
@@ -482,13 +486,10 @@ function AppShellContent() {
   const runId = runIdMatch ? runIdMatch[1] : undefined;
   const { data: runData } = useRun(runId);
 
+  // A run the user may stop (the server's stop guard set); the shell only
+  // offers Stop Run while the run accepts it.
   const isActiveRun =
-    runData != null &&
-    runData.status !== "pr_created" &&
-    runData.status !== "failed" &&
-    runData.status !== "stopped" &&
-    runData.status !== "recovery_required" &&
-    runData.status !== "ready_for_pr";
+    runData != null && STOPPABLE_RUN_STATUSES.has(runData.status);
   const activeRunId = isActiveRun ? runData.id : undefined;
 
   const handleStopRun = () => {
@@ -501,11 +502,8 @@ function AppShellContent() {
   const { data: tickets = [] } = useTickets(selectedProjectId);
   const { data: readiness } = useReadiness();
 
-  const activeRunsCount = runs.filter(
-    (r) =>
-      r.status !== "pr_created" &&
-      r.status !== "failed" &&
-      r.status !== "stopped",
+  const activeRunsCount = runs.filter((r) =>
+    ACTIVE_RUN_STATUSES.has(r.status),
   ).length;
 
   const queueCount = tickets.length;

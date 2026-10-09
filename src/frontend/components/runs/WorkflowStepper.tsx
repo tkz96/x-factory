@@ -3,6 +3,10 @@
 import "./WorkflowStepper.css";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  STATUS_TO_STAGE,
+  TERMINAL_RUN_STATUSES,
+} from "../../../shared/run-status-policy.js";
 import type { RunStatus, WorkflowStage } from "../../../shared/types.js";
 import type { CanonicalWireEvent } from "../../hooks/useRunSSE.js";
 
@@ -59,22 +63,6 @@ const STAGE_CONFIG: Array<{
   },
 ];
 
-const STATUS_TO_STAGE: Record<RunStatus, WorkflowStage | null> = {
-  queued: "prepare",
-  preparing: "prepare",
-  understanding: "understand",
-  awaiting_understanding_approval: "understand",
-  planning: "plan",
-  awaiting_plan_approval: "plan",
-  executing: "execute",
-  awaiting_review: "review",
-  ready_for_pr: "deliver",
-  pr_created: "deliver",
-  recovery_required: null,
-  failed: null,
-  stopped: null,
-};
-
 export interface WorkflowStepperProps {
   status: RunStatus;
   startedAt?: string | null;
@@ -105,12 +93,7 @@ export function WorkflowStepper({
   // Live timer for active stage elapsed duration
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (
-      !startedAt ||
-      status === "pr_created" ||
-      status === "failed" ||
-      status === "stopped"
-    ) {
+    if (!startedAt || TERMINAL_RUN_STATUSES.has(status)) {
       return;
     }
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -131,12 +114,7 @@ export function WorkflowStepper({
   }, [events]);
 
   const getStepClass = (idx: number) => {
-    if (
-      (status === "failed" ||
-        status === "stopped" ||
-        status === "recovery_required") &&
-      idx === currentIdx
-    ) {
+    if (currentStage === null && idx === currentIdx) {
       return "failed";
     }
     if (status === "pr_created" || (currentIdx !== -1 && idx < currentIdx)) {

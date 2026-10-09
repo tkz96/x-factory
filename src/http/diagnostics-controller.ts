@@ -6,6 +6,7 @@ import {
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
 import { getDb, getJobRepository, getRunRepository } from "../runs.js";
+import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -143,9 +144,7 @@ export function handleDiagnosticsRoute(): Response {
   const runRepo = getRunRepository();
 
   const runs = runRepo.list();
-  const activeRuns = runs.filter(
-    (r) => !["pr_created", "stopped", "failed"].includes(r.status),
-  );
+  const activeRuns = runs.filter((r) => !TERMINAL_RUN_STATUSES.has(r.status));
 
   const staleJobs = jobRepo.findStaleClaimedJobs();
   const activeWorkers = getActiveWorkers();

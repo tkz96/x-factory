@@ -4,6 +4,7 @@ import "./RunDetailView.css";
 
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { CHECKPOINT_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ActivitySidebar } from "../components/runs/ActivitySidebar.js";
 import { HumanCheckpointSection } from "../components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../components/runs/RunChat.js";
@@ -60,7 +61,6 @@ export function RunDetailView() {
   }
 
   const isRecoveryRequired = run.status === "recovery_required";
-  const isReadyForPr = run.status === "ready_for_pr";
 
   const handleApprove = () => {
     transitionMutation.mutate({ runId: run.id, action: "approve" });
@@ -144,9 +144,7 @@ export function RunDetailView() {
           />
 
           {/* Human Checkpoint & Delivery */}
-          {(isReadyForPr ||
-            run.status === "pr_created" ||
-            run.status === "awaiting_review") && (
+          {CHECKPOINT_RUN_STATUSES.has(run.status) && (
             <div className="checkpoint-container">
               <HumanCheckpointSection
                 run={run}

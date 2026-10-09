@@ -30,6 +30,7 @@ Owner: [Workflow state machine and transition contracts](../reference/state-mach
 
 - The happy path is `queued` → `preparing` → `understanding` → `awaiting_understanding_approval` → `planning` → `awaiting_plan_approval` → `executing` → `awaiting_review` → `ready_for_pr` → `pr_created`. The last step happens only when a user asks for the pull request. The other states are `recovery_required`, `failed` and `stopped`.
 - Only the transitions in the matrix are allowed. Each one is atomic and monotonic, and it is recorded in `runs`, `jobs`, `events` and `stage_attempts`.
+- The run-status policy (matrix, terminal/active/stoppable sets, allowed actions per status, status→stage, labels) lives in `src/shared/run-status-policy.ts`; the server and the client both import it, and `test/run-status-policy.test.ts` checks it against the server's action guards.
 
 ## Database schema
 

@@ -1,6 +1,7 @@
 import "./RunHistoryCard.css";
 
 import { Link } from "react-router-dom";
+import { runStatusLabel } from "../../../shared/run-status-policy.js";
 import type { Run } from "../../../shared/types.js";
 
 interface RunHistoryCardProps {
@@ -14,7 +15,7 @@ export function RunHistoryCard({ run }: RunHistoryCardProps) {
   const dateStr = run.startedAt
     ? new Date(run.startedAt).toLocaleString()
     : "Recently";
-  const statusLabel = run.status.replace(/_/g, " ");
+  const statusLabel = runStatusLabel(run.status);
 
   return (
     <Link

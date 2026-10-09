@@ -15,7 +15,7 @@
       },
       {
         "name": "domain",
-        "patterns": ["src/types.ts", "src/state-machine.ts", "src/errors.ts"]
+        "patterns": ["src/types.ts", "src/errors.ts"]
       },
       {
         "name": "infrastructure",

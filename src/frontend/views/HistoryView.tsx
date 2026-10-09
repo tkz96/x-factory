@@ -1,6 +1,10 @@
 // src/frontend/views/HistoryView.tsx — Historical completed and active runs view (XFM-38, XFM-40, XFM-49).
 
 import { useMemo, useState } from "react";
+import {
+  ACTIVE_RUN_STATUSES,
+  UNSUCCESSFUL_TERMINAL_RUN_STATUSES,
+} from "../../shared/run-status-policy.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RunHistoryCard } from "../components/history/RunHistoryCard.js";
@@ -21,16 +25,11 @@ export function HistoryView() {
       case "completed":
         return runs.filter((r) => r.status === "pr_created");
       case "failed":
-        return runs.filter(
-          (r) => r.status === "failed" || r.status === "stopped",
+        return runs.filter((r) =>
+          UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(r.status),
         );
       case "active":
-        return runs.filter(
-          (r) =>
-            r.status !== "pr_created" &&
-            r.status !== "failed" &&
-            r.status !== "stopped",
-        );
+        return runs.filter((r) => ACTIVE_RUN_STATUSES.has(r.status));
       default:
         return runs;
     }

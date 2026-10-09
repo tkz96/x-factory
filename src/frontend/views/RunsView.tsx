@@ -1,4 +1,8 @@
 import { Link } from "react-router-dom";
+import {
+  ACTIVE_RUN_STATUSES,
+  runStatusLabel,
+} from "../../shared/run-status-policy.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
 import "./RunsView.css";
@@ -7,12 +11,7 @@ export function RunsView() {
   const { openNewRunModal } = useModal();
   const { data: runs = [], isLoading } = useRuns();
 
-  const activeRuns = runs.filter(
-    (r) =>
-      r.status !== "pr_created" &&
-      r.status !== "failed" &&
-      r.status !== "stopped",
-  );
+  const activeRuns = runs.filter((r) => ACTIVE_RUN_STATUSES.has(r.status));
 
   return (
     <section id="area-runs" className="area-view active">
@@ -79,7 +78,7 @@ export function RunsView() {
                     </span>
                   </div>
                   <span className="badge" data-status={r.status}>
-                    {r.status.replace(/_/g, " ")}
+                    {runStatusLabel(r.status)}
                   </span>
                 </div>
               </Link>

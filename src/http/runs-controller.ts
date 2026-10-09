@@ -2,8 +2,8 @@
 
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
+import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type { RunStatus } from "../shared/types.js";
-import { TERMINAL_RUN_STATUSES } from "../state-machine.js";
 import {
   catchHttpErrors,
   errorResponse,

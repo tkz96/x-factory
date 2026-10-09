@@ -3,6 +3,7 @@
 import "./HumanCheckpointSection.css";
 
 import { useState } from "react";
+import { runStatusLabel } from "../../../shared/run-status-policy.js";
 import type {
   ReviewResult,
   Run,
@@ -306,7 +307,7 @@ export function HumanCheckpointSection({
             className="badge"
             data-status={run.status}
           >
-            {run.status.replace(/_/g, " ")}
+            {runStatusLabel(run.status)}
           </span>
         </div>
 

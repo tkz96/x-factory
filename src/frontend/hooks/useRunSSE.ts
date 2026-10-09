@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { TERMINAL_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import type {
   PullRequest,
   ReviewResult,
@@ -10,12 +11,6 @@ import type {
   VerificationResult,
 } from "../../shared/types.js";
 import { invalidateRun, patchRunCache } from "../lib/query-client.js";
-
-const TERMINAL_STATUSES = new Set<RunStatus>([
-  "pr_created",
-  "failed",
-  "stopped",
-]);
 
 export interface CanonicalWireEvent {
   id: number;
@@ -31,7 +26,7 @@ export function useRunSSE(run: Run | undefined | null) {
   const seenEventIdsRef = useRef<Set<number>>(new Set());
 
   const runId = run?.id;
-  const isTerminal = run ? TERMINAL_STATUSES.has(run.status) : false;
+  const isTerminal = run ? TERMINAL_RUN_STATUSES.has(run.status) : false;
 
   useEffect(() => {
     seenEventIdsRef.current.clear();

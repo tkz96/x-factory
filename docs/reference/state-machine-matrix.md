@@ -3,6 +3,8 @@
 This document defines the formal finite state machine for X-Factory workflow runs.
 It specifies permitted state transitions, transition invariants, and terminal conditions, updated for the 3-phase pipeline (Planning, Execution, Review).
 
+The policy behind this contract — the transition matrix, the terminal/active/stoppable sets, the actions allowed per status, status→stage for display, and labels — is implemented once in [`src/shared/run-status-policy.ts`](../../src/shared/run-status-policy.ts) and imported by both the server and the client. `test/run-status-policy.test.ts` exercises the server's action guards and fails if they drift from the shared policy.
+
 > The current runtime is not yet fully conformant with this contract. Runtime conformance is implemented by follow-up issues.
 
 ## Terminology

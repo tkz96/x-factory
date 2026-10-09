@@ -22,7 +22,10 @@ import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
-import { STOPPABLE_RUN_STATUSES } from "./state-machine.js";
+import {
+  canRunAction,
+  STOPPABLE_RUN_STATUSES,
+} from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
 
@@ -617,11 +620,7 @@ export async function chatWithRun(
   const run = runRepo.get(id);
   if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
-  if (
-    run.status !== "awaiting_understanding_approval" &&
-    run.status !== "awaiting_plan_approval" &&
-    run.status !== "awaiting_review"
-  ) {
+  if (!canRunAction(run.status, "approve")) {
     throw new Error(
       `Chat is only available during approval gates. Current status: "${run.status}".`,
     );
@@ -776,10 +775,7 @@ export async function handleTransition(
     }
 
     if (action === "restart") {
-      if (
-        run.status === "awaiting_understanding_approval" ||
-        run.status === "awaiting_plan_approval"
-      ) {
+      if (canRunAction(run.status, "restart")) {
         // Cancel any active jobs first
         const activeJob = jobRepo.findActiveJobForRun(id, db);
         if (activeJob) {

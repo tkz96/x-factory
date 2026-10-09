@@ -156,7 +156,7 @@ x-factory/
 ├── src/
 │   ├── server.ts             # Native Bun HTTP server, REST routing, and SSE registry
 │   ├── worker.ts             # Background worker execution loop, leases, and heartbeats
-│   ├── state-machine.ts      # finite state machine and transition validator
+│   ├── shared/               # Shared domain types and the run-status policy (FSM, sets, actions, labels)
 │   ├── db/                   # SQLite connection, schema migrations (v1–v6), and repositories
 │   ├── executors/            # Stage executors (prepare, understand, plan, execute, review, deliver)
 │   ├── frontend/             # React 19 SPA, Apple HIG tokens, TanStack Query, Vite

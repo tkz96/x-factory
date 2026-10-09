@@ -2,7 +2,7 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { canTransition, TRANSITIONS } from "../src/state-machine.js";
+import { canTransition, TRANSITIONS } from "../src/shared/run-status-policy.js";
 import type { Run, RunStatus } from "../src/types.js";
 
 describe("Workflow State Machine", () => {

@@ -10,8 +10,8 @@ import {
   RunRepository,
   StaleRevisionError,
 } from "../src/db/run-repository.js";
+import { canTransition } from "../src/shared/run-status-policy.js";
 import type { RunStatus } from "../src/shared/types.js";
-import { canTransition } from "../src/state-machine.js";
 
 describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", () => {
   let db: Database;
