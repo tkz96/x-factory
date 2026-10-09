@@ -165,18 +165,6 @@ describe("Domain errors map to HTTP by family (#168)", () => {
     });
   });
 
-  it("steer in a disallowed status returns 409 with a clear message", async () => {
-    const runRepo = setupTestDb();
-    createRunAtStatus(runRepo, "run-steer-conflict", "queued");
-    const res = await postJson("/api/runs/run-steer-conflict/steer", {
-      message: "Focus on auth.ts",
-    });
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: 'Cannot steer in status "queued".',
-    });
-  });
-
   it("chat outside the approval gates returns 409 with a clear message", async () => {
     const runRepo = setupTestDb();
     createRunAtStatus(runRepo, "run-chat-conflict", "queued");

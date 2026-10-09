@@ -142,7 +142,6 @@ export type RunAction =
   | "requeue"
   | "restart"
   | "resume"
-  | "steer"
   | "stop";
 
 /**
@@ -157,7 +156,7 @@ export const ACTIONS_BY_STATUS: Record<RunStatus, readonly RunAction[]> = {
   awaiting_understanding_approval: ["approve", "restart", "chat", "stop"],
   planning: ["stop"],
   awaiting_plan_approval: ["approve", "restart", "chat", "stop"],
-  executing: ["steer", "stop"],
+  executing: ["stop"],
   awaiting_review: ["approve", "requeue", "chat", "stop"],
   ready_for_pr: ["deliver"],
   pr_created: [],

@@ -160,14 +160,14 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.ok(data.error.includes("Run not found"));
   });
 
-  it("POST /api/runs/:id/steer validates request", async () => {
-    // Missing body
+  it("POST /api/runs/:id/steer returns 404 because steering was removed", async () => {
+    // Missing body — the endpoint itself no longer exists (#167)
     const res1 = await fetch(`${baseUrl}/api/runs/any-id/steer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
-    assert.equal(res1.status, 400);
+    assert.equal(res1.status, 404);
 
     // Nonexistent run
     const res2 = await fetch(`${baseUrl}/api/runs/nonexistent-run/steer`, {
