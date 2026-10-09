@@ -4,6 +4,13 @@
 // searches (azure, tracker, gitHost, connections) into a single migration step.
 // Fails closed with descriptive mismatch errors on conflicting inputs.
 
+import {
+  AZURE_ORG_KEYS,
+  CONSUMED_ROOT_KEYS,
+  GITHUB_OWNER_KEYS,
+  GITHUB_REPO_KEYS,
+  GITHUB_TOKEN_KEYS,
+} from "../shared/legacy-aliases.js";
 import { extractOrgNameFromUrl } from "./azure-urls.js";
 import type { ProviderConfig } from "./contract.js";
 import { isForeignProviderObject } from "./discriminator.js";
@@ -157,22 +164,12 @@ function gatherGitHubCandidates(root: Record<string, unknown>) {
     const rec = obj as Record<string, unknown>;
     if (isForeignProviderObject(rec, "github")) return;
 
-    extractMatchingKeys(
-      rec,
-      ["repoOwner", "owner", "organization", "org"],
-      prefix,
-      candidateOrgs,
-    );
-    extractMatchingKeys(rec, ["token", "githubToken"], prefix, candidateTokens);
+    extractMatchingKeys(rec, GITHUB_OWNER_KEYS, prefix, candidateOrgs);
+    extractMatchingKeys(rec, GITHUB_TOKEN_KEYS, prefix, candidateTokens);
 
-    extractGitHubRepoKey(
-      rec,
-      "repository",
-      prefix,
-      candidateOrgs,
-      candidateRepos,
-    );
-    extractGitHubRepoKey(rec, "repo", prefix, candidateOrgs, candidateRepos);
+    for (const key of GITHUB_REPO_KEYS) {
+      extractGitHubRepoKey(rec, key, prefix, candidateOrgs, candidateRepos);
+    }
 
     extractMatchingKeys(rec, ["baseUrl"], prefix, candidateBaseUrls);
     extractGitHubUrlCandidates(rec, prefix, candidateOrgs, candidateRepos);
@@ -245,7 +242,7 @@ function gatherAzureCandidates(root: Record<string, unknown>) {
     if (isForeignProviderObject(rec, "azure")) return;
 
     extractMatchingKeys(rec, ["orgUrl"], prefix, candidateUrls);
-    extractMatchingKeys(rec, ["organization", "org"], prefix, candidateOrgs);
+    extractMatchingKeys(rec, AZURE_ORG_KEYS, prefix, candidateOrgs);
     extractMatchingKeys(rec, ["project"], prefix, candidateProjects);
     extractMatchingKeys(rec, ["pat", "token"], prefix, candidatePats);
   };
@@ -408,35 +405,6 @@ export function migrateLegacyProviderConfig(
 
 /** Providers whose historical config shapes the migration step reconciles. */
 const LEGACY_MIGRATED_PROVIDERS: ReadonlySet<string> = new Set([
-  "github",
-  "azure",
-  "jira",
-]);
-
-/** Root keys the migration step consumes: aliases, URL hints and containers. */
-const CONSUMED_ROOT_KEYS: ReadonlySet<string> = new Set([
-  "provider",
-  "providerId",
-  "connectionId",
-  "owner",
-  "org",
-  "organization",
-  "repo",
-  "githubToken",
-  "token",
-  "pat",
-  "apiToken",
-  "jiraHost",
-  "jiraEmail",
-  "jiraToken",
-  "projectId",
-  "url",
-  "webUrl",
-  "remoteUrl",
-  "config",
-  "connections",
-  "tracker",
-  "gitHost",
   "github",
   "azure",
   "jira",

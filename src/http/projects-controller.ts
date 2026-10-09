@@ -11,6 +11,7 @@ import {
   saveProject,
 } from "../config.js";
 import { isConnectionsProjectInput } from "../config-schema.js";
+import { ConnectionConflictError } from "../errors.js";
 import {
   checkProjectReadiness,
   configureGitIdentity,
@@ -53,6 +54,7 @@ import {
   errorResponse,
   jsonResponse,
   parseJsonBody,
+  translateDomainErrorToHttpResponse,
   validateAgainstSchema,
   withJsonBody,
   withValidatedBody,
@@ -697,7 +699,7 @@ async function handleTestProviderScopes(
         });
       }
       const typed = toTypedProviderConfig(provider, data, {
-        allowIncomplete: true,
+        diagnosticOnly: true,
       });
       if (!typed.ok) {
         return jsonResponse({
@@ -745,7 +747,26 @@ async function handleTestProviderScopes(
   );
 }
 
+/**
+ * Routes a project request. A stored record whose connection settings conflict
+ * answers 409 with its code instead of crashing the route.
+ */
 export async function handleProjectsRoute(
+  ...args: Parameters<typeof routeProjectsRequest>
+): Promise<Response | null> {
+  try {
+    return await routeProjectsRequest(...args);
+  } catch (err) {
+    const mapped =
+      err instanceof ConnectionConflictError
+        ? translateDomainErrorToHttpResponse(err)
+        : null;
+    if (mapped) return mapped;
+    throw err;
+  }
+}
+
+async function routeProjectsRequest(
   method: string,
   id: string | undefined,
   action: string | undefined,

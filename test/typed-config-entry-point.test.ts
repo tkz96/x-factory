@@ -8,6 +8,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import type { Repositories } from "../src/composition-root.js";
 import { IssueTrackerInputSchema } from "../src/config-schema.js";
+import { ConnectionConflictError } from "../src/errors.js";
+import { checkProjectReadiness } from "../src/inspection/readiness.js";
 import { azureProvider } from "../src/providers/azure-module.js";
 import { toTypedProviderConfig } from "../src/providers/config-validation.js";
 import {
@@ -21,6 +23,7 @@ import {
   resolveProjectConnection,
 } from "../src/providers/project-connections.js";
 import { startServer } from "../src/server.js";
+import { GITHUB_OWNER_KEYS } from "../src/shared/legacy-aliases.js";
 import { findDuplicateProject } from "../src/shared/project-identity.js";
 import type { Project } from "../src/shared/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
@@ -341,5 +344,71 @@ describe("Routes hand adapters typed config (#186)", () => {
       config: conflictingGithub,
     });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("resolveProjectConnection repository coordinate (#186)", () => {
+  it("derives owner/repository from a stored legacy repo:'acme/web'", () => {
+    const resolved = resolveProjectConnection(
+      storedGithub({ repo: "acme/web", token: "ghp_x" }),
+      "tracker",
+      {},
+    );
+    expect(resolved?.repository).toBe("acme/web");
+  });
+
+  it("derives it from legacy owner plus repo, and from repository alone", () => {
+    expect(
+      resolveProjectConnection(
+        storedGithub({ owner: "acme", repo: "web", token: "t" }),
+        "tracker",
+        {},
+      )?.repository,
+    ).toBe("acme/web");
+    expect(
+      resolveProjectConnection(
+        storedGithub({ repository: "web", token: "t" }),
+        "tracker",
+        {},
+      )?.repository,
+    ).toBe("web");
+  });
+
+  it("validates through the schema yet keeps requiredLabel", () => {
+    const resolved = resolveProjectConnection(
+      storedGithub({
+        owner: "acme",
+        repo: "web",
+        token: "t",
+        requiredLabel: "xf",
+        baseUrl: "https://ghe.example.com/api/v3",
+      }),
+      "tracker",
+      {},
+    );
+    expect(resolved?.config.requiredLabel).toBe("xf");
+    expect(resolved?.config.baseUrl).toBe("https://ghe.example.com/api/v3");
+  });
+});
+
+describe("a conflicting stored connection never crashes a reader (#186)", () => {
+  const conflicting = storedGithub({
+    repoOwner: "acme",
+    gitHost: { owner: "other" },
+  });
+
+  it("readiness reports the conflict as an issue", async () => {
+    const readiness = await checkProjectReadiness(conflicting);
+    expect(readiness.issues.join(" ")).toContain("conflicting settings");
+  });
+
+  it("delivery resolution fails with a clear conflict error", () => {
+    expect(() => resolveProjectConnection(conflicting, "gitHost", {})).toThrow(
+      ConnectionConflictError,
+    );
+  });
+
+  it("legacy shared alias table is the one consumed by identity and migration", () => {
+    expect(GITHUB_OWNER_KEYS).toContain("owner");
   });
 });

@@ -449,7 +449,9 @@ Adapters receive **typed config** and nothing else: the shape their own
 - **Where it runs.** (1) When stored connections are read:
   `loadProjectConnections` migrates every stored connection and the legacy
   `issueTracker` fallback (narrowed to the provider's own section plus flat
-  scalar keys), so ticket listing and delivery resolve legacy records. (2) On
+  scalar keys), so ticket listing and delivery resolve legacy records; the
+  repository coordinate is derived from `repoOwner/repository`. The alias list
+  lives once in `src/shared/legacy-aliases.ts`. (2) On
   every request body, through **`toTypedProviderConfig(provider, raw)`** in
   `src/providers/config-validation.ts`: migration first, then the provider's
   schema. It backs `/api/providers/verify|repositories`, the project routes
@@ -463,8 +465,10 @@ Adapters receive **typed config** and nothing else: the shape their own
   entry point the result is `{ ok: false, conflict }`: provider routes answer
   `409 { fieldErrors: { config: "INVALID" } }` (codes only), and the project
   routes answer with a generic "incomplete, invalid or conflicting" message. No
-  provider HTTP call is made. Reading a stored connection whose shapes conflict
-  throws.
+  provider HTTP call is made. A STORED connection whose shapes conflict raises
+  `ConnectionConflictError` (code `CONNECTION_CONFLICT`): readiness lists it as
+  an issue, project routes answer `409` with that code, and delivery fails with
+  the same message. Nothing picks one of the values.
 
 ---
 

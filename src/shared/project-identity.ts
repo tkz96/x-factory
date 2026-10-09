@@ -2,6 +2,12 @@
 
 import { normalizeGitRemoteUrl } from "./git-remote.js";
 import {
+  AZURE_ORG_KEYS,
+  GITHUB_OWNER_KEYS,
+  GITHUB_REPO_KEYS,
+  NESTED_VIEW_KEYS,
+} from "./legacy-aliases.js";
+import {
   legacyTrackerConfig,
   legacyTrackerProviderId,
 } from "./legacy-tracker.js";
@@ -71,18 +77,16 @@ function providerConfigOf(
 }
 
 /**
- * A stored config read for identity only. `shared` imports nothing, so it cannot
- * call the provider migration step; it reads the same historical aliases
- * (`owner`, `org`, `organization`) and nested views (`github`, `gitHost`,
- * `tracker`, `azure`) that step reconciles, taking the first value present.
- * Identity matching only reads, so it never rejects a conflict.
+ * Identity reads a stored config through the shared alias table
+ * (`legacy-aliases.ts`, the same one the provider migration step uses): layers
+ * a raw config with its nested provider views, first value present wins. It
+ * only reads, so it never rejects a conflict.
  */
-/** Layers a raw config with its nested provider views; first value wins. */
 function firstValueReader(
   raw: Record<string, unknown>,
 ): (...keys: string[]) => string {
   const layers = [raw];
-  for (const key of ["github", "gitHost", "tracker", "azure"]) {
+  for (const key of NESTED_VIEW_KEYS) {
     const nested = raw[key];
     if (
       nested !== null &&
@@ -107,7 +111,7 @@ function azureIdentityView(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
   const first = firstValueReader(raw);
-  const org = first("organization", "org");
+  const org = first(...AZURE_ORG_KEYS);
   return {
     ...raw,
     orgUrl:
@@ -122,8 +126,8 @@ function githubIdentityView(
   const first = firstValueReader(raw);
   return {
     ...raw,
-    repoOwner: first("repoOwner", "owner", "organization", "org"),
-    repository: first("repository", "repo"),
+    repoOwner: first(...GITHUB_OWNER_KEYS),
+    repository: first(...GITHUB_REPO_KEYS),
     repo: "",
   };
 }

@@ -13,7 +13,12 @@ import { migrateConfigForProvider } from "./legacy-migration.js";
 export type FieldErrorCode = "REQUIRED" | "INVALID";
 
 export type ProviderConfigParseResult =
-  | { ok: true; config: ProviderConfig }
+  | {
+      ok: true;
+      config: ProviderConfig;
+      /** `false` only for a diagnostic read that skipped schema validation. */
+      validated?: false;
+    }
   | {
       ok: false;
       fieldErrors: Record<string, FieldErrorCode>;
@@ -63,7 +68,7 @@ export function parseProviderConfig(
  * are rejected, never silently collapsed), then the provider's own schema.
  * Every path that hands config to an adapter goes through here.
  *
- * `allowIncomplete` is for diagnostics that must REPORT missing credentials
+ * `diagnosticOnly` is for diagnostics that must REPORT missing credentials
  * themselves (the scope diagnostic): a schema failure then yields the migrated
  * config, while a legacy conflict is still rejected.
  */
@@ -73,7 +78,7 @@ export function toTypedProviderConfig(
     readonly configSchema: ProviderConfigSchema;
   },
   raw: unknown,
-  options: { readonly allowIncomplete?: boolean } = {},
+  options: { readonly diagnosticOnly?: boolean } = {},
 ): ProviderConfigParseResult {
   let migrated: ProviderConfig;
   try {
@@ -86,8 +91,8 @@ export function toTypedProviderConfig(
     };
   }
   const parsed = parseProviderConfig(provider.configSchema, migrated);
-  if (!parsed.ok && options.allowIncomplete) {
-    return { ok: true, config: migrated };
+  if (!parsed.ok && options.diagnosticOnly) {
+    return { ok: true, config: migrated, validated: false };
   }
   return parsed;
 }

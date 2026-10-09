@@ -14,11 +14,13 @@
 //   metadata (`getSecretFieldRoutes`). No provider name and no env-key table
 //   appears in this module.
 
+import { ConnectionConflictError } from "../errors.js";
 import {
   legacyTrackerConfig,
   legacyTrackerProviderId as sharedLegacyTrackerProviderId,
 } from "../shared/legacy-tracker.js";
 import type { Project, ProjectConnection } from "../shared/types.js";
+import { toTypedProviderConfig } from "./config-validation.js";
 import type { Provider, ProviderConfig, ProviderRole } from "./contract.js";
 import { migrateConfigForProvider } from "./legacy-migration.js";
 import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
@@ -45,6 +47,36 @@ export function registryTrackerProviderId(
   return sharedLegacyTrackerProviderId(issueTracker, (key) =>
     registry.has(key),
   );
+}
+
+/** Migrates one stored config; a conflict is a typed, non-crashing error. */
+function migrateStored(providerId: string, raw: unknown): ProviderConfig {
+  try {
+    return migrateConfigForProvider(providerId, raw);
+  } catch (err) {
+    throw new ConnectionConflictError(
+      `The stored "${providerId}" connection has conflicting settings: ${
+        (err as Error).message
+      } Edit the connection so each setting has one value.`,
+    );
+  }
+}
+
+/**
+ * The conflict a project's stored connections hold, or `null`. Readers that
+ * must not throw (readiness, diagnostics) ask this instead of catching.
+ */
+export function storedConnectionConflict(
+  project: Project,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): string | null {
+  try {
+    loadProjectConnections(project, registry);
+    return null;
+  } catch (err) {
+    if (err instanceof ConnectionConflictError) return err.message;
+    throw err;
+  }
 }
 
 /**
@@ -89,10 +121,7 @@ export function loadProjectConnections(
     // github/gitHost views): the one migration step reads it as typed config.
     return project.connections.map((connection) => ({
       ...connection,
-      config: migrateConfigForProvider(
-        connection.providerId,
-        connection.config,
-      ),
+      config: migrateStored(connection.providerId, connection.config),
     }));
   }
 
@@ -100,7 +129,7 @@ export function loadProjectConnections(
   if (providerId === null) return [];
   const provider = registry.get(providerId);
   if (!provider) return [];
-  const config = migrateConfigForProvider(
+  const config = migrateStored(
     providerId,
     legacyMigrationInput(project.issueTracker, providerId),
   );
@@ -173,17 +202,40 @@ export function resolveProjectConnection(
   const provider = registry.get(connection.providerId);
   if (!provider) return undefined;
 
-  const config = mergeStoredSecrets(provider, connection.config, env);
+  const merged = mergeStoredSecrets(provider, connection.config, env);
+  // Validate through the shared entry point so adapters get schema defaults and
+  // a validated baseUrl; fields the schema does not own (requiredLabel) are kept
+  // and an incomplete config is left for the adapter to report.
+  const typed = toTypedProviderConfig(provider, merged, {
+    diagnosticOnly: true,
+  });
+  if (!typed.ok) {
+    throw new ConnectionConflictError(
+      `The "${provider.id}" connection has conflicting settings. Edit the connection so each setting has one value.`,
+    );
+  }
+  const config: ProviderConfig = { ...merged, ...typed.config };
   const primaryRepo =
     project.repositories?.find((r) => r.path === project.repositoryPath) ||
     project.repositories?.[0];
-  const configuredRepo = config.repo;
   const repository =
-    (typeof configuredRepo === "string" && configuredRepo.trim()) ||
+    configuredCoordinate(config) ||
     primaryRepo?.name ||
     primaryRepo?.id ||
     project.name ||
     project.id;
 
   return { providerId: provider.id, provider, config, repository };
+}
+
+/**
+ * The repository coordinate the typed config names: `owner/repository` when both
+ * are set, otherwise the repository alone. Empty when it names none.
+ */
+function configuredCoordinate(config: ProviderConfig): string {
+  const repository =
+    typeof config.repository === "string" ? config.repository.trim() : "";
+  const owner =
+    typeof config.repoOwner === "string" ? config.repoOwner.trim() : "";
+  return owner && repository ? `${owner}/${repository}` : repository;
 }
