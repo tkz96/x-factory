@@ -16,7 +16,7 @@ export const githubConfigSchema = z.object({
     secret: true,
     envKey: "GITHUB_TOKEN",
     placeholder: "ghp_...",
-    help: "Personal Access Token (classic or fine-grained) with repo and project permissions.",
+    help: "Personal Access Token with required scopes: 'repo' (code, pull requests) and 'workflow' (GitHub Actions).",
   }),
   repoOwner: z
     .string()

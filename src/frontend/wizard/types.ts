@@ -52,6 +52,9 @@ export interface WizardConnectionRoleState {
    * for example the Repositories step naming `listRepositories` (#144).
    */
   unconfirmedCapabilities?: string[];
+  /** Provably missing scopes per capability, persisted across step navigation. */
+  missingScopes?: Record<string, string[]> | undefined;
+  overPrivileged?: boolean | undefined;
 }
 
 export interface WizardConnectState {
@@ -213,6 +216,8 @@ export type WizardAction =
       generation: number;
       verified: boolean;
       unconfirmedCapabilities: string[];
+      missingScopes?: Record<string, string[]> | undefined;
+      overPrivileged?: boolean | undefined;
     }
   | {
       type: "APPLY_PROVIDER_MATCH";

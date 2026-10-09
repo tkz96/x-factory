@@ -26,11 +26,13 @@ export interface ProviderDescriptor {
 export interface VerificationWarning {
   kind: "CAPABILITY_UNCONFIRMED";
   capability: string;
+  missingScopes?: string[] | undefined;
 }
 
 export interface VerificationResult {
   status: "ok" | "degraded";
   warnings: VerificationWarning[];
+  overPrivileged?: boolean | undefined;
 }
 
 export type ParseUrlSuccess = {

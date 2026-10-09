@@ -1546,6 +1546,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         {
           kind: "CAPABILITY_UNCONFIRMED",
           capability: "createPullRequest",
+          missingScopes: ["repo"],
         },
       ]);
     });
@@ -1574,6 +1575,56 @@ describe("GitHub Provider Module (Ticket #138)", () => {
           capability: "createPullRequest",
         },
       ]);
+      expect(result.overPrivileged).toBeUndefined();
+    });
+
+    it("flags classic token with admin:org or delete_repo as overPrivileged: true", async () => {
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/user")) {
+          return new Response(JSON.stringify({ login: "octocat" }), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "x-oauth-scopes": "repo, delete_repo, admin:org",
+            },
+          });
+        }
+        return new Response("{}", { status: 200 });
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const result = await provider.verifyCredentials({
+        token: "ghp_admin_token",
+      });
+
+      expect(result.status).toBe("ok");
+      expect(result.overPrivileged).toBe(true);
+    });
+
+    it("classic token with repo and workflow gives no overPrivileged warning and status ok", async () => {
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/user")) {
+          return new Response(JSON.stringify({ login: "octocat" }), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "x-oauth-scopes": "repo, workflow",
+            },
+          });
+        }
+        return new Response("{}", { status: 200 });
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const result = await provider.verifyCredentials({
+        token: "ghp_workflow_token",
+      });
+
+      expect(result.status).toBe("ok");
+      expect(result.warnings).toEqual([]);
+      expect(result.overPrivileged).toBeUndefined();
     });
 
     it("reports scope findings and overPrivileged status via verifyScopes", async () => {
@@ -1632,6 +1683,29 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       expect(report?.findings).toContainEqual({
         capability: "createPullRequest",
         status: "unconfirmed",
+      });
+    });
+
+    it("verifyScopes reports createPullRequest as missing when x-oauth-scopes header lacks repo", async () => {
+      const fakeFetch: typeof fetch = (async () => {
+        return new Response(JSON.stringify({ login: "public-user" }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "x-oauth-scopes": "read:user, public_repo",
+          },
+        });
+      }) as unknown as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const report = await provider.verifyScopes?.({
+        token: "ghp_public_only_token",
+      });
+
+      expect(report).toBeDefined();
+      expect(report?.findings).toContainEqual({
+        capability: "createPullRequest",
+        status: "missing",
       });
     });
 

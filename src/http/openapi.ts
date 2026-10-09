@@ -1991,6 +1991,11 @@ export function getOpenApiSpec() {
               example: "CAPABILITY_UNCONFIRMED",
             },
             capability: { type: "string", example: "verifyScopes" },
+            missingScopes: {
+              type: "array",
+              items: { type: "string" },
+              example: ["repo"],
+            },
           },
         },
         VerificationResult: {
@@ -2007,6 +2012,10 @@ export function getOpenApiSpec() {
               items: {
                 $ref: "#/components/schemas/VerificationWarning",
               },
+            },
+            overPrivileged: {
+              type: "boolean",
+              example: false,
             },
           },
         },

@@ -228,8 +228,76 @@ export const CONNECTIONS_COPY = {
   verifyScopesPending: "Testing Scopes…",
   verifyScopesOk: "Connection and permissions verified.",
   verifyScopesFailed: "Verification failed. Review the required permissions.",
+  /** Positive feedback message when a connection verifies cleanly. */
+  verified: "Connection verified",
   overPrivileged:
     "Notice: the token has broader access than the recommended minimum.",
+  /** Banner lead when a connection is verified with warnings (limited access). */
+  degradedLead:
+    "Connection verified with limited access. The following permissions could not be confirmed:",
+  /** Remediation advice when permissions or scopes are provably missing. */
+  degradedRemediation:
+    "Update your token in your provider settings to grant the required permissions, then click Re-verify to proceed.",
+  /** Neutral advice when permission can only be confirmed upon write (e.g. pull request creation). */
+  degradedRemediationUnconfirmed:
+    "This permission can only be confirmed when X-Factory first creates a pull request.",
+  /** Title for the required permissions and scopes informational panel. */
+  requiredScopesTitle: "Required permissions & scopes",
+  /** Fallback help text when a secret field does not define custom help. */
+  requiredScopesFallbackHelp:
+    "Ensure your credential has the required permissions for repository and issue tracking operations.",
+} as const;
+
+export type DegradedCapabilityCopyEntry = {
+  readonly label: string;
+  readonly unconfirmed: string;
+  readonly missing: (scopes: string) => string;
+  readonly remediation: string;
+};
+
+/**
+ * Capability-keyed feedback copy for degraded connection verification notices.
+ * Maps contract capability names to user-friendly permission labels and guidance.
+ */
+export const DEGRADED_CAPABILITY_COPY: Record<
+  "createPullRequest" | "listRepositories" | "listTickets" | "verifyScopes",
+  DegradedCapabilityCopyEntry
+> &
+  Record<string, DegradedCapabilityCopyEntry | undefined> = {
+  createPullRequest: {
+    label: "Pull request creation",
+    unconfirmed: "Pull request creation — permission could not be confirmed.",
+    missing: (scopes: string) => `Pull request creation — Missing: ${scopes}`,
+    remediation: CONNECTIONS_COPY.degradedRemediationUnconfirmed,
+  },
+  listRepositories: {
+    label: "Repository listing",
+    unconfirmed:
+      "Repository listing — permission could not be confirmed. Check your token settings to ensure repository read access is enabled.",
+    missing: (scopes: string) => `Repository listing — Missing: ${scopes}`,
+    remediation: CONNECTIONS_COPY.degradedRemediation,
+  },
+  listTickets: {
+    label: "Issue tracking",
+    unconfirmed:
+      "Issue tracking — permission could not be confirmed. Check your token settings to ensure issue tracking access is enabled.",
+    missing: (scopes: string) => `Issue tracking — Missing: ${scopes}`,
+    remediation: CONNECTIONS_COPY.degradedRemediation,
+  },
+  verifyScopes: {
+    label: "Scope verification",
+    unconfirmed:
+      "Scope verification — unable to verify token scopes. Check that your token has standard permissions in your provider settings.",
+    missing: (scopes: string) => `Scope verification — Missing: ${scopes}`,
+    remediation: CONNECTIONS_COPY.degradedRemediation,
+  },
+};
+
+export const DEGRADED_CAPABILITY_FALLBACK = {
+  unconfirmed: (name: string) =>
+    `${name} — permission could not be confirmed. Check your token settings to proceed.`,
+  missing: (name: string, scopes: string) => `${name} — Missing: ${scopes}`,
+  remediation: CONNECTIONS_COPY.degradedRemediation,
 } as const;
 
 /** Copy for the Work Queue read region (#147), including its integrity failure. */

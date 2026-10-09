@@ -39,6 +39,7 @@ import {
   deriveConnectionIntegrity,
   REQUIRED_CONNECTION_ROLES,
 } from "../src/frontend/components/projects/connection-integrity.js";
+import { formatDegradedCapabilityNotice } from "../src/frontend/connection/scope-feedback.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
   ModalProvider,
@@ -366,9 +367,11 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   if (fixture.degraded !== null) {
     const { role, capability } = fixture.degraded;
     const card = getEl(`connection-card-${role}`);
-    // The card names the capability that could not be confirmed, in contract
+    // The card names the capability that could not be confirmed in human-readable
     // terms, in the partial state — never in provider scope terminology.
-    expect(card.textContent).toContain(capability);
+    expect(card.textContent).toContain(
+      formatDegradedCapabilityNotice(capability),
+    );
     expect(card.textContent).toContain("Degraded");
     // A degraded verification is usable (#133: "degraded renders the partial
     // state, never blocks progression"): there is no acknowledgement to make.

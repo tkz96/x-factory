@@ -58,7 +58,7 @@ const apiTokenMeta: ProviderConfigFieldMeta = {
   secret: true,
   envKey: "JIRA_API_TOKEN",
   placeholder: "Atlassian API token",
-  help: "Atlassian API token generated from your Atlassian account security settings.",
+  help: "Atlassian API token with required permissions: Browse Projects (view issues) on the configured project.",
 };
 
 const projectMeta: ProviderConfigFieldMeta = {

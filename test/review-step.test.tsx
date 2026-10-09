@@ -34,7 +34,6 @@ import {
   REVIEW_COPY,
   resolveFieldValidationError,
   resolveFormValidationError,
-  STATE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -807,8 +806,8 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     // retry offered — #133: "degraded renders the partial state".
     const card = getEl("connection-card-tracker");
     expect(card.textContent).toContain("Degraded");
-    expect(card.textContent).toContain(STATE_COPY.partial);
-    expect(card.textContent).toContain("listTickets");
+    expect(card.textContent).toContain("limited access");
+    expect(card.textContent).toContain("Issue tracking");
 
     // ...and progression is NEVER blocked by a degraded-but-verified connection:
     // there is no acknowledgement to give, and Connect moves on (story 19).

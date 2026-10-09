@@ -135,6 +135,7 @@ export interface VerificationWarning {
   kind: "CAPABILITY_UNCONFIRMED";
   /** Contract capability name — never provider scope terminology. */
   capability: VerifiableCapability;
+  missingScopes?: readonly string[] | undefined;
 }
 
 /**
@@ -144,6 +145,7 @@ export interface VerificationWarning {
 export interface VerificationResult {
   status: "ok" | "degraded";
   warnings: VerificationWarning[];
+  overPrivileged?: boolean | undefined;
 }
 
 // ---------------------------------------------------------------------------

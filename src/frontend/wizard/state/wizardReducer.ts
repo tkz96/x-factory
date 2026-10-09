@@ -136,6 +136,8 @@ export function wizardReducer(
             ...connect[action.role],
             verified: action.verified,
             unconfirmedCapabilities: action.unconfirmedCapabilities,
+            missingScopes: action.missingScopes,
+            overPrivileged: action.overPrivileged,
           },
         },
       };

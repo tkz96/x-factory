@@ -30,7 +30,13 @@ function parseOAuthScopes(headers: Headers): string[] {
     .filter(Boolean);
 }
 
-function hasAnyScope(scopes: string[], targets: string[]): boolean {
+const OVER_PRIVILEGED_SCOPES = [
+  "delete_repo",
+  "admin:org",
+  "admin:repo_hook",
+] as const;
+
+function hasAnyScope(scopes: string[], targets: readonly string[]): boolean {
   return targets.some((target) => scopes.includes(target));
 }
 
@@ -98,6 +104,7 @@ function checkScopeWarnings(headers: Headers): VerificationWarning[] {
         {
           kind: "CAPABILITY_UNCONFIRMED",
           capability: "createPullRequest",
+          missingScopes: ["repo"],
         },
       ];
     }
@@ -175,6 +182,15 @@ export async function verifyGitHubCredentials(
     }
 
     warnings.push(...checkScopeWarnings(userRes.headers));
+
+    const scopes = parseOAuthScopes(userRes.headers);
+    const overPrivileged = hasAnyScope(scopes, OVER_PRIVILEGED_SCOPES);
+
+    return {
+      status: warnings.length > 0 ? "degraded" : "ok",
+      warnings,
+      ...(overPrivileged ? { overPrivileged: true } : {}),
+    };
   } else if (owner) {
     await probePublicOwner(transport, owner);
     warnings.push({
@@ -240,7 +256,7 @@ export async function verifyGitHubScopes(
     });
     findings.push({
       capability: "createPullRequest",
-      status: scopes.includes("repo") ? "confirmed" : "unconfirmed",
+      status: scopes.includes("repo") ? "confirmed" : "missing",
     });
   } else {
     // Fine-grained PAT: absence of x-oauth-scopes header means capabilities cannot be confirmed from scope introspection.
@@ -249,12 +265,7 @@ export async function verifyGitHubScopes(
     findings.push({ capability: "createPullRequest", status: "unconfirmed" });
   }
 
-  const overPrivileged = hasAnyScope(scopes, [
-    "delete_repo",
-    "admin:org",
-    "admin:repo_hook",
-    "workflow",
-  ]);
+  const overPrivileged = hasAnyScope(scopes, OVER_PRIVILEGED_SCOPES);
 
   return {
     findings,

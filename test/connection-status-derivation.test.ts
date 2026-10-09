@@ -136,6 +136,27 @@ describe("resolveVerificationDisplay — the payload a remount can still show", 
     );
   });
 
+  it("reconstructs the degraded payload with missingScopes per capability", () => {
+    const verifiedWithMissingScopes: WizardConnectionRoleState = {
+      providerId: "generic-githost",
+      verified: true,
+      unconfirmedCapabilities: ["createPullRequest"],
+      missingScopes: { createPullRequest: ["repo"] },
+    };
+    expect(resolveVerificationDisplay(null, verifiedWithMissingScopes)).toEqual(
+      {
+        status: "degraded",
+        warnings: [
+          {
+            kind: "CAPABILITY_UNCONFIRMED",
+            capability: "createPullRequest",
+            missingScopes: ["repo"],
+          },
+        ],
+      },
+    );
+  });
+
   it("shows the result just received as it is", () => {
     expect(resolveVerificationDisplay(okResult, verified)).toBe(okResult);
     expect(resolveVerificationDisplay(degradedResult, verified)).toBe(

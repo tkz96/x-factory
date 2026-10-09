@@ -1,5 +1,7 @@
 // src/frontend/connection/ConnectionCardFeedback.tsx — Status banners and field feedback for ConnectionCard.
 
+import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
+import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { FieldFeedback } from "../components/feedback/FieldFeedback.js";
 import { ConnectionDegradedBanner } from "./ConnectionDegradedBanner.js";
 import { ConnectionErrorBanner } from "./ConnectionErrorBanner.js";
@@ -17,6 +19,24 @@ export interface ConnectionCardFeedbackProps {
   onVerify: () => void;
 }
 
+export function OverPrivilegedNotice({
+  connectionRole,
+}: {
+  connectionRole: "tracker" | "gitHost";
+}) {
+  return (
+    <div
+      className="connection-overprivileged-container"
+      id={`${connectionRole}-overprivileged-notice`}
+    >
+      <FeedbackBanner
+        tone="warning"
+        message={CONNECTIONS_COPY.overPrivileged}
+      />
+    </div>
+  );
+}
+
 export function ConnectionCardFeedback({
   connectionRole,
   verificationStatus,
@@ -31,12 +51,19 @@ export function ConnectionCardFeedback({
     return <ConnectionErrorBanner formErrors={formErrors} onRetry={onVerify} />;
   }
 
+  const isOverPrivileged = Boolean(verificationResult?.overPrivileged);
+
   if (verificationStatus === "degraded") {
     return (
-      <ConnectionDegradedBanner
-        verificationResult={verificationResult}
-        onRetry={onVerify}
-      />
+      <div className="connection-feedback-group">
+        <ConnectionDegradedBanner
+          verificationResult={verificationResult}
+          onRetry={onVerify}
+        />
+        {isOverPrivileged && (
+          <OverPrivilegedNotice connectionRole={connectionRole} />
+        )}
+      </div>
     );
   }
 
@@ -51,11 +78,16 @@ export function ConnectionCardFeedback({
 
   if (verificationStatus === "ok") {
     return (
-      <FieldFeedback
-        state="valid"
-        message="Connection verified"
-        id={`${connectionRole}-verified-feedback`}
-      />
+      <div className="connection-feedback-group">
+        <FieldFeedback
+          state="valid"
+          message={CONNECTIONS_COPY.verified}
+          id={`${connectionRole}-verified-feedback`}
+        />
+        {isOverPrivileged && (
+          <OverPrivilegedNotice connectionRole={connectionRole} />
+        )}
+      </div>
     );
   }
 

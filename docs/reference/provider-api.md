@@ -137,9 +137,13 @@ Verifies connection credentials for a provider and role.
    - Incompatible role: `{ "formErrors": ["INCOMPATIBLE_CONFIGURATION"] }`
    - Config schema validation failure: `{ "fieldErrors": { "apiToken": "REQUIRED" } }`
 3. **Execution (`200 OK`)**:
-   - **Ideal**: `{ "status": "ok", "warnings": [] }`
-   - **Degraded**: `{ "status": "degraded", "warnings": [{ "kind": "CAPABILITY_UNCONFIRMED", "capability": "verifyScopes" }] }`
+   - **Ideal**: `{ "status": "ok", "warnings": [] }` (or `{ "status": "ok", "warnings": [], "overPrivileged": true }`)
+   - **Degraded**: `{ "status": "degraded", "warnings": [{ "kind": "CAPABILITY_UNCONFIRMED", "capability": "createPullRequest", "missingScopes": ["repo"] }] }` (optionally with `"overPrivileged": true`)
    - **Provider Error**: `{ "code": "AUTH_INVALID", "context": "VERIFY" }`
+
+   `overPrivileged` (boolean, optional): set to `true` when the provider detects that the credential possesses broader permissions than required (such as repository deletion or organization administrative scopes).
+
+   `missingScopes` (string[], optional): present on a warning when token scopes were introspectable and one or more required scopes are provably absent. When scopes are not visible (e.g. fine-grained personal access tokens), capabilities are reported as unconfirmed without `missingScopes`.
 
 ---
 
