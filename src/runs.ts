@@ -27,14 +27,11 @@ import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
 
-let hydrationPromise: Promise<void> | null = null;
-
 const dbStorage = new AsyncLocalStorage<Database | null>();
 
-// Global fallback DB when not in a test context. It is tied to the database
-// path that was current when it was opened; see getDb().
-let defaultDbInstance: Database | null = null;
-let defaultDbPath: string | null = null;
+// Global fallback DB when not in a test context, tied to the database path
+// that was current when it was opened; see getDb().
+let defaultDb: { db: Database; path: string } | null = null;
 
 const runRepoCache = new WeakMap<Database, RunRepository>();
 const jobRepoCache = new WeakMap<Database, JobRepository>();
@@ -53,14 +50,30 @@ export function getDb(): Database {
 
   // Reopen when the configured database path changes, so the handle never
   // outlives the file it points at (for example a data dir a test removed).
+  // The new handle is cached only after it is open and migrated; the old one
+  // is closed only then, so a failed reopen leaves the previous state intact.
   const dbPath = getDatabasePath();
-  if (!defaultDbInstance || defaultDbPath !== dbPath) {
-    defaultDbInstance?.close();
-    defaultDbInstance = createDatabase({ path: dbPath });
-    defaultDbPath = dbPath;
-    runMigrations(defaultDbInstance);
+  if (defaultDb?.path === dbPath) return defaultDb.db;
+
+  const db = createDatabase({ path: dbPath });
+  try {
+    runMigrations(db);
+  } catch (error) {
+    db.close();
+    throw error;
   }
-  return defaultDbInstance;
+  defaultDb?.db.close();
+  defaultDb = { db, path: dbPath };
+  return db;
+}
+
+/**
+ * Closes the process-wide default database so the next getDb() reopens it for
+ * the configured path. For test teardown only.
+ */
+export function resetDefaultDbForTesting(): void {
+  defaultDb?.db.close();
+  defaultDb = null;
 }
 
 export function getRunRepository(): RunRepository {
@@ -153,12 +166,9 @@ export function getOperationLedger(runId: string): OperationLedgerRecord[] {
 }
 
 export async function initRuns(): Promise<void> {
-  if (!hydrationPromise) {
-    hydrationPromise = (async () => {
-      getDb();
-    })();
-  }
-  return hydrationPromise;
+  // getDb() resolves the configured path on every call, so there is nothing
+  // to cache here: a cached promise would skip hydration of a reopened DB.
+  getDb();
 }
 
 export function getRun(id: string): Run | null {
