@@ -55,6 +55,7 @@ import {
 } from "../src/services/creation-claim.js";
 import {
   createProjectFromConnections,
+  type UpdateProjectConnectionsInput,
   updateProjectConnections,
 } from "../src/services/project-creation.js";
 import type { Project } from "../src/types.js";
@@ -1298,6 +1299,74 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
     expect(stored).toHaveLength(1);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
   });
+
+  it("leaves the stored record unchanged when the store's record write fails on update, then converges on retry", async () => {
+    const id = `store-failure-update-${Date.now()}`;
+    const project = await createProjectFromConnections(
+      storeFailurePayload(id),
+      {
+        registry: testRegistry,
+        configPath,
+      },
+    );
+    expect(project.id).toBe(id);
+
+    const newToken = "synthetic-update-token-5e2f";
+    const input: UpdateProjectConnectionsInput = {
+      name: "Store Failure Update Retried",
+      connections: [
+        {
+          providerId: "stub-capable",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: newToken,
+            project: "store-failure-update",
+          },
+        },
+      ],
+    };
+    const recordBefore = (await loadProjects(configPath)).find(
+      (p) => p.id === id,
+    );
+
+    // The update commit point is the store's saveProject, not the append.
+    let recordWriteFails = true;
+    const store = storeFailingOn({
+      saveProject: async (record, pathArg) => {
+        if (recordWriteFails) throw new Error("record store unavailable");
+        return FILE_PROJECT_WRITE_STORE.saveProject(record, pathArg);
+      },
+    });
+
+    await expect(
+      updateProjectConnections(project, input, {
+        registry: testRegistry,
+        configPath,
+        store,
+      }),
+    ).rejects.toThrow("record store unavailable");
+
+    // The commit point did not change…
+    expect((await loadProjects(configPath)).find((p) => p.id === id)).toEqual(
+      recordBefore,
+    );
+    // …while the secret write ahead of it landed (ordered writes).
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(newToken);
+
+    // A retry converges: one record, the update applied, same secret.
+    recordWriteFails = false;
+    const saved = await updateProjectConnections(project, input, {
+      registry: testRegistry,
+      configPath,
+      store,
+    });
+    expect(saved.name).toBe("Store Failure Update Retried");
+    expect(
+      (await loadProjects(configPath)).filter((p) => p.id === id),
+    ).toHaveLength(1);
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(newToken);
+  });
 });
 
 describe("HTTP persistence failures through the injected store (#187)", () => {
@@ -1375,6 +1444,60 @@ describe("HTTP persistence failures through the injected store (#187)", () => {
       (await loadProjects(configPath)).filter((p) => p.id === id),
     ).toHaveLength(1);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
+  });
+
+  it("PATCH /api/projects/:id returns 500 at the commit point with the stored record unchanged, then a retry converges with 200", async () => {
+    const id = `store-failure-http-update-${Date.now()}`;
+    const created = await createProject(storeFailurePayload(id), storeBaseUrl);
+    expect(created.status).toBe(201);
+    const recordBefore = (await loadProjects(configPath)).find(
+      (p) => p.id === id,
+    );
+    expect(recordBefore).toBeDefined();
+
+    const newToken = "synthetic-update-token-5e2f";
+    const updateBody = {
+      name: "Store Failure Retried",
+      connections: [
+        {
+          providerId: "stub-capable",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: newToken,
+            project: "store-failure-retry",
+          },
+        },
+      ],
+    };
+
+    armed.saveRecord = true;
+    const failed = await fetch(`${storeBaseUrl}/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updateBody),
+    });
+    expect(failed.status).toBe(500);
+
+    // The record — the update's commit point — is unchanged…
+    expect((await loadProjects(configPath)).find((p) => p.id === id)).toEqual(
+      recordBefore,
+    );
+    // …while the secret write ahead of it landed (ordered writes).
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(newToken);
+
+    // A retry after the failure converges over HTTP.
+    armed.saveRecord = false;
+    const retry = await fetch(`${storeBaseUrl}/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updateBody),
+    });
+    expect(retry.status).toBe(200);
+    const stored = (await loadProjects(configPath)).filter((p) => p.id === id);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.name).toBe("Store Failure Retried");
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(newToken);
   });
 });
 
@@ -2284,6 +2407,63 @@ describe("Connection-set replace semantics on PATCH /api/projects/:id (#187)", (
     // Remove: the dropped connections' env entries are gone, and only the new
     // connection's secret remains.
     expect(await loadProjectEnv(id)).toEqual({ GITHUB_TOKEN: swapToken });
+  });
+
+  it("keeps a replacement set's env key that a dropped provider also declared, with the new value", async () => {
+    const id = `swap-reused-key-${Date.now()}`;
+    const oldToken = "synthetic-old-token-7a1d";
+    const created = await createProject({
+      id,
+      name: "Swap Reused Key",
+      workspacePath: tempDir,
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: oldToken,
+            project: "swap-reuse-old",
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+        },
+      ],
+    });
+    expect(created.status).toBe(201);
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(oldToken);
+
+    // The replacement swaps the provider while REUSING the env key the
+    // dropped provider declared: the removal pass must not delete the key the
+    // plan itself just wrote.
+    const newToken = "synthetic-new-token-2c9f";
+    const { status } = await patchProject(id, {
+      connections: [
+        {
+          providerId: "stub-capable",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: newToken,
+            project: "swap-reuse-new",
+          },
+        },
+      ],
+    });
+    expect(status).toBe(200);
+
+    const stored = await readStoredProject(id);
+    expect(stored?.connections?.map((c) => c.providerId)).toEqual([
+      "stub-capable",
+    ]);
+    // The kept key survived the drop-removal, with the replacement's value.
+    expect(await loadProjectEnv(id)).toEqual({ STUB_API_TOKEN: newToken });
   });
 
   it("rejects an update whose connections declare the same env key with different values, like create does, with no write", async () => {
