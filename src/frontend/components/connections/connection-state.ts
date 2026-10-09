@@ -62,7 +62,7 @@ export function isConnectionUsable(evidence: ConnectionEvidence): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// The combo line's model — one shape, two producers
+// The combo line's model — one shape, one producer
 // ---------------------------------------------------------------------------
 
 /** The line's tone. The worst slot decides it; warnings are never the error tone. */
@@ -72,11 +72,10 @@ export type ConnectionComboTone = "connected" | "warning" | "error";
  * One role's slot as the combo line renders it: which provider serves the role,
  * and in which of the three states.
  *
- * The wizard produces these from verification evidence
- * (`comboSlotFromEvidence`); the post-creation surfaces produce them from a
- * project's persisted connections (`connection-integrity.ts`). Both feed the
- * SAME presentational component, so the line a user sees during onboarding and
- * the line they see afterwards can never drift apart.
+ * Every producer reaches these through `connection-view.ts` (#176) — the
+ * wizard's Review step from draft verification evidence, the post-creation
+ * surfaces from a project's persisted connections — so the line a user sees
+ * during onboarding and the line they see afterwards can never drift apart.
  */
 export interface ConnectionComboSlot {
   readonly role: ProjectConnectionRole;
@@ -192,18 +191,6 @@ export function withConnectionIdentities(
     const identity = identities[slot.role];
     return identity === undefined ? slot : { ...slot, identity };
   });
-}
-
-/** One role's slot, derived from the verification evidence the wizard holds. */
-export function comboSlotFromEvidence(
-  role: ProjectConnectionRole,
-  evidence: ConnectionEvidence,
-): ConnectionComboSlot {
-  return {
-    role,
-    state: deriveConnectionState(evidence),
-    providerId: evidence.providerId,
-  };
 }
 
 /** What the tone rule needs of a slot: its role, and its state. */

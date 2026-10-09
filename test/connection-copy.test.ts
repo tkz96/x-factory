@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import type { ConnectionWarning } from "../src/frontend/components/connections/connection-view.js";
 import { formatConnectionWarnings } from "../src/frontend/components/projects/connection-copy.js";
-import type { ConnectionWarning } from "../src/frontend/components/projects/connection-integrity.js";
 
 describe("connection-copy — formatConnectionWarnings", () => {
   it("formats ROLE_NOT_RECORDED warning", () => {

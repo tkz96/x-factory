@@ -14,10 +14,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { PROJECT_CONNECTION_ROLES } from "../../../shared/types.js";
 import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
+import { comboTone } from "../../components/connections/connection-state.js";
 import {
-  comboSlotFromEvidence,
-  comboTone,
-} from "../../components/connections/connection-state.js";
+  connectionComboSlots,
+  connectionViewSlots,
+  deriveConnectionView,
+} from "../../components/connections/connection-view.js";
 import {
   REVIEW_COPY,
   resolveFieldValidationError,
@@ -141,20 +143,29 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
     defaultBranch: row.defaultBranch,
   }));
 
-  // The combo line reads the SAME draft evidence the gate reads (#148): one
-  // model, one rendering, one tone rule, shared with the post-creation
-  // surfaces. Review is the creation gate, so BOTH roles are required here —
+  // The combo line reads the SAME draft evidence the gate reads, through the
+  // ONE derivation every surface uses (#176): draft in, slots out, over THE one
+  // role list. Review is the creation gate, so BOTH roles are required here —
   // a role with no verified connection is an error, never a warning (#133).
   //
   // The identity is the provider's own (#133 story 34), read from the
   // configuration the draft holds (`connect.providerConfigs`) — its non-secret
   // fields only, so the credentials the user typed stay in the draft — through
   // the ONE wiring call every surface uses.
+  const slots = connectionComboSlots(
+    connectionViewSlots(
+      deriveConnectionView(
+        {
+          kind: "draft",
+          evidence: state.connect,
+          providerConfigs: state.connect.providerConfigs,
+        },
+        manifest,
+      ),
+    ),
+  );
   const comboSlots = useConnectionLine(
-    [
-      comboSlotFromEvidence("tracker", state.connect.tracker),
-      comboSlotFromEvidence("gitHost", state.connect.gitHost),
-    ],
+    slots,
     draftConnectionIdentityTargets(state.connect, manifest),
   );
 
