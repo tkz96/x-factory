@@ -12,7 +12,9 @@
 // step's verification: an in-flight read can never overwrite a newer one, and a
 // failed read leaves whatever was already shown on screen.
 
+import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { GitIdentityScope } from "../../../shared/types.js";
 import { deriveAsyncState } from "../../components/feedback/derive-async-state.js";
 import type { DerivedAsyncState } from "../../components/feedback/types.js";
 import { api } from "../../lib/api-client.js";
@@ -25,6 +27,23 @@ import {
 import { useWizard } from "../state/wizardContext.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 
+/**
+ * Thrown when configuring multiple repositories succeeds for some but fails for others (#161).
+ */
+export class PartialConfigureError extends Error {
+  constructor(
+    public readonly configuredPaths: string[],
+    public readonly failedPaths: string[],
+    cause?: unknown,
+  ) {
+    super(
+      "Partial git identity configuration failure.",
+      cause !== undefined ? { cause } : undefined,
+    );
+    this.name = "PartialConfigureError";
+  }
+}
+
 export interface InspectionView {
   /** Derived region state for the feedback primitives. */
   derived: DerivedAsyncState;
@@ -35,6 +54,14 @@ export interface InspectionView {
   /** Reads the configured git identity again, for the current inputs. */
   inspectAgain: () => void;
   isEmptySelection: boolean;
+  /** Configures git identity directly in the inspected scope (#161). */
+  configureIdentity: (params: {
+    name: string;
+    email: string;
+    scope?: GitIdentityScope;
+  }) => Promise<void>;
+  isConfiguring: boolean;
+  configureError: unknown;
 }
 
 export function useInspection(): InspectionView {
@@ -71,6 +98,31 @@ export function useInspection(): InspectionView {
         results.find((result) =>
           result.target.repoIds.includes(primaryId ?? ""),
         ) ?? results[0];
+      const unresolvedPaths = [
+        ...new Set(
+          results
+            .filter((result) => result.response.gitIdentity === undefined)
+            .map((result) => result.target.path),
+        ),
+      ];
+
+      const unresolvedResults = results.filter(
+        (result) => result.response.gitIdentity === undefined,
+      );
+      const targetsToCheck =
+        unresolvedResults.length > 0
+          ? unresolvedResults
+          : primary
+            ? [primary]
+            : [];
+      const blockingResult = targetsToCheck.find(
+        (r) => !r.response.isGitRepo || r.response.isRepositoryRoot !== true,
+      );
+      const canUseLocalScope =
+        blockingResult === undefined && targetsToCheck.length > 0;
+      const blockingLocalPath = blockingResult?.target.path;
+      const isBlockingPathRepo = blockingResult?.response.isGitRepo ?? false;
+
       dispatch({
         type: "UPDATE_INSPECTION",
         patch: {
@@ -82,6 +134,12 @@ export function useInspection(): InspectionView {
           ),
           inputsFingerprint: fingerprint,
           inspectedPath: primary?.target.path,
+          isGitRepo: primary?.response.isGitRepo,
+          topLevelDir: primary?.response.topLevelDir,
+          unresolvedPaths,
+          canUseLocalScope,
+          blockingLocalPath,
+          isBlockingPathRepo,
         },
       });
     } catch (err) {
@@ -130,6 +188,84 @@ export function useInspection(): InspectionView {
     (id) => rows.find((row) => row.id === id)?.name ?? id,
   );
 
+  const configureMutation = useMutation({
+    mutationFn: async ({
+      name,
+      email,
+      scope = "local",
+    }: {
+      name: string;
+      email: string;
+      scope?: GitIdentityScope;
+    }) => {
+      const primaryPath = status.record?.inspectedPath ?? workspacePath;
+      if (scope === "global") {
+        await api.configureGitIdentity({
+          path: primaryPath,
+          name,
+          email,
+          scope: "global",
+        });
+      } else {
+        const pathsToConfigure =
+          status.record?.unresolvedPaths &&
+          status.record.unresolvedPaths.length > 0
+            ? status.record.unresolvedPaths
+            : [primaryPath];
+        const configuredPaths: string[] = [];
+        let firstError: unknown = null;
+
+        for (const targetPath of pathsToConfigure) {
+          try {
+            await api.configureGitIdentity({
+              path: targetPath,
+              name,
+              email,
+              scope: "local",
+            });
+            configuredPaths.push(targetPath);
+          } catch (err) {
+            firstError = err;
+            break;
+          }
+        }
+
+        const remainingFailed = pathsToConfigure.filter(
+          (p) => !configuredPaths.includes(p),
+        );
+
+        if (remainingFailed.length > 0) {
+          if (configuredPaths.length > 0) {
+            throw new PartialConfigureError(
+              configuredPaths,
+              remainingFailed,
+              firstError,
+            );
+          }
+          throw firstError;
+        }
+      }
+    },
+    onSettled: async () => {
+      await inspect();
+    },
+  });
+
+  const configureIdentity = useCallback(
+    async (params: {
+      name: string;
+      email: string;
+      scope?: GitIdentityScope;
+    }) => {
+      try {
+        await configureMutation.mutateAsync(params);
+      } catch {
+        // error stored in configureMutation.error
+      }
+    },
+    [configureMutation],
+  );
+
   return {
     derived,
     status,
@@ -138,5 +274,8 @@ export function useInspection(): InspectionView {
       void inspect();
     },
     isEmptySelection: selectedRepoIds.length === 0,
+    configureIdentity,
+    isConfiguring: configureMutation.isPending,
+    configureError: configureMutation.error,
   };
 }

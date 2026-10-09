@@ -2,6 +2,7 @@
 
 export {
   checkProjectReadiness,
+  configureGitIdentity,
   evaluateRepositoryReadiness,
   inspectLocalRepository,
 } from "./readiness.js";

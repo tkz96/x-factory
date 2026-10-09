@@ -200,4 +200,299 @@ describe("Git identity from the inspected repository's configuration (#146)", ()
       email: "route@example.com",
     });
   });
+
+  it("configures git identity locally and surfaces it on subsequent inspection (#161)", async () => {
+    const dir = await makeRepo("unconfigured-for-setting", {});
+
+    // Initially unconfigured
+    const initial = await inspectLocalRepository(dir);
+    expect(initial.gitIdentity).toBeUndefined();
+
+    // Configure git identity via POST /api/projects/configure-git-identity
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: dir,
+        name: "Configured User",
+        email: "configured@example.com",
+        scope: "local",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      ok: boolean;
+      gitIdentity: { name: string; email: string };
+      scope: string;
+    };
+    expect(body.gitIdentity).toEqual({
+      name: "Configured User",
+      email: "configured@example.com",
+    });
+
+    // Re-inspecting finds the configured identity
+    const after = await inspectLocalRepository(dir);
+    expect(after.gitIdentity).toEqual({
+      name: "Configured User",
+      email: "configured@example.com",
+    });
+  });
+
+  it("writes to the redirected global config file with global scope (#161)", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: baseDir,
+        name: "Global User",
+        email: "global@example.com",
+        scope: "global",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      gitIdentity: { name: string; email: string };
+      scope: string;
+      path: string;
+    };
+    expect(body.gitIdentity).toEqual({
+      name: "Global User",
+      email: "global@example.com",
+    });
+    expect(body.scope).toBe("global");
+
+    const globalName = await execStrict(
+      "git",
+      ["config", "--global", "user.name"],
+      { envPolicy: "inherit" },
+    );
+    const globalEmail = await execStrict(
+      "git",
+      ["config", "--global", "user.email"],
+      { envPolicy: "inherit" },
+    );
+    expect(globalName.stdout.trim()).toBe("Global User");
+    expect(globalEmail.stdout.trim()).toBe("global@example.com");
+  });
+
+  it("returns 400 with DIRECTORY_MISSING code for non-existent path (#161)", async () => {
+    const nonRepoDir = path.join(baseDir, "non-existent-dir");
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: nonRepoDir,
+        name: "Some User",
+        email: "user@example.com",
+        scope: "local",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; code?: string };
+    expect(body.code).toBe("DIRECTORY_MISSING");
+    expect(body.error).toContain("does not exist");
+  });
+
+  it("returns 400 with NOT_A_REPOSITORY code for existing non-repo directory (#161)", async () => {
+    const nonRepoDir = path.join(baseDir, "existing-non-repo-dir");
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(nonRepoDir, { recursive: true });
+
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: nonRepoDir,
+        name: "Some User",
+        email: "user@example.com",
+        scope: "local",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; code?: string };
+    expect(body.code).toBe("NOT_A_REPOSITORY");
+    expect(body.error).toContain("is not a git repository");
+  });
+
+  it("returns 400 with NOT_REPOSITORY_ROOT for a subdirectory of a repo, reports isGitRepo true and isRepositoryRoot false in inspection (#161)", async () => {
+    const parentDir = await makeRepo("parent-repo", {
+      name: "Parent Name",
+      email: "parent@example.com",
+    });
+    const subDir = path.join(parentDir, "subfolder");
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(subDir, { recursive: true });
+
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: subDir,
+        name: "Child Name",
+        email: "child@example.com",
+        scope: "local",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; code?: string };
+    expect(body.code).toBe("NOT_REPOSITORY_ROOT");
+    expect(body.error).toContain("is not the root of a git repository");
+
+    const parentInspect = await inspectLocalRepository(parentDir);
+    expect(parentInspect.gitIdentity).toEqual({
+      name: "Parent Name",
+      email: "parent@example.com",
+    });
+    expect(parentInspect.isGitRepo).toBe(true);
+    expect(parentInspect.isRepositoryRoot).toBe(true);
+
+    // Subdirectory reports isGitRepo: true, isRepositoryRoot: false, preserving topLevelDir
+    const subInspect = await inspectLocalRepository(subDir);
+    expect(subInspect.isGitRepo).toBe(true);
+    expect(subInspect.isRepositoryRoot).toBe(false);
+    const { realpath } = await import("node:fs/promises");
+    expect(subInspect.topLevelDir).toBe(await realpath(parentDir));
+  });
+
+  it("returns 500 with GIT_CONFIG_WRITE_FAILED code and fixed message without leaking stderr on write failure (#161)", async () => {
+    const dir = await makeRepo("write-fail-repo", {});
+    const proc = await import("../src/proc.js");
+    const { spyOn } = await import("bun:test");
+    const origExec = proc.execCommand;
+    const spy = spyOn(proc, "execCommand").mockImplementation(
+      async (cmd, args, opts) => {
+        if (args.includes("user.name") && !args.includes("--get")) {
+          return {
+            command: `${cmd} ${args.join(" ")}`,
+            exitCode: 1,
+            stdout: "",
+            stderr:
+              "error: could not lock config file /mock/.git/config: File exists",
+            passed: false,
+            durationMs: 0,
+          };
+        }
+        return origExec(cmd, args, opts);
+      },
+    );
+
+    try {
+      const res = await fetch(
+        `${baseUrl}/api/projects/configure-git-identity`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: dir,
+            name: "Lock Fail User",
+            email: "lock@example.com",
+            scope: "local",
+          }),
+        },
+      );
+
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as { error: string; code?: string };
+      expect(body.code).toBe("GIT_CONFIG_WRITE_FAILED");
+      expect(body.error).toBe("Failed to write local git configuration.");
+      expect(JSON.stringify(body)).not.toContain("could not lock config file");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("returns 400 for an invalid email (#161)", async () => {
+    const dir = await makeRepo("repo-for-invalid-email", {});
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: dir,
+        name: "User Name",
+        email: "not-an-email",
+        scope: "local",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for control characters in name (#161)", async () => {
+    const dir = await makeRepo("repo-for-invalid-name", {});
+    const res = await fetch(`${baseUrl}/api/projects/configure-git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: dir,
+        name: "User\nName",
+        email: "user@example.com",
+        scope: "local",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses unrequested git-identity route alias (#161)", async () => {
+    const dir = await makeRepo("repo-for-alias-test", {});
+    const res = await fetch(`${baseUrl}/api/projects/git-identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: dir,
+        name: "Alias User",
+        email: "alias@example.com",
+      }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("rolls back user.name if writing user.email fails (#161)", async () => {
+    const dir = await makeRepo("rollback-repo", {
+      name: "Original Name",
+      email: "original@example.com",
+    });
+
+    const proc = await import("../src/proc.js");
+    const { configureGitIdentity } = await import("../src/inspection/index.js");
+    const { spyOn } = await import("bun:test");
+    const origExec = proc.execCommand;
+    const spy = spyOn(proc, "execCommand").mockImplementation(
+      async (cmd, args, opts) => {
+        if (args.includes("user.email") && !args.includes("--get")) {
+          return {
+            command: `${cmd} ${args.join(" ")}`,
+            exitCode: 1,
+            stdout: "",
+            stderr: "fatal: simulated failure writing user.email",
+            passed: false,
+            durationMs: 0,
+          };
+        }
+        return origExec(cmd, args, opts);
+      },
+    );
+
+    try {
+      await expect(
+        configureGitIdentity({
+          path: dir,
+          name: "Attempted New Name",
+          email: "new@example.com",
+          scope: "local",
+        }),
+      ).rejects.toThrow();
+
+      const after = await inspectLocalRepository(dir);
+      expect(after.gitIdentity?.name).toBe("Original Name");
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

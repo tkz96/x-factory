@@ -179,6 +179,20 @@ export interface GitIdentity {
 }
 
 /**
+ * Scope for git identity configuration (#161).
+ */
+export type GitIdentityScope = "local" | "global";
+
+/**
+ * Result of configuring git identity (#161).
+ */
+export interface ConfigureGitIdentityResult {
+  gitIdentity: GitIdentity;
+  scope: GitIdentityScope;
+  path: string;
+}
+
+/**
  * Project configuration representing a software product.
  */
 export interface Project {

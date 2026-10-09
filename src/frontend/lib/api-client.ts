@@ -1,4 +1,11 @@
-import type { GitIdentity, Project, Run, Ticket } from "../../shared/types.js";
+import type {
+  ConfigureGitIdentityResult,
+  GitIdentity,
+  GitIdentityScope,
+  Project,
+  Run,
+  Ticket,
+} from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
 import type {
   ConnectionIdentityResult,
@@ -32,8 +39,10 @@ export interface SettingsData {
 
 export interface InspectRepositoryResponse {
   path: string;
+  topLevelDir?: string | undefined;
   exists: boolean;
   isGitRepo: boolean;
+  isRepositoryRoot?: boolean | undefined;
   remote?: string | undefined;
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
@@ -102,6 +111,7 @@ export interface ProjectCreationPayload {
 }
 
 export class ApiError extends Error {
+  readonly code?: string | undefined;
   constructor(
     message: string,
     public readonly status: number,
@@ -109,6 +119,14 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+    if (
+      data &&
+      typeof data === "object" &&
+      "code" in data &&
+      typeof (data as { code: unknown }).code === "string"
+    ) {
+      this.code = (data as { code: string }).code;
+    }
   }
 }
 
@@ -239,6 +257,20 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return handleResponse<InspectRepositoryResponse>(res);
+  },
+
+  async configureGitIdentity(payload: {
+    path: string;
+    name: string;
+    email: string;
+    scope?: GitIdentityScope | undefined;
+  }): Promise<ConfigureGitIdentityResult> {
+    const res = await fetch("/api/projects/configure-git-identity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<ConfigureGitIdentityResult>(res);
   },
 
   // Tickets / Queue

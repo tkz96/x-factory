@@ -3,9 +3,11 @@
 export type {
   AzureTrackerConfig,
   CommandResult,
+  ConfigureGitIdentityResult,
   Finding,
   GitHubTrackerConfig,
   GitIdentity,
+  GitIdentityScope,
   ImplementationContext,
   IssueTrackerProvider,
   JiraTrackerConfig,

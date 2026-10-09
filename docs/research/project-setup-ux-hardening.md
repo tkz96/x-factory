@@ -173,5 +173,75 @@ PASS
   `nav480.png`
 - Browser verification: active "1" shown in a blue circle at 480px
 
+---
 
+# Ticket #161
+
+## Reproduction
+
+When a project workspace directory had no git author identity configured (`user.name` and/or `user.email` unset or empty), Step 4 (Inspection) of the onboarding wizard presented a blocking error state (`tone="error"`):
+
+Observed:
+- **No plain-language explanation** of what git identity is or why X-Factory needs it for autonomous agent workflows.
+- **No directory or scope clarity** indicating which repository or global git configuration was being inspected.
+- **No inline recovery or configuration**: users were forced to drop into an external terminal to run `git config`, then return to the wizard and manually click retry.
+
+## RED
+
+Tests added:
+- `test/git-identity-inspection.test.ts`: Added unit tests for backend `configureGitIdentity` supporting local and global scopes, ensuring values are trimmed, written via `git config`, and re-read accurately.
+- `test/inspection-step.test.tsx`: Added integration tests verifying:
+  - Error state replaced with explanatory warning (`tone="warning"`).
+  - Plain language explanation rendered explaining commit signing and PR generation.
+  - Form fields for author Name (`#git-identity-name-input`) and Email (`#git-identity-email-input`) rendered with required validation.
+  - Scope radio selector (`#git-identity-scope-local` and `#git-identity-scope-global`) displaying repository-specific vs global configuration scopes.
+  - Configure button (`#btn-configure-git-identity`) disabled until required fields are populated.
+  - Clicking configure submits configuration to backend and automatically re-inspects, resolving to the identity view.
+  - Configuration failure surfaces an accessible error feedback banner.
+
+Failure observed: Initial run failed before implementation due to missing `configureGitIdentity` backend handler, missing API client methods, and lack of inline form fields in `InspectionStep.tsx`.
+
+## Existing backend logic reused
+
+- `execCommand` from `src/proc.ts` for executing `git config` safely without shell injection.
+- Inspection infrastructure in `src/inspection/readiness.ts` for verifying directory git identity.
+- Shared API patterns in `src/http/projects-controller.ts` and `src/frontend/lib/api-client.ts`.
+- Design token system (`tokens.css`), Apple HIG form styling primitives, and `FeedbackBanner` component.
+
+## Minimal fix
+
+1. **Backend Configuration Logic**: Added `configureGitIdentity` in `src/inspection/readiness.ts` and exported via `src/inspection/index.ts`. Supports local and global configuration (`--local` vs `--global`), validates inputs, and verifies that the written identity is readable.
+2. **HTTP API**: Added `ConfigureGitIdentityBodySchema` to `src/http/schemas.ts`, routed `POST /api/projects/configure-git-identity` in `src/http/projects-controller.ts`, and documented the endpoint in `src/http/openapi.ts`.
+3. **Frontend Client & State**:
+   - Added `api.configureGitIdentity` in `src/frontend/lib/api-client.ts`.
+   - Added `configureIdentity`, `isConfiguring`, and `configureError` to `useInspection.ts`.
+   - Added user-facing strings to `INSPECTION_COPY` in `src/frontend/components/feedback/copy-map.ts`.
+4. **Step 4 UI (`InspectionStep.tsx`)**:
+   - Replaced `tone="error"` banner with `tone="warning"` banner with retry action.
+   - Added explanation section clarifying author identity for agent commits and PRs.
+   - Added inline form with Name, Email, and Scope radio group (local repo vs global `~/.gitconfig`).
+   - Added "Configure Git Identity" action with loading spinner state and error display.
+   - Added token-compliant styling in `InspectionStep.css` using 8pt grid, standard border radii, and accessible contrast.
+
+## GREEN
+
+- `test/git-identity-inspection.test.ts` → 8/8 pass.
+- `test/inspection-step.test.tsx` → 15/15 pass (100% lines & functions coverage on `InspectionStep.tsx` and `useInspection.ts`).
+- All 128 test files in project → **1410 pass / 0 fail**.
+- `bun run check:all` → **All 13 quality gates pass**.
+
+## Browser verification
+
+Verified with Playwright Chromium against running application at 1280px, 768px, and 480px viewports:
+- 1280px (Desktop): Warning banner and explanation card render cleanly; inputs align horizontally in a 2-column grid; scope options display repository path; configuring resolves identity immediately to read-only summary card.
+- 768px (Tablet): Form adapts cleanly; dialog content scrolls within `.modal-body`; modal footer remains pinned.
+- 480px (Mobile): Form fields stack vertically; radio options and hints wrap legibly without horizontal overflow; submit button remains easily tappable.
+
+## Blockers
+
+- Reticle overlay elements (`[data-reticle-overlay]`, `[data-reticle-log]`, etc.) intercepted Playwright clicks during headless testing. Neutralized in driver init script by applying `pointer-events: none !important; display: none !important` to instrumentation elements without modifying application code.
+
+## Result
+
+PASS
 
