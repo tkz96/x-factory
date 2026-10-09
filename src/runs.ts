@@ -436,18 +436,11 @@ export async function chatWithRun(
   // Record user message as an event
   eventRepo.appendEvent(id, "chat_user", { text: message });
 
-  // Build contextual response from implementation context
-  const ctx = run.implementationContext
-    ? ((typeof run.implementationContext === "string"
-        ? JSON.parse(run.implementationContext)
-        : run.implementationContext) as {
-        relevantFiles?: string[];
-        constraints?: string[];
-        risks?: string[];
-        architecturalNotes?: string;
-        existingBehavior?: string;
-      })
-    : null;
+  // Build contextual response from implementation context. The repository
+  // already parsed the column through the row codec (#179), so the value is
+  // the typed object (or null when absent or degraded) — never re-parse it
+  // here.
+  const ctx = run.implementationContext;
 
   let agentResponse: string;
 
