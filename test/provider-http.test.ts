@@ -572,6 +572,38 @@ describe("Provider HTTP Module (#173)", () => {
       });
     });
 
+    describe("adapter errors keep isTimeout and cause", () => {
+      const slow = createInMemoryTransport([
+        {
+          match: "/slow",
+          handler: async () => {
+            await new Promise((r) => setTimeout(r, 300));
+            return jsonResponse({});
+          },
+        },
+      ]);
+
+      it("AzureApiError carries isTimeout and cause", async () => {
+        const err = await azureFetch("https://dev.azure.com/slow", {
+          fetchFn: slow,
+          timeoutMs: 20,
+        }).catch((e) => e);
+        expect(err).toBeInstanceOf(AzureApiError);
+        expect(err.cause).toBeDefined();
+        expect(err.isTimeout).toBe(true);
+      });
+
+      it("JiraHttpError carries isTimeout and cause", () => {
+        const cause = new Error("boom");
+        const err = new JiraHttpError("t", 0, undefined, undefined, {
+          isTimeout: true,
+          cause,
+        });
+        expect(err.isTimeout).toBe(true);
+        expect(err.cause).toBe(cause);
+      });
+    });
+
     describe("Jira error classification", () => {
       it("classifies by status, ignoring misleading message text", () => {
         const err = new JiraHttpError("401 unauthorized", 500);

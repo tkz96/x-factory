@@ -119,9 +119,12 @@ export class JiraHttpError extends ProviderHttpError {
     status: number,
     headers?: Headers,
     responseBody?: unknown,
+    extra?: { isTimeout?: boolean | undefined; cause?: unknown },
   ) {
     super(message, {
       status,
+      isTimeout: extra?.isTimeout,
+      cause: extra?.cause,
       headers: headers ?? new Headers(),
       data: responseBody,
       bodyText: typeof responseBody === "string" ? responseBody : undefined,
@@ -137,12 +140,6 @@ function cleanHost(host: string): string {
 
 function buildBasicAuth(email: string, token: string): string {
   return Buffer.from(`${email}:${token}`).toString("base64");
-}
-
-function parseRetryAfterMs(
-  headerValue: string | null | undefined,
-): number | undefined {
-  return parseRetryAfter(headerValue);
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +176,7 @@ function mapStatusToProviderError(
     return { code: "AUTH_LOCKED", context };
   }
   if (status === 429) {
-    const retryAfterMs = parseRetryAfterMs(headers.get("retry-after"));
+    const retryAfterMs = parseRetryAfter(headers.get("retry-after"));
     return {
       code: "RATE_LIMITED",
       context,
@@ -402,6 +399,7 @@ export function createJiraProvider(
             opts.status,
             opts.headers,
             opts.data,
+            opts,
           ),
       });
 
@@ -430,7 +428,7 @@ export function createJiraProvider(
           fetchFn,
           timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
           errorFactory: (msg, opts) =>
-            new JiraHttpError(msg, opts.status, opts.headers, opts.data),
+            new JiraHttpError(msg, opts.status, opts.headers, opts.data, opts),
         });
 
         const hasBrowse =
@@ -519,6 +517,7 @@ export function createJiraProvider(
               opts.status,
               opts.headers,
               opts.data,
+              opts,
             ),
         });
 

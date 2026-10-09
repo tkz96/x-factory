@@ -134,10 +134,14 @@ export class AzureApiError extends ProviderHttpError {
       retryAfterMs?: number | undefined;
       bodyText?: string | undefined;
       data?: unknown | undefined;
+      isTimeout?: boolean | undefined;
+      cause?: unknown;
     },
   ) {
     super(message, {
       status: options?.status ?? 0,
+      isTimeout: options?.isTimeout,
+      cause: options?.cause,
       headers: options?.headers,
       isHtml: options?.isHtml,
       isRateLimit: options?.isRateLimit,
@@ -273,6 +277,7 @@ export { isHtmlResponse } from "./http.js";
 
 export interface AzureFetchOptions extends RequestInit {
   fetchFn?: typeof fetch | HttpTransport | undefined;
+  timeoutMs?: number | undefined;
 }
 
 /**

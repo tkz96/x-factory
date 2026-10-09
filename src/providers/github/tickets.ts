@@ -5,7 +5,7 @@ import type {
   TicketQueryOptions,
   TrackerTicket,
 } from "../contract.js";
-import type { HttpTransport } from "../http.js";
+import { type HttpTransport, parseLinkNextUrl } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
 import {
   DEFAULT_GITHUB_API_ROOT,
@@ -79,21 +79,6 @@ function normalizeLabels(rawLabels?: Array<string | RawGitHubLabel>): string[] {
   return rawLabels
     .map((lbl) => (typeof lbl === "string" ? lbl : lbl.name || ""))
     .filter(Boolean);
-}
-
-/**
- * Extracts the `rel="next"` URL from a GitHub `Link` response header, when present.
- * GitHub paginates with `Link: <...>; rel="next", <...>; rel="last"`.
- */
-function parseGitHubNextPageLink(
-  linkHeader: string | null | undefined,
-): string | undefined {
-  if (!linkHeader) return undefined;
-  for (const segment of linkHeader.split(",")) {
-    const match = segment.match(/<([^>]+)>\s*;\s*rel="next"/);
-    if (match?.[1]) return match[1];
-  }
-  return undefined;
 }
 
 /**
@@ -196,7 +181,7 @@ export async function listGitHubTickets(
       if (ticket) tickets.push(ticket);
     }
 
-    nextUrl = parseGitHubNextPageLink(res.headers.get("link"));
+    nextUrl = parseLinkNextUrl(res.headers.get("link")) ?? undefined;
   }
 
   return tickets;
