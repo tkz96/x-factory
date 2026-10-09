@@ -343,10 +343,14 @@ async function handleUpdateProjectTrackerCredentials(
       if (!connection) {
         return errorResponse("Missing issue tracker provider.", 400);
       }
-      const varsToSave = extractTrackerCredentialsToSave(
-        body,
-        registry.get(connection.providerId),
-      );
+      const provider = registry.get(connection.providerId);
+      if (!provider) {
+        return errorResponse(
+          `Issue tracker provider "${connection.providerId}" is not registered; no credentials were saved.`,
+          400,
+        );
+      }
+      const varsToSave = extractTrackerCredentialsToSave(body, provider);
       await saveProjectEnv(projectId, varsToSave);
       return jsonResponse({ ok: true, message: "Credentials updated." });
     },
@@ -420,7 +424,12 @@ async function handleMigrateProject(
       }
 
       const { newId, newProject, archivedOldProject, secretsToSave } =
-        buildProjectMigrationPlan(project, body, registry);
+        buildProjectMigrationPlan(
+          project,
+          body,
+          registry,
+          await loadProjectEnv(projectId),
+        );
 
       await saveProject(archivedOldProject);
       const savedNewProject = await saveProject(newProject);

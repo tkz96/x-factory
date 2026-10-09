@@ -1,13 +1,15 @@
 // src/providers/project-config.ts — Project tracker operations (#141, #172).
 //
-// Every operation here resolves its connection through the project connections
-// module and reads secret field names and env keys from the provider schema.
-// No provider is named in this file.
+// Tracker operations resolve their connection through the project connections
+// module and read secret field names and env keys from the provider schema.
+// The only provider-keyed shape is the migration request (`ProjectMigrationInput`),
+// whose per-provider tracker fields are the wire contract for that route.
 
 import { maskSecret } from "../settings.js";
 import type {
   IssueTrackerProvider,
   Project,
+  ProjectConnection,
   ProjectIssueTracker,
 } from "../shared/types.js";
 import { parseProviderConfig } from "./config-validation.js";
@@ -124,12 +126,22 @@ export function extractTrackerCredentialsToSave(
   provider: Provider | undefined,
 ): Record<string, string> {
   if (!provider) return {};
+  const values = secretBodyValues(provider, body);
   const varsToSave: Record<string, string> = {};
   for (const route of secretRoutesOf(provider)) {
-    const value = secretBodyValues(provider, body)[route.name];
+    const value = values[route.name];
     if (value !== undefined) varsToSave[route.envKey] = value;
   }
   return varsToSave;
+}
+
+/** `text` with every occurrence of each non-empty secret value masked. */
+function redactValues(text: string, values: readonly string[]): string {
+  let redacted = text;
+  for (const value of [...values].sort((a, b) => b.length - a.length)) {
+    redacted = redacted.split(value).join("[redacted]");
+  }
+  return redacted;
 }
 
 export interface TrackerTestResult {
@@ -184,6 +196,13 @@ export async function testProjectTrackerConnection(
     };
   }
 
+  // Secret values never leave this function: a provider's failure text can echo
+  // a token, so every stored or supplied secret is masked from the message.
+  const secretValues = secretRoutesOf(provider)
+    .map((route) => config[route.name])
+    .filter(
+      (value): value is string => typeof value === "string" && value !== "",
+    );
   try {
     await provider.verifyCredentials({ ...config, cwd: repositoryPath });
     return {
@@ -191,7 +210,10 @@ export async function testProjectTrackerConnection(
       message: `${provider.displayName} connection successful.`,
     };
   } catch (err: unknown) {
-    return { ok: false, error: (err as Error).message };
+    return {
+      ok: false,
+      error: redactValues((err as Error).message, secretValues),
+    };
   }
 }
 
@@ -214,6 +236,42 @@ export interface ProjectMigrationInput {
   secrets?: { pat?: string; token?: string } | undefined;
 }
 
+/**
+ * The connections the migrated project has: the target tracker, plus every
+ * other connection with its tracker role removed, so a surviving git host keeps
+ * serving the project. A project with no connections stays legacy (`undefined`).
+ */
+function migratedConnections(
+  project: Project,
+  body: ProjectMigrationInput,
+): ProjectConnection[] | undefined {
+  if (!project.connections || project.connections.length === 0) {
+    return undefined;
+  }
+  const target = body.targetProvider;
+  const previous = project.connections.find((c) => c.providerId === target);
+  const trackerConfig = Object.fromEntries(
+    Object.entries(
+      ((body as unknown as Record<string, unknown>)[target] ?? {}) as Record<
+        string,
+        unknown
+      >,
+    ).filter(([, value]) => value !== undefined),
+  );
+  const targetConnection: ProjectConnection = {
+    providerId: target,
+    roles: previous?.roles.includes("gitHost")
+      ? ["tracker", "gitHost"]
+      : ["tracker"],
+    config: { ...(previous?.config ?? {}), ...trackerConfig },
+  };
+  const survivors = project.connections
+    .filter((c) => c.providerId !== target)
+    .map((c) => ({ ...c, roles: c.roles.filter((r) => r !== "tracker") }))
+    .filter((c) => c.roles.length > 0);
+  return [targetConnection, ...survivors];
+}
+
 export interface MigrationPlan {
   newId: string;
   newProject: Project;
@@ -228,6 +286,7 @@ export function buildProjectMigrationPlan(
   project: Project,
   body: ProjectMigrationInput,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
+  storedEnv: Record<string, string> = {},
 ): MigrationPlan {
   const newId =
     body.newProjectId?.trim() || `${project.id}-${body.targetProvider}`;
@@ -240,11 +299,13 @@ export function buildProjectMigrationPlan(
     github: body.targetProvider === "github" ? body.github : undefined,
   };
 
+  const connections = migratedConnections(project, body);
   const newProject: Project = {
     ...project,
     id: newId,
     name: body.name?.trim() || project.name,
     issueTracker: newIssueTracker,
+    connections,
     archived: false,
     archivedAt: undefined,
     successorId: undefined,
@@ -266,6 +327,18 @@ export function buildProjectMigrationPlan(
   );
   if (route && secret) {
     secretsToSave[route.envKey] = secret;
+  }
+  // Secrets the surviving connections already hold move with them to the new
+  // project id; the target's own secret, when supplied, takes precedence.
+  for (const connection of connections ?? []) {
+    const connectionProvider = registry.get(connection.providerId);
+    if (!connectionProvider) continue;
+    for (const { envKey } of secretRoutesOf(connectionProvider)) {
+      const carried = storedEnv[envKey];
+      if (carried && secretsToSave[envKey] === undefined) {
+        secretsToSave[envKey] = carried;
+      }
+    }
   }
 
   return {

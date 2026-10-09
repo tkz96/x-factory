@@ -45,7 +45,7 @@ import {
   type ProviderRole,
 } from "../providers/contract.js";
 import { deriveIssueTracker } from "../providers/project-config.js";
-import { legacyTrackerProviderId } from "../providers/project-connections.js";
+import { registryTrackerProviderId } from "../providers/project-connections.js";
 import { redactConnections } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,
@@ -317,14 +317,14 @@ function buildProjectRecord(
  * tracker role, so a payload that names none is rejected here, before any write,
  * with the same code the connections branch reports.
  *
- * Provider-agnostic: the id comes from `legacyTrackerProviderId`, and the checks
+ * Provider-agnostic: the id comes from `registryTrackerProviderId`, and the checks
  * are the registry's (`get` + role + capability), never a name.
  */
 export function assertLegacyTrackerUsable(
   issueTracker: unknown,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): void {
-  const providerId = legacyTrackerProviderId(issueTracker, registry);
+  const providerId = registryTrackerProviderId(issueTracker, registry);
   if (providerId === null) {
     throw new SemanticValidationError({
       formErrors: [MISSING_CONNECTION_ROLE_CODES.tracker],

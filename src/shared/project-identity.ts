@@ -2,6 +2,10 @@
 
 import { normalizeGitRemoteUrl } from "./git-remote.js";
 import {
+  legacyTrackerConfig,
+  legacyTrackerProviderId,
+} from "./legacy-tracker.js";
+import {
   normalizeAzureOrganization,
   normalizeAzureProject,
   normalizeGitHubRepository,
@@ -32,17 +36,26 @@ function checkLocalIdCollision(
   return projects.find((p) => p.id && normalizeProjectId(p.id) === normId);
 }
 
-/** The provider ids a project's connections (or legacy tracker) name. */
+/**
+ * The legacy tracker a record names, read by the one shared legacy reader. This
+ * module is registry-free (the frontend imports it), so any namespaced view is
+ * accepted as a provider identity here.
+ */
+function legacyProviderOf(p: Project): string | null {
+  return legacyTrackerProviderId(p.issueTracker, () => true);
+}
+
+/** The provider ids a project's connections (or its legacy tracker) name. */
 function providerIdsOf(p: Project): string[] {
   const ids = (p.connections ?? []).map((c) => c.providerId);
-  const legacy = p.issueTracker?.provider || p.issueTracker?.connectionId;
+  const legacy = legacyProviderOf(p);
   if (legacy) ids.push(legacy);
   return ids.map((id) => id.toLowerCase().trim());
 }
 
 /**
  * The configuration a project holds for one provider: its connection's config
- * when it has one (wizard-created projects), otherwise the legacy namespaced view.
+ * when it has one (wizard-created projects), otherwise the legacy view.
  */
 function providerConfigOf(
   p: Project,
@@ -52,12 +65,8 @@ function providerConfigOf(
     (c) => c.providerId.toLowerCase().trim() === providerId,
   );
   if (connection) return connection.config;
-  const view = (
-    p.issueTracker as unknown as Record<string, unknown> | undefined
-  )?.[providerId];
-  return view && typeof view === "object"
-    ? (view as Record<string, unknown>)
-    : undefined;
+  if (legacyProviderOf(p) !== providerId) return undefined;
+  return legacyTrackerConfig(p.issueTracker, providerId);
 }
 
 function textField(config: Record<string, unknown> | undefined, key: string) {

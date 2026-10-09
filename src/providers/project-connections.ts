@@ -14,6 +14,10 @@
 //   metadata (`getSecretFieldRoutes`). No provider name and no env-key table
 //   appears in this module.
 
+import {
+  legacyTrackerConfig,
+  legacyTrackerProviderId as sharedLegacyTrackerProviderId,
+} from "../shared/legacy-tracker.js";
 import type { Project, ProjectConnection } from "../shared/types.js";
 import type { Provider, ProviderConfig, ProviderRole } from "./contract.js";
 import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
@@ -30,43 +34,16 @@ export interface ResolvedProjectConnection {
 }
 
 /**
- * The provider id a LEGACY `issueTracker` record names, or `null` when it names
- * none.
- *
- * A legacy record carries no `connections` array, so its tracker is named in one
- * of exactly two ways, and this function reads both without knowing a provider
- * by name:
- *
- *   * explicitly, as `provider` (or its historical alias `connectionId`);
- *   * implicitly, by the NAMESPACED VIEW its configuration lives under, the same
- *     keying `deriveIssueTracker` writes (`tracker[providerId] = config`). A key
- *     the registry does not know is not a tracker identity, so it is skipped.
+ * The provider id a legacy record names, judged against the registry. The
+ * reader itself lives in `shared/legacy-tracker.ts`, the only legacy reader.
  */
-export function legacyTrackerProviderId(
+export function registryTrackerProviderId(
   issueTracker: unknown,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): string | null {
-  if (typeof issueTracker !== "object" || issueTracker === null) {
-    return null;
-  }
-  const record = issueTracker as Record<string, unknown>;
-  for (const key of ["provider", "connectionId"] as const) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return value.trim();
-    }
-  }
-  for (const [key, view] of Object.entries(record)) {
-    if (
-      view !== null &&
-      typeof view === "object" &&
-      !Array.isArray(view) &&
-      registry.get(key) !== undefined
-    ) {
-      return key;
-    }
-  }
-  return null;
+  return sharedLegacyTrackerProviderId(issueTracker, (key) =>
+    registry.has(key),
+  );
 }
 
 /**
@@ -85,23 +62,11 @@ export function loadProjectConnections(
     return project.connections;
   }
 
-  const providerId = legacyTrackerProviderId(project.issueTracker, registry);
+  const providerId = registryTrackerProviderId(project.issueTracker, registry);
   if (providerId === null) return [];
   const provider = registry.get(providerId);
   if (!provider) return [];
-
-  const view = project.issueTracker as unknown as Record<string, unknown>;
-  const namespaced = view[providerId];
-  const config: Record<string, unknown> =
-    namespaced !== null && typeof namespaced === "object"
-      ? { ...(namespaced as Record<string, unknown>) }
-      : {};
-  if (
-    typeof config.project !== "string" &&
-    typeof project.issueTracker.projectId === "string"
-  ) {
-    config.project = project.issueTracker.projectId;
-  }
+  const config = legacyTrackerConfig(project.issueTracker, providerId);
 
   const roles = provider.roles.filter(
     (role): role is ProviderRole => role === "tracker" || role === "gitHost",
