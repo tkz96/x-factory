@@ -164,6 +164,26 @@ describe("Setup modal layout contract (#159)", () => {
     expect(bodyOverflow()).not.toBe("hidden");
   });
 
+  it("composes the shared modal: step actions sit in the fixed footer, not the scrolling body", () => {
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    const next = getEl("btn-step-1-next");
+    expect(next.closest(".modal-footer")).not.toBeNull();
+    expect(next.closest(".modal-body")).toBeNull();
+    expect(getEl("onboarding-wizard-modal").closest(".modal-backdrop")).toBe(
+      getEl("onboarding-wizard-modal-overlay"),
+    );
+  });
+
+  it("closes on Escape through the shared modal", () => {
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
+    expect(bodyOverflow()).not.toBe("hidden");
+  });
+
   it("exposes accessible dialog semantics on the wizard surface", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));

@@ -14,6 +14,7 @@ import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import "./RepositoriesStep.css";
+import { ModalFooter } from "../../components/Modal.js";
 
 /** Inline explanation for a gated Continue, keyed by the authoritative reason. */
 const CONTINUE_REASON_COPY = {
@@ -187,7 +188,7 @@ export function RepositoriesStep() {
         </AsyncRegion>
       </div>
 
-      <div className="modal-actions">
+      <ModalFooter>
         {continueBlockedReason && (
           <p
             className="repositories-continue-reason"
@@ -214,7 +215,7 @@ export function RepositoriesStep() {
         >
           {REPOSITORIES_COPY.next} →
         </button>
-      </div>
+      </ModalFooter>
     </div>
   );
 }

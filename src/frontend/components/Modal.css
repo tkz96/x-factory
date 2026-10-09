@@ -1,0 +1,31 @@
+/* src/frontend/components/Modal.css — Fixed footer slot of the reusable <Modal> (#159).
+ *
+ * The backdrop, dialog, header and scrolling body come from the shared modal classes
+ * in ModalContainer.css. This file adds the footer region: it sits below the scrolling
+ * .modal-body as a sibling, so it never scrolls away and is never pushed off-screen.
+ */
+
+.modal-footer {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-modal);
+}
+
+/* A modal whose body supplies no <ModalFooter> shows no empty footer bar. */
+.modal-footer:empty {
+  display: none;
+}
+
+/* Inside the footer, .modal-actions is a plain row: the footer already provides the
+   divider, background and pinning that the in-body sticky variant needs. It wraps so
+   a status note plus buttons never overflow a narrow dialog. */
+.modal-footer .modal-actions {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+  position: static;
+  margin-top: 0;
+  padding: 0;
+  border-top: none;
+  background: transparent;
+}

@@ -553,8 +553,10 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(document.getElementById("review-identity-name")).toBeNull();
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(true);
     // There is no dismissal or skip affordance: back, or submit (disabled).
+    // Step actions render in the modal's fixed footer (#159).
     expect(
-      document.querySelectorAll("#onboard-step-5 .modal-actions button").length,
+      document.querySelectorAll("#onboarding-wizard-modal .modal-footer button")
+        .length,
     ).toBe(2);
   });
 

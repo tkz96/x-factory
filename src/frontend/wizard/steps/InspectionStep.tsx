@@ -16,6 +16,7 @@ import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { useWizard } from "../state/wizardContext.js";
 import { useInspection } from "./useInspection.js";
 import "./InspectionStep.css";
+import { ModalFooter } from "../../components/Modal.js";
 
 export function InspectionStep() {
   const { nextStep, prevStep } = useWizard();
@@ -100,7 +101,7 @@ export function InspectionStep() {
         </AsyncRegion>
       </div>
 
-      <div className="modal-actions">
+      <ModalFooter>
         <button
           type="button"
           id="btn-step-4-back"
@@ -117,7 +118,7 @@ export function InspectionStep() {
         >
           {INSPECTION_COPY.next} →
         </button>
-      </div>
+      </ModalFooter>
     </div>
   );
 }

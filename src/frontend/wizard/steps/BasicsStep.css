@@ -1,21 +1,5 @@
 /* src/frontend/wizard/steps/BasicsStep.css — Step 1 Basics styling */
 
-/* The pane fills the modal's scrolling body and lays out as a column so the action
-   bar can be pushed to the bottom for short steps and pinned while scrolling on long
-   ones (#159). Inner spacing comes from the shared .modal-body padding. */
-.wizard-step-pane {
-  padding: 0;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* The action bar reuses the shared .modal-actions primitive (sticky + background) and
-   is pushed to the bottom of the pane whenever there is spare vertical room. */
-.wizard-step-pane .modal-actions {
-  margin-top: auto;
-}
-
 .wizard-step-header {
   margin-bottom: 1.5rem;
 }

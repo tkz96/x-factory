@@ -4,6 +4,7 @@ import "./BasicsStep.css";
 
 import { useCallback, useState } from "react";
 import { normalizeProjectId } from "../../../shared/project-identity.js";
+import { ModalFooter } from "../../components/Modal.js";
 import { useWizard } from "../state/wizardContext.js";
 
 interface BasicsStepProps {
@@ -143,7 +144,7 @@ export function BasicsStep({ onCancel }: BasicsStepProps) {
         </span>
       </div>
 
-      <div className="modal-actions">
+      <ModalFooter>
         {onCancel && (
           <button
             type="button"
@@ -163,7 +164,7 @@ export function BasicsStep({ onCancel }: BasicsStepProps) {
         >
           Continue to Connect →
         </button>
-      </div>
+      </ModalFooter>
     </div>
   );
 }
