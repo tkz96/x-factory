@@ -2,10 +2,12 @@
 -- run_commands was the only child table without it. SQLite cannot alter a foreign key
 -- in place, so the table is rebuilt: create the new shape, copy every row, drop the old
 -- table, rename, then recreate the partial index that the drop removed. Columns, the
--- UNIQUE(idempotency_key) constraint and all rows are preserved.
+-- UNIQUE(idempotency_key) constraint and the default values are preserved.
+-- Rows whose run still exists are copied. Orphan rows, whose run was already deleted,
+-- are dropped: the new ON DELETE CASCADE would remove them anyway, and copying them
+-- would fail on the new foreign key and abort the migration (see the WHERE clause below).
 -- The migrator runs this inside a transaction, so foreign_keys cannot be toggled here.
 -- Dropping run_commands is safe because no other table references it.
--- Orphan rows (run_id with no matching run) are not copied; see the WHERE clause below.
 
 CREATE TABLE run_commands_new (
   id                TEXT PRIMARY KEY,

@@ -5,6 +5,7 @@
 import type { Database } from "bun:sqlite";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type { JobStatus } from "./job-repository.js";
+import { getSchemaVersion } from "./migrator.js";
 
 export interface RunCounts {
   total: number;
@@ -51,6 +52,11 @@ export class DiagnosticsRepository {
     return row?.journal_mode || "unknown";
   }
 
+  /** The latest schema version applied to this database, or 0 when uninitialized. */
+  schemaVersion(): number {
+    return getSchemaVersion(this.db);
+  }
+
   /** Total runs, and the runs that have not reached a terminal status. */
   countRuns(): RunCounts {
     const terminal = [...TERMINAL_RUN_STATUSES];
@@ -66,21 +72,19 @@ export class DiagnosticsRepository {
     return { total: row?.total ?? 0, active: row?.active ?? 0 };
   }
 
-  /** Job counts by status. Each status literal is checked against JobStatus. */
+  /** Job counts by status. Every status is a bound parameter typed as JobStatus. */
   countJobs(): JobCounts {
-    const statusCase = (status: JobStatus) =>
-      `SUM(CASE WHEN status = '${status}' THEN 1 ELSE 0 END)`;
+    const statuses: JobStatus[] = ["pending", "claimed", "completed", "failed"];
+    const countFor = (status: JobStatus) =>
+      `SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS ${status}`;
     const row = this.db
       .query(
         `SELECT
           COUNT(*) AS total,
-          ${statusCase("pending")} AS pending,
-          ${statusCase("claimed")} AS claimed,
-          ${statusCase("completed")} AS completed,
-          ${statusCase("failed")} AS failed
+          ${statuses.map(countFor).join(",\n          ")}
         FROM jobs;`,
       )
-      .get() as JobCountRow | null;
+      .get(...statuses) as JobCountRow | null;
     return {
       total: row?.total ?? 0,
       pending: row?.pending ?? 0,

@@ -1,11 +1,11 @@
 // src/http/diagnostics-controller.ts — Endpoints for liveness, readiness, and runtime diagnostics (XFM-69, XFM-70).
 
-import { getLatestMigrationVersion, getSchemaVersion } from "../db/migrator.js";
+import { getLatestMigrationVersion } from "../db/migrator.js";
 import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
-import { getDb, getDiagnosticsRepository, getJobRepository } from "../runs.js";
+import { getDiagnosticsRepository, getJobRepository } from "../runs.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -52,10 +52,9 @@ function computeReadinessStatus() {
   let dbError: string | undefined;
 
   try {
-    const db = getDb();
     const diagnostics = getDiagnosticsRepository();
     dbReady = diagnostics.ping();
-    schemaVersion = getSchemaVersion(db);
+    schemaVersion = diagnostics.schemaVersion();
     journalMode = diagnostics.journalMode();
   } catch (err: unknown) {
     dbReady = false;
@@ -130,12 +129,9 @@ export function handleReadinessRoute(): Response {
  * Detailed operational telemetry covering database counts, active/stale jobs, and worker fleet.
  */
 export function handleDiagnosticsRoute(): Response {
-  const db = getDb();
   const diagnostics = getDiagnosticsRepository();
   const jobRepo = getJobRepository();
 
-  const runCounts = diagnostics.countRuns();
-  const jobCounts = diagnostics.countJobs();
   const staleJobs = jobRepo.findStaleClaimedJobs();
   const activeWorkers = getActiveWorkers();
 
@@ -148,19 +144,9 @@ export function handleDiagnosticsRoute(): Response {
     },
     database: {
       status: "healthy",
-      version: getSchemaVersion(db),
-      runs: {
-        total: runCounts.total,
-        active: runCounts.active,
-      },
-      jobs: {
-        total: jobCounts.total,
-        pending: jobCounts.pending,
-        claimed: jobCounts.claimed,
-        completed: jobCounts.completed,
-        failed: jobCounts.failed,
-        stale: staleJobs.length,
-      },
+      version: diagnostics.schemaVersion(),
+      runs: { ...diagnostics.countRuns() },
+      jobs: { ...diagnostics.countJobs(), stale: staleJobs.length },
     },
     worker: {
       status: isWorkerReady() ? "healthy" : "unavailable",
