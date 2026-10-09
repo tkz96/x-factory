@@ -23,6 +23,11 @@ describe("Pi SDK Compatibility under Bun", () => {
       const piAgent = await createReviewSession(tmp);
       assert.ok(piAgent);
       assert.ok(piAgent.session);
+      // The session surface every caller relies on (restored from the deleted
+      // implementation-session test, #167).
+      assert.equal(typeof piAgent.prompt, "function");
+      assert.equal(typeof piAgent.abort, "function");
+      assert.equal(typeof piAgent.subscribe, "function");
 
       // Verify read-only tool names
       const activeTools = piAgent.session.getActiveToolNames();
