@@ -7,8 +7,9 @@ import type {
 } from "../contract.js";
 import { type HttpTransport, parseLinkNextUrl } from "../http.js";
 import {
-  DEFAULT_PAGE_CAP,
+  emitTruncationWarning,
   extractAcceptanceCriteria,
+  resolvePageCap,
 } from "../ticket-normalization.js";
 import { resolveGitHubConfig } from "./config.js";
 import {
@@ -119,7 +120,7 @@ export async function listGitHubTickets(
   const visited = new Set<string>();
   const tickets: TrackerTicket[] = [];
 
-  const pageCap = options.pageCap ?? DEFAULT_PAGE_CAP;
+  const pageCap = resolvePageCap(options);
   let pagesFetched = 0;
 
   while (nextUrl && !visited.has(nextUrl) && pagesFetched < pageCap) {
@@ -143,6 +144,10 @@ export async function listGitHubTickets(
     }
 
     nextUrl = parseLinkNextUrl(res.headers.get("link")) ?? undefined;
+  }
+
+  if (nextUrl && !visited.has(nextUrl) && pagesFetched >= pageCap) {
+    emitTruncationWarning("github", pageCap);
   }
 
   return tickets;

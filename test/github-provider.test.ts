@@ -10,7 +10,7 @@
 // 7. configSchema is Zod with secret-field metadata; serializes through generic serializer
 // 8. Zero-mock tests except at the HTTP boundary
 
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import {
   hasCapability,
   isProviderError,
@@ -1470,6 +1470,75 @@ describe("GitHub Provider Module (Ticket #138)", () => {
 
       expect(calls).toBe(1);
       expect(tickets?.map((ticket) => ticket.id)).toEqual(["GH-303"]);
+    });
+
+    it("fires truncation warning when GitHub pagination reaches page cap, and does not fire when within cap (#185)", async () => {
+      const pageOne = `https://api.github.com/repos/octocat/hello-world/issues?state=open&per_page=100&labels=${encodeURIComponent(REQUIRED_WORKFLOW_LABEL)}`;
+      const pageTwo = `${pageOne}&page=2`;
+
+      const issue = (number: number) => ({
+        number,
+        title: `Issue ${number}`,
+        body: "Acceptance Criteria:\n- Done",
+        labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+        html_url: `https://github.com/octocat/hello-world/issues/${number}`,
+      });
+
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        if (urlStr === pageOne) {
+          return jsonResponse([issue(1)], {
+            status: 200,
+            headers: {
+              link: `<${pageTwo}>; rel="next"`,
+            },
+          });
+        }
+        return jsonResponse([issue(2)], {
+          status: 200,
+        });
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+
+      // Case 1: Cap is 1, but page 1 has next link -> truncation occurs!
+      const warnCalls: string[] = [];
+      const warnSpy = spyOn(console, "warn").mockImplementation(
+        (msg: string) => {
+          warnCalls.push(String(msg));
+        },
+      );
+
+      try {
+        await provider.listTickets?.(
+          {
+            token: "ghp_token",
+            repoOwner: "octocat",
+            repository: "hello-world",
+          },
+          { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 1 },
+        );
+
+        expect(warnCalls).toHaveLength(1);
+        expect(warnCalls[0]).toContain("github");
+        expect(warnCalls[0]).toContain("1");
+        expect(warnCalls[0]).toContain("truncated");
+
+        // Case 2: Cap is 2, and all 2 pages are fetched -> NO truncation warning!
+        warnCalls.length = 0;
+        await provider.listTickets?.(
+          {
+            token: "ghp_token",
+            repoOwner: "octocat",
+            repository: "hello-world",
+          },
+          { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 2 },
+        );
+
+        expect(warnCalls).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 

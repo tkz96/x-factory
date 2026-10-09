@@ -28,14 +28,17 @@ import type {
 } from "./contract.js";
 import { REQUIRED_WORKFLOW_LABEL } from "./contract.js";
 import {
-  DEFAULT_PAGE_CAP,
   DEFAULT_PROVIDER_TIMEOUT_MS,
   type HttpTransport,
   ProviderHttpError,
   parseRetryAfter,
   providerFetch,
 } from "./http.js";
-import { extractCriteria } from "./ticket-normalization.js";
+import {
+  emitTruncationWarning,
+  extractAcceptanceCriteria,
+  resolvePageCap,
+} from "./ticket-normalization.js";
 
 /** Remediated JQL search endpoint name constant (#140). */
 export const SEARCH_JQL_ENDPOINT = "/rest/api/3/search/jql" as const;
@@ -303,12 +306,27 @@ export function parseAdfToText(node: unknown): string {
   if (Array.isArray(obj.content)) {
     const pieces = obj.content.map(parseAdfToText);
     if (obj.type === "bulletList") {
-      return pieces.map((p) => `- ${p.trim()}`).join("\n");
+      return `${pieces.map((p) => `- ${p.trim()}`).join("\n")}\n`;
     }
     if (obj.type === "orderedList") {
-      return pieces.map((p, i) => `${i + 1}. ${p.trim()}`).join("\n");
+      return `${pieces.map((p, i) => `${i + 1}. ${p.trim()}`).join("\n")}\n`;
     }
-    if (obj.type === "paragraph" || obj.type === "heading") {
+    if (obj.type === "heading") {
+      const level =
+        typeof obj.attrs === "object" &&
+        obj.attrs &&
+        typeof (obj.attrs as Record<string, unknown>).level === "number"
+          ? Math.max(
+              1,
+              Math.min(
+                6,
+                (obj.attrs as Record<string, unknown>).level as number,
+              ),
+            )
+          : 2;
+      return `${"#".repeat(level)} ${pieces.join("").trim()}\n`;
+    }
+    if (obj.type === "paragraph") {
       return `${pieces.join("")}\n`;
     }
     return pieces.join(" ");
@@ -322,14 +340,12 @@ export function parseAdfToText(node: unknown): string {
 
 export interface JiraProviderOptions {
   fetchFn?: HttpTransport | undefined;
-  pageCap?: number | undefined;
 }
 
 export function createJiraProvider(
   options: JiraProviderOptions = {},
 ): Provider<"jira"> {
   const fetchFn = options.fetchFn;
-  const providerPageCap = options.pageCap;
 
   return {
     id: "jira",
@@ -445,7 +461,7 @@ export function createJiraProvider(
       const maxResults = 50;
       const jql = `labels = "${label}"${project ? ` AND project = "${project}"` : ""} AND statusCategory != Done ORDER BY updated DESC`;
 
-      const pageCap = options.pageCap ?? providerPageCap ?? DEFAULT_PAGE_CAP;
+      const pageCap = resolvePageCap(options);
       const allTickets: TrackerTicket[] = [];
       const seenTicketIds = new Set<string>();
       let nextPageToken: string | undefined;
@@ -508,7 +524,7 @@ export function createJiraProvider(
             id: issue.key,
             title: issue.fields?.summary || "",
             description: desc,
-            acceptanceCriteria: extractCriteria(desc),
+            acceptanceCriteria: extractAcceptanceCriteria(desc),
             labels,
             url: `https://${host}/browse/${issue.key}`,
             provider: "jira" as const,
@@ -517,6 +533,10 @@ export function createJiraProvider(
 
         nextPageToken = raw?.nextPageToken;
       } while (nextPageToken && pagesFetched < pageCap);
+
+      if (nextPageToken && pagesFetched >= pageCap) {
+        emitTruncationWarning("jira", pageCap);
+      }
 
       return allTickets;
     },

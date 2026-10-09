@@ -11,7 +11,7 @@
 // - REST-primary PR creation conforming to the create-only invariant
 // - Zero mocks except at the HTTP/network boundary
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import {
   handleManifestRoute,
   handleParseUrlRoute,
@@ -23,7 +23,6 @@ import {
   azureProvider,
   createAzureProvider,
   detectOrganizationMismatch,
-  extractCriteria,
   extractOrgNameFromUrl,
   isHtmlResponse,
   resolveAzureAuth,
@@ -40,6 +39,7 @@ import {
   serializeProvider,
   serializeProviderConfigSchema,
 } from "../src/providers/serializer.js";
+import { extractAcceptanceCriteria } from "../src/providers/ticket-normalization.js";
 import {
   createInMemoryTransport,
   htmlResponse,
@@ -851,8 +851,49 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       expect(tickets[0]?.provider).toBe("azure");
     });
 
-    it("lists more than 50 matching tickets by paginating work items in batches (#185)", async () => {
-      const totalTickets = 60;
+    it("preserves short criteria such as 'Done' or 'Fast' from dedicated Acceptance Criteria field (#185)", async () => {
+      const transport = createInMemoryTransport([
+        {
+          match: "/_apis/wit/wiql",
+          handler: jsonResponse({
+            workItems: [{ id: 102 }],
+          }),
+        },
+        {
+          match: "/_apis/wit/workitems",
+          handler: jsonResponse({
+            value: [
+              {
+                id: 102,
+                fields: {
+                  "System.Title": "Task 102: Short criteria",
+                  "System.Description": "<p>Description of task</p>",
+                  "Microsoft.VSTS.Common.AcceptanceCriteria":
+                    "<p>Done</p><p>Fast</p>",
+                  "System.Tags": "x-factory",
+                },
+              },
+            ],
+          }),
+        },
+      ]);
+
+      const provider = createAzureProvider({ fetchFn: transport });
+      const tickets = await provider.listTickets?.(
+        {
+          orgUrl: "https://dev.azure.com/org",
+          project: "proj",
+          pat: "valid-pat",
+        },
+        { requiredLabel: "x-factory" },
+      );
+
+      expect(tickets).toHaveLength(1);
+      expect(tickets?.[0]?.acceptanceCriteria).toEqual(["Done", "Fast"]);
+    });
+
+    it("lists more than 200 matching tickets by paginating work items in batches of 200 (#185)", async () => {
+      const totalTickets = 250;
       const workItemRefs = Array.from({ length: totalTickets }, (_, i) => ({
         id: 1000 + i,
         url: `https://dev.azure.com/org/proj/_apis/wit/workitems/${1000 + i}`,
@@ -906,15 +947,184 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         { requiredLabel: "x-factory" },
       );
 
-      expect(tickets).toHaveLength(60);
+      expect(tickets).toHaveLength(250);
       expect(tickets.map((t) => t.id)).toEqual(
         workItemRefs.map((w) => `AZ-${w.id}`),
       );
-      expect(batchRequests.length).toBeGreaterThan(1);
+      expect(batchRequests.length).toBe(2);
+    });
+
+    it("stops pagination at pageCap and fires truncation warning when more work items remain (#185)", async () => {
+      const totalTickets = 250;
+      const workItemRefs = Array.from({ length: totalTickets }, (_, i) => ({
+        id: 1000 + i,
+      }));
+
+      const transport = createInMemoryTransport([
+        {
+          match: "/_apis/wit/wiql",
+          handler: jsonResponse({
+            workItems: workItemRefs,
+          }),
+        },
+        {
+          match: "/_apis/wit/workitems",
+          handler: (url: string) => {
+            const parsedUrl = new URL(url);
+            const ids = (parsedUrl.searchParams.get("ids") || "")
+              .split(",")
+              .map(Number)
+              .filter(Boolean);
+            const items = ids.map((id) => ({
+              id,
+              fields: {
+                "System.Title": `Task ${id}`,
+                "System.Tags": "x-factory",
+              },
+            }));
+            return jsonResponse({ value: items });
+          },
+        },
+      ]);
+
+      const warnCalls: string[] = [];
+      const warnSpy = spyOn(console, "warn").mockImplementation(
+        (msg: string) => {
+          warnCalls.push(String(msg));
+        },
+      );
+
+      try {
+        const provider = createAzureProvider({ fetchFn: transport });
+        const tickets = await provider.listTickets?.(
+          {
+            orgUrl: "https://dev.azure.com/org",
+            project: "proj",
+            pat: "valid-pat",
+          },
+          { requiredLabel: "x-factory", pageCap: 1 },
+        );
+
+        // Cap is 1 page of 200 items -> stops at 200 even though 250 exist
+        expect(tickets).toHaveLength(200);
+        expect(warnCalls).toHaveLength(1);
+        expect(warnCalls[0]).toContain("azure");
+        expect(warnCalls[0]).toContain("1");
+        expect(warnCalls[0]).toContain("truncated");
+
+        // When all items fit in pageCap, no warning fires
+        warnCalls.length = 0;
+        const fitProvider = createAzureProvider({
+          fetchFn: createInMemoryTransport([
+            {
+              match: "/_apis/wit/wiql",
+              handler: jsonResponse({
+                workItems: [{ id: 1 }, { id: 2 }],
+              }),
+            },
+            {
+              match: "/_apis/wit/workitems",
+              handler: jsonResponse({
+                value: [
+                  {
+                    id: 1,
+                    fields: {
+                      "System.Title": "T1",
+                      "System.Tags": "x-factory",
+                    },
+                  },
+                  {
+                    id: 2,
+                    fields: {
+                      "System.Title": "T2",
+                      "System.Tags": "x-factory",
+                    },
+                  },
+                ],
+              }),
+            },
+          ]),
+        });
+        await fitProvider.listTickets?.(
+          {
+            orgUrl: "https://dev.azure.com/org",
+            project: "proj",
+            pat: "valid-pat",
+          },
+          { requiredLabel: "x-factory", pageCap: 1 },
+        );
+        expect(warnCalls).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("deduplicates work items and skips missing or null IDs (#185)", async () => {
+      const transport = createInMemoryTransport([
+        {
+          match: "/_apis/wit/wiql",
+          handler: jsonResponse({
+            workItems: [
+              { id: 101 },
+              { id: 102 },
+              { id: 101 },
+              { id: null as unknown as number },
+            ],
+          }),
+        },
+        {
+          match: "/_apis/wit/workitems",
+          handler: jsonResponse({
+            value: [
+              {
+                id: 101,
+                fields: { "System.Title": "First", "System.Tags": "x-factory" },
+              },
+              {
+                id: 102,
+                fields: {
+                  "System.Title": "Second",
+                  "System.Tags": "x-factory",
+                },
+              },
+              {
+                id: 101,
+                fields: {
+                  "System.Title": "Duplicate",
+                  "System.Tags": "x-factory",
+                },
+              },
+              {
+                id: null,
+                fields: { "System.Title": "No ID", "System.Tags": "x-factory" },
+              },
+              {
+                fields: {
+                  "System.Title": "Missing ID",
+                  "System.Tags": "x-factory",
+                },
+              },
+            ],
+          }),
+        },
+      ]);
+
+      const provider = createAzureProvider({ fetchFn: transport });
+      const tickets = await provider.listTickets?.(
+        {
+          orgUrl: "https://dev.azure.com/org",
+          project: "proj",
+          pat: "valid-pat",
+        },
+        { requiredLabel: "x-factory" },
+      );
+
+      expect(tickets).toHaveLength(2);
+      expect(tickets?.map((t) => t.id)).toEqual(["AZ-101", "AZ-102"]);
     });
 
     it("extracts and sanitizes markdown formatting and links in acceptance criteria", () => {
-      const criteria = extractCriteria(
+      const criteria = extractAcceptanceCriteria(
         "Requirements:\n- [Azure Doc](https://learn.microsoft.com) must be *reviewed*",
       );
       expect(criteria).toEqual(["Azure Doc must be reviewed"]);

@@ -7,7 +7,7 @@ import { createGithubProvider } from "../src/providers/github-module.js";
 import { createJiraProvider } from "../src/providers/jira-module.js";
 import {
   extractAcceptanceCriteria,
-  extractCriteria,
+  resolvePageCap,
 } from "../src/providers/ticket-normalization.js";
 import {
   createInMemoryTransport,
@@ -90,8 +90,12 @@ describe("ticket-normalization module (extractAcceptanceCriteria)", () => {
     expect(extractAcceptanceCriteria(undefined)).toEqual([]);
   });
 
-  it("extractCriteria is an alias for extractAcceptanceCriteria", () => {
-    expect(extractCriteria).toBe(extractAcceptanceCriteria);
+  it("resolves pageCap with precedence: options -> providerDefault -> DEFAULT_PAGE_CAP (#185)", () => {
+    expect(resolvePageCap({ requiredLabel: "xf", pageCap: 3 })).toBe(3);
+    expect(resolvePageCap({ requiredLabel: "xf" }, 7)).toBe(7);
+    expect(resolvePageCap({ requiredLabel: "xf" })).toBe(10);
+    expect(resolvePageCap(undefined, 8)).toBe(8);
+    expect(resolvePageCap()).toBe(10);
   });
 });
 
@@ -463,5 +467,201 @@ describe("cross-provider criteria equivalence at the provider transport seam (#1
     expect(ghTickets[0]?.acceptanceCriteria).toEqual([]);
     expect(jiraTickets[0]?.acceptanceCriteria).toEqual([]);
     expect(azureTickets[0]?.acceptanceCriteria).toEqual([]);
+  });
+
+  it("yields identical criteria across GitHub, Jira, and Azure when a heading appears after criteria section (#185)", async () => {
+    const githubBody = [
+      "Here is the issue description.",
+      "",
+      "## Acceptance Criteria",
+      "- Must not break the build",
+      "- Must add comprehensive tests",
+      "",
+      "## Out of Scope",
+      "- Out of scope item 1",
+      "- Out of scope item 2",
+    ].join("\n");
+
+    const jiraAdf = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Here is the issue description." }],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "Acceptance Criteria" }],
+        },
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Must not break the build" }],
+                },
+              ],
+            },
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [
+                    { type: "text", text: "Must add comprehensive tests" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "Out of Scope" }],
+        },
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Out of scope item 1" }],
+                },
+              ],
+            },
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Out of scope item 2" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const azureHtml = [
+      "<p>Here is the issue description.</p>",
+      "<h2>Acceptance Criteria</h2>",
+      "<ul>",
+      "<li>Must not break the build</li>",
+      "<li>Must add comprehensive tests</li>",
+      "</ul>",
+      "<h2>Out of Scope</h2>",
+      "<ul>",
+      "<li>Out of scope item 1</li>",
+      "<li>Out of scope item 2</li>",
+      "</ul>",
+    ].join("");
+
+    // GitHub transport
+    const ghTransport = createInMemoryTransport([
+      {
+        match: "/issues",
+        handler: jsonResponse([
+          {
+            number: 55,
+            title: "Task 55",
+            body: githubBody,
+            state: "open",
+            labels: [{ name: REQUIRED_WORKFLOW_LABEL }],
+            html_url: "https://github.com/org/repo/issues/55",
+          },
+        ]),
+      },
+    ]);
+    const ghProvider = createGithubProvider({ fetchFn: ghTransport });
+    const ghTickets = await ghProvider.listTickets?.(
+      { token: "ghp_tok", repoOwner: "org", repository: "repo" },
+      { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+    );
+
+    // Jira transport
+    const jiraTransport = createInMemoryTransport([
+      {
+        match: "/search/jql",
+        handler: jsonResponse({
+          issues: [
+            {
+              key: "PROJ-55",
+              fields: {
+                summary: "Task 55",
+                description: jiraAdf,
+                labels: [REQUIRED_WORKFLOW_LABEL],
+              },
+            },
+          ],
+        }),
+      },
+    ]);
+    const jiraProviderInstance = createJiraProvider({ fetchFn: jiraTransport });
+    const jiraTickets = await jiraProviderInstance.listTickets?.(
+      {
+        host: "https://test.atlassian.net",
+        email: "user@test.com",
+        apiToken: "tok",
+        project: "PROJ",
+      },
+      { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+    );
+
+    // Azure transport
+    const azureTransport = createInMemoryTransport([
+      {
+        match: "/_apis/wit/wiql",
+        handler: jsonResponse({
+          workItems: [{ id: 55 }],
+        }),
+      },
+      {
+        match: "/_apis/wit/workitems",
+        handler: jsonResponse({
+          value: [
+            {
+              id: 55,
+              fields: {
+                "System.Title": "Task 55",
+                "System.Description": azureHtml,
+                "System.Tags": REQUIRED_WORKFLOW_LABEL,
+              },
+            },
+          ],
+        }),
+      },
+    ]);
+    const azureProviderInstance = createAzureProvider({
+      fetchFn: azureTransport,
+    });
+    const azureTickets = await azureProviderInstance.listTickets?.(
+      {
+        orgUrl: "https://dev.azure.com/org",
+        project: "proj",
+        pat: "pat",
+      },
+      { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+    );
+
+    const expected = [
+      "Must not break the build",
+      "Must add comprehensive tests",
+    ];
+
+    if (!ghTickets || !jiraTickets || !azureTickets) {
+      throw new Error("Expected tickets to be defined");
+    }
+
+    expect(ghTickets[0]?.acceptanceCriteria).toEqual(expected);
+    expect(jiraTickets[0]?.acceptanceCriteria).toEqual(expected);
+    expect(azureTickets[0]?.acceptanceCriteria).toEqual(expected);
   });
 });

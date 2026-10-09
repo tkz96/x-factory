@@ -4,13 +4,34 @@
 // Adapters only convert their provider-specific format to text (HTML for Azure,
 // ADF for Jira, Markdown for GitHub).
 
-export { DEFAULT_PAGE_CAP } from "./http.js";
+import type { TicketQueryOptions } from "./contract.js";
+import { DEFAULT_PAGE_CAP } from "./http.js";
+
+/**
+ * Resolves the page cap for ticket listing queries.
+ * Precedence: TicketQueryOptions.pageCap -> providerDefault -> DEFAULT_PAGE_CAP.
+ */
+export function resolvePageCap(
+  options?: TicketQueryOptions,
+  providerDefault?: number,
+): number {
+  return options?.pageCap ?? providerDefault ?? DEFAULT_PAGE_CAP;
+}
+
+/**
+ * Surfaces a warning through the logger when ticket listing hits the page cap.
+ */
+export function emitTruncationWarning(provider: string, pageCap: number): void {
+  console.warn(
+    `[X-Factory] Ticket listing for provider "${provider}" reached page cap of ${pageCap}; results were truncated.`,
+  );
+}
 
 /**
  * Returns true if a line represents an acceptance criteria section heading.
  * Handles markdown prefixes (#+), trailing colons, and markdown styling (*, _).
  */
-export function isSectionHeader(line: string): boolean {
+function isSectionHeader(line: string): boolean {
   const stripped = line.replace(/[*_]/g, "").trim();
   return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
     stripped,
@@ -18,27 +39,16 @@ export function isSectionHeader(line: string): boolean {
 }
 
 /**
- * Returns true if any line in the text represents an acceptance criteria heading.
- */
-export function hasSectionHeader(text: string): boolean {
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  return lines.some(isSectionHeader);
-}
-
-/**
  * Returns true if a line starts a new markdown section heading (#+).
  */
-export function isHeaderLine(line: string): boolean {
+function isHeaderLine(line: string): boolean {
   return /^#+\s+/.test(line.trim());
 }
 
 /**
  * Strips markdown links, bold/italic markers, and inline backticks from a line.
  */
-export function sanitizeLine(line: string): string {
+function sanitizeLine(line: string): string {
   return line
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[*_`]/g, "")
@@ -49,7 +59,7 @@ export function sanitizeLine(line: string): string {
  * Parses a bullet list item, checkbox list item, or numbered list item.
  * Returns the sanitized criterion text, or null if the line is not a list item.
  */
-export function parseBulletLine(line: string): string | null {
+function parseBulletLine(line: string): string | null {
   const match = line.match(/^(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?(.+)$/);
   return match?.[1] ? sanitizeLine(match[1]) : null;
 }
@@ -91,8 +101,3 @@ export function extractAcceptanceCriteria(text?: string | null): string[] {
 
   return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
 }
-
-/**
- * Canonical alias for extractAcceptanceCriteria.
- */
-export const extractCriteria = extractAcceptanceCriteria;

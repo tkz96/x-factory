@@ -429,6 +429,36 @@ tickets only — the inspection flow consumes actionable tickets; closed tickets
 are deliberately excluded. Providers that gain a consumer needing a different
 state filter must extend the contract input, not the query behind it.
 
+- **Shared ticket normalization module (`src/providers/ticket-normalization.ts`).**
+  Ticket text is turned into acceptance criteria through one shared extractor
+  (`extractAcceptanceCriteria`) across all three providers (#185). Adapters only
+  convert their provider-specific representations to text (Markdown for GitHub,
+  ADF for Jira, HTML for Azure). ADF headings are emitted in Markdown format so
+  subsequent headings terminate the criteria section across all providers.
+  For Azure, HTML heading conversion (`<h1-6>` to `##`) is limited to criteria
+  extraction, keeping the stored description clean plain text. When a dedicated
+  Acceptance Criteria field is present on an Azure work item, every non-empty line
+  is preserved as a criterion (or parsed if formatted with markdown/HTML lists),
+  with no fallback to the description.
+
+- **Page cap policy (`resolvePageCap`).**
+  Listing is paginated up to a page cap: `TicketQueryOptions.pageCap` when specified,
+  falling back to `DEFAULT_PAGE_CAP` (10, defined in `src/providers/http.ts`).
+  GitHub previously followed `Link: rel="next"` without a cap; it is now capped
+  identically to Jira and Azure (#185).
+
+- **Silent truncation warning.**
+  When pagination terminates because the page cap was reached while additional
+  tickets or pages remain, `listTickets` emits a structured warning via the logger
+  naming the provider, the cap, and that results were truncated (`truncated: true`).
+  When all available tickets fit within the cap, no warning is emitted.
+
+- **Azure Work Item ID batching.**
+  Azure DevOps WIQL queries return work item ID references. Work items are retrieved
+  by batching IDs in chunks of up to 200 (the Azure DevOps API maximum). Pagination
+  fetches up to `pageCap` batches of work items, de-duplicating IDs and ignoring
+  missing or null IDs.
+
 ---
 
 ## 6. Project Creation with the Normalized Connections Payload (#131/#145)

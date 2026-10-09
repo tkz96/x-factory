@@ -34,7 +34,6 @@ import {
   type VerificationWarning,
 } from "./contract.js";
 import {
-  DEFAULT_PAGE_CAP,
   type HttpTransport,
   isHtmlResponse,
   isLoginRedirect,
@@ -42,8 +41,9 @@ import {
   providerFetch,
 } from "./http.js";
 import {
+  emitTruncationWarning,
   extractAcceptanceCriteria,
-  hasSectionHeader,
+  resolvePageCap,
 } from "./ticket-normalization.js";
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
@@ -440,8 +440,6 @@ export interface AzureProviderDependencies {
   fetchFn?: typeof fetch | HttpTransport | undefined;
   executor?: CliCommandExecutor | undefined;
   probeTimeoutMs?: number | undefined;
-  pageCap?: number | undefined;
-  batchSize?: number | undefined;
 }
 
 export interface ResolvedAzureContext {
@@ -590,8 +588,6 @@ export function createAzureProvider(
   const getFetcher = () => deps.fetchFn ?? globalThis.fetch;
   const executor = deps.executor;
   const probeTimeout = deps.probeTimeoutMs ?? 5000;
-  const providerPageCap = deps.pageCap;
-  const defaultBatchSize = deps.batchSize ?? 50;
 
   return {
     id: "azure",
@@ -890,8 +886,8 @@ export function createAzureProvider(
       const allIds = raw.workItems.map((w) => w.id).filter(Boolean);
       if (allIds.length === 0) return [];
 
-      const pageCap = options.pageCap ?? providerPageCap ?? DEFAULT_PAGE_CAP;
-      const batchSize = defaultBatchSize;
+      const pageCap = resolvePageCap(options);
+      const batchSize = 200;
       const allTickets: TrackerTicket[] = [];
       const seenTicketIds = new Set<string>();
       let pagesFetched = 0;
@@ -903,7 +899,6 @@ export function createAzureProvider(
       ) {
         pagesFetched++;
         const idsChunk = allIds.slice(i, i + batchSize);
-        if (idsChunk.length === 0) break;
 
         const itemsUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/workitems?ids=${idsChunk.join(",")}&api-version=7.1`;
         const itemsRes = await azureFetch(itemsUrl, {
@@ -933,14 +928,23 @@ export function createAzureProvider(
 
           let criteria: string[] = [];
           if (rawCriteria) {
-            const strippedCriteria = stripHtml(rawCriteria);
-            const textToNormalize = hasSectionHeader(strippedCriteria)
-              ? strippedCriteria
-              : `## Acceptance Criteria\n${strippedCriteria}`;
-            criteria = extractAcceptanceCriteria(textToNormalize);
-          }
-          if (criteria.length === 0 && desc) {
-            criteria = extractAcceptanceCriteria(desc);
+            const strippedCriteria = stripHtml(rawCriteria, {
+              convertHeadings: true,
+            }).trim();
+            if (strippedCriteria) {
+              criteria = extractAcceptanceCriteria(strippedCriteria);
+              if (criteria.length === 0) {
+                criteria = strippedCriteria
+                  .split(/\r?\n/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+              }
+            }
+          } else if (rawDesc) {
+            const criteriaText = stripHtml(rawDesc, {
+              convertHeadings: true,
+            });
+            criteria = extractAcceptanceCriteria(criteriaText);
           }
 
           const tags = String(fields["System.Tags"] || "")
@@ -962,6 +966,10 @@ export function createAzureProvider(
             provider: "azure" as const,
           });
         }
+      }
+
+      if (allIds.length > pagesFetched * batchSize && pagesFetched >= pageCap) {
+        emitTruncationWarning("azure", pageCap);
       }
 
       return allTickets;
@@ -1136,13 +1144,18 @@ export function normalizeGitRef(branch: string): string {
   return `refs/heads/${trimmed}`;
 }
 
-export { extractCriteria } from "./ticket-normalization.js";
-
-export function stripHtml(html: string): string {
+export function stripHtml(
+  html: string,
+  options?: { convertHeadings?: boolean },
+): string {
   if (!html) return "";
-  return html
-    .replace(/<h[1-6][^>]*>/gi, "\n## ")
-    .replace(/<\/h[1-6]>/gi, "\n")
+  let text = html;
+  if (options?.convertHeadings) {
+    text = text
+      .replace(/<h[1-6][^>]*>/gi, "\n## ")
+      .replace(/<\/h[1-6]>/gi, "\n");
+  }
+  return text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<li>/gi, "- ")
