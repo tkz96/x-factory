@@ -89,6 +89,62 @@ describe("stage runner", () => {
       .getEventsForRun(run.id)
       .filter((e) => e.type === "stage_evidence");
     expect(evidence).toEqual([]);
+    expect(repos.jobs.listJobsForRun(run.id).length).toBe(1);
+    expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
+      ["cancelled"],
+    );
+  });
+
+  it("records no pull request and does not reach pr_created when the run is stopped while deliver executes", async () => {
+    const { db, repos, run } = setup("ready_for_pr");
+    const command = repos.commands.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+    });
+    const worker = new Worker({
+      db,
+      workerId: "worker-stop-deliver",
+      deliverExecutor: {
+        stage: "deliver",
+        async execute(): Promise<StageOutcome> {
+          repos.runs.transitionRun(run.id, "ready_for_pr", "stopped", {
+            event: { type: "status", payload: { status: "stopped" } },
+          });
+          return deliveredOutcome(PR);
+        },
+      },
+    });
+    await worker.stepCommandOnce();
+
+    const after = repos.runs.get(run.id);
+    expect(after?.status).toBe("stopped");
+    expect(after?.pullRequest).toBeNull();
+    expect(repos.commands.getCommand(command.id)?.status).toBe("failed");
+    expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
+      ["cancelled"],
+    );
+  });
+
+  it("closes the attempt and commits nothing when the run status changes between the re-check and the commit", async () => {
+    const { db, repos, run } = setup("understanding");
+    repos.jobs.createJob({ runId: run.id, stage: "understand" });
+    const worker = new Worker({
+      db,
+      workerId: "worker-shift",
+      getStageExecutor: () => ({
+        stage: "understand",
+        async execute(): Promise<StageOutcome> {
+          // A status change that is not "stopped", so the re-check passes and only the
+          // commit's own status guard can catch it.
+          db.run("UPDATE runs SET status = 'planning' WHERE id = ?", [run.id]);
+          return { outcome: "passed" };
+        },
+      }),
+    });
+    await worker.stepOnce();
+
+    expect(repos.runs.get(run.id)?.status).toBe("planning");
+    expect(repos.jobs.listJobsForRun(run.id).length).toBe(1);
     expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
       ["cancelled"],
     );

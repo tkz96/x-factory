@@ -79,12 +79,21 @@ export interface StageRunnerHost {
 
 const CANCEL_REASON = "Run stopped by operator during stage execution";
 
+/** Log context naming the job; commands have no job id. */
+function logSubject(work: StageWork): { job_id?: string } {
+  return work.kind === "job" ? { job_id: work.id } : {};
+}
+
+// Kept at runtime: deliver's adapters return data from outside the type system.
 function isStageOutcome(value: unknown): value is StageOutcome {
   if (typeof value !== "object" || value === null) return false;
   const outcome = (value as { outcome?: unknown }).outcome;
   return outcome === "passed" || outcome === "rejected" || outcome === "error";
 }
 
+// Finalization runs inside the commit transaction, so it calls the repositories on the
+// runner's connection directly; LeaseManager's completeCommand/failCommand open their own
+// statements and cannot join that transaction.
 export function jobWork(
   job: JobRecord,
   host: StageRunnerHost,
@@ -291,7 +300,7 @@ export class StageRunner {
 
   private startHeartbeat(work: StageWork): ReturnType<typeof setInterval> {
     const { host } = this;
-    const subject = work.kind === "job" ? { job_id: work.id } : {};
+    const subject = logSubject(work);
     const label = work.kind === "job" ? `job ${work.id}` : `command ${work.id}`;
     return setInterval(() => {
       try {
@@ -334,7 +343,7 @@ export class StageRunner {
     repos.stageAttempts.recordCancellation(attempt.id, CANCEL_REASON);
     work.cancel(CANCEL_REASON);
     this.host.emitLog({
-      ...(work.kind === "job" ? { job_id: work.id } : {}),
+      ...logSubject(work),
       run_id: work.runId,
       stage: work.stage,
       attempt: work.attempt,
@@ -414,6 +423,11 @@ export class StageRunner {
     })();
 
     if (!committed) {
+      // Lease lost or run status changed: close the attempt so it is not left running.
+      repos.stageAttempts.recordCancellation(
+        attempt.id,
+        "Progression not committed: lease lost or run status changed",
+      );
       this.host.log(
         `Progression CAS check failed for ${work.kind} ${work.id} on run ${work.runId}. Stage progression aborted.`,
       );
@@ -421,7 +435,7 @@ export class StageRunner {
     }
 
     this.host.emitLog({
-      ...(work.kind === "job" ? { job_id: work.id } : {}),
+      ...logSubject(work),
       run_id: work.runId,
       stage: work.stage,
       attempt: work.attempt,
@@ -488,7 +502,7 @@ export class StageRunner {
     }
 
     this.host.emitLog({
-      ...(work.kind === "job" ? { job_id: work.id } : {}),
+      ...logSubject(work),
       run_id: work.runId,
       stage: work.stage,
       attempt: work.attempt,
@@ -524,7 +538,7 @@ export class StageRunner {
     }
 
     const retry = work.fail(errorMsg);
-    const subject = work.kind === "job" ? { job_id: work.id } : {};
+    const subject = logSubject(work);
 
     if (retry.willRetry) {
       this.host.emitLog({
