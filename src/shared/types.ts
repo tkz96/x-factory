@@ -86,12 +86,15 @@ export interface AzureTrackerConfig {
 export interface JiraTrackerConfig {
   host: string;
   email: string;
-  project: string;
+  project?: string | undefined;
   requiredLabel?: string | undefined;
 }
 
 export interface GitHubTrackerConfig {
-  repo: string;
+  repo?: string | undefined;
+  repoOwner?: string | undefined;
+  repository?: string | undefined;
+  baseUrl?: string | undefined;
   requiredLabel?: string | undefined;
 }
 

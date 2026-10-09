@@ -77,7 +77,7 @@ describe("github verification — edge coverage", () => {
     }) as unknown as typeof fetch;
 
     const result = await verifyGitHubCredentials(
-      { owner: "octocat" },
+      { repoOwner: "octocat" },
       mockFetch,
     );
     expect(result.status).toBe("degraded");
@@ -107,7 +107,7 @@ describe("github verification — edge coverage", () => {
     }) as unknown as typeof fetch;
 
     const result = await verifyGitHubCredentials(
-      { token: "ghp_valid", owner: "org-with-forbidden-repos" },
+      { token: "ghp_valid", repoOwner: "org-with-forbidden-repos" },
       mockFetch,
     );
     expect(result.status).toBe("degraded");

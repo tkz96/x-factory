@@ -180,7 +180,10 @@ export function translateDomainErrorToHttpResponse(
     );
   }
   if (inErrorFamily(err, ConflictError)) {
-    return errorResponse(message, 409);
+    const code = errorCodeOf(err);
+    return code
+      ? jsonResponse({ error: message, code }, 409)
+      : errorResponse(message, 409);
   }
   if (inErrorFamily(err, SemanticValidationError)) {
     return jsonResponse(semanticErrorEnvelope(err), 409);

@@ -18,7 +18,7 @@ import type {
   RepositoryRole,
 } from "./types.js";
 
-const IssueTrackerInputSchema = z
+export const IssueTrackerInputSchema = z
   .union([
     z.object({
       // The legacy tracker view is a compatibility field, not the provider
@@ -34,14 +34,16 @@ const IssueTrackerInputSchema = z
           project: z.string(),
           requiredLabel: z.string().optional(),
         })
+        .passthrough()
         .optional(),
       jira: z
         .object({
           host: z.string(),
           email: z.string(),
-          project: z.string(),
+          project: z.string().optional(),
           requiredLabel: z.string().optional(),
         })
+        .passthrough()
         .optional(),
       github: z
         .object({
@@ -54,8 +56,10 @@ const IssueTrackerInputSchema = z
           repo: z.string().optional(),
           repoOwner: z.string().optional(),
           repository: z.string().optional(),
+          baseUrl: z.string().optional(),
           requiredLabel: z.string().optional(),
         })
+        .passthrough()
         .optional(),
     }),
     z.null(),
@@ -590,10 +594,14 @@ function parseJiraTrackerConfig(
 ): JiraTrackerConfig | undefined {
   if (t.jira && typeof t.jira === "object") {
     const j = t.jira as Record<string, unknown>;
+    const project =
+      typeof j.project === "string" && j.project.trim()
+        ? j.project.trim()
+        : undefined;
     return {
       host: typeof j.host === "string" ? j.host.trim() : "",
       email: typeof j.email === "string" ? j.email.trim() : "",
-      project: typeof j.project === "string" ? j.project.trim() : "",
+      ...(project ? { project } : {}),
       requiredLabel:
         typeof j.requiredLabel === "string" && j.requiredLabel.trim()
           ? j.requiredLabel.trim()
@@ -608,12 +616,31 @@ function parseGitHubTrackerConfig(
 ): GitHubTrackerConfig | undefined {
   if (t.github && typeof t.github === "object") {
     const g = t.github as Record<string, unknown>;
+    const repo =
+      typeof g.repo === "string" && g.repo.trim() ? g.repo.trim() : undefined;
+    const repoOwner =
+      typeof g.repoOwner === "string" && g.repoOwner.trim()
+        ? g.repoOwner.trim()
+        : undefined;
+    const repository =
+      typeof g.repository === "string" && g.repository.trim()
+        ? g.repository.trim()
+        : undefined;
+    const baseUrl =
+      typeof g.baseUrl === "string" && g.baseUrl.trim()
+        ? g.baseUrl.trim()
+        : undefined;
+    const requiredLabel =
+      typeof g.requiredLabel === "string" && g.requiredLabel.trim()
+        ? g.requiredLabel.trim()
+        : undefined;
+
     return {
-      repo: typeof g.repo === "string" ? g.repo.trim() : "",
-      requiredLabel:
-        typeof g.requiredLabel === "string" && g.requiredLabel.trim()
-          ? g.requiredLabel.trim()
-          : undefined,
+      ...(repo ? { repo } : {}),
+      ...(repoOwner ? { repoOwner } : {}),
+      ...(repository ? { repository } : {}),
+      ...(baseUrl ? { baseUrl } : {}),
+      ...(requiredLabel ? { requiredLabel } : {}),
     };
   }
   return undefined;
