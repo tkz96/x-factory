@@ -6,6 +6,7 @@ import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RunHistoryCard } from "../components/history/RunHistoryCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
+import { ACTIVE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import "./HistoryView.css";
 
 type StatusFilter = "all" | "completed" | "active" | "failed";
@@ -25,12 +26,7 @@ export function HistoryView() {
           (r) => r.status === "failed" || r.status === "stopped",
         );
       case "active":
-        return runs.filter(
-          (r) =>
-            r.status !== "pr_created" &&
-            r.status !== "failed" &&
-            r.status !== "stopped",
-        );
+        return runs.filter((r) => ACTIVE_RUN_STATUSES.has(r.status));
       default:
         return runs;
     }

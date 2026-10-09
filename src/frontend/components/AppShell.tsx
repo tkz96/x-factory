@@ -7,6 +7,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
+import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import {
   ProjectProvider,
@@ -482,13 +483,9 @@ function AppShellContent() {
   const runId = runIdMatch ? runIdMatch[1] : undefined;
   const { data: runData } = useRun(runId);
 
-  const isActiveRun =
-    runData != null &&
-    runData.status !== "pr_created" &&
-    runData.status !== "failed" &&
-    runData.status !== "stopped" &&
-    runData.status !== "recovery_required" &&
-    runData.status !== "ready_for_pr";
+  // A run the user may stop (the server's stop guard set); the shell only
+  // offers Stop Run while the run accepts it.
+  const isActiveRun = runData != null && STOPPABLE_RUN_STATUSES.has(runData.status);
   const activeRunId = isActiveRun ? runData.id : undefined;
 
   const handleStopRun = () => {
