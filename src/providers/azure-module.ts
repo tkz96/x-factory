@@ -21,8 +21,8 @@ import {
   type FindPullRequestInput,
   type Provider,
   type ProviderConfig,
-  type ProviderError,
   type ProviderErrorContext,
+  type ProviderErrorEnvelope,
   type ProviderPullRequest,
   type ProviderRepository,
   REQUIRED_WORKFLOW_LABEL,
@@ -33,6 +33,7 @@ import {
   type VerificationResult,
   type VerificationWarning,
 } from "./contract.js";
+import { normalizeRawObjectGuard } from "./errors.js";
 import {
   type HttpTransport,
   isHtmlResponse,
@@ -40,6 +41,11 @@ import {
   ProviderHttpError,
   providerFetch,
 } from "./http.js";
+import {
+  emitTruncationWarning,
+  extractAcceptanceCriteria,
+  resolvePageCap,
+} from "./ticket-normalization.js";
 
 /** Provider configuration schema for Azure DevOps. Passes serializer gate. */
 export const azureConfigSchema = z.object({
@@ -328,16 +334,10 @@ export async function azureFetch(
 export function toUserError(
   raw: unknown,
   context: ProviderErrorContext,
-): ProviderError {
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "code" in raw &&
-    "context" in raw &&
-    typeof (raw as Record<string, unknown>).code === "string" &&
-    typeof (raw as Record<string, unknown>).context === "string"
-  ) {
-    return raw as ProviderError;
+): ProviderErrorEnvelope {
+  const fromGuard = normalizeRawObjectGuard(raw, context);
+  if (fromGuard) {
+    return fromGuard;
   }
 
   let status: number | undefined;
@@ -878,58 +878,96 @@ export function createAzureProvider(
       if (!raw || !Array.isArray(raw.workItems) || raw.workItems.length === 0)
         return [];
 
-      const ids = raw.workItems.map((w) => w.id).slice(0, 50);
-      if (ids.length === 0) return [];
+      const allIds = raw.workItems.map((w) => w.id).filter(Boolean);
+      if (allIds.length === 0) return [];
 
-      const itemsUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/workitems?ids=${ids.join(",")}&api-version=7.1`;
-      const itemsRes = await azureFetch(itemsUrl, {
-        headers: { Authorization: authHeader, Accept: "application/json" },
-        fetchFn: getFetcher(),
-      });
+      const pageCap = resolvePageCap(options);
+      const batchSize = 200;
+      const allTickets: TrackerTicket[] = [];
+      const seenTicketIds = new Set<string>();
+      let pagesFetched = 0;
 
-      const itemsRaw = itemsRes.data as {
-        value?: Array<Record<string, unknown>>;
-      };
-      const items = Array.isArray(itemsRaw?.value) ? itemsRaw.value : [];
+      for (
+        let i = 0;
+        i < allIds.length && pagesFetched < pageCap;
+        i += batchSize
+      ) {
+        pagesFetched++;
+        const idsChunk = allIds.slice(i, i + batchSize);
 
-      return items.map((item: Record<string, unknown>) => {
-        const fields = (item.fields as Record<string, unknown>) || {};
-        const title = String(fields["System.Title"] || "");
-        const rawDesc = String(fields["System.Description"] || "");
-        const rawCriteria = String(
-          fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "",
-        );
-        const desc = stripHtml(rawDesc);
-        const criteriaText = rawCriteria ? stripHtml(rawCriteria) : desc;
-        let criteria = extractCriteria(criteriaText);
-        if (criteria.length === 0 && rawCriteria) {
-          const stripped = stripHtml(rawCriteria).trim();
-          if (stripped) {
-            criteria = stripped
-              .split(/\r?\n/)
-              .map((s: string) => s.trim())
-              .filter(Boolean);
-          }
-        }
-        const tags = String(fields["System.Tags"] || "")
-          .split(";")
-          .map((s: string) => s.trim())
-          .filter(Boolean);
+        const itemsUrl = `${cleanOrgUrl}/${encodedProject}/_apis/wit/workitems?ids=${idsChunk.join(",")}&api-version=7.1`;
+        const itemsRes = await azureFetch(itemsUrl, {
+          headers: { Authorization: authHeader, Accept: "application/json" },
+          fetchFn: getFetcher(),
+        });
 
-        const fallbackUrl = `${cleanOrgUrl}/${encodedProject}/_workitems/edit/${item.id}`;
-
-        return {
-          id: `AZ-${item.id}`,
-          title,
-          description: desc,
-          acceptanceCriteria: criteria,
-          labels: tags,
-          url:
-            (item._links as { html?: { href?: string } })?.html?.href ||
-            fallbackUrl,
-          provider: "azure" as const,
+        const itemsRaw = itemsRes.data as {
+          value?: Array<Record<string, unknown>>;
         };
-      });
+        const items = Array.isArray(itemsRaw?.value) ? itemsRaw.value : [];
+
+        for (const item of items) {
+          const rawId = item.id;
+          if (rawId === undefined || rawId === null) continue;
+          const ticketId = `AZ-${rawId}`;
+          if (seenTicketIds.has(ticketId)) continue;
+          seenTicketIds.add(ticketId);
+
+          const fields = (item.fields as Record<string, unknown>) || {};
+          const title = String(fields["System.Title"] || "");
+          const rawDesc = String(fields["System.Description"] || "");
+          const rawCriteria = String(
+            fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "",
+          );
+          const desc = stripHtml(rawDesc);
+
+          let criteria: string[] = [];
+          if (rawCriteria) {
+            const strippedCriteria = stripHtml(rawCriteria, {
+              convertHeadings: true,
+            }).trim();
+            if (strippedCriteria) {
+              criteria = extractAcceptanceCriteria(strippedCriteria);
+              if (criteria.length === 0) {
+                criteria = strippedCriteria
+                  .split(/\r?\n/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+              }
+            }
+          } else if (rawDesc) {
+            const criteriaText = stripHtml(rawDesc, {
+              convertHeadings: true,
+            });
+            criteria = extractAcceptanceCriteria(criteriaText);
+          }
+
+          const tags = String(fields["System.Tags"] || "")
+            .split(";")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+
+          const fallbackUrl = `${cleanOrgUrl}/${encodedProject}/_workitems/edit/${rawId}`;
+
+          allTickets.push({
+            id: ticketId,
+            title,
+            description: desc,
+            acceptanceCriteria: criteria,
+            labels: tags,
+            url:
+              (item._links as { html?: { href?: string } })?.html?.href ||
+              fallbackUrl,
+            provider: "azure" as const,
+          });
+        }
+      }
+
+      if (allIds.length > pagesFetched * batchSize && pagesFetched >= pageCap) {
+        emitTruncationWarning("azure", pageCap);
+      }
+
+      return allTickets;
     },
 
     async createPullRequest(
@@ -1101,50 +1139,18 @@ export function normalizeGitRef(branch: string): string {
   return `refs/heads/${trimmed}`;
 }
 
-function isSectionHeader(line: string): boolean {
-  return /^(?:#+\s*)?(?:acceptance\s+criteria|criteria|requirements)[:\s]*$/i.test(
-    line,
-  );
-}
-
-function sanitizeLine(line: string): string {
-  return line
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_`]/g, "")
-    .trim();
-}
-
-function parseBulletLine(line: string): string | null {
-  const match = line.match(/^[-*+]\s+(?:\[[ xX]\]\s*)?(.+)$/);
-  return match?.[1] ? sanitizeLine(match[1]) : null;
-}
-
-export function extractCriteria(text: string): string[] {
-  if (!text || typeof text !== "string") return [];
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const headerIdx = lines.findIndex(isSectionHeader);
-  if (headerIdx >= 0) {
-    const sectionLines: string[] = [];
-    for (let i = headerIdx + 1; i < lines.length; i++) {
-      const currentLine = lines[i];
-      if (!currentLine) continue;
-      if (/^#+\s+/.test(currentLine)) break;
-      const bullet = parseBulletLine(currentLine);
-      if (bullet) sectionLines.push(bullet);
-      else if (currentLine.length > 5)
-        sectionLines.push(sanitizeLine(currentLine));
-    }
-    return sectionLines;
-  }
-  return lines.map(parseBulletLine).filter((b): b is string => Boolean(b));
-}
-
-export function stripHtml(html: string): string {
+export function stripHtml(
+  html: string,
+  options?: { convertHeadings?: boolean },
+): string {
   if (!html) return "";
-  return html
+  let text = html;
+  if (options?.convertHeadings) {
+    text = text
+      .replace(/<h[1-6][^>]*>/gi, "\n## ")
+      .replace(/<\/h[1-6]>/gi, "\n");
+  }
+  return text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<li>/gi, "- ")

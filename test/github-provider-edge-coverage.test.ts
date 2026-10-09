@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
+  isGitHubRateLimited,
+  toGitHubUserError,
+} from "../src/providers/github/errors.js";
+import {
   extractFromGitHubUrl,
   resolveRepoCoordinates,
 } from "../src/providers/github/urls.js";
@@ -110,5 +114,84 @@ describe("github verification — edge coverage", () => {
     expect(
       result.warnings.some((w) => w.capability === "listRepositories"),
     ).toBe(true);
+  });
+});
+
+describe("github errors — toGitHubUserError and isGitHubRateLimited", () => {
+  it("detects rate limits via isGitHubRateLimited", () => {
+    expect(isGitHubRateLimited(429)).toBe(true);
+    expect(isGitHubRateLimited(403, new Headers({ "retry-after": "10" }))).toBe(
+      true,
+    );
+    expect(
+      isGitHubRateLimited(403, new Headers({ "x-ratelimit-remaining": "0" })),
+    ).toBe(true);
+    expect(
+      isGitHubRateLimited(403, undefined, "secondary rate limit detected"),
+    ).toBe(true);
+    expect(
+      isGitHubRateLimited(403, undefined, "API rate limit exceeded for user"),
+    ).toBe(true);
+    expect(isGitHubRateLimited(401, new Headers({ "retry-after": "10" }))).toBe(
+      false,
+    );
+    expect(isGitHubRateLimited(404)).toBe(false);
+  });
+
+  it("normalizes status-like objects", () => {
+    const rateLimited = toGitHubUserError(
+      { status: 429, headers: new Headers({ "retry-after": "2" }) },
+      "VERIFY",
+    );
+    expect(rateLimited.code).toBe("RATE_LIMITED");
+    expect(rateLimited.context).toBe("VERIFY");
+    expect(rateLimited.retryAfterMs).toBe(2000);
+
+    const auth = toGitHubUserError({ status: 401 }, "DISCOVERY");
+    expect(auth.code).toBe("AUTH_INVALID");
+
+    const perm = toGitHubUserError({ status: 403 }, "PR");
+    expect(perm.code).toBe("PERMISSION");
+
+    const notFound = toGitHubUserError({ status: 404 }, "TICKETS");
+    expect(notFound.code).toBe("NOT_FOUND");
+
+    const unknown = toGitHubUserError({ status: 500 }, "VERIFY");
+    expect(unknown.code).toBe("UNKNOWN");
+  });
+
+  it("normalizes standard Error objects by inspecting messages", () => {
+    expect(
+      toGitHubUserError(new Error("API rate limit exceeded"), "VERIFY").code,
+    ).toBe("RATE_LIMITED");
+    expect(
+      toGitHubUserError(new Error("Bad credentials provided"), "DISCOVERY")
+        .code,
+    ).toBe("AUTH_INVALID");
+    expect(toGitHubUserError(new Error("Not found: 404"), "TICKETS").code).toBe(
+      "NOT_FOUND",
+    );
+    expect(
+      toGitHubUserError(new Error("Missing permission or scope"), "PR").code,
+    ).toBe("PERMISSION");
+    expect(
+      toGitHubUserError(new Error("Something completely unknown"), "VERIFY")
+        .code,
+    ).toBe("UNKNOWN");
+  });
+
+  it("normalizes non-error primitives to UNKNOWN", () => {
+    expect(toGitHubUserError("unexpected string", "VERIFY")).toEqual({
+      code: "UNKNOWN",
+      context: "VERIFY",
+    });
+    expect(toGitHubUserError(12345, "PR")).toEqual({
+      code: "UNKNOWN",
+      context: "PR",
+    });
+    expect(toGitHubUserError(null, "TICKETS")).toEqual({
+      code: "UNKNOWN",
+      context: "TICKETS",
+    });
   });
 });

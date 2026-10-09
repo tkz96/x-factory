@@ -5,8 +5,8 @@ import type {
   FindPullRequestInput,
   Provider,
   ProviderConfig,
-  ProviderError,
   ProviderErrorContext,
+  ProviderErrorEnvelope,
   ProviderPullRequest,
   ProviderRepository,
   QuickUrlDraft,
@@ -96,7 +96,10 @@ export function createGithubProvider(
       return describeGitHubConnection(config);
     },
 
-    toUserError(error: unknown, context: ProviderErrorContext): ProviderError {
+    toUserError(
+      error: unknown,
+      context: ProviderErrorContext,
+    ): ProviderErrorEnvelope {
       return toGitHubUserError(error, context);
     },
   };
