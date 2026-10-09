@@ -126,7 +126,8 @@ export function buildRalphPrompt(
   return `# Ralph Loop Task Execution Protocol (Matt Pocock TDD Protocol)
 
 ## Ticket: ${renderTicketHeading(ticket)}
-${ticket.description ? `${ticket.description}\n` : ""}### Acceptance Criteria:
+${ticket.description ? `${ticket.description}\n` : ""}
+### Acceptance Criteria:
 ${acList}
 
 ### Verification Commands:
@@ -255,7 +256,8 @@ You have access to read, grep, find, and ls tools. You CANNOT modify code or run
 
 ## Ticket
 ${renderTicketHeading(ticket)}
-${ticket.description ? `Description: ${ticket.description}\n` : ""}### Acceptance Criteria:
+${ticket.description ? `Description: ${ticket.description}\n` : ""}
+### Acceptance Criteria:
 ${criteriaList}
 
 ## Implementation Plan
