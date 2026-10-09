@@ -692,6 +692,30 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
   return { ok: true, message: agentResponse };
 }
 
+/**
+ * Where approving a run moves it, keyed by the gate it is waiting at. Which
+ * statuses may be approved at all is decided by the shared policy
+ * (`canRunAction(status, "approve")`); this table only says what happens next.
+ */
+const APPROVAL_TRANSITIONS: Partial<
+  Record<RunStatus, { to: RunStatus; text: string; nextStage?: string }>
+> = {
+  awaiting_understanding_approval: {
+    to: "planning",
+    text: "Understanding approved, starting planning.",
+    nextStage: "plan",
+  },
+  awaiting_plan_approval: {
+    to: "executing",
+    text: "Plan approved, moving to execution.",
+    nextStage: "execute",
+  },
+  awaiting_review: {
+    to: "ready_for_pr",
+    text: "Review approved, ready for Pull Request.",
+  },
+};
+
 export async function handleTransition(
   id: string,
   action: "approve" | "restart" | "abort" | "requeue",
@@ -715,63 +739,30 @@ export async function handleTransition(
       if (!canRunAction(run.status, "approve")) {
         throw new ConflictError(`Cannot approve in status "${run.status}".`);
       }
-      if (run.status === "awaiting_understanding_approval") {
-        const transitionResult = runRepo.transitionRun(
-          id,
-          run.status,
-          "planning",
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: "planning",
-                text: "Understanding approved, starting planning.",
-              },
-            },
-          },
-          db,
+      const approval = APPROVAL_TRANSITIONS[run.status];
+      if (!approval) {
+        // The shared policy allows approve here but no transition is defined:
+        // an internal inconsistency, not a client conflict.
+        throw new Error(
+          `Approve is allowed in status "${run.status}" but has no transition.`,
         );
-        jobRepo.createJob({ runId: id, stage: "plan" }, db);
-        return transitionResult.run;
       }
-      if (run.status === "awaiting_plan_approval") {
-        const transitionResult = runRepo.transitionRun(
-          id,
-          run.status,
-          "executing",
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: "executing",
-                text: "Plan approved, moving to execution.",
-              },
-            },
+      const transitionResult = runRepo.transitionRun(
+        id,
+        run.status,
+        approval.to,
+        {
+          event: {
+            type: "status",
+            payload: { status: approval.to, text: approval.text },
           },
-          db,
-        );
-        jobRepo.createJob({ runId: id, stage: "execute" }, db);
-        return transitionResult.run;
+        },
+        db,
+      );
+      if (approval.nextStage) {
+        jobRepo.createJob({ runId: id, stage: approval.nextStage }, db);
       }
-      if (run.status === "awaiting_review") {
-        const transitionResult = runRepo.transitionRun(
-          id,
-          run.status,
-          "ready_for_pr",
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: "ready_for_pr",
-                text: "Review approved, ready for Pull Request.",
-              },
-            },
-          },
-          db,
-        );
-        return transitionResult.run;
-      }
-      throw new ConflictError(`Cannot approve in status "${run.status}".`);
+      return transitionResult.run;
     }
 
     if (action === "restart") {

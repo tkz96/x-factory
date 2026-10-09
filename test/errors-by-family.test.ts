@@ -1,21 +1,19 @@
 // test/errors-by-family.test.ts — Domain errors map to HTTP by family (#168).
 //
-// The HTTP API seam: `handleApi` over an in-memory SQLite database for the
-// reachable action guards, and the `catchHttpErrors` wrapper that every
-// controller runs its action through, fed the real repository errors whose
-// races (stale revision, illegal transition) cannot be interleaved
-// deterministically inside a single-threaded request transaction.
+// The HTTP API seam: `handleApi` over an in-memory SQLite database. The two
+// repository races (stale revision, illegal transition) are forced with TEMP
+// triggers so the real errors are raised inside the request. `catchHttpErrors`
+// is used directly only to show a NotFound family member with its own class
+// name still maps to 404.
 
 import type { Database } from "bun:sqlite";
 import { afterAll, describe, expect, it } from "bun:test";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import {
-  IllegalStateTransitionError,
   RunNotFoundError,
   type RunRecord,
   RunRepository,
-  StaleRevisionError,
 } from "../src/db/run-repository.js";
 import { catchHttpErrors } from "../src/http/responses.js";
 import { handleApi } from "../src/http/routes.js";
@@ -78,6 +76,11 @@ function transitionRequest(runId: string, action: string): Promise<Response> {
   return postJson(`/api/runs/${runId}/transitions`, { action });
 }
 
+const STALE_REVISION_MESSAGE =
+  'Conflict: Run "run-stale" revision 2 does not match expected revision 1.';
+const ILLEGAL_TRANSITION_MESSAGE =
+  "Illegal run state transition from 'failed' to 'planning'.";
+
 describe("Domain errors map to HTTP by family (#168)", () => {
   it("a missing run returns 404 through the HTTP API", async () => {
     setupTestDb();
@@ -98,24 +101,37 @@ describe("Domain errors map to HTTP by family (#168)", () => {
     });
   });
 
-  it("a stale revision returns 409 with the repository's conflict message", async () => {
-    const res = await catchHttpErrors(async () => {
-      throw new StaleRevisionError("run-stale", 3, 5);
-    });
+  // The two races below are made deterministic with SQLite TEMP triggers on the
+  // in-memory database, so the request goes through handleApi → handleTransition
+  // → transitionRun and the real repository error is raised mid-request.
+
+  it("a stale revision returns 409 through the HTTP API", async () => {
+    const runRepo = setupTestDb();
+    createRunAtStatus(runRepo, "run-stale", "awaiting_plan_approval");
+    // Swallow the status write, so transitionRun's compare-and-swap matches no
+    // row and reports the revision it found instead.
+    db?.run(
+      "CREATE TEMP TRIGGER stale_revision BEFORE UPDATE OF status ON runs BEGIN SELECT RAISE(IGNORE); END",
+    );
+    const res = await transitionRequest("run-stale", "approve");
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
-      error:
-        'Conflict: Run "run-stale" revision 5 does not match expected revision 3.',
+      error: STALE_REVISION_MESSAGE,
     });
   });
 
-  it("an illegal state transition returns 409 with the repository's conflict message", async () => {
-    const res = await catchHttpErrors(async () => {
-      throw new IllegalStateTransitionError("pr_created", "queued");
-    });
+  it("an illegal state transition returns 409 through the HTTP API", async () => {
+    const runRepo = setupTestDb();
+    createRunAtStatus(runRepo, "run-illegal", "awaiting_review");
+    // Requeue first rewrites the plan; flip the run to failed at that moment, so
+    // the following transition to planning is illegal from the status it finds.
+    db?.run(
+      "CREATE TEMP TRIGGER illegal_transition AFTER UPDATE OF plan ON runs BEGIN UPDATE runs SET status = 'failed' WHERE id = NEW.id; END",
+    );
+    const res = await transitionRequest("run-illegal", "requeue");
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
-      error: "Illegal run state transition from 'pr_created' to 'queued'.",
+      error: ILLEGAL_TRANSITION_MESSAGE,
     });
   });
 

@@ -44,10 +44,9 @@ export class HttpError extends Error {
 function inErrorFamily(
   err: unknown,
   family: abstract new (...args: never[]) => Error,
-  familyName: string,
 ): boolean {
   if (err instanceof family) return true;
-  return err instanceof Error && err.name === familyName;
+  return err instanceof Error && err.name === family.name;
 }
 
 /**
@@ -64,6 +63,19 @@ function errorCodeOf(err: unknown, fallback?: string): string | undefined {
     typeof (err as { code: unknown }).code === "string"
   ) {
     return (err as { code: string }).code;
+  }
+  return fallback;
+}
+
+/** The HTTP status a domain error carries, or `fallback`. Read defensively, like `errorCodeOf`. */
+function errorStatusOf(err: unknown, fallback: number): number {
+  if (
+    err &&
+    typeof err === "object" &&
+    "status" in err &&
+    typeof (err as { status: unknown }).status === "number"
+  ) {
+    return (err as { status: number }).status;
   }
   return fallback;
 }
@@ -110,32 +122,25 @@ export function translateDomainErrorToHttpResponse(
 ): Response | null {
   const message = err instanceof Error ? err.message : "";
 
-  if (inErrorFamily(err, NotFoundError, "NotFoundError")) {
+  if (inErrorFamily(err, NotFoundError)) {
     return errorResponse(message, 404);
   }
-  if (inErrorFamily(err, ValidationError, "ValidationError")) {
+  if (inErrorFamily(err, ValidationError)) {
     const code = errorCodeOf(err);
     return jsonResponse(
       code ? { error: message, code } : { error: message },
       400,
     );
   }
-  if (inErrorFamily(err, ConflictError, "ConflictError")) {
+  if (inErrorFamily(err, ConflictError)) {
     return errorResponse(message, 409);
   }
-  if (inErrorFamily(err, SemanticValidationError, "SemanticValidationError")) {
+  if (inErrorFamily(err, SemanticValidationError)) {
     return jsonResponse(semanticErrorEnvelope(err), 409);
   }
-  if (inErrorFamily(err, GitConfigError, "GitConfigError")) {
+  if (inErrorFamily(err, GitConfigError)) {
     const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
-    const status =
-      err &&
-      typeof err === "object" &&
-      "status" in err &&
-      typeof (err as { status: unknown }).status === "number"
-        ? (err as { status: number }).status
-        : 500;
-    return jsonResponse({ error: message, code }, status);
+    return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
   }
   if (err instanceof HttpError) {
     return jsonResponse(
