@@ -434,7 +434,8 @@ export class JobRepository {
   }
 
   /**
-   * Re-queues a claimed job back to 'pending' (e.g. on recovery from a dead worker) (XFM-36).
+   * Re-queues a claimed job whose lease has expired back to 'pending' (recovery from a dead
+   * worker, XFM-36). A job renewed in the meantime is left alone and false is returned.
    */
   requeueJob(
     jobId: string,
@@ -458,7 +459,8 @@ export class JobRepository {
   /**
    * Fails a claimed job whose lease expired with its retry budget spent. Unlike
    * `failJob`, the caller does not hold the lease, so no worker check applies.
-   * Returns false when the job is no longer claimed.
+   * Only an expired lease can be failed: a job renewed since the caller read it
+   * is left alone. Returns false when nothing changed.
    */
   failExhaustedJob(
     jobId: string,
@@ -475,7 +477,7 @@ export class JobRepository {
             lease_until = NULL,
             error = $error,
             updated_at = $now
-        WHERE id = $jobId AND status = 'claimed'
+        WHERE id = $jobId AND status = 'claimed' AND lease_until < $now
         RETURNING id;
       `)
       .get({ $jobId: jobId, $error: error, $now: now });

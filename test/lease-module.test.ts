@@ -334,14 +334,21 @@ describe("Lease module (#180)", () => {
       currentTime += 35_000;
 
       blockRunTransitions(db);
-      const worker = new Worker({ db, workerId: "live-worker", clock });
-      let thrown: unknown = null;
-      try {
-        await worker.stepOnce();
-      } catch (err) {
-        thrown = err;
-      }
-      expect(String(thrown)).toContain("run update blocked");
+      const logs: Array<{ result: string; error?: string | undefined }> = [];
+      const worker = new Worker({
+        db,
+        workerId: "live-worker",
+        clock,
+        onLog: (entry) => logs.push(entry),
+      });
+      // The failure is isolated and logged; it does not abort the claim sweep.
+      await worker.stepOnce();
+      expect(
+        logs.some(
+          (l) =>
+            l.result === "error" && l.error?.includes("run update blocked"),
+        ),
+      ).toBe(true);
       expect(repos.jobs.getJob(job.id)?.status).toBe("claimed");
       expect(repos.stageAttempts.getLatestAttempt(runId, "execute")?.id).toBe(
         attempt.id,
@@ -374,13 +381,8 @@ describe("Lease module (#180)", () => {
         workerId: "startup",
         clock: { now: () => now },
       });
-      let thrown: unknown = null;
-      try {
-        await worker.recoverOnStartup();
-      } catch (err) {
-        thrown = err;
-      }
-      expect(String(thrown)).toContain("run update blocked");
+      const first = await worker.recoverOnStartup();
+      expect(first).toEqual({ recoveredJobs: 0, recoveryRequiredRuns: 0 });
       expect(repos.jobs.getJob(job.id)?.status).toBe("claimed");
       expect(repos.runs.get(runId)?.status).toBe("executing");
 
@@ -404,21 +406,148 @@ describe("Lease module (#180)", () => {
       expect(count("Job attempts (")).toHaveLength(1);
     });
 
-    it("the lease TTL and heartbeat TTL literals exist only in src/lease.ts", async () => {
+    it("no lease or heartbeat duration is spelled outside src/lease.ts", async () => {
       const { Glob } = await import("bun");
       const { readFileSync } = await import("node:fs");
-      // Everything that claims, renews, expires or measures liveness.
-      const files = [
-        ...new Glob("src/db/**/*.ts").scanSync("."),
-        ...new Glob("src/diagnostics/**/*.ts").scanSync("."),
+      // Evaluates `30000`, `30_000`, `30 * 1000`, `5 * 60 * 1000` and so on.
+      const products = (line: string): number[] =>
+        Array.from(line.matchAll(/\b\d[\d_]*(?:\s*\*\s*\d[\d_]*)*/g), (m) =>
+          m[0]
+            .split("*")
+            .map((n) => Number(n.replaceAll("_", "").trim()))
+            .reduce((a, b) => a * b, 1),
+        );
+      const policyValues = new Set([10_000, 30_000, 60_000, 100_000, 300_000]);
+      const leaseFiles = new Set([
         "src/worker.ts",
         "src/server.ts",
         "src/http/diagnostics-controller.ts",
-      ];
-      const offenders = files.filter((f) =>
-        /\b(30_?000|300_?000|10_?000|100_?000)\b/.test(readFileSync(f, "utf8")),
+        ...new Glob("src/db/**/*.ts").scanSync("."),
+        ...new Glob("src/diagnostics/**/*.ts").scanSync("."),
+      ]);
+      // A TTL of something else (project-creation claims) is not a lease.
+      const unrelated = new Set(["src/services/creation-claim.ts"]);
+      const offenders: string[] = [];
+      const all = [...new Glob("src/**/*.{ts,tsx}").scanSync(".")].filter(
+        (f) => f !== "src/lease.ts" && !unrelated.has(f),
       );
+      for (const f of all) {
+        readFileSync(f, "utf8")
+          .split("\n")
+          .forEach((line, i) => {
+            const code = line.replace(/\/\/.*$/, "");
+            const values = products(code);
+            const leaseWords = /lease|heartbeat|ttl/i.test(code);
+            if (
+              (leaseFiles.has(f) && values.some((v) => policyValues.has(v))) ||
+              (leaseWords && values.some((v) => v >= 1000))
+            ) {
+              offenders.push(`${f}:${i + 1}: ${line.trim()}`);
+            }
+          });
+      }
       expect(offenders).toEqual([]);
+    });
+
+    it("a lease renewed between the stale read and the exhaust is left alone", async () => {
+      const { LeaseManager } = await import("../src/lease.js");
+      const { db, repos } = setupTest();
+      const runId = "run-renewed-race";
+      createExecutingRun(repos, runId);
+      const now = Date.parse("2020-01-01T00:00:00.000Z");
+      const { job } = seedExhaustedClaim(db, repos, runId, now - 5_000);
+
+      // Another worker renews the lease right after this one read the stale list.
+      const realFind = repos.jobs.findStaleClaimedJobs.bind(repos.jobs);
+      repos.jobs.findStaleClaimedJobs = (...args) => {
+        const found = realFind(...args);
+        db.prepare("UPDATE jobs SET lease_until = $l WHERE id = $id").run({
+          $l: new Date(now + 30_000).toISOString(),
+          $id: job.id,
+        });
+        return found;
+      };
+      const lease = new LeaseManager(repos, { clock: { now: () => now } });
+      const result = lease.recoverStaleJobs();
+
+      expect(result).toEqual({
+        expiredCount: 0,
+        recoveryRequiredCount: 0,
+        recoveredCount: 0,
+      });
+      expect(repos.jobs.getJob(job.id)?.status).toBe("claimed");
+      expect(repos.runs.get(runId)?.status).toBe("executing");
+      expect(
+        repos.stageAttempts.getLatestAttempt(runId, "execute")?.status,
+      ).toBe("running");
+    });
+
+    it("one job whose run transition keeps failing does not stop another job being claimed", async () => {
+      const { db, repos } = setupTest();
+      const t = Date.parse("2020-01-01T00:00:00.000Z");
+      const clock = { now: () => t + 60_000 };
+      createExecutingRun(repos, "run-poison");
+      createExecutingRun(repos, "run-good");
+      const { job: poisoned } = seedExhaustedClaim(db, repos, "run-poison", t);
+      const good = repos.jobs.createJob({
+        runId: "run-good",
+        stage: "execute",
+        availableAt: new Date(t).toISOString(),
+      });
+      db.exec(`
+        CREATE TRIGGER poison_run BEFORE UPDATE ON runs WHEN OLD.id = 'run-poison'
+        BEGIN SELECT RAISE(ABORT, 'poisoned run'); END;
+      `);
+      const logs: Array<{ result: string; job_id?: string | undefined }> = [];
+      const worker = new Worker({
+        db,
+        workerId: "w",
+        clock,
+        onLog: (e) => logs.push(e),
+        getStageExecutor: () => ({
+          stage: "execute",
+          execute: async () => ({ outcome: "passed", output: {} }),
+        }),
+      });
+      const stepped = await worker.stepOnce();
+      expect(stepped?.id).toBe(good.id);
+      expect(repos.jobs.getJob(poisoned.id)?.status).toBe("claimed");
+      expect(
+        logs.filter((l) => l.result === "error" && l.job_id === poisoned.id),
+      ).toHaveLength(1);
+    });
+
+    it("startup recovery fails, without touching the run, a stale job whose run is terminal", async () => {
+      const { db, repos } = setupTest();
+      const t = Date.parse("2020-01-01T00:00:00.000Z");
+      const run = createExecutingRun(repos, "run-terminal");
+      repos.runs.transitionRun(run.id, "executing", "failed");
+      const before = repos.runs.get("run-terminal");
+      const job = repos.jobs.createJob({
+        runId: "run-terminal",
+        stage: "execute",
+        availableAt: new Date(t).toISOString(),
+      });
+      db.prepare(
+        "UPDATE jobs SET status='claimed', worker_id='dead', lease_until=$l, attempts=1 WHERE id=$id",
+      ).run({ $l: new Date(t - 1_000).toISOString(), $id: job.id });
+      const attempt = repos.stageAttempts.recordStart(
+        "run-terminal",
+        "execute",
+        1,
+      );
+
+      const worker = new Worker({ db, workerId: "w", clock: { now: () => t } });
+      const recovery = await worker.recoverOnStartup();
+
+      expect(recovery).toEqual({ recoveredJobs: 0, recoveryRequiredRuns: 0 });
+      expect(repos.jobs.getJob(job.id)?.status).toBe("failed");
+      expect(repos.runs.get("run-terminal")).toEqual(before);
+      expect(
+        repos.stageAttempts
+          .listForRun("run-terminal")
+          .find((a) => a.id === attempt.id)?.status,
+      ).toBe("failed");
     });
 
     it("changing only the policy changes liveness and expiry decisions", async () => {

@@ -34,7 +34,7 @@ import {
   type Clock,
   LeaseManager,
   type LeasePolicy,
-  type StructuredLogEntry,
+  type WorkerLogRecord,
 } from "./lease.js";
 import { finalizeDeliver } from "./services/deliver-service.js";
 import {
@@ -48,7 +48,7 @@ import {
   REJECTED_RUN_STATUS,
 } from "./workflow.js";
 
-export type WorkerLogEntry = StructuredLogEntry;
+export type WorkerLogEntry = WorkerLogRecord;
 
 export interface WorkerOptions {
   workerId?: string | undefined;
@@ -532,7 +532,9 @@ export class Worker {
       attempts: 1,
       maxAttempts: 3,
       availableAt: new Date().toISOString(),
-      leaseUntil: new Date(Date.now() + 60000).toISOString(),
+      leaseUntil: new Date(
+        this.leaseManager.nowMs() + this.policy.commandLeaseTtlMs,
+      ).toISOString(),
       lastHeartbeatAt: new Date().toISOString(),
       error: null,
       createdAt: new Date().toISOString(),

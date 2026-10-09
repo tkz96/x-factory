@@ -7,7 +7,10 @@ import type { Repositories } from "./composition-root.js";
 import type { CommandRecord } from "./db/command-repository.js";
 import type { JobRecord } from "./db/job-repository.js";
 import type { WorkerHeartbeatRecord } from "./db/worker-heartbeat-repository.js";
-import { canTransition } from "./shared/run-status-policy.js";
+import {
+  canTransition,
+  EXECUTABLE_RUN_STATUSES,
+} from "./shared/run-status-policy.js";
 
 export interface LeasePolicy {
   readonly jobLeaseTtlMs: number;
@@ -30,7 +33,7 @@ export interface Clock {
 }
 
 /** One structured log entry shape, shared by the lease module and the worker. */
-export interface StructuredLogEntry {
+export interface WorkerLogRecord {
   timestamp: string;
   worker_id: string;
   job_id?: string | undefined;
@@ -56,9 +59,19 @@ export interface StructuredLogEntry {
 
 /** What the lease module reports: the worker adds the timestamp and its id. */
 export type LeaseStructuredLogEntry = Omit<
-  StructuredLogEntry,
+  WorkerLogRecord,
   "timestamp" | "worker_id"
 >;
+
+type StaleOutcome =
+  | "exhausted"
+  | "requeued"
+  | "abandoned"
+  | "expired"
+  | "skipped";
+
+const EXHAUSTED = "Maximum retry attempts exhausted across worker lifetimes.";
+const ABANDONED = "Run no longer allows this job; job abandoned.";
 
 /** The one reason recorded on a stage attempt closed because its lease expired. */
 const LEASE_EXPIRED_REASON =
@@ -180,93 +193,143 @@ export class LeaseManager {
   }
 
   private sweepStaleJobs(requeue: boolean): RecoverJobsResult {
-    let expiredCount = 0;
-    let recoveryRequiredCount = 0;
-    let recoveredCount = 0;
+    const result: RecoverJobsResult = {
+      expiredCount: 0,
+      recoveryRequiredCount: 0,
+      recoveredCount: 0,
+    };
     const now = this.nowIso();
 
     for (const job of this.repos.jobs.findStaleClaimedJobs(now)) {
-      expiredCount++;
-      if (job.attempts >= job.maxAttempts) {
-        if (this.exhaustJob(job)) {
-          recoveryRequiredCount++;
-          continue;
-        }
-      }
-      // The expired lease closes the attempt even when the job cannot be exhausted.
-      this.closeRunningStageAttempt(job.runId, job.stage, now);
-      if (job.attempts >= job.maxAttempts) continue;
-      if (requeue && this.repos.jobs.requeueJob(job.id, undefined, now)) {
-        recoveredCount++;
+      let outcome: StaleOutcome;
+      try {
+        outcome = this.settleStaleJob(job, requeue, now);
+      } catch (err) {
+        // One job that cannot be settled must not stop the sweep or the claim
+        // that follows it. Its transaction rolled back, so it is retried later.
         this.emitLog({
-          result: "recovered",
+          result: "error",
           run_id: job.runId,
           job_id: job.id,
           stage: job.stage,
           attempt: job.attempts,
-          message: `Recovered stale claimed job ${job.id} for run ${job.runId} (stage: ${job.stage}). Re-queued for execution.`,
+          message: `Could not settle stale job ${job.id} for run ${job.runId}.`,
+          error: err instanceof Error ? err.message : String(err),
         });
+        continue;
       }
+      if (outcome === "skipped") continue;
+      result.expiredCount++;
+      if (outcome === "exhausted") result.recoveryRequiredCount++;
+      if (outcome === "requeued") result.recoveredCount++;
+      this.logStaleOutcome(job, outcome);
     }
 
-    return { expiredCount, recoveryRequiredCount, recoveredCount };
+    return result;
   }
 
   /**
-   * Moves a job with exhausted attempts to failed and the parent run to
-   * recovery_required. The job failure, the stage-attempt close and the run
-   * transition are one transaction: if any of them throws, none is kept.
-   * Returns false, having changed nothing, when the run is missing or cannot
-   * move to recovery_required, or when the job is no longer claimed.
+   * Settles one stale claimed job in a single transaction, so a failure leaves
+   * nothing half done. The job is re-read under the write lock: a lease
+   * renewed since the sweep read it is left alone ("skipped").
+   *
+   * - spent retry budget: job failed, run to recovery_required;
+   * - attempts left (startup recovery): job requeued;
+   * - run missing or no longer in a state that allows either: job failed and
+   *   the run untouched ("abandoned");
+   * - otherwise (claim sweep): only the stage attempt is closed.
    */
-  exhaustJob(job: JobRecord): boolean {
-    const now = this.nowIso();
+  private settleStaleJob(
+    job: JobRecord,
+    requeue: boolean,
+    now: string,
+  ): StaleOutcome {
     const conn = this.repos.db;
+    return conn
+      .transaction((): StaleOutcome => {
+        const fresh = this.repos.jobs.getJob(job.id, conn);
+        if (
+          !fresh ||
+          fresh.status !== "claimed" ||
+          !fresh.leaseUntil ||
+          fresh.leaseUntil >= now
+        ) {
+          return "skipped";
+        }
+        const run = this.repos.runs.get(fresh.runId);
+        const exhausted = fresh.attempts >= fresh.maxAttempts;
 
-    const run = this.repos.runs.get(job.runId);
-    if (!run || !canTransition(run.status, "recovery_required")) return false;
+        const abandon = (): StaleOutcome => {
+          if (!this.repos.jobs.failExhaustedJob(fresh.id, ABANDONED, conn, now))
+            return "skipped";
+          this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
+          return "abandoned";
+        };
 
-    const exhausted = conn.transaction(() => {
-      const failed = this.repos.jobs.failExhaustedJob(
-        job.id,
-        "Maximum retry attempts exhausted across worker lifetimes.",
-        conn,
-        now,
-      );
-      if (!failed) return false;
-
-      this.closeRunningStageAttempt(job.runId, job.stage, now);
-      this.repos.runs.transitionRun(
-        run.id,
-        run.status,
-        "recovery_required",
-        {
-          expectedRevision: run.revision,
-          now,
-          event: {
-            type: "status",
-            payload: {
-              status: "recovery_required",
-              reason: `Job attempts (${job.attempts}/${job.maxAttempts}) exhausted for stage ${job.stage}.`,
+        if (exhausted) {
+          if (!run || !canTransition(run.status, "recovery_required"))
+            return abandon();
+          if (!this.repos.jobs.failExhaustedJob(fresh.id, EXHAUSTED, conn, now))
+            return "skipped";
+          this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
+          this.repos.runs.transitionRun(
+            run.id,
+            run.status,
+            "recovery_required",
+            {
+              expectedRevision: run.revision,
+              now,
+              event: {
+                type: "status",
+                payload: {
+                  status: "recovery_required",
+                  reason: `Job attempts (${fresh.attempts}/${fresh.maxAttempts}) exhausted for stage ${fresh.stage}.`,
+                },
+              },
             },
-          },
-        },
-        conn,
-      );
-      return true;
-    })();
+            conn,
+          );
+          return "exhausted";
+        }
 
-    if (exhausted) {
+        if (!requeue) {
+          this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
+          return "expired";
+        }
+        if (!run || !EXECUTABLE_RUN_STATUSES.has(run.status)) return abandon();
+        if (!this.repos.jobs.requeueJob(fresh.id, conn, now)) return "skipped";
+        this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
+        return "requeued";
+      })
+      .immediate();
+  }
+
+  private logStaleOutcome(job: JobRecord, outcome: StaleOutcome): void {
+    const base = {
+      run_id: job.runId,
+      job_id: job.id,
+      stage: job.stage,
+      attempt: job.attempts,
+    };
+    if (outcome === "exhausted") {
       this.emitLog({
+        ...base,
         result: "recovery_required",
-        run_id: run.id,
-        job_id: job.id,
-        stage: job.stage,
-        attempt: job.attempts,
-        message: `Job ${job.id} for run ${run.id} exhausted maximum attempts (${job.attempts}/${job.maxAttempts}). Transitioned run to recovery_required.`,
+        message: `Job ${job.id} for run ${job.runId} exhausted maximum attempts (${job.attempts}/${job.maxAttempts}). Transitioned run to recovery_required.`,
+      });
+    } else if (outcome === "requeued") {
+      this.emitLog({
+        ...base,
+        result: "recovered",
+        message: `Recovered stale claimed job ${job.id} for run ${job.runId} (stage: ${job.stage}). Re-queued for execution.`,
+      });
+    } else if (outcome === "abandoned") {
+      this.emitLog({
+        ...base,
+        result: "failure",
+        message: `Stale job ${job.id} failed: run ${job.runId} no longer allows it. The run was left untouched.`,
       });
     }
-    return exhausted;
   }
 
   /**

@@ -5,6 +5,7 @@
 
 import os from "node:os";
 import type { WorkerHeartbeatRepository } from "../db/worker-heartbeat-repository.js";
+import type { LeaseManager } from "../lease.js";
 
 /**
  * Registers or updates a worker's heartbeat timestamp in SQLite.
@@ -38,23 +39,18 @@ export function unregisterWorker(
 }
 
 /**
- * Returns a list of all currently active workers whose heartbeat is within ttlMs.
+ * Returns a list of all currently active workers, by the lease module's policy and clock.
  */
 export function getActiveWorkers(
-  heartbeats: WorkerHeartbeatRepository,
-  ttlMs: number,
+  lease: LeaseManager,
 ): Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }> {
   try {
-    const now = Date.now();
-    const records = heartbeats.getActiveWorkers(ttlMs);
-    return records.map((r) => {
-      const ageMs = Math.max(0, now - new Date(r.lastHeartbeat).getTime());
-      return {
-        workerId: r.workerId,
-        lastHeartbeatAt: r.lastHeartbeat,
-        ageMs,
-      };
-    });
+    const now = lease.nowMs();
+    return lease.activeWorkers().map((r) => ({
+      workerId: r.workerId,
+      lastHeartbeatAt: r.lastHeartbeat,
+      ageMs: Math.max(0, now - new Date(r.lastHeartbeat).getTime()),
+    }));
   } catch {
     return [];
   }
@@ -63,9 +59,6 @@ export function getActiveWorkers(
 /**
  * Evaluates whether at least one worker is active and healthy via SQLite.
  */
-export function isWorkerReady(
-  heartbeats: WorkerHeartbeatRepository,
-  ttlMs: number,
-): boolean {
-  return heartbeats.isReady(ttlMs);
+export function isWorkerReady(lease: LeaseManager): boolean {
+  return lease.isReady();
 }
