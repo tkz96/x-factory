@@ -1,8 +1,8 @@
 // src/settings.ts — Local configuration engine for models and theme using YAGNI & DRY.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { getSettingsPath } from "./paths.js";
 
 interface ModelStageConfig {
   provider?: string | undefined;
@@ -29,13 +29,6 @@ const DEFAULT_SETTINGS: FactorySettings = {
   },
 };
 
-function getSettingsFilePath(): string {
-  return (
-    process.env.XF_SETTINGS_PATH ||
-    path.join(os.homedir(), ".x-factory", "settings.json")
-  );
-}
-
 export function maskSecret(val?: string): string {
   if (!val || typeof val !== "string") return "";
   const trimmed = val.trim();
@@ -58,7 +51,7 @@ export function maskSettings(settings: FactorySettings): FactorySettings {
  * Load settings from disk. Returns default settings if missing.
  */
 export async function loadSettings(masked = false): Promise<FactorySettings> {
-  const filePath = getSettingsFilePath();
+  const filePath = getSettingsPath();
   let current: FactorySettings = { ...DEFAULT_SETTINGS };
 
   try {
@@ -91,7 +84,7 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
 export async function saveSettings(
   patch: Partial<FactorySettings>,
 ): Promise<FactorySettings> {
-  const filePath = getSettingsFilePath();
+  const filePath = getSettingsPath();
   const existing = await loadSettings(false);
 
   const updated: FactorySettings = {

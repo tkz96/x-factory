@@ -1,8 +1,8 @@
 // test/settings.test.ts — Unit tests for global settings (theme, models) and secret masking.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readFile, stat, unlink } from "node:fs/promises";
-import os from "node:os";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   isMasked,
@@ -11,11 +11,6 @@ import {
   maskSettings,
   saveSettings,
 } from "../src/settings.js";
-
-const TEST_SETTINGS_PATH = path.join(
-  os.tmpdir(),
-  `xf-test-settings-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
-);
 
 describe("Settings Secret Masking", () => {
   test("maskSecret masks tokens properly", () => {
@@ -45,17 +40,21 @@ describe("Settings Secret Masking", () => {
 });
 
 describe("Settings Storage & Persistence", () => {
-  beforeEach(() => {
-    process.env.XF_SETTINGS_PATH = TEST_SETTINGS_PATH;
+  let previousDataDir: string | undefined;
+  let dataDir: string;
+  let TEST_SETTINGS_PATH: string;
+
+  beforeEach(async () => {
+    previousDataDir = process.env.X_FACTORY_DATA_DIR;
+    dataDir = await mkdtemp(path.join(tmpdir(), "xf-test-settings-"));
+    process.env.X_FACTORY_DATA_DIR = dataDir;
+    TEST_SETTINGS_PATH = path.join(dataDir, "settings.json");
   });
 
   afterEach(async () => {
-    try {
-      await unlink(TEST_SETTINGS_PATH);
-    } catch {
-      // Ignore if file doesn't exist
-    }
-    delete process.env.XF_SETTINGS_PATH;
+    if (previousDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
+    else process.env.X_FACTORY_DATA_DIR = previousDataDir;
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("loadSettings returns defaults when file does not exist", async () => {
