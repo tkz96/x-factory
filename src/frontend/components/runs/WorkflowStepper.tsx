@@ -108,9 +108,8 @@ export function WorkflowStepper({
     if (!events) return null;
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
-      if (e && e.type === "ralph_progress") {
-        const payload = e.payload as { iteration?: number } | null | undefined;
-        if (payload?.iteration) return payload.iteration;
+      if (e?.type === "ralph_progress" && e.payload.iteration) {
+        return e.payload.iteration;
       }
     }
     return null;

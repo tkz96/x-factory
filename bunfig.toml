@@ -19,7 +19,7 @@ coveragePathIgnorePatterns = [
   "src/frontend/context/ModalContext.tsx",
   "src/frontend/context/ProjectContext.tsx",
   "src/frontend/hooks/useQueries.ts",
-  "src/frontend/hooks/useRunSSE.ts",
+  "src/frontend/hooks/useRunDetail.ts",
   "src/frontend/lib/api-client.ts",
   "src/frontend/components/AppShell.tsx",
   "src/frontend/components/diagrams/CustomNodes.tsx",

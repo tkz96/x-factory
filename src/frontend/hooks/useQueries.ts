@@ -56,7 +56,14 @@ export function useRuns() {
   });
 }
 
-export function useRun(runId: string | null | undefined) {
+export function useRun(
+  runId: string | null | undefined,
+  options?: {
+    refetchInterval?: (query: {
+      state: { data: Run | undefined };
+    }) => number | false;
+  },
+) {
   return useQuery<Run>({
     queryKey: queryKeys.run(runId ?? ""),
     queryFn: () => {
@@ -65,6 +72,9 @@ export function useRun(runId: string | null | undefined) {
     },
     enabled: Boolean(runId),
     ...QUERY_POLICIES.run,
+    ...(options?.refetchInterval
+      ? { refetchInterval: options.refetchInterval }
+      : {}),
   });
 }
 
