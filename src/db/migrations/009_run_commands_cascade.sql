@@ -5,6 +5,7 @@
 -- UNIQUE(idempotency_key) constraint and all rows are preserved.
 -- The migrator runs this inside a transaction, so foreign_keys cannot be toggled here.
 -- Dropping run_commands is safe because no other table references it.
+-- Orphan rows (run_id with no matching run) are not copied; see the WHERE clause below.
 
 CREATE TABLE run_commands_new (
   id                TEXT PRIMARY KEY,
@@ -32,7 +33,10 @@ INSERT INTO run_commands_new (
 SELECT
   id, run_id, command, payload, idempotency_key, target_worker_id, status,
   worker_id, lease_until, attempts, max_attempts, error, result, created_at, processed_at
-FROM run_commands;
+FROM run_commands
+-- Rows whose run is gone are orphans. The new cascade would delete them anyway, and
+-- copying them would fail on the new foreign key and abort the whole migration.
+WHERE run_id IN (SELECT id FROM runs);
 
 DROP TABLE run_commands;
 

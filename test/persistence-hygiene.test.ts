@@ -165,3 +165,167 @@ describe("migration 009: run_commands.run_id ON DELETE CASCADE (#188)", () => {
     db.close();
   });
 });
+
+describe("migration 009 with orphan run_commands rows (#188 follow-up)", () => {
+  it("keeps every valid row with all its values and drops only the orphan", () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(
+      db,
+      loadMigrations().filter((m) => m.version <= 8),
+    );
+
+    const runs = new RunRepository(db);
+    seedRun(runs, "run-a", "executing");
+    seedRun(runs, "run-b", "stopped");
+
+    const insert = db.prepare(
+      `INSERT INTO run_commands (id, run_id, command, payload, idempotency_key,
+        target_worker_id, status, worker_id, lease_until, attempts, max_attempts,
+        error, result, created_at, processed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    );
+    insert.run(
+      "cmd-1",
+      "run-a",
+      "stop",
+      '{"reason":"user"}',
+      "idem-1",
+      "w-1",
+      "completed",
+      "w-1",
+      "2026-10-01T00:05:00.000Z",
+      2,
+      5,
+      "boom",
+      '{"ok":true}',
+      "2026-10-01T00:00:00.000Z",
+      "2026-10-01T00:06:00.000Z",
+    );
+    insert.run(
+      "cmd-2",
+      "run-a",
+      "deliver",
+      null,
+      null,
+      null,
+      "pending",
+      null,
+      null,
+      0,
+      3,
+      null,
+      null,
+      "2026-10-01T00:00:01.000Z",
+      null,
+    );
+    insert.run(
+      "cmd-3",
+      "run-b",
+      "stop",
+      null,
+      "idem-3",
+      null,
+      "claimed",
+      "w-2",
+      "2026-10-01T00:09:00.000Z",
+      1,
+      3,
+      null,
+      null,
+      "2026-10-01T00:00:02.000Z",
+      null,
+    );
+    // Orphan: run_id points at a run that does not exist. Foreign keys are off only to seed it.
+    db.exec("PRAGMA foreign_keys = OFF;");
+    insert.run(
+      "cmd-orphan",
+      "run-missing",
+      "deliver",
+      null,
+      null,
+      null,
+      "pending",
+      null,
+      null,
+      0,
+      3,
+      null,
+      null,
+      "2026-10-01T00:00:03.000Z",
+      null,
+    );
+    db.exec("PRAGMA foreign_keys = ON;");
+
+    runMigrations(db);
+    expect(getSchemaVersion(db)).toBe(9);
+
+    const rows = db
+      .query("SELECT * FROM run_commands ORDER BY id;")
+      .all() as Array<Record<string, unknown>>;
+    expect(rows.map((r) => r.id)).toEqual(["cmd-1", "cmd-2", "cmd-3"]);
+    expect(rows[0]).toEqual({
+      id: "cmd-1",
+      run_id: "run-a",
+      command: "stop",
+      payload: '{"reason":"user"}',
+      idempotency_key: "idem-1",
+      target_worker_id: "w-1",
+      status: "completed",
+      worker_id: "w-1",
+      lease_until: "2026-10-01T00:05:00.000Z",
+      attempts: 2,
+      max_attempts: 5,
+      error: "boom",
+      result: '{"ok":true}',
+      created_at: "2026-10-01T00:00:00.000Z",
+      processed_at: "2026-10-01T00:06:00.000Z",
+    });
+    expect(rows[2]).toEqual({
+      id: "cmd-3",
+      run_id: "run-b",
+      command: "stop",
+      payload: null,
+      idempotency_key: "idem-3",
+      target_worker_id: null,
+      status: "claimed",
+      worker_id: "w-2",
+      lease_until: "2026-10-01T00:09:00.000Z",
+      attempts: 1,
+      max_attempts: 3,
+      error: null,
+      result: null,
+      created_at: "2026-10-01T00:00:02.000Z",
+      processed_at: null,
+    });
+    db.close();
+  });
+
+  it("keeps the partial pending index and the column defaults", () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+
+    const indexSql = (
+      db
+        .query(
+          "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_run_commands_pending';",
+        )
+        .get() as { sql: string }
+    ).sql;
+    expect(indexSql).toContain("ON run_commands(status, created_at)");
+    expect(indexSql).toMatch(/WHERE status = 'pending'$/);
+
+    const defaults = (
+      db.query("PRAGMA table_info(run_commands);").all() as Array<{
+        name: string;
+        dflt_value: string | null;
+      }>
+    ).reduce<Record<string, string | null>>((acc, col) => {
+      acc[col.name] = col.dflt_value;
+      return acc;
+    }, {});
+    expect(defaults.status).toBe("'pending'");
+    expect(defaults.attempts).toBe("0");
+    expect(defaults.max_attempts).toBe("3");
+    db.close();
+  });
+});
