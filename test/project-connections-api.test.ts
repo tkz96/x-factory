@@ -16,6 +16,7 @@ import { handleApi } from "../src/http/routes.js";
 import { azureProvider } from "../src/providers/azure-module.js";
 import type { Provider, ProviderConfig } from "../src/providers/contract.js";
 import { githubConfigSchema } from "../src/providers/github/config.js";
+import { ProviderHttpError } from "../src/providers/http.js";
 import { jiraProvider } from "../src/providers/jira-module.js";
 import type { ProviderRegistry } from "../src/providers/registry.js";
 import { findDuplicateProject } from "../src/shared/project-identity.js";
@@ -40,6 +41,9 @@ const calls = {
 /** When set, the next Jira verification throws this message (error-path tests). */
 let jiraVerifyFailure: string | null = null;
 
+/** When set, Jira ticket listing throws this raw failure (error-path tests). */
+let jiraTicketsFailure: Error | null = null;
+
 // The real Jira schema and wire-independent behaviour; only the calls are
 // recorded, so the config each capability receives is observable.
 const recordingJira: Provider<"jira"> = {
@@ -51,6 +55,7 @@ const recordingJira: Provider<"jira"> = {
   },
   async listTickets(config) {
     calls.jiraTickets.push(config);
+    if (jiraTicketsFailure !== null) throw jiraTicketsFailure;
     return [];
   },
 };
@@ -194,6 +199,42 @@ describe("project connections at the HTTP seam", () => {
       apiToken: JIRA_MARKER,
     });
   });
+
+  test.each([
+    [401, undefined, 401, "AUTH_INVALID", undefined],
+    [403, undefined, 403, "PERMISSION", undefined],
+    [404, undefined, 404, "NOT_FOUND", undefined],
+    [429, "30", 429, "RATE_LIMITED", 30000],
+    [500, undefined, 502, "UNKNOWN", undefined],
+  ] as const)(
+    "a provider %i on tickets answers %i with the normalized body and no raw text",
+    async (providerStatus, retryAfter, httpStatus, code, retryAfterMs) => {
+      jiraTicketsFailure = new ProviderHttpError(
+        "RAW-PROVIDER-TEXT-31d0 internal trace",
+        {
+          status: providerStatus,
+          headers: new Headers(retryAfter ? { "Retry-After": retryAfter } : {}),
+        },
+      );
+      try {
+        const res = await api("GET", `projects/${PROJECT_ID}/tickets`);
+        expect(res.status).toBe(httpStatus);
+        const body = (await res.json()) as Record<string, unknown>;
+        expect(Object.keys(body).sort()).toEqual(
+          retryAfterMs === undefined
+            ? ["code", "context", "error"]
+            : ["code", "context", "error", "retryAfterMs"],
+        );
+        expect(body.code).toBe(code);
+        expect(body.context).toBe("TICKETS");
+        expect(body.retryAfterMs).toBe(retryAfterMs);
+        expect(String(body.error)).not.toContain("RAW-PROVIDER-TEXT");
+        expect(res.headers.get("Retry-After")).toBe(retryAfter ?? null);
+      } finally {
+        jiraTicketsFailure = null;
+      }
+    },
+  );
 
   test("the tracker test passes for a Jira project using the saved secret", async () => {
     const res = await api("POST", `projects/${PROJECT_ID}/tracker/test`, {});

@@ -30,6 +30,7 @@ import {
   type StageExecutor,
   type StageOutcome,
 } from "./executors/index.js";
+import { ProviderError } from "./providers/errors.js";
 import { finalizeDeliver } from "./services/deliver-service.js";
 import {
   AWAITING_HUMAN_RUN_STATUSES,
@@ -84,6 +85,16 @@ export interface WorkerOptions {
         execute?: (ctx: StageContext) => Promise<StageOutcome | PullRequest>;
       }
     | undefined;
+}
+
+/**
+ * What to print for an error. A ProviderError's `cause` is the raw provider
+ * failure and printing the object prints it too, so only its canonical message
+ * is logged.
+ */
+export function loggableError(err: unknown): unknown {
+  if (err instanceof ProviderError) return err.message;
+  return err || "";
 }
 
 export class Worker {
@@ -190,7 +201,7 @@ export class Worker {
       err instanceof Error ? err.message : err ? String(err) : undefined;
     console.error(
       `[${timestamp}] [Worker ${this.workerId}] ERROR: ${message}`,
-      err || "",
+      loggableError(err),
     );
     this.emitStructuredLog({
       result: "error",
@@ -1203,7 +1214,7 @@ if (import.meta.main) {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   worker.start().catch((err) => {
-    console.error("Fatal worker failure:", err);
+    console.error("Fatal worker failure:", loggableError(err));
     process.exit(1);
   });
 }

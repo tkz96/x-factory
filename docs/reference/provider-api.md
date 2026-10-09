@@ -391,7 +391,8 @@ Two details bound what the gate can hide and what it can see:
   shape appears legitimately in the legacy tracker view
   (`src/config-schema.ts`, `src/providers/project-config.ts`) and in
   `src/shared/project-identity.ts`, which cannot delegate to the provider
-  registry because `.fallowrc.json` lets `shared` import nothing while the
+  registry or the migration step because `.fallowrc.json` lets `shared` import
+  nothing (it reads the same historical aliases itself, read-only) while the
   duplicate check runs in the browser. Both limits are recorded rather than
   hidden: the gate is a text scanner over shipped source, and a rule for either
   shape would report far more legitimate code than it would catch.
@@ -403,6 +404,39 @@ authentication, no fallback path. Upstream API errors propagate through the
 provider error envelope; they are never retried against a local CLI. The
 ticket-write path therefore never hard-depends on the `gh` CLI runtime (deviation
 retro-sanctioned on #138).
+
+How PR failures surface (#184): the registry hands out providers whose
+capability calls throw a normalized `ProviderError` (see "Registry error
+contract" below), so a failed `createPullRequest` or `findExistingPullRequest`
+reaches delivery already carrying `PR` context and canonical copy. Delivery does
+not check capabilities or normalize errors itself. A provider without
+`createPullRequest` is wrapped so the call throws the canonical `PR` error
+(`UNKNOWN`: "An unexpected error occurred while creating the pull request. Try
+again."), while `hasCapability` still reports the capability as absent. The
+deliver stage fails with exactly that message, and the worker logs only the
+message, never the raw provider failure kept as `cause`.
+
+### Registry error contract (#184)
+
+`getProvider`, `requireProvider` and `listProviders` return a wrapper around the
+registered provider; the provider object itself is never modified, and one
+wrapper is built per provider and reused. Every call to `verifyCredentials`,
+`verifyScopes`, `listRepositories`, `listTickets`, `createPullRequest` and
+`findExistingPullRequest` either resolves or throws a `ProviderError` class
+instance (distinct from the `ProviderErrorEnvelope` wire type in the contract)
+with:
+
+- `code` and `context` from the provider's `toUserError`, with the context
+  fixed by the capability (`VERIFY`: `verifyCredentials`, `verifyScopes`;
+  `DISCOVERY`: `listRepositories`; `TICKETS`: `listTickets`; `PR`:
+  `createPullRequest`, `findExistingPullRequest`);
+- `message` set to the canonical copy for that `(code, context)` pair
+  (`PROVIDER_ERROR_MESSAGES` in `src/providers/errors.ts`), never provider text;
+- `retryAfterMs` only when the provider supplied a positive wait;
+- the raw failure only as `cause`.
+
+A `ProviderError` thrown by a provider is re-tagged with the capability's
+context. Callers catch `ProviderError`; they do not call `toUserError`.
 
 ### `parseQuickUrl` accepted URL shapes (GitHub reference)
 - `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
@@ -428,6 +462,76 @@ retro-sanctioned on #138).
 tickets only — the inspection flow consumes actionable tickets; closed tickets
 are deliberately excluded. Providers that gain a consumer needing a different
 state filter must extend the contract input, not the query behind it.
+
+### Typed provider config (#186)
+Adapters receive **typed config** and nothing else: the shape their own
+`configSchema` declares. They never search for aliased or nested keys.
+
+- **Declared fields.** The GitHub schema declares `token`, `repoOwner`,
+  `repository` and `baseUrl` (a GitHub Enterprise API base URL, validated as a
+  URL, optional, default `https://api.github.com`). `resolveGitHubConfig` reads
+  those four fields directly.
+- **One migration step.** `src/providers/legacy-migration.ts` is the only place
+  historical shapes are reconciled: aliases (`owner`, `org`, `organization`,
+  `repo`, `githubToken`, `jiraHost`, ...), `repo: "owner/name"`, URL hints, and
+  nested views (`github`, `gitHost`, `tracker`, `azure`, `jira`, `config`,
+  `connections[]`). A legacy Azure `org`/`organization` maps to
+  `https://dev.azure.com/<org>` as `orgUrl`. Fields the step does not own (for
+  example `requiredLabel`) are kept. Providers with no legacy shapes pass
+  through unchanged.
+- **Where it runs.** (1) When stored connections are read:
+  `loadProjectConnections` migrates every stored connection and the legacy
+  `issueTracker` fallback (narrowed to the provider's own section plus flat
+  scalar keys), so ticket listing and delivery resolve legacy records; the
+  repository coordinate is derived from `repoOwner/repository`. The alias list
+  lives once in `src/shared/legacy-aliases.ts`. (2) On
+  every request body, through **`toTypedProviderConfig(provider, raw)`** in
+  `src/providers/config-validation.ts`: migration first, then the provider's
+  schema. It backs `/api/providers/verify|repositories`, the project routes
+  `test-connection`, `discover-repositories` and `test-scopes`, project creation
+  and connection updates, and the project connection test. The Azure adapter
+  keeps one defensive conflict check of its own. Duplicate detection in
+  `src/shared` reads the same aliases without importing the step.
+- **Where conflicts are rejected.** Two legacy values that disagree (two owners,
+  two tokens, two repositories, two base URLs, an organization that is not the
+  one in `orgUrl`) are a conflict, never silently collapsed or stripped. At the
+  entry point the result is `{ ok: false, conflict }`: provider routes answer
+  `409 { fieldErrors: { config: "INVALID" } }` (codes only), and the project
+  routes answer with a generic "incomplete, invalid or conflicting" message. No
+  provider HTTP call is made. A STORED connection whose shapes conflict raises
+  `ConnectionConflictError` (code `CONNECTION_CONFLICT`): readiness lists it as
+  an issue, project routes answer `409` with that code, and delivery fails with
+  the same message. Nothing picks one of the values.
+
+- **Shared ticket normalization module (`src/providers/ticket-normalization.ts`).**
+  Ticket text is turned into acceptance criteria through one shared extractor
+  (`extractAcceptanceCriteria`) across all three providers (#185). Adapters only
+  convert their provider-specific representations to text (Markdown for GitHub,
+  ADF for Jira, HTML for Azure). ADF headings are emitted in Markdown format so
+  subsequent headings terminate the criteria section across all providers.
+  For Azure, HTML heading conversion (`<h1-6>` to `##`) is limited to criteria
+  extraction, keeping the stored description clean plain text. When a dedicated
+  Acceptance Criteria field is present on an Azure work item, every non-empty line
+  is preserved as a criterion (or parsed if formatted with markdown/HTML lists),
+  with no fallback to the description.
+
+- **Page cap policy (`resolvePageCap`).**
+  Listing is paginated up to a page cap: `TicketQueryOptions.pageCap` when specified,
+  falling back to `DEFAULT_PAGE_CAP` (10, defined in `src/providers/http.ts`).
+  GitHub previously followed `Link: rel="next"` without a cap; it is now capped
+  identically to Jira and Azure (#185).
+
+- **Silent truncation warning.**
+  When pagination terminates because the page cap was reached while additional
+  tickets or pages remain, `listTickets` emits a structured warning via the logger
+  naming the provider, the cap, and that results were truncated (`truncated: true`).
+  When all available tickets fit within the cap, no warning is emitted.
+
+- **Azure Work Item ID batching.**
+  Azure DevOps WIQL queries return work item ID references. Work items are retrieved
+  by batching IDs in chunks of up to 200 (the Azure DevOps API maximum). Pagination
+  fetches up to `pageCap` batches of work items, de-duplicating IDs and ignoring
+  missing or null IDs.
 
 ---
 
@@ -562,9 +666,24 @@ write through `createProject`, after the tracker gate above.
 | Connection set covers only one role (create), the merged set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
+| Provider failure on `GET /api/projects/:id/tickets` (and any route that lets a `ProviderError` reach the domain-error ladder) | by code, below | `{ error, code, context, retryAfterMs? }` |
 
 Codes only — provider and zod messages never cross the boundary. Upstream
 failures use the separate `ProviderError` envelope.
+
+The provider-failure body is built in one place (`providerErrorResponse` in
+`src/http/responses.ts`): `error` is the canonical copy, `code` and `context`
+come from the `ProviderError`, and `retryAfterMs` is present only when known.
+The status follows the code:
+
+| `code` | Status |
+| --- | --- |
+| `AUTH_INVALID` | 401 |
+| `PERMISSION` | 403 |
+| `NOT_FOUND` | 404 |
+| `AUTH_LOCKED` | 423 |
+| `RATE_LIMITED` | 429, with a `Retry-After` header in whole seconds when `retryAfterMs` is known |
+| `UNKNOWN` | 502 |
 
 ### Scope diagnostic (`POST /api/projects/test-scopes`, legacy alias `POST /api/projects/test-azure-scopes`)
 

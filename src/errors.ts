@@ -83,3 +83,15 @@ export class ConflictError extends DomainError {
     this.name = "ConflictError";
   }
 }
+
+/**
+ * Thrown when a STORED connection holds legacy values that disagree (two
+ * owners, two tokens, ...). The record is never read as one of the values.
+ */
+export class ConnectionConflictError extends ConflictError {
+  readonly code = "CONNECTION_CONFLICT";
+  constructor(message = "Stored connection settings conflict") {
+    super(message);
+    this.name = "ConnectionConflictError";
+  }
+}
