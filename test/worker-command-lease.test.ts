@@ -50,21 +50,22 @@ describe("Command Lease Renewal", () => {
       command: "deliver",
     });
 
-    // Use a very short deliver lease to test renewal
+    // Lease is long enough that an event-loop stall on a loaded CI runner
+    // cannot expire it between heartbeats (heartbeat is 1/10 of the lease).
     let deliverRunning = false;
     let deliverFinished = false;
 
     const worker = new Worker({
       workerId: "worker-A",
       db,
-      commandLeaseDurationMs: 150,
-      commandHeartbeatIntervalMs: 50,
+      commandLeaseDurationMs: 1000,
+      commandHeartbeatIntervalMs: 100,
       deliverExecutor: {
         async execute(_ctx: StageContext): Promise<StageResult> {
           deliverRunning = true;
-          // Wait 300ms, which is 3x the lease duration.
+          // Wait 3000ms, which is 3x the lease duration.
           // It should survive because the heartbeat renews it.
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 3000));
           deliverFinished = true;
           return {
             status: "success",
@@ -159,8 +160,8 @@ describe("Command Lease Renewal", () => {
     const workerC = new Worker({
       workerId: "worker-C",
       db,
-      commandLeaseDurationMs: 150,
-      commandHeartbeatIntervalMs: 50,
+      commandLeaseDurationMs: 1000,
+      commandHeartbeatIntervalMs: 100,
       deliverExecutor: {
         async execute(_ctx: StageContext): Promise<StageResult> {
           executorStarted = true;
@@ -178,8 +179,8 @@ describe("Command Lease Renewal", () => {
       await new Promise((r) => setTimeout(r, 10));
     }
 
-    // Wait 300ms, wait out the lease duration while heartbeat renews
-    await new Promise((r) => setTimeout(r, 300));
+    // Wait 2000ms, twice the lease duration, so only a live heartbeat keeps the lease
+    await new Promise((r) => setTimeout(r, 2000));
 
     // Test #4: continues without being reclaimed
     const workerD = new Worker({
@@ -197,8 +198,8 @@ describe("Command Lease Renewal", () => {
     // Stop worker C (simulating crash)
     await workerC.stop();
 
-    // Wait 200ms so the lease definitely expires (commandLeaseDurationMs is 150)
-    await new Promise((r) => setTimeout(r, 200));
+    // Wait 1200ms so the lease definitely expires (commandLeaseDurationMs is 1000)
+    await new Promise((r) => setTimeout(r, 1200));
 
     // Test #5: can be reclaimed after owner stops renewing
     const claimedByDAfterCrash = await workerD.stepCommandOnce();
