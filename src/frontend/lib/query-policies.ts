@@ -12,6 +12,8 @@ export const queryKeys = {
   tickets: (projectId: string) => ["tickets", projectId] as const,
   runs: () => ["runs"] as const,
   run: (runId: string) => ["runs", runId] as const,
+  /** The per-run event log (#191). Outside the ["runs"] prefix so run invalidation never drops it. */
+  runEvents: (runId: string) => ["run-events", runId] as const,
   settings: () => ["settings"] as const,
   readiness: () => ["readiness"] as const,
   diagnostics: () => ["diagnostics"] as const,
