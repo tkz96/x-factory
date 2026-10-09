@@ -37,7 +37,11 @@ import {
   canTransition,
 } from "./shared/run-status-policy.js";
 import type { Project, PullRequest, RunStatus } from "./shared/types.js";
-import { PASSED_ROUTES, REJECTED_RUN_STATUS } from "./workflow.js";
+import {
+  isWorkflowStage,
+  PASSED_ROUTES,
+  REJECTED_RUN_STATUS,
+} from "./workflow.js";
 
 export interface WorkerLogEntry {
   timestamp: string;
@@ -660,18 +664,15 @@ export class Worker {
       if (deliverExecutor.deliver) {
         pr = await deliverExecutor.deliver(stageCtx);
       } else if (deliverExecutor.execute) {
-        const res = await deliverExecutor.execute(stageCtx);
-        if ("url" in res && typeof (res as PullRequest).url === "string") {
-          pr = res as PullRequest;
-        } else if (
-          (res as StageOutcome).outcome === "passed" &&
-          (res as StageOutcome).output
-        ) {
-          pr = (res as StageOutcome).output as PullRequest;
+        const res: StageOutcome | PullRequest =
+          await deliverExecutor.execute(stageCtx);
+        if ("url" in res) {
+          pr = res;
+        } else if (res.outcome === "passed" && res.output) {
+          pr = res.output as PullRequest;
         } else {
-          const failure = res as StageOutcome;
           throw new Error(
-            (failure.outcome === "error" && failure.error) ||
+            (res.outcome === "error" && res.error) ||
               "Deliver failed without output",
           );
         }
@@ -990,7 +991,7 @@ export class Worker {
     duration: number,
     expectedRunStatus: RunStatus,
   ): boolean {
-    const route = PASSED_ROUTES[job.stage];
+    const route = isWorkflowStage(job.stage) ? PASSED_ROUTES[job.stage] : null;
 
     const committed = this.db.transaction(() => {
       // Section 11: Worker Progression CAS verification
@@ -1091,7 +1092,8 @@ export class Worker {
       this.db.transaction(() => {
         this.jobRepo.rejectJob(job.id, this.workerId, reason, this.db);
         const latestRun = this.runRepo.get(run.id, this.db);
-        if (latestRun && canTransition(latestRun.status, REJECTED_RUN_STATUS)) {
+        if (!latestRun) return;
+        if (canTransition(latestRun.status, REJECTED_RUN_STATUS)) {
           this.runRepo.transitionRun(
             run.id,
             latestRun.status,
@@ -1107,6 +1109,10 @@ export class Worker {
             },
             this.db,
           );
+        } else {
+          const text = `Rejection not applied: run is in status "${latestRun.status}", which cannot transition to ${REJECTED_RUN_STATUS}.`;
+          this.eventRepo.appendEvent(run.id, "info", { text }, this.db);
+          this.error(`Run ${run.id}: ${text}`);
         }
       })();
     } catch (err: unknown) {

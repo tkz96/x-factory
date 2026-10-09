@@ -542,6 +542,20 @@ export async function resumeRun(id: string): Promise<Run> {
     const lastStage = attempts[attempts.length - 1]?.stage;
     const route = resumeRouteFor(lastStage);
 
+    if (route.command) {
+      // A completed deliver command means the PR already exists. Resuming into
+      // ready_for_pr would strand the run with nothing left to run.
+      const existing = commandRepo.getCommandByIdempotencyKey(
+        `${route.command}:${id}`,
+        db,
+      );
+      if (existing?.status === "completed") {
+        throw new ConflictError(
+          `Cannot resume run ${id}: its ${route.command} command already completed.`,
+        );
+      }
+    }
+
     const transitionResult = runRepo.transitionRun(
       id,
       "recovery_required",

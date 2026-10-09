@@ -9,6 +9,20 @@ import { ConflictError } from "./errors.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import type { RunStatus, WorkflowStage } from "./shared/types.js";
 
+/** Every stage a job or stage attempt can name. Routing tables are keyed by it. */
+export const WORKFLOW_STAGES: readonly WorkflowStage[] = [
+  "prepare",
+  "understand",
+  "plan",
+  "execute",
+  "review",
+  "deliver",
+];
+
+export function isWorkflowStage(value: string): value is WorkflowStage {
+  return (WORKFLOW_STAGES as readonly string[]).includes(value);
+}
+
 /** Where a run goes next, and the stage whose job is enqueued for it. */
 export interface Route {
   readonly to: RunStatus;
@@ -16,21 +30,22 @@ export interface Route {
 }
 
 /**
- * Stage outcome → route for a passed stage. `deliver` is absent on purpose: delivery runs as
+ * Stage outcome → route for a passed stage. `deliver` is null on purpose: delivery runs as
  * the deliver command and finishes through finalizeDeliver, not through worker progression.
  */
-export const PASSED_ROUTES: Readonly<Record<string, Route>> = {
+export const PASSED_ROUTES: Readonly<Record<WorkflowStage, Route | null>> = {
   prepare: { to: "understanding", nextStage: "understand" },
   understand: { to: "awaiting_understanding_approval" },
   plan: { to: "awaiting_plan_approval" },
   execute: { to: "awaiting_review" },
   review: { to: "awaiting_review" },
+  deliver: null,
 };
 
 /** A rejected stage (a review that did not approve) ends the run; it is never retried. */
 export const REJECTED_RUN_STATUS: RunStatus = "failed";
 
-/** A resume target: the status a run re-enters and the job stage that re-runs the work. */
+/** A resume target: the status a run re-enters and the work that re-runs it. */
 export interface ResumeRoute {
   readonly to: RunStatus;
   /** Job stage enqueued to re-run the interrupted work. */
@@ -41,29 +56,29 @@ export interface ResumeRoute {
 
 /**
  * The stage a run re-enters when resumed from recovery_required, keyed by the stage its last
- * attempt was in. `review` and `verify` are work inside `execute`, so they resume there.
+ * attempt was in. `review` is work inside `execute`, so it resumes there.
  */
-export const RESUME_ROUTES: Readonly<Record<string, ResumeRoute>> = {
+export const RESUME_ROUTES: Readonly<Record<WorkflowStage, ResumeRoute>> = {
   prepare: { to: "preparing", jobStage: "prepare" },
   understand: { to: "understanding", jobStage: "understand" },
   plan: { to: "planning", jobStage: "plan" },
   execute: { to: "executing", jobStage: "execute" },
   review: { to: "executing", jobStage: "execute" },
-  verify: { to: "executing", jobStage: "execute" },
-  implement: { to: "executing", jobStage: "execute" },
   deliver: { to: "ready_for_pr", command: "deliver" },
 };
 
-const UNMAPPED_RESUME_ROUTE: ResumeRoute = {
-  to: "executing",
-  jobStage: "execute",
-};
-
-/** The resume target for the stage of a run's last attempt; a run with no attempt restarts at prepare. */
+/**
+ * The resume target for the stage of a run's last attempt. A run with no attempt restarts at
+ * prepare. A recorded stage with no route is refused, not guessed at.
+ */
 export function resumeRouteFor(lastStage: string | undefined): ResumeRoute {
-  if (lastStage === undefined)
-    return RESUME_ROUTES.prepare ?? UNMAPPED_RESUME_ROUTE;
-  return RESUME_ROUTES[lastStage] ?? UNMAPPED_RESUME_ROUTE;
+  if (lastStage === undefined) return RESUME_ROUTES.prepare;
+  if (!isWorkflowStage(lastStage)) {
+    throw new ConflictError(
+      `Cannot resume: no resume route for stage "${lastStage}".`,
+    );
+  }
+  return RESUME_ROUTES[lastStage];
 }
 
 /** Where approving a run moves it, keyed by the gate it waits at. */

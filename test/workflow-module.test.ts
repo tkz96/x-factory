@@ -3,10 +3,12 @@
 
 import { afterEach, describe, expect, it } from "bun:test";
 import { createDatabase } from "../src/db/connection.js";
+import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import { ConflictError } from "../src/errors.js";
 import type {
   StageContext,
   StageExecutor,
@@ -199,6 +201,97 @@ describe("Workflow module (#181)", () => {
     expect(jobRepo.listJobsForRun(run.id).map((j) => j.status)).toEqual([
       "failed",
     ]);
+  });
+
+  describe("resume into deliver with an existing deliver command", () => {
+    function resumeWithCommand(commandStatus: string | null) {
+      const { db, runRepo, stageAttemptRepo, run } = setup("recovery_required");
+      setDbForTesting(db);
+      stageAttemptRepo.recordStart(run.id, "deliver", 1);
+      if (commandStatus !== null) {
+        db.prepare(
+          "INSERT INTO run_commands (id, run_id, command, idempotency_key, status, attempts, max_attempts, created_at) VALUES (?, ?, 'deliver', ?, ?, 0, 3, ?);",
+        ).run(
+          `cmd-${commandStatus}`,
+          run.id,
+          `deliver:${run.id}`,
+          commandStatus,
+          new Date().toISOString(),
+        );
+      }
+      const commandRows = () =>
+        db
+          .prepare<{ status: string }, [string]>(
+            "SELECT status FROM run_commands WHERE idempotency_key = ?;",
+          )
+          .all(`deliver:${run.id}`);
+      return { runRepo, run, commandRows };
+    }
+
+    it("a pending deliver command is kept and the run returns to ready_for_pr", async () => {
+      const { runRepo, run, commandRows } = resumeWithCommand("pending");
+      const resumed = await resumeRun(run.id);
+      expect(resumed.status).toBe("ready_for_pr");
+      expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
+      expect(commandRows()).toEqual([{ status: "pending" }]);
+    });
+
+    it("a claimed deliver command is kept and the run returns to ready_for_pr", async () => {
+      const { runRepo, run, commandRows } = resumeWithCommand("claimed");
+      const resumed = await resumeRun(run.id);
+      expect(resumed.status).toBe("ready_for_pr");
+      expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
+      expect(commandRows()).toEqual([{ status: "claimed" }]);
+    });
+
+    it("a failed deliver command is reset to pending so the run is not stranded", async () => {
+      const { runRepo, run, commandRows } = resumeWithCommand("failed");
+      const resumed = await resumeRun(run.id);
+      expect(resumed.status).toBe("ready_for_pr");
+      expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
+      expect(commandRows()).toEqual([{ status: "pending" }]);
+    });
+
+    it("a completed deliver command refuses the resume and leaves the run in recovery_required", async () => {
+      const { runRepo, run, commandRows } = resumeWithCommand("completed");
+      await expect(resumeRun(run.id)).rejects.toBeInstanceOf(ConflictError);
+      expect(runRepo.get(run.id)?.status).toBe("recovery_required");
+      expect(commandRows()).toEqual([{ status: "completed" }]);
+    });
+  });
+
+  it("a rejection on a run that cannot reach failed records why the run was left alone", async () => {
+    const { db, runRepo, jobRepo, run } = setup("executing");
+    const job = jobRepo.createJob({
+      runId: run.id,
+      stage: "execute",
+      status: "pending",
+    });
+    const worker = new Worker({
+      db,
+      workerId: "wf-worker-cannot-fail",
+      getStageExecutor: () =>
+        executorReturning("execute", {
+          outcome: "rejected",
+          reason: "Code review was not approved: Nope",
+        }),
+    });
+    const claimed = jobRepo.claimNextJob("wf-worker-cannot-fail", 30000);
+    expect(claimed?.id).toBe(job.id);
+    if (!claimed) throw new Error("claim failed");
+    // The run moves on while the job is claimed, so a late rejection cannot reach failed.
+    runRepo.update(run.id, { status: "pr_created" });
+
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("pr_created");
+    expect(jobRepo.getJob(job.id)?.status).toBe("failed");
+    const texts = new EventRepository(db)
+      .getEventsForRun(run.id)
+      .map((e) => (e.payload as { text?: string } | null)?.text);
+    expect(texts).toContain(
+      'Rejection not applied: run is in status "pr_created", which cannot transition to failed.',
+    );
   });
 
   it("resume returns a recovery_required run to the stage it was in", async () => {

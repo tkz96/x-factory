@@ -81,6 +81,8 @@ Transitions not listed in this matrix are invalid and fail validation.
 | `failed` | None | Terminal state. |
 | `stopped` | None | Terminal state. |
 
+A deliver interruption does not reach `recovery_required` today: a crash or failure during the deliver command leaves the run in `ready_for_pr`, the command is retried through its lease, and the startup sweep leaves `ready_for_pr` runs alone. No current code path therefore produces a `recovery_required` run whose last stage attempt is `deliver`; the `recovery_required` to `ready_for_pr` edge is kept for that resume target and is not yet reached by a real path.
+
 ## Transition Invariants
 
 State machine transitions adhere to these formal invariants:
