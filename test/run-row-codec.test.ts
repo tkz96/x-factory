@@ -4,12 +4,14 @@
 // composition root) plus the repository seam for tables without their own
 // endpoint. A run row with one malformed JSON column still lists via
 // GET /api/runs; only the malformed field degrades, and the codec logs a
-// warning naming the table, column and row. Malformed columns in the other
-// JSON-bearing tables (run_events, run_commands, stage_attempts,
-// operation_ledger) degrade the same way, string values round-trip through
-// serialization, and chatWithRun consumes the codec-parsed
-// implementationContext without re-parsing it. Also guards, at typecheck
-// time, that no repository method takes a transaction-DB parameter.
+// warning naming the table, column and row — at most once per row per
+// process, and never echoing any part of the malformed value. Malformed
+// columns in the other JSON-bearing tables (run_events, run_commands,
+// stage_attempts, operation_ledger) degrade the same way, string values
+// round-trip through serialization, and chatWithRun consumes the
+// codec-parsed implementationContext without re-parsing it. Also guards,
+// at typecheck time, that no repository method takes a transaction-DB
+// parameter.
 
 import { beforeEach, describe, it, spyOn } from "bun:test";
 import assert from "node:assert/strict";
@@ -62,6 +64,28 @@ async function listRuns(): Promise<{ status: number; body: ListedRunBody[] }> {
   });
   const res = await handleApi(req, new URL(req.url), { repos });
   return { status: res.status, body: await res.json() };
+}
+
+interface WarningEntry {
+  level: string;
+  table: string;
+  column: string;
+  row_id: string;
+}
+
+function capturedWarnings(warnSpy: {
+  mock: { calls: unknown[][] };
+}): WarningEntry[] {
+  return warnSpy.mock.calls
+    .map((call) => String(call[0]))
+    .map((line) => JSON.parse(line) as WarningEntry)
+    .filter((entry) => entry.level === "warn")
+    .map(({ level, table, column, row_id }) => ({
+      level,
+      table,
+      column,
+      row_id,
+    }));
 }
 
 describe("a malformed run JSON column degrades only that field (#179)", () => {
@@ -245,31 +269,9 @@ describe("a malformed JSON column in any table degrades only that field (#179)",
 });
 
 describe("a malformed column logs a warning naming table, column and row (#179)", () => {
-  interface WarningEntry {
-    level: string;
-    table: string;
-    column: string;
-    row_id: string;
-  }
-
-  function capturedWarnings(warnSpy: {
-    mock: { calls: unknown[][] };
-  }): WarningEntry[] {
-    return warnSpy.mock.calls
-      .map((call) => String(call[0]))
-      .map((line) => JSON.parse(line) as WarningEntry)
-      .filter((entry) => entry.level === "warn")
-      .map(({ level, table, column, row_id }) => ({
-        level,
-        table,
-        column,
-        row_id,
-      }));
-  }
-
   it("warns with the column identity when runs.verification fails to parse", async () => {
-    seedRun();
-    repos.db.run(`UPDATE runs SET verification = ? WHERE id = 'run-1';`, [
+    seedRun("run-warn-1");
+    repos.db.run(`UPDATE runs SET verification = ? WHERE id = 'run-warn-1';`, [
       "}{",
     ]);
 
@@ -282,7 +284,7 @@ describe("a malformed column logs a warning naming table, column and row (#179)"
           level: "warn",
           table: "runs",
           column: "verification",
-          row_id: "run-1",
+          row_id: "run-warn-1",
         },
       ]);
     } finally {
@@ -368,6 +370,63 @@ describe("a malformed column logs a warning naming table, column and row (#179)"
       const { status } = await listRuns();
       assert.equal(status, 200);
       assert.equal(warnSpy.mock.calls.length, 0);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("a malformed column warns at most once per process (#179)", () => {
+  it("warns once for a row, not again on the next read, but still for another row", async () => {
+    seedRun("run-dedupe-1");
+    repos.db.run(
+      `UPDATE runs SET verification = ? WHERE id = 'run-dedupe-1';`,
+      ["}{"],
+    );
+
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await listRuns();
+      assert.equal(warnSpy.mock.calls.length, 1);
+
+      // A second read of the same corrupt row must not warn again...
+      await listRuns();
+      assert.equal(warnSpy.mock.calls.length, 1);
+
+      // ...but a different corrupt row is a new (table, column, row id) key.
+      seedRun("run-dedupe-2");
+      repos.db.run(
+        `UPDATE runs SET verification = ? WHERE id = 'run-dedupe-2';`,
+        ["}{"],
+      );
+      await listRuns();
+      const entries = capturedWarnings(warnSpy);
+      assert.equal(entries.length, 2);
+      assert.equal(entries[1]?.row_id, "run-dedupe-2");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("warns once for a legacy plain-text stage output on every read", () => {
+    seedRun();
+    const attempt = repos.stageAttempts.recordStart("run-1", "prepare");
+    // A row written before the codec always JSON-encoded writes: plain text
+    // like "Build ok" fails to parse on EVERY read of that row.
+    repos.db.run(`UPDATE stage_attempts SET output = ? WHERE id = ?;`, [
+      "Build ok",
+      attempt.id,
+    ]);
+
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const first = repos.stageAttempts.listForRun("run-1");
+      assert.equal(first[0]?.output, "Build ok");
+      assert.equal(warnSpy.mock.calls.length, 1);
+
+      const second = repos.stageAttempts.listForRun("run-1");
+      assert.equal(second[0]?.output, "Build ok");
+      assert.equal(warnSpy.mock.calls.length, 1);
     } finally {
       warnSpy.mockRestore();
     }
