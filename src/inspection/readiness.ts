@@ -1,10 +1,13 @@
 // src/inspection/readiness.ts — Local git repository inspection and project readiness assessment.
 
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
+import { GitConfigError, ValidationError } from "../errors.js";
 import { execCommand } from "../proc.js";
 import type {
+  ConfigureGitIdentityResult,
   GitIdentity,
+  GitIdentityScope,
   Project,
   ProjectReadiness,
   ProjectRepository,
@@ -22,6 +25,8 @@ interface RepositoryInspectionResult {
   path: string;
   exists: boolean;
   isGitRepo: boolean;
+  isRepositoryRoot?: boolean | undefined;
+  topLevelDir?: string | undefined;
   remote?: string | undefined;
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
@@ -79,6 +84,8 @@ async function readGitIdentity(dir: string): Promise<GitIdentity | undefined> {
 
 async function resolveGitInfo(dir: string): Promise<{
   isGit: boolean;
+  isRepositoryRoot: boolean;
+  topLevelDir?: string | undefined;
   remote?: string | undefined;
   currentBranch?: string | undefined;
   defaultBranch?: string | undefined;
@@ -88,7 +95,31 @@ async function resolveGitInfo(dir: string): Promise<{
     envPolicy: "inherit",
   });
   if (gitCheck.exitCode !== 0) {
-    return { isGit: false };
+    return { isGit: false, isRepositoryRoot: false };
+  }
+
+  const topLevelCheck = await execCommand(
+    "git",
+    ["rev-parse", "--show-toplevel"],
+    { cwd: dir, envPolicy: "inherit" },
+  );
+  let isRepositoryRoot = false;
+  let topLevelDir: string | undefined;
+  if (topLevelCheck.exitCode === 0) {
+    topLevelDir = topLevelCheck.stdout.trim();
+    let dirReal = dir;
+    let topLevelReal = topLevelDir;
+    try {
+      dirReal = await realpath(dir);
+    } catch {
+      // fallback
+    }
+    try {
+      topLevelReal = await realpath(topLevelDir);
+    } catch {
+      // fallback
+    }
+    isRepositoryRoot = dirReal === topLevelReal;
   }
 
   const remoteResult = await execCommand(
@@ -121,7 +152,14 @@ async function resolveGitInfo(dir: string): Promise<{
     defaultBranch = originHeadResult.stdout.trim().replace(/^origin\//, "");
   }
 
-  return { isGit: true, remote, currentBranch, defaultBranch };
+  return {
+    isGit: true,
+    isRepositoryRoot,
+    topLevelDir,
+    remote,
+    currentBranch,
+    defaultBranch,
+  };
 }
 
 async function resolveRepoPackageName(
@@ -156,13 +194,20 @@ export async function inspectLocalRepository(
       path: resolved,
       exists: false,
       isGitRepo: false,
+      isRepositoryRoot: false,
       detectedCommands: {},
       detectedTooling: [],
     };
   }
 
-  const { isGit, remote, currentBranch, defaultBranch } =
-    await resolveGitInfo(resolved);
+  const {
+    isGit,
+    isRepositoryRoot,
+    topLevelDir,
+    remote,
+    currentBranch,
+    defaultBranch,
+  } = await resolveGitInfo(resolved);
 
   // Read for the directory itself, whether or not it is a git checkout: for a
   // directory the agent will clone into, the effective configuration is the
@@ -190,6 +235,8 @@ export async function inspectLocalRepository(
     path: resolved,
     exists: true,
     isGitRepo: isGit,
+    isRepositoryRoot,
+    topLevelDir,
     remote,
     currentBranch,
     defaultBranch: defaultBranch || "main",
@@ -412,5 +459,186 @@ export async function checkProjectReadiness(
     repositories: repoReadinessList,
     knowledgeReady,
     issues,
+  };
+}
+
+/**
+ * Configures the git identity (`user.name` and `user.email`) for a target directory
+ * or globally (#161).
+ */
+export async function configureGitIdentity(options: {
+  path: string;
+  name: string;
+  email: string;
+  scope?: GitIdentityScope | undefined;
+}): Promise<ConfigureGitIdentityResult> {
+  const scope = options.scope ?? "local";
+  const expanded = path.resolve(options.path);
+  const { name, email } = options;
+
+  if (scope === "global") {
+    // Read previous global values first for rollback on failure
+    const prevNameRes = await execCommand(
+      "git",
+      ["config", "--global", "--get", "user.name"],
+      { envPolicy: "inherit" },
+    );
+    const prevName =
+      prevNameRes.exitCode === 0 && prevNameRes.stdout.trim()
+        ? prevNameRes.stdout.trim()
+        : undefined;
+
+    const setNameRes = await execCommand(
+      "git",
+      ["config", "--global", "user.name", name],
+      { envPolicy: "inherit" },
+    );
+    if (setNameRes.exitCode !== 0) {
+      console.error(
+        "Failed to configure global git user.name:",
+        setNameRes.stderr.trim(),
+      );
+      throw new GitConfigError(
+        "Failed to write global git configuration.",
+        "GIT_CONFIG_WRITE_FAILED",
+        500,
+      );
+    }
+
+    const setEmailRes = await execCommand(
+      "git",
+      ["config", "--global", "user.email", email],
+      { envPolicy: "inherit" },
+    );
+    if (setEmailRes.exitCode !== 0) {
+      console.error(
+        "Failed to configure global git user.email:",
+        setEmailRes.stderr.trim(),
+      );
+      if (prevName !== undefined) {
+        await execCommand(
+          "git",
+          ["config", "--global", "user.name", prevName],
+          { envPolicy: "inherit" },
+        );
+      } else {
+        await execCommand(
+          "git",
+          ["config", "--global", "--unset", "user.name"],
+          { envPolicy: "inherit" },
+        );
+      }
+      throw new GitConfigError(
+        "Failed to write global git configuration.",
+        "GIT_CONFIG_WRITE_FAILED",
+        500,
+      );
+    }
+
+    return {
+      gitIdentity: { name, email },
+      scope: "global",
+      path: expanded,
+    };
+  }
+
+  // Local scope
+  let targetReal: string;
+  try {
+    targetReal = await realpath(expanded);
+  } catch {
+    throw new ValidationError(
+      `Directory "${expanded}" does not exist.`,
+      "DIRECTORY_MISSING",
+    );
+  }
+
+  const topLevelCheck = await execCommand(
+    "git",
+    ["rev-parse", "--show-toplevel"],
+    { cwd: expanded, envPolicy: "inherit" },
+  );
+  if (topLevelCheck.exitCode !== 0) {
+    throw new ValidationError(
+      `Directory "${expanded}" is not a git repository. Choose global scope to configure identity across all repositories.`,
+      "NOT_A_REPOSITORY",
+    );
+  }
+
+  const rawTopLevel = topLevelCheck.stdout.trim();
+  let topLevelReal: string;
+  try {
+    topLevelReal = await realpath(rawTopLevel);
+  } catch {
+    topLevelReal = rawTopLevel;
+  }
+
+  if (targetReal !== topLevelReal) {
+    throw new ValidationError(
+      `Directory "${expanded}" is not the root of a git repository. Choose global scope to configure identity across all repositories.`,
+      "NOT_REPOSITORY_ROOT",
+    );
+  }
+
+  // Read previous local values first for rollback on failure
+  const prevNameRes = await execCommand(
+    "git",
+    ["config", "--local", "--get", "user.name"],
+    { cwd: expanded, envPolicy: "inherit" },
+  );
+  const prevName =
+    prevNameRes.exitCode === 0 && prevNameRes.stdout.trim()
+      ? prevNameRes.stdout.trim()
+      : undefined;
+
+  const setNameRes = await execCommand(
+    "git",
+    ["config", "--local", "user.name", name],
+    { cwd: expanded, envPolicy: "inherit" },
+  );
+  if (setNameRes.exitCode !== 0) {
+    console.error(
+      "Failed to configure local git user.name:",
+      setNameRes.stderr.trim(),
+    );
+    throw new GitConfigError(
+      "Failed to write local git configuration.",
+      "GIT_CONFIG_WRITE_FAILED",
+      500,
+    );
+  }
+
+  const setEmailRes = await execCommand(
+    "git",
+    ["config", "--local", "user.email", email],
+    { cwd: expanded, envPolicy: "inherit" },
+  );
+  if (setEmailRes.exitCode !== 0) {
+    console.error(
+      "Failed to configure local git user.email:",
+      setEmailRes.stderr.trim(),
+    );
+    if (prevName !== undefined) {
+      await execCommand("git", ["config", "--local", "user.name", prevName], {
+        cwd: expanded,
+        envPolicy: "inherit",
+      });
+    } else {
+      await execCommand("git", ["config", "--local", "--unset", "user.name"], {
+        cwd: expanded,
+        envPolicy: "inherit",
+      });
+    }
+    throw new GitConfigError(
+      "Failed to write local git configuration.",
+      "GIT_CONFIG_WRITE_FAILED",
+      500,
+    );
+  }
+
+  return {
+    gitIdentity: { name, email },
+    scope: "local",
+    path: expanded,
   };
 }

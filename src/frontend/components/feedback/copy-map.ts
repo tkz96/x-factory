@@ -18,6 +18,8 @@ import type {
   NormalizedError,
 } from "./types.js";
 
+type GitIdentityScope = import("../../../shared/types.js").GitIdentityScope;
+
 /**
  * The (code, context) → message map. Codes and contexts mirror the provider
  * contract's closed sets (#129); context names the failed operation so the
@@ -292,14 +294,56 @@ export const INSPECTION_COPY = {
   unresolvedRepo: (name: string) =>
     `${name} — no git identity is configured for its directory`,
   /** Ready, but no complete identity is configured for the inspected directory. */
-  identityMissing: (path: string) =>
+  identityMissing: (path?: string) =>
     path
-      ? `No git identity is configured for ${path}. Both a user.name and a user.email are required there, and none will be invented — your agent would have no identity to commit with either.`
-      : "No git identity is configured for the inspected directories. Both a user.name and a user.email are required, and none will be invented — your agent would have no identity to commit with either.",
+      ? `A Git identity (author name and email) is needed for ${path} so X-Factory can author commits and open pull requests on your behalf.`
+      : "A Git identity (author name and email) is needed so X-Factory can author commits and open pull requests on your behalf.",
   identityTitle: "Resolved git identity",
   nameLabel: "Name",
   emailLabel: "Email",
   pathLabel: "Read from",
+  /** Explanatory guidance on what git identity is and why X-Factory needs it (#161). */
+  identityExplanation:
+    "Git identity consists of an author name and email used to sign commits. X-Factory needs this so autonomous agents can commit code and open pull requests on your behalf.",
+  /** Form title and guidance (#161). */
+  configureTitle: "Configure Git Identity",
+  configureHint:
+    "Set your author name and email below to configure your git identity.",
+  authorNameLabel: "Author Name",
+  authorNamePlaceholder: "e.g. Jane Doe",
+  authorEmailLabel: "Author Email",
+  authorEmailPlaceholder: "e.g. jane@example.com",
+  nameRequiredError: "Author name is required.",
+  nameInvalidError: "Author name cannot contain control characters.",
+  emailRequiredError: "Author email is required.",
+  emailInvalidError: "Enter a valid email address.",
+  scopeLabel: "Configuration Scope",
+  scopeLocalOption: (path: string) => `This repository only (${path})`,
+  scopeWorkspaceOption: (path: string) => `This workspace (${path})`,
+  scopeRepositoriesOption: (paths: string[]) =>
+    `These repositories (${paths.join(", ")})`,
+  scopeGlobalOption: "Global (~/.gitconfig — all repositories)",
+  scopeHint: (scope: GitIdentityScope, path: string) =>
+    scope === "global"
+      ? "Applies globally to ~/.gitconfig for all git repositories on this system."
+      : `Applies locally to ${path} only.`,
+  notAGitRepository:
+    "This path is not a git repository. Choose global scope to configure git globally.",
+  blockingPathNotRepo: (path: string) =>
+    `"${path}" is not a git repository. Choose global scope to configure git globally.`,
+  blockingPathNotRepoRoot: (path: string) =>
+    `"${path}" is not the root of a git repository. Choose global scope to configure git globally.`,
+  directoryMissingError: "The specified directory does not exist.",
+  notARepositoryError:
+    "The target directory is not a git repository. Choose global scope to configure git globally.",
+  notRepositoryRootError:
+    "The target directory is not the root of a git repository. Choose global scope to configure git globally.",
+  configureServerError:
+    "Could not configure git identity. Please check your git configuration and permissions, or try setting it globally.",
+  configurePartialError: (configured: string[], failed: string[]) =>
+    `Configured git identity for ${configured.join(", ")}, but failed for ${failed.join(", ")}.`,
+  configureButton: "Configure Git Identity",
+  configuringButton: "Configuring…",
   /** The explicit re-inspection affordance (never an automatic retry loop). */
   inspectAction: "Inspect again",
   previous: "Back",

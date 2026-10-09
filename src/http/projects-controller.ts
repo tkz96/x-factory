@@ -12,6 +12,7 @@ import {
 import { isConnectionsProjectInput } from "../config-schema.js";
 import {
   checkProjectReadiness,
+  configureGitIdentity,
   evaluateRepositoryReadiness,
   inspectLocalRepository,
 } from "../inspection/index.js";
@@ -55,6 +56,7 @@ import {
   withValidatedBody,
 } from "./responses.js";
 import {
+  ConfigureGitIdentityBodySchema,
   SaveProjectBodySchema,
   UpdateProjectConnectionsBodySchema,
 } from "./schemas.js";
@@ -237,6 +239,26 @@ async function handleInspectRepository(req: Request): Promise<Response> {
       });
     },
     "Invalid JSON for repository inspection.",
+  );
+}
+
+async function handleConfigureGitIdentity(req: Request): Promise<Response> {
+  return withValidatedBody(
+    req,
+    ConfigureGitIdentityBodySchema,
+    async ({ path: repoPath, name, email, scope }) => {
+      const expandedPath = expandUserPath(repoPath);
+      return catchHttpErrors(async () => {
+        const result = await configureGitIdentity({
+          path: expandedPath,
+          name,
+          email,
+          scope,
+        });
+        return jsonResponse(result);
+      });
+    },
+    "Invalid JSON for git identity configuration.",
   );
 }
 
@@ -718,6 +740,11 @@ export async function handleProjectsRoute(
   const isInspect =
     id === "inspect-repository" || id === "quick-inspect" || id === "inspect";
   if (isInspect && method === "POST") return handleInspectRepository(req);
+
+  const isConfigureIdentity = id === "configure-git-identity";
+  if (isConfigureIdentity && method === "POST") {
+    return handleConfigureGitIdentity(req);
+  }
 
   const isTest = id === "test-connection" || id === "test-tracker";
   if (isTest && method === "POST") return handleTestConnection(req);

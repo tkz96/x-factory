@@ -5,6 +5,7 @@ import {
   ProjectConnectionInputSchema,
   ProjectInputSchema,
 } from "../config-schema.js";
+import { hasControlCharacters } from "../shared/validation.js";
 
 /** Request body schema for POST /api/runs */
 export const CreateRunBodySchema = z
@@ -71,3 +72,18 @@ export const TransitionRunBodySchema = z
       .optional(),
   })
   .passthrough();
+
+/** Request body schema for configuring git identity (#161) */
+export const ConfigureGitIdentityBodySchema = z.looseObject({
+  path: z.string({ error: "Path is required." }).min(1, "Path is required."),
+  name: z
+    .string({ error: "Name is required." })
+    .trim()
+    .min(1, "Name is required.")
+    .refine(
+      (val) => !hasControlCharacters(val),
+      "Name must not contain control characters.",
+    ),
+  email: z.email(),
+  scope: z.enum(["local", "global"]).optional(),
+});

@@ -572,6 +572,59 @@ export function getOpenApiSpec() {
           },
         },
       },
+      "/api/projects/configure-git-identity": {
+        post: {
+          tags: ["Inspection"],
+          summary: "Configure Git Identity",
+          description:
+            "Sets the author user.name and user.email git configuration for a local repository or globally (#161).",
+          operationId: "configureGitIdentity",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["path", "name", "email"],
+                  properties: {
+                    path: { type: "string", example: "~/code/x-factory" },
+                    name: { type: "string", example: "Ada Lovelace" },
+                    email: { type: "string", example: "ada@example.com" },
+                    scope: {
+                      type: "string",
+                      enum: ["local", "global"],
+                      default: "local",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "Configured git identity result",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["gitIdentity", "scope", "path"],
+                    properties: {
+                      gitIdentity: {
+                        $ref: "#/components/schemas/GitIdentity",
+                      },
+                      scope: {
+                        type: "string",
+                        enum: ["local", "global"],
+                      },
+                      path: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/projects/test-scopes": {
         post: {
           tags: ["Discovery"],
@@ -1701,6 +1754,7 @@ export function getOpenApiSpec() {
             linter: { type: "string", example: "biome" },
             buildScript: { type: "string", example: "bun run build" },
             hasGit: { type: "boolean", example: true },
+            topLevelDir: { type: "string", example: "/Users/dev/code/my-repo" },
             isClean: { type: "boolean", example: true },
             gitIdentity: {
               type: "object",

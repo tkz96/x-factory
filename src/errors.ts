@@ -25,9 +25,29 @@ export class NotFoundError extends DomainError {
  * Thrown when an input, parameter, or argument fails validation or is invalid.
  */
 export class ValidationError extends DomainError {
-  constructor(message = "Validation failed") {
+  readonly code?: string | undefined;
+  constructor(message = "Validation failed", code?: string | undefined) {
     super(message);
     this.name = "ValidationError";
+    this.code = code;
+  }
+}
+
+/**
+ * Thrown when a git configuration write operation fails on the server.
+ */
+export class GitConfigError extends DomainError {
+  readonly code: string;
+  readonly status: number;
+  constructor(
+    message = "Git configuration write failed",
+    code = "GIT_CONFIG_WRITE_FAILED",
+    status = 500,
+  ) {
+    super(message);
+    this.name = "GitConfigError";
+    this.code = code;
+    this.status = status;
   }
 }
 

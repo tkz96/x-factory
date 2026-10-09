@@ -43,6 +43,12 @@ export interface InspectionRecord {
   unresolvedRepoIds: string[];
   inputsFingerprint: string;
   inspectedPath?: string | undefined;
+  isGitRepo?: boolean | undefined;
+  topLevelDir?: string | undefined;
+  unresolvedPaths?: string[] | undefined;
+  canUseLocalScope?: boolean | undefined;
+  blockingLocalPath?: string | undefined;
+  isBlockingPathRepo?: boolean | undefined;
 }
 
 /** Everything the Inspection step and the Review gate derive about a record. */
@@ -125,6 +131,12 @@ function recordOf(inspection: WizardInspectionState): InspectionRecord | null {
     unresolvedRepoIds: inspection.unresolvedRepoIds ?? [],
     inputsFingerprint: inspection.inputsFingerprint,
     inspectedPath: inspection.inspectedPath,
+    isGitRepo: inspection.isGitRepo,
+    topLevelDir: inspection.topLevelDir,
+    unresolvedPaths: inspection.unresolvedPaths,
+    canUseLocalScope: inspection.canUseLocalScope,
+    blockingLocalPath: inspection.blockingLocalPath,
+    isBlockingPathRepo: inspection.isBlockingPathRepo,
   };
 }
 

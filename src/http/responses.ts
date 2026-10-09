@@ -17,6 +17,7 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string | undefined,
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -80,7 +81,17 @@ export function translateDomainErrorToHttpResponse(
     return errorResponse(message, 404);
   }
   if (name === "ValidationError") {
-    return errorResponse(message, 400);
+    const code =
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      typeof (err as { code: unknown }).code === "string"
+        ? (err as { code: string }).code
+        : undefined;
+    return jsonResponse(
+      code ? { error: message, code } : { error: message },
+      400,
+    );
   }
   if (name === "ConflictError") {
     return errorResponse(message, 409);
@@ -88,8 +99,30 @@ export function translateDomainErrorToHttpResponse(
   if (name === "SemanticValidationError") {
     return jsonResponse(semanticErrorEnvelope(err), 409);
   }
+  if (name === "GitConfigError") {
+    const code =
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      typeof (err as { code: unknown }).code === "string"
+        ? (err as { code: string }).code
+        : "GIT_CONFIG_WRITE_FAILED";
+    const status =
+      err &&
+      typeof err === "object" &&
+      "status" in err &&
+      typeof (err as { status: unknown }).status === "number"
+        ? (err as { status: number }).status
+        : 500;
+    return jsonResponse({ error: message, code }, status);
+  }
   if (err instanceof HttpError) {
-    return errorResponse(err.message, err.status);
+    return jsonResponse(
+      err.code
+        ? { error: err.message, code: err.code }
+        : { error: err.message },
+      err.status,
+    );
   }
   return null;
 }

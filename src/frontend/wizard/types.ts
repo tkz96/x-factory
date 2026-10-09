@@ -139,6 +139,12 @@ export interface WizardInspectionState {
    * must be re-inspected (spec #133 stale rule).
    */
   inputsFingerprint?: string | null | undefined;
+  isGitRepo?: boolean | undefined;
+  topLevelDir?: string | undefined;
+  unresolvedPaths?: string[] | undefined;
+  canUseLocalScope?: boolean | undefined;
+  blockingLocalPath?: string | undefined;
+  isBlockingPathRepo?: boolean | undefined;
 }
 
 export interface WizardReviewState {
