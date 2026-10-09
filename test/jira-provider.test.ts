@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   hasCapability,
   isProviderError,
+  type Provider,
   REQUIRED_WORKFLOW_LABEL,
 } from "../src/providers/contract.js";
+import type { HttpTransport } from "../src/providers/http.js";
 import {
+  createJiraProvider,
   type JiraConfig,
   JiraHttpError,
   jiraConfigSchema,
@@ -15,12 +18,17 @@ import {
   parseJiraQuickUrl,
   toJiraUserError,
 } from "../src/providers/jira-module.js";
-import { getProvider } from "../src/providers/registry.js";
+import { getProvider, PROVIDER_REGISTRY } from "../src/providers/registry.js";
 import {
   serializeProvider,
   serializeProviderConfigSchema,
 } from "../src/providers/serializer.js";
 import { startServer } from "../src/server.js";
+import {
+  createInMemoryTransport,
+  jsonResponse,
+  textResponse,
+} from "./helpers/provider-test-helper.js";
 
 describe("Jira provider module (#140)", () => {
   describe("Registration & Identity", () => {
@@ -418,33 +426,26 @@ describe("Jira provider module (#140)", () => {
 
   describe("SEARCH -> SEARCH_JQL Capability Rename & Deprecation Remediation", () => {
     it("uses /rest/api/3/search/jql and never the deprecated /rest/api/3/search endpoint", async () => {
-      const originalFetch = globalThis.fetch;
       let requestedUrl = "";
 
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const transport = async (input: RequestInfo | URL) => {
         requestedUrl = String(input);
-        return new Response(JSON.stringify({ issues: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }) as unknown as typeof fetch;
+        return jsonResponse({ issues: [] });
+      };
 
-      try {
-        await jiraProvider.listTickets?.(
-          {
-            host: "https://test.atlassian.net",
-            email: "test@example.com",
-            apiToken: "token",
-          },
-          { requiredLabel: REQUIRED_WORKFLOW_LABEL },
-        );
+      const provider = createJiraProvider({ transport });
+      await provider.listTickets?.(
+        {
+          host: "https://test.atlassian.net",
+          email: "test@example.com",
+          apiToken: "token",
+        },
+        { requiredLabel: REQUIRED_WORKFLOW_LABEL },
+      );
 
-        expect(requestedUrl).toContain("/rest/api/3/search/jql");
-        expect(requestedUrl).not.toContain("/rest/api/3/search?");
-        expect(requestedUrl).not.toMatch(/\/rest\/api\/3\/search(?!\/jql)/);
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
+      expect(requestedUrl).toContain("/rest/api/3/search/jql");
+      expect(requestedUrl).not.toContain("/rest/api/3/search?");
+      expect(requestedUrl).not.toMatch(/\/rest\/api\/3\/search(?!\/jql)/);
     });
   });
 
@@ -510,21 +511,11 @@ describe("Jira provider module (#140)", () => {
   });
 
   describe("listTickets with REQUIRED_WORKFLOW_LABEL", () => {
-    let originalFetch: typeof fetch;
-
-    beforeEach(() => {
-      originalFetch = globalThis.fetch;
-    });
-
-    afterEach(() => {
-      globalThis.fetch = originalFetch;
-    });
-
     it("filters by REQUIRED_WORKFLOW_LABEL by default and parses tickets", async () => {
       let capturedUrl = "";
       let capturedAuth = "";
 
-      globalThis.fetch = (async (
+      const transport = async (
         input: RequestInfo | URL,
         init?: RequestInit,
       ) => {
@@ -532,37 +523,35 @@ describe("Jira provider module (#140)", () => {
         capturedAuth =
           (init?.headers as Record<string, string>)?.Authorization ?? "";
 
-        return new Response(
-          JSON.stringify({
-            issues: [
-              {
-                key: "XF-101",
-                fields: {
-                  summary: "Implement Jira module",
-                  description: {
-                    type: "doc",
-                    content: [
-                      {
-                        type: "paragraph",
-                        content: [
-                          {
-                            type: "text",
-                            text: "Acceptance Criteria:\n- Clean implementation\n- Passes all gates",
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                  labels: [REQUIRED_WORKFLOW_LABEL, "backend"],
+        return jsonResponse({
+          issues: [
+            {
+              key: "XF-101",
+              fields: {
+                summary: "Implement Jira module",
+                description: {
+                  type: "doc",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [
+                        {
+                          type: "text",
+                          text: "Acceptance Criteria:\n- Clean implementation\n- Passes all gates",
+                        },
+                      ],
+                    },
+                  ],
                 },
+                labels: [REQUIRED_WORKFLOW_LABEL, "backend"],
               },
-            ],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }) as typeof fetch;
+            },
+          ],
+        });
+      };
 
-      const tickets = await jiraProvider.listTickets?.(
+      const provider = createJiraProvider({ transport });
+      const tickets = await provider.listTickets?.(
         {
           host: "https://acme.atlassian.net",
           email: "bot@acme.com",
@@ -599,15 +588,13 @@ describe("Jira provider module (#140)", () => {
     it("honors custom requiredLabel option", async () => {
       let capturedUrl = "";
 
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const transport = async (input: RequestInfo | URL) => {
         capturedUrl = String(input);
-        return new Response(JSON.stringify({ issues: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }) as unknown as typeof fetch;
+        return jsonResponse({ issues: [] });
+      };
 
-      await jiraProvider.listTickets?.(
+      const provider = createJiraProvider({ transport });
+      await provider.listTickets?.(
         {
           host: "https://acme.atlassian.net",
           email: "bot@acme.com",
@@ -631,13 +618,14 @@ describe("Jira provider module (#140)", () => {
 
       for (const hostileKey of hostileKeys) {
         let fetchCalled = false;
-        globalThis.fetch = (async () => {
+        const transport = async () => {
           fetchCalled = true;
-          return new Response("{}", { status: 200 });
-        }) as unknown as typeof fetch;
+          return jsonResponse({});
+        };
 
+        const provider = createJiraProvider({ transport });
         await expect(
-          jiraProvider.listTickets?.(
+          provider.listTickets?.(
             {
               host: "https://acme.atlassian.net",
               email: "bot@acme.com",
@@ -655,39 +643,34 @@ describe("Jira provider module (#140)", () => {
     it("verifies multi-page search/jql pagination contract at the HTTP boundary", async () => {
       const capturedRequests: string[] = [];
 
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const transport = async (input: RequestInfo | URL) => {
         const urlStr = typeof input === "string" ? input : input.toString();
         capturedRequests.push(urlStr);
 
         if (capturedRequests.length === 1) {
-          return new Response(
-            JSON.stringify({
-              nextPageToken: "cursor-token-page-2",
-              issues: [
-                { key: "T-1", fields: { summary: "First Page Item 1" } },
-                { key: "T-2", fields: { summary: "First Page Item 2" } },
-              ],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
+          return jsonResponse({
+            nextPageToken: "cursor-token-page-2",
+            issues: [
+              { key: "T-1", fields: { summary: "First Page Item 1" } },
+              { key: "T-2", fields: { summary: "First Page Item 2" } },
+            ],
+          });
         }
         if (capturedRequests.length === 2) {
-          return new Response(
-            JSON.stringify({
-              // Page 2 includes duplicate T-2 plus new T-3; no nextPageToken -> pagination terminates
-              issues: [
-                { key: "T-2", fields: { summary: "Duplicate Item 2" } },
-                { key: "T-3", fields: { summary: "Second Page Item 3" } },
-              ],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
+          return jsonResponse({
+            // Page 2 includes duplicate T-2 plus new T-3; no nextPageToken -> pagination terminates
+            issues: [
+              { key: "T-2", fields: { summary: "Duplicate Item 2" } },
+              { key: "T-3", fields: { summary: "Second Page Item 3" } },
+            ],
+          });
         }
 
         throw new Error("Unexpected third page request");
-      }) as unknown as typeof fetch;
+      };
 
-      const tickets = await jiraProvider.listTickets?.(
+      const provider = createJiraProvider({ transport });
+      const tickets = await provider.listTickets?.(
         {
           host: "https://acme.atlassian.net",
           email: "bot@acme.com",
@@ -724,27 +707,22 @@ describe("Jira provider module (#140)", () => {
 
     it("propagates HTTP failure on later pagination page using provider error mapping", async () => {
       let requestCount = 0;
-      globalThis.fetch = (async () => {
+      const transport = async () => {
         requestCount++;
         if (requestCount === 1) {
-          return new Response(
-            JSON.stringify({
-              nextPageToken: "cursor-token-page-2",
-              issues: [{ key: "T-1", fields: { summary: "First Page Item" } }],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
+          return jsonResponse({
+            nextPageToken: "cursor-token-page-2",
+            issues: [{ key: "T-1", fields: { summary: "First Page Item" } }],
+          });
         }
         // Page 2 fails with 403 Forbidden
-        return new Response(JSON.stringify({ errorMessages: ["Forbidden"] }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
-      }) as unknown as typeof fetch;
+        return jsonResponse({ errorMessages: ["Forbidden"] }, { status: 403 });
+      };
 
+      const provider = createJiraProvider({ transport });
       let caughtError: unknown;
       try {
-        await jiraProvider.listTickets?.(
+        await provider.listTickets?.(
           {
             host: "https://acme.atlassian.net",
             email: "bot@acme.com",
@@ -759,7 +737,7 @@ describe("Jira provider module (#140)", () => {
       expect(caughtError).toBeInstanceOf(JiraHttpError);
       expect((caughtError as JiraHttpError).status).toBe(403);
 
-      const normalized = jiraProvider.toUserError(caughtError, "TICKETS");
+      const normalized = provider.toUserError(caughtError, "TICKETS");
       expect(normalized).toEqual({
         code: "PERMISSION",
         context: "TICKETS",
@@ -768,15 +746,16 @@ describe("Jira provider module (#140)", () => {
     });
 
     it("throws JiraHttpError on initial HTTP failure", async () => {
-      globalThis.fetch = (async () => {
-        return new Response("Unauthorized", {
+      const transport = async () => {
+        return textResponse("Unauthorized", {
           status: 401,
           headers: { "X-Seraph-LoginReason": "AUTHENTICATION_DENIED" },
         });
-      }) as unknown as typeof fetch;
+      };
 
+      const provider = createJiraProvider({ transport });
       await expect(
-        jiraProvider.listTickets?.(
+        provider.listTickets?.(
           {
             host: "https://acme.atlassian.net",
             email: "bad@acme.com",
@@ -789,44 +768,29 @@ describe("Jira provider module (#140)", () => {
   });
 
   describe("verifyCredentials & Behavioral Probe Warnings", () => {
-    let originalFetch: typeof fetch;
-
-    beforeEach(() => {
-      originalFetch = globalThis.fetch;
-    });
-
-    afterEach(() => {
-      globalThis.fetch = originalFetch;
-    });
-
     it("returns status 'ok' when credentials and BROWSE_PROJECTS probe succeed", async () => {
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
-        const urlStr = String(input);
-        if (urlStr.includes("/rest/api/3/myself")) {
-          return new Response(
-            JSON.stringify({
-              accountId: "acc-123",
-              emailAddress: "bot@acme.com",
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        if (urlStr.includes("/rest/api/3/mypermissions")) {
-          return new Response(
-            JSON.stringify({
-              permissions: {
-                BROWSE_PROJECTS: {
-                  havePermission: true,
-                },
+      const transport = createInMemoryTransport([
+        {
+          match: "/rest/api/3/myself",
+          handler: jsonResponse({
+            accountId: "acc-123",
+            emailAddress: "bot@acme.com",
+          }),
+        },
+        {
+          match: "/rest/api/3/mypermissions",
+          handler: jsonResponse({
+            permissions: {
+              BROWSE_PROJECTS: {
+                havePermission: true,
               },
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        return new Response("Not Found", { status: 404 });
-      }) as typeof fetch;
+            },
+          }),
+        },
+      ]);
 
-      const result = await jiraProvider.verifyCredentials({
+      const provider = createJiraProvider({ transport });
+      const result = await provider.verifyCredentials({
         host: "https://acme.atlassian.net",
         email: "bot@acme.com",
         apiToken: "bot-token",
@@ -840,30 +804,25 @@ describe("Jira provider module (#140)", () => {
     });
 
     it("returns status 'degraded' with CAPABILITY_UNCONFIRMED warning when permission probe is false", async () => {
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
-        const urlStr = String(input);
-        if (urlStr.includes("/rest/api/3/myself")) {
-          return new Response(JSON.stringify({ accountId: "acc-123" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        if (urlStr.includes("/rest/api/3/mypermissions")) {
-          return new Response(
-            JSON.stringify({
-              permissions: {
-                BROWSE_PROJECTS: {
-                  havePermission: false,
-                },
+      const transport = createInMemoryTransport([
+        {
+          match: "/rest/api/3/myself",
+          handler: jsonResponse({ accountId: "acc-123" }),
+        },
+        {
+          match: "/rest/api/3/mypermissions",
+          handler: jsonResponse({
+            permissions: {
+              BROWSE_PROJECTS: {
+                havePermission: false,
               },
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        return new Response("Not Found", { status: 404 });
-      }) as typeof fetch;
+            },
+          }),
+        },
+      ]);
 
-      const result = await jiraProvider.verifyCredentials({
+      const provider = createJiraProvider({ transport });
+      const result = await provider.verifyCredentials({
         host: "https://acme.atlassian.net",
         email: "bot@acme.com",
         apiToken: "bot-token",
@@ -881,21 +840,19 @@ describe("Jira provider module (#140)", () => {
     });
 
     it("returns status 'degraded' when permission probe request fails", async () => {
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
-        const urlStr = String(input);
-        if (urlStr.includes("/rest/api/3/myself")) {
-          return new Response(JSON.stringify({ accountId: "acc-123" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        if (urlStr.includes("/rest/api/3/mypermissions")) {
-          return new Response("Internal Server Error", { status: 500 });
-        }
-        return new Response("Not Found", { status: 404 });
-      }) as typeof fetch;
+      const transport = createInMemoryTransport([
+        {
+          match: "/rest/api/3/myself",
+          handler: jsonResponse({ accountId: "acc-123" }),
+        },
+        {
+          match: "/rest/api/3/mypermissions",
+          handler: textResponse("Internal Server Error", { status: 500 }),
+        },
+      ]);
 
-      const result = await jiraProvider.verifyCredentials({
+      const provider = createJiraProvider({ transport });
+      const result = await provider.verifyCredentials({
         host: "https://acme.atlassian.net",
         email: "bot@acme.com",
         apiToken: "bot-token",
@@ -913,15 +870,16 @@ describe("Jira provider module (#140)", () => {
     });
 
     it("throws JiraHttpError when credentials endpoint /rest/api/3/myself fails", async () => {
-      globalThis.fetch = (async () => {
-        return new Response("Unauthorized", {
+      const transport = async () => {
+        return textResponse("Unauthorized", {
           status: 401,
           headers: { "X-Seraph-LoginReason": "AUTHENTICATION_DENIED" },
         });
-      }) as unknown as typeof fetch;
+      };
 
+      const provider = createJiraProvider({ transport });
       expect(
-        jiraProvider.verifyCredentials({
+        provider.verifyCredentials({
           host: "https://acme.atlassian.net",
           email: "bot@acme.com",
           apiToken: "bad-token",
@@ -933,18 +891,31 @@ describe("Jira provider module (#140)", () => {
   describe("API Surface Integration (#137 HTTP Endpoints)", () => {
     let server: ReturnType<typeof startServer>;
     let baseUrl: string;
-    let originalFetch: typeof fetch;
+    let jiraApiTransport: HttpTransport | undefined;
 
     beforeEach(() => {
-      originalFetch = globalThis.fetch;
-      server = startServer(0);
+      jiraApiTransport = undefined;
+      const customRegistry = new Map<string, Provider>([
+        ...PROVIDER_REGISTRY,
+        [
+          "jira",
+          createJiraProvider({
+            transport: (input, init) => {
+              if (jiraApiTransport) {
+                return jiraApiTransport(input, init);
+              }
+              return fetch(input, init);
+            },
+          }),
+        ],
+      ]);
+      server = startServer(0, undefined, undefined, customRegistry);
       const port = server.port;
       baseUrl = `http://127.0.0.1:${port}`;
     });
 
     afterEach(() => {
       server.stop();
-      globalThis.fetch = originalFetch;
     });
 
     it("GET /api/providers/manifest includes Jira with roles and capabilities", async () => {
@@ -996,30 +967,18 @@ describe("Jira provider module (#140)", () => {
     });
 
     it("POST /api/providers/verify executes verifyCredentials and returns VerificationResult", async () => {
-      globalThis.fetch = (async (
-        input: RequestInfo | URL,
-        init?: RequestInit,
-      ) => {
-        const urlStr = String(input);
-        if (urlStr.startsWith(baseUrl)) {
-          return originalFetch(input, init);
-        }
-        if (urlStr.includes("/rest/api/3/myself")) {
-          return new Response(JSON.stringify({ accountId: "acc-123" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        if (urlStr.includes("/rest/api/3/mypermissions")) {
-          return new Response(
-            JSON.stringify({
-              permissions: { BROWSE_PROJECTS: { havePermission: true } },
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        return new Response("Not Found", { status: 404 });
-      }) as typeof fetch;
+      jiraApiTransport = createInMemoryTransport([
+        {
+          match: "/rest/api/3/myself",
+          handler: jsonResponse({ accountId: "acc-123" }),
+        },
+        {
+          match: "/rest/api/3/mypermissions",
+          handler: jsonResponse({
+            permissions: { BROWSE_PROJECTS: { havePermission: true } },
+          }),
+        },
+      ]);
 
       const res = await fetch(`${baseUrl}/api/providers/verify`, {
         method: "POST",
@@ -1044,19 +1003,11 @@ describe("Jira provider module (#140)", () => {
     });
 
     it("POST /api/providers/verify maps CAPTCHA lockout to AUTH_LOCKED envelope", async () => {
-      globalThis.fetch = (async (
-        input: RequestInfo | URL,
-        init?: RequestInit,
-      ) => {
-        const urlStr = String(input);
-        if (urlStr.startsWith(baseUrl)) {
-          return originalFetch(input, init);
-        }
-        return new Response("Access Denied", {
+      jiraApiTransport = async () =>
+        textResponse("Access Denied", {
           status: 403,
           headers: { "X-Seraph-LoginReason": "AUTHENTICATION_DENIED" },
         });
-      }) as typeof fetch;
 
       const res = await fetch(`${baseUrl}/api/providers/verify`, {
         method: "POST",
