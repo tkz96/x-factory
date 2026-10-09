@@ -61,12 +61,10 @@ export interface ProjectWriteStore {
 
 /** The shipped store: the file-backed record store plus the file-backed env store. */
 export const FILE_PROJECT_WRITE_STORE: ProjectWriteStore = {
-  loadProjects: (configPath) => loadProjects(configPath),
-  getProject: (projectId, validateOnDisk, configPath) =>
-    getProject(projectId, validateOnDisk, configPath),
-  appendProjectRecord: (record, configPath) =>
-    appendProjectRecord(record, configPath),
-  saveProject: (record, configPath) => saveProject(record, configPath),
+  loadProjects,
+  getProject,
+  appendProjectRecord,
+  saveProject,
   loadProjectEnv,
   saveProjectEnv,
   deleteProjectEnvKeys,
