@@ -45,6 +45,28 @@ afterAll(async () => {
   }
 });
 
+/**
+ * The tracker test route probes the project's STORED connection (#183). A
+ * placeholder credential is rejected by the live provider, so the route answers
+ * either the success body (200) or the normalized provider-error envelope
+ * (status by `code`) — never raw provider text.
+ */
+async function assertTrackerTestAnswer(res: Response): Promise<void> {
+  const body = (await res.json()) as {
+    ok?: boolean;
+    error?: string;
+    code?: string;
+    context?: string;
+  };
+  if (res.status === 200) {
+    assert.equal(typeof body.ok, "boolean");
+    return;
+  }
+  assert.equal(typeof body.code, "string");
+  assert.equal(body.context, "VERIFY");
+  assert.equal(typeof body.error, "string");
+}
+
 describe("Project Onboarding & Management APIs", () => {
   const testProjectId = `proj-${Date.now()}`;
 
@@ -600,9 +622,7 @@ describe("Project Onboarding & Management APIs", () => {
         body: JSON.stringify({}),
       },
     );
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(typeof body.ok, "boolean");
+    await assertTrackerTestAnswer(res);
   }, 15000);
 
   it("POST /api/projects/:id/tracker/test rejects malformed JSON with 400", async () => {
@@ -626,9 +646,7 @@ describe("Project Onboarding & Management APIs", () => {
         method: "POST",
       },
     );
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(typeof body.ok, "boolean");
+    await assertTrackerTestAnswer(res);
   });
 
   it("tracker credentials and test endpoints fail closed with 400 when project has no tracker configured", async () => {
@@ -666,7 +684,8 @@ describe("Project Onboarding & Management APIs", () => {
       const credBody = (await credRes.json()) as { error: string };
       assert.ok(credBody.error.includes("Missing issue tracker provider"));
 
-      // POST /tracker/test should fail closed with 400 when body does not specify a provider
+      // POST /tracker/test resolves the STORED connection, so a project with no
+      // tracker fails closed with 400 for the same reason the scope action does.
       const testRes = await fetch(
         `${baseUrl}/api/projects/${noTrackerProjId}/tracker/test`,
         {
@@ -677,7 +696,7 @@ describe("Project Onboarding & Management APIs", () => {
       );
       assert.equal(testRes.status, 400);
       const testBody = (await testRes.json()) as { error: string };
-      assert.ok(testBody.error.includes("Missing issue tracker provider"));
+      assert.ok(testBody.error.includes("has no issue tracker configured"));
     } finally {
       spy.mockRestore();
     }
@@ -807,7 +826,7 @@ describe("Project Onboarding & Management APIs", () => {
         body: JSON.stringify({ repo: "my-org/my-repo" }),
       },
     );
-    assert.equal(testRes.status, 200);
+    await assertTrackerTestAnswer(testRes);
   }, 15000);
 
   it("tests Jira tracker endpoints", async () => {
@@ -865,7 +884,7 @@ describe("Project Onboarding & Management APIs", () => {
         body: JSON.stringify({}),
       },
     );
-    assert.equal(testRes.status, 200);
+    await assertTrackerTestAnswer(testRes);
   }, 15000);
 
   it("POST /api/projects creates and persists a 14-repository Azure/Converso project with real metadata (#114)", async () => {

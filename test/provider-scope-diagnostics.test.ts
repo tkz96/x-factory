@@ -102,6 +102,31 @@ const throwingProvider: Provider = {
   },
 };
 
+const verifyCalls: ProviderConfig[] = [];
+
+/** A tracker whose verifyCredentials RECORDS the config it received. */
+const verifyingCredentialsProvider: Provider = {
+  ...stubProvider,
+  ...ROLE_CAPABILITIES,
+  id: "verifying-verify",
+  displayName: "Verifying Credentials Provider",
+  async verifyCredentials(config: ProviderConfig) {
+    verifyCalls.push(config);
+    return { status: "ok", warnings: [] };
+  },
+};
+
+/** A tracker whose verifyCredentials throws a raw provider message. */
+const throwingVerifyProvider: Provider = {
+  ...stubProvider,
+  ...ROLE_CAPABILITIES,
+  id: "throwing-verify",
+  displayName: "Throwing Verify Provider",
+  async verifyCredentials(): Promise<never> {
+    throw new Error(`verify exploded for token ${STORED_SECRET}`);
+  },
+};
+
 /**
  * The git-host connection of the test project. Its secret sits under its OWN
  * env key so it can never be confused with — or collide with — the tracker's.
@@ -131,6 +156,8 @@ const registry: ProviderRegistry = new Map<string, Provider>([
   [scopelessProvider.id, scopelessProvider],
   [verifyingProvider.id, verifyingProvider],
   [throwingProvider.id, throwingProvider],
+  [verifyingCredentialsProvider.id, verifyingCredentialsProvider],
+  [throwingVerifyProvider.id, throwingVerifyProvider],
   [gitHostProvider.id, gitHostProvider],
 ]);
 
@@ -218,7 +245,14 @@ interface ScopesBody {
   scopes?: Record<string, unknown>;
   errors?: string[];
   warnings?: string[];
-  error?: { code?: string; context?: string };
+}
+
+/** The `providerErrorResponse` body: canonical copy plus the normalized envelope. */
+interface ProviderErrorBody {
+  error?: string;
+  code?: string;
+  context?: string;
+  retryAfterMs?: number;
 }
 
 describe("Verify scopes on an existing project uses its stored connection (#183)", () => {
@@ -271,16 +305,21 @@ describe("Verify scopes on an existing project uses its stored connection (#183)
     expect(JSON.stringify(body).toLowerCase()).not.toContain("scopeless");
   });
 
-  it("normalizes a provider failure to the (code, context) envelope, never raw text", async () => {
+  it("maps a thrown provider failure to its status and canonical envelope, never raw text", async () => {
     const created = await createProject("proj-throw", "throwing");
     expect(created.status).toBe(201);
 
     const res = await api("POST", "projects/proj-throw/tracker/scopes");
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as ScopesBody;
-    expect(body.ok).toBe(false);
-    // The normalized envelope, not the thrown message.
-    expect(body.error).toEqual({ code: "AUTH_INVALID", context: "VERIFY" });
+    // A thrown provider failure is a provider error, so it carries the
+    // ProviderError status (AUTH_INVALID → 401) and the canonical body — the
+    // same mapping the tickets route uses.
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as ProviderErrorBody;
+    expect(body.code).toBe("AUTH_INVALID");
+    expect(body.context).toBe("VERIFY");
+    expect(body.error).toBe(
+      "The credentials were rejected. Check the token and try again.",
+    );
     const wire = JSON.stringify(body);
     expect(wire).not.toContain("upstream exploded");
     expect(wire).not.toContain(STORED_SECRET);
@@ -328,6 +367,59 @@ describe("Verify scopes on an existing project uses its stored connection (#183)
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error?: string };
     expect(body.error).toContain("has no issue tracker configured");
+  });
+});
+
+describe("Test tracker connection uses the stored connection (#183)", () => {
+  it("probes with the recorded config and the env-stored secret, ignoring the body", async () => {
+    const created = await createProject("proj-test", "verifying-verify");
+    expect(created.status).toBe(201);
+
+    const res = await api(
+      "POST",
+      "projects/proj-test/tracker/test",
+      // A hostile body: neither the provider it names nor the config it carries
+      // may reach the probe, which is the project's STORED connection.
+      {
+        provider: "scopeless",
+        host: "https://evil.example",
+        apiToken: "body-token",
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      message: "Verifying Credentials Provider connection successful.",
+    });
+
+    // The config the provider received is the STORED connection: recorded
+    // non-secret fields plus the secret merged back from env storage.
+    expect(verifyCalls.at(-1)).toMatchObject({
+      host: STORED_HOST,
+      project: STORED_PROJECT,
+      apiToken: STORED_SECRET,
+    });
+    expect(JSON.stringify(verifyCalls.at(-1))).not.toContain("evil.example");
+    expect(JSON.stringify(verifyCalls.at(-1))).not.toContain("body-token");
+  });
+
+  it("never returns the raw thrown text of a failed provider probe", async () => {
+    const created = await createProject("proj-test-throw", "throwing-verify");
+    expect(created.status).toBe(201);
+
+    const res = await api("POST", "projects/proj-test-throw/tracker/test", {});
+    // The thrown failure crosses the boundary as the normalized provider error
+    // (AUTH_INVALID → 401), exactly as the scopes route does.
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as ProviderErrorBody;
+    expect(body).toEqual({
+      error: "The credentials were rejected. Check the token and try again.",
+      code: "AUTH_INVALID",
+      context: "VERIFY",
+    });
+    const wire = JSON.stringify(body);
+    expect(wire).not.toContain("verify exploded");
+    expect(wire).not.toContain(STORED_SECRET);
   });
 });
 
