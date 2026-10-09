@@ -1,12 +1,17 @@
 // src/executors/deliver.ts — DeliverExecutor: Safe commit, remote push, and PR creation with operation ledger (XFM-28, XFM-32, XFM-33).
 
 import * as git from "../git.js";
+import { loadProjectEnv } from "../project-env.js";
 import { renderAcceptanceCriteria, renderTicketHeading } from "../prompts.js";
 import {
   hasCapability,
   type ProviderPullRequest,
 } from "../providers/contract.js";
-import { resolveProjectProvider } from "../providers/project-config.js";
+import { resolveProjectConnection } from "../providers/project-connections.js";
+import {
+  PROVIDER_REGISTRY,
+  type ProviderRegistry,
+} from "../providers/registry.js";
 import type { Project, PullRequest } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
@@ -28,6 +33,24 @@ export function buildPrMetadata(ticket: {
   return { commitMsg, prTitle, prBody };
 }
 
+/** The project's git host connection, with its saved secrets merged in (#172). */
+async function resolveGitHostConnection(
+  project: Project,
+  registry: ProviderRegistry,
+) {
+  const env = await loadProjectEnv(project.id);
+  const connection = resolveProjectConnection(
+    project,
+    "gitHost",
+    env,
+    registry,
+  );
+  if (!connection) {
+    throw new Error(`Project "${project.id}" has no git host connection.`);
+  }
+  return connection;
+}
+
 export async function defaultCreatePullRequest(
   project: Project,
   params: {
@@ -36,8 +59,12 @@ export async function defaultCreatePullRequest(
     prTitle: string;
     prBody: string;
   },
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<string> {
-  const { provider, config, repository } = resolveProjectProvider(project);
+  const { provider, config, repository } = await resolveGitHostConnection(
+    project,
+    registry,
+  );
 
   if (hasCapability(provider, "findExistingPullRequest")) {
     const existing = await provider.findExistingPullRequest(config, {
@@ -72,8 +99,12 @@ export async function defaultFindExistingPullRequest(
     branch: string;
     worktree: string;
   },
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<ProviderPullRequest | null> {
-  const { provider, config, repository } = resolveProjectProvider(project);
+  const { provider, config, repository } = await resolveGitHostConnection(
+    project,
+    registry,
+  );
 
   if (!hasCapability(provider, "findExistingPullRequest")) {
     return null;

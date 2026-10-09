@@ -32,18 +32,48 @@ function checkLocalIdCollision(
   return projects.find((p) => p.id && normalizeProjectId(p.id) === normId);
 }
 
+/** The provider ids a project's connections (or legacy tracker) name. */
+function providerIdsOf(p: Project): string[] {
+  const ids = (p.connections ?? []).map((c) => c.providerId);
+  const legacy = p.issueTracker?.provider || p.issueTracker?.connectionId;
+  if (legacy) ids.push(legacy);
+  return ids.map((id) => id.toLowerCase().trim());
+}
+
+/**
+ * The configuration a project holds for one provider: its connection's config
+ * when it has one (wizard-created projects), otherwise the legacy namespaced view.
+ */
+function providerConfigOf(
+  p: Project,
+  providerId: string,
+): Record<string, unknown> | undefined {
+  const connection = p.connections?.find(
+    (c) => c.providerId.toLowerCase().trim() === providerId,
+  );
+  if (connection) return connection.config;
+  const view = (
+    p.issueTracker as unknown as Record<string, unknown> | undefined
+  )?.[providerId];
+  return view && typeof view === "object"
+    ? (view as Record<string, unknown>)
+    : undefined;
+}
+
+function textField(config: Record<string, unknown> | undefined, key: string) {
+  const value = config?.[key];
+  return typeof value === "string" ? value : "";
+}
+
 function matchesAzureIdentity(
   p: Project,
   targetOrgUrl: string,
   targetProject: string,
 ): boolean {
-  if (!p.issueTracker?.azure) return false;
-  const existingOrg = normalizeAzureOrganization(
-    p.issueTracker.azure.orgUrl || "",
-  );
-  const existingProj = normalizeAzureProject(
-    p.issueTracker.azure.project || "",
-  );
+  const config = providerConfigOf(p, "azure");
+  if (!config) return false;
+  const existingOrg = normalizeAzureOrganization(textField(config, "orgUrl"));
+  const existingProj = normalizeAzureProject(textField(config, "project"));
   const targetOrg = normalizeAzureOrganization(targetOrgUrl || "");
   const targetProj = normalizeAzureProject(targetProject || "");
 
@@ -62,9 +92,15 @@ function matchesGitHubIdentity(
   targetProject: string,
   targetOrgUrl: string,
 ): boolean {
-  if (!p.issueTracker?.github) return false;
+  const config = providerConfigOf(p, "github");
+  if (!config) return false;
+  // A legacy view names the repository as `repo`; a wizard-created connection
+  // names it as an owner and a repository.
+  const owner = textField(config, "repoOwner").trim();
+  const repository = textField(config, "repository").trim();
   const existingRepo = normalizeGitHubRepository(
-    p.issueTracker.github.repo || "",
+    textField(config, "repo") ||
+      (owner && repository ? `${owner}/${repository}` : repository),
   );
   const targetRepo = normalizeGitHubRepository(
     targetProject || targetOrgUrl || "",
@@ -94,10 +130,7 @@ function checkExternalProviderMatch(
   if (!matcher) return undefined;
 
   for (const p of projects) {
-    const existingProvider = (p.issueTracker?.provider || "")
-      .toLowerCase()
-      .trim();
-    if (existingProvider !== normProvider) continue;
+    if (!providerIdsOf(p).includes(normProvider)) continue;
 
     if (matcher(p, newTrackerOrgUrl, newTrackerProject)) {
       return p;

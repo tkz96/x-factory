@@ -28,10 +28,13 @@ import {
   buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
   type ProjectMigrationInput,
-  resolveProjectProvider,
   resolveProjectTrackerSummary,
   testProjectTrackerConnection,
 } from "../providers/project-config.js";
+import {
+  findConnectionForRole,
+  resolveProjectConnection,
+} from "../providers/project-connections.js";
 import { redactConfigForProvider } from "../providers/redaction.js";
 import {
   getProvider,
@@ -45,7 +48,6 @@ import {
   updateProjectConnectionsById,
 } from "../services/project-creation.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
-import type { IssueTrackerProvider } from "../shared/types.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -281,24 +283,26 @@ async function handleGetProjectTickets(
       400,
     );
   }
-  const providerId =
-    project.issueTracker?.provider || project.issueTracker?.connectionId;
-  if (!providerId) {
+  const env = await loadProjectEnv(projectId);
+  const connection = resolveProjectConnection(
+    project,
+    "tracker",
+    env,
+    registry,
+  );
+  if (!connection) {
     return errorResponse(
       `Project "${projectId}" has no issue tracker configured.`,
       400,
     );
   }
-  const provider = getProvider(providerId, registry);
-  if (!provider || !hasCapability(provider, "listTickets")) {
+  const { provider, config } = connection;
+  if (!hasCapability(provider, "listTickets")) {
     return errorResponse(
-      `Unsupported issue tracker provider: "${providerId}".`,
+      `Unsupported issue tracker provider: "${provider.id}".`,
       400,
     );
   }
-
-  const env = await loadProjectEnv(projectId);
-  const { config } = resolveProjectProvider(project, env, registry);
   const requiredLabel =
     (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
 
@@ -313,7 +317,7 @@ async function handleGetProjectTracker(
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const env = await loadProjectEnv(projectId);
-  const summary = resolveProjectTrackerSummary(project.issueTracker, env);
+  const summary = resolveProjectTrackerSummary(project, env, registry);
   // Redaction before serialization: the tracker config is provider config.
   return jsonResponse({
     ...summary,
@@ -327,6 +331,7 @@ async function handleGetProjectTracker(
 async function handleUpdateProjectTrackerCredentials(
   projectId: string,
   req: Request,
+  registry: ProviderRegistry,
 ): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
@@ -334,12 +339,14 @@ async function handleUpdateProjectTrackerCredentials(
   return withJsonBody<Record<string, string>>(
     req,
     async (body) => {
-      const provider =
-        project.issueTracker?.provider || project.issueTracker?.connectionId;
-      if (!provider) {
+      const connection = findConnectionForRole(project, "tracker", registry);
+      if (!connection) {
         return errorResponse("Missing issue tracker provider.", 400);
       }
-      const varsToSave = extractTrackerCredentialsToSave(body, provider);
+      const varsToSave = extractTrackerCredentialsToSave(
+        body,
+        registry.get(connection.providerId),
+      );
       await saveProjectEnv(projectId, varsToSave);
       return jsonResponse({ ok: true, message: "Credentials updated." });
     },
@@ -350,15 +357,15 @@ async function handleUpdateProjectTrackerCredentials(
 async function handleTestProjectTracker(
   projectId: string,
   req: Request,
+  registry: ProviderRegistry,
 ): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
   const processRequest = async (bodyData: Record<string, unknown>) => {
-    const tracker = project.issueTracker;
-    const provider = (bodyData.provider ||
-      tracker?.provider ||
-      tracker?.connectionId) as IssueTrackerProvider | undefined;
+    const provider =
+      (bodyData.provider as string | undefined) ||
+      findConnectionForRole(project, "tracker", registry)?.providerId;
     if (!provider) {
       return errorResponse("Missing issue tracker provider.", 400);
     }
@@ -366,10 +373,11 @@ async function handleTestProjectTracker(
 
     const result = await testProjectTrackerConnection(
       provider,
-      tracker,
+      project,
       env,
       bodyData,
       project.repositoryPath,
+      registry,
     );
     return jsonResponse(result);
   };
@@ -384,6 +392,7 @@ async function handleTestProjectTracker(
 async function handleMigrateProject(
   projectId: string,
   req: Request,
+  registry: ProviderRegistry,
 ): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
@@ -411,7 +420,7 @@ async function handleMigrateProject(
       }
 
       const { newId, newProject, archivedOldProject, secretsToSave } =
-        buildProjectMigrationPlan(project, body);
+        buildProjectMigrationPlan(project, body, registry);
 
       await saveProject(archivedOldProject);
       const savedNewProject = await saveProject(newProject);
@@ -478,14 +487,14 @@ async function handleProjectMemberRoute(
       subaction === "credentials" &&
       (method === "PUT" || method === "POST")
     ) {
-      return handleUpdateProjectTrackerCredentials(id, req);
+      return handleUpdateProjectTrackerCredentials(id, req, registry);
     }
     if (subaction === "test" && method === "POST") {
-      return handleTestProjectTracker(id, req);
+      return handleTestProjectTracker(id, req, registry);
     }
   }
   if (action === "migrate" && method === "POST") {
-    return handleMigrateProject(id, req);
+    return handleMigrateProject(id, req, registry);
   }
   if (!action && partsCount === 2) {
     return handleProjectMemberCrud(method, id, req, registry);
@@ -627,9 +636,9 @@ async function resolveScopeDiagnosticProvider(
   const projectId = data.projectId;
   if (typeof projectId !== "string" || !projectId.trim()) return undefined;
   const project = await getProject(projectId.trim());
-  const recorded =
-    project?.issueTracker?.provider || project?.issueTracker?.connectionId;
-  return recorded ? getProvider(recorded, registry) : undefined;
+  if (!project) return undefined;
+  const recorded = findConnectionForRole(project, "tracker", registry);
+  return recorded ? getProvider(recorded.providerId, registry) : undefined;
 }
 
 /**

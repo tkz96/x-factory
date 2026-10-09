@@ -44,10 +44,8 @@ import {
   type ProviderCapability,
   type ProviderRole,
 } from "../providers/contract.js";
-import {
-  deriveIssueTracker,
-  legacyTrackerProviderId,
-} from "../providers/project-config.js";
+import { deriveIssueTracker } from "../providers/project-config.js";
+import { legacyTrackerProviderId } from "../providers/project-connections.js";
 import { redactConnections } from "../providers/redaction.js";
 import {
   PROVIDER_REGISTRY,

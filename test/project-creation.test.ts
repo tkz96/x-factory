@@ -42,7 +42,7 @@ import type {
   Provider,
   ProviderConfigFieldMeta,
 } from "../src/providers/contract.js";
-import { resolveProjectProvider } from "../src/providers/project-config.js";
+import { resolveProjectConnection } from "../src/providers/project-connections.js";
 import { PROVIDER_REGISTRY } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
 import {
@@ -374,10 +374,14 @@ describe("POST /api/projects with a connections payload", () => {
     // after a fresh read of both artifacts (process-restart equivalence).
     const stored = await readStoredProject(projectId);
     expect(stored).toBeDefined();
-    const resolved = resolveProjectProvider(stored as Project, env);
-    expect(resolved.provider.id).toBe("jira");
-    expect(resolved.config.host).toBe("https://rocket.atlassian.net");
-    expect(Object.values(resolved.config)).toContain(MARKER_JIRA_TOKEN);
+    const resolved = resolveProjectConnection(
+      stored as Project,
+      "tracker",
+      env,
+    );
+    expect(resolved?.provider.id).toBe("jira");
+    expect(resolved?.config.host).toBe("https://rocket.atlassian.net");
+    expect(Object.values(resolved?.config ?? {})).toContain(MARKER_JIRA_TOKEN);
   });
 
   it("accepts one same-provider dual-role connection", async () => {
