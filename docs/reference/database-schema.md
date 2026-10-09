@@ -24,11 +24,13 @@ PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 5000;
 ```
 
+`busy_timeout` is set first, so every later PRAGMA and statement waits for a lock held by another process. The WAL switch on a fresh file is retried on `SQLITE_BUSY` until that same timeout runs out, because it can fail at once instead of waiting.
+
 `synchronous = NORMAL` is safe under WAL: a commit stays durable across an application crash, and only an operating-system crash or power loss can drop the most recent commits. Without WAL (in-memory databases, or `wal: false`), `NORMAL` is weaker than `FULL`: a power loss can corrupt a rollback-journal database, not only lose recent commits. The pragma is set explicitly on every writable connection, so the setting does not depend on the journal-mode default.
 
 ## Entity Purposes and Invariants
 
-- **`schema_migrations`**: one row per applied migration. The migrator applies pending migrations in version order on startup.
+- **`schema_migrations`**: one row per applied migration. The migrator applies pending migrations in version order on startup. Each migration runs in an IMMEDIATE transaction that takes the write lock first and re-reads the version under that lock, so the API and the worker can start together on a fresh data dir: the second process skips migrations the first has committed.
 - **`runs`**: the persistent state of each workflow execution. `status` follows the FSM in [`state-machine-matrix.md`](./state-machine-matrix.md). Every status change goes through the repository's compare-and-swap transition, which bumps `revision` (optimistic concurrency) and appends an event in the same transaction.
 - **`jobs`**: schedulable units of work for a stage. A worker claims a job with a lease (`worker_id`, `lease_until`) and renews it by heartbeat. Attempts are bounded by `max_attempts`.
 - **`run_events`**: the append-only event log for a run, ordered by a per-run `sequence`. It backs the SSE stream and historical replay.

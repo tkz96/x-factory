@@ -1,6 +1,7 @@
 // test/api-restart.test.ts — API process restart resilience while worker continues executing (XFM-58).
 
 import { afterAll, describe, expect, it } from "bun:test";
+import type { Server } from "bun";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -10,7 +11,7 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type {
   StageContext,
   StageExecutor,
-  StageResult,
+  StageOutcome,
 } from "../src/executors/index.js";
 import { getOpenApiSpec } from "../src/http/openapi.js";
 import { jsonResponse } from "../src/http/responses.js";
@@ -27,12 +28,15 @@ describe("API Process Restart Resilience (XFM-58)", () => {
 
   function startTestServer(port = 0) {
     const publicDir = getPublicDir();
-    return Bun.serve({
+    const server: Server<unknown> = Bun.serve({
       port,
       async fetch(req) {
         const url = new URL(req.url);
         if (url.pathname.startsWith("/api/")) {
-          return handleApi(req, url);
+          return handleApi(req, url, undefined, {
+            port: server.port ?? port,
+            listenHost: "127.0.0.1",
+          });
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());
@@ -40,6 +44,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
         return serveStatic(url.pathname, publicDir);
       },
     });
+    return server;
   }
 
   it("worker executes uninterrupted across API server shutdown and restart", async () => {
@@ -99,7 +104,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
 
     const mockExecutor: StageExecutor = {
       stage: "prepare",
-      async execute(ctx: StageContext): Promise<StageResult> {
+      async execute(ctx: StageContext): Promise<StageOutcome> {
         if (ctx.job.stage === "prepare") {
           prepareExecuted = true;
           // emit an event into event repo
@@ -107,9 +112,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
             text: "Prepared during API restart window",
           });
           return {
-            status: "success",
-            nextStage: "understand",
-            nextRunStatus: "understanding",
+            outcome: "passed",
             output: { step: 1 },
           };
         }
@@ -119,13 +122,11 @@ describe("API Process Restart Resilience (XFM-58)", () => {
             text: "Understood while API was restarted",
           });
           return {
-            status: "success",
-            nextStage: undefined,
-            nextRunStatus: "awaiting_understanding_approval",
+            outcome: "passed",
             output: { step: 2 },
           };
         }
-        return { status: "success" };
+        return { outcome: "passed" };
       },
     };
 

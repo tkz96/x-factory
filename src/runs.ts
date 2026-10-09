@@ -25,7 +25,15 @@ import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
-import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
+import type { Project, PullRequest, Run, Ticket } from "./types.js";
+import {
+  APPROVE_ROUTES,
+  assertRunAction,
+  REQUEUE_ROUTE,
+  RESTART_ROUTE,
+  resumeRouteFor,
+  resumeStageName,
+} from "./workflow.js";
 
 let hydrationPromise: Promise<void> | null = null;
 
@@ -358,11 +366,7 @@ function verifyRecoveryRequired(
 ): RunRecord {
   const dbRun = runRepo.get(id, db);
   if (!dbRun) throw new NotFoundError(`Run ${id} not found.`);
-  if (!canRunAction(dbRun.status, action)) {
-    throw new ConflictError(
-      `Cannot ${action} run in status "${dbRun.status}". Run must be in "recovery_required".`,
-    );
-  }
+  assertRunAction(dbRun.status, action);
   return dbRun;
 }
 
@@ -472,43 +476,59 @@ export async function resumeRun(id: string): Promise<Run> {
   const db = getDb();
   const runRepo = getRunRepository();
   const jobRepo = getJobRepository();
+  const commandRepo = getCommandRepository();
   const stageAttemptRepo = getStageAttemptRepository();
 
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, db, "resume");
 
     const attempts = stageAttemptRepo.listForRun(id, db);
-    const lastAttempt =
-      attempts.length > 0 ? attempts[attempts.length - 1] : null;
-    const targetStage = lastAttempt?.stage || "prepare";
-    const stageToStatus: Record<string, RunStatus> = {
-      prepare: "preparing",
-      understand: "understanding",
-      plan: "planning",
-      execute: "executing",
-      verify: "executing",
-      review: "executing",
-      implement: "executing",
-    };
-    const targetStatus: RunStatus = stageToStatus[targetStage] || "executing";
+    const attemptStages = attempts.map((attempt) => attempt.stage);
+    const route = resumeRouteFor(attemptStages);
+
+    if (route.command) {
+      // A completed deliver command means the PR already exists. Resuming into
+      // ready_for_pr would strand the run with nothing left to run.
+      const existing = commandRepo.getCommandByIdempotencyKey(
+        `${route.command}:${id}`,
+        db,
+      );
+      if (existing?.status === "completed") {
+        throw new ConflictError(
+          `Cannot resume run ${id}: its ${route.command} command already completed.`,
+        );
+      }
+    }
 
     const transitionResult = runRepo.transitionRun(
       id,
       "recovery_required",
-      targetStatus,
+      route.to,
       {
         event: {
           type: "status",
           payload: {
-            status: targetStatus,
-            text: `Run resumed by operator into stage ${targetStage}.`,
+            status: route.to,
+            text: `Run resumed by operator into stage ${resumeStageName(attemptStages)}.`,
           },
         },
       },
       db,
     );
 
-    jobRepo.createJob({ runId: id, stage: targetStage }, db);
+    if (route.command) {
+      commandRepo.insertOrRetryCommand(
+        {
+          runId: id,
+          command: route.command,
+          idempotencyKey: `${route.command}:${id}`,
+        },
+        db,
+      );
+    }
+    if (route.jobStage) {
+      jobRepo.createJob({ runId: id, stage: route.jobStage }, db);
+    }
     return transitionResult.run;
   });
 
@@ -647,30 +667,6 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
   return { ok: true, message: agentResponse };
 }
 
-/**
- * Where approving a run moves it, keyed by the gate it is waiting at. Which
- * statuses may be approved at all is decided by the shared policy
- * (`canRunAction(status, "approve")`); this table only says what happens next.
- */
-const APPROVAL_TRANSITIONS: Partial<
-  Record<RunStatus, { to: RunStatus; text: string; nextStage?: string }>
-> = {
-  awaiting_understanding_approval: {
-    to: "planning",
-    text: "Understanding approved, starting planning.",
-    nextStage: "plan",
-  },
-  awaiting_plan_approval: {
-    to: "executing",
-    text: "Plan approved, moving to execution.",
-    nextStage: "execute",
-  },
-  awaiting_review: {
-    to: "ready_for_pr",
-    text: "Review approved, ready for Pull Request.",
-  },
-};
-
 export async function handleTransition(
   id: string,
   action: "approve" | "restart" | "abort" | "requeue",
@@ -691,10 +687,8 @@ export async function handleTransition(
     if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (action === "approve") {
-      if (!canRunAction(run.status, "approve")) {
-        throw new ConflictError(`Cannot approve in status "${run.status}".`);
-      }
-      const approval = APPROVAL_TRANSITIONS[run.status];
+      assertRunAction(run.status, "approve");
+      const approval = APPROVE_ROUTES[run.status];
       if (!approval) {
         // The shared policy allows approve here but no transition is defined:
         // an internal inconsistency, not a client conflict.
@@ -721,104 +715,94 @@ export async function handleTransition(
     }
 
     if (action === "restart") {
-      if (canRunAction(run.status, "restart")) {
-        // Cancel any active jobs first
-        const activeJob = jobRepo.findActiveJobForRun(id, db);
-        if (activeJob) {
-          cancelAndStopActiveJob(
-            jobRepo,
-            commandRepo,
-            id,
-            activeJob,
-            "Run restarted.",
-            db,
-          );
-        }
-
-        const transitionResult = runRepo.transitionRun(
+      assertRunAction(run.status, "restart");
+      // Cancel any active jobs first
+      const activeJob = jobRepo.findActiveJobForRun(id, db);
+      if (activeJob) {
+        cancelAndStopActiveJob(
+          jobRepo,
+          commandRepo,
           id,
-          run.status,
-          "understanding",
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: "understanding",
-                text: "Restarting plan context...",
-              },
-            },
-          },
+          activeJob,
+          "Run restarted.",
           db,
         );
-        jobRepo.createJob({ runId: id, stage: "understand" }, db);
-        return transitionResult.run;
       }
-      throw new ConflictError(`Cannot restart in status "${run.status}".`);
+
+      const transitionResult = runRepo.transitionRun(
+        id,
+        run.status,
+        RESTART_ROUTE.to,
+        {
+          event: {
+            type: "status",
+            payload: {
+              status: RESTART_ROUTE.to,
+              text: RESTART_ROUTE.text,
+            },
+          },
+        },
+        db,
+      );
+      jobRepo.createJob({ runId: id, stage: RESTART_ROUTE.nextStage }, db);
+      return transitionResult.run;
     }
 
     if (action === "requeue") {
-      if (canRunAction(run.status, "requeue")) {
-        const payload = _payload as
-          | { failingTasks?: string[]; chatNotes?: string }
-          | undefined;
-        let requeueText = "Requeueing run for fresh plan...";
-        if (payload?.chatNotes) {
-          requeueText += ` Notes: ${payload.chatNotes}`;
-        }
+      assertRunAction(run.status, "requeue");
+      const payload = _payload as
+        | { failingTasks?: string[]; chatNotes?: string }
+        | undefined;
+      let requeueText = REQUEUE_ROUTE.text;
+      if (payload?.chatNotes) {
+        requeueText += ` Notes: ${payload.chatNotes}`;
+      }
 
-        let newPlan = run.plan;
-        if (payload?.failingTasks && payload.failingTasks.length > 0) {
-          newPlan += "\n\n### Requeue Feedback:\n";
-          newPlan += payload.failingTasks
-            .map((t) => `- Failed: ${t}`)
-            .join("\n");
-        }
-        if (payload?.chatNotes) {
-          newPlan += `\nNotes: ${payload.chatNotes}\n`;
-        }
+      let newPlan = run.plan;
+      if (payload?.failingTasks && payload.failingTasks.length > 0) {
+        newPlan += "\n\n### Requeue Feedback:\n";
+        newPlan += payload.failingTasks.map((t) => `- Failed: ${t}`).join("\n");
+      }
+      if (payload?.chatNotes) {
+        newPlan += `\nNotes: ${payload.chatNotes}\n`;
+      }
 
-        runRepo.update(
-          id,
-          { plan: newPlan, expectedRevision: run.revision },
-          db,
-        );
+      runRepo.update(id, { plan: newPlan, expectedRevision: run.revision }, db);
 
-        const transitionResult = runRepo.transitionRun(
-          id,
-          run.status,
-          "planning",
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: "planning",
-                text: requeueText,
-              },
+      const transitionResult = runRepo.transitionRun(
+        id,
+        run.status,
+        REQUEUE_ROUTE.to,
+        {
+          event: {
+            type: "status",
+            payload: {
+              status: REQUEUE_ROUTE.to,
+              text: requeueText,
             },
+          },
+        },
+        db,
+      );
+
+      if (
+        payload?.chatNotes ||
+        (payload?.failingTasks && payload.failingTasks.length > 0)
+      ) {
+        eventRepo.appendEvent(
+          id,
+          "user_feedback",
+          {
+            failingTasks: payload.failingTasks,
+            notes: payload.chatNotes,
+            text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
           },
           db,
         );
-
-        if (
-          payload?.chatNotes ||
-          (payload?.failingTasks && payload.failingTasks.length > 0)
-        ) {
-          eventRepo.appendEvent(
-            id,
-            "user_feedback",
-            {
-              failingTasks: payload.failingTasks,
-              notes: payload.chatNotes,
-              text: `Feedback provided: ${payload.failingTasks?.length || 0} failing tasks.`,
-            },
-            db,
-          );
-        }
-
-        jobRepo.createJob({ runId: id, stage: "plan" }, db);
-        return transitionResult.run;
       }
-      throw new ConflictError(`Cannot requeue in status "${run.status}".`);
+
+      jobRepo.createJob({ runId: id, stage: REQUEUE_ROUTE.nextStage }, db);
+      return transitionResult.run;
     }
 
     throw new Error(`Unknown transition action: ${action}`);

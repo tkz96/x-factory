@@ -2,15 +2,17 @@
 // scripts/backup.ts — CLI backup script for SQLite database and filesystem artifacts (XFM-72).
 
 import { existsSync, mkdirSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { backupDatabase } from "../src/db/backup.js";
 import { createDatabase } from "../src/db/connection.js";
-import { getDbPath } from "../src/paths.js";
+import {
+  getArtifactsDir,
+  getBackupsDir,
+  getDatabasePath,
+} from "../src/paths.js";
 
 async function main() {
-  const defaultBackupDir = path.join(os.homedir(), ".x-factory", "backups");
-  const targetDir = process.env.BACKUP_DIR || defaultBackupDir;
+  const targetDir = process.env.BACKUP_DIR || getBackupsDir();
 
   if (!existsSync(targetDir)) {
     mkdirSync(targetDir, { recursive: true });
@@ -22,7 +24,9 @@ async function main() {
     .replace("T", "_");
   const backupDbPath = path.join(targetDir, `x-factory-db-${timestamp}.db`);
 
-  console.log(`[Backup] Connecting to live SQLite database (${getDbPath()})…`);
+  console.log(
+    `[Backup] Connecting to live SQLite database (${getDatabasePath()})…`,
+  );
   const liveDb = createDatabase();
 
   try {
@@ -41,12 +45,12 @@ async function main() {
     );
 
     // Artifact filesystem backup guidance
-    const artifactsDir = path.join(os.homedir(), ".x-factory", "artifacts");
     const artifactsTarPath = path.join(
       targetDir,
       `x-factory-artifacts-${timestamp}.tar.gz`,
     );
 
+    const artifactsDir = getArtifactsDir();
     if (existsSync(artifactsDir)) {
       console.log(
         `[Backup] Archiving artifacts from ${artifactsDir} to ${artifactsTarPath}…`,

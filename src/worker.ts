@@ -28,7 +28,7 @@ import {
   getStageExecutor,
   type StageContext,
   type StageExecutor,
-  type StageResult,
+  type StageOutcome,
 } from "./executors/index.js";
 import { finalizeDeliver } from "./services/deliver-service.js";
 import {
@@ -36,6 +36,11 @@ import {
   canTransition,
 } from "./shared/run-status-policy.js";
 import type { Project, PullRequest, RunStatus } from "./shared/types.js";
+import {
+  isWorkflowStage,
+  PASSED_ROUTES,
+  REJECTED_RUN_STATUS,
+} from "./workflow.js";
 
 export interface WorkerLogEntry {
   timestamp: string;
@@ -76,7 +81,7 @@ export interface WorkerOptions {
   deliverExecutor?:
     | {
         deliver?: (ctx: StageContext) => Promise<PullRequest>;
-        execute?: (ctx: StageContext) => Promise<StageResult | PullRequest>;
+        execute?: (ctx: StageContext) => Promise<StageOutcome | PullRequest>;
       }
     | undefined;
 }
@@ -95,7 +100,7 @@ export class Worker {
   private deliverExecutor?:
     | {
         deliver?: (ctx: StageContext) => Promise<PullRequest>;
-        execute?: (ctx: StageContext) => Promise<StageResult | PullRequest>;
+        execute?: (ctx: StageContext) => Promise<StageOutcome | PullRequest>;
       }
     | undefined;
   private pollIntervalMs: number;
@@ -649,17 +654,16 @@ export class Worker {
       if (deliverExecutor.deliver) {
         pr = await deliverExecutor.deliver(stageCtx);
       } else if (deliverExecutor.execute) {
-        const res = await deliverExecutor.execute(stageCtx);
-        if ("url" in res && typeof (res as PullRequest).url === "string") {
-          pr = res as PullRequest;
-        } else if (
-          (res as StageResult).status === "success" &&
-          (res as StageResult).output
-        ) {
-          pr = (res as StageResult).output as PullRequest;
+        const res: StageOutcome | PullRequest =
+          await deliverExecutor.execute(stageCtx);
+        if ("url" in res) {
+          pr = res;
+        } else if (res.outcome === "passed" && res.output) {
+          pr = res.output as PullRequest;
         } else {
           throw new Error(
-            (res as StageResult).error || "Deliver failed without output",
+            (res.outcome === "error" && res.error) ||
+              "Deliver failed without output",
           );
         }
       } else {
@@ -947,11 +951,12 @@ export class Worker {
 
       const duration = Math.round(performance.now() - startTime);
 
-      if (result.status === "success" || result.status === "retry") {
+      if (result.outcome === "passed") {
         this.commitStageProgression(job, attempt, result, duration, run.status);
+      } else if (result.outcome === "rejected") {
+        this.commitRejection(job, run, attempt, result.reason, duration);
       } else {
-        const errorMsg = result.error || `Stage '${job.stage}' failed`;
-        this.handleStageFailure(job, run, attempt.id, errorMsg, duration);
+        this.handleStageFailure(job, run, attempt.id, result.error, duration);
       }
     } catch (err: unknown) {
       if (this.isStopping) return;
@@ -972,14 +977,11 @@ export class Worker {
   private commitStageProgression(
     job: JobRecord,
     attempt: StageAttemptRecord,
-    result: StageResult,
+    result: Extract<StageOutcome, { outcome: "passed" }>,
     duration: number,
     expectedRunStatus: RunStatus,
   ): boolean {
-    const isRetry = result.status === "retry";
-    const transitionText = isRetry
-      ? `Stage '${job.stage}' requested retry: transitioning to '${result.nextRunStatus}'.`
-      : `Stage '${job.stage}' completed. Transitioning to '${result.nextRunStatus}'.`;
+    const route = isWorkflowStage(job.stage) ? PASSED_ROUTES[job.stage] : null;
 
     const committed = this.db.transaction(() => {
       // Section 11: Worker Progression CAS verification
@@ -1000,33 +1002,30 @@ export class Worker {
         this.db,
       );
 
-      if (result.nextRunStatus) {
-        if (r.status !== result.nextRunStatus) {
-          this.runRepo.transitionRun(
-            job.runId,
-            r.status,
-            result.nextRunStatus,
-            {
-              event: {
-                type: "status",
-                payload: {
-                  status: result.nextRunStatus,
-                  text: transitionText,
-                },
+      if (route && r.status !== route.to) {
+        this.runRepo.transitionRun(
+          job.runId,
+          r.status,
+          route.to,
+          {
+            event: {
+              type: "status",
+              payload: {
+                status: route.to,
+                text: `Stage '${job.stage}' completed. Transitioning to '${route.to}'.`,
               },
             },
-            this.db,
-          );
-        }
+          },
+          this.db,
+        );
       }
 
-      // Section 15: If nextStage is specified, enqueue next job.
-      // If nextRunStatus is ready_for_pr and nextStage is undefined, no next job is created.
-      if (result.nextStage) {
+      // Section 15: the workflow route decides which stage runs next.
+      if (route?.nextStage) {
         this.jobRepo.createJob(
           {
             runId: job.runId,
-            stage: result.nextStage,
+            stage: route.nextStage,
             status: "pending",
           },
           this.db,
@@ -1044,35 +1043,83 @@ export class Worker {
       return false;
     }
 
-    if (isRetry) {
-      this.emitStructuredLog({
-        job_id: job.id,
-        run_id: job.runId,
-        stage: job.stage,
-        attempt: job.attempts,
-        duration_ms: duration,
-        result: "retry",
-        message: `Stage '${job.stage}' requested retry to '${result.nextStage}'`,
-      });
-      this.log(
-        `Stage '${job.stage}' routed to retry '${result.nextStage}': job_id=${job.id}`,
-      );
-    } else {
-      this.emitStructuredLog({
-        job_id: job.id,
-        run_id: job.runId,
-        stage: job.stage,
-        attempt: job.attempts,
-        duration_ms: duration,
-        result: "success",
-        message: `Stage '${job.stage}' completed successfully`,
-      });
-      this.log(
-        `Job completed successfully: job_id=${job.id}, stage=${job.stage}`,
-      );
-    }
+    this.emitStructuredLog({
+      job_id: job.id,
+      run_id: job.runId,
+      stage: job.stage,
+      attempt: job.attempts,
+      duration_ms: duration,
+      result: "success",
+      message: `Stage '${job.stage}' completed successfully`,
+    });
+    this.log(
+      `Job completed successfully: job_id=${job.id}, stage=${job.stage}`,
+    );
 
     return true;
+  }
+
+  /**
+   * A rejected stage is a verdict: the job fails without a retry and the run ends in
+   * `failed` carrying the rejection (#181).
+   */
+  private commitRejection(
+    job: JobRecord,
+    run: RunRecord,
+    attempt: StageAttemptRecord,
+    reason: string,
+    duration: number,
+  ): void {
+    this.error(`Stage '${job.stage}' rejected: ${reason}`);
+
+    try {
+      this.stageAttemptRepo.recordFailure(attempt.id, reason);
+    } catch (e: unknown) {
+      this.error("Failed to record stage attempt rejection", e);
+    }
+
+    try {
+      this.db.transaction(() => {
+        this.jobRepo.rejectJob(job.id, this.workerId, reason, this.db);
+        const latestRun = this.runRepo.get(run.id, this.db);
+        if (!latestRun) return;
+        if (canTransition(latestRun.status, REJECTED_RUN_STATUS)) {
+          this.runRepo.transitionRun(
+            run.id,
+            latestRun.status,
+            REJECTED_RUN_STATUS,
+            {
+              event: {
+                type: "status",
+                payload: {
+                  status: REJECTED_RUN_STATUS,
+                  text: `Run failed during stage '${job.stage}': ${reason}`,
+                },
+              },
+            },
+            this.db,
+          );
+        } else {
+          const text = `Rejection not applied: run is in status "${latestRun.status}", which cannot transition to ${REJECTED_RUN_STATUS}.`;
+          this.eventRepo.appendEvent(run.id, "info", { text }, this.db);
+          this.error(`Run ${run.id}: ${text}`);
+        }
+      })();
+    } catch (err: unknown) {
+      this.error(`Failed to end run ${run.id} after rejection`, err);
+      return;
+    }
+
+    this.emitStructuredLog({
+      job_id: job.id,
+      run_id: job.runId,
+      stage: job.stage,
+      attempt: job.attempts,
+      duration_ms: duration,
+      result: "failure",
+      message: `Stage '${job.stage}' rejected; run ended without retry`,
+      error: reason,
+    });
   }
 
   private handleStageFailure(

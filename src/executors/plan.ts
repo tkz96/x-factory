@@ -1,10 +1,10 @@
 import { generateDefaultPlan } from "../prompts.js";
-import type { StageContext, StageExecutor, StageResult } from "./types.js";
+import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
 export class PlanExecutor implements StageExecutor {
   readonly stage = "plan";
 
-  async execute(context: StageContext): Promise<StageResult> {
+  async execute(context: StageContext): Promise<StageOutcome> {
     const { run } = context;
 
     context.eventRepo.appendEvent(run.id, "info", {
@@ -27,9 +27,7 @@ export class PlanExecutor implements StageExecutor {
     });
 
     return {
-      status: "success",
-      nextStage: undefined,
-      nextRunStatus: "awaiting_plan_approval",
+      outcome: "passed",
       output: {
         planReady: true,
       },

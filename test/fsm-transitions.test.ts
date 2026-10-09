@@ -307,7 +307,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
           }
         }
       }
-      expect(legalCount).toBe(43);
+      expect(legalCount).toBe(44);
     });
 
     it("verifies every illegal transition is strictly rejected", () => {
@@ -324,7 +324,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
           }
         }
       }
-      expect(illegalCount).toBe(ALL_STATUSES.length * ALL_STATUSES.length - 43);
+      expect(illegalCount).toBe(ALL_STATUSES.length * ALL_STATUSES.length - 44);
     });
 
     it("enforces that terminal states (pr_created, failed, stopped) reject all transitions", () => {

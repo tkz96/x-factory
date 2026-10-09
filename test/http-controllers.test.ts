@@ -43,7 +43,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
   describe("handleApi Routing Dispatcher", () => {
     it("returns 404 for empty or root API endpoint", async () => {
-      const req = new Request("http://localhost/api", { method: "GET" });
+      const req = new Request("http://localhost:3777/api", { method: "GET" });
       const res = await handleApi(req, new URL(req.url));
       assert.equal(res.status, 404);
       const body = await res.json();
@@ -51,9 +51,12 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("returns 404 for unknown resource path", async () => {
-      const req = new Request("http://localhost/api/nonexistent-resource", {
-        method: "GET",
-      });
+      const req = new Request(
+        "http://localhost:3777/api/nonexistent-resource",
+        {
+          method: "GET",
+        },
+      );
       const res = await handleApi(req, new URL(req.url));
       assert.equal(res.status, 404);
       const body = await res.json();
@@ -61,7 +64,9 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("dispatches GET /api/runs to runs controller", async () => {
-      const req = new Request("http://localhost/api/runs", { method: "GET" });
+      const req = new Request("http://localhost:3777/api/runs", {
+        method: "GET",
+      });
       const res = await handleApi(req, new URL(req.url));
       assert.equal(res.status, 200);
       const data = await res.json();
@@ -69,7 +74,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("dispatches GET /api/projects to projects controller", async () => {
-      const req = new Request("http://localhost/api/projects", {
+      const req = new Request("http://localhost:3777/api/projects", {
         method: "GET",
       });
       const res = await handleApi(req, new URL(req.url));
@@ -79,7 +84,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("dispatches GET /api/settings to settings controller", async () => {
-      const req = new Request("http://localhost/api/settings", {
+      const req = new Request("http://localhost:3777/api/settings", {
         method: "GET",
       });
       const res = await handleApi(req, new URL(req.url));
@@ -96,7 +101,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       ).mockImplementationOnce(() => {
         throw new Error("Catastrophic database failure");
       });
-      const req = new Request("http://localhost/api/runs", {
+      const req = new Request("http://localhost:3777/api/runs", {
         method: "GET",
       });
       const res = await handleApi(req, new URL(req.url));
@@ -109,7 +114,9 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
   describe("handleRunsRoute Controller", () => {
     it("GET /api/runs returns active runs", async () => {
-      const req = new Request("http://localhost/api/runs", { method: "GET" });
+      const req = new Request("http://localhost:3777/api/runs", {
+        method: "GET",
+      });
       const res = await handleRunsRoute("GET", undefined, undefined, 1, req);
       assert.ok(res);
       assert.equal(res.status, 200);
@@ -118,7 +125,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("POST /api/runs rejects malformed JSON with 400", async () => {
-      const req = new Request("http://localhost/api/runs", {
+      const req = new Request("http://localhost:3777/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{ bad json",
@@ -131,7 +138,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("POST /api/runs rejects missing projectId with 400 and validation details", async () => {
-      const req = new Request("http://localhost/api/runs", {
+      const req = new Request("http://localhost:3777/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketId: "RUN-1" }),
@@ -145,7 +152,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("POST /api/runs rejects unknown projectId with 404", async () => {
-      const req = new Request("http://localhost/api/runs", {
+      const req = new Request("http://localhost:3777/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: "unknown-proj-404" }),
@@ -192,7 +199,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       try {
         await saveProject(validProject);
 
-        const req = new Request("http://localhost/api/runs", {
+        const req = new Request("http://localhost:3777/api/runs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -220,9 +227,12 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("GET /api/runs/:id returns 404 for unknown run", async () => {
-      const req = new Request("http://localhost/api/runs/nonexistent-run", {
-        method: "GET",
-      });
+      const req = new Request(
+        "http://localhost:3777/api/runs/nonexistent-run",
+        {
+          method: "GET",
+        },
+      );
       const res = await handleRunsRoute(
         "GET",
         "nonexistent-run",
@@ -238,7 +248,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("GET /api/runs/:id/events returns 404 for unknown run", async () => {
       const req = new Request(
-        "http://localhost/api/runs/nonexistent-run/events",
+        "http://localhost:3777/api/runs/nonexistent-run/events",
         { method: "GET" },
       );
       const res = await handleRunsRoute(
@@ -254,7 +264,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("POST /api/runs/:id/steer is no longer a known route", async () => {
       const req = new Request(
-        "http://localhost/api/runs/nonexistent-run/steer",
+        "http://localhost:3777/api/runs/nonexistent-run/steer",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -274,7 +284,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("POST /api/runs/:id/chat validates message field", async () => {
       const req = new Request(
-        "http://localhost/api/runs/nonexistent-run/chat",
+        "http://localhost:3777/api/runs/nonexistent-run/chat",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -296,7 +306,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("POST /api/runs/:id/chat rejects malformed JSON", async () => {
       const req = new Request(
-        "http://localhost/api/runs/nonexistent-run/chat",
+        "http://localhost:3777/api/runs/nonexistent-run/chat",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -318,7 +328,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("POST /api/runs/:id/chat returns 404 for unknown run", async () => {
       const req = new Request(
-        "http://localhost/api/runs/nonexistent-run/chat",
+        "http://localhost:3777/api/runs/nonexistent-run/chat",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -372,7 +382,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       getEventRepository().appendEvent(runId, "info", { text: "Run started" });
 
       // GET /api/runs/:id
-      const getReq = new Request(`http://localhost/api/runs/${runId}`, {
+      const getReq = new Request(`http://localhost:3777/api/runs/${runId}`, {
         method: "GET",
       });
       const getRes = await handleRunsRoute("GET", runId, undefined, 2, getReq);
@@ -383,7 +393,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
       // GET /api/runs/:id/events (EventStream)
       const eventsReq = new Request(
-        `http://localhost/api/runs/${runId}/events`,
+        `http://localhost:3777/api/runs/${runId}/events`,
         { method: "GET" },
       );
       const eventsRes = await handleRunsRoute(
@@ -404,7 +414,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
       // POST /api/runs/:id/chat (returns 409 because run is in executing state)
       const chatFailReq = new Request(
-        `http://localhost/api/runs/${runId}/chat`,
+        `http://localhost:3777/api/runs/${runId}/chat`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -430,20 +440,26 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       });
 
       // POST /api/runs/:id/chat (returns 200)
-      const chatReq = new Request(`http://localhost/api/runs/${runId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Hello" }),
-      });
+      const chatReq = new Request(
+        `http://localhost:3777/api/runs/${runId}/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Hello" }),
+        },
+      );
       const chatRes = await handleRunsRoute("POST", runId, "chat", 3, chatReq);
       assert.ok(chatRes);
       assert.equal(chatRes.status, 200);
       chatSpy.mockRestore();
 
       // POST /api/runs/:id/stop
-      const stopReq = new Request(`http://localhost/api/runs/${runId}/stop`, {
-        method: "POST",
-      });
+      const stopReq = new Request(
+        `http://localhost:3777/api/runs/${runId}/stop`,
+        {
+          method: "POST",
+        },
+      );
       const stopRes = await handleRunsRoute("POST", runId, "stop", 3, stopReq);
       assert.ok(stopRes);
       assert.equal(stopRes.status, 200);
@@ -455,7 +471,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("returns null for unsupported method on runs route", async () => {
-      const req = new Request("http://localhost/api/runs", {
+      const req = new Request("http://localhost:3777/api/runs", {
         method: "DELETE",
       });
       const res = await handleRunsRoute("DELETE", undefined, undefined, 1, req);
@@ -465,16 +481,19 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
   describe("handleProjectsRoute Controller", () => {
     it("returns null for unmatched action on projects route", async () => {
-      const req = new Request("http://localhost/api/projects/proj-1/unknown", {
-        method: "GET",
-      });
+      const req = new Request(
+        "http://localhost:3777/api/projects/proj-1/unknown",
+        {
+          method: "GET",
+        },
+      );
       const res = await handleProjectsRoute("GET", "proj-1", "unknown", 3, req);
       assert.equal(res, null);
     });
 
     it("returns 404 for unknown project inspection", async () => {
       const req = new Request(
-        "http://localhost/api/projects/unknown-proj-999",
+        "http://localhost:3777/api/projects/unknown-proj-999",
         {
           method: "GET",
         },
@@ -491,7 +510,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("POST /api/projects rejects malformed JSON with 400", async () => {
-      const req = new Request("http://localhost/api/projects", {
+      const req = new Request("http://localhost:3777/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "bad json",
@@ -510,7 +529,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("POST /api/projects rejects missing required fields with 400 and details", async () => {
-      const req = new Request("http://localhost/api/projects", {
+      const req = new Request("http://localhost:3777/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -532,7 +551,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
   describe("handleSettingsRoute Controller", () => {
     it("returns 200 with masked settings", async () => {
-      const req = new Request("http://localhost/api/settings", {
+      const req = new Request("http://localhost:3777/api/settings", {
         method: "GET",
       });
       const res = await handleSettingsRoute("GET", req);
@@ -543,7 +562,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("returns 400 for invalid JSON in POST /api/settings", async () => {
-      const req = new Request("http://localhost/api/settings", {
+      const req = new Request("http://localhost:3777/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "bad json",
@@ -554,7 +573,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
     });
 
     it("returns null for unsupported method on settings route", async () => {
-      const req = new Request("http://localhost/api/settings", {
+      const req = new Request("http://localhost:3777/api/settings", {
         method: "DELETE",
       });
       const res = await handleSettingsRoute("DELETE", req);

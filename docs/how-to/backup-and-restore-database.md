@@ -111,7 +111,7 @@ bun run src/server.ts &
 2. Send a request to the readiness endpoint:
 
 ```bash
-curl -i http://localhost:3777/api/ready
+curl -i http://127.0.0.1:3777/api/ready
 ```
 
 3. Confirm that the endpoint returns HTTP status `200 OK`.
