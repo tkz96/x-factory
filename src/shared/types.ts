@@ -255,6 +255,8 @@ export interface CommandResult {
   stderr: string;
   passed: boolean;
   durationMs: number;
+  /** Present (true) only when the command was killed for exceeding its timeout. */
+  timedOut?: boolean;
 }
 
 /**

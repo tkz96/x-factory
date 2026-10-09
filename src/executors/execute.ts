@@ -1,382 +1,27 @@
-// src/executors/execute.ts — ExecuteExecutor: Autonomous Ralph Loop execution (Ticket 02).
+// src/executors/execute.ts — ExecuteExecutor: events and persistence around the attempt loop (Ticket 02).
 
-import { spawn } from "node:child_process";
-import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { runAttemptLoop } from "../attempt-loop.js";
 import type { RunRecord } from "../db/run-repository.js";
-import * as git from "../git.js";
-import { resolveSanitizedEnv } from "../proc.js";
 import { loadSettings } from "../settings.js";
-import type { Project, Ticket, VerificationResult } from "../shared/types.js";
-import {
-  buildRepairPrompt,
-  MAX_REPAIR_ATTEMPTS,
-  runVerification,
-} from "../verification.js";
-import { baselinePathFor, recordBaseline } from "../worktree-state.js";
-import { resolveWorktreeBaseline } from "./baseline.js";
+import type { VerificationResult } from "../shared/types.js";
+import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import { ReviewExecutor } from "./review.js";
 import type { StageContext, StageExecutor, StageResult } from "./types.js";
 
 export interface ExecuteDependencies {
-  spawn: typeof spawn;
-  getDiff: typeof git.getDiff;
-  writeFile: typeof writeFile;
-  mkdir: typeof mkdir;
-  access: typeof access;
-  chmod: typeof chmod;
   loadSettings: typeof loadSettings;
-  readFile: typeof readFile;
-  resolveWorktreeBaseline: typeof resolveWorktreeBaseline;
-  recordBaseline: typeof recordBaseline;
-  runVerification: typeof runVerification;
-  buildRepairPrompt: typeof buildRepairPrompt;
   reviewExecutor: StageExecutor;
-  MAX_REPAIR_ATTEMPTS: number;
 }
 
 export const defaultExecuteDeps: ExecuteDependencies = {
-  spawn,
-  getDiff: git.getDiff,
-  writeFile,
-  mkdir,
-  access,
-  chmod,
   loadSettings,
-  readFile,
-  resolveWorktreeBaseline,
-  recordBaseline,
-  runVerification,
-  buildRepairPrompt,
   get reviewExecutor() {
     return new ReviewExecutor();
   },
-  MAX_REPAIR_ATTEMPTS,
 };
-
-export const DEFAULT_RALPH_SCRIPT = `#!/usr/bin/env bash
-set -euo pipefail
-
-AGENT="pi"
-ITERATIONS=25
-
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --agent)
-      AGENT="$2"
-      shift 2
-      ;;
-    -n)
-      ITERATIONS="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-
-echo "Starting Ralph Loop: agent=$AGENT, iterations=$ITERATIONS"
-
-if ! command -v sbx &>/dev/null; then
-  echo "Error: Sandbox execution environment (sbx) is required but not found." >&2
-  exit 1
-fi
-
-for (( i=1; i<=ITERATIONS; i++ )); do
-  echo "Iteration $i of $ITERATIONS"
-
-  sbx run --name "ralph-\${AGENT}-\${RANDOM}" "\${AGENT}" .
-
-  if [[ -f .agent/tasks.md ]]; then
-    if ! grep -q '\\- \\[ \\]' .agent/tasks.md; then
-      echo "All tasks completed successfully."
-      exit 0
-    fi
-  else
-    echo "No .agent/tasks.md found, finishing early."
-    exit 0
-  fi
-done
-
-echo "Maximum iterations ($ITERATIONS) reached."
-exit 1
-`;
-
-/**
- * Formats a plan or ticket into a Ralph Loop-compatible .agent/tasks.md checklist.
- */
-export function formatTasksMarkdown(plan: string, ticket?: Ticket): string {
-  const trimmed = plan.trim();
-  if (trimmed.startsWith("# Task List")) {
-    return trimmed;
-  }
-
-  const lines = trimmed
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const tasks: Array<{ title: string; steps: string[] }> = [];
-  let currentTask: { title: string; steps: string[] } | null = null;
-
-  for (const line of lines) {
-    if (
-      line.startsWith("## Task") ||
-      line.startsWith("### Task") ||
-      /^#+\s+Task/i.test(line)
-    ) {
-      const title = line.replace(/^#+\s+/i, "");
-      currentTask = { title, steps: [] };
-      tasks.push(currentTask);
-    } else if (/^\d+\.\s+/.test(line)) {
-      const title = line.replace(/^\d+\.\s+/, "");
-      currentTask = { title: `Task ${tasks.length + 1}: ${title}`, steps: [] };
-      tasks.push(currentTask);
-    } else if (/^(Step|Task)\s+\d+[:.]/i.test(line)) {
-      currentTask = { title: line, steps: [line] };
-      tasks.push(currentTask);
-    } else if (line.startsWith("- [ ]") || line.startsWith("- [x]")) {
-      const step = line.replace(/^-\s+\[[ x]\]\s+/i, "");
-      if (!currentTask) {
-        currentTask = {
-          title: `Task ${tasks.length + 1}: ${ticket?.title || "Implementation"}`,
-          steps: [],
-        };
-        tasks.push(currentTask);
-      }
-      currentTask.steps.push(step);
-    } else if (line.startsWith("- ") || line.startsWith("* ")) {
-      const step = line.replace(/^[-*]\s+/, "");
-      if (!currentTask) {
-        currentTask = {
-          title: `Task ${tasks.length + 1}: ${ticket?.title || "Implementation"}`,
-          steps: [],
-        };
-        tasks.push(currentTask);
-      }
-      currentTask.steps.push(step);
-    } else {
-      if (!currentTask) {
-        currentTask = {
-          title: `Task ${tasks.length + 1}: ${line}`,
-          steps: [line],
-        };
-        tasks.push(currentTask);
-      } else {
-        currentTask.steps.push(line);
-      }
-    }
-  }
-
-  if (tasks.length === 0) {
-    tasks.push({
-      title: `Task 1: ${ticket?.title || "Execute Ticket Implementation"}`,
-      steps:
-        ticket?.acceptanceCriteria && ticket.acceptanceCriteria.length > 0
-          ? ticket.acceptanceCriteria
-          : ["Implement required changes according to specifications"],
-    });
-  }
-
-  let output = "# Task List\n\n";
-  for (let i = 0; i < tasks.length; i++) {
-    const t = tasks[i];
-    if (!t) continue;
-    const taskHeader = t.title.startsWith("Task ")
-      ? `## ${t.title}`
-      : `## Task ${i + 1}: ${t.title}`;
-    output += `${taskHeader}\n`;
-    if (t.steps.length === 0) {
-      output += `- [ ] ${t.title}\n`;
-    } else {
-      for (const step of t.steps) {
-        output += `- [ ] ${step}\n`;
-      }
-    }
-    output += "\n";
-  }
-
-  return output.trim();
-}
-
-/**
- * Builds .agent/PROMPT.md injecting Matt Pocock's TDD & implementation protocols.
- */
-export function buildRalphPrompt(
-  ticket: Ticket,
-  plan: string,
-  project: Project,
-): string {
-  const acList =
-    ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0
-      ? ticket.acceptanceCriteria.map((ac) => `- ${ac}`).join("\n")
-      : "- Ensure all tests pass and implementation meets ticket description.";
-
-  const testCmd = project.testCommand || "bun test";
-  const typecheckCmd = project.typecheckCommand
-    ? `- Typecheck Command: \`${project.typecheckCommand}\``
-    : "";
-  const lintCmd = project.lintCommand
-    ? `- Lint Command: \`${project.lintCommand}\``
-    : "";
-
-  return `# Ralph Loop Task Execution Protocol (Matt Pocock TDD Protocol)
-
-## Ticket: #${ticket.id} — ${ticket.title}
-${ticket.description ? `${ticket.description}\n` : ""}
-### Acceptance Criteria:
-${acList}
-
-### Verification Commands:
-- Test Command: \`${testCmd}\`
-${typecheckCmd}
-${lintCmd}
-
----
-
-## Approved Execution Plan:
-${plan}
-
----
-
-## Autonomous Execution Rules
-
-You are the autonomous coding agent (Pi) executing tasks iteratively inside Ralph Loop.
-Follow these rules strictly:
-
-### 1. Test-Driven Development (TDD) Loop (Red-Green-Refactor)
-For EVERY task in \`.agent/tasks.md\`:
-1. **Red**: Write a failing test first that specifies the expected behavior.
-   - Run the test suite using the project's test command (\`${testCmd}\`).
-   - Verify that the test fails for the expected reason.
-2. **Green**: Write the minimal amount of implementation code to make the test pass.
-   - Do NOT add unnecessary abstractions or speculative code.
-   - Run the test suite and verify that the test passes.
-3. **Refactor**: Clean up the code.
-   - Run typecheck and lint to ensure code quality.
-   - Ensure all existing tests still pass.
-
-### 2. One Task Per Iteration
-- Open \`.agent/tasks.md\`.
-- Find the first unchecked \`- [ ]\` task or step.
-- Implement ONLY that task. Do not jump ahead or combine tasks.
-- When all steps for that task are verified and all tests pass, update \`.agent/tasks.md\` by checking off that task: change \`- [ ]\` to \`- [x]\`.
-
-### 3. Invariants
-- Never delete or disable existing tests to make a test pass.
-- All commands (test, typecheck, lint) must exit cleanly with code 0 before completing a task.
-- When all tasks in \`.agent/tasks.md\` are marked \`[x]\`, conclude your work.
-`;
-}
-
-interface RalphLoopExecutionResult {
-  exitCode: number;
-  timedOut: boolean;
-  errorOutput: string;
-}
-
-async function runRalphLoopChild(
-  spawnFn: typeof spawn,
-  worktreePath: string,
-  iterations: number,
-  sanitizedEnv: Record<string, string>,
-  signal: AbortSignal | undefined,
-  timeoutMs: number,
-  onProgress: (line: string) => void,
-  onOutputChunk: (chunk: string) => void,
-): Promise<RalphLoopExecutionResult> {
-  let stdoutAccumulator = "";
-  let stderrAccumulator = "";
-  let timedOut = false;
-
-  const child = spawnFn(
-    "./ralph.sh",
-    ["--agent", "pi", "-n", String(iterations)],
-    {
-      cwd: worktreePath,
-      env: sanitizedEnv,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
-  const killChild = () => {
-    try {
-      child.kill("SIGTERM");
-      setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-          // Ignore kill errors
-        }
-      }, 1000);
-    } catch {
-      // Ignore kill errors
-    }
-  };
-
-  const timeoutTimer = setTimeout(() => {
-    timedOut = true;
-    killChild();
-  }, timeoutMs);
-
-  const abortHandler = () => {
-    killChild();
-  };
-
-  if (signal) {
-    signal.addEventListener("abort", abortHandler, { once: true });
-  }
-
-  child.stdout?.on("data", (chunk: Buffer) => {
-    const text = chunk.toString("utf-8");
-    stdoutAccumulator += text;
-
-    const lines = text.split("\n");
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) continue;
-      if (
-        trimmedLine.includes("Starting Ralph Loop") ||
-        trimmedLine.includes("Task") ||
-        trimmedLine.includes("Iteration")
-      ) {
-        onProgress(trimmedLine);
-      }
-    }
-
-    onOutputChunk(text);
-  });
-
-  child.stderr?.on("data", (chunk: Buffer) => {
-    stderrAccumulator += chunk.toString("utf-8");
-  });
-
-  const exitCode = await new Promise<number>((resolve, reject) => {
-    child.on("error", (err) => {
-      clearTimeout(timeoutTimer);
-      reject(err);
-    });
-    child.on("close", (code) => {
-      clearTimeout(timeoutTimer);
-      resolve(code ?? 0);
-    });
-  });
-
-  if (signal) {
-    signal.removeEventListener("abort", abortHandler);
-  }
-
-  return {
-    exitCode,
-    timedOut,
-    errorOutput:
-      stderrAccumulator.trim() || stdoutAccumulator.trim() || "Unknown error",
-  };
-}
 
 function persistVerificationResult(
   context: StageContext,
-  diff: string,
   verification: VerificationResult,
 ): RunRecord {
   const currentRun = context.runRepo.get(context.run.id, context.db);
@@ -389,7 +34,7 @@ function persistVerificationResult(
     updatedRun = context.runRepo.update(
       context.run.id,
       {
-        diff,
+        diff: verification.diff,
         verification,
         expectedRevision,
       },
@@ -426,186 +71,56 @@ export class ExecuteExecutor implements StageExecutor {
       text: "Preparing Ralph Loop workspace and artifacts…",
     });
 
-    // 1. Ensure .agent directory exists in the worktree
-    const agentDir = path.join(worktreePath, ".agent");
-    await this.deps.mkdir(agentDir, { recursive: true });
-
-    // 2. Format plan into .agent/tasks.md and write to disk
-    const tasksMd = formatTasksMarkdown(run.plan || "", run.ticket);
-    await this.deps.writeFile(
-      path.join(agentDir, "tasks.md"),
-      tasksMd,
-      "utf-8",
-    );
-
-    // 3. Inject Matt Pocock's skills into .agent/PROMPT.md
-    const promptMd = buildRalphPrompt(run.ticket, run.plan || "", project);
-    await this.deps.writeFile(
-      path.join(agentDir, "PROMPT.md"),
-      promptMd,
-      "utf-8",
-    );
-
-    // 4. Ensure ralph.sh script exists in worktree and is executable
-    const ralphPath = path.join(worktreePath, "ralph.sh");
+    // The baseline is recorded once, at preparation; it is never re-taken here.
+    let baseline: Awaited<ReturnType<typeof loadRecordedBaseline>>;
     try {
-      await this.deps.access(ralphPath);
-    } catch {
-      await this.deps.writeFile(ralphPath, DEFAULT_RALPH_SCRIPT, {
-        mode: 0o755,
-      });
-      try {
-        await this.deps.chmod(ralphPath, 0o755);
-      } catch {
-        // Ignore chmod failures on non-POSIX filesystems
-      }
-    }
-
-    const baseline = await this.deps.resolveWorktreeBaseline(
-      baselinePathFor(run.artifactsDir),
-      worktreePath,
-      this.deps.readFile,
-      this.deps.recordBaseline,
-      this.deps.writeFile,
-    );
-
-    let attempt = 1;
-    let verification: VerificationResult | null = null;
-    let finalDiff: { diff: string; filesChanged: string[] } = {
-      diff: "",
-      filesChanged: [],
-    };
-
-    while (attempt <= this.deps.MAX_REPAIR_ATTEMPTS) {
-      if (attempt > 1) {
-        context.eventRepo.appendEvent(run.id, "info", {
-          text: `Starting repair attempt ${attempt} of ${this.deps.MAX_REPAIR_ATTEMPTS}…`,
-        });
-      }
-
-      const iterations = attempt === 1 ? 25 : 10;
-      context.eventRepo.appendEvent(run.id, "status", {
-        status: "executing",
-        text:
-          attempt === 1
-            ? `Spawning Ralph Loop (${iterations} iterations) with Pi agent…`
-            : `Spawning Repair Loop (${iterations} iterations)…`,
-      });
-
-      context.eventRepo.appendEvent(run.id, "ralph_progress", {
-        text:
-          attempt === 1
-            ? `Ralph Loop started with ${iterations} iterations`
-            : `Repair Loop started with ${iterations} iterations`,
-        iteration: 1,
-      });
-
-      const timeoutMs = 15 * 60 * 1000; // 15 minutes execution timeout
-      const settings = await this.deps.loadSettings();
-      const provider =
-        settings.models?.sessionB?.provider ||
-        settings.models?.sessionA?.provider ||
-        "anthropic";
-      const sanitizedEnv = resolveSanitizedEnv(provider);
-
-      try {
-        const { exitCode, timedOut, errorOutput } = await runRalphLoopChild(
-          this.deps.spawn,
-          worktreePath,
-          iterations,
-          sanitizedEnv,
-          signal,
-          timeoutMs,
-          (line) =>
-            context.eventRepo.appendEvent(run.id, "ralph_progress", {
-              text: line,
-            }),
-          (text) =>
-            context.eventRepo.appendEvent(run.id, "pi_output_chunk", {
-              role: "ralph",
-              text,
-            }),
-        );
-
-        if (timedOut) {
-          return {
-            status: "failed",
-            error: `Ralph Loop execution timed out after ${timeoutMs}ms`,
-          };
-        }
-
-        if (exitCode !== 0) {
-          context.eventRepo.appendEvent(run.id, "error", {
-            message: `Ralph Loop failed with exit code ${exitCode}`,
-          });
-          return {
-            status: "failed",
-            error: `Ralph Loop exited with code ${exitCode}: ${errorOutput}`,
-          };
-        }
-
-        // Run Verification
-        context.eventRepo.appendEvent(run.id, "info", {
-          text: `Running deterministic verification (attempt ${attempt})…`,
-        });
-
-        verification = await this.deps.runVerification(
-          worktreePath,
-          project,
-          baseline,
-          attempt,
-          signal ? { signal } : undefined,
-        );
-
-        finalDiff = await this.deps.getDiff(worktreePath, baseline);
-
-        context.run = persistVerificationResult(
-          context,
-          finalDiff.diff,
-          verification,
-        );
-
-        if (verification.passed) {
-          break;
-        }
-
-        if (attempt < this.deps.MAX_REPAIR_ATTEMPTS) {
-          // Write repair prompt for next attempt
-          const repairPrompt = this.deps.buildRepairPrompt(
-            run.ticket,
-            run.plan || "",
-            verification,
-            attempt,
-          );
-          await this.deps.writeFile(
-            path.join(agentDir, "PROMPT.md"),
-            repairPrompt,
-            "utf-8",
-          );
-        }
-      } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        return {
-          status: "failed",
-          error: `Ralph Loop execution failed: ${errorMsg}`,
-        };
-      }
-      attempt++;
-    }
-
-    if (!verification?.passed) {
-      context.eventRepo.appendEvent(run.id, "error", {
-        message: `Deterministic verification failed after ${this.deps.MAX_REPAIR_ATTEMPTS} attempts.`,
-      });
+      baseline = await loadRecordedBaseline(baselinePathFor(run.artifactsDir));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       return {
         status: "failed",
-        error: `Execution failed: Verification did not pass after bounded repairs. Summary: ${verification?.summary}`,
+        error: `Execution failed: no baseline was recorded during preparation (${message})`,
       };
+    }
+
+    const settings = await this.deps.loadSettings();
+    const provider = settings.models?.sessionA?.provider || "anthropic";
+
+    let result: Awaited<ReturnType<typeof runAttemptLoop>>;
+    try {
+      result = await runAttemptLoop({
+        worktreePath,
+        artifactsDir: run.artifactsDir,
+        ticket: run.ticket,
+        plan: run.plan || "",
+        project,
+        baseline,
+        provider,
+        signal,
+        emit: (type, payload) =>
+          context.eventRepo.appendEvent(run.id, type, payload),
+        onVerification: (verification) => {
+          context.run = persistVerificationResult(context, verification);
+        },
+      });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return {
+        status: "failed",
+        error: `Ralph Loop execution failed: ${errorMsg}`,
+      };
+    }
+
+    if (result.outcome === "aborted") {
+      return { status: "failed", error: "Execution stopped" };
+    }
+    if (result.outcome === "failed") {
+      return { status: "failed", error: result.error };
     }
 
     context.eventRepo.appendEvent(run.id, "stage_evidence", {
       stage: "execute",
-      evidence: `Ralph Loop completed and verified; ${finalDiff.filesChanged.length} files modified.`,
+      evidence: `Ralph Loop completed and verified; ${result.verification.filesChanged.length} files modified.`,
     });
 
     // Delegate to ReviewExecutor now that execution is verified

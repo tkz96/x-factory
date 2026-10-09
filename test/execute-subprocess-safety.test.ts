@@ -169,7 +169,6 @@ describe("Subprocess safety at Worker seam", () => {
           nextRunStatus: "awaiting_review",
         }),
       },
-      MAX_REPAIR_ATTEMPTS: 1,
     });
 
     const worker = new Worker({
@@ -230,7 +229,6 @@ describe("Subprocess safety at Worker seam", () => {
 
     const executor = new ExecuteExecutor({
       loadSettings: async () => ({}),
-      MAX_REPAIR_ATTEMPTS: 1,
     });
 
     const worker = new Worker({

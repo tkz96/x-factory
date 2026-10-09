@@ -1,9 +1,7 @@
 // test/execute-worktree-state.test.ts — Change classification through the execute stage (Worker seam, real temp git repo, real runVerification).
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import type { ChildProcess, spawn } from "node:child_process";
-import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createDatabase } from "../src/db/connection.js";
@@ -25,6 +23,8 @@ const PROJECT_ID = "proj-exec-state";
 let tempDir: string;
 let repo: string;
 let artifactsDir: string;
+let binDir: string;
+let originalPath: string;
 const previousDataDir = process.env.X_FACTORY_DATA_DIR;
 const previousConfigPath = process.env.X_FACTORY_CONFIG_PATH;
 
@@ -37,7 +37,11 @@ beforeEach(async () => {
   tempDir = await mkdtemp(path.join(tmpdir(), "xf-execute-state-"));
   repo = path.join(tempDir, "repo");
   artifactsDir = path.join(tempDir, "artifacts");
+  binDir = path.join(tempDir, "bin");
   await mkdir(artifactsDir, { recursive: true });
+  await mkdir(binDir, { recursive: true });
+  originalPath = process.env.PATH || "";
+  process.env.PATH = `${binDir}:${originalPath}`;
   process.env.X_FACTORY_DATA_DIR = path.join(tempDir, "data");
   process.env.X_FACTORY_CONFIG_PATH = path.join(tempDir, "projects.json");
   await writeFile(
@@ -86,6 +90,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  process.env.PATH = originalPath;
   if (previousDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
   else process.env.X_FACTORY_DATA_DIR = previousDataDir;
   if (previousConfigPath === undefined)
@@ -94,20 +99,26 @@ afterEach(async () => {
   await rm(tempDir, { recursive: true, force: true });
 });
 
-/** A Ralph Loop stand-in: applies the agent's edits to the worktree, then exits 0. */
-function agentSpawn(edits: () => Promise<void>): typeof spawn {
-  return ((_cmd: string, _args?: readonly string[]) => {
-    // biome-ignore lint/suspicious/noExplicitAny: minimal ChildProcess stand-in
-    const child = new EventEmitter() as any;
-    child.stdout = new EventEmitter();
-    child.stderr = new EventEmitter();
-    child.kill = () => true;
-    edits().then(() => child.emit("close", 0));
-    return child as unknown as ChildProcess;
-  }) as unknown as typeof spawn;
+/** Installs a fake `sbx` that writes the agent's edits into the worktree and checks off the first task. */
+async function installAgent(files: Array<[string, string]>): Promise<void> {
+  const edits = files
+    .map(
+      ([relPath, content]) =>
+        `mkdir -p "$(dirname '${relPath}')" && printf '%s' '${content.replaceAll("'", "'\\''")}' > '${relPath}'`,
+    )
+    .join("\n");
+  const sbxPath = path.join(binDir, "sbx");
+  await writeFile(
+    sbxPath,
+    `#!/usr/bin/env bash
+awk '/- \\[ \\]/ && !done { sub(/- \\[ \\]/, "- [x]"); done=1 } 1' .agent/tasks.md > .agent/tasks.md.tmp && mv .agent/tasks.md.tmp .agent/tasks.md
+${edits}
+`,
+  );
+  await chmod(sbxPath, 0o755);
 }
 
-async function execute(edits: () => Promise<void>): Promise<{
+async function execute(files: Array<[string, string]>): Promise<{
   status: string | undefined;
   diff: string | null | undefined;
   verification: VerificationResult | null | undefined;
@@ -129,8 +140,8 @@ async function execute(edits: () => Promise<void>): Promise<{
   });
   jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
 
+  await installAgent(files);
   const executor = new ExecuteExecutor({
-    spawn: agentSpawn(edits),
     loadSettings: async () => ({}),
     reviewExecutor: {
       stage: "review",
@@ -139,7 +150,6 @@ async function execute(edits: () => Promise<void>): Promise<{
         nextRunStatus: "awaiting_review",
       }),
     },
-    MAX_REPAIR_ATTEMPTS: 1,
   });
   const worker = new Worker({
     workerId: "worker-exec-state",
@@ -168,10 +178,10 @@ function diffPaths(diff: string): string[] {
 
 describe("Execute stage change classification", () => {
   it("reports exact changed paths, including a new file with a space in its name", async () => {
-    const outcome = await execute(async () => {
-      await write("src/app.ts", "export const app = 2;\n");
-      await write("src/new feature.ts", "export const f = 1;\n");
-    });
+    const outcome = await execute([
+      ["src/app.ts", "export const app = 2;\n"],
+      ["src/new feature.ts", "export const f = 1;\n"],
+    ]);
 
     expect(outcome.status).toBe("awaiting_review");
     expect(outcome.verification?.passed).toBe(true);
@@ -182,10 +192,10 @@ describe("Execute stage change classification", () => {
   });
 
   it("builds the diff from the same paths as filesChanged: new files in, scaffold out", async () => {
-    const outcome = await execute(async () => {
-      await write("src/app.ts", "export const app = 2;\n");
-      await write("src/new feature.ts", "export const f = 1;\n");
-    });
+    const outcome = await execute([
+      ["src/app.ts", "export const app = 2;\n"],
+      ["src/new feature.ts", "export const f = 1;\n"],
+    ]);
 
     const filesChanged = [...(outcome.verification?.filesChanged ?? [])].sort();
     expect(diffPaths(outcome.verification?.diff ?? "")).toEqual(filesChanged);
@@ -196,10 +206,10 @@ describe("Execute stage change classification", () => {
   });
 
   it("fails verification when the agent modifies a tracked .env", async () => {
-    const outcome = await execute(async () => {
-      await write("src/app.ts", "export const app = 2;\n");
-      await write(".env", "TOKEN=leaked\n");
-    });
+    const outcome = await execute([
+      ["src/app.ts", "export const app = 2;\n"],
+      [".env", "TOKEN=leaked\n"],
+    ]);
 
     expect(outcome.status).not.toBe("awaiting_review");
     expect(outcome.verification?.passed).toBe(false);
@@ -211,11 +221,11 @@ describe("Execute stage change classification", () => {
   });
 
   it("treats changes under .github/ and to .gitignore as implementation", async () => {
-    const outcome = await execute(async () => {
-      await write(".github/workflows/ci.yml", "name: ci-changed\n");
-      await write(".github/dependabot.yml", "version: 2\n");
-      await write(".gitignore", "node_modules/\ndist/\n");
-    });
+    const outcome = await execute([
+      [".github/workflows/ci.yml", "name: ci-changed\n"],
+      [".github/dependabot.yml", "version: 2\n"],
+      [".gitignore", "node_modules/\ndist/\n"],
+    ]);
 
     expect(outcome.status).toBe("awaiting_review");
     expect(outcome.verification?.passed).toBe(true);
