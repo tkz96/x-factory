@@ -2,6 +2,7 @@
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
+import type { ApiContext, Repositories } from "../composition-root.js";
 import {
   createProject,
   deleteProject,
@@ -41,7 +42,6 @@ import {
   PROVIDER_REGISTRY,
   type ProviderRegistry,
 } from "../providers/registry.js";
-import { getRunRepository } from "../runs.js";
 import {
   assertLegacyTrackerUsable,
   createProjectFromConnections,
@@ -397,6 +397,7 @@ async function handleMigrateProject(
   projectId: string,
   req: Request,
   registry: ProviderRegistry,
+  repos: Repositories,
 ): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
@@ -405,7 +406,7 @@ async function handleMigrateProject(
   }
 
   // Active run guard
-  const runs = getRunRepository().list();
+  const runs = repos.runs.list();
   const activeRun = runs.find(
     (r) => r.project.id === projectId && !TERMINAL_RUN_STATUSES.has(r.status),
   );
@@ -501,9 +502,6 @@ async function handleProjectMemberRoute(
     if (subaction === "test" && method === "POST") {
       return handleTestProjectTracker(id, req, registry);
     }
-  }
-  if (action === "migrate" && method === "POST") {
-    return handleMigrateProject(id, req, registry);
   }
   if (!action && partsCount === 2) {
     return handleProjectMemberCrud(method, id, req, registry);
@@ -731,12 +729,12 @@ export async function handleProjectsRoute(
   subactionOrPartsCount: string | number | undefined,
   partsCountOrReq: number | Request,
   maybeReq?: Request,
-  customRegistry?: ProviderRegistry,
+  ctx?: ApiContext,
 ): Promise<Response | null> {
   let subaction: string | undefined;
   let partsCount: number;
   let req: Request;
-  const registry = customRegistry ?? PROVIDER_REGISTRY;
+  const registry = ctx?.providerRegistry ?? PROVIDER_REGISTRY;
 
   if (typeof subactionOrPartsCount === "number") {
     subaction = undefined;
@@ -781,6 +779,11 @@ export async function handleProjectsRoute(
     if (method === "GET") return handleGetProjects(req);
     if (method === "POST") return handleCreateProject(req, registry);
     return null;
+  }
+
+  if (action === "migrate" && method === "POST") {
+    if (!ctx) throw new Error("Project migration needs the composition root.");
+    return handleMigrateProject(id, req, registry, ctx.repos);
   }
 
   return handleProjectMemberRoute(

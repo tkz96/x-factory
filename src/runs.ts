@@ -1,24 +1,18 @@
 // src/runs.ts — Run lifecycle management, public service facade, and backward-compatible exports.
+//
+// Every entry point takes the process's `Repositories` bundle (composition
+// root, #169). This module never opens a connection of its own.
 
 import type { Database } from "bun:sqlite";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
-import { CommandRepository } from "./db/command-repository.js";
-import { createDatabase } from "./db/connection.js";
-import { DiagnosticsRepository } from "./db/diagnostics-repository.js";
-import { type EventRecord, EventRepository } from "./db/event-repository.js";
-import { type JobRecord, JobRepository } from "./db/job-repository.js";
-import { runMigrations } from "./db/migrator.js";
-import {
-  type OperationLedgerRecord,
-  OperationLedgerRepository,
-} from "./db/operation-ledger-repository.js";
-import { type RunRecord, RunRepository } from "./db/run-repository.js";
-import {
-  type StageAttemptRecord,
-  StageAttemptRepository,
-} from "./db/stage-attempt-repository.js";
+import type { Repositories } from "./composition-root.js";
+import type { CommandRepository } from "./db/command-repository.js";
+import type { EventRecord } from "./db/event-repository.js";
+import type { JobRecord, JobRepository } from "./db/job-repository.js";
+import type { OperationLedgerRecord } from "./db/operation-ledger-repository.js";
+import type { RunRecord, RunRepository } from "./db/run-repository.js";
+import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
@@ -35,139 +29,34 @@ import {
   resumeStageName,
 } from "./workflow.js";
 
-let hydrationPromise: Promise<void> | null = null;
-
-const dbStorage = new AsyncLocalStorage<Database | null>();
-
-// Global fallback DB when not in a test context
-let defaultDbInstance: Database | null = null;
-
-const runRepoCache = new WeakMap<Database, RunRepository>();
-const jobRepoCache = new WeakMap<Database, JobRepository>();
-const eventRepoCache = new WeakMap<Database, EventRepository>();
-const commandRepoCache = new WeakMap<Database, CommandRepository>();
-const stageAttemptRepoCache = new WeakMap<Database, StageAttemptRepository>();
-const diagnosticsRepoCache = new WeakMap<Database, DiagnosticsRepository>();
-const operationLedgerRepoCache = new WeakMap<
-  Database,
-  OperationLedgerRepository
->();
-
-export function getDb(): Database {
-  const storeDb = dbStorage.getStore();
-  if (storeDb) return storeDb;
-
-  if (!defaultDbInstance) {
-    defaultDbInstance = createDatabase();
-    runMigrations(defaultDbInstance);
-  }
-  return defaultDbInstance;
-}
-
-export function getRunRepository(): RunRepository {
-  const db = getDb();
-  let repo = runRepoCache.get(db);
-  if (!repo) {
-    repo = new RunRepository(db);
-    runRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function getJobRepository(): JobRepository {
-  const db = getDb();
-  let repo = jobRepoCache.get(db);
-  if (!repo) {
-    repo = new JobRepository(db);
-    jobRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function getEventRepository(): EventRepository {
-  const db = getDb();
-  let repo = eventRepoCache.get(db);
-  if (!repo) {
-    repo = new EventRepository(db);
-    eventRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function getCommandRepository(): CommandRepository {
-  const db = getDb();
-  let repo = commandRepoCache.get(db);
-  if (!repo) {
-    repo = new CommandRepository(db);
-    commandRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function getDiagnosticsRepository(): DiagnosticsRepository {
-  const db = getDb();
-  let repo = diagnosticsRepoCache.get(db);
-  if (!repo) {
-    repo = new DiagnosticsRepository(db);
-    diagnosticsRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function getStageAttemptRepository(): StageAttemptRepository {
-  const db = getDb();
-  let repo = stageAttemptRepoCache.get(db);
-  if (!repo) {
-    repo = new StageAttemptRepository(db);
-    stageAttemptRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function getOperationLedgerRepository(): OperationLedgerRepository {
-  const db = getDb();
-  let repo = operationLedgerRepoCache.get(db);
-  if (!repo) {
-    repo = new OperationLedgerRepository(db);
-    operationLedgerRepoCache.set(db, repo);
-  }
-  return repo;
-}
-
-export function setDbForTesting(db: Database | null): void {
-  dbStorage.enterWith(db);
-}
-
 export function getRunEvents(
+  repos: Repositories,
   runId: string,
   options?: { sinceSequence?: number | undefined },
 ): EventRecord[] {
-  return getEventRepository().getEventsForRun(runId, options);
+  return repos.events.getEventsForRun(runId, options);
 }
 
-export function getStageAttempts(runId: string): StageAttemptRecord[] {
-  return getStageAttemptRepository().listForRun(runId);
+export function getStageAttempts(
+  repos: Repositories,
+  runId: string,
+): StageAttemptRecord[] {
+  return repos.stageAttempts.listForRun(runId);
 }
 
-export function getOperationLedger(runId: string): OperationLedgerRecord[] {
-  return getOperationLedgerRepository().listForRun(runId);
+export function getOperationLedger(
+  repos: Repositories,
+  runId: string,
+): OperationLedgerRecord[] {
+  return repos.operationLedger.listForRun(runId);
 }
 
-export async function initRuns(): Promise<void> {
-  if (!hydrationPromise) {
-    hydrationPromise = (async () => {
-      getDb();
-    })();
-  }
-  return hydrationPromise;
+export function getRun(repos: Repositories, id: string): Run | null {
+  return repos.runs.get(id);
 }
 
-export function getRun(id: string): Run | null {
-  return getRunRepository().get(id);
-}
-
-export function listRuns(): Run[] {
-  return getRunRepository().list();
+export function listRuns(repos: Repositories): Run[] {
+  return repos.runs.list();
 }
 
 export function generateBranchName(
@@ -191,6 +80,7 @@ export function generateBranchName(
 }
 
 export async function createRun(
+  repos: Repositories,
   project: Project,
   ticketId: string,
   ticketTitle: string,
@@ -223,10 +113,10 @@ export async function createRun(
   // Create run artifacts before exposing pending job in database (Phase 1, Section 19)
   await initializeRunArtifacts(artifactsDir, ticket, plan);
 
-  const db = getDb();
-  const runRepo = getRunRepository();
-  const jobRepo = getJobRepository();
-  const eventRepo = getEventRepository();
+  const { db } = repos;
+  const runRepo = repos.runs;
+  const jobRepo = repos.jobs;
+  const eventRepo = repos.events;
 
   let createdRun: RunRecord | null = null;
 
@@ -275,19 +165,10 @@ export async function createRun(
 }
 
 export async function stopRun(
+  repos: Repositories,
   id: string,
-  deps?: {
-    db?: Database;
-    runRepo?: RunRepository;
-    jobRepo?: JobRepository;
-    commandRepo?: CommandRepository;
-    eventRepo?: EventRepository;
-  },
 ): Promise<RunRecord> {
-  const db = deps?.db ?? getDb();
-  const runRepo = deps?.runRepo ?? getRunRepository();
-  const jobRepo = deps?.jobRepo ?? getJobRepository();
-  const commandRepo = deps?.commandRepo ?? getCommandRepository();
+  const { db, runs: runRepo, jobs: jobRepo, commands: commandRepo } = repos;
 
   const tx = db.transaction((): RunRecord => {
     const run = runRepo.get(id, db);
@@ -371,13 +252,8 @@ function verifyRecoveryRequired(
 }
 
 export async function createPR(
+  repos: Repositories,
   id: string,
-  deps?: {
-    db?: Database;
-    runRepo?: RunRepository;
-    commandRepo?: CommandRepository;
-    eventRepo?: EventRepository;
-  },
 ): Promise<{
   ok: boolean;
   queued?: boolean | undefined;
@@ -385,10 +261,7 @@ export async function createPR(
   prUrl?: string | undefined;
   pullRequest?: PullRequest | undefined;
 }> {
-  const db = deps?.db ?? getDb();
-  const runRepo = deps?.runRepo ?? getRunRepository();
-  const commandRepo = deps?.commandRepo ?? getCommandRepository();
-  const eventRepo = deps?.eventRepo ?? getEventRepository();
+  const { db, runs: runRepo, commands: commandRepo, events: eventRepo } = repos;
 
   type CreatePrResult = {
     ok: boolean;
@@ -472,12 +345,12 @@ export async function createPR(
   return tx();
 }
 
-export async function resumeRun(id: string): Promise<Run> {
-  const db = getDb();
-  const runRepo = getRunRepository();
-  const jobRepo = getJobRepository();
-  const commandRepo = getCommandRepository();
-  const stageAttemptRepo = getStageAttemptRepository();
+export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
+  const { db } = repos;
+  const runRepo = repos.runs;
+  const jobRepo = repos.jobs;
+  const commandRepo = repos.commands;
+  const stageAttemptRepo = repos.stageAttempts;
 
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, db, "resume");
@@ -535,11 +408,14 @@ export async function resumeRun(id: string): Promise<Run> {
   return tx();
 }
 
-export async function abandonRun(id: string): Promise<Run> {
-  const db = getDb();
-  const runRepo = getRunRepository();
-  const jobRepo = getJobRepository();
-  const commandRepo = getCommandRepository();
+export async function abandonRun(
+  repos: Repositories,
+  id: string,
+): Promise<Run> {
+  const { db } = repos;
+  const runRepo = repos.runs;
+  const jobRepo = repos.jobs;
+  const commandRepo = repos.commands;
 
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, db, "abandon");
@@ -583,11 +459,12 @@ export async function abandonRun(id: string): Promise<Run> {
  * based on the run's implementation context.
  */
 export async function chatWithRun(
+  repos: Repositories,
   id: string,
   message: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const runRepo = getRunRepository();
-  const eventRepo = getEventRepository();
+  const runRepo = repos.runs;
+  const eventRepo = repos.events;
 
   const run = runRepo.get(id);
   if (!run) throw new NotFoundError(`Run ${id} not found.`);
@@ -668,19 +545,20 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
 }
 
 export async function handleTransition(
+  repos: Repositories,
   id: string,
   action: "approve" | "restart" | "abort" | "requeue",
   _payload?: unknown,
 ): Promise<RunRecord> {
   if (action === "abort") {
-    return stopRun(id);
+    return stopRun(repos, id);
   }
 
-  const db = getDb();
-  const runRepo = getRunRepository();
-  const jobRepo = getJobRepository();
-  const commandRepo = getCommandRepository();
-  const eventRepo = getEventRepository();
+  const { db } = repos;
+  const runRepo = repos.runs;
+  const jobRepo = repos.jobs;
+  const commandRepo = repos.commands;
+  const eventRepo = repos.events;
 
   const tx = db.transaction((): RunRecord => {
     const run = runRepo.get(id, db);
