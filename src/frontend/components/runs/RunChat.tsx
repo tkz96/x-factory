@@ -360,35 +360,32 @@ export function RunChat({
   // gates the input on the same action guard.
   const isApprovalGate = canRunAction(run.status, "chat");
 
-  // Filter events for chat: conversation (chat_user, chat_agent) and status transitions
-  const historyMessages: ChatMessage[] = events
-    .filter(
-      (e) =>
-        e.type === "chat_user" ||
-        e.type === "chat_agent" ||
-        e.type === "status",
-    )
-    .map((e) => {
-      if (e.type === "status") {
-        const payload = e.payload as
-          | { status?: string; text?: string }
-          | null
-          | undefined;
-        return {
-          id: `status-${e.id}`,
-          role: "system" as const,
-          text: statusToSystemText(payload?.status || "", payload?.text),
-          timestamp: e.timestamp,
-        };
-      }
-      const payload = e.payload as { text?: string } | null | undefined;
-      return {
-        id: String(e.id),
-        role: (e.type === "chat_user" ? "user" : "agent") as "user" | "agent",
-        text: payload?.text || "",
-        timestamp: e.timestamp,
-      };
-    });
+  // Conversation turns and status transitions, read straight from the typed event union.
+  const historyMessages: ChatMessage[] = events.flatMap((e): ChatMessage[] => {
+    switch (e.type) {
+      case "status":
+        return [
+          {
+            id: `status-${e.id}`,
+            role: "system",
+            text: statusToSystemText(e.payload.status, e.payload.text),
+            timestamp: e.timestamp,
+          },
+        ];
+      case "chat_user":
+      case "chat_agent":
+        return [
+          {
+            id: String(e.id),
+            role: e.type === "chat_user" ? "user" : "agent",
+            text: e.payload.text,
+            timestamp: e.timestamp,
+          },
+        ];
+      default:
+        return [];
+    }
+  });
 
   // Combine static intro + db history + optimistic
   const combinedMessages = [...initialMessages, ...historyMessages];

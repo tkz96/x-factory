@@ -18,7 +18,6 @@ import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
-import { EventLogViewer } from "../src/frontend/components/runs/EventLogViewer.js";
 import { handleApi } from "../src/http/routes.js";
 import { setDbForTesting } from "../src/runs.js";
 import type { RunEvent } from "../src/shared/types.js";
@@ -176,10 +175,6 @@ describe("Steering removed (#167)", () => {
     expect(chatHtml).not.toContain("Steer Action");
     expect(chatHtml).toContain(message);
 
-    const logHtml = renderToString(
-      React.createElement(EventLogViewer, { events: wireEvents }),
-    );
-    expect(logHtml).not.toContain("Steer:");
-    expect(logHtml).toContain(message);
+    // EventLogViewer was deleted in #191 (no production consumer); its steer assertions go with it.
   });
 });

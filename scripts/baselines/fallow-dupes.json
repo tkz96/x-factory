@@ -27,7 +27,6 @@
     "public/styles.css:1972-2002|src/frontend/styles/shared/buttons.css:133-163",
     "public/styles.css:2001-2035|src/frontend/components/ModalContainer.css:101-135",
     "public/styles.css:1846-1879|src/frontend/styles/shared/forms.css:55-88",
-    "public/styles.css:994-1024|src/frontend/components/runs/EventLogViewer.css:13-43",
     "public/styles.css:615-639|src/frontend/styles/shared/cards.css:3-27",
     "src/worker.ts:712-738|src/worker.ts:749-777",
     "public/styles.css:575-615|src/frontend/components/AppShell.css:320-360",
@@ -44,9 +43,7 @@
     "public/styles.css:1255-1271|src/frontend/styles/shared/scrollbar.css:3-19",
     "src/frontend/views/DocsView.tsx:55-63|src/frontend/views/DocsView.tsx:67-75",
     "src/providers/jira-module.ts:388-408|src/providers/jira-module.ts:506-524",
-    "src/frontend/components/runs/ChatThread.tsx:115-121|src/frontend/components/runs/ChatThread.tsx:137-143",
-    "src/frontend/components/diagrams/DiagramModal.tsx:27-34|src/frontend/components/runs/DiffModal.tsx:27-35",
-    "src/frontend/components/runs/ChatThread.tsx:173-182|src/frontend/components/runs/EventLogViewer.tsx:122-130"
+    "src/frontend/components/diagrams/DiagramModal.tsx:27-34|src/frontend/components/runs/DiffModal.tsx:27-35"
   ],
   "clone_fingerprints": [
     "dup:c00bd129:2",
@@ -75,7 +72,6 @@
     "dup:173e853e:2",
     "dup:8d4e49b2:2",
     "dup:903f56af:2",
-    "dup:1408455e:2",
     "dup:6cb45f84:2",
     "dup:50ec648f:2",
     "dup:89895d0f:2",
@@ -92,9 +88,7 @@
     "dup:3ff16fef:2",
     "dup:72669eff:2",
     "dup:54a0dc7e:2",
-    "dup:b7e94bb3:2",
-    "dup:0f87dbe6:2",
-    "dup:90d2f9df:2"
+    "dup:0f87dbe6:2"
   ],
   "normalized_clone_fingerprints": [
     "dup:6e8bbe47:2",
@@ -123,7 +117,6 @@
     "dup:cbeda34e:2",
     "dup:72e9b42a:2",
     "dup:98824289:2",
-    "dup:3dc49615:2",
     "dup:fc390731:2",
     "dup:aafbe344:2",
     "dup:0da5aa0b:2",
@@ -140,8 +133,6 @@
     "dup:6cb26352:2",
     "dup:c17e73eb:2",
     "dup:ffd99e2f:2",
-    "dup:628f47c1:2",
-    "dup:6df056d7:2",
-    "dup:a3b6c127:2"
+    "dup:6df056d7:2"
   ]
 }
