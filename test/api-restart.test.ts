@@ -10,7 +10,7 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type {
   StageContext,
   StageExecutor,
-  StageResult,
+  StageOutcome,
 } from "../src/executors/index.js";
 import { getOpenApiSpec } from "../src/http/openapi.js";
 import { jsonResponse } from "../src/http/responses.js";
@@ -99,7 +99,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
 
     const mockExecutor: StageExecutor = {
       stage: "prepare",
-      async execute(ctx: StageContext): Promise<StageResult> {
+      async execute(ctx: StageContext): Promise<StageOutcome> {
         if (ctx.job.stage === "prepare") {
           prepareExecuted = true;
           // emit an event into event repo
@@ -107,9 +107,7 @@ describe("API Process Restart Resilience (XFM-58)", () => {
             text: "Prepared during API restart window",
           });
           return {
-            status: "success",
-            nextStage: "understand",
-            nextRunStatus: "understanding",
+            outcome: "passed",
             output: { step: 1 },
           };
         }
@@ -119,13 +117,11 @@ describe("API Process Restart Resilience (XFM-58)", () => {
             text: "Understood while API was restarted",
           });
           return {
-            status: "success",
-            nextStage: undefined,
-            nextRunStatus: "awaiting_understanding_approval",
+            outcome: "passed",
             output: { step: 2 },
           };
         }
-        return { status: "success" };
+        return { outcome: "passed" };
       },
     };
 

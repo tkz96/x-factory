@@ -50,7 +50,7 @@ describe("Worker Lifecycle", () => {
       stage: "prepare",
       async execute() {
         return {
-          status: "success" as const,
+          outcome: "passed" as const,
           output: { prepared: true },
         };
       },
@@ -91,7 +91,7 @@ describe("Worker Lifecycle", () => {
       stage: "prepare",
       async execute() {
         return {
-          status: "success" as const,
+          outcome: "passed" as const,
           output: { prepared: true },
         };
       },

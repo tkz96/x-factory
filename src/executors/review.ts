@@ -3,7 +3,7 @@
 import type { RunRecord } from "../db/run-repository.js";
 import { type ReviewSessionFactory, reviewRun } from "../review.js";
 import { loadSettings } from "../settings.js";
-import type { StageContext, StageExecutor, StageResult } from "./types.js";
+import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
 export interface ReviewDependencies {
   loadSettings: typeof loadSettings;
@@ -23,7 +23,7 @@ export class ReviewExecutor implements StageExecutor {
     this.deps = { ...defaultReviewDeps, ...deps };
   }
 
-  async execute(context: StageContext): Promise<StageResult> {
+  async execute(context: StageContext): Promise<StageOutcome> {
     const { run } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
@@ -34,8 +34,7 @@ export class ReviewExecutor implements StageExecutor {
     const currentRun = context.runRepo.get(run.id);
     if (!currentRun?.verification) {
       return {
-        status: "failed",
-        nextRunStatus: "failed",
+        outcome: "error",
         error:
           "Deterministic verification is missing. ReviewExecutor cannot fabricate a successful result.",
       };
@@ -96,9 +95,7 @@ export class ReviewExecutor implements StageExecutor {
 
     if (rResult.passed) {
       return {
-        status: "success",
-        nextStage: undefined,
-        nextRunStatus: "awaiting_review",
+        outcome: "passed",
         output: {
           passed: true,
           summary: rResult.summary,
@@ -107,9 +104,8 @@ export class ReviewExecutor implements StageExecutor {
     }
 
     return {
-      status: "failed",
-      nextRunStatus: "failed",
-      error: `Code review was not approved: ${rResult.summary}`,
+      outcome: "rejected",
+      reason: `Code review was not approved: ${rResult.summary}`,
     };
   }
 }

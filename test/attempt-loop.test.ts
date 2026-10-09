@@ -94,8 +94,7 @@ async function configureProject(testCommand: string): Promise<void> {
 const PASSING_REVIEW: StageExecutor = {
   stage: "review",
   execute: async () => ({
-    status: "success",
-    nextRunStatus: "awaiting_review",
+    outcome: "passed",
   }),
 };
 
@@ -508,7 +507,7 @@ ${CHECK_OFF_FIRST_TASK}
       {},
       {
         stage: "review",
-        execute: async () => ({ status: "failed", error: "Review failed" }),
+        execute: async () => ({ outcome: "error", error: "Review failed" }),
       },
     );
 
