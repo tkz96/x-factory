@@ -7,6 +7,8 @@ import {
   SemanticValidationError,
   ValidationError,
 } from "../errors.js";
+import type { ProviderErrorCode } from "../providers/contract.js";
+import { ProviderError } from "../providers/errors.js";
 import type {
   RunEvent,
   RunEventPayloadMap,
@@ -117,6 +119,45 @@ function semanticErrorEnvelope(err: unknown): Record<string, unknown> {
 }
 
 /**
+ * The HTTP status for each normalized provider failure. The body is the same
+ * for all of them; only the status tells the caller what kind of failure it is.
+ */
+const PROVIDER_ERROR_STATUS: Readonly<Record<ProviderErrorCode, number>> = {
+  AUTH_INVALID: 401,
+  AUTH_LOCKED: 423,
+  PERMISSION: 403,
+  NOT_FOUND: 404,
+  RATE_LIMITED: 429,
+  UNKNOWN: 502,
+};
+
+/**
+ * The one place a `ProviderError` becomes a response: body
+ * `{ error, code, context, retryAfterMs? }` with a status chosen by code, and a
+ * `Retry-After` header (whole seconds) when the provider said how long to wait.
+ */
+export function providerErrorResponse(err: ProviderError): Response {
+  const response = jsonResponse(
+    {
+      error: err.message,
+      code: err.code,
+      context: err.context,
+      ...(err.retryAfterMs !== undefined
+        ? { retryAfterMs: err.retryAfterMs }
+        : {}),
+    },
+    PROVIDER_ERROR_STATUS[err.code],
+  );
+  if (err.retryAfterMs !== undefined) {
+    response.headers.set(
+      "Retry-After",
+      String(Math.ceil(err.retryAfterMs / 1000)),
+    );
+  }
+  return response;
+}
+
+/**
  * Translates domain/application errors into presentation-layer HTTP responses.
  *
  * One family → status ladder, consulted once: family membership is decided by
@@ -150,6 +191,12 @@ export function translateDomainErrorToHttpResponse(
   if (inErrorFamily(err, GitConfigError)) {
     const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
     return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
+  }
+  if (
+    inErrorFamily(err, ProviderError) &&
+    Object.hasOwn(PROVIDER_ERROR_STATUS, errorCodeOf(err) ?? "")
+  ) {
+    return providerErrorResponse(err as ProviderError);
   }
   if (err instanceof HttpError) {
     return jsonResponse(

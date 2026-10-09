@@ -26,6 +26,7 @@ import {
   type Provider,
   REQUIRED_WORKFLOW_LABEL,
 } from "../providers/contract.js";
+import { ProviderError } from "../providers/errors.js";
 import {
   buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
@@ -54,6 +55,7 @@ import {
   errorResponse,
   jsonResponse,
   parseJsonBody,
+  providerErrorResponse,
   translateDomainErrorToHttpResponse,
   validateAgainstSchema,
   withJsonBody,
@@ -315,8 +317,13 @@ async function handleGetProjectTickets(
   const requiredLabel =
     (config.requiredLabel as string | undefined) || REQUIRED_WORKFLOW_LABEL;
 
-  const tickets = await provider.listTickets(config, { requiredLabel });
-  return jsonResponse(tickets);
+  try {
+    return jsonResponse(await provider.listTickets(config, { requiredLabel }));
+  } catch (err: unknown) {
+    // The registry's provider throws only normalized ProviderErrors.
+    if (err instanceof ProviderError) return providerErrorResponse(err);
+    throw err;
+  }
 }
 
 async function handleGetProjectTracker(

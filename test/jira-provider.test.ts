@@ -1,6 +1,6 @@
 // test/jira-provider.test.ts — Unit and contract integration tests for Jira Cloud provider (#140).
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
   hasCapability,
   isProviderError,
@@ -703,6 +703,74 @@ describe("Jira provider module (#140)", () => {
 
       // 5. Pagination stopped when no token returned (only 2 requests)
       expect(capturedRequests).toHaveLength(2);
+    });
+
+    it("caps pagination requests at the page cap and fires truncation warning (#185)", async () => {
+      let requestCount = 0;
+      const transport = async () => {
+        requestCount++;
+        // If not stopped by page cap, returns token up to 5 times
+        const hasNext = requestCount < 5;
+        return jsonResponse({
+          ...(hasNext
+            ? { nextPageToken: `token-page-${requestCount + 1}` }
+            : {}),
+          issues: [
+            {
+              key: `T-${requestCount}`,
+              fields: { summary: `Issue ${requestCount}` },
+            },
+          ],
+        });
+      };
+
+      const warnCalls: string[] = [];
+      const warnSpy = spyOn(console, "warn").mockImplementation(
+        (msg: string) => {
+          warnCalls.push(String(msg));
+        },
+      );
+
+      try {
+        const provider = createJiraProvider({ fetchFn: transport });
+        const tickets = await provider.listTickets?.(
+          {
+            host: "https://acme.atlassian.net",
+            email: "bot@acme.com",
+            apiToken: "bot-token",
+            project: "ENG",
+          },
+          { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 2 },
+        );
+
+        expect(requestCount).toBe(2);
+        expect(tickets).toHaveLength(2);
+        expect(tickets?.map((t) => t.id)).toEqual(["T-1", "T-2"]);
+        expect(warnCalls).toHaveLength(1);
+        expect(warnCalls[0]).toContain("jira");
+        expect(warnCalls[0]).toContain("2");
+        expect(warnCalls[0]).toContain("truncated");
+
+        // When all results fit within cap, no warning fires
+        warnCalls.length = 0;
+        const fitTransport = async () =>
+          jsonResponse({
+            issues: [{ key: "T-1", fields: { summary: "Issue 1" } }],
+          });
+        const fitProvider = createJiraProvider({ fetchFn: fitTransport });
+        await fitProvider.listTickets?.(
+          {
+            host: "https://acme.atlassian.net",
+            email: "bot@acme.com",
+            apiToken: "bot-token",
+            project: "ENG",
+          },
+          { requiredLabel: REQUIRED_WORKFLOW_LABEL, pageCap: 2 },
+        );
+        expect(warnCalls).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("propagates HTTP failure on later pagination page using provider error mapping", async () => {

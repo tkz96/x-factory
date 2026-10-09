@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { execStrict } from "../src/proc.js";
 import type {
   Provider,
-  ProviderError,
+  ProviderErrorEnvelope,
   VerificationResult,
 } from "../src/providers/contract.js";
 import type { ProviderDescriptor } from "../src/providers/serializer.js";
@@ -267,7 +267,7 @@ describe("POST /api/providers/verify", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as ProviderError;
+    const body = (await res.json()) as ProviderErrorEnvelope;
     expect(body).toEqual({
       code: "AUTH_INVALID",
       context: "VERIFY",

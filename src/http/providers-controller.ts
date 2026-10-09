@@ -6,7 +6,7 @@
 //   CRITICAL SECURITY INVARIANT: envKey is never exposed.
 // - POST /api/providers/verify: Credential verification. Transport errors -> 400;
 //   Semantic validation errors (incompatible role, config schema) -> 409;
-//   Returns VerificationResult (ideal/degraded) or normalized ProviderError.
+//   Returns VerificationResult (ideal/degraded) or normalized ProviderError envelope.
 // - POST /api/providers/parse-url: URL intake via parseQuickUrl. Returns draft or un-matched payload.
 // - POST /api/providers/describe: Presentation-only connection identity (#133
 //   story 34) via the optional `describeConnection` capability. Answers
@@ -19,7 +19,7 @@ import { toTypedProviderConfig } from "../providers/config-validation.js";
 import type {
   Provider,
   ProviderConfig,
-  ProviderError,
+  ProviderErrorEnvelope,
   ProviderRole,
   VerificationResult,
 } from "../providers/contract.js";
@@ -239,7 +239,7 @@ export async function handleVerifyRoute(
         await prelude.provider.verifyCredentials(prelude.config);
       return jsonResponse(verification, 200);
     } catch (err: unknown) {
-      const userError: ProviderError = prelude.provider.toUserError(
+      const userError: ProviderErrorEnvelope = prelude.provider.toUserError(
         err,
         "VERIFY",
       );
@@ -350,7 +350,10 @@ export async function handleRepositoriesRoute(
         200,
       );
     } catch (err: unknown) {
-      const userError: ProviderError = provider.toUserError(err, "DISCOVERY");
+      const userError: ProviderErrorEnvelope = provider.toUserError(
+        err,
+        "DISCOVERY",
+      );
       return jsonResponse(userError, 200);
     }
   });

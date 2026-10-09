@@ -12,7 +12,7 @@ import {
   hasCapability,
   isProviderError,
   type Provider,
-  type ProviderError,
+  type ProviderErrorEnvelope,
   REQUIRED_WORKFLOW_LABEL,
   type VerificationResult,
 } from "../src/providers/contract.js";
@@ -137,13 +137,86 @@ describe("provider error envelope", () => {
     ).toBe(false);
   });
 
+  test("rejects envelopes with extra fields", () => {
+    expect(
+      isProviderError({
+        code: "AUTH_INVALID",
+        context: "VERIFY",
+        extra: "field",
+      }),
+    ).toBe(false);
+    expect(
+      isProviderError({
+        code: "RATE_LIMITED",
+        context: "DISCOVERY",
+        retryAfterMs: 30_000,
+        leaked: true,
+      }),
+    ).toBe(false);
+  });
+
   test("accepts retryAfterMs when actually known", () => {
-    const envelope: ProviderError = {
+    const envelope: ProviderErrorEnvelope = {
       code: "RATE_LIMITED",
       context: "DISCOVERY",
       retryAfterMs: 30_000,
     };
     expect(isProviderError(envelope)).toBe(true);
+  });
+});
+
+describe("provider error normalization and raw-object guard (#184)", () => {
+  test("an object with code, context and extra fields normalizes to UNKNOWN for every provider (closes Azure pass-through)", () => {
+    const providers = listProviders();
+    expect(providers.length).toBeGreaterThan(0);
+    const impostors = [
+      { code: "AUTH_INVALID", context: "VERIFY", extra: "leaked-secret" },
+      { code: "PERMISSION", context: "PR", debugInfo: { internal: 123 } },
+      {
+        code: "RATE_LIMITED",
+        context: "DISCOVERY",
+        retryAfterMs: 5000,
+        extraProp: "surprise",
+      },
+      { code: "NOT_FOUND", context: "TICKETS", internalPath: "/opt/app" },
+    ];
+
+    for (const provider of providers) {
+      for (const impostor of impostors) {
+        const normalized = provider.toUserError(impostor, "VERIFY");
+        expect(normalized).toEqual({
+          code: "UNKNOWN",
+          context: "VERIFY",
+        });
+      }
+    }
+  });
+
+  test("genuine provider errors without extra fields preserve code and retryAfterMs", () => {
+    const providers = listProviders();
+    for (const provider of providers) {
+      const genuineRateLimit = {
+        code: "RATE_LIMITED" as const,
+        context: "DISCOVERY" as const,
+        retryAfterMs: 5000,
+      };
+      const normalizedRateLimit = provider.toUserError(genuineRateLimit, "PR");
+      expect(normalizedRateLimit).toEqual({
+        code: "RATE_LIMITED",
+        context: "PR",
+        retryAfterMs: 5000,
+      });
+
+      const genuineAuth = {
+        code: "AUTH_INVALID" as const,
+        context: "VERIFY" as const,
+      };
+      const normalizedAuth = provider.toUserError(genuineAuth, "TICKETS");
+      expect(normalizedAuth).toEqual({
+        code: "AUTH_INVALID",
+        context: "TICKETS",
+      });
+    }
   });
 });
 
@@ -174,10 +247,10 @@ describe("registry-injection extensibility gate (#127 acceptance a)", () => {
 
   test("a stub provider functions with zero edits outside its module", async () => {
     const provider = requireProvider("stub", injected);
-    expect(provider).toBe(stubProvider);
+    expect(Object.getPrototypeOf(provider)).toBe(stubProvider);
     expect(typeof provider.verifyCredentials).toBe("function");
     expect(typeof provider.toUserError).toBe("function");
-    expect(getProvider("stub", injected)).toBe(stubProvider);
+    expect(getProvider("stub", injected)).toBe(provider);
     // The stub is NOT in the static registry — no production file was touched.
     expect(getProvider("stub")).toBeUndefined();
 
