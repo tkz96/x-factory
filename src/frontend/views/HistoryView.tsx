@@ -1,12 +1,12 @@
 // src/frontend/views/HistoryView.tsx — Historical completed and active runs view (XFM-38, XFM-40, XFM-49).
 
 import { useMemo, useState } from "react";
+import { ACTIVE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { RunHistoryCard } from "../components/history/RunHistoryCard.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
-import { ACTIVE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import "./HistoryView.css";
 
 type StatusFilter = "all" | "completed" | "active" | "failed";
