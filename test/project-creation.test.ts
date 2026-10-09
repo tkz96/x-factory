@@ -17,8 +17,6 @@ import {
   it,
 } from "bun:test";
 import {
-  chmod,
-  mkdir,
   mkdtemp,
   readdir,
   readFile,
@@ -46,12 +44,16 @@ import { resolveProjectConnection } from "../src/providers/project-connections.j
 import { PROVIDER_REGISTRY } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
 import {
+  assertConnectionRoleCoverage,
+  FILE_PROJECT_WRITE_STORE,
+  type ProjectWriteStore,
+} from "../src/services/connection-write-plan.js";
+import {
   ClaimLostError,
   getCreationClaimPath,
   withCreationClaim,
 } from "../src/services/creation-claim.js";
 import {
-  assertConnectionRoleCoverage,
   createProjectFromConnections,
   updateProjectConnections,
 } from "../src/services/project-creation.js";
@@ -1190,33 +1192,12 @@ describe("POST /api/projects with a connections payload", () => {
   });
 });
 
-describe("Ordered writes for crash safety (connections payload)", () => {
-  let crashDir: string;
-  let savedDataDir: string | undefined;
-  let savedConfigPath: string | undefined;
-
-  beforeEach(async () => {
-    savedDataDir = process.env.X_FACTORY_DATA_DIR;
-    savedConfigPath = process.env.X_FACTORY_CONFIG_PATH;
-    crashDir = await mkdtemp(path.join(tmpdir(), "xf-crash-"));
-    process.env.X_FACTORY_DATA_DIR = path.join(crashDir, "data");
-    process.env.X_FACTORY_CONFIG_PATH = path.join(crashDir, "projects.json");
-  });
-
-  afterEach(async () => {
-    await chmod(process.env.X_FACTORY_CONFIG_PATH ?? "", 0o644).catch(() => {});
-    if (savedDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
-    else process.env.X_FACTORY_DATA_DIR = savedDataDir;
-    if (savedConfigPath === undefined) delete process.env.X_FACTORY_CONFIG_PATH;
-    else process.env.X_FACTORY_CONFIG_PATH = savedConfigPath;
-    await rm(crashDir, { recursive: true, force: true });
-  });
-
-  function crashPayload(id: string): ConnectionsPayload {
+describe("Shared write plan: ordered writes through the injected store (#187)", () => {
+  function crashPayload(id: string): ConnectionsProjectInput {
     return {
       id,
       name: "Crash Test",
-      workspacePath: crashDir,
+      workspacePath: tempDir,
       connections: [
         {
           providerId: "stub-capable",
@@ -1234,69 +1215,83 @@ describe("Ordered writes for crash safety (connections payload)", () => {
         {
           id: `${id}-web`,
           name: "web",
-          localPath: path.join(crashDir, "web"),
+          localPath: path.join(tempDir, "web"),
           role: "backend",
         },
       ],
     };
   }
 
-  async function storedIds(): Promise<string[]> {
-    const raw = await readFile(
-      process.env.X_FACTORY_CONFIG_PATH ?? "",
-      "utf-8",
-    );
-    return (
-      JSON.parse(raw) as { projects: Array<{ id: string }> }
-    ).projects.map((p) => p.id);
+  /**
+   * The shipped file-backed store with named methods replaced: failures are
+   * injected THROUGH the store (#187), never by mutating `process.env` or file
+   * permissions.
+   */
+  function storeFailingOn(
+    overrides: Partial<ProjectWriteStore>,
+  ): ProjectWriteStore {
+    return { ...FILE_PROJECT_WRITE_STORE, ...overrides };
   }
 
-  it("creates no project at all when secret persistence fails", async () => {
+  it("creates no project at all when the store's env write fails", async () => {
     const id = `crash-secret-${Date.now()}`;
-    // Block per-project env storage: <dataDir>/projects is a regular file, so
-    // creating <dataDir>/projects/<id>/ fails.
-    await mkdir(path.join(crashDir, "data"), { recursive: true });
-    await writeFile(path.join(crashDir, "data", "projects"), "not a directory");
+    const store = storeFailingOn({
+      saveProjectEnv: async () => {
+        throw new Error("env store unavailable");
+      },
+    });
 
-    const { status } = await createProject(crashPayload(id));
-    expect(status).toBe(500);
+    await expect(
+      createProjectFromConnections(crashPayload(id), {
+        registry: testRegistry,
+        configPath,
+        store,
+      }),
+    ).rejects.toThrow("env store unavailable");
 
     // No secret store for the project…
     await expect(stat(getProjectEnvPath(id))).rejects.toThrow();
     // …and no project record: a project never exists without its secrets.
-    // (The projects file itself may be created empty by the read path — that
-    // is not a project.)
-    expect(await storedIds().catch(() => [])).toEqual([]);
+    expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+      false,
+    );
   });
 
-  it("leaves the secrets and no project when the commit point fails, then converges on retry", async () => {
+  it("leaves the secrets and no project when the store's record write fails, then converges on retry", async () => {
     const id = `crash-commit-${Date.now()}`;
-    const configPath = process.env.X_FACTORY_CONFIG_PATH ?? "";
-    await writeFile(
-      configPath,
-      `${JSON.stringify({ projects: [] }, null, 2)}\n`,
-    );
+    let recordWriteFails = true;
+    const store = storeFailingOn({
+      appendProjectRecord: async (record, pathArg) => {
+        if (recordWriteFails) throw new Error("record store unavailable");
+        return FILE_PROJECT_WRITE_STORE.appendProjectRecord(record, pathArg);
+      },
+    });
 
-    // Make the projects file readable but not writable: step (3) fails after
-    // step (2) has already persisted the secrets.
-    await chmod(configPath, 0o444);
-    // Precondition, asserted: this environment actually enforces read-only, so
-    // the test cannot pass vacuously.
-    await expect(writeFile(configPath, "blocked")).rejects.toThrow();
-
-    const { status } = await createProject(crashPayload(id));
-    expect(status).toBe(500);
+    await expect(
+      createProjectFromConnections(crashPayload(id), {
+        registry: testRegistry,
+        configPath,
+        store,
+      }),
+    ).rejects.toThrow("record store unavailable");
 
     // Secrets landed first (idempotent, retry-safe)…
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
     // …and the record did not commit.
-    expect(await storedIds()).not.toContain(id);
+    expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+      false,
+    );
 
     // A retry after the failure converges: same secret, one record.
-    await chmod(configPath, 0o644);
-    const retry = await createProject(crashPayload(id));
-    expect(retry.status).toBe(201);
-    expect(await storedIds()).toEqual([id]);
+    recordWriteFails = false;
+    const saved = await createProjectFromConnections(crashPayload(id), {
+      registry: testRegistry,
+      configPath,
+      store,
+    });
+    expect(saved.id).toBe(id);
+    const stored = (await loadProjects(configPath)).filter((p) => p.id === id);
+    expect(stored).toHaveLength(1);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(MARKER_STUB_TOKEN);
   });
 });
@@ -1815,8 +1810,8 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
       connections: [
         {
           providerId: "stub-optional-secret",
-          // A full-replacement update must keep BOTH roles: the merged set is
-          // what the role-coverage gate checks (#133).
+          // A full-replacement update must keep BOTH roles: the replacement
+          // set is what the role-coverage gate checks (#133, #187).
           roles: ["tracker", "gitHost"],
           config,
         },
@@ -1952,7 +1947,7 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(body).toEqual({ fieldErrors: { host: "INVALID" } });
   });
 
-  it("rejects an update whose MERGED connections would drop a required role, with codes and no write", async () => {
+  it("rejects an update whose connections would drop a required role, with codes and no write", async () => {
     const envBefore = await loadProjectEnv(projectId);
     const recordBefore = await readStoredProject(projectId);
     // A secret that would land in env storage if the gate ran AFTER the writes.
@@ -2005,13 +2000,14 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(await readStoredProject(projectId)).toEqual(recordBefore);
   });
 
-  it("rejects an update whose MERGED connections would produce duplicate tracker ownership, with 409 INCOMPATIBLE_CONFIGURATION and no write", async () => {
+  it("rejects an update whose connections give the tracker role two owners, with 409 INCOMPATIBLE_CONFIGURATION and no write", async () => {
     const envBefore = await loadProjectEnv(projectId);
     const recordBefore = await readStoredProject(projectId);
     const unwrittenSecret = "synthetic-duplicate-tracker-secret";
 
-    // Project already has stub-optional-secret with ["tracker", "gitHost"].
-    // Adding stub-tracker-only with ["tracker"] would create duplicate tracker ownership in merged connections.
+    // Replace semantics (#187): the payload IS the new connection set, so a
+    // duplicate owner must appear INSIDE it — two connections claiming
+    // ["tracker"] — for the one-owner rule to reject the update.
     const res = await patch({
       connections: [
         {
@@ -2021,6 +2017,15 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
             host: "https://stub.example",
             apiToken: unwrittenSecret,
             project: "dup-tracker",
+          },
+        },
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            project: "dup-tracker-other",
           },
         },
       ],
@@ -2038,12 +2043,14 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     expect(await readStoredProject(projectId)).toEqual(recordBefore);
   });
 
-  it("rejects an update whose MERGED connections would produce duplicate gitHost ownership, with 409 INCOMPATIBLE_CONFIGURATION and no write", async () => {
+  it("rejects an update whose connections give the gitHost role two owners, with 409 INCOMPATIBLE_CONFIGURATION and no write", async () => {
     const envBefore = await loadProjectEnv(projectId);
     const recordBefore = await readStoredProject(projectId);
     const unwrittenSecret = "synthetic-duplicate-githost-secret";
 
-    // Adding github with ["gitHost"] creates duplicate gitHost ownership with stub-optional-secret
+    // Replace semantics (#187): github with ["gitHost"] alongside
+    // stub-optional-secret's ["gitHost"] gives the role two owners INSIDE the
+    // replacement set.
     const res = await patch({
       connections: [
         {
@@ -2053,6 +2060,15 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
             token: unwrittenSecret,
             repoOwner: "acme",
             repository: "dup-repo",
+          },
+        },
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            project: "dup-githost-other",
           },
         },
       ],
@@ -2098,6 +2114,202 @@ describe("Secret update semantics on PATCH /api/projects/:id", () => {
     // Verify project record and env were NEVER mutated
     expect(await loadProjectEnv(projectId)).toEqual(envBefore);
     expect(await readStoredProject(projectId)).toEqual(recordBefore);
+  });
+});
+
+describe("Connection-set replace semantics on PATCH /api/projects/:id (#187)", () => {
+  async function patchProject(
+    id: string,
+    body: Record<string, unknown>,
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    const res = await fetch(`${baseUrl}/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, body: text ? JSON.parse(text) : {} };
+  }
+
+  it("swaps a project's connections (Jira+Azure to GitHub for both roles), replacing the set and removing the old connections' env entries", async () => {
+    const id = `swap-${Date.now()}`;
+    const azurePat = "synthetic-azure-pat-6d2c";
+    const created = await createProject({
+      id,
+      name: "Swap Me",
+      workspacePath: tempDir,
+      connections: [
+        {
+          providerId: "jira",
+          roles: ["tracker"],
+          config: {
+            host: "https://swap.atlassian.net",
+            email: "dev@example.com",
+            apiToken: MARKER_JIRA_TOKEN,
+            project: "SWAP",
+          },
+        },
+        {
+          providerId: "azure",
+          roles: ["gitHost"],
+          config: {
+            orgUrl: "https://dev.azure.com/acme",
+            project: "acme",
+            pat: azurePat,
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+        },
+      ],
+    });
+    expect(created.status).toBe(201);
+
+    // Precondition, asserted: both connections' secrets are in env storage
+    // before the swap.
+    const before = await loadProjectEnv(id);
+    expect(before.JIRA_API_TOKEN).toBe(MARKER_JIRA_TOKEN);
+    expect(before.AZURE_DEVOPS_PAT).toBe(azurePat);
+
+    const swapToken = "synthetic-github-swap-token-4b8e";
+    const { status } = await patchProject(id, {
+      connections: [
+        {
+          providerId: "github",
+          roles: ["tracker", "gitHost"],
+          config: {
+            token: swapToken,
+            repoOwner: "acme",
+            repository: "web",
+          },
+        },
+      ],
+    });
+    expect(status).toBe(200);
+
+    // Replace: the stored connection set IS the requested set, nothing else.
+    const stored = await readStoredProject(id);
+    expect(stored?.connections?.map((c) => c.providerId)).toEqual(["github"]);
+    expect(stored?.connections?.[0]?.roles).toEqual(["tracker", "gitHost"]);
+    // The legacy tracker mirror follows the swap.
+    expect(stored?.issueTracker?.provider).toBe("github");
+
+    // Remove: the dropped connections' env entries are gone, and only the new
+    // connection's secret remains.
+    expect(await loadProjectEnv(id)).toEqual({ GITHUB_TOKEN: swapToken });
+  });
+
+  it("rejects an update whose connections declare the same env key with different values, like create does, with no write", async () => {
+    const id = `update-env-conflict-${Date.now()}`;
+    const created = await createProject({
+      id,
+      name: "Conflict Target",
+      workspacePath: tempDir,
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker", "gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: MARKER_STUB_TOKEN,
+            project: "conflict-target",
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+        },
+      ],
+    });
+    expect(created.status).toBe(201);
+
+    const envBefore = await loadProjectEnv(id);
+    const recordBefore = await readStoredProject(id);
+
+    // Two DISTINCT providers, both declaring envKey STUB_API_TOKEN with
+    // different values: a conflict, never a silent overwrite.
+    const { status, body } = await patchProject(id, {
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker"],
+          config: {
+            host: "https://stub.example",
+            apiToken: "conflict-value-a",
+            project: "conflict-a",
+          },
+        },
+        {
+          providerId: "stub-capable",
+          roles: ["gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: "conflict-value-b",
+            project: "conflict-b",
+          },
+        },
+      ],
+    });
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+    // Nothing reached the store.
+    expect(await loadProjectEnv(id)).toEqual(envBefore);
+    expect(await readStoredProject(id)).toEqual(recordBefore);
+  });
+
+  it("rejects a creation whose connections declare the same env key with different values, before any write", async () => {
+    const id = `create-env-conflict-${Date.now()}`;
+    const { status, body } = await createProject({
+      id,
+      name: "Conflict Creation",
+      workspacePath: tempDir,
+      connections: [
+        {
+          providerId: "stub-optional-secret",
+          roles: ["tracker"],
+          config: {
+            host: "https://stub.example",
+            apiToken: "conflict-create-value-a",
+            project: "conflict-create-a",
+          },
+        },
+        {
+          providerId: "stub-capable",
+          roles: ["gitHost"],
+          config: {
+            host: "https://stub.example",
+            apiToken: "conflict-create-value-b",
+            project: "conflict-create-b",
+          },
+        },
+      ],
+      repositories: [
+        {
+          id: `${id}-web`,
+          name: "web",
+          localPath: path.join(tempDir, "web"),
+          role: "backend",
+        },
+      ],
+    });
+
+    expect(status).toBe(409);
+    expect(body).toEqual({ formErrors: ["INCOMPATIBLE_CONFIGURATION"] });
+    // No env entry and no record for a rejected creation.
+    expect(await loadProjectEnv(id)).toEqual({});
+    expect((await loadProjects(configPath)).some((p) => p.id === id)).toBe(
+      false,
+    );
   });
 });
 
