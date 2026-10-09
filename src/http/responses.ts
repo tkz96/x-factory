@@ -189,7 +189,10 @@ export function translateDomainErrorToHttpResponse(
     const code = errorCodeOf(err, "GIT_CONFIG_WRITE_FAILED");
     return jsonResponse({ error: message, code }, errorStatusOf(err, 500));
   }
-  if (inErrorFamily(err, ProviderError)) {
+  if (
+    inErrorFamily(err, ProviderError) &&
+    Object.hasOwn(PROVIDER_ERROR_STATUS, errorCodeOf(err) ?? "")
+  ) {
     return providerErrorResponse(err as ProviderError);
   }
   if (err instanceof HttpError) {

@@ -54,4 +54,17 @@ describe("providerErrorResponse", () => {
       context: "DISCOVERY",
     });
   });
+
+  test("an error that is only named ProviderError is not a failure reported as success", async () => {
+    const impostor = new Error("x");
+    impostor.name = "ProviderError";
+    expect(translateDomainErrorToHttpResponse(impostor)).toBeNull();
+
+    const badCode = Object.assign(new Error("x"), {
+      name: "ProviderError",
+      code: "BOGUS",
+      context: "PR",
+    });
+    expect(translateDomainErrorToHttpResponse(badCode)).toBeNull();
+  });
 });
