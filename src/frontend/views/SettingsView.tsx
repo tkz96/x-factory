@@ -352,18 +352,21 @@ function ModelsTabContent({
     try {
       // The model-settings wire contract is {provider, model} per session
       // (#182) — never a bare model-name string, which the server would
-      // spread into the settings file.
+      // spread into the settings file. Empty fields are OMITTED, never sent
+      // as "": an empty value must not overwrite a stored provider or model.
       const models: NonNullable<WorkbenchSettings["models"]> = {};
+      const sessionA: { provider?: string; model?: string } = {};
       const providerA = modelAProvider.trim();
       const modelA = modelAModel.trim();
-      if (providerA || modelA) {
-        models.sessionA = { provider: providerA, model: modelA };
-      }
+      if (providerA) sessionA.provider = providerA;
+      if (modelA) sessionA.model = modelA;
+      if (Object.keys(sessionA).length > 0) models.sessionA = sessionA;
+      const sessionB: { provider?: string; model?: string } = {};
       const providerB = modelBProvider.trim();
       const modelB = modelBModel.trim();
-      if (providerB || modelB) {
-        models.sessionB = { provider: providerB, model: modelB };
-      }
+      if (providerB) sessionB.provider = providerB;
+      if (modelB) sessionB.model = modelB;
+      if (Object.keys(sessionB).length > 0) models.sessionB = sessionB;
 
       await saveSettingsMutation.mutateAsync({ models });
       setSaveStatus("Settings saved successfully.");

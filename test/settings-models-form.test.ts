@@ -156,4 +156,47 @@ describe("Pi & Models settings form (#182)", () => {
       );
     });
   });
+
+  it('omits empty fields instead of overwriting stored values with ""', async () => {
+    const { container } = renderSettings();
+    await openModelsTab(container);
+
+    // Clear only session A's model: the stored provider must survive and no
+    // model: "" may be posted.
+    typeInput(
+      container.querySelector("#setting-model-a-model") as HTMLElement,
+      "",
+    );
+    fireEvent.click(container.querySelector("#btn-save-settings") as Element);
+
+    await waitFor(() => expect(postedBodies.length).toBe(1));
+    expect(postedBodies[0]).toEqual({
+      models: {
+        sessionA: { provider: "anthropic" },
+        sessionB: { provider: "ollama", model: "qwen2.5-coder:32b" },
+      },
+    });
+  });
+
+  it("omits a session entirely when both of its fields are empty", async () => {
+    const { container } = renderSettings();
+    await openModelsTab(container);
+
+    typeInput(
+      container.querySelector("#setting-model-a-provider") as HTMLElement,
+      "",
+    );
+    typeInput(
+      container.querySelector("#setting-model-a-model") as HTMLElement,
+      "",
+    );
+    fireEvent.click(container.querySelector("#btn-save-settings") as Element);
+
+    await waitFor(() => expect(postedBodies.length).toBe(1));
+    expect(postedBodies[0]).toEqual({
+      models: {
+        sessionB: { provider: "ollama", model: "qwen2.5-coder:32b" },
+      },
+    });
+  });
 });
