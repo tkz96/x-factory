@@ -17,13 +17,25 @@ import type { api } from "../src/frontend/lib/api-client.js";
 import { handleApi } from "../src/http/routes.js";
 import { getSettingsPath } from "../src/paths.js";
 import type {
+  AbandonRunRequest,
+  AbandonRunResponse,
+  ChatWithRunRequest,
+  ChatWithRunResponse,
+  CreateRunRequest,
+  CreateRunResponse,
   DiagnosticsResponse,
   DocDetailResponse,
   DocsCatalogResponse,
   DocsSearchResponse,
+  PrRunRequest,
+  PrRunResponse,
   ReadinessResponse,
+  ResumeRunRequest,
+  ResumeRunResponse,
   SettingsUpdateRequest,
   StopRunResponse,
+  TransitionRunRequest,
+  TransitionRunResponse,
   WorkbenchSettings,
 } from "../src/shared/types.js";
 
@@ -49,7 +61,21 @@ const SHARED_WIRE_TYPE_NAMES = [
   "ReadinessResponse",
   "ReadinessCheck",
   "DiagnosticsResponse",
+  "RunOkResponse",
+  "CreateRunRequest",
+  "CreateRunResponse",
+  "ResumeRunRequest",
+  "ResumeRunResponse",
+  "AbandonRunRequest",
+  "AbandonRunResponse",
+  "ChatWithRunRequest",
+  "ChatWithRunResponse",
+  "RunTransitionAction",
+  "TransitionRunRequest",
+  "TransitionRunResponse",
   "StopRunResponse",
+  "PrRunRequest",
+  "PrRunResponse",
   "DocsCatalogResponse",
   "DocsSearchResponse",
   "DocDetailResponse",
@@ -190,7 +216,81 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
       >,
       Assert<Equals<ReturnType<typeof api.getDoc>, Promise<DocDetailResponse>>>,
       Assert<Equals<ReturnType<typeof api.stopRun>, Promise<StopRunResponse>>>,
-    ] = [true, true, true, true, true, true, true, true, true];
+      Assert<Equals<Parameters<typeof api.createRun>[0], CreateRunRequest>>,
+      Assert<
+        Equals<ReturnType<typeof api.createRun>, Promise<CreateRunResponse>>
+      >,
+      Assert<
+        Equals<ReturnType<typeof api.resumeRun>, Promise<ResumeRunResponse>>
+      >,
+      // The bodyless routes take exactly the run id — no request payload.
+      Assert<Equals<Parameters<typeof api.resumeRun>, [runId: string]>>,
+      Assert<Equals<ResumeRunRequest, Record<string, never>>>,
+      Assert<
+        Equals<ReturnType<typeof api.abandonRun>, Promise<AbandonRunResponse>>
+      >,
+      Assert<
+        Equals<
+          Parameters<typeof api.abandonRun>[1],
+          AbandonRunRequest["reason"]
+        >
+      >,
+      Assert<
+        Equals<ReturnType<typeof api.chatWithRun>, Promise<ChatWithRunResponse>>
+      >,
+      Assert<
+        Equals<
+          Parameters<typeof api.chatWithRun>[1],
+          ChatWithRunRequest["message"]
+        >
+      >,
+      Assert<
+        Equals<
+          ReturnType<typeof api.transitionRun>,
+          Promise<TransitionRunResponse>
+        >
+      >,
+      Assert<
+        Equals<
+          Parameters<typeof api.transitionRun>[1],
+          TransitionRunRequest["action"]
+        >
+      >,
+      Assert<
+        Equals<
+          Parameters<typeof api.transitionRun>[2],
+          TransitionRunRequest["payload"]
+        >
+      >,
+      Assert<Equals<ReturnType<typeof api.prRun>, Promise<PrRunResponse>>>,
+      Assert<Equals<Parameters<typeof api.prRun>, [runId: string]>>,
+      Assert<Equals<PrRunRequest, Record<string, never>>>,
+    ] = [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+    ];
     expect(checks.every(Boolean)).toBe(true);
   });
 
@@ -212,7 +312,18 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
       "SettingsUpdateRequest",
       "ReadinessResponse",
       "DiagnosticsResponse",
+      "CreateRunRequest",
+      "CreateRunResponse",
+      "ResumeRunResponse",
+      "AbandonRunRequest",
+      "AbandonRunResponse",
+      "ChatWithRunRequest",
+      "ChatWithRunResponse",
+      "RunTransitionAction",
+      "TransitionRunRequest",
+      "TransitionRunResponse",
       "StopRunResponse",
+      "PrRunResponse",
       "DocsCatalogResponse",
       "DocsSearchResponse",
       "DocDetailResponse",
@@ -226,6 +337,26 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
     ).text();
     for (const name of SHARED_WIRE_TYPE_NAMES) {
       expect(sharedSource).toContain(name);
+    }
+  });
+
+  it("the runs controller answers each run route with jsonResponse<SharedType>", async () => {
+    // The controller-side half of the guarantee: every run route names its
+    // shared response type at the jsonResponse call, so a controller-side
+    // shape change fails `bun run typecheck` rather than shipping.
+    const controllerSource = await Bun.file(
+      path.join(import.meta.dir, "../src/http/runs-controller.ts"),
+    ).text();
+    for (const name of [
+      "CreateRunResponse",
+      "ResumeRunResponse",
+      "AbandonRunResponse",
+      "ChatWithRunResponse",
+      "TransitionRunResponse",
+      "StopRunResponse",
+      "PrRunResponse",
+    ]) {
+      expect(controllerSource).toContain(`jsonResponse<${name}>`);
     }
   });
 });

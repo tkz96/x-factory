@@ -561,13 +561,92 @@ export interface DiagnosticsResponse {
 }
 
 /**
+ * The envelope the run-mutation routes share (#182): `ok` reports success and
+ * `run` is the run the operation changed, written straight into the query
+ * cache. Resume, abandon, transitions and stop all answer with it, so it is
+ * named once here rather than re-declared per route.
+ */
+export interface RunOkResponse {
+  ok: boolean;
+  run: Run;
+}
+
+/** Request body of `POST /api/runs`: what the operator filled into the New Run form. */
+export interface CreateRunRequest {
+  projectId: string;
+  ticketId?: string | undefined;
+  ticketTitle?: string | undefined;
+  plan?: string | undefined;
+  /** The wire accepts the criteria as a pre-split array or one newline string. */
+  acceptanceCriteria?: string[] | string | undefined;
+  description?: string | undefined;
+  branch?: string | undefined;
+}
+
+/** Response body of `POST /api/runs` (201): the created run. */
+export type CreateRunResponse = Run;
+
+/** `POST /api/runs/:id/resume` carries no request body. */
+export type ResumeRunRequest = Record<string, never>;
+
+/** Response body of `POST /api/runs/:id/resume`. */
+export type ResumeRunResponse = RunOkResponse;
+
+/**
+ * Request body of `POST /api/runs/:id/abandon`: an optional reason the server
+ * records on the run's status event. A bodyless POST from an older client is
+ * still accepted.
+ */
+export interface AbandonRunRequest {
+  reason?: string | undefined;
+}
+
+/** Response body of `POST /api/runs/:id/abandon`. */
+export type AbandonRunResponse = RunOkResponse;
+
+/** Request body of `POST /api/runs/:id/chat`. */
+export interface ChatWithRunRequest {
+  message: string;
+}
+
+/** Response body of `POST /api/runs/:id/chat`: the agent's reply, also stored as a chat_agent event. */
+export interface ChatWithRunResponse {
+  ok: boolean;
+  message: string;
+}
+
+/** The operator actions the transition route accepts. */
+export type RunTransitionAction = "approve" | "restart" | "abort" | "requeue";
+
+/** Request body of `POST /api/runs/:id/transitions`. */
+export interface TransitionRunRequest {
+  action: RunTransitionAction;
+  payload?: Record<string, unknown> | undefined;
+}
+
+/** Response body of `POST /api/runs/:id/transitions`. */
+export type TransitionRunResponse = RunOkResponse;
+
+/**
  * Response body of `POST /api/runs/:id/stop` (#182): the stop command returns
  * the run it stopped, so the caller can write it straight into the query
  * cache instead of refetching.
  */
-export interface StopRunResponse {
+export type StopRunResponse = RunOkResponse;
+
+/** `POST /api/runs/:id/pr` carries no request body. */
+export type PrRunRequest = Record<string, never>;
+
+/**
+ * Response body of `POST /api/runs/:id/pr`: `queued` while delivery is
+ * pending, `completed` with the pull request once it exists.
+ */
+export interface PrRunResponse {
   ok: boolean;
-  run: Run;
+  queued?: boolean | undefined;
+  completed?: boolean | undefined;
+  prUrl?: string | undefined;
+  pullRequest?: PullRequest | undefined;
 }
 
 /** One document entry in the in-app docs catalog. */

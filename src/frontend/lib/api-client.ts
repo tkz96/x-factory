@@ -1,5 +1,11 @@
 import type {
+  AbandonRunRequest,
+  AbandonRunResponse,
+  ChatWithRunRequest,
+  ChatWithRunResponse,
   ConfigureGitIdentityResult,
+  CreateRunRequest,
+  CreateRunResponse,
   DiagnosticsResponse,
   DocDetailResponse,
   DocsCatalogResponse,
@@ -8,11 +14,16 @@ import type {
   GitIdentityScope,
   Project,
   ProjectConnectionRole,
+  PrRunResponse,
   ReadinessResponse,
+  ResumeRunResponse,
   Run,
+  RunTransitionAction,
   SettingsUpdateRequest,
   StopRunResponse,
   Ticket,
+  TransitionRunRequest,
+  TransitionRunResponse,
   WorkbenchSettings,
 } from "../../shared/types.js";
 import type { NormalizedError } from "../components/feedback/types.js";
@@ -273,68 +284,63 @@ export const api = {
     return handleResponse<Run>(res);
   },
 
-  async createRun(payload: {
-    projectId: string;
-    ticketId?: string | undefined;
-    ticketTitle?: string | undefined;
-    plan?: string | undefined;
-    acceptanceCriteria?: string[] | string | undefined;
-    description?: string | undefined;
-    branch?: string | undefined;
-  }): Promise<Run> {
+  async createRun(payload: CreateRunRequest): Promise<CreateRunResponse> {
     const res = await fetch("/api/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    return handleResponse<Run>(res);
+    return handleResponse<CreateRunResponse>(res);
   },
 
-  async resumeRun(runId: string): Promise<{ ok: boolean; run: Run }> {
+  async resumeRun(runId: string): Promise<ResumeRunResponse> {
     const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/resume`, {
       method: "POST",
     });
-    return handleResponse<{ ok: boolean; run: Run }>(res);
+    return handleResponse<ResumeRunResponse>(res);
   },
 
   async abandonRun(
     runId: string,
     reason?: string,
-  ): Promise<{ ok: boolean; run: Run }> {
+  ): Promise<AbandonRunResponse> {
+    const body: AbandonRunRequest = { reason };
     const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/abandon`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify(body),
     });
-    return handleResponse<{ ok: boolean; run: Run }>(res);
+    return handleResponse<AbandonRunResponse>(res);
   },
 
   async chatWithRun(
     runId: string,
     message: string,
-  ): Promise<{ ok: boolean; message: string }> {
+  ): Promise<ChatWithRunResponse> {
+    const body: ChatWithRunRequest = { message };
     const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(body),
     });
-    return handleResponse<{ ok: boolean; message: string }>(res);
+    return handleResponse<ChatWithRunResponse>(res);
   },
 
   async transitionRun(
     runId: string,
-    action: "approve" | "restart" | "abort" | "requeue",
-    payload?: unknown,
-  ): Promise<{ ok: boolean; run: Run }> {
+    action: RunTransitionAction,
+    payload?: Record<string, unknown>,
+  ): Promise<TransitionRunResponse> {
+    const body: TransitionRunRequest = { action, payload };
     const res = await fetch(
       `/api/runs/${encodeURIComponent(runId)}/transitions`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify(body),
       },
     );
-    return handleResponse<{ ok: boolean; run: Run }>(res);
+    return handleResponse<TransitionRunResponse>(res);
   },
 
   async stopRun(runId: string): Promise<StopRunResponse> {
@@ -344,15 +350,11 @@ export const api = {
     return handleResponse<StopRunResponse>(res);
   },
 
-  async prRun(
-    runId: string,
-  ): Promise<{ ok: boolean; prUrl?: string; message?: string }> {
+  async prRun(runId: string): Promise<PrRunResponse> {
     const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/pr`, {
       method: "POST",
     });
-    return handleResponse<{ ok: boolean; prUrl?: string; message?: string }>(
-      res,
-    );
+    return handleResponse<PrRunResponse>(res);
   },
 
   async testScopes(payload: {

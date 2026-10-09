@@ -2,10 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AbandonRunRequest,
   DiagnosticsResponse,
   Project,
   ReadinessResponse,
   Run,
+  RunTransitionAction,
   Ticket,
   WorkbenchSettings,
 } from "../../shared/types.js";
@@ -119,7 +121,7 @@ export function useResumeRun() {
 export function useAbandonRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ runId, reason }: { runId: string; reason?: string }) =>
+    mutationFn: ({ runId, reason }: { runId: string } & AbandonRunRequest) =>
       api.abandonRun(runId, reason),
     onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
@@ -134,8 +136,8 @@ export function useTransitionRun() {
       payload,
     }: {
       runId: string;
-      action: "approve" | "restart" | "abort" | "requeue";
-      payload?: unknown;
+      action: RunTransitionAction;
+      payload?: Record<string, unknown> | undefined;
     }) => api.transitionRun(runId, action, payload),
     onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
