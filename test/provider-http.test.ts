@@ -3,15 +3,22 @@
 import { describe, expect, it } from "bun:test";
 import {
   AzureApiError,
+  azureFetch,
   createAzureProvider,
   toUserError as toAzureUserError,
 } from "../src/providers/azure-module.js";
+import { GitHubHttpError } from "../src/providers/github/errors.js";
+import { githubFetch } from "../src/providers/github/http.js";
 import {
   ProviderHttpError,
   parseRetryAfter,
   providerFetch,
 } from "../src/providers/http.js";
-import { createJiraProvider } from "../src/providers/jira-module.js";
+import {
+  createJiraProvider,
+  JiraHttpError,
+  toJiraUserError,
+} from "../src/providers/jira-module.js";
 import {
   createInMemoryTransport,
   htmlResponse,
@@ -57,7 +64,7 @@ describe("Provider HTTP Module (#173)", () => {
         },
       ]);
 
-      const provider = createJiraProvider({ transport });
+      const provider = createJiraProvider({ fetchFn: transport });
 
       const verifyResult = await provider.verifyCredentials({
         host: "https://my-team.atlassian.net",
@@ -259,7 +266,7 @@ describe("Provider HTTP Module (#173)", () => {
       ]);
       await expect(
         providerFetch("https://example.com/timeout-test", {
-          transport: slowTransport,
+          fetchFn: slowTransport,
           timeoutMs: 20,
         }),
       ).rejects.toThrow(/timed out/i);
@@ -280,11 +287,11 @@ describe("Provider HTTP Module (#173)", () => {
       ]);
 
       await expect(
-        providerFetch("https://example.com/err", { transport }),
+        providerFetch("https://example.com/err", { fetchFn: transport }),
       ).rejects.toBeInstanceOf(ProviderHttpError);
 
       await expect(
-        providerFetch("https://example.com/signin", { transport }),
+        providerFetch("https://example.com/signin", { fetchFn: transport }),
       ).rejects.toBeInstanceOf(ProviderHttpError);
     });
 
@@ -301,13 +308,293 @@ describe("Provider HTTP Module (#173)", () => {
       ]);
 
       const promise = providerFetch("https://example.com/hang", {
-        transport,
+        fetchFn: transport,
         signal: controller.signal,
         timeoutMs: 2000,
       });
 
       controller.abort();
       await expect(promise).rejects.toThrow();
+    });
+  });
+
+  describe("Review fixes (#173)", () => {
+    function redirected(res: Response, url: string): Response {
+      Object.defineProperty(res, "redirected", { value: true });
+      Object.defineProperty(res, "url", { value: url });
+      return res;
+    }
+
+    describe("sign-in detection", () => {
+      it("lets an adapter hook replace the built-in check", async () => {
+        const fetchFn = async () =>
+          htmlResponse("<html><body>Please sign in</body></html>");
+        const res = await providerFetch("https://example.com/x", {
+          fetchFn: fetchFn,
+          isSignInRedirect: () => false,
+        });
+        expect(res.status).toBe(200);
+        expect(res.text).toBe("<html><body>Please sign in</body></html>");
+      });
+
+      it("does not let GitHub throw on a 200 HTML response", async () => {
+        const fetchFn = async () =>
+          htmlResponse("<html><body>Sign in to GitHub</body></html>");
+        const res = await githubFetch("https://api.github.com/x", {
+          fetchFn: fetchFn,
+        });
+        expect(res.status).toBe(200);
+      });
+
+      it("classifies a 500 HTML error page by status, not as a sign-in", async () => {
+        const fetchFn = async () =>
+          htmlResponse(
+            "<html><body>Server error, please log in later</body></html>",
+            {
+              status: 500,
+            },
+          );
+        const err = await providerFetch("https://example.com/x", {
+          fetchFn: fetchFn,
+        }).catch((e) => e);
+        expect(err).toBeInstanceOf(ProviderHttpError);
+        expect(err.status).toBe(500);
+        expect(err.message).toBe("HTTP 500 error");
+      });
+
+      it("classifies a 400 HTML error page by status on Azure", async () => {
+        const fetchFn = async () =>
+          htmlResponse("<html><body>Bad request. Sign in again</body></html>", {
+            status: 400,
+          });
+        const err = await azureFetch("https://dev.azure.com/x", {
+          fetchFn,
+        }).catch((e) => e);
+        expect(err).toBeInstanceOf(AzureApiError);
+        expect(err.status).toBe(400);
+        expect(err.isHtml).toBe(true);
+        expect(toAzureUserError(err, "VERIFY").code).not.toBe("AUTH_INVALID");
+      });
+
+      it("does not treat a redirect to a repo named login-service as sign-in", async () => {
+        const fetchFn = async () =>
+          redirected(
+            jsonResponse({ ok: true }),
+            "https://api.github.com/repos/acme/login-service",
+          );
+        const res = await providerFetch("https://api.github.com/x", {
+          fetchFn: fetchFn,
+        });
+        expect(res.status).toBe(200);
+      });
+
+      it("treats a redirect to login.microsoftonline.com as sign-in", async () => {
+        const fetchFn = async () =>
+          redirected(
+            jsonResponse({ ok: true }),
+            "https://login.microsoftonline.com/common/oauth2/authorize",
+          );
+        const err = await providerFetch("https://dev.azure.com/x", {
+          fetchFn: fetchFn,
+        }).catch((e) => e);
+        expect(err).toBeInstanceOf(ProviderHttpError);
+        expect(err.isHtml).toBe(true);
+      });
+
+      it("treats a 302 with a /login Location as sign-in", async () => {
+        const fetchFn = async () =>
+          new Response("", {
+            status: 302,
+            headers: { location: "https://example.com/login?next=/x" },
+          });
+        const err = await providerFetch("https://example.com/x", {
+          fetchFn: fetchFn,
+        }).catch((e) => e);
+        expect(err.message).toBe(
+          "Authentication sign-in challenge or HTML redirect received",
+        );
+      });
+
+      it("treats a 200 HTML sign-in page as sign-in by default", async () => {
+        const fetchFn = async () =>
+          htmlResponse("<html><body>Please sign in</body></html>");
+        const err = await providerFetch("https://example.com/x", {
+          fetchFn: fetchFn,
+        }).catch((e) => e);
+        expect(err.message).toBe(
+          "Authentication sign-in challenge or HTML redirect received",
+        );
+      });
+    });
+
+    describe("GitHub error factory", () => {
+      it("keeps isHtml and never uses the raw HTML page as the message", async () => {
+        const fetchFn = async () =>
+          htmlResponse("<html><body>Bad gateway</body></html>", {
+            status: 502,
+          });
+        const err = await githubFetch("https://api.github.com/x", {
+          fetchFn: fetchFn,
+        }).catch((e) => e);
+        expect(err).toBeInstanceOf(GitHubHttpError);
+        expect(err.status).toBe(502);
+        expect(err.isHtml).toBe(true);
+        expect(err.message).toBe("GitHub API request failed with HTTP 502");
+      });
+
+      it("keeps isTimeout and cause on a timeout", async () => {
+        const fetchFn = createInMemoryTransport([
+          {
+            match: "/slow",
+            handler: async () => {
+              await new Promise((r) => setTimeout(r, 300));
+              return jsonResponse({});
+            },
+          },
+        ]);
+        const pending = githubFetch("https://api.github.com/slow", {
+          fetchFn: fetchFn,
+          timeoutMs: 20,
+        }).catch((e) => e);
+        const err = await pending;
+        expect(err).toBeInstanceOf(GitHubHttpError);
+        expect(err.isTimeout).toBe(true);
+        expect(err.cause).toBeDefined();
+      });
+    });
+
+    describe("timeout and abort", () => {
+      it("removes the abort listener when the call finishes", async () => {
+        const controller = new AbortController();
+        const removed: string[] = [];
+        const original = controller.signal.removeEventListener.bind(
+          controller.signal,
+        );
+        controller.signal.removeEventListener = ((
+          type: string,
+          ...rest: unknown[]
+        ) => {
+          removed.push(type);
+          return (original as (...a: unknown[]) => void)(type, ...rest);
+        }) as typeof controller.signal.removeEventListener;
+        await providerFetch("https://example.com/x", {
+          fetchFn: async () => jsonResponse({}),
+          signal: controller.signal,
+          timeoutMs: 1000,
+        });
+        expect(removed).toEqual(["abort"]);
+      });
+
+      it("propagates an already-aborted caller signal without calling the transport", async () => {
+        const controller = new AbortController();
+        controller.abort();
+        let calls = 0;
+        const err = await providerFetch("https://example.com/x", {
+          fetchFn: async () => {
+            calls += 1;
+            return jsonResponse({});
+          },
+          signal: controller.signal,
+          timeoutMs: 1000,
+        }).catch((e) => e);
+        expect(calls).toBe(0);
+        expect(err).toBeInstanceOf(ProviderHttpError);
+        expect(err.isTimeout).toBe(false);
+      });
+
+      it("does not report a caller abort as a timeout", async () => {
+        const controller = new AbortController();
+        const fetchFn = createInMemoryTransport([
+          {
+            match: "/hang",
+            handler: async () => {
+              await new Promise((r) => setTimeout(r, 300));
+              return jsonResponse({});
+            },
+          },
+        ]);
+        const pending = providerFetch("https://example.com/hang", {
+          fetchFn: fetchFn,
+          signal: controller.signal,
+          timeoutMs: 2000,
+        }).catch((e) => e);
+        controller.abort();
+        const err = await pending;
+        expect(err).toBeInstanceOf(ProviderHttpError);
+        expect(err.isTimeout).toBe(false);
+      });
+
+      it("reports isTimeout only when our timer fired", async () => {
+        const fetchFn = createInMemoryTransport([
+          {
+            match: "/hang",
+            handler: async () => {
+              await new Promise((r) => setTimeout(r, 300));
+              return jsonResponse({});
+            },
+          },
+        ]);
+        const err = await providerFetch("https://example.com/hang", {
+          fetchFn: fetchFn,
+          timeoutMs: 20,
+        }).catch((e) => e);
+        expect(err.isTimeout).toBe(true);
+      });
+
+      it("gives GitHub requests a default timeout signal", async () => {
+        let signal: AbortSignal | null | undefined;
+        await githubFetch("https://api.github.com/x", {
+          fetchFn: async (_i, init) => {
+            signal = init?.signal;
+            return jsonResponse({});
+          },
+        });
+        expect(signal).toBeInstanceOf(AbortSignal);
+      });
+
+      it("gives Jira requests a default timeout signal", async () => {
+        const signals: Array<AbortSignal | null | undefined> = [];
+        const provider = createJiraProvider({
+          fetchFn: async (_i, init) => {
+            signals.push(init?.signal);
+            return jsonResponse({ accountId: "a" });
+          },
+        });
+        await provider
+          .verifyCredentials({
+            host: "acme.atlassian.net",
+            email: "a@b.co",
+            apiToken: "t",
+          })
+          .catch(() => undefined);
+        expect(signals.length).toBeGreaterThan(0);
+        for (const s of signals) expect(s).toBeInstanceOf(AbortSignal);
+      });
+    });
+
+    describe("Jira error classification", () => {
+      it("classifies by status, ignoring misleading message text", () => {
+        const err = new JiraHttpError("401 unauthorized", 500);
+        expect(toJiraUserError(err, "VERIFY").code).toBe("UNKNOWN");
+      });
+
+      it("falls back to the message only for errors without a status", () => {
+        expect(toJiraUserError(new Error("HTTP 401"), "VERIFY").code).toBe(
+          "AUTH_INVALID",
+        );
+        expect(toJiraUserError(new Error("Unauthorized"), "VERIFY").code).toBe(
+          "AUTH_INVALID",
+        );
+      });
+
+      it("does not match status digits inside longer numbers", () => {
+        expect(
+          toJiraUserError(new Error("job 4012 failed"), "VERIFY").code,
+        ).toBe("UNKNOWN");
+        expect(
+          toJiraUserError(new Error("id 14290 missing"), "VERIFY").code,
+        ).toBe("UNKNOWN");
+      });
     });
   });
 });

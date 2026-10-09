@@ -433,7 +433,7 @@ describe("Jira provider module (#140)", () => {
         return jsonResponse({ issues: [] });
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       await provider.listTickets?.(
         {
           host: "https://test.atlassian.net",
@@ -550,7 +550,7 @@ describe("Jira provider module (#140)", () => {
         });
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       const tickets = await provider.listTickets?.(
         {
           host: "https://acme.atlassian.net",
@@ -593,7 +593,7 @@ describe("Jira provider module (#140)", () => {
         return jsonResponse({ issues: [] });
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       await provider.listTickets?.(
         {
           host: "https://acme.atlassian.net",
@@ -623,7 +623,7 @@ describe("Jira provider module (#140)", () => {
           return jsonResponse({});
         };
 
-        const provider = createJiraProvider({ fetchFn: transport });
+        const provider = createJiraProvider({ transport });
         await expect(
           provider.listTickets?.(
             {
@@ -669,7 +669,7 @@ describe("Jira provider module (#140)", () => {
         throw new Error("Unexpected third page request");
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       const tickets = await provider.listTickets?.(
         {
           host: "https://acme.atlassian.net",
@@ -719,7 +719,7 @@ describe("Jira provider module (#140)", () => {
         return jsonResponse({ errorMessages: ["Forbidden"] }, { status: 403 });
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       let caughtError: unknown;
       try {
         await provider.listTickets?.(
@@ -753,7 +753,7 @@ describe("Jira provider module (#140)", () => {
         });
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       await expect(
         provider.listTickets?.(
           {
@@ -789,7 +789,7 @@ describe("Jira provider module (#140)", () => {
         },
       ]);
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       const result = await provider.verifyCredentials({
         host: "https://acme.atlassian.net",
         email: "bot@acme.com",
@@ -821,7 +821,7 @@ describe("Jira provider module (#140)", () => {
         },
       ]);
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       const result = await provider.verifyCredentials({
         host: "https://acme.atlassian.net",
         email: "bot@acme.com",
@@ -851,7 +851,7 @@ describe("Jira provider module (#140)", () => {
         },
       ]);
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       const result = await provider.verifyCredentials({
         host: "https://acme.atlassian.net",
         email: "bot@acme.com",
@@ -877,7 +877,7 @@ describe("Jira provider module (#140)", () => {
         });
       };
 
-      const provider = createJiraProvider({ fetchFn: transport });
+      const provider = createJiraProvider({ transport });
       expect(
         provider.verifyCredentials({
           host: "https://acme.atlassian.net",
@@ -900,7 +900,7 @@ describe("Jira provider module (#140)", () => {
         [
           "jira",
           createJiraProvider({
-            fetchFn: (input, init) => {
+            transport: (input, init) => {
               if (jiraApiTransport) {
                 return jiraApiTransport(input, init);
               }

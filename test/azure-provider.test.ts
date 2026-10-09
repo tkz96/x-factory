@@ -42,7 +42,9 @@ import {
 } from "../src/providers/serializer.js";
 import {
   createInMemoryTransport,
+  htmlResponse,
   jsonResponse,
+  textResponse,
 } from "./helpers/provider-test-helper.js";
 
 describe("Azure DevOps Provider Module (Ticket #139)", () => {
@@ -419,21 +421,23 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         }
         // Repos probe
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               value: [{ id: "repo-1", name: "repo-alpha" }],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            },
+            { status: 200 },
           );
         }
         // Work items probe
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -464,20 +468,22 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         recordedCalls.push({ url: urlStr, method });
 
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               value: [{ id: "repo-1", name: "repo-alpha" }],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            },
+            { status: 200 },
           );
         }
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -498,15 +504,17 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response("Forbidden", { status: 403 });
+          return textResponse("Forbidden", { status: 403 });
         }
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -531,18 +539,18 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               value: [{ id: "repo-1", name: "repo-alpha" }],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            },
+            { status: 200 },
           );
         }
         // Work items read returns 403 (code-only PAT)
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response("Forbidden", { status: 403 });
+          return textResponse("Forbidden", { status: 403 });
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -582,20 +590,22 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         );
 
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               value: [{ id: "repo-1", name: "repo-alpha" }],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            },
+            { status: 200 },
           );
         }
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({
@@ -620,7 +630,7 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
     it("throws when authentication itself fails on repos probe (auth wall or 401)", async () => {
       // 401 test
       const authFailFetch = (async () => {
-        return new Response("Unauthorized", { status: 401 });
+        return textResponse("Unauthorized", { status: 401 });
       }) as unknown as typeof fetch;
 
       const provider401 = createAzureProvider({ fetchFn: authFailFetch });
@@ -634,11 +644,10 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
 
       // HTML portal redirect test (200 with HTML)
       const htmlPortalFetch = (async () => {
-        return new Response(
+        return htmlResponse(
           "<!DOCTYPE html><html><body>Microsoft Login</body></html>",
           {
             status: 200,
-            headers: { "Content-Type": "text/html" },
           },
         );
       }) as unknown as typeof fetch;
@@ -741,8 +750,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         expect(String(url)).toContain(
           "/_apis/git/repositories?api-version=7.1",
         );
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             value: [
               {
                 id: "r1",
@@ -758,8 +767,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
                 defaultBranch: "refs/heads/develop",
               },
             ],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          },
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -871,21 +880,21 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         capturedAuthHeaders.push(auth);
 
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               workItems: [
                 {
                   id: 202,
                   url: "https://dev.azure.com/org/proj/_apis/wit/workItems/202",
                 },
               ],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            },
+            { status: 200 },
           );
         }
         if (urlStr.includes("/_apis/wit/workitems?ids=")) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               value: [
                 {
                   id: 202,
@@ -896,11 +905,11 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
                   },
                 },
               ],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
+            },
+            { status: 200 },
           );
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({
@@ -942,8 +951,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         );
         expect(init?.method).toBe("POST");
         requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             pullRequestId: 42,
             url: "https://dev.azure.com/org/proj/_apis/git/repositories/my-repo/pullrequests/42",
             _links: {
@@ -952,8 +961,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
               },
             },
             status: "active",
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          },
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -992,8 +1001,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         expect(String(url)).toContain(
           "searchCriteria.sourceRefName=refs%2Fheads%2Ffeat%2F139-azure",
         );
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             value: [
               {
                 pullRequestId: 99,
@@ -1008,8 +1017,8 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
                 },
               },
             ],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          },
+          { status: 200 },
         );
       }) as typeof fetch;
 
@@ -1039,10 +1048,12 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
 
     it("returns null when no existing pull request is active", async () => {
       const fakeFetch = (async () => {
-        return new Response(JSON.stringify({ value: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse(
+          { value: [] },
+          {
+            status: 200,
+          },
+        );
       }) as unknown as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -1070,20 +1081,23 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(
-            JSON.stringify({ value: [{ id: "r1", name: "repo1" }] }),
+          return jsonResponse(
+            { value: [{ id: "r1", name: "repo1" }] },
             { status: 200 },
           );
         }
         if (urlStr.includes("/_apis/git/recycleBin/repositories?")) {
-          return new Response("Forbidden", { status: 403 });
+          return textResponse("Forbidden", { status: 403 });
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -1120,9 +1134,9 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         const urlStr = String(url);
         if (urlStr.includes("/recycleBin/repositories?")) {
           // Recycle bin 200 indicates Code: Full (admin)
-          return new Response(JSON.stringify({ value: [] }), { status: 200 });
+          return jsonResponse({ value: [] }, { status: 200 });
         }
-        return new Response(JSON.stringify({ value: [] }), { status: 200 });
+        return jsonResponse({ value: [] }, { status: 200 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -1149,17 +1163,20 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         recordedCalls.push({ url: urlStr, method });
 
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(JSON.stringify({ value: [] }), { status: 200 });
+          return jsonResponse({ value: [] }, { status: 200 });
         }
         if (urlStr.includes("/_apis/git/recycleBin/repositories?")) {
-          return new Response("Forbidden", { status: 403 });
+          return textResponse("Forbidden", { status: 403 });
         }
-        return new Response("Not found", { status: 404 });
+        return textResponse("Not found", { status: 404 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -1189,12 +1206,12 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response("Server error", { status: 500 });
+          return textResponse("Server error", { status: 500 });
         }
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response("Forbidden", { status: 403 });
+          return textResponse("Forbidden", { status: 403 });
         }
-        return new Response("Forbidden", { status: 403 });
+        return textResponse("Forbidden", { status: 403 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });
@@ -1238,19 +1255,22 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
         }
 
         if (urlStr.includes("/_apis/wit/wiql?")) {
-          return new Response(JSON.stringify({ workItems: [] }), {
-            status: 200,
-          });
+          return jsonResponse(
+            { workItems: [] },
+            {
+              status: 200,
+            },
+          );
         }
         if (urlStr.includes("/_apis/git/repositories?")) {
-          return new Response(
-            JSON.stringify({ value: [{ id: "repo-1", name: "repo-1" }] }),
+          return jsonResponse(
+            { value: [{ id: "repo-1", name: "repo-1" }] },
             { status: 200 },
           );
         }
         if (urlStr.includes("/pullrequests") && method === "POST") {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            {
               pullRequestId: 10,
               url: "https://dev.azure.com/org/proj/_apis/git/repositories/repo-1/pullrequests/10",
               _links: {
@@ -1259,11 +1279,11 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
                 },
               },
               status: "active",
-            }),
+            },
             { status: 200 },
           );
         }
-        return new Response("OK", { status: 200 });
+        return textResponse("OK", { status: 200 });
       }) as typeof fetch;
 
       const provider = createAzureProvider({ fetchFn: fakeFetch });

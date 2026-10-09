@@ -37,8 +37,7 @@ import {
 import type { HttpTransport } from "./http.js";
 
 export interface GitHubProviderOptions {
-  fetchFn?: typeof fetch | undefined;
-  transport?: HttpTransport | undefined;
+  fetchFn?: HttpTransport | undefined;
 }
 
 /**
@@ -47,7 +46,7 @@ export interface GitHubProviderOptions {
 export function createGithubProvider(
   options: GitHubProviderOptions = {},
 ): Provider<"github"> {
-  const fetchFn = options.transport || options.fetchFn;
+  const fetchFn = options.fetchFn;
 
   const provider: Provider<"github"> = {
     id: "github",

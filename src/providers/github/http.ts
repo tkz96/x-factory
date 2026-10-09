@@ -1,5 +1,8 @@
 import {
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  extractErrorMessage,
   type HttpTransport,
+  isLoginRedirect,
   type ProviderFetchOptions,
   providerFetch,
 } from "../http.js";
@@ -37,8 +40,8 @@ export interface GitHubFetchOptions {
   headers?: Headers | undefined;
   method?: string | undefined;
   body?: string | undefined;
-  fetchFn?: typeof fetch | HttpTransport | undefined;
-  transport?: HttpTransport | undefined;
+  fetchFn?: HttpTransport | undefined;
+  timeoutMs?: number | undefined;
 }
 
 export interface GitHubFetchResponse {
@@ -56,30 +59,35 @@ export async function githubFetch(
 ): Promise<GitHubFetchResponse> {
   const fetchOpts: ProviderFetchOptions = {
     headers: options.headers,
-    transport: options.transport || options.fetchFn,
+    fetchFn: options.fetchFn,
+    timeoutMs: options.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+    // GitHub's API has no sign-in flow: only a 203 or a redirect to a login page counts.
+    isSignInRedirect: (res) => res.status === 203 || isLoginRedirect(res),
     isRateLimited: (status, headers, text) =>
       isGitHubRateLimited(status, headers, text),
     errorFactory: (msg, opts) => {
-      let errorMessage = `GitHub API request failed with HTTP ${opts.status}`;
-      if (
-        opts.data &&
-        typeof opts.data === "object" &&
-        "message" in opts.data &&
-        typeof (opts.data as { message: unknown }).message === "string"
-      ) {
-        errorMessage = (opts.data as { message: string }).message;
-      } else if (typeof opts.data === "string" && opts.data.trim()) {
-        errorMessage = opts.data.trim();
-      } else if (msg && opts.status === 0) {
-        errorMessage = msg;
+      const fallback = `GitHub API request failed with HTTP ${opts.status}`;
+      const isChallenge =
+        opts.isHtml && opts.status >= 200 && opts.status < 300;
+      let message: string;
+      if (opts.status === 0 || isChallenge) {
+        message = msg;
+      } else if (opts.isHtml) {
+        message = fallback;
+      } else {
+        message = extractErrorMessage(opts.data, fallback);
       }
 
-      return new GitHubHttpError(errorMessage, {
+      return new GitHubHttpError(message, {
         status: opts.status,
         headers: opts.headers,
         bodyText: opts.bodyText,
         retryAfterMs: opts.retryAfterMs ?? parseGitHubRetryAfter(opts.headers),
         isRateLimit: opts.isRateLimit,
+        data: opts.data,
+        isHtml: opts.isHtml,
+        isTimeout: opts.isTimeout,
+        cause: opts.cause,
       });
     },
   };

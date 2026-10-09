@@ -20,6 +20,10 @@ export class GitHubHttpError extends ProviderHttpError {
       bodyText?: string | undefined;
       retryAfterMs?: number | undefined;
       isRateLimit?: boolean | undefined;
+      data?: unknown | undefined;
+      isHtml?: boolean | undefined;
+      isTimeout?: boolean | undefined;
+      cause?: unknown;
     },
   ) {
     const headers = options.headers ?? new Headers();
@@ -34,6 +38,10 @@ export class GitHubHttpError extends ProviderHttpError {
       bodyText: options.bodyText,
       retryAfterMs: retryAfter,
       isRateLimit: isRate,
+      data: options.data,
+      isHtml: options.isHtml,
+      isTimeout: options.isTimeout,
+      cause: options.cause,
     });
     this.name = "GitHubHttpError";
   }

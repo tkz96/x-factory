@@ -111,8 +111,49 @@ export function isHtmlResponse(
   return false;
 }
 
+/** Default per-request timeout applied by adapters; the HTTP module owns timeouts. */
+export const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
+
+const LOGIN_HOST = /^(?:login|signin|sso)\./i;
+const LOGIN_PATH = /^\/(?:login|signin|sign-in)(?:[/?#]|$)/i;
+
 /**
- * Determines whether a response represents an authentication/sign-in redirect.
+ * True when a redirect target points at a sign-in page: a login host such as
+ * login.microsoftonline.com, or a path that starts with /login or /signin.
+ * Names that merely contain "login" (for example /repos/acme/login-service)
+ * do not match.
+ */
+export function isLoginTarget(target: string, base?: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(target, base ?? "https://placeholder.invalid");
+  } catch {
+    return false;
+  }
+  return LOGIN_HOST.test(parsed.hostname) || LOGIN_PATH.test(parsed.pathname);
+}
+
+/**
+ * True when the response was redirected (3xx or followed by fetch) to a sign-in page.
+ */
+export function isLoginRedirect(res: {
+  status: number;
+  redirected?: boolean;
+  url?: string;
+  headers?: Headers;
+}): boolean {
+  const base = res.url || undefined;
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers?.get("location");
+    if (location && isLoginTarget(location, base)) return true;
+  }
+  return Boolean(res.redirected && res.url && isLoginTarget(res.url));
+}
+
+/**
+ * Built-in sign-in check: 203, a redirect to a sign-in page, or a 2xx HTML
+ * page that asks the user to sign in. A 4xx/5xx HTML page is never a sign-in,
+ * because auth classification uses the status code.
  */
 export function isSignInRedirect(
   res: {
@@ -123,47 +164,36 @@ export function isSignInRedirect(
   },
   bodyText?: string | null,
 ): boolean {
-  if (res.status === 203) {
-    return true;
-  }
+  if (res.status === 203) return true;
+  if (isLoginRedirect(res)) return true;
 
-  if (res.redirected && res.url) {
-    const lowerUrl = res.url.toLowerCase();
-    if (
-      lowerUrl.includes("login.microsoftonline.com") ||
-      lowerUrl.includes("signin") ||
-      lowerUrl.includes("login")
-    ) {
-      return true;
-    }
-  }
-
-  const location = res.headers?.get("location");
-  if (location) {
-    const lowerLoc = location.toLowerCase();
-    if (
-      lowerLoc.includes("login.microsoftonline.com") ||
-      lowerLoc.includes("signin") ||
-      lowerLoc.includes("login")
-    ) {
-      return true;
-    }
-  }
-
-  const contentType = res.headers?.get("content-type") || "";
-  if (isHtmlResponse(contentType, bodyText)) {
-    const lowerBody = (bodyText || "").toLowerCase();
-    if (
-      lowerBody.includes("sign in") ||
-      lowerBody.includes("signin") ||
-      lowerBody.includes("log in") ||
-      lowerBody.includes("login")
-    ) {
-      return true;
+  if (res.status >= 200 && res.status < 300) {
+    const contentType = res.headers?.get("content-type") || "";
+    if (isHtmlResponse(contentType, bodyText)) {
+      return /sign ?in|log ?in/i.test(bodyText || "");
     }
   }
 
   return false;
+}
+
+/**
+ * Message from a parsed error body: its JSON `message`, else the body text
+ * (first 300 chars), else the fallback.
+ */
+export function extractErrorMessage(data: unknown, fallback: string): string {
+  if (
+    data &&
+    typeof data === "object" &&
+    "message" in data &&
+    typeof (data as { message: unknown }).message === "string"
+  ) {
+    return (data as { message: string }).message;
+  }
+  if (typeof data === "string" && data.trim()) {
+    return data.trim().slice(0, 300);
+  }
+  return fallback;
 }
 
 /**
@@ -195,7 +225,6 @@ export interface ProviderFetchOptions
   extends Omit<RequestInit, "headers" | "body"> {
   headers?: HeadersInit | undefined;
   body?: BodyInit | null | undefined;
-  transport?: HttpTransport | undefined;
   fetchFn?: HttpTransport | undefined;
   timeoutMs?: number | undefined;
   /** Hook for adapter-specific rate-limit evidence. */
@@ -205,7 +234,7 @@ export interface ProviderFetchOptions
     bodyText: string,
     data: unknown,
   ) => boolean;
-  /** Hook for adapter-specific sign-in redirect detection. */
+  /** Adapter hook for sign-in detection; replaces the built-in check. */
   isSignInRedirect?: (res: Response, bodyText: string) => boolean;
   /** Hook for constructing adapter-specific error classes. */
   errorFactory?: (
@@ -237,19 +266,36 @@ export async function providerFetch<T = unknown>(
   url: string | URL,
   options: ProviderFetchOptions = {},
 ): Promise<ProviderFetchResponse<T>> {
-  const fetcher = options.transport || options.fetchFn || globalThis.fetch;
+  const fetcher = options.fetchFn || globalThis.fetch;
   const urlStr = typeof url === "string" ? url : url.toString();
+  const createError = options.errorFactory ?? defaultErrorFactory;
+  const callerSignal = options.signal ?? undefined;
 
-  // Manage timeouts
-  let signal = options.signal;
+  const failTransport = (err: unknown, isTimeout: boolean): never => {
+    throw createError(
+      err instanceof Error ? err.message : "Network request failed",
+      { status: 0, headers: new Headers(), isTimeout, cause: err },
+    );
+  };
+
+  if (callerSignal?.aborted) {
+    failTransport(callerSignal.reason, false);
+  }
+
+  // Our own timer aborts a controller chained to the caller's signal.
+  let signal = callerSignal;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let onCallerAbort: (() => void) | undefined;
+  let timedOut = false;
 
   if (typeof options.timeoutMs === "number" && options.timeoutMs > 0) {
     const controller = new AbortController();
-    if (signal) {
-      signal.addEventListener("abort", () => controller.abort(signal?.reason));
+    if (callerSignal) {
+      onCallerAbort = () => controller.abort(callerSignal.reason);
+      callerSignal.addEventListener("abort", onCallerAbort, { once: true });
     }
     timeoutId = setTimeout(() => {
+      timedOut = true;
       controller.abort(
         new DOMException("The request timed out.", "TimeoutError"),
       );
@@ -260,7 +306,6 @@ export async function providerFetch<T = unknown>(
   let res: Response;
   try {
     const {
-      transport: _transport,
       fetchFn: _fetchFn,
       timeoutMs: _timeoutMs,
       isRateLimited: _isRateLimited,
@@ -285,24 +330,13 @@ export async function providerFetch<T = unknown>(
 
     res = await fetcher(urlStr, requestInit);
   } catch (err) {
-    const isTimeout =
-      (err instanceof DOMException &&
-        (err.name === "TimeoutError" || err.name === "AbortError")) ||
-      (err instanceof Error && /timeout|aborted/i.test(err.message));
-
-    const message =
-      err instanceof Error ? err.message : "Network request failed";
-    const createError = options.errorFactory ?? defaultErrorFactory;
-
-    throw createError(message, {
-      status: 0,
-      headers: new Headers(),
-      isTimeout,
-      cause: err,
-    });
+    return failTransport(err, timedOut);
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
+    }
+    if (callerSignal && onCallerAbort) {
+      callerSignal.removeEventListener("abort", onCallerAbort);
     }
   }
 
@@ -319,16 +353,12 @@ export async function providerFetch<T = unknown>(
   }
 
   const isHtml = isHtmlResponse(contentType, bodyText);
-  const isSignIn =
-    (options.isSignInRedirect
-      ? options.isSignInRedirect(res, bodyText)
-      : isSignInRedirect(res, bodyText)) ||
-    res.status === 203 ||
-    (isHtml && (res.status === 200 || res.status === 203));
+  const isSignIn = (options.isSignInRedirect ?? isSignInRedirect)(
+    res,
+    bodyText,
+  );
 
   if (isSignIn) {
-    const createError = options.errorFactory ?? defaultErrorFactory;
-
     throw createError(
       "Authentication sign-in challenge or HTML redirect received",
       {
@@ -342,34 +372,24 @@ export async function providerFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const retryAfterMs = parseRetryAfter(res.headers);
+    const fallback = `HTTP ${res.status} error`;
     const isRate =
       res.status === 429 ||
       (options.isRateLimited?.(res.status, res.headers, bodyText, parsed) ??
         false);
 
-    let message = `HTTP ${res.status} error`;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "message" in parsed &&
-      typeof (parsed as { message: unknown }).message === "string"
-    ) {
-      message = (parsed as { message: string }).message;
-    } else if (typeof parsed === "string" && parsed.trim()) {
-      message = parsed.slice(0, 300);
-    }
-
-    const createError = options.errorFactory ?? defaultErrorFactory;
-
-    throw createError(message, {
-      status: res.status,
-      headers: res.headers,
-      bodyText,
-      data: parsed,
-      retryAfterMs,
-      isRateLimit: isRate,
-    });
+    throw createError(
+      isHtml ? fallback : extractErrorMessage(parsed, fallback),
+      {
+        status: res.status,
+        headers: res.headers,
+        bodyText,
+        data: parsed,
+        retryAfterMs: parseRetryAfter(res.headers),
+        isRateLimit: isRate,
+        isHtml,
+      },
+    );
   }
 
   return {

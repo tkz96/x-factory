@@ -36,6 +36,7 @@ import {
 import {
   type HttpTransport,
   isHtmlResponse,
+  isLoginRedirect,
   ProviderHttpError,
   providerFetch,
 } from "./http.js";
@@ -275,6 +276,19 @@ export interface AzureFetchOptions extends RequestInit {
 }
 
 /**
+ * True for a sign-in challenge: an HTML page on a non-error status (2xx/3xx).
+ * An HTML error page (4xx/5xx) classifies by its status code instead.
+ * With `orUnauthorized`, a plain 401 counts too.
+ */
+function isAzureSignInError(
+  err: AzureApiError,
+  orUnauthorized = false,
+): boolean {
+  if (orUnauthorized && err.status === 401) return true;
+  return Boolean(err.isHtml) && err.status < 400;
+}
+
+/**
  * HTTP helper normalizing HTML on 2xx and Azure API errors into AzureApiError.
  */
 export async function azureFetch(
@@ -283,17 +297,14 @@ export async function azureFetch(
 ): Promise<{ status: number; text: string; data: unknown; headers: Headers }> {
   const res = await providerFetch(url, {
     ...options,
-    transport: options.fetchFn,
     isRateLimited: (status, _headers, text) =>
       status === 429 || text.includes("TF400733"),
     isSignInRedirect: (r, text) =>
       r.status === 203 ||
-      isHtmlResponse(r.headers.get("content-type"), text) ||
-      (Boolean(r.redirected) &&
-        Boolean(
-          r.url?.includes("login.microsoftonline.com") ||
-            r.url?.includes("signin"),
-        )),
+      isLoginRedirect(r) ||
+      (r.status >= 200 &&
+        r.status < 300 &&
+        isHtmlResponse(r.headers.get("content-type"), text)),
     errorFactory: (msg, opts) => new AzureApiError(msg, opts),
   });
 
@@ -349,7 +360,7 @@ export function toUserError(
   }
 
   // 1. Semantic Status Classification (Highest Precedence)
-  if (status === 401 || status === 203 || isHtml) {
+  if (status === 401 || status === 203 || (isHtml && (status ?? 0) < 400)) {
     return { code: "AUTH_INVALID", context };
   }
   if (status === 403) {
@@ -417,7 +428,6 @@ export function toUserError(
 /** Dependencies for provider injection in unit tests */
 export interface AzureProviderDependencies {
   fetchFn?: typeof fetch | HttpTransport | undefined;
-  transport?: HttpTransport | undefined;
   executor?: CliCommandExecutor | undefined;
   probeTimeoutMs?: number | undefined;
 }
@@ -496,7 +506,7 @@ export async function probeRepositoriesCapability(
 
     return { confirmed: true, repos };
   } catch (err) {
-    if (err instanceof AzureApiError && (err.status === 401 || err.isHtml)) {
+    if (err instanceof AzureApiError && isAzureSignInError(err, true)) {
       throw err;
     }
     return {
@@ -538,7 +548,7 @@ export async function probeTicketsCapability(
 
     return { confirmed: wiqlRes.status === 200 };
   } catch (err) {
-    if (err instanceof AzureApiError && (err.status === 401 || err.isHtml)) {
+    if (err instanceof AzureApiError && isAzureSignInError(err, true)) {
       throw err;
     }
     return {
@@ -565,7 +575,7 @@ export function composeVerificationResult(
 export function createAzureProvider(
   deps: AzureProviderDependencies = {},
 ): Provider<"azure"> {
-  const getFetcher = () => deps.transport ?? deps.fetchFn ?? globalThis.fetch;
+  const getFetcher = () => deps.fetchFn ?? globalThis.fetch;
   const executor = deps.executor;
   const probeTimeout = deps.probeTimeoutMs ?? 5000;
 
@@ -662,7 +672,7 @@ export function createAzureProvider(
           err instanceof AzureApiError &&
           err.status === 403 &&
           !err.isRateLimit &&
-          !err.isHtml
+          !isAzureSignInError(err)
         ) {
           findings.push({ capability: "listTickets", status: "missing" });
         } else {
@@ -694,7 +704,7 @@ export function createAzureProvider(
           err instanceof AzureApiError &&
           err.status === 403 &&
           !err.isRateLimit &&
-          !err.isHtml
+          !isAzureSignInError(err)
         ) {
           findings.push({ capability: "listRepositories", status: "missing" });
         } else {

@@ -19,10 +19,6 @@ interface RawGitHubRepo {
   default_branch?: string;
 }
 
-function parseNextPageUrl(linkHeader: string | null): string | null {
-  return parseLinkNextUrl(linkHeader);
-}
-
 function mapToProviderRepo(item: RawGitHubRepo): ProviderRepository | null {
   const name =
     item.name || (item.full_name ? item.full_name.split("/")[1] : "");
@@ -104,7 +100,7 @@ export async function listGitHubRepositories(
       }
     }
 
-    nextUrl = parseNextPageUrl(res.headers.get("link"));
+    nextUrl = parseLinkNextUrl(res.headers.get("link"));
   }
 
   return allRepos;

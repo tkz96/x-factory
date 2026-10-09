@@ -28,6 +28,7 @@ import type {
 } from "./contract.js";
 import { REQUIRED_WORKFLOW_LABEL } from "./contract.js";
 import {
+  DEFAULT_PROVIDER_TIMEOUT_MS,
   type HttpTransport,
   ProviderHttpError,
   parseRetryAfter,
@@ -193,6 +194,7 @@ function mapStatusToProviderError(
   return { code: "UNKNOWN", context };
 }
 
+/** Message fallback, used only for errors that carry no HTTP status. */
 function mapErrorMessageToProviderError(
   message: string,
   context: ProviderErrorContext,
@@ -200,11 +202,15 @@ function mapErrorMessageToProviderError(
   if (/AUTHENTICATION_DENIED|captcha/i.test(message)) {
     return { code: "AUTH_LOCKED", context };
   }
-  if (/429|rate limit/i.test(message)) return { code: "RATE_LIMITED", context };
-  if (/401|unauthorized/i.test(message))
+  // Anchored so "4012" or "14290" never match a status code.
+  if (/(?<!\d)429(?!\d)|rate limit/i.test(message))
+    return { code: "RATE_LIMITED", context };
+  if (/(?<!\d)401(?!\d)|unauthorized/i.test(message))
     return { code: "AUTH_INVALID", context };
-  if (/403|forbidden/i.test(message)) return { code: "PERMISSION", context };
-  if (/404|not found/i.test(message)) return { code: "NOT_FOUND", context };
+  if (/(?<!\d)403(?!\d)|forbidden/i.test(message))
+    return { code: "PERMISSION", context };
+  if (/(?<!\d)404(?!\d)|not found/i.test(message))
+    return { code: "NOT_FOUND", context };
   return { code: "UNKNOWN", context };
 }
 
@@ -358,14 +364,13 @@ export function extractCriteria(text: string): string[] {
 // ---------------------------------------------------------------------------
 
 export interface JiraProviderOptions {
-  fetchFn?: typeof fetch | undefined;
-  transport?: HttpTransport | undefined;
+  fetchFn?: HttpTransport | undefined;
 }
 
 export function createJiraProvider(
   options: JiraProviderOptions = {},
 ): Provider<"jira"> {
-  const transport = options.transport || options.fetchFn;
+  const fetchFn = options.fetchFn;
 
   return {
     id: "jira",
@@ -389,7 +394,8 @@ export function createJiraProvider(
           Authorization: `Basic ${auth}`,
           Accept: "application/json",
         },
-        transport,
+        fetchFn,
+        timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
         errorFactory: (_msg, opts) =>
           new JiraHttpError(
             `Jira credential verification failed: HTTP ${opts.status}`,
@@ -421,7 +427,8 @@ export function createJiraProvider(
             Authorization: `Basic ${auth}`,
             Accept: "application/json",
           },
-          transport,
+          fetchFn,
+          timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
           errorFactory: (msg, opts) =>
             new JiraHttpError(msg, opts.status, opts.headers, opts.data),
         });
@@ -504,7 +511,8 @@ export function createJiraProvider(
             Authorization: `Basic ${auth}`,
             Accept: "application/json",
           },
-          transport,
+          fetchFn,
+          timeoutMs: DEFAULT_PROVIDER_TIMEOUT_MS,
           errorFactory: (_msg, opts) =>
             new JiraHttpError(
               `Jira search/jql failed: HTTP ${opts.status}`,
