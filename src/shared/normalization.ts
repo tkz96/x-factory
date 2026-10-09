@@ -1,4 +1,5 @@
 // src/shared/normalization.ts
+import { normalizeGitRemoteUrl } from "./git-remote.js";
 export function normalizeProjectId(id: string): string {
   if (!id || typeof id !== "string") return "";
   return id
@@ -34,13 +35,8 @@ export function normalizeAzureProject(name: string): string {
 
 export function normalizeGitHubRepository(repo: string): string {
   if (!repo || typeof repo !== "string") return "";
-  let trimmed = repo.trim().toLowerCase();
-  trimmed = trimmed
-    .replace(
-      /^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|(?:git@)?github\.com:)/i,
-      "",
-    )
-    .replace(/\.git$/i, "")
-    .replace(/^\/+|\/+$/g, "");
-  return trimmed;
+  const identity = normalizeGitRemoteUrl(repo);
+  return identity.startsWith("github:")
+    ? identity.slice("github:".length)
+    : identity;
 }

@@ -109,6 +109,41 @@ describe("Duplicate Project Detection (Shared Logic)", () => {
     expect(result.existingProject?.id).toBe("converso-prod");
   });
 
+  test("Discovered ssh:// remote with a trailing slash duplicates the HTTPS-configured project", () => {
+    const existing = createMockProject(
+      "expected-repo",
+      "Expected Repo",
+      undefined,
+      false,
+      [{ remote: "https://github.com/my-org/expected.git", role: "backend" }],
+    );
+
+    const result = findDuplicateProject([existing], "another-id", "", "", "", [
+      { remote: "ssh://git@github.com/my-org/expected.git/" },
+    ]);
+    expect(result.isDuplicate).toBe(true);
+    expect(result.type).toBe("external_identity");
+    expect(result.existingProject?.id).toBe("expected-repo");
+  });
+
+  test("GitHub tracker: ssh:// and trailing-slash target repo matches the HTTPS-configured project", () => {
+    const existing = createMockProject("expected-gh", "Expected GH", {
+      provider: "github",
+      github: { repo: "https://github.com/my-org/expected.git" },
+    });
+
+    const result = findDuplicateProject(
+      [existing],
+      "another-gh",
+      "github",
+      "ssh://git@github.com/my-org/expected.git/",
+      "",
+    );
+    expect(result.isDuplicate).toBe(true);
+    expect(result.type).toBe("external_identity");
+    expect(result.existingProject?.id).toBe("expected-gh");
+  });
+
   test("Test 3: Same local ID but different Azure external target must remain id_collision", () => {
     const existing = createMockProject("converso", "Existing Converso", {
       provider: "azure",

@@ -257,6 +257,38 @@ describe("Deterministic Inspection", () => {
       }
     });
 
+    it("matches an ssh:// origin with a trailing slash against its HTTPS remote", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-ssh-"));
+      try {
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
+        await execStrict(
+          "git",
+          [
+            "remote",
+            "add",
+            "origin",
+            "ssh://git@github.com/my-org/expected.git/",
+          ],
+          {
+            envPolicy: "inherit",
+            cwd: dir,
+          },
+        );
+
+        const readiness = await evaluateRepositoryReadiness({
+          id: "repo-ssh",
+          name: "Repo SSH",
+          path: dir,
+          remote: "https://github.com/my-org/expected.git",
+          defaultBranch: "main",
+        });
+
+        assert.equal(readiness.remoteMatches, true);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
     it("returns pending_setup when checkout is in detached HEAD state", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-detached-"));
       try {
