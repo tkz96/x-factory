@@ -1,12 +1,17 @@
 // src/frontend/hooks/useQueries.ts — Typed TanStack Query hooks using defined freshness policies (XFM-40, XFM-41, XFM-43).
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Project, Run, Ticket } from "../../shared/types.js";
-import {
-  api,
-  type ReadinessData,
-  type SettingsData,
-} from "../lib/api-client.js";
+import type {
+  AbandonRunRequest,
+  DiagnosticsResponse,
+  Project,
+  ReadinessResponse,
+  Run,
+  RunTransitionAction,
+  Ticket,
+  WorkbenchSettings,
+} from "../../shared/types.js";
+import { api } from "../lib/api-client.js";
 import { invalidateSettings } from "../lib/query-client.js";
 import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
 import {
@@ -79,7 +84,7 @@ export function useRun(
 }
 
 export function useSettings() {
-  return useQuery<SettingsData>({
+  return useQuery<WorkbenchSettings>({
     queryKey: queryKeys.settings(),
     queryFn: () => api.getSettings(),
     ...QUERY_POLICIES.settings,
@@ -87,7 +92,7 @@ export function useSettings() {
 }
 
 export function useReadiness() {
-  return useQuery<ReadinessData>({
+  return useQuery<ReadinessResponse>({
     queryKey: queryKeys.readiness(),
     queryFn: () => api.getReadiness(),
     ...QUERY_POLICIES.readiness,
@@ -116,7 +121,7 @@ export function useResumeRun() {
 export function useAbandonRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ runId, reason }: { runId: string; reason?: string }) =>
+    mutationFn: ({ runId, reason }: { runId: string } & AbandonRunRequest) =>
       api.abandonRun(runId, reason),
     onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
@@ -131,8 +136,8 @@ export function useTransitionRun() {
       payload,
     }: {
       runId: string;
-      action: "approve" | "restart" | "abort" | "requeue";
-      payload?: unknown;
+      action: RunTransitionAction;
+      payload?: Record<string, unknown> | undefined;
     }) => api.transitionRun(runId, action, payload),
     onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
   });
@@ -167,7 +172,7 @@ export function useSaveSettings() {
 }
 
 export function useDiagnostics() {
-  return useQuery({
+  return useQuery<DiagnosticsResponse>({
     queryKey: queryKeys.diagnostics(),
     queryFn: () => api.getDiagnostics(),
     ...QUERY_POLICIES.diagnostics,

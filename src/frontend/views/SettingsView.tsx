@@ -4,7 +4,7 @@ import "./SettingsView.css";
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { Project } from "../../shared/types.js";
+import type { Project, WorkbenchSettings } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
@@ -339,8 +339,10 @@ function ModelsTabContent({
 
   useEffect(() => {
     if (settings?.models) {
-      setModelAModel(settings.models.sessionA || "");
-      setModelBModel(settings.models.sessionB || settings.models.review || "");
+      setModelAProvider(settings.models.sessionA?.provider || "");
+      setModelAModel(settings.models.sessionA?.model || "");
+      setModelBProvider(settings.models.sessionB?.provider || "");
+      setModelBModel(settings.models.sessionB?.model || "");
     }
   }, [settings]);
 
@@ -348,15 +350,25 @@ function ModelsTabContent({
     e.preventDefault();
     setSaveStatus("Saving…");
     try {
-      const modelsPayload: { sessionA?: string; sessionB?: string } = {};
-      const a = modelAModel.trim();
-      if (a) modelsPayload.sessionA = a;
-      const b = modelBModel.trim();
-      if (b) modelsPayload.sessionB = b;
+      // The model-settings wire contract is {provider, model} per session
+      // (#182) — never a bare model-name string, which the server would
+      // spread into the settings file. Empty fields are OMITTED, never sent
+      // as "": an empty value must not overwrite a stored provider or model.
+      const models: NonNullable<WorkbenchSettings["models"]> = {};
+      const sessionA: { provider?: string; model?: string } = {};
+      const providerA = modelAProvider.trim();
+      const modelA = modelAModel.trim();
+      if (providerA) sessionA.provider = providerA;
+      if (modelA) sessionA.model = modelA;
+      if (Object.keys(sessionA).length > 0) models.sessionA = sessionA;
+      const sessionB: { provider?: string; model?: string } = {};
+      const providerB = modelBProvider.trim();
+      const modelB = modelBModel.trim();
+      if (providerB) sessionB.provider = providerB;
+      if (modelB) sessionB.model = modelB;
+      if (Object.keys(sessionB).length > 0) models.sessionB = sessionB;
 
-      await saveSettingsMutation.mutateAsync({
-        models: modelsPayload,
-      });
+      await saveSettingsMutation.mutateAsync({ models });
       setSaveStatus("Settings saved successfully.");
       setTimeout(() => setSaveStatus(null), 3000);
     } catch (err) {

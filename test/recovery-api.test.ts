@@ -138,5 +138,35 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
       const data = (await res.json()) as { error: string };
       expect(data.error).toContain('must be in "recovery_required"');
     });
+
+    it("records the abandon reason on the run's status event (#182)", async () => {
+      const { run } = createTestRun("recovery_required");
+
+      const req = new Request(
+        `http://localhost:3777/api/runs/${run.id}/abandon`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "Superseded by manual fix" }),
+        },
+      );
+      const res = await handleApi(req, new URL(req.url), { repos });
+
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as {
+        ok: boolean;
+        run: { id: string; status: string };
+      };
+      expect(data.ok).toBe(true);
+      expect(data.run.status).toBe("failed");
+
+      const statusTexts = repos.events
+        .getEventsForRun(run.id)
+        .filter((event) => event.type === "status")
+        .map((event) => (event.payload as { text?: string }).text);
+      expect(statusTexts).toContain(
+        "Run abandoned by operator: Superseded by manual fix",
+      );
+    });
   });
 });

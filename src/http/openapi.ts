@@ -902,12 +902,15 @@ export function getOpenApiSpec() {
           ],
           responses: {
             "200": {
-              description: "Run canceled",
+              description: "Run stopped; the stopped run is returned",
               content: {
                 "application/json": {
                   schema: {
                     type: "object",
-                    properties: { ok: { type: "boolean", example: true } },
+                    properties: {
+                      ok: { type: "boolean", example: true },
+                      run: { $ref: "#/components/schemas/Run" },
+                    },
                   },
                 },
               },
@@ -995,7 +998,7 @@ export function getOpenApiSpec() {
           tags: ["Runs"],
           summary: "Abandon Run",
           description:
-            "Permanently abandons a run in recovery_required status, transitioning it to terminal failed status.",
+            "Permanently abandons a run in recovery_required status, transitioning it to terminal failed status. An optional reason is recorded on the run's terminal status event (#182).",
           operationId: "abandonRun",
           parameters: [
             {
@@ -1006,6 +1009,23 @@ export function getOpenApiSpec() {
               schema: { type: "string" },
             },
           ],
+          requestBody: {
+            required: false,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    reason: {
+                      type: "string",
+                      description:
+                        "Operator's reason, recorded on the run's status event",
+                    },
+                  },
+                },
+              },
+            },
+          },
           responses: {
             "200": {
               description: "Run abandoned successfully",
@@ -1029,7 +1049,7 @@ export function getOpenApiSpec() {
           tags: ["Settings"],
           summary: "Get Workbench Settings",
           description:
-            "Retrieves global factory settings, including model selection, concurrency limits, and masked LLM API keys.",
+            "Retrieves global workbench settings: theme and per-session {provider, model} configuration.",
           operationId: "getSettings",
           responses: {
             "200": {
@@ -1048,7 +1068,7 @@ export function getOpenApiSpec() {
           tags: ["Settings"],
           summary: "Update Workbench Settings",
           description:
-            "Updates global workbench settings, default review models, and provider API keys.",
+            "Updates global workbench settings; model entries are {provider, model} pairs (#182).",
           operationId: "updateSettings",
           requestBody: {
             required: true,
@@ -1838,16 +1858,24 @@ export function getOpenApiSpec() {
         },
         FactorySettings: {
           type: "object",
+          description:
+            "Workbench settings: theme plus per-session {provider, model} pairs (#182).",
           properties: {
-            llmProvider: { type: "string", example: "anthropic" },
-            defaultModel: {
-              type: "string",
-              example: "claude-3-7-sonnet-latest",
+            theme: { type: "string", enum: ["dark", "light"], example: "dark" },
+            models: {
+              type: "object",
+              properties: {
+                sessionA: { $ref: "#/components/schemas/ModelStageConfig" },
+                sessionB: { $ref: "#/components/schemas/ModelStageConfig" },
+              },
             },
-            maxConcurrentRuns: { type: "integer", example: 3 },
-            anthropicApiKey: { type: "string", example: "••••••••" },
-            openaiApiKey: { type: "string", example: "••••••••" },
-            geminiApiKey: { type: "string", example: "••••••••" },
+          },
+        },
+        ModelStageConfig: {
+          type: "object",
+          properties: {
+            provider: { type: "string", example: "anthropic" },
+            model: { type: "string", example: "claude-3-7-sonnet" },
           },
         },
         ProviderConfigFieldDescriptor: {

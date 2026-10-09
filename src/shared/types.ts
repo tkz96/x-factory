@@ -481,11 +481,18 @@ export interface AzureConnectionResult {
   repositories?: string[] | undefined;
 }
 
+// ─── HTTP wire contract (#182) ─────────────────────────────────────────────
+// Request and response types for a route are declared ONCE, here. The
+// controller that serves the route and the API client that calls it are both
+// annotated against these types, so changing a response shape on either side
+// fails the typecheck. The route table (#192) consumes them later.
+
 /**
- * Workbench settings shape.
+ * Workbench settings shape — the body of `GET /api/settings`, the response of
+ * `POST /api/settings`, and the on-disk `settings.json` contract.
  */
 export interface WorkbenchSettings {
-  theme?: string | undefined;
+  theme?: "dark" | "light" | undefined;
   models?:
     | {
         sessionA?:
@@ -496,4 +503,206 @@ export interface WorkbenchSettings {
           | undefined;
       }
     | undefined;
+}
+
+/** Request body of `POST /api/settings`: a patch merged into stored settings. */
+export type SettingsUpdateRequest = Partial<WorkbenchSettings>;
+
+/** One named check inside a readiness response. */
+export interface ReadinessCheck {
+  name: string;
+  status: "pass" | "warn" | "fail";
+  message: string;
+}
+
+/** Response body of `GET /api/ready` (503 when unavailable) and `GET /api/readiness`. */
+export interface ReadinessResponse {
+  ready?: boolean | undefined;
+  status: "ready" | "unavailable";
+  database: {
+    status: "ready" | "unavailable";
+    version?: number | undefined;
+    journalMode?: string | undefined;
+    error?: string | undefined;
+  };
+  worker: {
+    status: "ready" | "unavailable";
+    activeWorkers: number;
+    reason?: string | undefined;
+  };
+  checks?: ReadinessCheck[] | undefined;
+  timestamp: string;
+}
+
+/** Response body of `GET /api/diagnostics`. */
+export interface DiagnosticsResponse {
+  status: string;
+  system: {
+    uptime: number;
+    nodeVersion: string;
+    memory: Record<string, number>;
+  };
+  database: {
+    status: string;
+    version: number;
+    runs: { total: number; active: number };
+    jobs: {
+      total: number;
+      pending: number;
+      claimed: number;
+      completed: number;
+      failed: number;
+      stale: number;
+    };
+  };
+  worker: {
+    status: string;
+    activeCount: number;
+    fleet: Array<{ workerId: string; lastHeartbeatAt: string; ageMs: number }>;
+  };
+  timestamp: string;
+}
+
+/**
+ * The envelope the run-mutation routes share (#182): `ok` reports success and
+ * `run` is the run the operation changed, written straight into the query
+ * cache. Resume, abandon, transitions and stop all answer with it, so it is
+ * named once here rather than re-declared per route.
+ */
+export interface RunOkResponse {
+  ok: boolean;
+  run: Run;
+}
+
+/** Request body of `POST /api/runs`: what the operator filled into the New Run form. */
+export interface CreateRunRequest {
+  projectId: string;
+  ticketId?: string | undefined;
+  ticketTitle?: string | undefined;
+  plan?: string | undefined;
+  /** The wire accepts the criteria as a pre-split array or one newline string. */
+  acceptanceCriteria?: string[] | string | undefined;
+  description?: string | undefined;
+  branch?: string | undefined;
+}
+
+/** Response body of `POST /api/runs` (201): the created run. */
+export type CreateRunResponse = Run;
+
+/** `POST /api/runs/:id/resume` carries no request body. */
+export type ResumeRunRequest = Record<string, never>;
+
+/** Response body of `POST /api/runs/:id/resume`. */
+export type ResumeRunResponse = RunOkResponse;
+
+/**
+ * Request body of `POST /api/runs/:id/abandon`: an optional reason the server
+ * records on the run's status event. A bodyless POST from an older client is
+ * still accepted.
+ */
+export interface AbandonRunRequest {
+  reason?: string | undefined;
+}
+
+/** Response body of `POST /api/runs/:id/abandon`. */
+export type AbandonRunResponse = RunOkResponse;
+
+/** Request body of `POST /api/runs/:id/chat`. */
+export interface ChatWithRunRequest {
+  message: string;
+}
+
+/** Response body of `POST /api/runs/:id/chat`: the agent's reply, also stored as a chat_agent event. */
+export interface ChatWithRunResponse {
+  ok: boolean;
+  message: string;
+}
+
+/** The operator actions the transition route accepts. */
+export type RunTransitionAction = "approve" | "restart" | "abort" | "requeue";
+
+/** Request body of `POST /api/runs/:id/transitions`. */
+export interface TransitionRunRequest {
+  action: RunTransitionAction;
+  payload?: Record<string, unknown> | undefined;
+}
+
+/** Response body of `POST /api/runs/:id/transitions`. */
+export type TransitionRunResponse = RunOkResponse;
+
+/**
+ * Response body of `POST /api/runs/:id/stop` (#182): the stop command returns
+ * the run it stopped, so the caller can write it straight into the query
+ * cache instead of refetching.
+ */
+export type StopRunResponse = RunOkResponse;
+
+/** `POST /api/runs/:id/pr` carries no request body. */
+export type PrRunRequest = Record<string, never>;
+
+/**
+ * Response body of `POST /api/runs/:id/pr`: `queued` while delivery is
+ * pending, `completed` with the pull request once it exists.
+ */
+export interface PrRunResponse {
+  ok: boolean;
+  queued?: boolean | undefined;
+  completed?: boolean | undefined;
+  prUrl?: string | undefined;
+  pullRequest?: PullRequest | undefined;
+}
+
+/** One document entry in the in-app docs catalog. */
+export interface DocItem {
+  slug: string;
+  title: string;
+  description: string;
+  path: string;
+}
+
+/** One Diátaxis docs category (tutorials, how-to, reference, …). */
+export interface DocCategory {
+  id: string;
+  name: string;
+  description: string;
+  docs: DocItem[];
+}
+
+/** Response body of `GET /api/docs`. */
+export interface DocsCatalogResponse {
+  categories: DocCategory[];
+}
+
+/** One matched heading inside a docs search result. */
+export interface DocSearchMatch {
+  heading: string;
+  headingId: string;
+  snippet: string;
+  matchCount: number;
+}
+
+/** One matched document in a docs search response. */
+export interface DocSearchResult {
+  category: string;
+  categoryName: string;
+  slug: string;
+  title: string;
+  totalMatches: number;
+  sections: DocSearchMatch[];
+}
+
+/** Response body of `GET /api/docs/search?q=…`. */
+export interface DocsSearchResponse {
+  query: string;
+  totalMatches: number;
+  results: DocSearchResult[];
+}
+
+/** Response body of `GET /api/docs/:category/:slug`. */
+export interface DocDetailResponse {
+  category: string;
+  slug: string;
+  title: string;
+  description: string;
+  markdown: string;
 }
