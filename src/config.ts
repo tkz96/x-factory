@@ -5,6 +5,7 @@ import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import { validateRepo } from "./git.js";
+import { getProjectsConfigPath } from "./paths.js";
 import {
   type CreationClaimOptions,
   translateClaimError,
@@ -13,17 +14,6 @@ import {
 import type { Project, ProjectRepository } from "./types.js";
 
 export { validateProjectInput as validateProject } from "./config-schema.js";
-
-const DEFAULT_CONFIG_PATH = path.join(process.cwd(), "config", "projects.json");
-
-/**
- * Path to the projects configuration file.
- * Defaults to `./config/projects.json`, or `X_FACTORY_CONFIG_PATH` when set —
- * the same test-injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`.
- */
-export function getProjectsConfigPath(): string {
-  return process.env.X_FACTORY_CONFIG_PATH || DEFAULT_CONFIG_PATH;
-}
 
 /**
  * Return the primary repository of a project (first application repository).

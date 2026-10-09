@@ -90,11 +90,14 @@ describe("HTTP Layer Error Translation", () => {
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on chat", async () => {
-    const req = new Request("http://localhost/api/runs/nonexistent-run/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Hello world" }),
-    });
+    const req = new Request(
+      "http://localhost:3777/api/runs/nonexistent-run/chat",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Hello world" }),
+      },
+    );
 
     const res = await handleRunsRoute(
       "POST",
@@ -111,9 +114,12 @@ describe("HTTP Layer Error Translation", () => {
   });
 
   it("projects controller translates neutral NotFoundError to 404 response on delete", async () => {
-    const req = new Request("http://localhost/api/projects/nonexistent-proj", {
-      method: "DELETE",
-    });
+    const req = new Request(
+      "http://localhost:3777/api/projects/nonexistent-proj",
+      {
+        method: "DELETE",
+      },
+    );
 
     const res = await handleProjectsRoute(
       "DELETE",
@@ -131,7 +137,7 @@ describe("HTTP Layer Error Translation", () => {
 
   it("projects controller translates neutral ValidationError to 400 response on discover-repositories", async () => {
     const req = new Request(
-      "http://localhost/api/projects/discover-repositories",
+      "http://localhost:3777/api/projects/discover-repositories",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,9 +160,12 @@ describe("HTTP Layer Error Translation", () => {
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on stop", async () => {
-    const req = new Request("http://localhost/api/runs/nonexistent-run/stop", {
-      method: "POST",
-    });
+    const req = new Request(
+      "http://localhost:3777/api/runs/nonexistent-run/stop",
+      {
+        method: "POST",
+      },
+    );
 
     const res = await handleRunsRoute(
       "POST",
@@ -173,9 +182,12 @@ describe("HTTP Layer Error Translation", () => {
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on pr", async () => {
-    const req = new Request("http://localhost/api/runs/nonexistent-run/pr", {
-      method: "POST",
-    });
+    const req = new Request(
+      "http://localhost:3777/api/runs/nonexistent-run/pr",
+      {
+        method: "POST",
+      },
+    );
 
     const res = await handleRunsRoute(
       "POST",
@@ -193,7 +205,7 @@ describe("HTTP Layer Error Translation", () => {
 
   it("runs controller translates neutral NotFoundError to 404 response on resume", async () => {
     const req = new Request(
-      "http://localhost/api/runs/nonexistent-run/resume",
+      "http://localhost:3777/api/runs/nonexistent-run/resume",
       {
         method: "POST",
       },
@@ -215,7 +227,7 @@ describe("HTTP Layer Error Translation", () => {
 
   it("runs controller translates neutral NotFoundError to 404 response on abandon", async () => {
     const req = new Request(
-      "http://localhost/api/runs/nonexistent-run/abandon",
+      "http://localhost:3777/api/runs/nonexistent-run/abandon",
       {
         method: "POST",
       },
@@ -251,7 +263,7 @@ describe("HTTP Layer Error Translation", () => {
     });
 
     // 1. Attempting PR creation on a stopped run must yield 409
-    const prReq = new Request(`http://localhost/api/runs/${runId}/pr`, {
+    const prReq = new Request(`http://localhost:3777/api/runs/${runId}/pr`, {
       method: "POST",
     });
     const prRes = await handleRunsRoute("POST", runId, "pr", 3, prReq, repos);
@@ -263,9 +275,12 @@ describe("HTTP Layer Error Translation", () => {
     );
 
     // 2. Attempting resume on a stopped run (not recovery_required) must yield 409
-    const resumeReq = new Request(`http://localhost/api/runs/${runId}/resume`, {
-      method: "POST",
-    });
+    const resumeReq = new Request(
+      `http://localhost:3777/api/runs/${runId}/resume`,
+      {
+        method: "POST",
+      },
+    );
     const resumeRes = await handleRunsRoute(
       "POST",
       runId,
@@ -283,7 +298,7 @@ describe("HTTP Layer Error Translation", () => {
 
     // 3. Attempting abandon on a stopped run (not recovery_required) must yield 409
     const abandonReq = new Request(
-      `http://localhost/api/runs/${runId}/abandon`,
+      `http://localhost:3777/api/runs/${runId}/abandon`,
       {
         method: "POST",
       },
@@ -321,7 +336,7 @@ describe("HTTP Layer Error Translation", () => {
       worktreePath: `/tmp/worktrees-${prCreatedRunId}`,
     });
     const stopReq = new Request(
-      `http://localhost/api/runs/${prCreatedRunId}/stop`,
+      `http://localhost:3777/api/runs/${prCreatedRunId}/stop`,
       {
         method: "POST",
       },

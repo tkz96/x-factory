@@ -10,7 +10,7 @@ import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
-import type { StageExecutor, StageResult } from "../src/executors/index.js";
+import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { stopRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
@@ -118,13 +118,11 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     // Mock verify executor that stops the run mid-execution
     const mockVerifyExecutor: StageExecutor = {
       stage: "execute",
-      async execute(): Promise<StageResult> {
+      async execute(): Promise<StageOutcome> {
         // Run is stopped externally while verifying
         await stopRun(repos, run.id);
         return {
-          status: "success",
-          nextStage: undefined,
-          nextRunStatus: "awaiting_review",
+          outcome: "passed",
         };
       },
     };
@@ -226,13 +224,19 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
       worker as unknown as {
         commitStageProgression: (
           claimedJob: typeof claimed,
+          attempt: { id: string },
+          result: { outcome: "passed"; output?: unknown },
+          duration: number,
           expectedRunStatus: string,
-          nextStage: string | undefined,
-          nextRunStatus: string,
-          output?: unknown,
         ) => boolean;
       }
-    ).commitStageProgression(claimed, "executing", "execute", "executing");
+    ).commitStageProgression(
+      claimed,
+      { id: "attempt-cas" },
+      { outcome: "passed" },
+      0,
+      "executing",
+    );
 
     // CAS rejected!
     expect(committed).toBe(false);

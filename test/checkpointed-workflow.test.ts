@@ -10,11 +10,7 @@ import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
-import type {
-  StageContext,
-  StageExecutor,
-  StageResult,
-} from "../src/executors/index.js";
+import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
@@ -65,11 +61,9 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     const mockExecutors: Record<string, StageExecutor> = {
       prepare: {
         stage: "prepare",
-        async execute(): Promise<StageResult> {
+        async execute(): Promise<StageOutcome> {
           return {
-            status: "success",
-            nextStage: "understand",
-            nextRunStatus: "understanding",
+            outcome: "passed",
             output: { worktreePath: "/tmp/worktrees-cp" },
           };
         },
@@ -124,29 +118,21 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
   it("progresses sequentially across full multi-stage pipeline (prepare -> understand -> implement -> verify -> review -> ready_for_pr)", async () => {
     const { db, runRepo, jobRepo, stageAttemptRepo, run } = setup();
 
-    const stageResults: Record<string, StageResult> = {
+    const stageResults: Record<string, StageOutcome> = {
       prepare: {
-        status: "success",
-        nextStage: "understand",
-        nextRunStatus: "understanding",
+        outcome: "passed",
         output: { prepared: true },
       },
       understand: {
-        status: "success",
-        nextStage: undefined,
-        nextRunStatus: "awaiting_understanding_approval",
+        outcome: "passed",
         output: { understood: true },
       },
       plan: {
-        status: "success",
-        nextStage: undefined,
-        nextRunStatus: "awaiting_plan_approval",
+        outcome: "passed",
         output: { planned: true },
       },
       execute: {
-        status: "success",
-        nextStage: undefined,
-        nextRunStatus: "awaiting_review",
+        outcome: "passed",
         output: { diff: "patch" },
       },
     };
@@ -280,131 +266,23 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     expect(finishedCmd?.status).toBe("completed");
   });
 
-  it("handles bounded verification repair loops (verify failure -> retry implement) (XFM-31)", async () => {
-    const { db, runRepo, jobRepo, stageAttemptRepo, run } = setup();
-
-    let implementCount = 0;
-    let verifyCount = 0;
-
-    const worker = new Worker({
-      db,
-      workerId: "worker-repair-test",
-      getStageExecutor: (stage) => ({
-        stage,
-        async execute(ctx: StageContext): Promise<StageResult> {
-          if (stage === "prepare") {
-            return {
-              status: "success",
-              nextStage: "understand",
-              nextRunStatus: "understanding",
-            };
-          }
-          if (stage === "understand") {
-            return {
-              status: "success",
-              nextRunStatus: "awaiting_understanding_approval",
-            };
-          }
-          if (stage === "plan") {
-            implementCount++;
-            return {
-              status: "success",
-              nextRunStatus: "awaiting_plan_approval",
-            };
-          }
-          if (stage === "execute") {
-            verifyCount++;
-            if (verifyCount === 1) {
-              // First verification attempt fails, requesting repair
-              ctx.runRepo.update(ctx.run.id, { repairAttempts: 1 });
-              return {
-                status: "retry",
-                nextStage: "execute",
-                nextRunStatus: "executing",
-                output: { passed: false, repairAttempt: 1 },
-              };
-            }
-            // Second attempt passes
-            return {
-              status: "success",
-              nextStage: undefined,
-              nextRunStatus: "awaiting_review",
-              output: { passed: true },
-            };
-          }
-          return { status: "failed", error: `Unexpected stage: ${stage}` };
-        },
-      }),
-    });
-
-    // Process all jobs in the workflow
-    while (true) {
-      const job = jobRepo.claimNextJob("worker-repair-test", 30000);
-      if (job) {
-        await worker.processJob(job);
-      } else {
-        const currentRun = runRepo.get(run.id);
-        if (currentRun?.status === "awaiting_understanding_approval") {
-          runRepo.update(run.id, { status: "planning" });
-          jobRepo.createJob({
-            runId: run.id,
-            stage: "plan",
-            status: "pending",
-          });
-        } else if (currentRun?.status === "awaiting_plan_approval") {
-          runRepo.update(run.id, { status: "executing" });
-          jobRepo.createJob({
-            runId: run.id,
-            stage: "execute",
-            status: "pending",
-          });
-        } else if (currentRun?.status === "awaiting_review") {
-          runRepo.update(run.id, { status: "ready_for_pr" });
-        } else {
-          break;
-        }
-      }
-    }
-
-    // Verify plan was called once, execute was called twice (initial + 1 repair)
-    expect(implementCount).toBe(1);
-    expect(verifyCount).toBe(2);
-
-    const finalRun = runRepo.get(run.id);
-    expect(finalRun?.status).toBe("ready_for_pr");
-    expect(finalRun?.repairAttempts).toBe(1);
-
-    // Check recorded stage attempts
-    const attempts = stageAttemptRepo.listForRun(run.id);
-    expect(attempts.map((a) => a.stage)).toEqual([
-      "prepare",
-      "understand",
-      "plan",
-      "execute",
-      "execute",
-    ]);
-  });
-
   it("survives worker shutdown and resumes next pending job seamlessly on restart", async () => {
     const { db, runRepo, jobRepo, run } = setup();
 
     const mockExecutors: Record<string, StageExecutor> = {
       prepare: {
         stage: "prepare",
-        async execute(): Promise<StageResult> {
+        async execute(): Promise<StageOutcome> {
           return {
-            status: "success",
-            nextStage: "understand",
-            nextRunStatus: "understanding",
+            outcome: "passed",
           };
         },
       },
       understand: {
         stage: "understand",
-        async execute(): Promise<StageResult> {
+        async execute(): Promise<StageOutcome> {
           return {
-            status: "success",
-            nextRunStatus: "awaiting_understanding_approval",
+            outcome: "passed",
           };
         },
       },

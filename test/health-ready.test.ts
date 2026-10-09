@@ -1,6 +1,6 @@
 // test/health-ready.test.ts — Distinct liveness and readiness probe tests (XFM-69).
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   createRepositories,
   type Repositories,
@@ -19,8 +19,10 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
     repos = createRepositories(db);
   });
 
+  afterEach(() => {});
+
   it("GET /api/health returns 200 OK regardless of worker state (liveness)", async () => {
-    const req = new Request("http://localhost/api/health");
+    const req = new Request("http://localhost:3777/api/health");
     const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(200);
@@ -38,7 +40,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
   it("GET /api/ready returns 503 when no background workers are active (readiness)", async () => {
     // Database is initialized, but no workers have reported heartbeats
-    const req = new Request("http://localhost/api/ready");
+    const req = new Request("http://localhost:3777/api/ready");
     const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(503);
@@ -60,7 +62,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
     // Register active worker heartbeat
     registerWorkerHeartbeat(repos.heartbeats, "worker-primary", { pid: 1234 });
 
-    const req = new Request("http://localhost/api/ready");
+    const req = new Request("http://localhost:3777/api/ready");
     const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(200);
@@ -83,7 +85,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
     repos = createRepositories(unmigratedDb);
     registerWorkerHeartbeat(repos.heartbeats, "worker-primary");
 
-    const req = new Request("http://localhost/api/ready");
+    const req = new Request("http://localhost:3777/api/ready");
     const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(503);
@@ -97,13 +99,13 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
   it("verifies health and readiness maintain distinct operational semantics", async () => {
     // Even when worker is down and ready probe fails with 503:
-    const readyReq = new Request("http://localhost/api/ready");
+    const readyReq = new Request("http://localhost:3777/api/ready");
     const readyRes = await handleApi(readyReq, new URL(readyReq.url), {
       repos,
     });
     expect(readyRes.status).toBe(503);
 
-    const healthReq = new Request("http://localhost/api/health");
+    const healthReq = new Request("http://localhost:3777/api/health");
     const healthRes = await handleApi(healthReq, new URL(healthReq.url), {
       repos,
     });
@@ -111,7 +113,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
   });
 
   it("GET /api/readiness returns 200 with structured readiness checks for UI", async () => {
-    const req = new Request("http://localhost/api/readiness");
+    const req = new Request("http://localhost:3777/api/readiness");
     const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(200);

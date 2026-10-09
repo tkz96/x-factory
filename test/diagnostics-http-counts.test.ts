@@ -61,7 +61,7 @@ describe("GET /api/diagnostics counts over HTTP (#188)", () => {
 
     // Bind the database in the same async context as the request (as diagnostics-api.test.ts does).
     repos = createRepositories(db);
-    const req = new Request("http://localhost/api/diagnostics");
+    const req = new Request("http://localhost:3777/api/diagnostics");
     const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 

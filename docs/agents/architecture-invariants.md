@@ -23,7 +23,7 @@ Owner: [Process boundaries and system topology](../explanation/process-boundarie
 - **Worker process (`src/worker.ts`).** A separate Bun process. It polls SQLite, claims a job atomically with a lease, runs the stage through its executor in `src/executors/`, and records the result. While it works, it renews the lease. If a worker dies, its lease expires and another worker can claim the job.
 - **SQLite.** The only source of runtime state, in WAL mode (`PRAGMA journal_mode = WAL`) with foreign keys on (`PRAGMA foreign_keys = ON`).
 - **One connection per process.** Each process opens one SQLite connection and runs migrations on it once. `src/composition-root.ts` turns that connection into the `Repositories` bundle, which the API passes to every route and run command. No module keeps a database handle of its own, so a request is always served by the connection the server opened.
-- **Files on disk.** Everything lives under the data dir: `~/.x-factory`, or `X_FACTORY_DATA_DIR` if it is set. Run artifacts go in `projects/<projectId>/runs/<runId>/` and Git worktrees in `projects/<projectId>/worktrees/<runId>/`. Always build these paths with `src/paths.ts`. SQLite stores metadata and paths, never large blobs.
+- **Files on disk.** Everything lives under the data dir: `~/.x-factory`, or `X_FACTORY_DATA_DIR` if it is set. Run artifacts go in `projects/<projectId>/runs/<runId>/` and Git worktrees in `projects/<projectId>/worktrees/<runId>/`. Settings are in `settings.json` in the same dir. Always build these paths with `src/paths.ts`. SQLite stores metadata and paths, never large blobs. The projects configuration stays at `config/projects.json` in the repository, and `X_FACTORY_CONFIG_PATH` overrides it. It is an authored input, not runtime state, so it is not moved under the data dir. `XF_SETTINGS_PATH` was removed: the settings file always follows the data dir.
 
 ## State machine
 
@@ -37,7 +37,7 @@ Owner: [Workflow state machine and transition contracts](../reference/state-mach
 
 Owner: [Database schema and durable entities](../reference/database-schema.md).
 
-- Change the structure only with a new migration in `src/db/migrations/`. Then run `bun run docs:schema`. CI fails if the generated section of the doc is stale.
+- Change the structure only with a new migration in `src/db/migrations/`. Then run `bun run docs:schema`. CI fails if the generated section of the doc is stale. The migrator runs each migration in an IMMEDIATE transaction that re-reads the version under the write lock, so API and worker can start together on a fresh database; `test/migration-race.test.ts` guards this.
 
 ## Frontend data flow
 

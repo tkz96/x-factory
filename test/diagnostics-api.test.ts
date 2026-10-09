@@ -1,6 +1,6 @@
 // test/diagnostics-api.test.ts — Runtime diagnostics and correlation tests (XFM-70, XFM-73).
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   createRepositories,
   type Repositories,
@@ -28,6 +28,8 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     runMigrations(db);
     repos = createRepositories(db);
   });
+
+  afterEach(() => {});
 
   it("GET /api/diagnostics returns complete database, job, and worker metrics (XFM-70)", async () => {
     const db = createDatabase({ path: ":memory:" });
@@ -93,7 +95,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
       pid: 999,
     });
 
-    const req = new Request("http://localhost/api/diagnostics");
+    const req = new Request("http://localhost:3777/api/diagnostics");
     const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(200);
@@ -134,14 +136,14 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   it("propagates client X-Request-ID header or auto-generates if missing (XFM-73)", async () => {
     // 1. Client provides explicit request ID
     const customReqId = "req-client-custom-42";
-    const req1 = new Request("http://localhost/api/health", {
+    const req1 = new Request("http://localhost:3777/api/health", {
       headers: { "X-Request-ID": customReqId },
     });
     const res1 = await handleApi(req1, new URL(req1.url), { repos });
     expect(res1.headers.get("X-Request-ID")).toBe(customReqId);
 
     // 2. Client provides no header -> auto-generated
-    const req2 = new Request("http://localhost/api/health");
+    const req2 = new Request("http://localhost:3777/api/health");
     const res2 = await handleApi(req2, new URL(req2.url), { repos });
     const generatedId = res2.headers.get("X-Request-ID");
     expect(generatedId).toBeDefined();
@@ -178,7 +180,7 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     expect(entry.duration_ms).toBe(120);
   });
 
-  it("unregisters workers and reads and removes heartbeats through the injected repository", () => {
+  it("unregisters workers and supports test heartbeat repo injection", () => {
     registerWorkerHeartbeat(repos.heartbeats, "worker-test-unreg");
     expect(
       getActiveWorkers(repos.heartbeats).some(

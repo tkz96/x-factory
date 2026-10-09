@@ -64,11 +64,14 @@ describe("Shared run-event union (#171)", () => {
     // 1. chatWithRun producer via handleApi (emits chat_user and chat_agent)
     const errSpy = spyOn(console, "error").mockImplementation(() => {});
     try {
-      const chatReq = new Request(`http://localhost/api/runs/${runId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Can we verify edge cases?" }),
-      });
+      const chatReq = new Request(
+        `http://localhost:3777/api/runs/${runId}/chat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Can we verify edge cases?" }),
+        },
+      );
       const chatRes = await handleApi(chatReq, new URL(chatReq.url), { repos });
       expect(chatRes.status).toBe(200);
     } finally {
@@ -86,11 +89,14 @@ describe("Shared run-event union (#171)", () => {
 
     // 2. steerRun producer via handleApi (emits steer, requires executing status)
     runRepo.update(runId, { status: "executing" }, db);
-    const steerReq = new Request(`http://localhost/api/runs/${runId}/steer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Focus on unit tests first" }),
-    });
+    const steerReq = new Request(
+      `http://localhost:3777/api/runs/${runId}/steer`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Focus on unit tests first" }),
+      },
+    );
     const steerRes = await handleApi(steerReq, new URL(steerReq.url), {
       repos,
     });
@@ -105,7 +111,7 @@ describe("Shared run-event union (#171)", () => {
     // 3. handleTransition requeue producer via handleApi (emits user_feedback and status)
     runRepo.update(runId, { status: "awaiting_review" }, db);
     const requeueReq = new Request(
-      `http://localhost/api/runs/${runId}/transitions`,
+      `http://localhost:3777/api/runs/${runId}/transitions`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,7 +151,7 @@ describe("Shared run-event union (#171)", () => {
     // 4. handleTransition restart producer (emits status)
     runRepo.update(runId, { status: "awaiting_plan_approval" }, db);
     const restartReq = new Request(
-      `http://localhost/api/runs/${runId}/transitions`,
+      `http://localhost:3777/api/runs/${runId}/transitions`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -168,9 +174,12 @@ describe("Shared run-event union (#171)", () => {
 
     // 5. handleTransition abort / stop producer (emits status)
     runRepo.update(runId, { status: "awaiting_plan_approval" }, db);
-    const stopReq = new Request(`http://localhost/api/runs/${runId}/stop`, {
-      method: "POST",
-    });
+    const stopReq = new Request(
+      `http://localhost:3777/api/runs/${runId}/stop`,
+      {
+        method: "POST",
+      },
+    );
     const stopRes = await handleApi(stopReq, new URL(stopReq.url), { repos });
     expect(stopRes.status).toBe(200);
 
@@ -658,7 +667,7 @@ describe("Shared run-event union (#171)", () => {
       text: "feedbeef",
     });
 
-    const req = new Request(`http://localhost/api/runs/${runId}/events`);
+    const req = new Request(`http://localhost:3777/api/runs/${runId}/events`);
     const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 

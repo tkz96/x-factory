@@ -110,7 +110,7 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
     const { runId } = setupTest();
 
     // 2. React frontend makes direct API query for the run on mount
-    const req = new Request(`http://localhost/api/runs/${runId}`);
+    const req = new Request(`http://localhost:3777/api/runs/${runId}`);
     const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
@@ -141,7 +141,7 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
   it("restores complete event stream from SQLite on direct SSE connection after reload", async () => {
     const { runId } = setupTest();
 
-    const req = new Request(`http://localhost/api/runs/${runId}/events`);
+    const req = new Request(`http://localhost:3777/api/runs/${runId}/events`);
     const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/event-stream");

@@ -344,30 +344,59 @@ export class JobRepository {
         );
       }
     } else {
-      const res = conn
-        .prepare(`
-          UPDATE jobs
-          SET status = 'failed',
-              worker_id = NULL,
-              lease_until = NULL,
-              error = $error,
-              updated_at = $now
-          WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
-        `)
-        .run({
-          $jobId: jobId,
-          $workerId: workerId,
-          $error: errorMsg,
-          $now: now,
-        });
-      if (res.changes === 0) {
-        throw new Error(
-          `Job "${jobId}" cannot be mutated: worker "${workerId}" does not hold a valid lease.`,
-        );
-      }
+      this.markClaimedJobFailed(jobId, workerId, errorMsg, now, conn);
     }
 
     return { willRetry, attempts: current.attempts };
+  }
+
+  /**
+   * Ends a claimed job as failed with no retry. Used when a stage's outcome is a verdict
+   * (a rejected review), not a fault worth another attempt (#181).
+   */
+  rejectJob(
+    jobId: string,
+    workerId: string,
+    reason: string,
+    txDb?: Database,
+  ): void {
+    this.markClaimedJobFailed(
+      jobId,
+      workerId,
+      reason,
+      new Date().toISOString(),
+      txDb || this.db,
+    );
+  }
+
+  private markClaimedJobFailed(
+    jobId: string,
+    workerId: string,
+    errorMsg: string,
+    now: string,
+    conn: Database,
+  ): void {
+    const res = conn
+      .prepare(`
+        UPDATE jobs
+        SET status = 'failed',
+            worker_id = NULL,
+            lease_until = NULL,
+            error = $error,
+            updated_at = $now
+        WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
+      `)
+      .run({
+        $jobId: jobId,
+        $workerId: workerId,
+        $error: errorMsg,
+        $now: now,
+      });
+    if (res.changes === 0) {
+      throw new Error(
+        `Job "${jobId}" cannot be mutated: worker "${workerId}" does not hold a valid lease.`,
+      );
+    }
   }
 
   /**

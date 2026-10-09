@@ -45,7 +45,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     });
 
     // 1. First Stop Call
-    const req1 = new Request(`http://localhost/api/runs/${runId}/stop`, {
+    const req1 = new Request(`http://localhost:3777/api/runs/${runId}/stop`, {
       method: "POST",
     });
     const res1 = await handleApi(req1, new URL(req1.url), { repos });
@@ -57,7 +57,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     expect(runAfterFirstStop?.status).toBe("stopped");
 
     // 2. Second Stop Call (Double Click)
-    const req2 = new Request(`http://localhost/api/runs/${runId}/stop`, {
+    const req2 = new Request(`http://localhost:3777/api/runs/${runId}/stop`, {
       method: "POST",
     });
     const res2 = await handleApi(req2, new URL(req2.url), { repos });
@@ -97,7 +97,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     });
 
     // First PR call
-    const req1 = new Request(`http://localhost/api/runs/${runId}/pr`, {
+    const req1 = new Request(`http://localhost:3777/api/runs/${runId}/pr`, {
       method: "POST",
     });
     const res1 = await handleApi(req1, new URL(req1.url), { repos });
@@ -106,7 +106,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     expect(body1.url).toBe(prPayload.url);
 
     // Second PR call (Double Click)
-    const req2 = new Request(`http://localhost/api/runs/${runId}/pr`, {
+    const req2 = new Request(`http://localhost:3777/api/runs/${runId}/pr`, {
       method: "POST",
     });
     const res2 = await handleApi(req2, new URL(req2.url), { repos });
@@ -147,7 +147,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     const commandId = `cmd-${Date.now()}-abc`;
 
     // 1. First Steer
-    const req1 = new Request(`http://localhost/api/runs/${runId}/steer`, {
+    const req1 = new Request(`http://localhost:3777/api/runs/${runId}/steer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -176,7 +176,7 @@ describe("Duplicate-Action Idempotency (XFM-62)", () => {
     expect(piSteerCallCount).toBe(1);
 
     // 2. Second Steer with SAME commandId (or command_id)
-    const req2 = new Request(`http://localhost/api/runs/${runId}/steer`, {
+    const req2 = new Request(`http://localhost:3777/api/runs/${runId}/steer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

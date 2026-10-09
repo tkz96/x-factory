@@ -38,6 +38,11 @@ export interface Repositories {
 export interface ApiContext {
   repos: Repositories;
   providerRegistry?: ProviderRegistry | undefined;
+  /**
+   * Host/Origin/Content-Type boundary (http/request-guard.ts); defaults to the
+   * loopback API. Typed structurally so this module stays free of http imports.
+   */
+  guard?: { port: number; listenHost: string } | undefined;
 }
 
 /**

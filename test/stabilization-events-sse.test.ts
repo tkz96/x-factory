@@ -91,7 +91,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     eventRepo.appendEvent(run.id, "info", { text: "Third" });
 
     // Client requests with Last-Event-ID: 2
-    const req = new Request(`http://localhost/api/runs/${run.id}/events`, {
+    const req = new Request(`http://localhost:3777/api/runs/${run.id}/events`, {
       headers: { "Last-Event-ID": "2" },
     });
     const res = await handleApi(req, new URL(req.url), { repos });
@@ -141,7 +141,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     // 1. recovery_required should NOT close automatically
     runRepo.transitionRun(run.id, "executing", "recovery_required");
 
-    const req1 = new Request(`http://localhost/api/runs/${run.id}/events`);
+    const req1 = new Request(`http://localhost:3777/api/runs/${run.id}/events`);
     const res1 = await handleApi(req1, new URL(req1.url), { repos });
     const reader1 = res1.body?.getReader();
 
@@ -153,7 +153,7 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     // 2. stopped is terminal -> stream closes automatically
     runRepo.transitionRun(run.id, "recovery_required", "failed");
 
-    const req2 = new Request(`http://localhost/api/runs/${run.id}/events`);
+    const req2 = new Request(`http://localhost:3777/api/runs/${run.id}/events`);
     const res2 = await handleApi(req2, new URL(req2.url), { repos });
     const reader2 = res2.body?.getReader();
 

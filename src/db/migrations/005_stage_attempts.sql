@@ -1,13 +1,15 @@
 -- Migration 005: Durable stage attempts table (XFM-29, XFM-31)
+-- status: 'running', 'completed', 'failed'
+-- output: JSON serialized payload (diff summary, verification results, etc.)
 CREATE TABLE IF NOT EXISTS stage_attempts (
   id          TEXT PRIMARY KEY,
   run_id      TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
   stage       TEXT NOT NULL,
   attempt     INTEGER NOT NULL DEFAULT 1,
-  status      TEXT NOT NULL, -- 'running', 'completed', 'failed'
+  status      TEXT NOT NULL,
   started_at  TEXT NOT NULL,
   finished_at TEXT,
-  output      TEXT,          -- JSON serialized payload (diff summary, verification results, etc.)
+  output      TEXT,
   error       TEXT,
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL

@@ -8,6 +8,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Server } from "bun";
 import {
   type ApiContext,
   createRepositories,
@@ -18,6 +19,7 @@ import { runMigrations } from "./db/migrator.js";
 import { emitStructuredLog } from "./diagnostics/correlation.js";
 import { reportStaleWorktrees } from "./git.js";
 import { getOpenApiSpec } from "./http/openapi.js";
+import { resolveListenHost } from "./http/request-guard.js";
 import { jsonResponse } from "./http/responses.js";
 import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
@@ -95,8 +97,10 @@ export function startServer(
   let shuttingDown = false;
   let inFlightRequests = 0;
 
-  const bunServer = Bun.serve({
+  const listenHost = resolveListenHost();
+  const bunServer: Server<unknown> = Bun.serve({
     port,
+    hostname: listenHost,
     async fetch(req) {
       const url = new URL(req.url);
 
@@ -119,7 +123,10 @@ export function startServer(
       inFlightRequests++;
       try {
         if (url.pathname.startsWith("/api/")) {
-          return await handleApi(req, url, apiContext);
+          return await handleApi(req, url, {
+            ...apiContext,
+            guard: { port: bunServer.port ?? port, listenHost },
+          });
         }
         if (url.pathname === "/openapi.json") {
           return jsonResponse(getOpenApiSpec());

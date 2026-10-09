@@ -308,11 +308,11 @@ Run the demo script or execute curl requests against a running server:
 
 ```bash
 # 1. Manifest discovery (with optional role filtering)
-curl -s http://localhost:3777/api/providers/manifest
-curl -s "http://localhost:3777/api/providers/manifest?role=git-host"
+curl -s http://127.0.0.1:3777/api/providers/manifest
+curl -s "http://127.0.0.1:3777/api/providers/manifest?role=git-host"
 
 # 2. Credential verification (ideal)
-curl -s -X POST http://localhost:3777/api/providers/verify \
+curl -s -X POST http://127.0.0.1:3777/api/providers/verify \
   -H "Content-Type: application/json" \
   -d '{
     "providerId": "stub",
@@ -325,12 +325,12 @@ curl -s -X POST http://localhost:3777/api/providers/verify \
   }'
 
 # 3. Quick-URL intake
-curl -s -X POST http://localhost:3777/api/providers/parse-url \
+curl -s -X POST http://127.0.0.1:3777/api/providers/parse-url \
   -H "Content-Type: application/json" \
   -d '{"url": "https://stub.example/acme/rocket"}'
 
 # 4. Repository discovery for a git-host connection
-curl -s -X POST http://localhost:3777/api/providers/repositories \
+curl -s -X POST http://127.0.0.1:3777/api/providers/repositories \
   -H "Content-Type: application/json" \
   -d '{
     "providerId": "stub",
@@ -343,7 +343,7 @@ curl -s -X POST http://localhost:3777/api/providers/repositories \
   }'
 
 # 5. Connection identity (presentation-only, secret-free: no credential here)
-curl -s -X POST http://localhost:3777/api/providers/describe \
+curl -s -X POST http://127.0.0.1:3777/api/providers/describe \
   -H "Content-Type: application/json" \
   -d '{"providerId": "github", "config": {"repoOwner": "acme", "repository": "web"}}'
 ```
@@ -623,6 +623,7 @@ surfaces this contract owns plus the manifest.
 
 ### Test seam
 
-`X_FACTORY_CONFIG_PATH` overrides the projects configuration file path (the same
-injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`), so tests can point
+`X_FACTORY_CONFIG_PATH` overrides the projects configuration file path, which
+defaults to `./config/projects.json` (a repository file, deliberately not moved under
+the data dir). It is the same injection seam as `X_FACTORY_DATA_DIR` / `X_FACTORY_DB_PATH`, so tests can point
 both the project record and the env storage at a temp directory.

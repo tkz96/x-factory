@@ -16,7 +16,7 @@ How the gates and lint baselines work is in [`docs/agents/ci-checks.md`](./docs/
 
 1. **The API process never runs work.** `src/server.ts` handles HTTP/SSE routing, input validation and SQLite writes, then responds. It never executes workflows, starts agent sessions or runs pipeline stages.
 2. **Only the worker runs stages.** `src/worker.ts` claims jobs from SQLite with a lease and runs the stage executors.
-3. **SQLite is the only source of runtime state.** It runs in WAL mode with foreign keys on. Large outputs go to disk under the data dir, and paths come from `src/paths.ts`. SQLite stores references to them, not the blobs.
+3. **SQLite is the only source of runtime state.** It runs in WAL mode with foreign keys on. Large outputs and settings go to disk under the data dir (`X_FACTORY_DATA_DIR`, default `~/.x-factory`), and every such path comes from `src/paths.ts`. SQLite stores references to them, not the blobs.
 4. **Run status changes only through the state machine.** Every transition must be allowed by the matrix in `docs/reference/state-machine-matrix.md`, be atomic, and be recorded in `runs`, `jobs`, `events` and `stage_attempts`.
 5. **Migrations define the database structure.** After you add one to `src/db/migrations/`, run `bun run docs:schema`.
 6. **No inline styles in `.tsx` files.** Use design tokens, utility classes or a co-located `.css` file. The one exception is passing a CSS custom property.

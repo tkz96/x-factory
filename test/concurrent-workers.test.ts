@@ -11,7 +11,7 @@ import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import type {
   StageContext,
   StageExecutor,
-  StageResult,
+  StageOutcome,
 } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 
@@ -60,14 +60,14 @@ describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)",
         },
         plan: "Plan",
         branch: `factory/conc-${i}`,
-        status: "preparing",
+        status: "executing",
         artifactsDir: `/tmp/artifacts-conc-${i}`,
         worktreePath: `/tmp/worktrees-conc-${i}`,
       });
 
       const job = jobRepo1.createJob({
         runId,
-        stage: "prepare",
+        stage: "execute",
         status: "pending",
       });
       jobIds.push(job.id);
@@ -78,8 +78,8 @@ describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)",
     const processingCollisions: string[] = [];
 
     const createSharedExecutor = (workerName: string): StageExecutor => ({
-      stage: "prepare",
-      async execute(ctx: StageContext): Promise<StageResult> {
+      stage: "execute",
+      async execute(ctx: StageContext): Promise<StageOutcome> {
         const jobId = ctx.job.id;
         if (jobWorkerMapping.has(jobId)) {
           processingCollisions.push(
@@ -93,8 +93,7 @@ describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)",
         await new Promise((r) => setTimeout(r, simulatedDelay));
 
         return {
-          status: "success",
-          nextRunStatus: "understanding",
+          outcome: "passed",
           output: { worker: workerName },
         };
       },
@@ -160,7 +159,7 @@ describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)",
 
     for (const runId of runIds) {
       const run = verifyRunRepo.get(runId);
-      expect(run?.status).toBe("understanding");
+      expect(run?.status).toBe("awaiting_review");
 
       const attempts = verifyAttemptsRepo.listForRun(runId);
       expect(attempts.length).toBe(1);

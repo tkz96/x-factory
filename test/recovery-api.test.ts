@@ -41,9 +41,12 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
     it("resumes run from recovery_required and creates pending job", async () => {
       const { run, jobRepo, runRepo } = createTestRun("recovery_required");
 
-      const req = new Request(`http://localhost/api/runs/${run.id}/resume`, {
-        method: "POST",
-      });
+      const req = new Request(
+        `http://localhost:3777/api/runs/${run.id}/resume`,
+        {
+          method: "POST",
+        },
+      );
       const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(200);
@@ -68,9 +71,12 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
     it("rejects resume when run is not in recovery_required status", async () => {
       const { run } = createTestRun("preparing");
 
-      const req = new Request(`http://localhost/api/runs/${run.id}/resume`, {
-        method: "POST",
-      });
+      const req = new Request(
+        `http://localhost:3777/api/runs/${run.id}/resume`,
+        {
+          method: "POST",
+        },
+      );
       const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(409);
@@ -90,9 +96,12 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
         status: "pending",
       });
 
-      const req = new Request(`http://localhost/api/runs/${run.id}/abandon`, {
-        method: "POST",
-      });
+      const req = new Request(
+        `http://localhost:3777/api/runs/${run.id}/abandon`,
+        {
+          method: "POST",
+        },
+      );
       const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(200);
@@ -117,9 +126,12 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
     it("rejects abandon when run is not in recovery_required status", async () => {
       const { run } = createTestRun("executing");
 
-      const req = new Request(`http://localhost/api/runs/${run.id}/abandon`, {
-        method: "POST",
-      });
+      const req = new Request(
+        `http://localhost:3777/api/runs/${run.id}/abandon`,
+        {
+          method: "POST",
+        },
+      );
       const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(409);

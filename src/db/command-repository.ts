@@ -174,6 +174,22 @@ export class CommandRepository {
   }
 
   /**
+   * Retrieves the command stored under an idempotency key, if any.
+   */
+  getCommandByIdempotencyKey(
+    key: string,
+    txDb?: Database,
+  ): CommandRecord | null {
+    const conn = txDb || this.db;
+    const row = conn
+      .prepare<CommandRow, [string]>(
+        "SELECT * FROM run_commands WHERE idempotency_key = ?;",
+      )
+      .get(key);
+    return row ? rowToRecord(row) : null;
+  }
+
+  /**
    * Retrieves a command by ID.
    */
   getCommand(id: string, txDb?: Database): CommandRecord | null {

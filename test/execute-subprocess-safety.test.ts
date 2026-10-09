@@ -164,8 +164,7 @@ describe("Subprocess safety at Worker seam", () => {
       reviewExecutor: {
         stage: "review",
         execute: async () => ({
-          status: "success",
-          nextRunStatus: "awaiting_review",
+          outcome: "passed",
         }),
       },
     });
