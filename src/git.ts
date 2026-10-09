@@ -31,7 +31,7 @@ export async function branchExists(
   const result = await execCommand(
     "git",
     ["rev-parse", "--verify", `refs/heads/${branchName}`],
-    { cwd: repoPath },
+    { cwd: repoPath, envPolicy: "inherit" },
   );
   return result.exitCode === 0;
 }
@@ -49,6 +49,7 @@ export async function createBranch(
   }
   await execStrict("git", ["branch", branchName, baseBranch], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
 }
 
@@ -72,6 +73,7 @@ export async function createWorktree(
   // Add git worktree
   await execStrict("git", ["worktree", "add", worktreePath, branchName], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
 
   // Write .xfactory-run marker in the run artifacts directory (outside worktree)
@@ -100,7 +102,7 @@ export async function removeWorktree(
 ): Promise<void> {
   const args = ["worktree", "remove", worktreePath];
   if (force) args.push("--force");
-  await execStrict("git", args, { cwd: repoPath });
+  await execStrict("git", args, { cwd: repoPath, envPolicy: "inherit" });
 }
 
 /**
@@ -160,7 +162,7 @@ export async function getDiffText(
     const result = await execCommand(
       "git",
       ["--literal-pathspecs", "diff", "HEAD", "--", ...tracked],
-      { cwd: worktreePath },
+      { cwd: worktreePath, envPolicy: "inherit" },
     );
     parts.push(result.stdout);
   }
@@ -169,7 +171,7 @@ export async function getDiffText(
     const result = await execCommand(
       "git",
       ["diff", "--no-index", "--", "/dev/null", file],
-      { cwd: worktreePath },
+      { cwd: worktreePath, envPolicy: "inherit" },
     );
     parts.push(result.stdout);
   }
@@ -240,7 +242,7 @@ export async function safeCommitAll(
       await execStrict(
         "git",
         ["--literal-pathspecs", "restore", "--staged", "--", ...paths],
-        { cwd: worktreePath },
+        { cwd: worktreePath, envPolicy: "inherit" },
       );
     }
   }
@@ -264,19 +266,23 @@ export async function safeCommitAll(
       await execStrict(
         "git",
         ["--literal-pathspecs", "add", "-A", "--", ...paths],
-        { cwd: worktreePath },
+        { cwd: worktreePath, envPolicy: "inherit" },
       );
     }
   }
 
   const staged = await execStrict("git", ["diff", "--cached", "--name-only"], {
     cwd: worktreePath,
+    envPolicy: "inherit",
   });
   if (staged.stdout.length === 0) {
     throw new Error("Nothing to commit — working tree is clean.");
   }
 
-  await execStrict("git", ["commit", "-m", message], { cwd: worktreePath });
+  await execStrict("git", ["commit", "-m", message], {
+    cwd: worktreePath,
+    envPolicy: "inherit",
+  });
 }
 
 /**
@@ -288,6 +294,7 @@ export async function push(
 ): Promise<void> {
   await execStrict("git", ["push", "-u", "origin", branchName], {
     cwd: worktreePath,
+    envPolicy: "inherit",
   });
 }
 
@@ -303,6 +310,7 @@ export async function validateRepo(repoPath: string): Promise<void> {
 
   const gitDirResult = await execCommand("git", ["rev-parse", "--git-dir"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   if (gitDirResult.exitCode !== 0) {
     throw new Error(`Not a git repository: ${repoPath}`);
@@ -315,6 +323,7 @@ export async function validateRepo(repoPath: string): Promise<void> {
 export async function getHeadSha(repoPath: string): Promise<string> {
   const result = await execStrict("git", ["rev-parse", "HEAD"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   return result.stdout.trim();
 }
@@ -325,6 +334,7 @@ export async function getHeadSha(repoPath: string): Promise<string> {
 export async function getParentSha(repoPath: string): Promise<string> {
   const result = await execStrict("git", ["log", "-1", "--format=%P"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   return result.stdout.trim().split(" ")[0] || "";
 }
@@ -335,6 +345,7 @@ export async function getParentSha(repoPath: string): Promise<string> {
 export async function getHeadMessage(repoPath: string): Promise<string> {
   const result = await execStrict("git", ["log", "-1", "--pretty=format:%B"], {
     cwd: repoPath,
+    envPolicy: "inherit",
   });
   return result.stdout.trim();
 }
@@ -351,7 +362,7 @@ export async function findCommitByMessageAndParent(
   const result = await execCommand(
     "git",
     ["log", "--format=%H %P", "--grep", message, "--fixed-strings"],
-    { cwd: repoPath },
+    { cwd: repoPath, envPolicy: "inherit" },
   );
 
   if (result.exitCode !== 0) {
@@ -389,6 +400,7 @@ export async function getRemoteBranchSha(
     ["ls-remote", remote, `refs/heads/${branchName}`],
     {
       cwd: repoPath,
+      envPolicy: "inherit",
     },
   );
   if (result.exitCode !== 0) {

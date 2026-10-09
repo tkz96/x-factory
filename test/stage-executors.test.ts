@@ -1,6 +1,8 @@
 // test/stage-executors.test.ts — Unit tests for discrete Stage Executors (XFM-28, XFM-31, XFM-34).
 
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -16,12 +18,17 @@ import {
   UnderstandExecutor,
 } from "../src/executors/index.js";
 import { finalizeDeliver } from "../src/services/deliver-service.js";
-import type {
-  Project,
-  PullRequest,
-  VerificationResult,
-} from "../src/shared/types.js";
+import type { Project, PullRequest } from "../src/shared/types.js";
 import type { BaselineState } from "../src/worktree-state.js";
+import {
+  FAILING_REVIEW_OUTPUT,
+  PASSING_REVIEW_OUTPUT,
+  scriptedReviewSession,
+  tempArtifactsDirs,
+} from "./helpers/scripted-review-session.js";
+
+const artifactDirs = tempArtifactsDirs();
+afterAll(() => artifactDirs.cleanup());
 
 describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
   const mockBaseline: BaselineState = {
@@ -186,22 +193,19 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     };
 
     it("routes to deliver stage when review is approved", async () => {
-      const { context, runRepo, db } = setupTestContext("review");
+      const { context, runRepo, db } = setupTestContext("review", {
+        artifactsDir: artifactDirs.make(),
+      });
       runRepo.update(context.run.id, { verification: mockVerification }, db);
       const updatedRunForTest = runRepo.get(context.run.id, db);
       if (updatedRunForTest) {
         context.run = updatedRunForTest;
       }
 
+      const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
-        reviewRun: async () => ({
-          passed: true,
-          findings: [],
-          criteriaChecked: [{ criterion: "Acceptance", satisfied: true }],
-          summary: "LGTM!",
-        }),
-        writeFile: async () => {},
+        sessionFactory: async () => session,
       });
 
       const result = await executor.execute(context);
@@ -212,10 +216,47 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.review?.passed).toBe(true);
+      expect(updatedRun?.review?.summary).toBe(
+        "Review passed: all 1 criteria satisfied with 0 blocking errors.",
+      );
+
+      // review.json is written once, by reviewRun, into the run's artifacts dir
+      const artifact = JSON.parse(
+        readFileSync(
+          path.join(context.run.artifactsDir, "review.json"),
+          "utf-8",
+        ),
+      );
+      expect(artifact).toEqual(updatedRun?.review);
+      expect(session.disposeCalls).toBe(1);
+    });
+
+    it("aborts an in-flight review when the stage signal aborts", async () => {
+      const { context, runRepo, db } = setupTestContext("review", {
+        artifactsDir: artifactDirs.make(),
+      });
+      runRepo.update(context.run.id, { verification: mockVerification }, db);
+      const controller = new AbortController();
+      context.signal = controller.signal;
+
+      const session = scriptedReviewSession("", {
+        hangUntilAborted: true,
+        onPrompt: () => queueMicrotask(() => controller.abort()),
+      });
+      const executor = new ReviewExecutor({
+        loadSettings: async () => ({}),
+        sessionFactory: async () => session,
+      });
+
+      await expect(executor.execute(context)).rejects.toThrow("Review aborted");
+      expect(session.disposeCalls).toBe(1);
+      expect(runRepo.get(context.run.id)?.review).toBeNull();
     });
 
     it("fails when review is rejected", async () => {
-      const { context, runRepo, db } = setupTestContext("review");
+      const { context, runRepo, db } = setupTestContext("review", {
+        artifactsDir: artifactDirs.make(),
+      });
       runRepo.update(context.run.id, { verification: mockVerification }, db);
       const updatedRunForTest = runRepo.get(context.run.id, db);
       if (updatedRunForTest) {
@@ -224,13 +265,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
-        reviewRun: async () => ({
-          passed: false,
-          findings: [{ severity: "error", message: "Security concern found" }],
-          criteriaChecked: [{ criterion: "Security", satisfied: false }],
-          summary: "Security concern found",
-        }),
-        writeFile: async () => {},
+        sessionFactory: async () =>
+          scriptedReviewSession(FAILING_REVIEW_OUTPUT),
       });
 
       const result = await executor.execute(context);
@@ -238,24 +274,23 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(result.status).toBe("failed");
       expect(result.nextRunStatus).toBe("failed");
       expect(result.error).toContain("Code review was not approved");
+      expect(context.run.review?.findings).toEqual([
+        { severity: "error", message: "Security concern found" },
+      ]);
     });
 
-    it("fails immediately without calling reviewRun if verification is missing", async () => {
-      const { context } = setupTestContext("review");
-      let reviewRunCalled = false;
+    it("fails immediately without starting a review session if verification is missing", async () => {
+      const { context } = setupTestContext("review", {
+        artifactsDir: artifactDirs.make(),
+      });
+      let sessionsCreated = 0;
 
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
-        reviewRun: async () => {
-          reviewRunCalled = true;
-          return {
-            passed: true,
-            findings: [],
-            criteriaChecked: [],
-            summary: "Should not be called",
-          };
+        sessionFactory: async () => {
+          sessionsCreated++;
+          return scriptedReviewSession(PASSING_REVIEW_OUTPUT);
         },
-        writeFile: async () => {},
       });
 
       const result = await executor.execute(context);
@@ -263,56 +298,51 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(result.status).toBe("failed");
       expect(result.nextRunStatus).toBe("failed");
       expect(result.error).toContain("Deterministic verification is missing");
-      expect(reviewRunCalled).toBe(false);
+      expect(sessionsCreated).toBe(0);
     });
 
-    it("passes the exact verification object unchanged to reviewRun", async () => {
-      const { context, runRepo, db } = setupTestContext("review");
+    it("gives the reviewer the persisted verification summary", async () => {
+      const { context, runRepo, db } = setupTestContext("review", {
+        artifactsDir: artifactDirs.make(),
+      });
 
-      runRepo.update(context.run.id, { verification: mockVerification }, db);
+      const verification = {
+        ...mockVerification,
+        filesChanged: ["src/a.ts", "src/b.ts"],
+      };
+      runRepo.update(context.run.id, { verification }, db);
 
-      let receivedVerification: VerificationResult | undefined;
+      const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
 
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
-        reviewRun: async ({ verification }) => {
-          receivedVerification = verification;
-          return {
-            passed: true,
-            findings: [],
-            criteriaChecked: [],
-            summary: "Identity check passed",
-          };
-        },
-        writeFile: async () => {},
+        sessionFactory: async () => session,
       });
 
       await executor.execute(context);
 
-      expect(receivedVerification).toEqual(mockVerification);
+      expect(session.prompts).toHaveLength(1);
+      expect(session.prompts[0]).toContain(verification.summary);
+      expect(session.prompts[0]).toContain("Changed files: src/a.ts, src/b.ts");
     });
 
     it("fails when context.run.verification exists in memory but SQLite verification is missing", async () => {
-      const { context, runRepo } = setupTestContext("review");
+      const { context, runRepo } = setupTestContext("review", {
+        artifactsDir: artifactDirs.make(),
+      });
       // Set only in-memory context.run.verification without persisting to SQLite
       context.run.verification = mockVerification;
       // Ensure SQLite has null verification
       const sqliteRun = runRepo.get(context.run.id);
       expect(sqliteRun?.verification).toBeNull();
 
-      let reviewRunCalled = false;
+      let sessionsCreated = 0;
       const executor = new ReviewExecutor({
         loadSettings: async () => ({}),
-        reviewRun: async () => {
-          reviewRunCalled = true;
-          return {
-            passed: true,
-            findings: [],
-            criteriaChecked: [],
-            summary: "Should not be called",
-          };
+        sessionFactory: async () => {
+          sessionsCreated++;
+          return scriptedReviewSession(PASSING_REVIEW_OUTPUT);
         },
-        writeFile: async () => {},
       });
 
       const result = await executor.execute(context);
@@ -321,7 +351,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(result.nextRunStatus).toBe("failed");
       expect(result.nextRunStatus).not.toBe("awaiting_review");
       expect(result.error).toContain("Deterministic verification is missing");
-      expect(reviewRunCalled).toBe(false);
+      expect(sessionsCreated).toBe(0);
     });
   });
 

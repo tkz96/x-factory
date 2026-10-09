@@ -30,16 +30,23 @@ beforeEach(async () => {
   artifactsDir = path.join(tempDir, "artifacts");
   await mkdir(artifactsDir, { recursive: true });
 
-  await execStrict("git", ["init", "--initial-branch=main", repo]);
+  await execStrict("git", ["init", "--initial-branch=main", repo], {
+    envPolicy: "inherit",
+  });
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await writeFile(path.join(repo, "README.md"), "# Fixture\n");
-  await execStrict("git", ["add", "-A"], { cwd: repo });
-  await execStrict("git", ["commit", "-m", "Initial commit"], { cwd: repo });
+  await execStrict("git", ["add", "-A"], { envPolicy: "inherit", cwd: repo });
+  await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
+    cwd: repo,
+  });
 });
 
 afterEach(async () => {
@@ -97,7 +104,7 @@ async function headFiles(): Promise<string[]> {
   const result = await execStrict(
     "git",
     ["show", "--name-only", "--format=", "HEAD"],
-    { cwd: repo },
+    { envPolicy: "inherit", cwd: repo },
   );
   return result.stdout.split("\n").filter(Boolean).sort();
 }
@@ -107,7 +114,7 @@ async function headPaths(): Promise<string[]> {
   const result = await execStrict(
     "git",
     ["show", "--name-status", "--format=", "HEAD"],
-    { cwd: repo },
+    { cwd: repo, envPolicy: "inherit" },
   );
   return result.stdout
     .split("\n")
@@ -119,6 +126,7 @@ async function headPaths(): Promise<string[]> {
 async function stagedPaths(): Promise<string[]> {
   const result = await execStrict("git", ["diff", "--cached", "--name-only"], {
     cwd: repo,
+    envPolicy: "inherit",
   });
   return result.stdout.split("\n").filter(Boolean);
 }
@@ -163,9 +171,10 @@ describe("Delivery baseline", () => {
       path.join(repo, "src", "move.ts"),
       "export const move = 1;\n",
     );
-    await execStrict("git", ["add", "-A"], { cwd: repo });
+    await execStrict("git", ["add", "-A"], { cwd: repo, envPolicy: "inherit" });
     await execStrict("git", ["commit", "-m", "Tracked fixtures"], {
       cwd: repo,
+      envPolicy: "inherit",
     });
 
     // Untracked at baseline: not a change the run made.
@@ -187,6 +196,7 @@ describe("Delivery baseline", () => {
     await rm(path.join(repo, "src", "old.ts"));
     await execStrict("git", ["mv", "src/move.ts", "src/moved.ts"], {
       cwd: repo,
+      envPolicy: "inherit",
     });
 
     // Scaffold that must never reach the delivery commit.
@@ -218,7 +228,10 @@ describe("Delivery baseline", () => {
 
     // The run stages it, then edits it — status `AM` — plus a real
     // implementation change so the delivery has something to commit.
-    await execStrict("git", ["add", "notes.md"], { cwd: repo });
+    await execStrict("git", ["add", "notes.md"], {
+      cwd: repo,
+      envPolicy: "inherit",
+    });
     await writeFile(path.join(repo, "notes.md"), "scratch, edited\n");
     await mkdir(path.join(repo, "src"), { recursive: true });
     await writeFile(path.join(repo, "src", "feature.ts"), "export {};\n");

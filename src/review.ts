@@ -7,7 +7,7 @@ import {
   type PiAgentSession,
   type SessionOptions,
 } from "./agents/pi.js";
-import { ensureDir, getRunDir } from "./paths.js";
+import { ensureDir } from "./paths.js";
 import type {
   Finding,
   ReviewResult,
@@ -16,9 +16,9 @@ import type {
 } from "./types.js";
 
 export interface ReviewContext {
-  projectId: string;
-  runId: string;
   worktreePath: string;
+  /** Run artifacts directory; review.json is written here, once. */
+  artifactsDir: string;
   ticket: Ticket;
   plan: string;
   diff: string;
@@ -30,11 +30,15 @@ export interface ReviewContext {
     error?: string | undefined;
   }) => void;
   modelConfig?: SessionOptions | undefined;
-  sessionFactory?: (
-    worktreePath: string,
-    options?: SessionOptions,
-  ) => Promise<PiAgentSession>;
+  /** Aborts an in-flight review. The review rejects and its session is disposed. */
+  signal?: AbortSignal | undefined;
+  sessionFactory?: ReviewSessionFactory | undefined;
 }
+
+export type ReviewSessionFactory = (
+  worktreePath: string,
+  options?: SessionOptions,
+) => Promise<PiAgentSession>;
 
 function attachReviewListeners(
   session: PiAgentSession,
@@ -60,15 +64,13 @@ function attachReviewListeners(
 }
 
 async function persistReviewArtifact(
-  projectId: string,
-  runId: string,
+  artifactsDir: string,
   result: ReviewResult,
 ): Promise<void> {
   try {
-    const runDir = getRunDir(projectId, runId);
-    await ensureDir(runDir);
+    await ensureDir(artifactsDir);
     await writeFile(
-      path.join(runDir, "review.json"),
+      path.join(artifactsDir, "review.json"),
       JSON.stringify(result, null, 2),
       "utf-8",
     );
@@ -77,21 +79,27 @@ async function persistReviewArtifact(
   }
 }
 
+function abortError(): Error {
+  return new Error("Review aborted");
+}
+
 /**
  * Execute a read-only review with fresh Pi Session B.
- * Writes durable review.json to ~/.x-factory/projects/<projectId>/runs/<runId>/review.json.
+ * Writes review.json to `artifactsDir` exactly once, for every outcome except
+ * abort, and always disposes the session. Rejects if `signal` aborts the review.
  */
 export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
-  const {
-    projectId,
-    runId,
-    worktreePath,
-    ticket,
-    plan,
-    diff,
-    verification,
-    onEvent,
-  } = context;
+  const { artifactsDir, signal } = context;
+  if (signal?.aborted) throw abortError();
+
+  const result = await runReview(context);
+  await persistReviewArtifact(artifactsDir, result);
+  return result;
+}
+
+async function runReview(context: ReviewContext): Promise<ReviewResult> {
+  const { worktreePath, ticket, plan, diff, verification, onEvent, signal } =
+    context;
 
   const reviewPrompt = buildReviewPrompt(ticket, plan, diff, verification);
 
@@ -100,6 +108,7 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
     const makeSession = context.sessionFactory ?? createReviewSession;
     reviewSession = await makeSession(worktreePath, context.modelConfig);
   } catch (err: unknown) {
+    if (signal?.aborted) throw abortError();
     const msg = err instanceof Error ? err.message : String(err);
     return createFallbackReview(
       ticket,
@@ -108,11 +117,54 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
     );
   }
 
+  try {
+    return await promptForVerdict(
+      reviewSession,
+      reviewPrompt,
+      ticket,
+      onEvent,
+      signal,
+    );
+  } finally {
+    disposeQuietly(reviewSession);
+  }
+}
+
+/** Dispose must never replace the review outcome: Pi's dispose can throw. */
+function disposeQuietly(session: PiAgentSession): void {
+  try {
+    session.dispose();
+  } catch (err: unknown) {
+    console.warn(
+      "[X-Factory] Failed to dispose review session:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+async function promptForVerdict(
+  reviewSession: PiAgentSession,
+  reviewPrompt: string,
+  ticket: Ticket,
+  onEvent: ReviewContext["onEvent"],
+  signal: AbortSignal | undefined,
+): Promise<ReviewResult> {
   const getOutput = attachReviewListeners(reviewSession, onEvent);
 
+  let aborted = false;
+  const onAbort = () => {
+    aborted = true;
+    reviewSession.abort().catch(() => {});
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) onAbort();
+
   try {
+    // A real Pi session ignores an abort that arrives before a prompt.
+    if (aborted) throw abortError();
     await reviewSession.prompt(reviewPrompt);
   } catch (err: unknown) {
+    if (aborted) throw abortError();
     const errorMsg = err instanceof Error ? err.message : String(err);
     if (!getOutput()) {
       return createFallbackReview(
@@ -121,7 +173,10 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
         false,
       );
     }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
+  if (aborted) throw abortError();
 
   const output = getOutput();
   if (!hasReviewVerdict(output)) {
@@ -131,10 +186,7 @@ export async function reviewRun(context: ReviewContext): Promise<ReviewResult> {
       false,
     );
   }
-
-  const reviewResult = parseReviewOutput(ticket, output);
-  await persistReviewArtifact(projectId, runId, reviewResult);
-  return reviewResult;
+  return parseReviewOutput(ticket, output);
 }
 
 /** A review counts only if it checked criteria or stated a verdict; anything else fails closed. */

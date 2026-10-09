@@ -52,6 +52,7 @@ async function readGitConfigValue(
 ): Promise<string | undefined> {
   const result = await execCommand("git", ["config", "--get", key], {
     cwd: dir,
+    envPolicy: "inherit",
   });
   if (result.exitCode !== 0) {
     return undefined;
@@ -84,6 +85,7 @@ async function resolveGitInfo(dir: string): Promise<{
 }> {
   const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], {
     cwd: dir,
+    envPolicy: "inherit",
   });
   if (gitCheck.exitCode !== 0) {
     return { isGit: false };
@@ -92,7 +94,7 @@ async function resolveGitInfo(dir: string): Promise<{
   const remoteResult = await execCommand(
     "git",
     ["config", "--get", "remote.origin.url"],
-    { cwd: dir },
+    { cwd: dir, envPolicy: "inherit" },
   );
   const remote =
     remoteResult.exitCode === 0 && remoteResult.stdout.trim()
@@ -102,7 +104,7 @@ async function resolveGitInfo(dir: string): Promise<{
   const branchResult = await execCommand(
     "git",
     ["rev-parse", "--abbrev-ref", "HEAD"],
-    { cwd: dir },
+    { cwd: dir, envPolicy: "inherit" },
   );
   const currentBranch =
     branchResult.exitCode === 0 && branchResult.stdout.trim() !== "HEAD"
@@ -113,7 +115,7 @@ async function resolveGitInfo(dir: string): Promise<{
   const originHeadResult = await execCommand(
     "git",
     ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-    { cwd: dir },
+    { cwd: dir, envPolicy: "inherit" },
   );
   if (originHeadResult.exitCode === 0 && originHeadResult.stdout.trim()) {
     defaultBranch = originHeadResult.stdout.trim().replace(/^origin\//, "");
@@ -264,7 +266,7 @@ async function checkGitRemoteMatch(
   const res = await execCommand(
     "git",
     ["config", "--get", "remote.origin.url"],
-    { cwd: repoPath },
+    { cwd: repoPath, envPolicy: "inherit" },
   );
   if (res.exitCode !== 0) return false;
   const actual = res.stdout.trim();
@@ -313,6 +315,7 @@ export async function evaluateRepositoryReadiness(
 
   const gitCheck = await execCommand("git", ["rev-parse", "--git-dir"], {
     cwd: repo.path,
+    envPolicy: "inherit",
   });
   if (gitCheck.exitCode !== 0) {
     return {
@@ -331,7 +334,7 @@ export async function evaluateRepositoryReadiness(
   const branchResult = await execCommand(
     "git",
     ["rev-parse", "--abbrev-ref", "HEAD"],
-    { cwd: repo.path },
+    { cwd: repo.path, envPolicy: "inherit" },
   );
   const branch = branchResult.stdout.trim();
   const branchDetected =

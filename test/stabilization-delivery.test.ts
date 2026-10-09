@@ -1,7 +1,7 @@
 // test/stabilization-delivery.test.ts — Tests for review pause, deliver atomicity, and PR crash recovery (v5.5).
 
 import { Database } from "bun:sqlite";
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
@@ -11,6 +11,14 @@ import { ReviewExecutor } from "../src/executors/review.js";
 import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import {
+  PASSING_REVIEW_OUTPUT,
+  scriptedReviewSession,
+  tempArtifactsDirs,
+} from "./helpers/scripted-review-session.js";
+
+const artifactDirs = tempArtifactsDirs();
+afterAll(() => artifactDirs.cleanup());
 
 function setupTest() {
   const db = new Database(":memory:");
@@ -30,7 +38,7 @@ function setupTest() {
     plan: "Plan",
     branch: "factory/deliver-1",
     status: "executing",
-    artifactsDir: "/tmp",
+    artifactsDir: artifactDirs.make(),
     worktreePath: "/tmp",
   });
 
@@ -72,14 +80,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
 
     // Mock review executor with passing result
     const reviewExecutor = new ReviewExecutor({
-      reviewRun: async () => ({
-        passed: true,
-        summary: "Code looks great, ready for operator delivery",
-        findings: [],
-        criteriaChecked: [
-          { criterion: "Acceptance criteria", satisfied: true },
-        ],
-      }),
+      sessionFactory: async () => scriptedReviewSession(PASSING_REVIEW_OUTPUT),
     });
 
     const worker = new Worker({

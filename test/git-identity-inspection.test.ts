@@ -44,14 +44,16 @@ async function makeRepo(
   identity: { name?: string; email?: string },
 ): Promise<string> {
   const dir = path.join(baseDir, name);
-  await execStrict("git", ["init", dir]);
+  await execStrict("git", ["init", dir], { envPolicy: "inherit" });
   if (identity.name !== undefined) {
     await execStrict("git", ["config", "user.name", identity.name], {
+      envPolicy: "inherit",
       cwd: dir,
     });
   }
   if (identity.email !== undefined) {
     await execStrict("git", ["config", "user.email", identity.email], {
+      envPolicy: "inherit",
       cwd: dir,
     });
   }

@@ -55,11 +55,15 @@ beforeEach(async () => {
     }),
   );
 
-  await execStrict("git", ["init", "--initial-branch=main", repo]);
+  await execStrict("git", ["init", "--initial-branch=main", repo], {
+    envPolicy: "inherit",
+  });
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: repo,
   });
   await write("README.md", "# Fixture\n");
@@ -68,8 +72,11 @@ beforeEach(async () => {
   await write(".gitignore", "node_modules/\n");
   await write(".github/workflows/ci.yml", "name: ci\n");
   await write(".agent/tasks.md", "- [ ] old task\n");
-  await execStrict("git", ["add", "-A"], { cwd: repo });
-  await execStrict("git", ["commit", "-m", "Initial commit"], { cwd: repo });
+  await execStrict("git", ["add", "-A"], { envPolicy: "inherit", cwd: repo });
+  await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
+    cwd: repo,
+  });
 
   // Preparation records the baseline before the execute stage runs.
   await saveRecordedBaseline(

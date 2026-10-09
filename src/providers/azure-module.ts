@@ -1109,7 +1109,7 @@ export async function getAzureCliAuthHeader(
         "-o",
         "tsv",
       ],
-      { timeoutMs: 15000 },
+      { timeoutMs: 15000, envPolicy: "inherit" },
     );
     if (res.passed && res.stdout.trim()) {
       return `Bearer ${res.stdout.trim()}`;

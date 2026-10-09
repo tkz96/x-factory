@@ -92,6 +92,7 @@ async function gitOutput(
     cwd: worktreePath,
     rawStdout: true,
     maxBufferChars: STATUS_MAX_CHARS,
+    envPolicy: "inherit",
   });
   if (result.stdout.endsWith(TRUNCATION_MARKER)) {
     throw new Error(

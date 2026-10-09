@@ -1,8 +1,10 @@
-// src/proc.ts — Subprocess execution with timeouts, output caps, and clean process cleanup.
+// src/proc.ts — Subprocess execution with timeouts, output caps, AbortSignal, environment policy, and process group cleanup.
 
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import type { CommandResult } from "./types.js";
+
+type EnvPolicy = "inherit" | "sanitized";
 
 export interface ExecOptions {
   cwd?: string | undefined;
@@ -11,6 +13,14 @@ export interface ExecOptions {
   maxBufferChars?: number | undefined;
   /** Keep stdout byte-exact instead of trimming it (for whitespace-significant formats). */
   rawStdout?: boolean | undefined;
+  /** Optional AbortSignal to abort the command and kill its process group. */
+  signal?: AbortSignal | undefined;
+  /** Streaming callback receiving output chunks as they arrive. */
+  onOutputChunk?:
+    | ((chunk: string, stream: "stdout" | "stderr") => void)
+    | undefined;
+  /** Environment policy: 'inherit' copies process.env; 'sanitized' allows only safe standard variables. */
+  envPolicy: EnvPolicy;
 }
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes default
@@ -18,12 +28,51 @@ const DEFAULT_MAX_BUFFER_CHARS = 50_000;
 /** Appended to output that hit `maxBufferChars`. */
 export const TRUNCATION_MARKER = "\n... [output truncated]";
 
-function createBufferAccumulator(maxBufferChars: number) {
+const DEFAULT_ALLOWED_ENV_KEYS: readonly string[] = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TERM",
+  "TMPDIR",
+];
+
+export function resolveSanitizedEnv(provider?: string): Record<string, string> {
+  const keys = new Set<string>(DEFAULT_ALLOWED_ENV_KEYS);
+
+  if (provider) {
+    keys.add("PI_API_KEY");
+    if (provider === "anthropic") keys.add("ANTHROPIC_API_KEY");
+    if (provider === "openai") keys.add("OPENAI_API_KEY");
+    if (provider === "google") keys.add("GEMINI_API_KEY");
+  }
+
+  const sanitized: Record<string, string> = {};
+  for (const key of keys) {
+    const val = process.env[key];
+    if (val !== undefined) {
+      sanitized[key] = val;
+    }
+  }
+  return sanitized;
+}
+
+function createBufferAccumulator(
+  maxBufferChars: number,
+  onOutputChunk?: (chunk: string) => void,
+) {
   // Streaming decoder so a multi-byte character split across chunks stays intact.
   const decoder = new StringDecoder("utf8");
   let buffer = "";
   let truncated = false;
   const add = (text: string) => {
+    if (text && onOutputChunk) {
+      onOutputChunk(text);
+    }
     if (truncated) return;
     if (buffer.length + text.length > maxBufferChars) {
       buffer += text.slice(0, maxBufferChars - buffer.length);
@@ -43,26 +92,27 @@ function createBufferAccumulator(maxBufferChars: number) {
   };
 }
 
-function setupProcessTimeout(
+function killProcessGroup(
   child: ReturnType<typeof spawn>,
-  timeoutMs: number,
-  onTimeout: () => void,
-): NodeJS.Timeout {
-  return setTimeout(() => {
-    onTimeout();
+  signal: "SIGTERM" | "SIGKILL",
+): void {
+  const pid = child.pid;
+  if (!pid) return;
+
+  if (process.platform !== "win32") {
     try {
-      child.kill("SIGTERM");
-      setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-          // ignore errors killing child
-        }
-      }, 1000);
+      process.kill(-pid, signal);
+      return;
     } catch {
-      // ignore errors killing child
+      // ignore errors if process group has already exited
     }
-  }, timeoutMs);
+  }
+
+  try {
+    child.kill(signal);
+  } catch {
+    // ignore errors if child has already exited
+  }
 }
 
 function buildCloseResult(
@@ -73,18 +123,28 @@ function buildCloseResult(
   stdout: string,
   stderr: string,
   durationMs: number,
+  aborted = false,
 ): CommandResult {
-  const code = timedOut ? 124 : (exitCode ?? 1);
-  const stderrOutput = timedOut
-    ? `${stderr}\nCommand timed out after ${timeoutMs}ms`.trim()
-    : stderr.trim();
+  const code = timedOut
+    ? 124
+    : aborted && (exitCode === 0 || exitCode === null)
+      ? 1
+      : (exitCode ?? 1);
+
+  let stderrOutput = stderr.trim();
+  if (timedOut) {
+    stderrOutput =
+      `${stderrOutput}\nCommand timed out after ${timeoutMs}ms`.trim();
+  } else if (aborted) {
+    stderrOutput = `${stderrOutput}\nCommand aborted`.trim();
+  }
 
   return {
     command: fullCommand,
     exitCode: code,
     stdout,
     stderr: stderrOutput,
-    passed: code === 0,
+    passed: code === 0 && !timedOut && !aborted,
     durationMs,
   };
 }
@@ -92,11 +152,12 @@ function buildCloseResult(
 /**
  * Execute a command safely and return a CommandResult.
  * Always resolves (does not throw on non-zero exit code).
+ * Note: the streaming callback receives every byte and only the captured result is capped.
  */
 export function execCommand(
   cmd: string,
   args: string[],
-  options: ExecOptions = {},
+  options: ExecOptions,
 ): Promise<CommandResult> {
   const {
     cwd,
@@ -104,26 +165,90 @@ export function execCommand(
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxBufferChars = DEFAULT_MAX_BUFFER_CHARS,
     rawStdout = false,
+    signal,
+    envPolicy,
+    onOutputChunk,
   } = options;
 
   const fullCommand = [cmd, ...args].join(" ");
   const startTime = Date.now();
 
+  if (signal?.aborted) {
+    return Promise.resolve(
+      buildCloseResult(fullCommand, 1, false, timeoutMs, "", "", 0, true),
+    );
+  }
+
+  const baseEnv =
+    envPolicy === "sanitized" ? resolveSanitizedEnv() : process.env;
+  const resolvedEnv = { ...baseEnv, ...env };
+
   return new Promise((resolve) => {
-    const stdout = createBufferAccumulator(maxBufferChars);
-    const stderr = createBufferAccumulator(maxBufferChars);
+    const stdout = createBufferAccumulator(
+      maxBufferChars,
+      onOutputChunk ? (chunk) => onOutputChunk(chunk, "stdout") : undefined,
+    );
+    const stderr = createBufferAccumulator(
+      maxBufferChars,
+      onOutputChunk ? (chunk) => onOutputChunk(chunk, "stderr") : undefined,
+    );
     let timedOut = false;
+    let aborted = false;
     let settled = false;
+    let escalationTimer: NodeJS.Timeout | null = null;
+    let timeoutTimer: NodeJS.Timeout | null = null;
 
     const child = spawn(cmd, args, {
       cwd,
-      env: { ...process.env, ...env },
+      env: resolvedEnv,
+      // Children leave the worker's process group, so a worker crash can orphan them, and abort/timeout are what reap them.
+      detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    const timer = setupProcessTimeout(child, timeoutMs, () => {
-      timedOut = true;
-    });
+    let terminationStarted = false;
+
+    const terminate = () => {
+      if (settled) return;
+      if (terminationStarted) return; // One SIGTERM -> SIGKILL escalation timer
+      terminationStarted = true;
+
+      killProcessGroup(child, "SIGTERM");
+      escalationTimer = setTimeout(() => {
+        escalationTimer = null;
+        killProcessGroup(child, "SIGKILL");
+      }, 1000);
+    };
+
+    if (timeoutMs > 0 && timeoutMs < Number.POSITIVE_INFINITY) {
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        terminate();
+      }, timeoutMs);
+    }
+
+    const abortHandler = () => {
+      aborted = true;
+      terminate();
+    };
+
+    if (signal) {
+      signal.addEventListener("abort", abortHandler, { once: true });
+    }
+
+    const cleanup = () => {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+        timeoutTimer = null;
+      }
+      if (escalationTimer) {
+        clearTimeout(escalationTimer);
+        escalationTimer = null;
+      }
+      if (signal) {
+        signal.removeEventListener("abort", abortHandler);
+      }
+    };
 
     child.stdout?.on("data", (chunk: Buffer) => stdout.append(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.append(chunk));
@@ -131,7 +256,10 @@ export function execCommand(
     child.on("error", (err) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (terminationStarted) {
+        killProcessGroup(child, "SIGKILL");
+      }
+      cleanup();
       resolve({
         command: fullCommand,
         exitCode: 1,
@@ -146,7 +274,10 @@ export function execCommand(
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (terminationStarted) {
+        killProcessGroup(child, "SIGKILL");
+      }
+      cleanup();
       resolve(
         buildCloseResult(
           fullCommand,
@@ -156,10 +287,16 @@ export function execCommand(
           rawStdout ? stdout.value() : stdout.value().trim(),
           stderr.value(),
           Date.now() - startTime,
+          aborted,
         ),
       );
     });
   });
+}
+
+export interface ExecStrictOptions
+  extends Omit<Partial<ExecOptions>, "envPolicy"> {
+  envPolicy: EnvPolicy;
 }
 
 /**
@@ -168,9 +305,12 @@ export function execCommand(
 export async function execStrict(
   cmd: string,
   args: string[],
-  options: ExecOptions = {},
+  options: ExecStrictOptions,
 ): Promise<{ stdout: string; stderr: string; durationMs: number }> {
-  const result = await execCommand(cmd, args, options);
+  const result = await execCommand(cmd, args, {
+    ...options,
+    envPolicy: options.envPolicy,
+  });
   if (result.exitCode !== 0) {
     const errorMsg = `${result.command} failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`;
     throw new Error(errorMsg);

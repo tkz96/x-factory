@@ -1,5 +1,8 @@
-import { describe, it } from "bun:test";
+import { afterAll, beforeAll, describe, it } from "bun:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { PiAgentSession } from "../src/agents/pi.js";
 import {
@@ -13,6 +16,7 @@ import {
   reviewRun,
 } from "../src/review.js";
 import type { Ticket, VerificationResult } from "../src/types.js";
+import { scriptedReviewSession } from "./helpers/scripted-review-session.js";
 
 describe("Review Parser & Engine (src/review.ts)", () => {
   const ticket: Ticket = {
@@ -338,6 +342,14 @@ FAILED
   });
 
   describe("reviewRun with mock session", () => {
+    let legacyArtifactsDir = "";
+    beforeAll(async () => {
+      legacyArtifactsDir = await mkdtemp(path.join(tmpdir(), "xf-review-"));
+    });
+    afterAll(async () => {
+      await rm(legacyArtifactsDir, { recursive: true, force: true });
+    });
+
     it("executes reviewRun with simulated session events and parses output", async () => {
       const mockEvents: Array<{
         type: string;
@@ -375,6 +387,7 @@ FAILED
         },
         steer: async () => {},
         abort: async () => {},
+        dispose: () => {},
         subscribe: (cb: Parameters<PiAgentSession["subscribe"]>[0]) => {
           subscribedCb = cb;
           return () => {};
@@ -382,9 +395,8 @@ FAILED
       };
 
       const reviewContext = {
-        projectId: "test-proj",
-        runId: "test-run-123",
         worktreePath: "/tmp",
+        artifactsDir: legacyArtifactsDir,
         ticket,
         plan: "Step 1",
         diff: "diff",
@@ -409,9 +421,8 @@ FAILED
 
     it("returns fallback review when session initialization fails", async () => {
       const reviewContext = {
-        projectId: "test-proj",
-        runId: "test-run-fail",
         worktreePath: "/tmp",
+        artifactsDir: legacyArtifactsDir,
         ticket,
         plan: "Step 1",
         diff: "diff",
@@ -434,13 +445,13 @@ FAILED
         },
         steer: async () => {},
         abort: async () => {},
+        dispose: () => {},
         subscribe: () => () => {},
       };
 
       const reviewContext = {
-        projectId: "test-proj",
-        runId: "test-run-crash",
         worktreePath: "/tmp",
+        artifactsDir: legacyArtifactsDir,
         ticket,
         plan: "Step 1",
         diff: "diff",
@@ -455,15 +466,14 @@ FAILED
 
     it("fails a review whose output reports failed criteria when no onEvent is given", async () => {
       const result = await reviewRun({
-        projectId: "test-proj",
-        runId: "test-run-no-listener",
         worktreePath: "/tmp",
+        artifactsDir: legacyArtifactsDir,
         ticket,
         plan: "Step 1",
         diff: "diff",
         verification: sampleVerification,
         sessionFactory: async () =>
-          scriptedSession(
+          scriptedReviewSession(
             "CRITERIA_CHECK:\n- [FAIL] Sanitize passwords from audit payload\n- [PASS] Do not modify user IDs\n\nVERDICT: FAILED\n",
           ),
       });
@@ -477,14 +487,13 @@ FAILED
     ] as const) {
       it(`fails closed when the review output is ${label}`, async () => {
         const result = await reviewRun({
-          projectId: "test-proj",
-          runId: `test-run-${label}`,
           worktreePath: "/tmp",
+          artifactsDir: legacyArtifactsDir,
           ticket,
           plan: "Step 1",
           diff: "diff",
           verification: sampleVerification,
-          sessionFactory: async () => scriptedSession(output),
+          sessionFactory: async () => scriptedReviewSession(output),
         });
 
         assert.equal(result.passed, false);
@@ -493,18 +502,234 @@ FAILED
   });
 });
 
-function scriptedSession(output: string): PiAgentSession {
-  const listeners: Array<Parameters<PiAgentSession["subscribe"]>[0]> = [];
-  return {
-    session: {} as unknown as AgentSession,
-    prompt: async () => {
-      for (const cb of listeners) cb({ type: "text", text: output });
-    },
-    steer: async () => {},
-    abort: async () => {},
-    subscribe: (cb) => {
-      listeners.push(cb);
-      return () => {};
-    },
+describe("reviewRun artifact, abort and disposal", () => {
+  const ticket: Ticket = {
+    id: "PROJ-300",
+    title: "Review seam",
+    acceptanceCriteria: ["Criterion A"],
   };
-}
+  const verification: VerificationResult = {
+    passed: true,
+    hasPollution: false,
+    repairAttempt: 0,
+    filesChanged: [],
+    summary: "ok",
+    tests: {
+      command: "bun test",
+      passed: true,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      durationMs: 1,
+    },
+    diff: "",
+  };
+  const passingOutput =
+    "CRITERIA_CHECK:\n- [PASS] Criterion A\n\nVERDICT:\nPASSED - fine.\n";
+
+  async function withArtifactsDir(
+    fn: (artifactsDir: string) => Promise<void>,
+  ): Promise<void> {
+    const artifactsDir = await mkdtemp(path.join(tmpdir(), "xf-review-"));
+    try {
+      await fn(artifactsDir);
+    } finally {
+      await rm(artifactsDir, { recursive: true, force: true });
+    }
+  }
+
+  function context(
+    artifactsDir: string,
+    session: ReturnType<typeof scriptedReviewSession>,
+    signal?: AbortSignal,
+  ) {
+    return {
+      worktreePath: "/tmp",
+      artifactsDir,
+      ticket,
+      plan: "plan",
+      diff: "diff",
+      verification,
+      signal,
+      sessionFactory: async () => session,
+    };
+  }
+
+  it("writes review.json exactly once, at <artifactsDir>/review.json, with the result", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const session = scriptedReviewSession(passingOutput);
+      const result = await reviewRun(context(artifactsDir, session));
+
+      assert.deepEqual(await readdir(artifactsDir), ["review.json"]);
+      const written = JSON.parse(
+        await readFile(path.join(artifactsDir, "review.json"), "utf-8"),
+      );
+      assert.deepEqual(written, result);
+      assert.equal(written.passed, true);
+    });
+  });
+
+  it("writes review.json for a failed review too", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const session = scriptedReviewSession("no verdict here");
+      const result = await reviewRun(context(artifactsDir, session));
+
+      assert.equal(result.passed, false);
+      const written = JSON.parse(
+        await readFile(path.join(artifactsDir, "review.json"), "utf-8"),
+      );
+      assert.deepEqual(written, result);
+    });
+  });
+
+  it("disposes the session exactly once after success", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const session = scriptedReviewSession(passingOutput);
+      await reviewRun(context(artifactsDir, session));
+      assert.equal(session.disposeCalls, 1);
+    });
+  });
+
+  it("disposes the session exactly once after a failed prompt", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const session = scriptedReviewSession("", {
+        promptError: new Error("model unavailable"),
+      });
+      const result = await reviewRun(context(artifactsDir, session));
+      assert.equal(result.passed, false);
+      assert.equal(session.disposeCalls, 1);
+    });
+  });
+
+  it("aborts an in-flight review, rejects, disposes once and writes no review.json", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession("", {
+        hangUntilAborted: true,
+        onPrompt: () => queueMicrotask(() => controller.abort()),
+      });
+
+      await assert.rejects(
+        reviewRun(context(artifactsDir, session, controller.signal)),
+        /aborted/i,
+      );
+      assert.equal(session.abortCalls, 1);
+      assert.equal(session.disposeCalls, 1);
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("rejects without creating a session when the signal is already aborted", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      controller.abort();
+      let sessionsCreated = 0;
+
+      await assert.rejects(
+        reviewRun({
+          ...context(
+            artifactsDir,
+            scriptedReviewSession(passingOutput),
+            controller.signal,
+          ),
+          sessionFactory: async () => {
+            sessionsCreated++;
+            return scriptedReviewSession(passingOutput);
+          },
+        }),
+        /aborted/i,
+      );
+      assert.equal(sessionsCreated, 0);
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("keeps the result when dispose throws after success", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const session = scriptedReviewSession(passingOutput, {
+        disposeError: new Error("dispose exploded"),
+      });
+      const result = await reviewRun(context(artifactsDir, session));
+
+      assert.equal(result.passed, true);
+      assert.equal(session.disposeCalls, 1);
+      assert.deepEqual(await readdir(artifactsDir), ["review.json"]);
+    });
+  });
+
+  it("keeps the abort error when dispose throws after abort", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession("", {
+        hangUntilAborted: true,
+        disposeError: new Error("dispose exploded"),
+        onPrompt: () => queueMicrotask(() => controller.abort()),
+      });
+
+      await assert.rejects(
+        reviewRun(context(artifactsDir, session, controller.signal)),
+        /Review aborted/,
+      );
+      assert.equal(session.disposeCalls, 1);
+    });
+  });
+
+  it("does not prompt when the signal aborts while the session is being created", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession(passingOutput);
+
+      await assert.rejects(
+        reviewRun({
+          ...context(artifactsDir, session, controller.signal),
+          sessionFactory: async () => {
+            controller.abort();
+            return session;
+          },
+        }),
+        /Review aborted/,
+      );
+      assert.equal(session.prompts.length, 0);
+      assert.equal(session.disposeCalls, 1);
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("prefers the abort over a session-creation failure and writes nothing", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+
+      await assert.rejects(
+        reviewRun({
+          ...context(
+            artifactsDir,
+            scriptedReviewSession(passingOutput),
+            controller.signal,
+          ),
+          sessionFactory: async () => {
+            controller.abort();
+            throw new Error("factory failed");
+          },
+        }),
+        /Review aborted/,
+      );
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+
+  it("rejects when the abort races a prompt that already completed", async () => {
+    await withArtifactsDir(async (artifactsDir) => {
+      const controller = new AbortController();
+      const session = scriptedReviewSession(passingOutput, {
+        onPrompt: () => queueMicrotask(() => controller.abort()),
+      });
+
+      await assert.rejects(
+        reviewRun(context(artifactsDir, session, controller.signal)),
+        /Review aborted/,
+      );
+      assert.equal(session.disposeCalls, 1);
+      assert.deepEqual(await readdir(artifactsDir), []);
+    });
+  });
+});

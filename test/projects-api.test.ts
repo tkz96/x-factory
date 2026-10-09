@@ -186,11 +186,15 @@ describe("Project Onboarding & Management APIs", () => {
 
   it("POST /api/projects/inspect-repository inspects a directory", async () => {
     const repoDir = path.join(tempDir, "sample-repo");
-    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });
     await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      envPolicy: "inherit",
       cwd: repoDir,
     });
-    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await execStrict("git", ["config", "user.name", "Dev"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
 
     const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
       method: "POST",
@@ -327,19 +331,29 @@ describe("Project Onboarding & Management APIs", () => {
 
   it("POST /api/projects/inspect-repository returns pending_setup when local remote does not match configured remote", async () => {
     const repoDir = path.join(tempDir, "wrong-remote-repo");
-    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });
     await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      envPolicy: "inherit",
       cwd: repoDir,
     });
-    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await execStrict("git", ["config", "user.name", "Dev"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
     await execStrict(
       "git",
       ["remote", "add", "origin", "https://github.com/my-org/local-repo.git"],
-      { cwd: repoDir },
+      { envPolicy: "inherit", cwd: repoDir },
     );
     await writeFile(path.join(repoDir, "README.md"), "# Test\n");
-    await execStrict("git", ["add", "."], { cwd: repoDir });
-    await execStrict("git", ["commit", "-m", "initial"], { cwd: repoDir });
+    await execStrict("git", ["add", "."], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
+    await execStrict("git", ["commit", "-m", "initial"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
 
     const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
       method: "POST",
@@ -367,18 +381,28 @@ describe("Project Onboarding & Management APIs", () => {
 
   it("POST /api/projects/inspect-repository returns current checkout branch as currentBranch", async () => {
     const repoDir = path.join(tempDir, "branch-check-repo");
-    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });
     await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      envPolicy: "inherit",
       cwd: repoDir,
     });
-    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await execStrict("git", ["config", "user.name", "Dev"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
     await writeFile(path.join(repoDir, "README.md"), "# Branch\n");
-    await execStrict("git", ["add", "."], { cwd: repoDir });
-    await execStrict("git", ["commit", "-m", "initial"], { cwd: repoDir });
+    await execStrict("git", ["add", "."], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
+    await execStrict("git", ["commit", "-m", "initial"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
     await execStrict(
       "git",
       ["checkout", "-b", "feature/inspection-terminology"],
-      { cwd: repoDir },
+      { envPolicy: "inherit", cwd: repoDir },
     );
 
     const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
@@ -401,14 +425,24 @@ describe("Project Onboarding & Management APIs", () => {
 
   it("POST /api/projects/inspect-repository returns pending_setup and does not report expectedRemote when local remote is missing", async () => {
     const repoDir = path.join(tempDir, "no-remote-repo");
-    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });
     await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      envPolicy: "inherit",
       cwd: repoDir,
     });
-    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await execStrict("git", ["config", "user.name", "Dev"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
     await writeFile(path.join(repoDir, "README.md"), "# No Remote\n");
-    await execStrict("git", ["add", "."], { cwd: repoDir });
-    await execStrict("git", ["commit", "-m", "initial"], { cwd: repoDir });
+    await execStrict("git", ["add", "."], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
+    await execStrict("git", ["commit", "-m", "initial"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
 
     const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
       method: "POST",
@@ -438,15 +472,28 @@ describe("Project Onboarding & Management APIs", () => {
 
   it("POST /api/projects/inspect-repository does not fall back to main or default branch when HEAD is detached", async () => {
     const repoDir = path.join(tempDir, "detached-head-repo");
-    await execStrict("git", ["init", repoDir]);
+    await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });
     await execStrict("git", ["config", "user.email", "dev@test.com"], {
+      envPolicy: "inherit",
       cwd: repoDir,
     });
-    await execStrict("git", ["config", "user.name", "Dev"], { cwd: repoDir });
+    await execStrict("git", ["config", "user.name", "Dev"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
     await writeFile(path.join(repoDir, "README.md"), "# Detached\n");
-    await execStrict("git", ["add", "."], { cwd: repoDir });
-    await execStrict("git", ["commit", "-m", "initial"], { cwd: repoDir });
-    await execStrict("git", ["checkout", "--detach"], { cwd: repoDir });
+    await execStrict("git", ["add", "."], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
+    await execStrict("git", ["commit", "-m", "initial"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
+    await execStrict("git", ["checkout", "--detach"], {
+      envPolicy: "inherit",
+      cwd: repoDir,
+    });
 
     const res = await fetch(`${baseUrl}/api/projects/inspect-repository`, {
       method: "POST",

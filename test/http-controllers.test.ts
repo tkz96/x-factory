@@ -163,18 +163,26 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("POST /api/runs creates a run for valid project and parses acceptance criteria", async () => {
       const gitDir = await mkdtemp(path.join(os.tmpdir(), "xf-repo-run-"));
-      await execStrict("git", ["init", "-b", "main"], { cwd: gitDir });
+      await execStrict("git", ["init", "-b", "main"], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
       await execStrict("git", ["config", "user.name", "X-Factory Tester"], {
+        envPolicy: "inherit",
         cwd: gitDir,
       });
       await execStrict(
         "git",
         ["config", "user.email", "tester@xfactory.local"],
-        { cwd: gitDir },
+        { envPolicy: "inherit", cwd: gitDir },
       );
       await writeFile(path.join(gitDir, "README.md"), "# Init\n");
-      await execStrict("git", ["add", "."], { cwd: gitDir });
+      await execStrict("git", ["add", "."], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
       await execStrict("git", ["commit", "-m", "Initial commit"], {
+        envPolicy: "inherit",
         cwd: gitDir,
       });
 

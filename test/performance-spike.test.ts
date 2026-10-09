@@ -78,6 +78,7 @@ describe("XF-025 Performance Spike: SSE Fan-out & Subprocess Buffering", () => {
     const result = await execCommand("bun", ["-e", script], {
       maxBufferChars: maxChars,
       timeoutMs: 15_000,
+      envPolicy: "inherit",
     });
     const elapsed = performance.now() - start;
 
