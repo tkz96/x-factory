@@ -134,11 +134,11 @@ export class JobRepository {
    */
   claimNextJob(
     workerId: string,
-    leaseDurationMs = 30000,
+    leaseDurationMs: number,
     txDb?: Database,
+    nowMs = Date.now(),
   ): JobRecord | null {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -178,11 +178,11 @@ export class JobRepository {
   claimJobForRun(
     runId: string,
     workerId: string,
-    leaseDurationMs = 30000,
+    leaseDurationMs: number,
     txDb?: Database,
+    nowMs = Date.now(),
   ): JobRecord | null {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -224,11 +224,11 @@ export class JobRepository {
   renewLease(
     jobId: string,
     workerId: string,
-    leaseDurationMs = 30000,
+    leaseDurationMs: number,
     txDb?: Database,
+    nowMs = Date.now(),
   ): boolean {
     const conn = txDb || this.db;
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -260,9 +260,9 @@ export class JobRepository {
     targetStatus: "completed" | "pending",
     newWorkerId: string | null,
     txDb?: Database,
+    now = new Date().toISOString(),
   ): boolean {
     const conn = txDb || this.db;
-    const now = new Date().toISOString();
     const stmt = conn.prepare(`
       UPDATE jobs
       SET status = $targetStatus,
@@ -402,8 +402,20 @@ export class JobRepository {
   /**
    * Voluntarily releases an active lease back to 'pending' (e.g. during graceful shutdown).
    */
-  releaseLease(jobId: string, workerId: string, txDb?: Database): boolean {
-    return this.transitionClaimedJob(jobId, workerId, "pending", null, txDb);
+  releaseLease(
+    jobId: string,
+    workerId: string,
+    txDb?: Database,
+    now?: string,
+  ): boolean {
+    return this.transitionClaimedJob(
+      jobId,
+      workerId,
+      "pending",
+      null,
+      txDb,
+      now,
+    );
   }
 
   /**
@@ -422,11 +434,15 @@ export class JobRepository {
   }
 
   /**
-   * Re-queues a claimed job back to 'pending' (e.g. on recovery from a dead worker) (XFM-36).
+   * Re-queues a claimed job whose lease has expired back to 'pending' (recovery from a dead
+   * worker, XFM-36). A job renewed in the meantime is left alone and false is returned.
    */
-  requeueJob(jobId: string, txDb?: Database): boolean {
+  requeueJob(
+    jobId: string,
+    txDb?: Database,
+    now = new Date().toISOString(),
+  ): boolean {
     const conn = txDb || this.db;
-    const now = new Date().toISOString();
     const stmt = conn.prepare(`
       UPDATE jobs
       SET status = 'pending',
@@ -437,6 +453,34 @@ export class JobRepository {
       RETURNING id;
     `);
     const row = stmt.get({ $jobId: jobId, $now: now });
+    return !!row;
+  }
+
+  /**
+   * Fails a claimed job whose lease expired with its retry budget spent. Unlike
+   * `failJob`, the caller does not hold the lease, so no worker check applies.
+   * Only an expired lease can be failed: a job renewed since the caller read it
+   * is left alone. Returns false when nothing changed.
+   */
+  failExhaustedJob(
+    jobId: string,
+    error: string,
+    txDb?: Database,
+    now = new Date().toISOString(),
+  ): boolean {
+    const conn = txDb || this.db;
+    const row = conn
+      .prepare(`
+        UPDATE jobs
+        SET status = 'failed',
+            worker_id = NULL,
+            lease_until = NULL,
+            error = $error,
+            updated_at = $now
+        WHERE id = $jobId AND status = 'claimed' AND lease_until < $now
+        RETURNING id;
+      `)
+      .get({ $jobId: jobId, $error: error, $now: now });
     return !!row;
   }
 

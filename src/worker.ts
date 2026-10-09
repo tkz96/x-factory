@@ -30,6 +30,12 @@ import {
   type StageExecutor,
   type StageOutcome,
 } from "./executors/index.js";
+import {
+  type Clock,
+  LeaseManager,
+  type LeasePolicy,
+  type WorkerLogRecord,
+} from "./lease.js";
 import { ProviderError } from "./providers/errors.js";
 import { finalizeDeliver } from "./services/deliver-service.js";
 import {
@@ -43,33 +49,13 @@ import {
   REJECTED_RUN_STATUS,
 } from "./workflow.js";
 
-export interface WorkerLogEntry {
-  timestamp: string;
-  worker_id: string;
-  job_id?: string | undefined;
-  run_id?: string | undefined;
-  stage?: string | undefined;
-  attempt?: number | undefined;
-  duration_ms?: number | undefined;
-  result:
-    | "claimed"
-    | "renewed"
-    | "success"
-    | "retry"
-    | "failure"
-    | "shutdown"
-    | "heartbeat_lost"
-    | "recovered"
-    | "recovery_required"
-    | "cancelled"
-    | "error";
-  message?: string | undefined;
-  error?: string | undefined;
-}
+export type WorkerLogEntry = WorkerLogRecord;
 
 export interface WorkerOptions {
   workerId?: string | undefined;
   db?: Database | undefined;
+  clock?: Clock | undefined;
+  leasePolicy?: Partial<LeasePolicy> | undefined;
   pollIntervalMs?: number | undefined;
   commandPollIntervalMs?: number | undefined;
   leaseDurationMs?: number | undefined;
@@ -109,6 +95,8 @@ export class Worker {
   private stageAttemptRepo: StageAttemptRepository;
   private operationLedgerRepo: OperationLedgerRepository;
   private eventRepo: EventRepository;
+  private leaseManager: LeaseManager;
+  private policy: LeasePolicy;
   private stageExecutorResolver: (stage: string) => StageExecutor;
   private deliverExecutor?:
     | {
@@ -118,10 +106,6 @@ export class Worker {
     | undefined;
   private pollIntervalMs: number;
   private commandPollIntervalMs: number;
-  private leaseDurationMs: number;
-  private commandLeaseDurationMs: number;
-  private heartbeatIntervalMs: number;
-  private commandHeartbeatIntervalMs: number;
   private shutdownTimeoutMs: number;
   private onLog?: ((entry: WorkerLogEntry) => void) | undefined;
   private isRunning = false;
@@ -149,14 +133,41 @@ export class Worker {
     this.stageExecutorResolver = options?.getStageExecutor ?? getStageExecutor;
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
     this.commandPollIntervalMs = options?.commandPollIntervalMs ?? 500;
-    this.leaseDurationMs = options?.leaseDurationMs ?? 30000;
-    this.commandLeaseDurationMs = options?.commandLeaseDurationMs ?? 300000;
-    this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 10000;
-    this.commandHeartbeatIntervalMs =
-      options?.commandHeartbeatIntervalMs ??
-      Math.floor(this.commandLeaseDurationMs / 3);
     this.shutdownTimeoutMs = options?.shutdownTimeoutMs ?? 5000;
     this.onLog = options?.onLog;
+
+    this.leaseManager = new LeaseManager(repos, {
+      clock: options?.clock,
+      policy: {
+        ...options?.leasePolicy,
+        jobLeaseTtlMs:
+          options?.leaseDurationMs ?? options?.leasePolicy?.jobLeaseTtlMs,
+        commandLeaseTtlMs:
+          options?.commandLeaseDurationMs ??
+          options?.leasePolicy?.commandLeaseTtlMs,
+        heartbeatIntervalMs:
+          options?.heartbeatIntervalMs ??
+          options?.leasePolicy?.heartbeatIntervalMs,
+        commandHeartbeatIntervalMs:
+          options?.commandHeartbeatIntervalMs ??
+          options?.leasePolicy?.commandHeartbeatIntervalMs,
+      },
+      onLog: (entry) => this.emitStructuredLog(entry),
+    });
+    this.policy = this.leaseManager.policy;
+  }
+
+  private upsertHeartbeat(): void {
+    const now = this.leaseManager.nowIso();
+    // started_at is written on insert only (the upsert keeps it on conflict),
+    // so passing it on every beat is harmless.
+    this.heartbeatRepo.upsert({
+      workerId: this.workerId,
+      pid: process.pid,
+      hostname: os.hostname(),
+      lastHeartbeat: now,
+      startedAt: now,
+    });
   }
 
   emitStructuredLog(
@@ -168,7 +179,7 @@ export class Worker {
     const { timestamp, worker_id, ...rest } = entry;
     const fullEntry: WorkerLogEntry = {
       ...rest,
-      timestamp: timestamp || new Date().toISOString(),
+      timestamp: timestamp || this.leaseManager.nowIso(),
       worker_id: worker_id || this.workerId,
     };
 
@@ -218,33 +229,18 @@ export class Worker {
     recoveredJobs: number;
     recoveryRequiredRuns: number;
   }> {
-    let recoveredJobs = 0;
-    let recoveryRequiredRuns = 0;
+    // Stale claimed jobs go through the lease module: it closes the attempt,
+    // exhausts to recovery_required or requeues, all with the injected clock.
+    const swept = this.leaseManager.recoverStaleJobs();
+    const recoveredJobs = swept.recoveredCount;
+    let recoveryRequiredRuns = swept.recoveryRequiredCount;
 
-    const activeRuns = this.runRepo.listActive();
-    if (activeRuns.length === 0) {
-      return { recoveredJobs, recoveryRequiredRuns };
-    }
-
-    const now = new Date().toISOString();
-
-    for (const run of activeRuns) {
-      const activeJobs = this.jobRepo.findActiveJobsForRun(run.id);
-
-      if (activeJobs.length === 0) {
-        if (this.reclaimOrphanedRun(run)) {
-          recoveryRequiredRuns++;
-        }
-        continue;
-      }
-
-      for (const job of activeJobs) {
-        const result = this.reclaimStaleClaimedJob(run, job, now);
-        if (result === "recovered") {
-          recoveredJobs++;
-        } else if (result === "recovery_required") {
-          recoveryRequiredRuns++;
-        }
+    for (const run of this.runRepo.listActive()) {
+      if (
+        this.jobRepo.findActiveJobsForRun(run.id).length === 0 &&
+        this.reclaimOrphanedRun(run)
+      ) {
+        recoveryRequiredRuns++;
       }
     }
 
@@ -283,78 +279,6 @@ export class Worker {
     }
   }
 
-  private reclaimStaleClaimedJob(
-    run: RunRecord,
-    job: JobRecord,
-    now: string,
-  ): "recovered" | "recovery_required" | null {
-    if (job.status !== "claimed" || !job.leaseUntil || job.leaseUntil >= now) {
-      return null;
-    }
-
-    if (job.attempts >= job.maxAttempts) {
-      this.emitStructuredLog({
-        result: "recovery_required",
-        run_id: run.id,
-        job_id: job.id,
-        stage: job.stage,
-        attempt: job.attempts,
-        message: `Job ${job.id} for run ${run.id} exhausted maximum attempts (${job.attempts}/${job.maxAttempts}). Transitioning run to recovery_required.`,
-      });
-
-      this.jobRepo.failJob(
-        job.id,
-        job.workerId ?? this.workerId,
-        "Maximum retry attempts exhausted across worker lifetimes.",
-        0,
-      );
-      try {
-        this.runRepo.transitionRun(run.id, run.status, "recovery_required", {
-          event: {
-            type: "status",
-            payload: {
-              status: "recovery_required",
-              reason: `Job attempts (${job.attempts}/${job.maxAttempts}) exhausted for stage ${job.stage}.`,
-            },
-          },
-        });
-        return "recovery_required";
-      } catch (err: unknown) {
-        this.error(
-          `Failed to transition run ${run.id} to recovery_required:`,
-          err,
-        );
-        return null;
-      }
-    }
-
-    const latestAttempt = this.stageAttemptRepo.getLatestAttempt(
-      run.id,
-      job.stage,
-    );
-    if (latestAttempt && latestAttempt.status === "running") {
-      this.stageAttemptRepo.recordFailure(
-        latestAttempt.id,
-        "Worker process terminated during execution.",
-      );
-    }
-
-    const requeued = this.jobRepo.requeueJob(job.id);
-    if (requeued) {
-      this.emitStructuredLog({
-        result: "recovered",
-        run_id: run.id,
-        job_id: job.id,
-        stage: job.stage,
-        attempt: job.attempts,
-        message: `Recovered stale claimed job ${job.id} for run ${run.id} (stage: ${job.stage}). Re-queued for execution.`,
-      });
-      return "recovered";
-    }
-
-    return null;
-  }
-
   async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
@@ -372,7 +296,7 @@ export class Worker {
     }
 
     // Register worker heartbeat in SQLite after migrations succeed (Phase 3, Section 47)
-    this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+    this.upsertHeartbeat();
 
     // Startup recovery for incomplete work / dead workers (XFM-36, XFM-37)
     try {
@@ -422,7 +346,7 @@ export class Worker {
         `Releasing lease for active job ${this.currentJob.id} during shutdown...`,
       );
       try {
-        this.jobRepo.releaseLease(this.currentJob.id, this.workerId);
+        this.leaseManager.releaseJobLease(this.currentJob.id, this.workerId);
       } catch (err: unknown) {
         this.error("Failed to release lease during shutdown", err);
       }
@@ -456,12 +380,12 @@ export class Worker {
     this.heartbeatTimer = setInterval(() => {
       try {
         // Renew worker heartbeat in SQLite
-        this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+        this.upsertHeartbeat();
 
-        const ok = this.jobRepo.renewLease(
+        const ok = this.leaseManager.renewJobLease(
           jobId,
           this.workerId,
-          this.leaseDurationMs,
+          this.policy.jobLeaseTtlMs,
         );
         if (!ok) {
           this.emitStructuredLog({
@@ -479,7 +403,7 @@ export class Worker {
       } catch (err: unknown) {
         this.error(`Heartbeat error renewing lease for job ${jobId}`, err);
       }
-    }, this.heartbeatIntervalMs);
+    }, this.policy.heartbeatIntervalMs);
   }
 
   private stopHeartbeat(): void {
@@ -494,13 +418,13 @@ export class Worker {
     leaseDurationMs: number,
   ): void {
     this.stopCommandHeartbeat();
-    const intervalMs = this.commandHeartbeatIntervalMs;
+    const intervalMs = this.policy.commandHeartbeatIntervalMs;
 
     this.commandHeartbeatTimer = setInterval(() => {
       try {
-        this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
+        this.upsertHeartbeat();
 
-        const ok = this.commandRepo.renewLease(
+        const ok = this.leaseManager.renewCommandLease(
           commandId,
           this.workerId,
           leaseDurationMs,
@@ -539,10 +463,10 @@ export class Worker {
   private async commandPollingLoop(): Promise<void> {
     while (this.isRunning && !this.isStopping) {
       try {
-        const commands = this.commandRepo.claimPendingCommands(
+        const commands = this.leaseManager.claimCommands(
           this.workerId,
-          this.commandLeaseDurationMs,
-          30000,
+          this.policy.commandLeaseTtlMs,
+          this.policy.heartbeatTtlMs,
         );
 
         for (const command of commands) {
@@ -557,35 +481,6 @@ export class Worker {
   }
 
   async processCommand(command: CommandRecord): Promise<void> {
-    if (command.targetWorkerId && command.targetWorkerId !== this.workerId) {
-      const isTargetAlive = this.heartbeatRepo.isWorkerActive(
-        command.targetWorkerId,
-        30000,
-      );
-      if (!isTargetAlive) {
-        if (command.command === "stop") {
-          this.commandRepo.completeCommand(command.id, this.workerId, {
-            stopped: true,
-            reason: `Target worker ${command.targetWorkerId} is dead or inactive; run already stopped`,
-          });
-          return;
-        }
-        if (command.command !== "deliver") {
-          // Unknown or leftover command types targeted at a dead worker
-          // (e.g. `steer` rows from before steering was removed, #167) fail
-          // cleanly instead of being processed.
-          this.commandRepo.failCommand(
-            command.id,
-            this.workerId,
-            `Target worker ${command.targetWorkerId} is dead or inactive`,
-          );
-          return;
-        }
-        // A `deliver` targeted at a dead worker falls through and is
-        // processed by this live worker, so the PR is still created (#167).
-      }
-    }
-
     if (command.command === "stop") {
       const payload = command.payload as { jobId?: string } | null;
       const targetJobId = payload?.jobId;
@@ -601,7 +496,7 @@ export class Worker {
         this.currentAbortController?.abort();
       }
 
-      this.commandRepo.completeCommand(command.id, this.workerId, {
+      this.leaseManager.completeCommand(command.id, this.workerId, {
         stopped: true,
       });
     } else if (command.command === "deliver") {
@@ -609,7 +504,7 @@ export class Worker {
     } else {
       // Leftover command rows from versions that still had steering (#167)
       // are failed instead of crashing or silently retried.
-      this.commandRepo.failCommand(
+      this.leaseManager.failCommand(
         command.id,
         this.workerId,
         `Unsupported command type "${command.command}"`,
@@ -620,7 +515,7 @@ export class Worker {
   private async processDeliverCommand(command: CommandRecord): Promise<void> {
     const run = this.runRepo.get(command.runId);
     if (!run) {
-      this.commandRepo.failCommand(
+      this.leaseManager.failCommand(
         command.id,
         this.workerId,
         `Run ${command.runId} not found`,
@@ -629,7 +524,7 @@ export class Worker {
     }
 
     if (run.status !== "ready_for_pr") {
-      this.commandRepo.failCommand(
+      this.leaseManager.failCommand(
         command.id,
         this.workerId,
         `Cannot deliver run ${command.runId} in status "${run.status}". Must be ready_for_pr.`,
@@ -648,7 +543,9 @@ export class Worker {
       attempts: 1,
       maxAttempts: 3,
       availableAt: new Date().toISOString(),
-      leaseUntil: new Date(Date.now() + 60000).toISOString(),
+      leaseUntil: new Date(
+        this.leaseManager.nowMs() + this.policy.commandLeaseTtlMs,
+      ).toISOString(),
       lastHeartbeatAt: new Date().toISOString(),
       error: null,
       createdAt: new Date().toISOString(),
@@ -656,7 +553,7 @@ export class Worker {
     };
 
     const attempt = this.stageAttemptRepo.recordStart(run.id, "deliver", 1);
-    this.startCommandHeartbeat(command.id, this.commandLeaseDurationMs);
+    this.startCommandHeartbeat(command.id, this.policy.commandLeaseTtlMs);
 
     try {
       const deliverExecutor = this.deliverExecutor ?? new DeliverExecutor();
@@ -719,7 +616,7 @@ export class Worker {
         error: errorMsg,
       });
       this.error(`Deliver command ${command.id} failed: ${errorMsg}`, err);
-      this.commandRepo.failCommand(command.id, this.workerId, errorMsg);
+      this.leaseManager.failCommand(command.id, this.workerId, errorMsg);
     } finally {
       this.stopCommandHeartbeat();
     }
@@ -731,8 +628,11 @@ export class Worker {
    * Returns the processed JobRecord, or null if no job was claimed.
    */
   async stepOnce(): Promise<JobRecord | null> {
-    this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
-    const job = this.jobRepo.claimNextJob(this.workerId, this.leaseDurationMs);
+    this.upsertHeartbeat();
+    const job = this.leaseManager.claimNextJob(
+      this.workerId,
+      this.policy.jobLeaseTtlMs,
+    );
 
     if (!job) {
       return null;
@@ -766,11 +666,11 @@ export class Worker {
    * Returns the processed JobRecord, or null if no job was available for the run.
    */
   async stepRun(runId: string): Promise<JobRecord | null> {
-    this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
-    const job = this.jobRepo.claimJobForRun(
+    this.upsertHeartbeat();
+    const job = this.leaseManager.claimJobForRun(
       runId,
       this.workerId,
-      this.leaseDurationMs,
+      this.policy.jobLeaseTtlMs,
     );
 
     if (!job) {
@@ -805,10 +705,10 @@ export class Worker {
    * Returns the processed CommandRecord array.
    */
   async stepCommandOnce(): Promise<CommandRecord[]> {
-    const commands = this.commandRepo.claimPendingCommands(
+    const commands = this.leaseManager.claimCommands(
       this.workerId,
-      this.commandLeaseDurationMs,
-      30000,
+      this.policy.commandLeaseTtlMs,
+      this.policy.heartbeatTtlMs,
     );
 
     for (const command of commands) {
@@ -820,10 +720,10 @@ export class Worker {
   private async pollLoop(): Promise<void> {
     while (this.isRunning && !this.isStopping) {
       try {
-        this.heartbeatRepo.upsert(this.workerId, process.pid, os.hostname());
-        const job = this.jobRepo.claimNextJob(
+        this.upsertHeartbeat();
+        const job = this.leaseManager.claimNextJob(
           this.workerId,
-          this.leaseDurationMs,
+          this.policy.jobLeaseTtlMs,
         );
 
         if (job) {

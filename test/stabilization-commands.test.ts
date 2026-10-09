@@ -87,12 +87,20 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     });
 
     // Worker 1 claims command with short lease (1ms)
-    const claimed1 = commandRepo.claimPendingCommands("worker-1", -1000);
+    const claimed1 = commandRepo.claimPendingCommands(
+      "worker-1",
+      -1000,
+      30_000,
+    );
     expect(claimed1.length).toBe(1);
     expect(claimed1[0]?.workerId).toBe("worker-1");
 
     // Immediately, worker 2 cannot claim if lease was valid, but since lease is in the past, worker 2 claims it
-    const claimed2 = commandRepo.claimPendingCommands("worker-2", 30000);
+    const claimed2 = commandRepo.claimPendingCommands(
+      "worker-2",
+      30000,
+      30_000,
+    );
     expect(claimed2.length).toBe(1);
     expect(claimed2[0]?.workerId).toBe("worker-2");
     expect(claimed2[0]?.attempts).toBe(2);
@@ -142,7 +150,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
     // Surviving worker runs command cycle on stop
     const claimedStop = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === stopCmd.id);
     if (claimedStop) await worker.processCommand(claimedStop);
     else await worker.processCommand(stopCmd);
@@ -257,7 +265,11 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       targetWorkerId: "dead-worker",
     });
 
-    const claimed = commandRepo.claimPendingCommands("surviving-worker", 10000);
+    const claimed = commandRepo.claimPendingCommands(
+      "surviving-worker",
+      10000,
+      30_000,
+    );
 
     expect(commandRepo.getCommand(stopCmd.id)?.status).toBe("completed");
     // Deliver keeps its step-1 handling: not completed, not failed.
@@ -287,7 +299,11 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     expect(res2.ok).toBe(true);
     expect(res2.queued).toBe(true);
 
-    const commands = commandRepo.claimPendingCommands("worker-test", 30000);
+    const commands = commandRepo.claimPendingCommands(
+      "worker-test",
+      30000,
+      30_000,
+    );
     expect(commands.length).toBe(1);
   });
 
@@ -302,7 +318,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       payload: {},
       idempotencyKey: `deliver:${run.id}`,
     });
-    commandRepo.claimPendingCommands("test-worker-fail", 10000);
+    commandRepo.claimPendingCommands("test-worker-fail", 10000, 30_000);
     commandRepo.failCommand(
       cmd.id,
       "test-worker-fail",

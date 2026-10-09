@@ -17,7 +17,7 @@ import { Worker } from "../src/worker.js";
 function claimFirstPendingCommand(
   commandRepo: CommandRepository,
 ): CommandRecord {
-  const commands = commandRepo.claimPendingCommands("worker-1", 10000);
+  const commands = commandRepo.claimPendingCommands("worker-1", 10000, 30_000);
   const first = commands[0];
   if (!first) throw new Error("Expected a pending command to claim");
   return first;

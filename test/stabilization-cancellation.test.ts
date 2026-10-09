@@ -86,7 +86,11 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     expect(jobRepo.getJob(job2.id)?.status).toBe("cancelled");
 
     // Stop command should target active worker and jobId
-    const commands = commandRepo.claimPendingCommands("worker-stop-1", 30000);
+    const commands = commandRepo.claimPendingCommands(
+      "worker-stop-1",
+      30000,
+      30_000,
+    );
     expect(commands.length).toBe(1);
     expect(commands[0]?.command).toBe("stop");
     expect(commands[0]?.targetWorkerId).toBe("worker-stop-1");
@@ -187,7 +191,7 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     });
 
     const claimedStop = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === stopCmd.id);
     if (claimedStop) await worker.processCommand(claimedStop);
     else await worker.processCommand(stopCmd);

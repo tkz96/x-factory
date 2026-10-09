@@ -183,7 +183,7 @@ describe("JobRepository", () => {
         worktreePath: "/tmp/worktree",
       });
       const job = jobRepo.createJob({ runId: run.id, stage: "prepare" });
-      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1", 30_000);
       expect(claimed).not.toBeNull();
       expect(claimed?.id).toBe(job.id);
     });
@@ -202,7 +202,7 @@ describe("JobRepository", () => {
         worktreePath: "/tmp/worktree",
       });
       jobRepo.createJob({ runId: run.id, stage: "prepare" });
-      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1", 30_000);
       expect(claimed).toBeNull();
     });
 
@@ -220,7 +220,7 @@ describe("JobRepository", () => {
         worktreePath: "/tmp/worktree",
       });
       jobRepo.createJob({ runId: run.id, stage: "prepare" });
-      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1", 30_000);
       expect(claimed).toBeNull();
     });
 
@@ -238,7 +238,7 @@ describe("JobRepository", () => {
         worktreePath: "/tmp/worktree",
       });
       jobRepo.createJob({ runId: run.id, stage: "prepare" });
-      const claimed = jobRepo.claimJobForRun(run.id, "worker-1");
+      const claimed = jobRepo.claimJobForRun(run.id, "worker-1", 30_000);
       expect(claimed).toBeNull();
     });
 
@@ -252,7 +252,7 @@ describe("JobRepository", () => {
       `).run();
       db.prepare("PRAGMA foreign_keys = ON;").run();
 
-      const claimed = jobRepo.claimJobForRun("run-missing", "worker-1");
+      const claimed = jobRepo.claimJobForRun("run-missing", "worker-1", 30_000);
       expect(claimed).toBeNull();
     });
 
@@ -271,8 +271,8 @@ describe("JobRepository", () => {
       });
       jobRepo.createJob({ runId: run.id, stage: "prepare" });
 
-      const claim1 = jobRepo.claimJobForRun(run.id, "worker-A");
-      const claim2 = jobRepo.claimJobForRun(run.id, "worker-B");
+      const claim1 = jobRepo.claimJobForRun(run.id, "worker-A", 30_000);
+      const claim2 = jobRepo.claimJobForRun(run.id, "worker-B", 30_000);
 
       expect(claim1).not.toBeNull();
       expect(claim1?.workerId).toBe("worker-A");

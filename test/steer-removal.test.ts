@@ -95,6 +95,7 @@ describe("Steering removed (#167)", () => {
     const claimed = commandRepo.claimPendingCommands(
       "worker-steer-leftover",
       30000,
+      30_000,
     );
     const leftover = claimed.find((c) => c.id === commandId);
     expect(leftover).toBeDefined();
@@ -131,7 +132,11 @@ describe("Steering removed (#167)", () => {
     const worker = new Worker({ db, workerId: "worker-live" });
 
     // Step 1: the expired lease hands the row back to the pool.
-    const reclaimed = commandRepo.claimPendingCommands("worker-live", 30000);
+    const reclaimed = commandRepo.claimPendingCommands(
+      "worker-live",
+      30000,
+      30_000,
+    );
     const row = reclaimed.find((c) => c.id === commandId);
     expect(row).toBeDefined();
     expect(row?.status).toBe("claimed");
@@ -145,7 +150,11 @@ describe("Steering removed (#167)", () => {
     expect(updated?.error).toBe('Unsupported command type "steer"');
 
     // Step 3: terminal — never reclaimed again, attempts stay bounded.
-    const again = commandRepo.claimPendingCommands("worker-live", 30000);
+    const again = commandRepo.claimPendingCommands(
+      "worker-live",
+      30000,
+      30_000,
+    );
     expect(again.find((c) => c.id === commandId)).toBeUndefined();
     expect(commandRepo.getCommand(commandId)?.attempts).toBe(2);
   });

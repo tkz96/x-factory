@@ -6,6 +6,7 @@ import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
+import { LeaseManager } from "../lease.js";
 import type {
   DiagnosticsResponse,
   ReadinessResponse,
@@ -40,7 +41,7 @@ function computeReadinessStatus(repos: Repositories) {
     dbError = err instanceof Error ? err.message : String(err);
   }
 
-  const activeWorkers = getActiveWorkers(repos.heartbeats);
+  const activeWorkers = getActiveWorkers(new LeaseManager(repos));
   const workerReady = activeWorkers.length > 0;
 
   const isReady =
@@ -111,7 +112,7 @@ export function handleDiagnosticsRoute(repos: Repositories): Response {
   const jobRepo = repos.jobs;
 
   const staleJobs = jobRepo.findStaleClaimedJobs();
-  const activeWorkers = getActiveWorkers(repos.heartbeats);
+  const activeWorkers = getActiveWorkers(new LeaseManager(repos));
 
   const body: DiagnosticsResponse = {
     status: "ok",
@@ -127,7 +128,9 @@ export function handleDiagnosticsRoute(repos: Repositories): Response {
       jobs: { ...repos.diagnostics.countJobs(), stale: staleJobs.length },
     },
     worker: {
-      status: isWorkerReady(repos.heartbeats) ? "healthy" : "unavailable",
+      status: isWorkerReady(new LeaseManager(repos))
+        ? "healthy"
+        : "unavailable",
       activeCount: activeWorkers.length,
       fleet: activeWorkers,
     },

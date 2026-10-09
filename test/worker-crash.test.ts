@@ -374,6 +374,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     const claimedCmds = commandRepo.claimPendingCommands(
       "worker-deliver-resumed",
       10000,
+      30_000,
     );
     expect(claimedCmds.length).toBe(1);
 
@@ -471,6 +472,7 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     const claimedCmds = commandRepo.claimPendingCommands(
       "worker-deliver-reconcile",
       10000,
+      30_000,
     );
     expect(claimedCmds.length).toBe(1);
 

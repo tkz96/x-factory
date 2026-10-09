@@ -94,7 +94,11 @@ async function deliver(): Promise<{
     payload: {},
     idempotencyKey: `deliver:${run.id}`,
   });
-  const [command] = commandRepo.claimPendingCommands("worker-1", 10_000);
+  const [command] = commandRepo.claimPendingCommands(
+    "worker-1",
+    10_000,
+    30_000,
+  );
   await worker.processCommand(command as CommandRecord);
   const failed = commandRepo.getCommand(command?.id ?? "");
   return { status: runRepo.get(run.id)?.status, error: failed?.error };
