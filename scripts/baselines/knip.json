@@ -7,7 +7,6 @@
   "src/runs.ts:exports:getStageAttempts",
   "src/shared/types.ts:types:AzureConnectionResult",
   "src/shared/types.ts:types:DiscoveredRepo",
-  "src/shared/types.ts:types:WorkbenchSettings",
   "src/store.ts:types:InternalRun",
   "src/types.ts:types:RunEvent",
   "src/types.ts:types:RunEventPayload",

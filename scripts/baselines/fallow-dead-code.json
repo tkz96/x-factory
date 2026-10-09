@@ -26,7 +26,6 @@
     "unused-type:src/providers/azure-module.ts:AzureConfig",
     "unused-type:src/shared/types.ts:AzureConnectionResult",
     "unused-type:src/shared/types.ts:DiscoveredRepo",
-    "unused-type:src/shared/types.ts:WorkbenchSettings",
     "unused-type:src/store.ts:InternalRun",
     "unused-type:src/types.ts:RunEvent",
     "unused-type:src/types.ts:RunEventPayload",
