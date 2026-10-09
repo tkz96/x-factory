@@ -433,7 +433,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const steerData = await steerRes.json();
       assert.equal(steerData.ok, true);
 
-      // POST /api/runs/:id/chat (returns 500 because run is in executing state)
+      // POST /api/runs/:id/chat (returns 409 because run is in executing state)
       const chatFailReq = new Request(
         `http://localhost/api/runs/${runId}/chat`,
         {
@@ -450,7 +450,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         chatFailReq,
       );
       assert.ok(chatFailRes);
-      assert.equal(chatFailRes.status, 500);
+      assert.equal(chatFailRes.status, 409);
 
       // Transition to awaiting_understanding_approval to test successful chat
       runRepo.update(runId, { status: "awaiting_understanding_approval" });

@@ -22,10 +22,7 @@ import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
-import {
-  canRunAction,
-  STOPPABLE_RUN_STATUSES,
-} from "./shared/run-status-policy.js";
+import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, RunStatus, Ticket } from "./types.js";
 
@@ -276,8 +273,8 @@ export async function steerRun(
   const tx = db.transaction(() => {
     const run = runRepo.get(id, db);
     if (!run) throw new NotFoundError(`Run ${id} not found.`);
-    if (run.status !== "executing") {
-      throw new Error(`Cannot steer in status "${run.status}".`);
+    if (!canRunAction(run.status, "steer")) {
+      throw new ConflictError(`Cannot steer in status "${run.status}".`);
     }
 
     if (commandId) {
@@ -337,7 +334,7 @@ export async function stopRun(
       return run;
     }
 
-    if (!STOPPABLE_RUN_STATUSES.has(run.status)) {
+    if (!canRunAction(run.status, "stop")) {
       throw new ConflictError(`Cannot stop in status "${run.status}".`);
     }
 
@@ -402,11 +399,11 @@ function verifyRecoveryRequired(
   runRepo: RunRepository,
   id: string,
   db: Database,
-  action: string,
+  action: RunAction,
 ): RunRecord {
   const dbRun = runRepo.get(id, db);
   if (!dbRun) throw new NotFoundError(`Run ${id} not found.`);
-  if (dbRun.status !== "recovery_required") {
+  if (!canRunAction(dbRun.status, action)) {
     throw new ConflictError(
       `Cannot ${action} run in status "${dbRun.status}". Run must be in "recovery_required".`,
     );
@@ -457,7 +454,7 @@ export async function createPR(
       };
     }
 
-    if (run.status !== "ready_for_pr") {
+    if (!canRunAction(run.status, "deliver")) {
       throw new ConflictError(
         `Cannot create PR in status "${run.status}". Run must be in "ready_for_pr".`,
       );
@@ -620,8 +617,8 @@ export async function chatWithRun(
   const run = runRepo.get(id);
   if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
-  if (!canRunAction(run.status, "approve")) {
-    throw new Error(
+  if (!canRunAction(run.status, "chat")) {
+    throw new ConflictError(
       `Chat is only available during approval gates. Current status: "${run.status}".`,
     );
   }
@@ -715,6 +712,9 @@ export async function handleTransition(
     if (!run) throw new NotFoundError(`Run ${id} not found.`);
 
     if (action === "approve") {
+      if (!canRunAction(run.status, "approve")) {
+        throw new ConflictError(`Cannot approve in status "${run.status}".`);
+      }
       if (run.status === "awaiting_understanding_approval") {
         const transitionResult = runRepo.transitionRun(
           id,
@@ -771,7 +771,7 @@ export async function handleTransition(
         );
         return transitionResult.run;
       }
-      throw new Error(`Cannot approve in status "${run.status}".`);
+      throw new ConflictError(`Cannot approve in status "${run.status}".`);
     }
 
     if (action === "restart") {
@@ -807,11 +807,11 @@ export async function handleTransition(
         jobRepo.createJob({ runId: id, stage: "understand" }, db);
         return transitionResult.run;
       }
-      throw new Error(`Cannot restart in status "${run.status}".`);
+      throw new ConflictError(`Cannot restart in status "${run.status}".`);
     }
 
     if (action === "requeue") {
-      if (run.status === "awaiting_review") {
+      if (canRunAction(run.status, "requeue")) {
         const payload = _payload as
           | { failingTasks?: string[]; chatNotes?: string }
           | undefined;
@@ -872,7 +872,7 @@ export async function handleTransition(
         jobRepo.createJob({ runId: id, stage: "plan" }, db);
         return transitionResult.run;
       }
-      throw new Error(`Cannot requeue in status "${run.status}".`);
+      throw new ConflictError(`Cannot requeue in status "${run.status}".`);
     }
 
     throw new Error(`Unknown transition action: ${action}`);
