@@ -250,6 +250,8 @@ export interface AttemptLoopInput {
   /** Provider of the implementation session (session A); its credentials reach the loop. */
   provider: string;
   signal?: AbortSignal | undefined;
+  /** Loop timeout per attempt; defaults to 15 minutes. */
+  timeoutMs?: number | undefined;
   emit: (type: string, payload: unknown) => void;
   /** Called after every verification, so the caller can persist the diff and result. */
   onVerification: (verification: VerificationResult) => void;
@@ -315,6 +317,7 @@ export async function runAttemptLoop(
   const scriptPath = await scaffold(input);
   const agentDir = path.join(input.worktreePath, ".agent");
   const env = resolveSanitizedEnv(input.provider);
+  const timeoutMs = input.timeoutMs ?? LOOP_TIMEOUT_MS;
 
   let verification: VerificationResult | null = null;
 
@@ -328,18 +331,16 @@ export async function runAttemptLoop(
         text: `Starting repair attempt ${attempt} of ${MAX_REPAIR_ATTEMPTS}…`,
       });
     }
+    const label = attempt === 1 ? "Ralph Loop" : "Repair Loop";
     emit("status", {
       status: "executing",
       text:
         attempt === 1
-          ? `Spawning Ralph Loop (${iterations} iterations) with Pi agent…`
-          : `Spawning Repair Loop (${iterations} iterations)…`,
+          ? `Spawning ${label} (${iterations} iterations) with Pi agent…`
+          : `Spawning ${label} (${iterations} iterations)…`,
     });
     emit("ralph_progress", {
-      text:
-        attempt === 1
-          ? `Ralph Loop started with ${iterations} iterations`
-          : `Repair Loop started with ${iterations} iterations`,
+      text: `${label} started with ${iterations} iterations`,
       iteration: 1,
     });
 
@@ -353,7 +354,7 @@ export async function runAttemptLoop(
         cwd: input.worktreePath,
         env,
         envPolicy: "sanitized",
-        timeoutMs: LOOP_TIMEOUT_MS,
+        timeoutMs,
         signal,
         onOutputChunk: (chunk, stream) => {
           if (stream !== "stdout") return;
@@ -364,10 +365,10 @@ export async function runAttemptLoop(
     );
 
     if (signal?.aborted) return { outcome: "aborted" };
-    if (loop.exitCode === 124 && loop.stderr.includes("timed out")) {
+    if (loop.timedOut) {
       return {
         outcome: "failed",
-        error: `Ralph Loop execution timed out after ${LOOP_TIMEOUT_MS}ms`,
+        error: `Ralph Loop execution timed out after ${timeoutMs}ms`,
       };
     }
     if (loop.exitCode !== 0) {

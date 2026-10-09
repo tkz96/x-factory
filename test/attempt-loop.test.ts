@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { runAttemptLoop } from "../src/attempt-loop.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
@@ -23,6 +24,7 @@ import type { StageExecutor } from "../src/executors/types.js";
 import { execStrict } from "../src/proc.js";
 import { stopRun } from "../src/runs.js";
 import type { loadSettings } from "../src/settings.js";
+import type { Project } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import {
   baselinePathFor,
@@ -51,6 +53,7 @@ const ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "AWS_SECRET_ACCESS_KEY",
   "HTTP_PROXY",
+  "PI_API_KEY",
 ];
 
 async function write(relPath: string, content: string): Promise<void> {
@@ -301,8 +304,9 @@ ${CHECK_OFF_FIRST_TASK}
     process.env.ANTHROPIC_API_KEY = "sk-unrelated-anthropic";
     process.env.AWS_SECRET_ACCESS_KEY = "aws-secret";
     process.env.HTTP_PROXY = "http://proxy:8080";
+    process.env.PI_API_KEY = "pi-key-passthrough";
     await installSbx(`
-{ echo "openai=\${OPENAI_API_KEY:-}"; echo "gemini=\${GEMINI_API_KEY:-}"; echo "anthropic=\${ANTHROPIC_API_KEY:-}"; echo "aws=\${AWS_SECRET_ACCESS_KEY:-}"; echo "proxy=\${HTTP_PROXY:-}"; } > "${envFile}"
+{ echo "openai=\${OPENAI_API_KEY:-}"; echo "gemini=\${GEMINI_API_KEY:-}"; echo "anthropic=\${ANTHROPIC_API_KEY:-}"; echo "aws=\${AWS_SECRET_ACCESS_KEY:-}"; echo "proxy=\${HTTP_PROXY:-}"; echo "pi=\${PI_API_KEY:-}"; } > "${envFile}"
 echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
@@ -324,6 +328,7 @@ ${CHECK_OFF_FIRST_TASK}
       "anthropic=",
       "aws=",
       "proxy=",
+      "pi=pi-key-passthrough",
     ]);
   });
 
@@ -475,6 +480,66 @@ ${CHECK_OFF_FIRST_TASK}
 
     expect(jobRepo.getJob(claimed.id)?.error).toBe("Review failed");
     expect(runRepo.get(run.id)?.status).toBe("executing");
+  });
+
+  it("reports a scaffold failure as a loop execution failure", async () => {
+    await write(
+      ".agent",
+      "a regular file where the workspace directory must be\n",
+    );
+    await commitAndRecordBaseline();
+    await installSbx("exit 0");
+    await configureProject("true");
+    const { run, runRepo, jobRepo, worker } = setup();
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(jobRepo.getJob(claimed.id)?.error).toContain(
+      "Ralph Loop execution failed:",
+    );
+    expect(runRepo.get(run.id)?.verification).toBeNull();
+  });
+
+  it("kills a loop that exceeds its timeout and reports it as timed out", async () => {
+    await commitAndRecordBaseline();
+    const pidFile = path.join(tempDir, "slow-agent.pid");
+    await installSbx(`echo $$ > "${pidFile}"\nsleep 60`);
+    await write(".agent/tasks.md", "- [ ] t\n");
+    let agentPid = 0;
+    try {
+      const result = await runAttemptLoop({
+        worktreePath: repo,
+        artifactsDir,
+        ticket: { id: "AL-2", title: "Slow", acceptanceCriteria: [] },
+        plan: "1. Slow",
+        project: {
+          id: PROJECT_ID,
+          name: "Attempt Loop Project",
+          workspacePath: repo,
+          repositoryPath: repo,
+          defaultBranch: "main",
+          testCommand: "true",
+          repositories: [],
+          issueTracker: { provider: "jira" },
+        } satisfies Project,
+        baseline: await recordBaseline(repo),
+        provider: "anthropic",
+        timeoutMs: 400,
+        emit: () => {},
+        onVerification: () => {},
+      });
+
+      expect(result).toEqual({
+        outcome: "failed",
+        error: "Ralph Loop execution timed out after 400ms",
+      });
+      agentPid = Number.parseInt((await lines(pidFile))[0] ?? "", 10);
+      expect(await waitDead(agentPid)).toBe(true);
+    } finally {
+      if (agentPid > 0 && isAlive(agentPid)) process.kill(agentPid, "SIGKILL");
+    }
   });
 
   it("a run stop during verification ends the run promptly and starts no new loop", async () => {

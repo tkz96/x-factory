@@ -146,6 +146,7 @@ function buildCloseResult(
     stderr: stderrOutput,
     passed: code === 0 && !timedOut && !aborted,
     durationMs,
+    ...(timedOut ? { timedOut: true } : {}),
   };
 }
 
