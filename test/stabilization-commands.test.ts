@@ -83,7 +83,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
   });
 
   // Test 3: Stale targeted worker handling
-  it("handles dead target workers: completes stop as no-op and fails steer", async () => {
+  it("handles dead target workers: completes stop as no-op and fails a leftover steer command", async () => {
     const { db, commandRepo, heartbeatRepo, run } = setupTest();
 
     // Register dead worker with old heartbeat (>30s ago)
@@ -105,14 +105,22 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       targetWorkerId: "dead-worker",
     });
 
-    // 2. Steer targeted to dead worker
-    const steerCmd = commandRepo.insertOrRetryCommand({
-      runId: run.id,
-      command: "steer",
-      payload: { message: "stale steer" },
-      idempotencyKey: "steer:stale",
-      targetWorkerId: "dead-worker",
-    });
+    // 2. Leftover steer command from a pre-#167 database, targeted to the
+    // dead worker. The repository no longer accepts "steer" as a CommandType,
+    // so the legacy row is inserted exactly as it exists on disk.
+    const legacySteerId = "cmd-legacy-steer-dead-target";
+    db.run(
+      `INSERT INTO run_commands (id, run_id, command, payload, idempotency_key, target_worker_id, status, attempts, max_attempts, created_at)
+       VALUES (?, ?, 'steer', ?, 'steer:stale', 'dead-worker', 'pending', 0, 3, ?);`,
+      [
+        legacySteerId,
+        run.id,
+        JSON.stringify({ message: "stale steer" }),
+        new Date().toISOString(),
+      ],
+    );
+    const steerCmd = commandRepo.getCommand(legacySteerId);
+    expect(steerCmd).toBeDefined();
 
     const worker = new Worker({
       db,
@@ -128,17 +136,13 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     const updatedStop = commandRepo.getCommand(stopCmd.id);
     expect(updatedStop?.status).toBe("completed");
 
-    // Surviving worker runs command cycle on steer
-    const claimedSteer = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
-      .find((c) => c.id === steerCmd.id);
-    if (claimedSteer) await worker.processCommand(claimedSteer);
-    else await worker.processCommand(steerCmd);
-    const updatedSteer = commandRepo.getCommand(steerCmd.id);
+    // The leftover steer command targeted at the dead worker is failed
+    // during claim resolution, then a processCommand pass on the stale
+    // record must not crash or change it.
+    if (steerCmd) await worker.processCommand(steerCmd);
+    const updatedSteer = commandRepo.getCommand(legacySteerId);
     expect(updatedSteer?.status).toBe("failed");
-    expect(updatedSteer?.error).toContain(
-      "Target worker dead; steer session lost",
-    );
+    expect(updatedSteer?.error).toBe("Target worker dead; command discarded");
   });
 
   // Test 10: Create PR atomicity & deduplication

@@ -7,7 +7,6 @@ bootstrapLLMEnv();
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
-import { getActiveSession } from "./agents/pi.js";
 import { getProject } from "./config.js";
 import {
   type CommandRecord,
@@ -543,14 +542,15 @@ export class Worker {
           });
           return;
         }
-        if (command.command === "steer") {
-          this.commandRepo.failCommand(
-            command.id,
-            this.workerId,
-            `Target worker ${command.targetWorkerId} is dead or inactive`,
-          );
-          return;
-        }
+        // Any other command targeted at a dead worker fails cleanly,
+        // including leftover `steer` rows from before steering was
+        // removed (#167).
+        this.commandRepo.failCommand(
+          command.id,
+          this.workerId,
+          `Target worker ${command.targetWorkerId} is dead or inactive`,
+        );
+        return;
       }
     }
 
@@ -572,30 +572,16 @@ export class Worker {
       this.commandRepo.completeCommand(command.id, this.workerId, {
         stopped: true,
       });
-    } else if (command.command === "steer") {
-      const payload = command.payload as { message?: string } | null;
-      const message = payload?.message || "";
-
-      // 1. Mark command completed before invocation (at-most-once)
-      this.commandRepo.completeCommand(command.id, this.workerId, {
-        steered: true,
-      });
-
-      // 2. Find active Pi session
-      const session = getActiveSession(command.runId);
-      if (session) {
-        try {
-          await session.steer(message);
-        } catch (err) {
-          this.error(`Error steering Pi session for run ${command.runId}`, err);
-        }
-      } else {
-        this.log(
-          `No active Pi session found for steer command on run ${command.runId}`,
-        );
-      }
     } else if (command.command === "deliver") {
       await this.processDeliverCommand(command);
+    } else {
+      // Leftover command rows from versions that still had steering (#167)
+      // are failed instead of crashing or silently retried.
+      this.commandRepo.failCommand(
+        command.id,
+        this.workerId,
+        `Unsupported command type "${command.command}"`,
+      );
     }
   }
 

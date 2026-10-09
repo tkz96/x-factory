@@ -5,32 +5,16 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import {
-  createImplementationSession,
-  createReviewSession,
-} from "../src/agents/pi.js";
+import * as pi from "../src/agents/pi.js";
+import { createReviewSession } from "../src/agents/pi.js";
 
 describe("Pi SDK Compatibility under Bun", () => {
-  it("creates implementation session with full tools", async () => {
-    const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-impl-"));
-    try {
-      const piAgent = await createImplementationSession(tmp);
-      assert.ok(piAgent);
-      assert.ok(piAgent.session);
-      assert.equal(typeof piAgent.prompt, "function");
-      assert.equal(typeof piAgent.steer, "function");
-      assert.equal(typeof piAgent.abort, "function");
-      assert.equal(typeof piAgent.subscribe, "function");
-
-      // Verify active tool names include read, bash, edit, write
-      const activeTools = piAgent.session.getActiveToolNames();
-      assert.ok(activeTools.includes("read"), "Should have read tool");
-      assert.ok(activeTools.includes("bash"), "Should have bash tool");
-      assert.ok(activeTools.includes("edit"), "Should have edit tool");
-      assert.ok(activeTools.includes("write"), "Should have write tool");
-    } finally {
-      await rm(tmp, { recursive: true, force: true });
-    }
+  it("does not expose the removed steering-era API (#167)", async () => {
+    // Steering was removed with #167: the implementation session factory and
+    // the Pi session registry are gone from the module's public surface.
+    assert.equal("createImplementationSession" in pi, false);
+    assert.equal("registerActiveSession" in pi, false);
+    assert.equal("getActiveSession" in pi, false);
   });
 
   it("creates review session with strictly read-only tools", async () => {
@@ -68,7 +52,7 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("subscribes to session events cleanly", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-sub-"));
     try {
-      const piAgent = await createImplementationSession(tmp);
+      const piAgent = await createReviewSession(tmp);
       const events: string[] = [];
       const unsub = piAgent.subscribe((e) => {
         events.push(e.type);
@@ -83,22 +67,17 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("applies provider and model options to sessions", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-model-"));
     try {
-      const piAgent = await createImplementationSession(tmp, {
+      const revAgent = await createReviewSession(tmp, {
         provider: "anthropic",
         model: "claude-sonnet-4-5",
         thinkingLevel: "low",
       });
-      assert.ok(piAgent);
-      assert.equal(piAgent.session.model?.id, "claude-sonnet-4-5");
-      assert.equal(piAgent.session.model?.provider, "anthropic");
-
-      const revAgent = await createReviewSession(tmp, {
-        provider: "anthropic",
-        model: "claude-sonnet-4-5",
-      });
       assert.ok(revAgent);
+      assert.ok(revAgent.session);
       assert.equal(revAgent.session.model?.id, "claude-sonnet-4-5");
       assert.equal(revAgent.session.model?.provider, "anthropic");
+      // The session steer method was removed with steering (#167).
+      assert.equal("steer" in revAgent, false);
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }

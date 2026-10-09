@@ -3,7 +3,7 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 
-export type CommandType = "stop" | "steer" | "deliver";
+export type CommandType = "stop" | "deliver";
 export type CommandStatus = "pending" | "claimed" | "completed" | "failed";
 
 export interface CommandRecord {
@@ -224,12 +224,14 @@ export class CommandRepository {
               WHERE id = $id AND status = 'pending';
             `)
             .run({ $id: cmd.id, $now: now });
-        } else if (cmd.command === "steer") {
+        } else if (cmd.command !== "deliver") {
+          // Leftover command types from versions that still had steering
+          // (#167) fail cleanly instead of lingering unclaimable.
           conn
             .prepare(`
               UPDATE run_commands
               SET status = 'failed',
-                  error = 'Target worker dead; steer session lost',
+                  error = 'Target worker dead; command discarded',
                   processed_at = $now
               WHERE id = $id AND status = 'pending';
             `)
@@ -240,7 +242,8 @@ export class CommandRepository {
 
     // 2. Claim claimable commands:
     // Either target_worker_id is null OR matches this worker.
-    // Also include expired claimed commands (except steer which is at-most-once and fails on expiry).
+    // Also include expired claimed commands so a crashed worker's lease
+    // hands the command back to the pool.
     const claimQuery = `
       UPDATE run_commands
       SET status = 'claimed',
@@ -251,7 +254,7 @@ export class CommandRepository {
         SELECT id FROM run_commands
         WHERE (
           status = 'pending'
-          OR (status = 'claimed' AND lease_until < $now AND command != 'steer' AND attempts < max_attempts)
+          OR (status = 'claimed' AND lease_until < $now AND attempts < max_attempts)
         )
         AND (target_worker_id IS NULL OR target_worker_id = $workerId)
         ORDER BY created_at ASC
