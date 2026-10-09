@@ -1,6 +1,6 @@
 // test/ralph-executor.test.ts — Unit and integration tests for Autonomous Ralph Loop Execution (Ticket 02).
 
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import type { ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { createDatabase } from "../src/db/connection.js";
@@ -21,8 +21,16 @@ import { ReviewExecutor } from "../src/executors/review.js";
 import type { StageContext } from "../src/executors/types.js";
 import type { loadSettings } from "../src/settings.js";
 import type { Project } from "../src/shared/types.js";
+import {
+  PASSING_REVIEW_OUTPUT,
+  scriptedReviewSession,
+  tempArtifactsDirs,
+} from "./helpers/scripted-review-session.js";
 
 describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
+  const artifactDirs = tempArtifactsDirs();
+  afterAll(() => artifactDirs.cleanup());
+
   function setupTestContext(stage: string, overrides?: Partial<RunRecord>) {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
@@ -61,7 +69,7 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       plan: "Step 1: Write failing test\nStep 2: Implement logic\nStep 3: Refactor code",
       branch: "factory/T-200",
       status: "executing",
-      artifactsDir: "/tmp/artifacts-ralph-1",
+      artifactsDir: artifactDirs.make(),
       worktreePath: "/tmp/worktree-ralph-1",
       ...overrides,
     });
@@ -778,22 +786,16 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
         }),
         runVerification: async () => verificationResult,
         reviewExecutor: new ReviewExecutor({
-          reviewRun: async (input) => {
-            const dbRun = runRepo.get(input.runId);
+          sessionFactory: async () => {
+            const dbRun = runRepo.get(context.run.id);
             runDiffBeforeReview = dbRun?.diff;
             runVerifBeforeReview = dbRun?.verification;
-            return {
-              passed: true,
-              summary: "LGTM",
-              findings: [],
-              criteriaChecked: [],
-            };
+            return scriptedReviewSession(PASSING_REVIEW_OUTPUT);
           },
           loadSettings: async () =>
             ({
               anthropicApiKey: "test-key",
             }) as unknown as ReturnType<typeof loadSettings>,
-          writeFile: async () => {},
         }),
       });
 
@@ -810,9 +812,10 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
       const finalDbRun = runRepo.get(context.run.id);
       expect(finalDbRun?.review).toEqual({
         passed: true,
-        summary: "LGTM",
-        findings: [],
-        criteriaChecked: [],
+        summary:
+          "Review passed: all 1 criteria satisfied with 0 blocking errors.",
+        findings: [{ severity: "info", message: "Clean implementation" }],
+        criteriaChecked: [{ criterion: "Acceptance", satisfied: true }],
       });
     });
   });

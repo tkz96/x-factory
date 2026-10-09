@@ -12,18 +12,25 @@ X-Factory executes the autonomous Ralph loop using a strictly enforced sandbox b
 
 ## Credential Management and Environment Sanitization
 
-To prevent unintentional exposure of sensitive host secrets, proxy configurations, or irrelevant provider keys to the untrusted agent, X-Factory applies strict environment sanitization when spawning the Ralph loop script.
+To prevent unintentional exposure of sensitive host secrets, proxy configurations, or irrelevant provider keys to untrusted commands and agents, X-Factory applies strict environment sanitization when spawning the Ralph loop script and when running verification commands.
 
 ### 1. Stripping the Host Environment
-The host process environment is NOT inherited wholesale. All sensitive host variables, such as `AWS_SECRET_ACCESS_KEY`, `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`, are stripped before the Ralph process is spawned.
+The host process environment is NOT inherited wholesale. All sensitive host variables, such as `AWS_SECRET_ACCESS_KEY`, `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`, are stripped before the subprocess is spawned. Verification commands also run with this sanitized environment rather than inheriting worker secrets.
 
-### 2. Whitelisting Dependencies
-Only a minimal whitelist of necessary operating environment variables is passed to the script:
+### 2. Allowlisting Dependencies
+Only a minimal allowlist of necessary operating environment variables is passed to the script or verification process:
 - `PATH`
 - `HOME`
 - `USER`
+- `LOGNAME`
+- `SHELL`
 - `LANG`
 - `LC_ALL`
+- `LC_CTYPE`
+- `TERM`
+- `TMPDIR`
+
+Because `HOME` passes through, the sanitization does not protect credential files such as `~/.aws`, `~/.config/gh` or `~/.npmrc`.
 
 ### 3. Explicit Credential Injection
 The selected LLM API credentials are not stored in configuration files (like `settings.json`) but are pulled selectively from the host environment based on the active provider.

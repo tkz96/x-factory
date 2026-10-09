@@ -23,30 +23,41 @@ beforeAll(async () => {
   fixtureRepo = path.join(baseTempDir, "repo");
 
   // Create bare repo and clone it
-  await execStrict("git", [
-    "init",
-    "--bare",
-    "--initial-branch=main",
-    bareRepo,
-  ]);
-  await execStrict("git", ["clone", bareRepo, fixtureRepo]);
+  await execStrict(
+    "git",
+    ["init", "--bare", "--initial-branch=main", bareRepo],
+    { envPolicy: "inherit" },
+  );
+  await execStrict("git", ["clone", bareRepo, fixtureRepo], {
+    envPolicy: "inherit",
+  });
 
   // Configure git user and branch
   await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
   await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
-  await execStrict("git", ["checkout", "-B", "main"], { cwd: fixtureRepo });
+  await execStrict("git", ["checkout", "-B", "main"], {
+    envPolicy: "inherit",
+    cwd: fixtureRepo,
+  });
 
   // Create initial commit
   await writeFile(path.join(fixtureRepo, "README.md"), "# Fixture Repo\n");
-  await execStrict("git", ["add", "-A"], { cwd: fixtureRepo });
+  await execStrict("git", ["add", "-A"], {
+    envPolicy: "inherit",
+    cwd: fixtureRepo,
+  });
   await execStrict("git", ["commit", "-m", "Initial commit"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
   await execStrict("git", ["push", "-u", "origin", "main"], {
+    envPolicy: "inherit",
     cwd: fixtureRepo,
   });
 });
@@ -119,7 +130,7 @@ describe("createWorktree and removeWorktree", () => {
     assert.equal(wtPath, getWorktreePath("proj-1", "run-101"));
 
     // Check that README.md exists in worktree
-    const lsResult = await execStrict("ls", [wtPath]);
+    const lsResult = await execStrict("ls", [wtPath], { envPolicy: "inherit" });
     assert.ok(lsResult.stdout.includes("README.md"));
 
     // Verify .xfactory-run marker is in runs directory, NOT inside the git worktree
@@ -222,11 +233,66 @@ describe("getDiff and safeCommitAll", () => {
 
     // Verify commit in git log
     const log = await execStrict("git", ["log", "--oneline", "-1"], {
+      envPolicy: "inherit",
       cwd: wtPath,
     });
     assert.ok(log.stdout.includes("Add new module"));
 
     await git.removeWorktree(fixtureRepo, wtPath);
+  });
+
+  it("commits over 1000 changed paths, passing them to git in chunks", async () => {
+    const chunkRepo = await mkdtemp(path.join(tmpdir(), "xf-git-chunk-"));
+    try {
+      await execStrict("git", ["init", "--initial-branch=main", chunkRepo], {
+        envPolicy: "inherit",
+      });
+      await execStrict("git", ["config", "user.email", "test@xfactory.dev"], {
+        cwd: chunkRepo,
+        envPolicy: "inherit",
+      });
+      await execStrict("git", ["config", "user.name", "X-Factory Test"], {
+        cwd: chunkRepo,
+        envPolicy: "inherit",
+      });
+      await writeFile(path.join(chunkRepo, "README.md"), "# Fixture\n");
+      await execStrict("git", ["add", "-A"], {
+        cwd: chunkRepo,
+        envPolicy: "inherit",
+      });
+      await execStrict("git", ["commit", "-m", "Initial commit"], {
+        cwd: chunkRepo,
+        envPolicy: "inherit",
+      });
+
+      const baseline = await recordBaseline(chunkRepo);
+
+      // More paths than fit in one git invocation (chunk size is 1000).
+      const expected: string[] = [];
+      await mkdir(path.join(chunkRepo, "bulk"), { recursive: true });
+      const writes: Promise<void>[] = [];
+      for (let i = 0; i < 1100; i++) {
+        const rel = `bulk/file-${String(i).padStart(4, "0")}.txt`;
+        writes.push(writeFile(path.join(chunkRepo, rel), `content ${i}\n`));
+        expected.push(rel);
+      }
+      await Promise.all(writes);
+
+      await git.safeCommitAll(chunkRepo, "Add bulk files", baseline);
+
+      const show = await execStrict(
+        "git",
+        ["show", "--name-only", "--format=", "HEAD"],
+        { cwd: chunkRepo, envPolicy: "inherit" },
+      );
+      assert.deepEqual(
+        show.stdout.split("\n").filter(Boolean).sort(),
+        expected.sort(),
+        "every path must reach the commit across chunked git add calls",
+      );
+    } finally {
+      await rm(chunkRepo, { recursive: true, force: true });
+    }
   });
 });
 
@@ -303,8 +369,8 @@ describe("findCommitByMessageAndParent", () => {
     );
     const parentSha = await git.getHeadSha(wtPath);
 
-    await writeFile(path.join(wtPath, "file1.txt"), "hello");
     const baseline = await recordBaseline(wtPath);
+    await writeFile(path.join(wtPath, "file1.txt"), "hello");
     await git.safeCommitAll(wtPath, "[X-Factory] Test Commit", baseline);
     const commitSha = await git.getHeadSha(wtPath);
 
@@ -328,8 +394,8 @@ describe("findCommitByMessageAndParent", () => {
     );
     const parentSha = await git.getHeadSha(wtPathBase);
 
-    await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
     const baseline = await recordBaseline(wtPathBase);
+    await writeFile(path.join(wtPathBase, "file2.txt"), "hello base");
     await git.safeCommitAll(wtPathBase, "[X-Factory] Target Commit", baseline);
 
     await git.createBranch(fixtureRepo, "wt-branch-find-2-other", "main");
@@ -373,9 +439,9 @@ describe("getParentSha and getHeadMessage", () => {
     const headMsg = await git.getHeadMessage(fixtureRepo);
     assert.equal(headMsg, "Initial commit");
 
-    // Create a commit
-    await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
+    // Create a commit (baseline first: a file untracked at baseline is not a change)
     const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(path.join(fixtureRepo, "newfile.txt"), "content");
     const parentBefore = await git.getHeadSha(fixtureRepo);
     await git.safeCommitAll(fixtureRepo, "second commit", baseline);
 

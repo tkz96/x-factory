@@ -32,6 +32,10 @@ import type {
   Run,
   VerificationResult,
 } from "../src/shared/types.js";
+import {
+  scriptedReviewSession,
+  tempArtifactsDirs,
+} from "./helpers/scripted-review-session.js";
 
 function createMockSpawn() {
   return ((_cmd: string, _args?: readonly string[]) => {
@@ -48,9 +52,24 @@ function createMockSpawn() {
 }
 
 describe("Issue #103: Canonical Verification and Review Flow", () => {
+  const artifactDirs = tempArtifactsDirs();
   afterAll(() => {
     setDbForTesting(null);
+    artifactDirs.cleanup();
   });
+
+  // What the scripted reviewer says, and the ReviewResult reviewRun parses from it.
+  const approvedOutput =
+    "CRITERIA_CHECK:\n- [PASS] AC 1: Must verify\n- [PASS] AC 2: Must review\n\nFINDINGS:\n- [INFO] Clean implementation\n\nVERDICT:\nPASSED - ok\n";
+  const approvedReview: ReviewResult = {
+    passed: true,
+    findings: [{ severity: "info", message: "Clean implementation" }],
+    criteriaChecked: [
+      { criterion: "AC 1: Must verify", satisfied: true },
+      { criterion: "AC 2: Must review", satisfied: true },
+    ],
+    summary: "Review passed: all 2 criteria satisfied with 0 blocking errors.",
+  };
 
   function setupTestContext(overrides?: Partial<RunRecord>) {
     const db = createDatabase({ path: ":memory:" });
@@ -86,7 +105,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       plan: "1. Code\n2. Verify\n3. Review",
       branch: "factory/xf-103",
       status: "executing",
-      artifactsDir: "/tmp/artifacts-103",
+      artifactsDir: artifactDirs.make(),
       worktreePath: "/tmp/worktrees-103",
       ...overrides,
     });
@@ -397,8 +416,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
-      reviewRun: async () => sampleReview,
-      writeFile: async () => {},
+      sessionFactory: async () => scriptedReviewSession(approvedOutput),
     });
 
     const result = await reviewExecutor.execute(context);
@@ -407,7 +425,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
     // Persisted to SQLite
     const persisted = runRepo.get(context.run.id);
-    expect(persisted?.review).toEqual(sampleReview);
+    expect(persisted?.review).toEqual(approvedReview);
 
     // Canonical review event emitted
     const events = eventRepo.getEventsForRun(context.run.id);
@@ -415,7 +433,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(reviewEvent).toBeDefined();
     if (!reviewEvent) throw new Error("Expected reviewEvent");
     expect((reviewEvent.payload as { result: ReviewResult }).result).toEqual(
-      sampleReview,
+      approvedReview,
     );
   });
 
@@ -423,17 +441,12 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     const { context, runRepo, db } = setupTestContext();
     runRepo.update(context.run.id, { verification: sampleVerification }, db);
 
-    const failingReview: ReviewResult = {
-      passed: false,
-      findings: [{ severity: "error", message: "Critical bug detected" }],
-      criteriaChecked: [{ criterion: "AC 1: Must verify", satisfied: false }],
-      summary: "Review failed due to critical bug.",
-    };
-
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
-      reviewRun: async () => failingReview,
-      writeFile: async () => {},
+      sessionFactory: async () =>
+        scriptedReviewSession(
+          "CRITERIA_CHECK:\n- [FAIL] AC 1: Must verify\n\nFINDINGS:\n- [ERROR] Critical bug detected\n\nVERDICT:\nFAILED - bug\n",
+        ),
     });
 
     const result = await reviewExecutor.execute(context);
@@ -445,6 +458,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     // Persisted review record shows failed review
     const persisted = runRepo.get(context.run.id);
     expect(persisted?.review?.passed).toBe(false);
+    expect(persisted?.review?.findings).toEqual([
+      { severity: "error", message: "Critical bug detected" },
+    ]);
   });
 
   it("ReviewExecutor fails when context.run.verification exists in memory but SQLite verification is missing", async () => {
@@ -456,14 +472,13 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     const sqliteRun = runRepo.get(context.run.id);
     expect(sqliteRun?.verification).toBeNull();
 
-    let reviewRunCalled = false;
+    let sessionsCreated = 0;
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
-      reviewRun: async () => {
-        reviewRunCalled = true;
-        return sampleReview;
+      sessionFactory: async () => {
+        sessionsCreated++;
+        return scriptedReviewSession(approvedOutput);
       },
-      writeFile: async () => {},
     });
 
     const result = await reviewExecutor.execute(context);
@@ -471,7 +486,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(result.nextRunStatus).toBe("failed");
     expect(result.nextRunStatus).not.toBe("awaiting_review");
     expect(result.error).toContain("Deterministic verification is missing");
-    expect(reviewRunCalled).toBe(false);
+    expect(sessionsCreated).toBe(0);
   });
 
   it("TanStack Query cache updates from SSE events", () => {
@@ -652,16 +667,15 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   it("complete canonical execution flow reaches awaiting_review", async () => {
     const { context, runRepo, db } = setupTestContext();
 
+    const reviewSession = scriptedReviewSession(approvedOutput);
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
-      reviewRun: async (input) => {
-        // Must receive exact persisted verification
-        const persisted = runRepo.get(input.runId, db);
+      sessionFactory: async () => {
+        // The review session starts only after verification is persisted
+        const persisted = runRepo.get(context.run.id, db);
         expect(persisted?.verification).toEqual(sampleVerification);
-        expect(input.verification).toEqual(sampleVerification);
-        return sampleReview;
+        return reviewSession;
       },
-      writeFile: async () => {},
     });
 
     const executeExecutor = new ExecuteExecutor({
@@ -689,7 +703,11 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     // Both verification and review persisted in SQLite
     const finalRun = runRepo.get(context.run.id, db);
     expect(finalRun?.verification).toEqual(sampleVerification);
-    expect(finalRun?.review).toEqual(sampleReview);
+    expect(finalRun?.review).toEqual(approvedReview);
+    expect(reviewSession.prompts[0]).toContain(sampleVerification.summary);
+    expect(reviewSession.prompts[0]).toContain(
+      `Changed files: ${sampleVerification.filesChanged.join(", ")}`,
+    );
   });
 
   it("unit: patchRunCache updates cache and allows HumanCheckpointSection to re-render without refresh", () => {

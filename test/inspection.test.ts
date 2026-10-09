@@ -100,15 +100,19 @@ describe("Deterministic Inspection", () => {
     it("inspects a local git checkout", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-inspect-git-"));
       try {
-        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
         await execStrict("git", ["config", "user.email", "test@test.com"], {
+          envPolicy: "inherit",
           cwd: dir,
         });
-        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await execStrict("git", ["config", "user.name", "Test"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
         await execStrict(
           "git",
           ["remote", "add", "origin", "https://github.com/vendifai/web.git"],
-          { cwd: dir },
+          { envPolicy: "inherit", cwd: dir },
         );
         await writeFile(
           path.join(dir, "package.json"),
@@ -118,8 +122,14 @@ describe("Deterministic Inspection", () => {
           }),
         );
         await writeFile(path.join(dir, "bun.lockb"), "");
-        await execStrict("git", ["add", "-A"], { cwd: dir });
-        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+        await execStrict("git", ["add", "-A"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["commit", "-m", "Init"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
 
         const result = await inspectLocalRepository(dir);
         assert.equal(result.exists, true);
@@ -141,14 +151,24 @@ describe("Deterministic Inspection", () => {
     it("does not report expectedRemote when local remote is missing", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-inspect-no-remote-"));
       try {
-        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
         await execStrict("git", ["config", "user.email", "test@test.com"], {
+          envPolicy: "inherit",
           cwd: dir,
         });
-        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await execStrict("git", ["config", "user.name", "Test"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
         await writeFile(path.join(dir, "README.md"), "# Init\n");
-        await execStrict("git", ["add", "-A"], { cwd: dir });
-        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+        await execStrict("git", ["add", "-A"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["commit", "-m", "Init"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
 
         const result = await inspectLocalRepository(
           dir,
@@ -163,15 +183,28 @@ describe("Deterministic Inspection", () => {
     it("returns currentBranch as undefined on detached HEAD without falling back to default branch", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-inspect-detached-"));
       try {
-        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
         await execStrict("git", ["config", "user.email", "test@test.com"], {
+          envPolicy: "inherit",
           cwd: dir,
         });
-        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await execStrict("git", ["config", "user.name", "Test"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
         await writeFile(path.join(dir, "README.md"), "# Detached\n");
-        await execStrict("git", ["add", "-A"], { cwd: dir });
-        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
-        await execStrict("git", ["checkout", "--detach"], { cwd: dir });
+        await execStrict("git", ["add", "-A"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["commit", "-m", "Init"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["checkout", "--detach"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
 
         const result = await inspectLocalRepository(dir);
         assert.equal(result.currentBranch, undefined);
@@ -186,14 +219,24 @@ describe("Deterministic Inspection", () => {
     it("returns pending_setup when expectedRemote is configured but local repo has no remote", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-no-remote-"));
       try {
-        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
         await execStrict("git", ["config", "user.email", "test@test.com"], {
+          envPolicy: "inherit",
           cwd: dir,
         });
-        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await execStrict("git", ["config", "user.name", "Test"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
         await writeFile(path.join(dir, "README.md"), "# Test\n");
-        await execStrict("git", ["add", "-A"], { cwd: dir });
-        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+        await execStrict("git", ["add", "-A"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["commit", "-m", "Init"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
 
         const readiness = await evaluateRepositoryReadiness({
           id: "repo-1",
@@ -217,15 +260,28 @@ describe("Deterministic Inspection", () => {
     it("returns pending_setup when checkout is in detached HEAD state", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-detached-"));
       try {
-        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
         await execStrict("git", ["config", "user.email", "test@test.com"], {
+          envPolicy: "inherit",
           cwd: dir,
         });
-        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await execStrict("git", ["config", "user.name", "Test"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
         await writeFile(path.join(dir, "README.md"), "# Detached\n");
-        await execStrict("git", ["add", "-A"], { cwd: dir });
-        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
-        await execStrict("git", ["checkout", "--detach"], { cwd: dir });
+        await execStrict("git", ["add", "-A"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["commit", "-m", "Init"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["checkout", "--detach"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
 
         const readiness = await evaluateRepositoryReadiness({
           id: "repo-1",
@@ -247,14 +303,24 @@ describe("Deterministic Inspection", () => {
     it("evaluates ready vs pending setup projects", async () => {
       const dir = await mkdtemp(path.join(tmpdir(), "xf-readiness-"));
       try {
-        await execStrict("git", ["init", dir]);
+        await execStrict("git", ["init", dir], { envPolicy: "inherit" });
         await execStrict("git", ["config", "user.email", "test@test.com"], {
+          envPolicy: "inherit",
           cwd: dir,
         });
-        await execStrict("git", ["config", "user.name", "Test"], { cwd: dir });
+        await execStrict("git", ["config", "user.name", "Test"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
         await writeFile(path.join(dir, "README.md"), "# Ready");
-        await execStrict("git", ["add", "-A"], { cwd: dir });
-        await execStrict("git", ["commit", "-m", "Init"], { cwd: dir });
+        await execStrict("git", ["add", "-A"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
+        await execStrict("git", ["commit", "-m", "Init"], {
+          envPolicy: "inherit",
+          cwd: dir,
+        });
 
         const readyProject = validateProject({
           id: "ready-proj",
