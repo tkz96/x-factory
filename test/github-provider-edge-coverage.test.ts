@@ -7,6 +7,7 @@ import {
   verifyGitHubCredentials,
   verifyGitHubScopes,
 } from "../src/providers/github/verification.js";
+import { textResponse } from "./helpers/provider-test-helper.js";
 
 describe("github urls — extractFromGitHubUrl and resolveRepoCoordinates", () => {
   it("extracts coordinates from SSH urls", () => {
@@ -68,7 +69,7 @@ describe("github verification — edge coverage", () => {
 
   it("verifies unauthenticated public owner", async () => {
     const mockFetch: typeof fetch = (async () => {
-      return new Response("[]", { status: 200 });
+      return textResponse("[]", { status: 200 });
     }) as unknown as typeof fetch;
 
     const result = await verifyGitHubCredentials(
@@ -93,12 +94,12 @@ describe("github verification — edge coverage", () => {
       if (urlStr.includes("/user")) {
         const headers = new Headers();
         headers.set("x-oauth-scopes", "repo");
-        return new Response("{}", { status: 200, headers });
+        return textResponse("{}", { status: 200, headers });
       }
       if (urlStr.includes("/orgs/")) {
-        return new Response("Forbidden", { status: 403 });
+        return textResponse("Forbidden", { status: 403 });
       }
-      return new Response("[]", { status: 200 });
+      return textResponse("[]", { status: 200 });
     }) as unknown as typeof fetch;
 
     const result = await verifyGitHubCredentials(
