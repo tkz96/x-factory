@@ -26,7 +26,7 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
     }
   });
 
-  it("migrates incrementally from older schema (v3) to latest (v8) preserving existing data", () => {
+  it("migrates incrementally from older schema (v3) to latest (v9) preserving existing data", () => {
     const db = createDatabase({ path: ":memory:" });
     const allMigrations = loadMigrations();
 
@@ -59,11 +59,11 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
       );
     `).run();
 
-    // 3. Migrate incrementally to latest schema version 8
+    // 3. Migrate incrementally to latest schema version 9
     const step2 = runMigrations(db, allMigrations);
-    expect(step2.applied).toBe(5); // 4, 5, 6, 7, 8 applied
-    expect(step2.currentVersion).toBe(8);
-    expect(getSchemaVersion(db)).toBe(8);
+    expect(step2.applied).toBe(6); // 4, 5, 6, 7, 8, 9 applied
+    expect(step2.currentVersion).toBe(9);
+    expect(getSchemaVersion(db)).toBe(9);
 
     // 4. Verify pre-existing data was preserved completely
     const preservedRun = db
