@@ -211,9 +211,11 @@ export function getOpenApiSpec() {
           description:
             "Updates project settings, repositories, or issue tracker details. " +
             "A body carrying `connections` takes the normalized connection-update " +
-            "contract (#131): a missing or empty secret keeps the stored value, and " +
-            "`clearSecrets` names the secret fields to remove (applied before " +
-            "validation).",
+            "contract (#131, #187): the array REPLACES the project's connection set " +
+            "wholesale — connections it does not name are removed, together with " +
+            "their secret env entries — a missing or empty secret keeps the stored " +
+            "value, and `clearSecrets` names the secret fields to remove (applied " +
+            "before validation).",
           operationId: "updateProject",
           parameters: [
             {
@@ -253,7 +255,7 @@ export function getOpenApiSpec() {
             },
             "409": {
               description:
-                "Semantic validation failure for a connection update (unknown provider, provider config schema, incompatible role, cleared required secret)",
+                "Semantic validation failure for a connection update (unknown provider, provider config schema, incompatible role or env-key conflict, missing role after replacement, cleared required secret)",
               content: {
                 "application/json": {
                   schema: {
@@ -1578,7 +1580,10 @@ export function getOpenApiSpec() {
           type: "object",
           required: ["connections"],
           description:
-            "Connection update contract (#131). A missing or empty secret value " +
+            "Connection update contract (#131, #187). The connections array " +
+            "REPLACES the project's connection set wholesale; connections it does " +
+            "not name are removed with their secret env entries. A missing or " +
+            "empty secret value " +
             "keeps the stored secret; `clearSecrets` removes stored secrets and is " +
             "applied before validation, so clearing a required secret fails with " +
             "`fieldErrors`.",

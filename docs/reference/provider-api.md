@@ -467,8 +467,9 @@ Review (#146):
   once when both roles are missing, so one rejection teaches both gaps). A
   project the post-creation integrity surface would immediately flag as broken
   therefore cannot be created in the first place. The same rule applies to a
-  connection update, checked against the **merged** result. A connections payload
-  covering only ONE role is rejected on create **and** on update — a tracker-only
+  connection update, checked against the **replacement** result (#187). A
+  connections payload covering only ONE role is rejected on create **and** on
+  update — a tracker-only
   set reports `MISSING_GIT_HOST_CONNECTION` and a git-host-only set reports
   `MISSING_TRACKER_CONNECTION`, neither is silently completed.
 - **A body with no `connections` array must name a usable tracker too.** Such a
@@ -559,7 +560,8 @@ write through `createProject`, after the tracker gate above.
 | Unknown provider id | 409 | `{ formErrors: ["UNKNOWN_PROVIDER"] }` |
 | Provider config schema | 409 | `{ fieldErrors: { field: "REQUIRED" \| "INVALID" } }` |
 | Role/capability mismatch, duplicate provider, knowledge-only repositories | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
-| Connection set covers only one role (create), the merged set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
+| Connection set covers only one role (create), the replacement set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
+| Two distinct providers in one set declare the same env key with different values (create or update) | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
 | Persistence failure | 500 | `{ error }` |
 
@@ -597,9 +599,17 @@ covers both outcomes against the shipped one.
 
 ### Secret update semantics
 
-`PATCH`/`PUT /api/projects/:id` with a `connections` array follows the same
-contract:
+`PATCH`/`PUT /api/projects/:id` with a `connections` array runs the same
+connection-set write plan as creation (#187), with **replace and remove**
+semantics:
 
+- The request's `connections` array **is** the project's complete new
+  connection set. Each connection replaces a stored connection of the same
+  provider wholesale; a stored connection whose provider is not named in the
+  request is **removed**, and its secret env entries are deleted along with any
+  explicitly cleared keys. This is what makes a connection swap work — an
+  update that sends GitHub covering both roles in place of a Jira tracker plus
+  an Azure git host succeeds, and the Jira and Azure secrets leave env storage.
 - A missing or empty secret field **keeps** the stored secret (an empty string is
   never overloaded to mean delete).
 - A non-empty value **replaces** it.
@@ -607,11 +617,20 @@ contract:
   applied **before** validation, so clearing a required secret correctly fails
   with `{ fieldErrors: { <field>: "REQUIRED" } }` and writes nothing.
 - Unknown `clearSecrets` names fail with `{ fieldErrors: { <name>: "INVALID" } }`.
-- The **merged** connection set (the project's existing connections plus the
-  update, which replaces a connection wholesale) must still cover both roles: an
-  update that would leave the project without a tracker or without a git host is
+- The **replacement** connection set must still cover both roles: an update
+  that would leave the project without a tracker or without a git host is
   rejected with the same `formErrors` codes as creation, before any secret is
-  written.
+  written. Two distinct providers in the set declaring the same env key with
+  different values is likewise a rejection
+  (`{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }`), never a silent overwrite —
+  on create and update alike.
+- Ordered writes are identical to creation: secrets first, removals second, the
+  project record last as the commit point.
+
+Both paths run the one plan in `src/services/connection-write-plan.ts`, whose
+record store and env store are injectable together as one `ProjectWriteStore` —
+failure-injection tests go through that store, never through `process.env` or
+file permissions.
 
 ### Known limitation
 
