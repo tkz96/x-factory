@@ -124,7 +124,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
       title: "Ticket 1",
     };
 
-    commandRepo.claimPendingCommands("worker-deliv", 10000);
+    commandRepo.claimPendingCommands("worker-deliv", 10000, 30_000);
 
     finalizeDeliver(
       db,
@@ -198,7 +198,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
 
     // Worker claims and processes deliver command
     const claimed = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === cmd.id);
     if (claimed) await worker.processCommand(claimed);
     else await worker.processCommand(cmd);

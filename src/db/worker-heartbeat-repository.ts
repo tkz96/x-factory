@@ -107,8 +107,8 @@ export class WorkerHeartbeatRepository {
   /**
    * Retrieves active workers that heartbeated within the specified TTL.
    */
-  getActiveWorkers(ttlMs = 30000): WorkerHeartbeatRecord[] {
-    const cutoff = new Date(Date.now() - ttlMs).toISOString();
+  getActiveWorkers(ttlMs: number, nowMs = Date.now()): WorkerHeartbeatRecord[] {
+    const cutoff = new Date(nowMs - ttlMs).toISOString();
 
     const rows = this.db
       .prepare<WorkerHeartbeatRow, [string]>(
@@ -122,8 +122,8 @@ export class WorkerHeartbeatRepository {
   /**
    * Determines if at least one worker has heartbeated within the TTL.
    */
-  isReady(ttlMs = 30000): boolean {
-    const cutoff = new Date(Date.now() - ttlMs).toISOString();
+  isReady(ttlMs: number, nowMs = Date.now()): boolean {
+    const cutoff = new Date(nowMs - ttlMs).toISOString();
 
     const row = this.db
       .prepare<{ cnt: number }, [string]>(
@@ -137,8 +137,8 @@ export class WorkerHeartbeatRepository {
   /**
    * Determines if a specific worker has heartbeated within the TTL.
    */
-  isWorkerActive(workerId: string, ttlMs = 30000): boolean {
-    const cutoff = new Date(Date.now() - ttlMs).toISOString();
+  isWorkerActive(workerId: string, ttlMs: number, nowMs = Date.now()): boolean {
+    const cutoff = new Date(nowMs - ttlMs).toISOString();
 
     const row = this.db
       .prepare<{ cnt: number }, [string, string]>(

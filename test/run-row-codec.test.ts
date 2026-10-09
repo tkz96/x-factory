@@ -517,6 +517,6 @@ describe("no repository method takes a transaction-DB parameter (#179)", () => {
     // @ts-expect-error — no repository method takes a transaction-DB parameter (#179).
     assert.deepEqual(stageAttempts.listForRun("run-1", db), []);
     // @ts-expect-error — no repository method takes a transaction-DB parameter (#179).
-    assert.deepEqual(heartbeats.getActiveWorkers(30000, db), []);
+    assert.deepEqual(heartbeats.getActiveWorkers(30000, Date.now(), db), []);
   });
 });

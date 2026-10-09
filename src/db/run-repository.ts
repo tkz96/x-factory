@@ -385,6 +385,8 @@ export class RunRepository {
       expectedRevision?: number | undefined;
       event?: RunEventPayload | undefined;
       finishedAt?: string | null | undefined;
+      /** Timestamp for the transition and its event; defaults to the wall clock. */
+      now?: string | undefined;
     },
   ): { run: RunRecord; event: EventRecord | null } {
     // 1. Verify transition legality against FSM (XFM-08)
@@ -417,7 +419,7 @@ export class RunRepository {
         );
       }
 
-      const now = new Date().toISOString();
+      const now = options?.now ?? new Date().toISOString();
       const newRevision = current.revision + 1;
       const finishedAt =
         options?.finishedAt !== undefined

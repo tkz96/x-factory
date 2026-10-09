@@ -44,6 +44,7 @@ import {
   PROVIDER_REGISTRY,
   type ProviderRegistry,
 } from "../providers/registry.js";
+import type { ProjectWriteStore } from "../services/connection-write-plan.js";
 import {
   assertLegacyTrackerUsable,
   createProjectFromConnections,
@@ -80,6 +81,7 @@ async function handleGetProjects(req: Request): Promise<Response> {
 async function handleCreateProject(
   req: Request,
   registry: ProviderRegistry,
+  store?: ProjectWriteStore | undefined,
 ): Promise<Response> {
   return withValidatedBody(
     req,
@@ -91,7 +93,7 @@ async function handleCreateProject(
         // through it; everything else keeps the legacy configuration path.
         if (isConnectionsProjectInput(body)) {
           return jsonResponse(
-            await createProjectFromConnections(body, { registry }),
+            await createProjectFromConnections(body, { registry, store }),
             201,
           );
         }
@@ -126,6 +128,7 @@ async function handleUpdateProject(
   projectId: string,
   req: Request,
   registry: ProviderRegistry,
+  store?: ProjectWriteStore | undefined,
 ): Promise<Response> {
   const raw = await parseJsonBody(req);
   if (!raw) {
@@ -146,7 +149,7 @@ async function handleUpdateProject(
       const saved = await updateProjectConnectionsById(
         projectId,
         validated.data,
-        { registry },
+        { registry, store },
       );
       return jsonResponse(saved);
     });
@@ -476,13 +479,14 @@ async function handleProjectMemberCrud(
   id: string,
   req: Request,
   registry: ProviderRegistry,
+  store?: ProjectWriteStore | undefined,
 ): Promise<Response | null> {
   switch (method) {
     case "GET":
       return handleGetProject(id);
     case "PATCH":
     case "PUT":
-      return handleUpdateProject(id, req, registry);
+      return handleUpdateProject(id, req, registry, store);
     case "DELETE":
       return handleDeleteProject(id);
     default:
@@ -498,6 +502,7 @@ async function handleProjectMemberRoute(
   partsCount: number,
   req: Request,
   registry: ProviderRegistry,
+  store?: ProjectWriteStore | undefined,
 ): Promise<Response | null> {
   if (action === "tickets" && method === "GET") {
     return handleGetProjectTickets(id, registry);
@@ -520,7 +525,7 @@ async function handleProjectMemberRoute(
     }
   }
   if (!action && partsCount === 2) {
-    return handleProjectMemberCrud(method, id, req, registry);
+    return handleProjectMemberCrud(method, id, req, registry, store);
   }
   return null;
 }
@@ -786,6 +791,7 @@ async function routeProjectsRequest(
   let partsCount: number;
   let req: Request;
   const registry = ctx?.providerRegistry ?? PROVIDER_REGISTRY;
+  const store = ctx?.projectWriteStore;
 
   if (typeof subactionOrPartsCount === "number") {
     subaction = undefined;
@@ -828,7 +834,7 @@ async function routeProjectsRequest(
 
   if (!id) {
     if (method === "GET") return handleGetProjects(req);
-    if (method === "POST") return handleCreateProject(req, registry);
+    if (method === "POST") return handleCreateProject(req, registry, store);
     return null;
   }
 
@@ -845,5 +851,6 @@ async function routeProjectsRequest(
     partsCount,
     req,
     registry,
+    store,
   );
 }

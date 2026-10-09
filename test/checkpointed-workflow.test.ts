@@ -225,6 +225,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     const pendingCommands = commandRepo.claimPendingCommands(
       "worker-deliver-test",
       30000,
+      30_000,
     );
     expect(pendingCommands.length).toBe(1);
     const cmd = pendingCommands[0];
@@ -249,7 +250,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     });
 
     const claimed = commandRepo
-      .claimPendingCommands(worker.workerId, 10000)
+      .claimPendingCommands(worker.workerId, 10000, 30_000)
       .find((c) => c.id === cmd.id);
     if (claimed) await worker.processCommand(claimed);
     else await worker.processCommand(cmd);

@@ -164,9 +164,8 @@ export class StageAttemptRepository {
     id: string,
     status: "failed" | "cancelled",
     error: string,
+    now = new Date().toISOString(),
   ): StageAttemptRecord {
-    const now = new Date().toISOString();
-
     const query = `
       UPDATE stage_attempts
       SET status = $status,
@@ -201,8 +200,8 @@ export class StageAttemptRepository {
     return rowToRecord(row);
   }
 
-  recordFailure(id: string, error: string): StageAttemptRecord {
-    return this.recordTerminalStatus(id, "failed", error);
+  recordFailure(id: string, error: string, now?: string): StageAttemptRecord {
+    return this.recordTerminalStatus(id, "failed", error, now);
   }
 
   /**

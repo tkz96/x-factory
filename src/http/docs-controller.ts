@@ -1,21 +1,15 @@
 // src/http/docs-controller.ts — In-app Diátaxis documentation REST endpoints (XFM-53).
 
 import path from "node:path";
+import type {
+  DocCategory,
+  DocDetailResponse,
+  DocSearchMatch,
+  DocSearchResult,
+  DocsCatalogResponse,
+  DocsSearchResponse,
+} from "../shared/types.js";
 import { errorResponse, jsonResponse } from "./responses.js";
-
-export interface DocMetadata {
-  slug: string;
-  title: string;
-  description: string;
-  path: string;
-}
-
-export interface DocCategory {
-  id: string;
-  name: string;
-  description: string;
-  docs: DocMetadata[];
-}
 
 export const DOC_CATALOG: DocCategory[] = [
   {
@@ -104,28 +98,6 @@ export const DOC_CATALOG: DocCategory[] = [
     ],
   },
 ];
-
-export interface DocSearchMatch {
-  heading: string;
-  headingId: string;
-  snippet: string;
-  matchCount: number;
-}
-
-export interface DocSearchResult {
-  category: string;
-  categoryName: string;
-  slug: string;
-  title: string;
-  totalMatches: number;
-  sections: DocSearchMatch[];
-}
-
-export interface DocsSearchResponse {
-  query: string;
-  totalMatches: number;
-  results: DocSearchResult[];
-}
 
 interface IndexedSection {
   heading: string;
@@ -471,7 +443,8 @@ export async function handleDocsRoute(
 
   // 2. Catalog listing: GET /api/docs
   if (!category) {
-    return jsonResponse({ categories: DOC_CATALOG });
+    const body: DocsCatalogResponse = { categories: DOC_CATALOG };
+    return jsonResponse(body);
   }
 
   // 3. Specific doc: GET /api/docs/:category/:slug
@@ -516,11 +489,12 @@ export async function handleDocsRoute(
 
   const markdown = await file.text();
 
-  return jsonResponse({
+  const body: DocDetailResponse = {
     category,
     slug,
     title: docMetadata.title,
     description: docMetadata.description,
     markdown,
-  });
+  };
+  return jsonResponse(body);
 }

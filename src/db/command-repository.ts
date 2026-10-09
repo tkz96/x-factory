@@ -106,7 +106,8 @@ export class CommandRepository {
         if (existing.status === "failed") {
           // Retry failed command: reset to pending
           const updated = this.db
-            .prepare<CommandRow, { $key: string; $now: string }>(`
+            .prepare<CommandRow, { $key: string; $now: string }>(
+              `
               UPDATE run_commands
               SET status = 'pending',
                   attempts = 0,
@@ -118,7 +119,8 @@ export class CommandRepository {
                   processed_at = NULL
               WHERE idempotency_key = $key AND status = 'failed'
               RETURNING *;
-            `)
+            `,
+            )
             .get({ $key: input.idempotencyKey, $now: now });
           if (updated) return rowToRecord(updated);
         }
@@ -142,7 +144,8 @@ export class CommandRepository {
           $maxAttempts: number;
           $now: string;
         }
-      >(`
+      >(
+        `
         INSERT INTO run_commands (
           id, run_id, command, payload, idempotency_key, target_worker_id,
           status, attempts, max_attempts, created_at
@@ -153,7 +156,8 @@ export class CommandRepository {
         ON CONFLICT(idempotency_key) DO UPDATE SET
           attempts = attempts -- no-op, returns row
         RETURNING *;
-      `)
+      `,
+      )
       .get({
         $id: id,
         $runId: input.runId,
@@ -195,28 +199,53 @@ export class CommandRepository {
   }
 
   /**
+   * The one place a claimed command with a spent retry budget and an expired
+   * lease becomes failed. Returns how many commands it failed.
+   */
+  failExpiredCommands(now: string): number {
+    return this.db
+      .prepare(
+        `
+        UPDATE run_commands
+        SET status = 'failed',
+            worker_id = NULL,
+            lease_until = NULL,
+            error = 'Command lease expired; retries exhausted',
+            processed_at = $now
+        WHERE status = 'claimed' AND lease_until < $now AND attempts >= max_attempts;
+      `,
+      )
+      .run({ $now: now }).changes;
+  }
+
+  /**
    * Claims all eligible pending commands for the given worker, resolving stale target workers.
    */
   claimPendingCommands(
     workerId: string,
-    leaseDurationMs = 30000,
-    heartbeatTtlMs = 30000,
+    leaseDurationMs: number,
+    heartbeatTtlMs: number,
+    nowMs = Date.now(),
   ): CommandRecord[] {
-    const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
     const cutoff = new Date(nowMs - heartbeatTtlMs).toISOString();
 
+    // Expired commands with no retries left are failed first by the lease
+    // module (`failExpiredCommands`), so the claim below never sees them.
+
     // 1. Resolve stale targeted commands (where target is a different worker)
     const pendingTargeted = this.db
-      .prepare<CommandRow & { target_heartbeat: string | null }, [string]>(`
+      .prepare<CommandRow & { target_heartbeat: string | null }, [string]>(
+        `
         SELECT c.*, w.last_heartbeat as target_heartbeat
         FROM run_commands c
         LEFT JOIN worker_heartbeats w ON c.target_worker_id = w.worker_id
         WHERE c.status = 'pending'
           AND c.target_worker_id IS NOT NULL
           AND c.target_worker_id != ?;
-      `)
+      `,
+      )
       .all(workerId);
 
     for (const cmd of pendingTargeted) {
@@ -224,25 +253,29 @@ export class CommandRepository {
       if (isDead) {
         if (cmd.command === "stop") {
           this.db
-            .prepare(`
+            .prepare(
+              `
               UPDATE run_commands
               SET status = 'completed',
                   result = 'Target worker dead; run already stopped',
                   processed_at = $now
               WHERE id = $id AND status = 'pending';
-            `)
+            `,
+            )
             .run({ $id: cmd.id, $now: now });
         } else if (cmd.command !== "deliver") {
           // Leftover command types from versions that still had steering
           // (#167) fail cleanly instead of lingering unclaimable.
           this.db
-            .prepare(`
+            .prepare(
+              `
               UPDATE run_commands
               SET status = 'failed',
                   error = 'Target worker dead; command discarded',
                   processed_at = $now
               WHERE id = $id AND status = 'pending';
-            `)
+            `,
+            )
             .run({ $id: cmd.id, $now: now });
         }
       }
@@ -306,18 +339,24 @@ export class CommandRepository {
   /**
    * Marks a command as completed.
    */
-  completeCommand(id: string, workerId: string, result?: unknown): boolean {
-    const now = new Date().toISOString();
+  completeCommand(
+    id: string,
+    workerId: string,
+    result?: unknown,
+    now = new Date().toISOString(),
+  ): boolean {
     const serializedResult = serializeJsonColumn(result);
 
     const res = this.db
-      .prepare(`
+      .prepare(
+        `
         UPDATE run_commands
         SET status = 'completed',
             result = $result,
             processed_at = $now
         WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
-      `)
+      `,
+      )
       .run({
         $id: id,
         $workerId: workerId,
@@ -330,14 +369,18 @@ export class CommandRepository {
   /**
    * Marks a command as failed.
    */
-  failCommand(id: string, workerId: string, error: string): boolean {
-    const now = new Date().toISOString();
-
+  failCommand(
+    id: string,
+    workerId: string,
+    error: string,
+    now = new Date().toISOString(),
+  ): boolean {
     const cmd = this.getCommand(id);
     if (!cmd) return false;
 
     const res = this.db
-      .prepare(`
+      .prepare(
+        `
         UPDATE run_commands
         SET status = 'failed',
             worker_id = NULL,
@@ -345,7 +388,8 @@ export class CommandRepository {
             error = $error,
             processed_at = $now
         WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
-      `)
+      `,
+      )
       .run({
         $id: id,
         $workerId: workerId,
@@ -358,16 +402,22 @@ export class CommandRepository {
   /**
    * Renews the lease on a claimed command.
    */
-  renewLease(id: string, workerId: string, leaseDurationMs: number): boolean {
-    const nowMs = Date.now();
+  renewLease(
+    id: string,
+    workerId: string,
+    leaseDurationMs: number,
+    nowMs = Date.now(),
+  ): boolean {
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
     const res = this.db
-      .prepare(`
+      .prepare(
+        `
         UPDATE run_commands
         SET lease_until = $leaseUntil
         WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
-      `)
+      `,
+      )
       .run({
         $id: id,
         $workerId: workerId,

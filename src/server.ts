@@ -24,6 +24,7 @@ import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
 import type { ProviderRegistry } from "./providers/registry.js";
+import type { ProjectWriteStore } from "./services/connection-write-plan.js";
 import { emitStructuredLog } from "./shared/correlation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -69,6 +70,7 @@ export function startServer(
   customPublicDir?: string,
   customDb?: Database,
   customProviderRegistry?: ProviderRegistry,
+  customProjectWriteStore?: ProjectWriteStore,
 ): ServerInstance {
   const publicDir = customPublicDir ?? getPublicDir();
   let db: Database;
@@ -89,6 +91,7 @@ export function startServer(
   const apiContext: ApiContext = {
     repos: createRepositories(db),
     providerRegistry: customProviderRegistry,
+    projectWriteStore: customProjectWriteStore,
   };
 
   // Non-destructive startup check for orphaned worktrees

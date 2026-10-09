@@ -15,6 +15,7 @@ import {
   unregisterWorker,
 } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
+import { LeaseManager } from "../src/lease.js";
 import {
   extractRequestId,
   formatStructuredLog,
@@ -183,14 +184,14 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   it("unregisters workers and supports test heartbeat repo injection", () => {
     registerWorkerHeartbeat(repos.heartbeats, "worker-test-unreg");
     expect(
-      getActiveWorkers(repos.heartbeats).some(
+      getActiveWorkers(new LeaseManager(repos)).some(
         (w) => w.workerId === "worker-test-unreg",
       ),
     ).toBe(true);
 
     unregisterWorker(repos.heartbeats, "worker-test-unreg");
     expect(
-      getActiveWorkers(repos.heartbeats).some(
+      getActiveWorkers(new LeaseManager(repos)).some(
         (w) => w.workerId === "worker-test-unreg",
       ),
     ).toBe(false);

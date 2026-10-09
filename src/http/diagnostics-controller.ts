@@ -6,6 +6,11 @@ import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
+import { LeaseManager } from "../lease.js";
+import type {
+  DiagnosticsResponse,
+  ReadinessResponse,
+} from "../shared/types.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -19,30 +24,6 @@ export function handleHealthRoute(): Response {
     version: "0.1.0",
     timestamp: new Date().toISOString(),
   });
-}
-
-export interface ReadinessCheckResult {
-  ready?: boolean | undefined;
-  status: "ready" | "unavailable";
-  database: {
-    status: "ready" | "unavailable";
-    version?: number | undefined;
-    journalMode?: string | undefined;
-    error?: string | undefined;
-  };
-  worker: {
-    status: "ready" | "unavailable";
-    activeWorkers: number;
-    reason?: string | undefined;
-  };
-  checks?:
-    | Array<{
-        name: string;
-        status: "pass" | "warn" | "fail";
-        message: string;
-      }>
-    | undefined;
-  timestamp: string;
 }
 
 function computeReadinessStatus(repos: Repositories) {
@@ -60,13 +41,13 @@ function computeReadinessStatus(repos: Repositories) {
     dbError = err instanceof Error ? err.message : String(err);
   }
 
-  const activeWorkers = getActiveWorkers(repos.heartbeats);
+  const activeWorkers = getActiveWorkers(new LeaseManager(repos));
   const workerReady = activeWorkers.length > 0;
 
   const isReady =
     dbReady && schemaVersion >= getLatestMigrationVersion() && workerReady;
 
-  const result: ReadinessCheckResult = {
+  const result: ReadinessResponse = {
     ready: isReady,
     status: isReady ? "ready" : "unavailable",
     database: {
@@ -131,14 +112,14 @@ export function handleDiagnosticsRoute(repos: Repositories): Response {
   const jobRepo = repos.jobs;
 
   const staleJobs = jobRepo.findStaleClaimedJobs();
-  const activeWorkers = getActiveWorkers(repos.heartbeats);
+  const activeWorkers = getActiveWorkers(new LeaseManager(repos));
 
-  return jsonResponse({
+  const body: DiagnosticsResponse = {
     status: "ok",
     system: {
       uptime: Math.floor(process.uptime()),
       nodeVersion: process.version,
-      memory: process.memoryUsage(),
+      memory: { ...process.memoryUsage() },
     },
     database: {
       status: "healthy",
@@ -147,10 +128,13 @@ export function handleDiagnosticsRoute(repos: Repositories): Response {
       jobs: { ...repos.diagnostics.countJobs(), stale: staleJobs.length },
     },
     worker: {
-      status: isWorkerReady(repos.heartbeats) ? "healthy" : "unavailable",
+      status: isWorkerReady(new LeaseManager(repos))
+        ? "healthy"
+        : "unavailable",
       activeCount: activeWorkers.length,
       fleet: activeWorkers,
     },
     timestamp: new Date().toISOString(),
-  });
+  };
+  return jsonResponse(body);
 }

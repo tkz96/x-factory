@@ -4,12 +4,22 @@ import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
-import type { RunStatus } from "../shared/types.js";
+import type {
+  AbandonRunResponse,
+  ChatWithRunResponse,
+  CreateRunResponse,
+  PrRunResponse,
+  ResumeRunResponse,
+  RunStatus,
+  StopRunResponse,
+  TransitionRunResponse,
+} from "../shared/types.js";
 import {
   catchHttpErrors,
   errorResponse,
   formatSSEMessage,
   jsonResponse,
+  parseJsonBody,
   toWireEvent,
   withValidatedBody,
 } from "./responses.js";
@@ -70,7 +80,7 @@ async function handleCreateRun(
           description,
           branch,
         );
-        return jsonResponse(run, 201);
+        return jsonResponse<CreateRunResponse>(run, 201);
       }),
     "Invalid JSON in request body.",
   );
@@ -261,7 +271,7 @@ async function handleChatMessage(
     (body) =>
       catchHttpErrors(async () => {
         const result = await runs.chatWithRun(repos, runId, body.message);
-        return jsonResponse(result);
+        return jsonResponse<ChatWithRunResponse>(result);
       }),
     "Invalid JSON in request body.",
   );
@@ -271,10 +281,12 @@ async function handleStopRun(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
-  return catchHttpErrors(async () => {
-    await runs.stopRun(repos, runId);
-    return jsonResponse({ ok: true });
-  });
+  return catchHttpErrors(async () =>
+    jsonResponse<StopRunResponse>({
+      ok: true,
+      run: await runs.stopRun(repos, runId),
+    }),
+  );
 }
 
 async function handleTransitions(
@@ -293,7 +305,7 @@ async function handleTransitions(
           body.action,
           body.payload,
         );
-        return jsonResponse({ ok: true, run });
+        return jsonResponse<TransitionRunResponse>({ ok: true, run });
       }),
     "Invalid JSON in request body.",
   );
@@ -305,7 +317,7 @@ async function handleCreatePR(
 ): Promise<Response> {
   return catchHttpErrors(async () => {
     const result = await runs.createPR(repos, runId);
-    return jsonResponse(result);
+    return jsonResponse<PrRunResponse>(result);
   });
 }
 
@@ -315,17 +327,23 @@ async function handleResumeRun(
 ): Promise<Response> {
   return catchHttpErrors(async () => {
     const run = await runs.resumeRun(repos, runId);
-    return jsonResponse({ ok: true, run });
+    return jsonResponse<ResumeRunResponse>({ ok: true, run });
   });
 }
 
 async function handleAbandonRun(
   repos: Repositories,
+  req: Request,
   runId: string,
 ): Promise<Response> {
   return catchHttpErrors(async () => {
-    const run = await runs.abandonRun(repos, runId);
-    return jsonResponse({ ok: true, run });
+    // The reason body is optional (#182): older clients POST with no body at
+    // all, and a body that fails to parse simply abandons without a reason.
+    const parsed = await parseJsonBody(req);
+    const reason =
+      parsed && typeof parsed.reason === "string" ? parsed.reason : undefined;
+    const run = await runs.abandonRun(repos, runId, reason);
+    return jsonResponse<AbandonRunResponse>({ ok: true, run });
   });
 }
 
@@ -352,7 +370,7 @@ async function handleRunAction(
       case "resume":
         return handleResumeRun(repos, runId);
       case "abandon":
-        return handleAbandonRun(repos, runId);
+        return handleAbandonRun(repos, req, runId);
     }
   }
   return null;
