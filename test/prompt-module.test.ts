@@ -212,7 +212,7 @@ describe("Prompt module (src/prompts.ts)", () => {
     it("renders the same ticket and acceptance criteria for the loop, repair and review prompts", () => {
       const loop = buildRalphPrompt(ticket, "1. Toggle", project);
       expect(loop).toContain(
-        "## Ticket: #T-9 — Ship dark mode\nKeep the toggle on the settings page.\n### Acceptance Criteria:\n- Must not break the build\n- Must add tests",
+        "## Ticket: #T-9 — Ship dark mode\nKeep the toggle on the settings page.\n\n### Acceptance Criteria:\n- Must not break the build\n- Must add tests",
       );
 
       const repair = buildRepairPrompt(ticket, "1. Toggle", verification, 1);
@@ -227,7 +227,26 @@ describe("Prompt module (src/prompts.ts)", () => {
         verification,
       );
       expect(review).toContain(
-        "## Ticket\n#T-9 — Ship dark mode\nDescription: Keep the toggle on the settings page.\n### Acceptance Criteria:\n1. Must not break the build\n2. Must add tests",
+        "## Ticket\n#T-9 — Ship dark mode\nDescription: Keep the toggle on the settings page.\n\n### Acceptance Criteria:\n1. Must not break the build\n2. Must add tests",
+      );
+    });
+
+    it("renders a blank line before the criteria when the ticket has no description", () => {
+      const bare: Ticket = { ...ticket, description: "" };
+
+      expect(buildRalphPrompt(bare, "1. Toggle", project)).toContain(
+        "## Ticket: #T-9 — Ship dark mode\n\n### Acceptance Criteria:\n- Must not break the build",
+      );
+
+      expect(
+        buildReviewPrompt(
+          bare,
+          "1. Toggle",
+          "diff --git a/src/theme.ts",
+          verification,
+        ),
+      ).toContain(
+        "## Ticket\n#T-9 — Ship dark mode\n\n### Acceptance Criteria:\n1. Must not break the build",
       );
     });
 
