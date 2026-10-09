@@ -32,6 +32,7 @@ import {
   REQUEUE_ROUTE,
   RESTART_ROUTE,
   resumeRouteFor,
+  resumeStageName,
 } from "./workflow.js";
 
 let hydrationPromise: Promise<void> | null = null;
@@ -539,8 +540,8 @@ export async function resumeRun(id: string): Promise<Run> {
     verifyRecoveryRequired(runRepo, id, db, "resume");
 
     const attempts = stageAttemptRepo.listForRun(id, db);
-    const lastStage = attempts[attempts.length - 1]?.stage;
-    const route = resumeRouteFor(lastStage);
+    const attemptStages = attempts.map((attempt) => attempt.stage);
+    const route = resumeRouteFor(attemptStages);
 
     if (route.command) {
       // A completed deliver command means the PR already exists. Resuming into
@@ -565,7 +566,7 @@ export async function resumeRun(id: string): Promise<Run> {
           type: "status",
           payload: {
             status: route.to,
-            text: `Run resumed by operator into stage ${lastStage ?? "prepare"}.`,
+            text: `Run resumed by operator into stage ${resumeStageName(attemptStages)}.`,
           },
         },
       },

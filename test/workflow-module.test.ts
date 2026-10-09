@@ -221,6 +221,39 @@ describe("Workflow module (#181)", () => {
     });
   }
 
+  it('resume of a run whose last recorded stage is the legacy "preparing" returns it to preparing', async () => {
+    const { db, runRepo, jobRepo, stageAttemptRepo, run } =
+      setup("recovery_required");
+    setDbForTesting(db);
+    stageAttemptRepo.recordStart(run.id, "preparing", 1);
+
+    const resumed = await resumeRun(run.id);
+
+    expect(resumed.status).toBe("preparing");
+    expect(runRepo.get(run.id)?.status).toBe("preparing");
+    expect(
+      jobRepo.listJobsForRun(run.id).filter((j) => j.stage === "prepare")
+        .length,
+    ).toBe(1);
+  });
+
+  it("resume skips a newer pi_checkpoint attempt and resumes the execute stage before it", async () => {
+    const { db, runRepo, jobRepo, stageAttemptRepo, run } =
+      setup("recovery_required");
+    setDbForTesting(db);
+    stageAttemptRepo.recordStart(run.id, "execute", 1);
+    stageAttemptRepo.recordStart(run.id, "pi_checkpoint", 1);
+
+    const resumed = await resumeRun(run.id);
+
+    expect(resumed.status).toBe("executing");
+    expect(runRepo.get(run.id)?.status).toBe("executing");
+    expect(
+      jobRepo.listJobsForRun(run.id).filter((j) => j.stage === "execute")
+        .length,
+    ).toBe(1);
+  });
+
   it("resume of a run whose last recorded stage is unknown is refused with a 409", async () => {
     const { db, runRepo, stageAttemptRepo, run } = setup("recovery_required");
     setDbForTesting(db);

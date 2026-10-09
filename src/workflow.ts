@@ -74,28 +74,48 @@ export const RESUME_ROUTES: Readonly<Record<WorkflowStage, ResumeRoute>> = {
 export const LEGACY_STAGE_ALIASES: Readonly<
   Record<LegacyStage, WorkflowStage>
 > = {
+  preparing: "prepare",
   verify: "execute",
   implement: "execute",
 };
 
-export type LegacyStage = "verify" | "implement";
+export type LegacyStage = "preparing" | "verify" | "implement";
 
 function isLegacyStage(value: string): value is LegacyStage {
   return Object.hasOwn(LEGACY_STAGE_ALIASES, value);
 }
 
 /**
- * The resume target for the stage of a run's last attempt. A run with no attempt restarts at
- * prepare. A legacy stage name resumes as its alias. Any other unknown stage is refused, not
- * guessed at.
+ * stage_attempts rows written by executors that no longer exist (the pi_checkpoint executor
+ * was removed). They are not workflow stages and are skipped when choosing what to resume.
  */
-export function resumeRouteFor(lastStage: string | undefined): ResumeRoute {
+export const RETIRED_ATTEMPT_STAGES: readonly string[] = ["pi_checkpoint"];
+
+/**
+ * The resume target for a run, given the stage names of its stage_attempts in order. The
+ * newest attempt whose stage is not retired decides. A run with no such attempt restarts at
+ * prepare. A legacy name resumes as its alias. Any other unknown stage is refused, not guessed.
+ */
+export function resumeRouteFor(attemptStages: readonly string[]): ResumeRoute {
+  const lastStage = attemptStages
+    .filter((stage) => !RETIRED_ATTEMPT_STAGES.includes(stage))
+    .at(-1);
   if (lastStage === undefined) return RESUME_ROUTES.prepare;
   if (isWorkflowStage(lastStage)) return RESUME_ROUTES[lastStage];
-  if (isLegacyStage(lastStage))
+  if (isLegacyStage(lastStage)) {
     return RESUME_ROUTES[LEGACY_STAGE_ALIASES[lastStage]];
+  }
   throw new ConflictError(
     `Cannot resume: no resume route for stage "${lastStage}".`,
+  );
+}
+
+/** The stage a resumed run re-enters, for the operator-facing event text. */
+export function resumeStageName(attemptStages: readonly string[]): string {
+  return (
+    attemptStages
+      .filter((stage) => !RETIRED_ATTEMPT_STAGES.includes(stage))
+      .at(-1) ?? "prepare"
   );
 }
 
