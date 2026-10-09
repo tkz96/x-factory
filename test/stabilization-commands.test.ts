@@ -1,7 +1,11 @@
 // test/stabilization-commands.test.ts — Unit tests for command repository, leasing, idempotency, and heartbeats (v5.5).
 
 import { Database } from "bun:sqlite";
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import {
   type CommandRecord,
   CommandRepository,
@@ -12,12 +16,20 @@ import { RunRepository } from "../src/db/run-repository.js";
 import { WorkerHeartbeatRepository } from "../src/db/worker-heartbeat-repository.js";
 import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { createTestRepositories } from "./helpers/composition.js";
 import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 function setupTest() {
   const db = new Database(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
   runMigrations(db);
+  repos = createRepositories(db);
 
   const runRepo = new RunRepository(db);
   const commandRepo = new CommandRepository(db);
@@ -263,25 +275,15 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
   // Test 10: Create PR atomicity & deduplication
   it("createPR returns completed if PR already exists, or queued if deliver command pending", async () => {
-    const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
+    const { commandRepo, run } = setupTest();
 
     // First createPR call queues command
-    const res1 = await createPR(run.id, {
-      db,
-      runRepo,
-      commandRepo,
-      eventRepo,
-    });
+    const res1 = await createPR(repos, run.id);
     expect(res1.ok).toBe(true);
     expect(res1.queued).toBe(true);
 
     // Second concurrent call sees pending command and returns queued without duplicates
-    const res2 = await createPR(run.id, {
-      db,
-      runRepo,
-      commandRepo,
-      eventRepo,
-    });
+    const res2 = await createPR(repos, run.id);
     expect(res2.ok).toBe(true);
     expect(res2.queued).toBe(true);
 
@@ -291,7 +293,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
 
   // Test 12: Deliver retry on failed command
   it("createPR resets failed deliver command back to pending for retry", async () => {
-    const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
+    const { commandRepo, run } = setupTest();
 
     // Insert failed deliver command
     const cmd = commandRepo.insertOrRetryCommand({
@@ -310,7 +312,7 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
     expect(commandRepo.getCommand(cmd.id)?.status).toBe("failed");
 
     // Operator triggers createPR again
-    const res = await createPR(run.id, { db, runRepo, commandRepo, eventRepo });
+    const res = await createPR(repos, run.id);
     expect(res.ok).toBe(true);
     expect(res.queued).toBe(true);
 

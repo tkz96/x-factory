@@ -20,6 +20,7 @@ import { jiraProvider } from "../src/providers/jira-module.js";
 import type { ProviderRegistry } from "../src/providers/registry.js";
 import { findDuplicateProject } from "../src/shared/project-identity.js";
 import type { Project } from "../src/shared/types.js";
+import { createTestRepositories } from "./helpers/composition.js";
 
 const JIRA_MARKER = "jira-marker-7f3a";
 const GITHUB_MARKER = "ghp_marker_91bc";
@@ -95,6 +96,8 @@ const recordingAzure: Provider<"azure"> = {
   },
 };
 
+const repos = createTestRepositories();
+
 const registry: ProviderRegistry = new Map<string, Provider>([
   [recordingJira.id, recordingJira],
   [recordingGitHub.id, recordingGitHub],
@@ -131,7 +134,10 @@ function api(method: string, route: string, body?: unknown): Promise<Response> {
     init.headers = { "Content-Type": "application/json" };
     init.body = JSON.stringify(body);
   }
-  return handleApi(new Request(url, init), url, registry);
+  return handleApi(new Request(url, init), url, {
+    repos,
+    providerRegistry: registry,
+  });
 }
 
 /** A wizard-shaped project: Jira tracker, GitHub git host, both with secrets. */
@@ -437,7 +443,7 @@ describe("tracker credentials and errors", () => {
         body: JSON.stringify({ token: "should-not-be-saved" }),
       }),
       url,
-      withoutJira,
+      { repos, providerRegistry: withoutJira },
     );
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({

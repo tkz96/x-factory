@@ -2,6 +2,10 @@
 
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -13,19 +17,18 @@ import {
 } from "../src/frontend/lib/query-policies.js";
 import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
-import { setDbForTesting } from "../src/runs.js";
 import { getPublicDir } from "../src/server.js";
 import type { Run } from "../src/shared/types.js";
 
+let repos: Repositories;
+
 describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
-  afterAll(() => {
-    setDbForTesting(null);
-  });
+  afterAll(() => {});
 
   function setupTest() {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const eventRepo = new EventRepository(db);
@@ -108,7 +111,7 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
 
     // 2. React frontend makes direct API query for the run on mount
     const req = new Request(`http://localhost:3777/api/runs/${runId}`);
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
     const runData = (await res.json()) as Run;
@@ -139,7 +142,7 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
     const { runId } = setupTest();
 
     const req = new Request(`http://localhost:3777/api/runs/${runId}/events`);
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/event-stream");
 

@@ -1,15 +1,19 @@
 // test/integration.test.ts — Lightweight integration tests validating server startup, static asset delivery, health check, and core API contracts.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { getEventRepository, getRunRepository } from "../src/runs.js";
+import type { Repositories } from "../src/composition-root.js";
 import { type ServerInstance, startServer } from "../src/server.js";
+import { createTestRepositories } from "./helpers/composition.js";
 
 let server: ServerInstance;
 let baseUrl: string;
+let repos: Repositories;
 
 beforeAll(async () => {
-  // Bind to an ephemeral port for isolated integration testing
-  server = startServer(0);
+  // Bind to an ephemeral port for isolated integration testing. The server and
+  // the seeding below share one connection, the process's composition root.
+  repos = createTestRepositories();
+  server = startServer(0, undefined, repos.db);
   baseUrl = `http://localhost:${server.port}`;
 });
 
@@ -169,7 +173,7 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     const runId = "test-integration-sse-run";
 
     beforeAll(() => {
-      const runRepo = getRunRepository();
+      const runRepo = repos.runs;
       runRepo.create({
         id: runId,
         projectId: "p1",
@@ -181,13 +185,13 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
         artifactsDir: "/tmp",
         worktreePath: "/tmp",
       });
-      getEventRepository().appendEvent(runId, "info", {
+      repos.events.appendEvent(runId, "info", {
         text: "Initial run event",
       });
     });
 
     afterAll(() => {
-      getRunRepository().delete(runId);
+      repos.runs.delete(runId);
     });
 
     it("GET /api/runs/:id/events returns 200 text/event-stream with initial events", async () => {
@@ -220,7 +224,7 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
       await reader.read();
 
       // Append an event to SQLite
-      getEventRepository().appendEvent(runId, "info", {
+      repos.events.appendEvent(runId, "info", {
         text: "Live streamed test event",
       });
 
