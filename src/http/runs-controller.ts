@@ -19,6 +19,7 @@ import {
   errorResponse,
   formatSSEMessage,
   jsonResponse,
+  parseJsonBody,
   toWireEvent,
   withValidatedBody,
 } from "./responses.js";
@@ -332,10 +333,16 @@ async function handleResumeRun(
 
 async function handleAbandonRun(
   repos: Repositories,
+  req: Request,
   runId: string,
 ): Promise<Response> {
   return catchHttpErrors(async () => {
-    const run = await runs.abandonRun(repos, runId);
+    // The reason body is optional (#182): older clients POST with no body at
+    // all, and a body that fails to parse simply abandons without a reason.
+    const parsed = await parseJsonBody(req);
+    const reason =
+      parsed && typeof parsed.reason === "string" ? parsed.reason : undefined;
+    const run = await runs.abandonRun(repos, runId, reason);
     return jsonResponse<AbandonRunResponse>({ ok: true, run });
   });
 }
@@ -363,7 +370,7 @@ async function handleRunAction(
       case "resume":
         return handleResumeRun(repos, runId);
       case "abandon":
-        return handleAbandonRun(repos, runId);
+        return handleAbandonRun(repos, req, runId);
     }
   }
   return null;

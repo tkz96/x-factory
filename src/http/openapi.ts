@@ -998,7 +998,7 @@ export function getOpenApiSpec() {
           tags: ["Runs"],
           summary: "Abandon Run",
           description:
-            "Permanently abandons a run in recovery_required status, transitioning it to terminal failed status.",
+            "Permanently abandons a run in recovery_required status, transitioning it to terminal failed status. An optional reason is recorded on the run's terminal status event (#182).",
           operationId: "abandonRun",
           parameters: [
             {
@@ -1009,6 +1009,23 @@ export function getOpenApiSpec() {
               schema: { type: "string" },
             },
           ],
+          requestBody: {
+            required: false,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    reason: {
+                      type: "string",
+                      description:
+                        "Operator's reason, recorded on the run's status event",
+                    },
+                  },
+                },
+              },
+            },
+          },
           responses: {
             "200": {
               description: "Run abandoned successfully",
