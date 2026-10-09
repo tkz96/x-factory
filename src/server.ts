@@ -9,8 +9,12 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Server } from "bun";
+import {
+  type ApiContext,
+  createRepositories,
+  openProcessDatabase,
+} from "./composition-root.js";
 import { loadProjects } from "./config.js";
-import { createDatabase } from "./db/connection.js";
 import { runMigrations } from "./db/migrator.js";
 import { emitStructuredLog } from "./diagnostics/correlation.js";
 import { reportStaleWorktrees } from "./git.js";
@@ -21,7 +25,6 @@ import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
 import type { ProviderRegistry } from "./providers/registry.js";
-import * as runs from "./runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function getPublicDir(): string {
@@ -70,17 +73,23 @@ export function startServer(
   const publicDir = customPublicDir ?? getPublicDir();
   let db: Database;
 
-  // Initialize SQLite and verify migrations
+  // Composition root (#169): this process opens one connection, migrates it
+  // once, and hands the same repository bundle to every request.
   try {
-    db = customDb ?? createDatabase();
-    runMigrations(db);
+    if (customDb) {
+      runMigrations(customDb);
+      db = customDb;
+    } else {
+      db = openProcessDatabase();
+    }
   } catch (err: unknown) {
     console.error("[X-Factory] Failed to initialize SQLite database:", err);
     throw err;
   }
-
-  // Hydrate historical runs from disk
-  runs.initRuns().catch(() => {});
+  const apiContext: ApiContext = {
+    repos: createRepositories(db),
+    providerRegistry: customProviderRegistry,
+  };
 
   // Non-destructive startup check for orphaned worktrees
   checkOrphanedWorktrees();
@@ -114,9 +123,9 @@ export function startServer(
       inFlightRequests++;
       try {
         if (url.pathname.startsWith("/api/")) {
-          return await handleApi(req, url, customProviderRegistry, {
-            port: bunServer.port ?? port,
-            listenHost,
+          return await handleApi(req, url, {
+            ...apiContext,
+            guard: { port: bunServer.port ?? port, listenHost },
           });
         }
         if (url.pathname === "/openapi.json") {
@@ -208,7 +217,7 @@ export function startServer(
     process.once("SIGINT", onSignal);
   }
 
-  console.log(`X-Factory running at http://127.0.0.1:${bunServer.port}`);
+  console.log(`X-Factory running at http://localhost:${bunServer.port}`);
 
   return {
     port: bunServer.port ?? 0,

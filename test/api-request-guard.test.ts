@@ -1,11 +1,16 @@
 // test/api-request-guard.test.ts — Local-only API boundary: Host, Origin and Content-Type guards at the handleApi seam.
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { resolveListenHost } from "../src/http/request-guard.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
+
+let repos: Repositories;
 
 const PORT = 3777;
 const API = `http://127.0.0.1:${PORT}/api/health`;
@@ -26,19 +31,17 @@ async function send(
   req: Request,
   guard: { port: number; listenHost: string } = LOOPBACK_GUARD,
 ): Promise<Response> {
-  return handleApi(req, new URL(req.url), undefined, guard);
+  return handleApi(req, new URL(req.url), { repos, guard });
 }
 
 describe("API request guard (local-only boundary)", () => {
   beforeEach(() => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
   });
 
-  afterEach(() => {
-    setDbForTesting(null);
-  });
+  afterEach(() => {});
 
   describe("cross-origin state-changing requests", () => {
     it("rejects a POST from a foreign website with 403", async () => {

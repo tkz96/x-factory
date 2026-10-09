@@ -1,5 +1,6 @@
 // src/http/runs-controller.ts — Execution run lifecycle and streaming events.
 
+import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
@@ -32,7 +33,10 @@ export function parseAcceptanceCriteria(raw: unknown): string[] {
   return [];
 }
 
-async function handleCreateRun(req: Request): Promise<Response> {
+async function handleCreateRun(
+  repos: Repositories,
+  req: Request,
+): Promise<Response> {
   return withValidatedBody(
     req,
     CreateRunBodySchema,
@@ -57,6 +61,7 @@ async function handleCreateRun(req: Request): Promise<Response> {
         const branch = body.branch;
 
         const run = await runs.createRun(
+          repos,
           project,
           ticketId,
           ticketTitle,
@@ -71,18 +76,22 @@ async function handleCreateRun(req: Request): Promise<Response> {
   );
 }
 
-function handleGetRuns(): Response {
-  return jsonResponse(runs.listRuns());
+function handleGetRuns(repos: Repositories): Response {
+  return jsonResponse(runs.listRuns(repos));
 }
 
-function handleGetRun(runId: string): Response {
-  const run = runs.getRun(runId);
+function handleGetRun(repos: Repositories, runId: string): Response {
+  const run = runs.getRun(repos, runId);
   if (!run) return errorResponse("Run not found.", 404);
   return jsonResponse(run);
 }
 
-function handleRunEvents(runId: string, req?: Request): Response {
-  const run = runs.getRun(runId);
+function handleRunEvents(
+  repos: Repositories,
+  runId: string,
+  req?: Request,
+): Response {
+  const run = runs.getRun(repos, runId);
   if (!run) return errorResponse("Run not found.", 404);
 
   let initialSequence = 0;
@@ -142,7 +151,7 @@ function handleRunEvents(runId: string, req?: Request): Response {
       const pollEvents = () => {
         if (isClosed) return;
         try {
-          const events = runs.getRunEvents(runId, {
+          const events = runs.getRunEvents(repos, runId, {
             sinceSequence: lastSequence,
           });
           for (const event of events) {
@@ -168,7 +177,7 @@ function handleRunEvents(runId: string, req?: Request): Response {
           }
 
           // If no new events and run was already terminal
-          const currentRun = runs.getRun(runId);
+          const currentRun = runs.getRun(repos, runId);
           if (
             currentRun &&
             TERMINAL_RUN_STATUSES.has(currentRun.status) &&
@@ -242,6 +251,7 @@ function handleRunEvents(runId: string, req?: Request): Response {
 }
 
 async function handleChatMessage(
+  repos: Repositories,
   req: Request,
   runId: string,
 ): Promise<Response> {
@@ -250,21 +260,25 @@ async function handleChatMessage(
     ChatRunBodySchema,
     (body) =>
       catchHttpErrors(async () => {
-        const result = await runs.chatWithRun(runId, body.message);
+        const result = await runs.chatWithRun(repos, runId, body.message);
         return jsonResponse(result);
       }),
     "Invalid JSON in request body.",
   );
 }
 
-async function handleStopRun(runId: string): Promise<Response> {
+async function handleStopRun(
+  repos: Repositories,
+  runId: string,
+): Promise<Response> {
   return catchHttpErrors(async () => {
-    await runs.stopRun(runId);
+    await runs.stopRun(repos, runId);
     return jsonResponse({ ok: true });
   });
 }
 
 async function handleTransitions(
+  repos: Repositories,
   req: Request,
   runId: string,
 ): Promise<Response> {
@@ -274,6 +288,7 @@ async function handleTransitions(
     (body) =>
       catchHttpErrors(async () => {
         const run = await runs.handleTransition(
+          repos,
           runId,
           body.action,
           body.payload,
@@ -284,50 +299,60 @@ async function handleTransitions(
   );
 }
 
-async function handleCreatePR(runId: string): Promise<Response> {
+async function handleCreatePR(
+  repos: Repositories,
+  runId: string,
+): Promise<Response> {
   return catchHttpErrors(async () => {
-    const result = await runs.createPR(runId);
+    const result = await runs.createPR(repos, runId);
     return jsonResponse(result);
   });
 }
 
-async function handleResumeRun(runId: string): Promise<Response> {
+async function handleResumeRun(
+  repos: Repositories,
+  runId: string,
+): Promise<Response> {
   return catchHttpErrors(async () => {
-    const run = await runs.resumeRun(runId);
+    const run = await runs.resumeRun(repos, runId);
     return jsonResponse({ ok: true, run });
   });
 }
 
-async function handleAbandonRun(runId: string): Promise<Response> {
+async function handleAbandonRun(
+  repos: Repositories,
+  runId: string,
+): Promise<Response> {
   return catchHttpErrors(async () => {
-    const run = await runs.abandonRun(runId);
+    const run = await runs.abandonRun(repos, runId);
     return jsonResponse({ ok: true, run });
   });
 }
 
 async function handleRunAction(
+  repos: Repositories,
   action: string,
   method: string,
   runId: string,
   req: Request,
 ): Promise<Response | null> {
   if (method === "GET" && action === "events") {
-    return handleRunEvents(runId, req);
+    return handleRunEvents(repos, runId, req);
   }
   if (method === "POST") {
     switch (action) {
       case "chat":
-        return handleChatMessage(req, runId);
+        return handleChatMessage(repos, req, runId);
       case "transitions":
-        return handleTransitions(req, runId);
+        return handleTransitions(repos, req, runId);
       case "stop":
-        return handleStopRun(runId);
+        return handleStopRun(repos, runId);
       case "pr":
-        return handleCreatePR(runId);
+        return handleCreatePR(repos, runId);
       case "resume":
-        return handleResumeRun(runId);
+        return handleResumeRun(repos, runId);
       case "abandon":
-        return handleAbandonRun(runId);
+        return handleAbandonRun(repos, runId);
     }
   }
   return null;
@@ -339,17 +364,18 @@ export async function handleRunsRoute(
   action: string | undefined,
   partsCount: number,
   req: Request,
+  repos: Repositories,
 ): Promise<Response | null> {
   if (!id) {
-    if (method === "GET") return handleGetRuns();
-    if (method === "POST") return handleCreateRun(req);
+    if (method === "GET") return handleGetRuns(repos);
+    if (method === "POST") return handleCreateRun(repos, req);
     return null;
   }
   if (!action && partsCount === 2) {
-    return method === "GET" ? handleGetRun(id) : null;
+    return method === "GET" ? handleGetRun(repos, id) : null;
   }
   if (action && partsCount === 3) {
-    return handleRunAction(action, method, id, req);
+    return handleRunAction(repos, action, method, id, req);
   }
   return null;
 }
