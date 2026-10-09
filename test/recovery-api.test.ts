@@ -1,14 +1,21 @@
 // test/recovery-api.test.ts — Integration tests for recovery_required resume & abandon HTTP endpoints (XFM-37).
 
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import type { Repositories } from "../src/composition-root.js";
 import { handleApi } from "../src/http/routes.js";
-import { getJobRepository, getRunRepository } from "../src/runs.js";
 import type { RunStatus } from "../src/types.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 describe("Recovery-Required HTTP API (XFM-37)", () => {
   function createTestRun(status: RunStatus = "recovery_required") {
-    const runRepo = getRunRepository();
-    const jobRepo = getJobRepository();
+    const runRepo = repos.runs;
+    const jobRepo = repos.jobs;
     const runId = `run-api-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const run = runRepo.create({
@@ -40,7 +47,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
           method: "POST",
         },
       );
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(200);
       const data = (await res.json()) as {
@@ -70,7 +77,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
           method: "POST",
         },
       );
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(409);
       const data = (await res.json()) as { error: string };
@@ -95,7 +102,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
           method: "POST",
         },
       );
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(200);
       const data = (await res.json()) as {
@@ -125,7 +132,7 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
           method: "POST",
         },
       );
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
 
       expect(res.status).toBe(409);
       const data = (await res.json()) as { error: string };

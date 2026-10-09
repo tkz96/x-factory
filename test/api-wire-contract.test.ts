@@ -5,17 +5,17 @@
 // signatures are pinned to the shared types at compile time, so changing a
 // response shape on either side fails the typecheck or this test.
 
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createRepositories } from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import type { api } from "../src/frontend/lib/api-client.js";
 import { handleApi } from "../src/http/routes.js";
 import { getSettingsPath } from "../src/paths.js";
-import { setDbForTesting } from "../src/runs.js";
 import type {
   DiagnosticsResponse,
   DocDetailResponse,
@@ -59,12 +59,19 @@ const SHARED_WIRE_TYPE_NAMES = [
   "DocItem",
 ] as const;
 
+// One in-memory database and its repository bundle serve every request in
+// this file, the way the composition root passes them down (#169).
+const db = createDatabase({ path: ":memory:" });
+runMigrations(db);
+const repos = createRepositories(db);
+
+afterAll(() => {
+  db.close();
+});
+
 describe("Shared wire contract (#182, HTTP API seam)", () => {
   it("POST /api/runs/:id/stop returns the run it stopped", async () => {
-    const db = createDatabase({ path: ":memory:" });
-    runMigrations(db);
-    setDbForTesting(db);
-    try {
+    {
       const runRepo = new RunRepository(db);
       const runId = `wire-stop-${Date.now()}`;
       runRepo.create({
@@ -82,7 +89,7 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
       const req = new Request(`http://localhost:3777/api/runs/${runId}/stop`, {
         method: "POST",
       });
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       expect(res.status).toBe(200);
 
       const body = (await res.json()) as StopRunResponse;
@@ -94,8 +101,6 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
         name: "Wire Project",
       });
       expect(body.run.branch).toBe("factory/w-1");
-    } finally {
-      setDbForTesting(null);
     }
   });
 
@@ -116,7 +121,7 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const postRes = await handleApi(postReq, new URL(postReq.url));
+      const postRes = await handleApi(postReq, new URL(postReq.url), { repos });
       expect(postRes.status).toBe(200);
       const saved = (await postRes.json()) as WorkbenchSettings;
       expect(saved).toEqual({ theme: "dark", models: payload.models });
@@ -131,7 +136,7 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
       });
 
       const getReq = new Request("http://localhost:3777/api/settings");
-      const getRes = await handleApi(getReq, new URL(getReq.url));
+      const getRes = await handleApi(getReq, new URL(getReq.url), { repos });
       expect(getRes.status).toBe(200);
       const loaded = (await getRes.json()) as WorkbenchSettings;
       expect(loaded.models).toEqual(payload.models);

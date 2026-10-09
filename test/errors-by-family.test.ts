@@ -8,6 +8,10 @@
 
 import type { Database } from "bun:sqlite";
 import { afterAll, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import {
@@ -17,23 +21,23 @@ import {
 } from "../src/db/run-repository.js";
 import { catchHttpErrors } from "../src/http/responses.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
 import type { RunStatus } from "../src/shared/types.js";
+
+let repos: Repositories;
 
 let db: Database | undefined;
 
 afterAll(() => {
-  setDbForTesting(null);
   db?.close();
 });
 
-// setDbForTesting stores the database in an AsyncLocalStorage context, so it
-// must be called from the test body, not from beforeAll.
+// Each call gives the test a fresh in-memory database and the repository
+// bundle built over it.
 function setupTestDb(): RunRepository {
   db?.close();
   db = createDatabase({ path: ":memory:" });
   runMigrations(db);
-  setDbForTesting(db);
+  repos = createRepositories(db);
   return new RunRepository(db);
 }
 
@@ -69,7 +73,7 @@ function postJson(pathname: string, body?: unknown): Promise<Response> {
         }
       : {}),
   });
-  return handleApi(req, new URL(req.url));
+  return handleApi(req, new URL(req.url), { repos });
 }
 
 function transitionRequest(runId: string, action: string): Promise<Response> {

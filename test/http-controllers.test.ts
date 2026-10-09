@@ -1,10 +1,11 @@
 // test/http-controllers.test.ts — Unit tests for HTTP routing and controller dispatching.
 
-import { describe, it, spyOn } from "bun:test";
+import { beforeEach, describe, it, spyOn } from "bun:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { Repositories } from "../src/composition-root.js";
 import { deleteProject, saveProject, validateProject } from "../src/config.js";
 import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import { handleApi } from "../src/http/routes.js";
@@ -15,8 +16,14 @@ import {
 import { handleSettingsRoute } from "../src/http/settings-controller.js";
 import { execStrict } from "../src/proc.js";
 import * as runs from "../src/runs.js";
-import { getRunRepository } from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
+import { createTestRepositories } from "./helpers/composition.js";
+
+let repos: Repositories;
+
+beforeEach(() => {
+  repos = createTestRepositories();
+});
 
 describe("HTTP Routing & Controllers (src/http)", () => {
   describe("parseAcceptanceCriteria", () => {
@@ -44,7 +51,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
   describe("handleApi Routing Dispatcher", () => {
     it("returns 404 for empty or root API endpoint", async () => {
       const req = new Request("http://localhost:3777/api", { method: "GET" });
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 404);
       const body = await res.json();
       assert.equal(body.error, "Endpoint not found.");
@@ -57,7 +64,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           method: "GET",
         },
       );
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 404);
       const body = await res.json();
       assert.equal(body.error, "Endpoint not found.");
@@ -67,7 +74,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "GET",
       });
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 200);
       const data = await res.json();
       assert.ok(Array.isArray(data));
@@ -77,7 +84,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/projects", {
         method: "GET",
       });
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 200);
       const data = await res.json();
       assert.ok(Array.isArray(data));
@@ -87,7 +94,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/settings", {
         method: "GET",
       });
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 200);
       const data = await res.json();
       assert.ok(typeof data === "object");
@@ -104,7 +111,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "GET",
       });
-      const res = await handleApi(req, new URL(req.url));
+      const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 500);
       const body = await res.json();
       assert.ok(body.error.includes("Catastrophic database failure"));
@@ -117,7 +124,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "GET",
       });
-      const res = await handleRunsRoute("GET", undefined, undefined, 1, req);
+      const res = await handleRunsRoute(
+        "GET",
+        undefined,
+        undefined,
+        1,
+        req,
+        repos,
+      );
       assert.ok(res);
       assert.equal(res.status, 200);
       const data = await res.json();
@@ -130,7 +144,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: "{ bad json",
       });
-      const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+      const res = await handleRunsRoute(
+        "POST",
+        undefined,
+        undefined,
+        1,
+        req,
+        repos,
+      );
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -143,7 +164,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketId: "RUN-1" }),
       });
-      const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+      const res = await handleRunsRoute(
+        "POST",
+        undefined,
+        undefined,
+        1,
+        req,
+        repos,
+      );
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -157,7 +185,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: "unknown-proj-404" }),
       });
-      const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+      const res = await handleRunsRoute(
+        "POST",
+        undefined,
+        undefined,
+        1,
+        req,
+        repos,
+      );
       assert.ok(res);
       assert.equal(res.status, 404);
       const data = await res.json();
@@ -213,7 +248,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           }),
         });
 
-        const res = await handleRunsRoute("POST", undefined, undefined, 1, req);
+        const res = await handleRunsRoute(
+          "POST",
+          undefined,
+          undefined,
+          1,
+          req,
+          repos,
+        );
         assert.ok(res);
         assert.equal(res.status, 201);
         const data = await res.json();
@@ -239,6 +281,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         undefined,
         2,
         req,
+        repos,
       );
       assert.ok(res);
       assert.equal(res.status, 404);
@@ -257,6 +300,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "events",
         3,
         req,
+        repos,
       );
       assert.ok(res);
       assert.equal(res.status, 404);
@@ -277,6 +321,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "steer",
         3,
         req,
+        repos,
       );
       // Steering was removed (#167); handleApi turns this into a 404.
       assert.equal(res, null);
@@ -297,6 +342,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "chat",
         3,
         req,
+        repos,
       );
       assert.ok(res);
       assert.equal(res.status, 400);
@@ -319,6 +365,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "chat",
         3,
         req,
+        repos,
       );
       assert.ok(res);
       assert.equal(res.status, 400);
@@ -341,6 +388,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "chat",
         3,
         req,
+        repos,
       );
       assert.ok(res);
       assert.equal(res.status, 404);
@@ -366,7 +414,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
       const runId = `test-http-run-${Date.now()}`;
 
-      const runRepo = getRunRepository();
+      const runRepo = repos.runs;
       runRepo.create({
         id: runId,
         projectId: mockProject.id,
@@ -378,14 +426,20 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         artifactsDir: tempDir,
         worktreePath: tempDir,
       });
-      const { getEventRepository } = await import("../src/runs.js");
-      getEventRepository().appendEvent(runId, "info", { text: "Run started" });
+      repos.events.appendEvent(runId, "info", { text: "Run started" });
 
       // GET /api/runs/:id
       const getReq = new Request(`http://localhost:3777/api/runs/${runId}`, {
         method: "GET",
       });
-      const getRes = await handleRunsRoute("GET", runId, undefined, 2, getReq);
+      const getRes = await handleRunsRoute(
+        "GET",
+        runId,
+        undefined,
+        2,
+        getReq,
+        repos,
+      );
       assert.ok(getRes);
       assert.equal(getRes.status, 200);
       const getData = await getRes.json();
@@ -402,6 +456,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "events",
         3,
         eventsReq,
+        repos,
       );
       assert.ok(eventsRes);
       assert.equal(eventsRes.status, 200);
@@ -427,6 +482,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "chat",
         3,
         chatFailReq,
+        repos,
       );
       assert.ok(chatFailRes);
       assert.equal(chatFailRes.status, 409);
@@ -448,7 +504,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: JSON.stringify({ message: "Hello" }),
         },
       );
-      const chatRes = await handleRunsRoute("POST", runId, "chat", 3, chatReq);
+      const chatRes = await handleRunsRoute(
+        "POST",
+        runId,
+        "chat",
+        3,
+        chatReq,
+        repos,
+      );
       assert.ok(chatRes);
       assert.equal(chatRes.status, 200);
       chatSpy.mockRestore();
@@ -460,7 +523,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           method: "POST",
         },
       );
-      const stopRes = await handleRunsRoute("POST", runId, "stop", 3, stopReq);
+      const stopRes = await handleRunsRoute(
+        "POST",
+        runId,
+        "stop",
+        3,
+        stopReq,
+        repos,
+      );
       assert.ok(stopRes);
       assert.equal(stopRes.status, 200);
       const stopData = (await stopRes.json()) as { ok: boolean };
@@ -474,7 +544,14 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "DELETE",
       });
-      const res = await handleRunsRoute("DELETE", undefined, undefined, 1, req);
+      const res = await handleRunsRoute(
+        "DELETE",
+        undefined,
+        undefined,
+        1,
+        req,
+        repos,
+      );
       assert.equal(res, null);
     });
   });

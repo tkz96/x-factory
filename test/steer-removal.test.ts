@@ -12,6 +12,10 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
@@ -19,15 +23,16 @@ import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
 import type { RunEvent } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
 
+let repos: Repositories;
+
 function setupTest() {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
-  setDbForTesting(db);
+  repos = createRepositories(db);
   const runRepo = new RunRepository(db);
   const eventRepo = new EventRepository(db);
   return { db, runRepo, eventRepo };
@@ -51,9 +56,7 @@ function createRun(runRepo: RunRepository, runId: string) {
   });
 }
 
-afterAll(() => {
-  setDbForTesting(null);
-});
+afterAll(() => {});
 
 describe("Steering removed (#167)", () => {
   it("POST /api/runs/:id/steer returns 404 through handleApi", async () => {
@@ -66,7 +69,7 @@ describe("Steering removed (#167)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Focus on auth.ts" }),
     });
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Endpoint not found." });

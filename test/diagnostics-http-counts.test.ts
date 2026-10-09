@@ -3,13 +3,17 @@
 // endpoint reports, so the repository refactor cannot change them silently.
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import { resetWorkerRegistryForTesting } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
+
+let repos: Repositories;
 
 function seedRun(repo: RunRepository, id: string, status: string): void {
   repo.create({
@@ -29,14 +33,11 @@ describe("GET /api/diagnostics counts over HTTP (#188)", () => {
   let db: ReturnType<typeof createDatabase>;
 
   beforeEach(() => {
-    resetWorkerRegistryForTesting();
     db = createDatabase({ path: ":memory:" });
     runMigrations(db);
   });
 
   afterEach(() => {
-    setDbForTesting(null);
-    resetWorkerRegistryForTesting();
     db.close();
   });
 
@@ -59,9 +60,9 @@ describe("GET /api/diagnostics counts over HTTP (#188)", () => {
     jobs.createJob({ runId: "r-recovery", stage: "execute", status: "failed" });
 
     // Bind the database in the same async context as the request (as diagnostics-api.test.ts does).
-    setDbForTesting(db);
+    repos = createRepositories(db);
     const req = new Request("http://localhost:3777/api/diagnostics");
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {

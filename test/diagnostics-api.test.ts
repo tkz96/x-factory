@@ -1,6 +1,10 @@
 // test/diagnostics-api.test.ts — Runtime diagnostics and correlation tests (XFM-70, XFM-73).
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  createRepositories,
+  type Repositories,
+} from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -12,30 +16,25 @@ import {
 import {
   getActiveWorkers,
   registerWorkerHeartbeat,
-  resetWorkerRegistryForTesting,
-  setHeartbeatRepoForTesting,
   unregisterWorker,
 } from "../src/diagnostics/worker-registry.js";
 import { handleApi } from "../src/http/routes.js";
-import { setDbForTesting } from "../src/runs.js";
+
+let repos: Repositories;
 
 describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   beforeEach(() => {
-    resetWorkerRegistryForTesting();
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
   });
 
-  afterEach(() => {
-    setDbForTesting(null);
-    resetWorkerRegistryForTesting();
-  });
+  afterEach(() => {});
 
   it("GET /api/diagnostics returns complete database, job, and worker metrics (XFM-70)", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    setDbForTesting(db);
+    repos = createRepositories(db);
 
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
@@ -91,10 +90,13 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     );
 
     // Register active worker
-    registerWorkerHeartbeat("worker-alpha", { hostname: "node-1", pid: 999 });
+    registerWorkerHeartbeat(repos.heartbeats, "worker-alpha", {
+      hostname: "node-1",
+      pid: 999,
+    });
 
     const req = new Request("http://localhost:3777/api/diagnostics");
-    const res = await handleApi(req, new URL(req.url));
+    const res = await handleApi(req, new URL(req.url), { repos });
 
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Request-ID")).toBeDefined();
@@ -137,12 +139,12 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
     const req1 = new Request("http://localhost:3777/api/health", {
       headers: { "X-Request-ID": customReqId },
     });
-    const res1 = await handleApi(req1, new URL(req1.url));
+    const res1 = await handleApi(req1, new URL(req1.url), { repos });
     expect(res1.headers.get("X-Request-ID")).toBe(customReqId);
 
     // 2. Client provides no header -> auto-generated
     const req2 = new Request("http://localhost:3777/api/health");
-    const res2 = await handleApi(req2, new URL(req2.url));
+    const res2 = await handleApi(req2, new URL(req2.url), { repos });
     const generatedId = res2.headers.get("X-Request-ID");
     expect(generatedId).toBeDefined();
     expect(generatedId?.startsWith("req_")).toBe(true);
@@ -179,16 +181,18 @@ describe("Runtime Diagnostics & Correlation API (XFM-70, XFM-73)", () => {
   });
 
   it("unregisters workers and supports test heartbeat repo injection", () => {
-    registerWorkerHeartbeat("worker-test-unreg");
+    registerWorkerHeartbeat(repos.heartbeats, "worker-test-unreg");
     expect(
-      getActiveWorkers().some((w) => w.workerId === "worker-test-unreg"),
+      getActiveWorkers(repos.heartbeats).some(
+        (w) => w.workerId === "worker-test-unreg",
+      ),
     ).toBe(true);
 
-    unregisterWorker("worker-test-unreg");
+    unregisterWorker(repos.heartbeats, "worker-test-unreg");
     expect(
-      getActiveWorkers().some((w) => w.workerId === "worker-test-unreg"),
+      getActiveWorkers(repos.heartbeats).some(
+        (w) => w.workerId === "worker-test-unreg",
+      ),
     ).toBe(false);
-
-    setHeartbeatRepoForTesting(null);
   });
 });
