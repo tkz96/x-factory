@@ -624,8 +624,12 @@ semantics:
   different values is likewise a rejection
   (`{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }`), never a silent overwrite —
   on create and update alike.
-- Ordered writes are identical to creation: secrets first, removals second, the
-  project record last as the commit point.
+- Ordered writes are identical to creation for the first two steps — secrets
+  first, then the project record as the commit point — and update adds one
+  final step: the removals run only AFTER the commit succeeds. A swap whose
+  record write fails leaves the old record AND the old connections' secrets
+  intact (a retry converges), and a crash between the commit and the removals
+  leaves only harmless orphaned env keys.
 
 Both paths run the one plan in `src/services/connection-write-plan.ts`, whose
 record store and env store are injectable together as one `ProjectWriteStore` —

@@ -1367,6 +1367,121 @@ describe("Shared write plan: ordered writes through the injected store (#187)", 
     ).toHaveLength(1);
     expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(newToken);
   });
+
+  it("leaves the old record and the dropped connections' secrets intact when a swap's record write fails, then converges on retry", async () => {
+    const id = `store-failure-swap-${Date.now()}`;
+    const oldStubToken = "synthetic-swap-old-token-8f3a";
+    const created = await createProjectFromConnections(
+      {
+        id,
+        name: "Swap Failure",
+        workspacePath: tempDir,
+        connections: [
+          {
+            providerId: "stub-capable",
+            roles: ["tracker", "gitHost"],
+            config: {
+              host: "https://stub.example",
+              apiToken: oldStubToken,
+              project: "swap-failure",
+            },
+          },
+        ],
+        repositories: [
+          {
+            id: `${id}-web`,
+            name: "web",
+            localPath: path.join(tempDir, "web"),
+            role: "backend",
+          },
+        ],
+      },
+      { registry: testRegistry, configPath },
+    );
+    expect(created.id).toBe(id);
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(oldStubToken);
+
+    const recordBefore = (await loadProjects(configPath)).find(
+      (p) => p.id === id,
+    );
+
+    // The swap: Jira covering the tracker role and GitHub the git-host role in
+    // place of the dual-role stub — a plan whose removal pass names the dropped
+    // connection's STUB_API_TOKEN.
+    const jiraToken = "synthetic-swap-jira-token-5b7e";
+    const githubToken = "synthetic-swap-github-token-d2c6";
+    const input: UpdateProjectConnectionsInput = {
+      connections: [
+        {
+          providerId: "jira",
+          roles: ["tracker"],
+          config: {
+            host: "https://swap.atlassian.net",
+            email: "dev@example.com",
+            apiToken: jiraToken,
+            project: "SWAP",
+          },
+        },
+        {
+          providerId: "github",
+          roles: ["gitHost"],
+          config: {
+            token: githubToken,
+            repoOwner: "acme",
+            repository: "web",
+          },
+        },
+      ],
+    };
+
+    // The update commit point is the store's saveProject; fail it once.
+    let recordWriteFails = true;
+    const store = storeFailingOn({
+      saveProject: async (record, pathArg) => {
+        if (recordWriteFails) throw new Error("record store unavailable");
+        return FILE_PROJECT_WRITE_STORE.saveProject(record, pathArg);
+      },
+    });
+
+    await expect(
+      updateProjectConnections(created, input, {
+        registry: testRegistry,
+        configPath,
+        store,
+      }),
+    ).rejects.toThrow("record store unavailable");
+
+    // The old record still stands…
+    expect((await loadProjects(configPath)).find((p) => p.id === id)).toEqual(
+      recordBefore,
+    );
+    // …and so do the secrets it references: a dropped connection's env keys are
+    // removed only AFTER the record commit, never before it.
+    expect((await loadProjectEnv(id)).STUB_API_TOKEN).toBe(oldStubToken);
+    // The replacement's secrets already landed (idempotent, retry-safe).
+    const envAfterFailure = await loadProjectEnv(id);
+    expect(envAfterFailure.JIRA_API_TOKEN).toBe(jiraToken);
+    expect(envAfterFailure.GITHUB_TOKEN).toBe(githubToken);
+
+    // A retry converges: the swap applies and the dropped secret leaves.
+    recordWriteFails = false;
+    const saved = await updateProjectConnections(created, input, {
+      registry: testRegistry,
+      configPath,
+      store,
+    });
+    expect(saved.connections?.map((c) => c.providerId)).toEqual([
+      "jira",
+      "github",
+    ]);
+    expect(
+      (await loadProjects(configPath)).filter((p) => p.id === id),
+    ).toHaveLength(1);
+    expect(await loadProjectEnv(id)).toEqual({
+      JIRA_API_TOKEN: jiraToken,
+      GITHUB_TOKEN: githubToken,
+    });
+  });
 });
 
 describe("HTTP persistence failures through the injected store (#187)", () => {

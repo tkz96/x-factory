@@ -5,7 +5,7 @@
 // Both paths run the same ladder over the COMPLETE connection set the request
 // produces — the payload's set on create, the replacement set on update:
 // required-role coverage → secret merge (env-key conflicts rejected) → env
-// writes and deletes → the project record as the commit point. An update
+// writes → the project record as the commit point → env deletes. An update
 // REPLACES the stored connection set wholesale and REMOVES the env entries of
 // connections it does not name, so swapping a project's connections works.
 //
@@ -189,9 +189,9 @@ export interface ConnectionSetPlan {
   /** Non-empty secret values keyed by envKey; conflicts already rejected. */
   secrets: Record<string, string>;
   /**
-   * Env entries to remove AFTER the secrets are written: dropped connections'
-   * keys and explicitly cleared keys, minus any key the plan itself writes
-   * (a key reused by the replacement set must survive the removal).
+   * Env entries to remove AFTER the record commit: dropped connections' keys
+   * and explicitly cleared keys, minus any key the plan itself writes (a key
+   * reused by the replacement set must survive the removal).
    */
   envKeysToDelete: string[];
 }
@@ -217,12 +217,15 @@ export function planConnectionSetWrite(
 }
 
 /**
- * The shared ordered-write step (#187): fencing → env writes → env deletes →
- * the project record as the commit point. Secrets are written first (idempotent,
- * so a retry converges), removals second (they may name a key the secrets just
- * wrote only through another provider, which the plan has already excluded),
- * the record last — a crash before the commit leaves at most a benign orphaned
- * env entry, and a project can never exist without its secrets.
+ * The shared ordered-write step (#187): fencing → env writes → the project
+ * record as the commit point → env deletes. Secrets are written first
+ * (idempotent, so a retry converges); the record commits next; the removals
+ * run only AFTER a successful commit (they may name a key the secrets just
+ * wrote only through another provider, which the plan has already excluded).
+ * A crash before the commit leaves at most a benign orphaned env entry, and a
+ * project can never exist without its secrets; a crash between the commit and
+ * the deletes leaves at most harmless orphaned env keys — a committed record
+ * never references a connection whose secrets were already removed.
  */
 export async function applyConnectionSetPlan(args: {
   store: ProjectWriteStore;
@@ -238,15 +241,21 @@ export async function applyConnectionSetPlan(args: {
   }
 
   await args.store.saveProjectEnv(args.projectId, args.plan.secrets);
-  await args.store.deleteProjectEnvKeys(
-    args.projectId,
-    args.plan.envKeysToDelete,
-  );
 
   // Fencing check: verify the claim is still held before the commit point.
   if (args.claim) {
     await args.claim.assertHeld();
   }
 
-  return args.writeRecord();
+  const saved = await args.writeRecord();
+
+  // Removals run only AFTER the commit succeeds: a committed record never
+  // loses the secrets it references, and a crash here leaves at most harmless
+  // orphaned env keys.
+  await args.store.deleteProjectEnvKeys(
+    args.projectId,
+    args.plan.envKeysToDelete,
+  );
+
+  return saved;
 }

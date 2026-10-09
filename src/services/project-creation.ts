@@ -4,13 +4,15 @@
 // Persistence-only by construction: this module never executes a workflow and
 // never calls a provider capability. It validates the complete request in
 // memory, writes the secrets to per-project env storage first (idempotent), and
-// commits the project record last — a crash before the commit leaves only a
-// benign orphaned env file, and a project can never exist without its secrets.
+// commits the project record as the commit point (dropped connections' env
+// keys are removed only AFTER that commit) — a crash before the commit leaves
+// only a benign orphaned env file, and a project can never exist without its
+// secrets.
 //
 // Both paths run the ONE connection-set write plan (#187, see
 // `connection-write-plan.ts`): validate → route secrets → role coverage → env
-// writes/deletes → record, with replace and remove semantics on update. The
-// record store and env store are injectable together through
+// writes → record commit → env deletes, with replace and remove semantics on
+// update. The record store and env store are injectable together through
 // `options.store`.
 //
 // Layering (all before any write): transport shape (zod, in the controller) →
@@ -455,7 +457,9 @@ function prepareConnectionUpdate(
  * the project without a tracker or without a git host, or that declares the
  * same env key on two providers with different values, is rejected with
  * `formErrors` before any secret is written. Secrets are written first, the
- * project record last.
+ * project record commits next, and the dropped connections' env entries are
+ * removed only AFTER that commit succeeds — so a failed commit leaves the old
+ * record AND the old secrets intact, and a retry converges.
  */
 async function updateProjectConnectionsInternal(
   project: Project,
@@ -518,7 +522,7 @@ async function updateProjectConnectionsInternal(
   // Replace AND remove (#187): the request's connections are the complete new
   // set — the stored set is NOT merged into it — and the env entries owned by
   // the connections it drops (plus the explicitly cleared keys) are deleted
-  // after the secrets are written.
+  // only AFTER the record commit succeeds.
   const plan = planConnectionSetWrite(prepared, [
     ...updates.flatMap((update) => update.clearedKeys),
     ...removedConnectionEnvKeys(project.connections, prepared, registry),
