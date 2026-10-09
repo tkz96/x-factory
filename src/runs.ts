@@ -532,6 +532,7 @@ export async function resumeRun(id: string): Promise<Run> {
   const db = getDb();
   const runRepo = getRunRepository();
   const jobRepo = getJobRepository();
+  const commandRepo = getCommandRepository();
   const stageAttemptRepo = getStageAttemptRepository();
 
   const tx = db.transaction((): RunRecord => {
@@ -557,7 +558,19 @@ export async function resumeRun(id: string): Promise<Run> {
       db,
     );
 
-    jobRepo.createJob({ runId: id, stage: route.jobStage }, db);
+    if (route.command) {
+      commandRepo.insertOrRetryCommand(
+        {
+          runId: id,
+          command: route.command,
+          idempotencyKey: `${route.command}:${id}`,
+        },
+        db,
+      );
+    }
+    if (route.jobStage) {
+      jobRepo.createJob({ runId: id, stage: route.jobStage }, db);
+    }
     return transitionResult.run;
   });
 

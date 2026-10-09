@@ -76,7 +76,7 @@ Transitions not listed in this matrix are invalid and fail validation.
 | `executing` | `awaiting_review`, `failed`, `stopped`, `recovery_required` | Ralph loop completion, error, or user stop. |
 | `awaiting_review` | `ready_for_pr`, `understanding` (requeue), `failed`, `stopped`, `recovery_required` | Human approval, human requeue with feedback, error, or user stop. |
 | `ready_for_pr` | `pr_created`, `failed`, `stopped` | User requests pull request creation, error, or user stop. |
-| `recovery_required` | `preparing`, `understanding`, `planning`, `executing`, `failed`, `stopped` | Automated recovery cycle attempts to resume execution. |
+| `recovery_required` | `preparing`, `understanding`, `planning`, `executing`, `ready_for_pr`, `failed`, `stopped` | Automated recovery cycle attempts to resume execution. Resuming a run whose interrupted stage was `deliver` returns it to `ready_for_pr` and enqueues the deliver command. |
 | `pr_created` | None | Terminal state. |
 | `failed` | None | Terminal state. |
 | `stopped` | None | Terminal state. |

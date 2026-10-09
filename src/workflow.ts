@@ -33,7 +33,10 @@ export const REJECTED_RUN_STATUS: RunStatus = "failed";
 /** A resume target: the status a run re-enters and the job stage that re-runs the work. */
 export interface ResumeRoute {
   readonly to: RunStatus;
-  readonly jobStage: WorkflowStage;
+  /** Job stage enqueued to re-run the interrupted work. */
+  readonly jobStage?: WorkflowStage;
+  /** Run command enqueued instead of a job (delivery runs as the deliver command). */
+  readonly command?: "deliver";
 }
 
 /**
@@ -48,7 +51,7 @@ export const RESUME_ROUTES: Readonly<Record<string, ResumeRoute>> = {
   review: { to: "executing", jobStage: "execute" },
   verify: { to: "executing", jobStage: "execute" },
   implement: { to: "executing", jobStage: "execute" },
-  deliver: { to: "ready_for_pr", jobStage: "deliver" },
+  deliver: { to: "ready_for_pr", command: "deliver" },
 };
 
 const UNMAPPED_RESUME_ROUTE: ResumeRoute = {

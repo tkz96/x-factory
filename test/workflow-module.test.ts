@@ -7,7 +7,6 @@ import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
-import { ConflictError } from "../src/errors.js";
 import type {
   StageContext,
   StageExecutor,
@@ -115,7 +114,7 @@ describe("Workflow module (#181)", () => {
     expect(jobRepo.getJob(job.id)?.status).toBe("completed");
   });
 
-  it("a passed stage routes the run to its literal next status and enqueues the literal next stage", async () => {
+  it("pins every passed stage outcome to its literal next status and next stage", async () => {
     const cases = [
       {
         stage: "prepare",
@@ -133,6 +132,18 @@ describe("Workflow module (#181)", () => {
         stage: "plan",
         from: "planning",
         to: "awaiting_plan_approval",
+        next: undefined,
+      },
+      {
+        stage: "execute",
+        from: "executing",
+        to: "awaiting_review",
+        next: undefined,
+      },
+      {
+        stage: "review",
+        from: "executing",
+        to: "awaiting_review",
         next: undefined,
       },
     ] as const;
@@ -162,6 +173,34 @@ describe("Workflow module (#181)", () => {
     }
   });
 
+  it("pins a rejected review to a failed run with no retried job", async () => {
+    const { db, runRepo, jobRepo, run } = setup("executing");
+    const job = jobRepo.createJob({
+      runId: run.id,
+      stage: "review",
+      status: "pending",
+    });
+    const worker = new Worker({
+      db,
+      workerId: "wf-route-review-reject",
+      getStageExecutor: () =>
+        executorReturning("review", {
+          outcome: "rejected",
+          reason: "Code review was not approved: Missing tests",
+        }),
+    });
+    const claimed = jobRepo.claimNextJob("wf-route-review-reject", 30000);
+    expect(claimed?.id).toBe(job.id);
+    if (!claimed) throw new Error("claim failed");
+
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("failed");
+    expect(jobRepo.listJobsForRun(run.id).map((j) => j.status)).toEqual([
+      "failed",
+    ]);
+  });
+
   it("resume returns a recovery_required run to the stage it was in", async () => {
     const { db, jobRepo, stageAttemptRepo, run } = setup("recovery_required");
     setDbForTesting(db);
@@ -176,12 +215,20 @@ describe("Workflow module (#181)", () => {
     expect(planJobs.length).toBe(1);
   });
 
-  it("resume into deliver is refused with a conflict, not sent to executing", async () => {
+  it("resume into deliver returns the run to ready_for_pr and enqueues the deliver command", async () => {
     const { db, runRepo, stageAttemptRepo, run } = setup("recovery_required");
     setDbForTesting(db);
     stageAttemptRepo.recordStart(run.id, "deliver", 1);
 
-    await expect(resumeRun(run.id)).rejects.toBeInstanceOf(ConflictError);
-    expect(runRepo.get(run.id)?.status).toBe("recovery_required");
+    const resumed = await resumeRun(run.id);
+
+    expect(resumed.status).toBe("ready_for_pr");
+    expect(runRepo.get(run.id)?.status).toBe("ready_for_pr");
+    const deliver = db
+      .prepare<{ command: string; status: string }, [string]>(
+        "SELECT command, status FROM run_commands WHERE idempotency_key = ?;",
+      )
+      .get(`deliver:${run.id}`);
+    expect(deliver).toEqual({ command: "deliver", status: "pending" });
   });
 });
