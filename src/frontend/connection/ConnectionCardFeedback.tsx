@@ -1,5 +1,6 @@
 // src/frontend/connection/ConnectionCardFeedback.tsx — Status banners and field feedback for ConnectionCard.
 
+import type { ProjectConnectionRole } from "../../shared/types.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { FieldFeedback } from "../components/feedback/FieldFeedback.js";
@@ -9,7 +10,7 @@ import type { VerificationResult } from "./types.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionCardFeedbackProps {
-  connectionRole: "tracker" | "gitHost";
+  connectionRole: ProjectConnectionRole;
   verificationStatus: "idle" | "pending" | "ok" | "degraded" | "error";
   verificationResult?: VerificationResult | null | undefined;
   verificationError?: unknown | null | undefined;
@@ -22,7 +23,7 @@ export interface ConnectionCardFeedbackProps {
 export function OverPrivilegedNotice({
   connectionRole,
 }: {
-  connectionRole: "tracker" | "gitHost";
+  connectionRole: ProjectConnectionRole;
 }) {
   return (
     <div

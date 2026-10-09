@@ -3,9 +3,9 @@
 import type React from "react";
 import { useRef, useState } from "react";
 import { normalizeProjectId } from "../../../shared/project-identity.js";
+import { PROJECT_CONNECTION_ROLES } from "../../../shared/types.js";
 import type { ProviderDescriptor } from "../../connection/types.js";
 import { api } from "../../lib/api-client.js";
-import { CONNECTION_ROLES } from "../state/connectConfig.js";
 import type { WizardAction, WizardConnectionRole } from "../types.js";
 
 export interface UseQuickUrlIntakeProps {
@@ -77,7 +77,7 @@ export function useQuickUrlIntake({
       // state model, so the draft config is merged into the PROVIDER's one
       // configuration and every role naming that provider loses its
       // verification — the credentials on record have changed.
-      const changedRoles = CONNECTION_ROLES.filter((role) =>
+      const changedRoles = PROJECT_CONNECTION_ROLES.filter((role) =>
         descriptor.roles.includes(role),
       );
 

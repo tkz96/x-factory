@@ -1,10 +1,11 @@
 // src/frontend/connection/ConnectionProviderSelect.tsx — Provider dropdown selector for ConnectionCard.
 
+import type { ProjectConnectionRole } from "../../shared/types.js";
 import type { ProviderDescriptor } from "./types.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionProviderSelectProps {
-  connectionRole: "tracker" | "gitHost";
+  connectionRole: ProjectConnectionRole;
   providerId: string | null;
   manifest: ProviderDescriptor[];
   disabled: boolean;

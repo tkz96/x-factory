@@ -3,9 +3,9 @@
 //
 // One presentational component reports the selected tracker and git host on
 // every surface that shows a project's connections: the wizard's Review step
-// (draft verification evidence, the producer exercised here) and the
-// post-creation project surfaces (persisted connections, exercised by
-// test/post-creation-surfacing.test.tsx). It is driven by the providers
+// (draft verification evidence, derived here through the ONE connection view,
+// #176) and the post-creation project surfaces (persisted connections, exercised
+// by test/post-creation-surfacing.test.tsx). It is driven by the providers
 // manifest descriptor, so a provider the component has never heard of renders
 // correctly — there is no id → name table anywhere.
 
@@ -18,12 +18,13 @@ import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
 import { ConnectionComboLine } from "../src/frontend/components/connections/ConnectionComboLine.js";
 import {
+  type ConnectionComboSlot,
   type ConnectionEvidence,
   type ConnectionIdentities,
-  comboSlotFromEvidence,
   comboTone,
   withConnectionIdentities,
 } from "../src/frontend/components/connections/connection-state.js";
+import { draftComboSlots } from "../src/frontend/components/connections/connection-view.js";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 
@@ -71,21 +72,27 @@ function evidence(
   };
 }
 
+/**
+ * The line's slots the way the producers build them: through the ONE
+ * connection view's DRAFT input (#176), over THE one role list — the same
+ * single call the wizard's Review step makes.
+ */
+function draftSlots(
+  tracker: ConnectionEvidence,
+  gitHost: ConnectionEvidence,
+): ConnectionComboSlot[] {
+  return draftComboSlots({ kind: "draft", evidence: { tracker, gitHost } });
+}
+
 /** Renders the line the way the wizard's Review step does: from draft evidence. */
 function renderCombo(overrides: {
   tracker?: Partial<ConnectionEvidence> & { providerId: string | null };
   gitHost?: Partial<ConnectionEvidence> & { providerId: string | null };
 }) {
-  const slots = [
-    comboSlotFromEvidence(
-      "tracker",
-      evidence(overrides.tracker ?? { providerId: "quasar-board" }),
-    ),
-    comboSlotFromEvidence(
-      "gitHost",
-      evidence(overrides.gitHost ?? { providerId: "nimbus-forge" }),
-    ),
-  ];
+  const slots = draftSlots(
+    evidence(overrides.tracker ?? { providerId: "quasar-board" }),
+    evidence(overrides.gitHost ?? { providerId: "nimbus-forge" }),
+  );
   render(
     <ConnectionComboLine
       id="combo-summary"
@@ -222,16 +229,10 @@ describe("ConnectionComboLine — one line, three states per role", () => {
       capabilities: ["listTickets", "listRepositories"],
       configFields: [],
     };
-    const slots = [
-      comboSlotFromEvidence(
-        "tracker",
-        evidence({ providerId: "gitlab-later" }),
-      ),
-      comboSlotFromEvidence(
-        "gitHost",
-        evidence({ providerId: "gitlab-later" }),
-      ),
-    ];
+    const slots = draftSlots(
+      evidence({ providerId: "gitlab-later" }),
+      evidence({ providerId: "gitlab-later" }),
+    );
     render(
       <ConnectionComboLine
         slots={slots}
@@ -245,16 +246,10 @@ describe("ConnectionComboLine — one line, three states per role", () => {
   });
 
   it("restricts the rendered slots to the roles the surface asks for", () => {
-    const slots = [
-      comboSlotFromEvidence(
-        "tracker",
-        evidence({ providerId: "quasar-board" }),
-      ),
-      comboSlotFromEvidence(
-        "gitHost",
-        evidence({ providerId: "nimbus-forge" }),
-      ),
-    ];
+    const slots = draftSlots(
+      evidence({ providerId: "quasar-board" }),
+      evidence({ providerId: "nimbus-forge" }),
+    );
     render(
       <ConnectionComboLine
         slots={slots}
@@ -289,16 +284,10 @@ describe("ConnectionComboLine — one line, three states per role", () => {
       identities: ConnectionIdentities | undefined,
     ) {
       const slots = withConnectionIdentities(
-        [
-          comboSlotFromEvidence(
-            "tracker",
-            evidence({ providerId: "quasar-board" }),
-          ),
-          comboSlotFromEvidence(
-            "gitHost",
-            evidence({ providerId: "nimbus-forge" }),
-          ),
-        ],
+        draftSlots(
+          evidence({ providerId: "quasar-board" }),
+          evidence({ providerId: "nimbus-forge" }),
+        ),
         identities,
       );
       render(
@@ -348,13 +337,10 @@ describe("ConnectionComboLine — one line, three states per role", () => {
 
     it("keeps notRecorded for a role with no provider id, whatever the identity map holds", () => {
       const slots = withConnectionIdentities(
-        [
-          comboSlotFromEvidence("tracker", evidence({ providerId: null })),
-          comboSlotFromEvidence(
-            "gitHost",
-            evidence({ providerId: "nimbus-forge" }),
-          ),
-        ],
+        draftSlots(
+          evidence({ providerId: null }),
+          evidence({ providerId: "nimbus-forge" }),
+        ),
         { tracker: "board.example/ROCK", gitHost: null },
       );
       render(
@@ -376,10 +362,10 @@ describe("ConnectionComboLine — one line, three states per role", () => {
       // both slots, and the line renders one connection, not two.
       const shared = "tandem.example/team/rocket";
       const slots = withConnectionIdentities(
-        [
-          comboSlotFromEvidence("tracker", evidence({ providerId: "tandem" })),
-          comboSlotFromEvidence("gitHost", evidence({ providerId: "tandem" })),
-        ],
+        draftSlots(
+          evidence({ providerId: "tandem" }),
+          evidence({ providerId: "tandem" }),
+        ),
         { tracker: shared, gitHost: shared },
       );
       render(

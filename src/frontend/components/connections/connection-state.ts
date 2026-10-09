@@ -35,34 +35,41 @@ export interface ConnectionEvidence {
 }
 
 /**
- * `connected` — verified with nothing outstanding.
- * `degraded` — verified, but with warnings.
- * `disconnected` — no provider selected, or not verified in this session. A
- * restored draft always lands here: verification results are never persisted.
+ * THE one three-state rule (#176): `connected` when the input shows a usable
+ * connection with nothing outstanding, `degraded` when a usable one carries
+ * warnings, `disconnected` when it shows no usable connection — warnings and
+ * all.
+ *
+ * This is the ONLY place the three states are decided, and both inputs go
+ * through it: each branch decides what counts as a connection and what counts
+ * as a warning (the draft's verification evidence, the record's presence and
+ * manifest warnings) and hands those two facts here. A DEGRADED connection is
+ * USABLE: its warnings surface, they never gate (#133).
  */
 export function deriveConnectionState(
-  evidence: ConnectionEvidence,
+  usable: boolean,
+  degraded: boolean,
 ): ConnectionState {
-  if (evidence.providerId === null || evidence.verified !== true) {
+  if (!usable) {
     return "disconnected";
   }
-  return (evidence.unconfirmedCapabilities?.length ?? 0) > 0
-    ? "degraded"
-    : "connected";
+  return degraded ? "degraded" : "connected";
 }
 
 /**
- * True when a project may be created with this connection: verified. A degraded
- * verification IS usable — its warnings are surfaced, never a gate — and only a
- * fresh verification can turn an unverified connection usable, so there is no
- * dismissal or skip path.
+ * True when a project may be created with this connection: a provider is
+ * selected AND its configuration verified — the draft's half of the one rule
+ * above, read as a predicate (unusable evidence IS a disconnected slot). A
+ * degraded verification IS usable — its warnings are surfaced, never a gate —
+ * and only a fresh verification can turn an unverified connection usable, so
+ * there is no dismissal or skip path.
  */
 export function isConnectionUsable(evidence: ConnectionEvidence): boolean {
-  return deriveConnectionState(evidence) !== "disconnected";
+  return evidence.providerId !== null && evidence.verified === true;
 }
 
 // ---------------------------------------------------------------------------
-// The combo line's model — one shape, two producers
+// The combo line's model — one shape, one producer
 // ---------------------------------------------------------------------------
 
 /** The line's tone. The worst slot decides it; warnings are never the error tone. */
@@ -72,11 +79,10 @@ export type ConnectionComboTone = "connected" | "warning" | "error";
  * One role's slot as the combo line renders it: which provider serves the role,
  * and in which of the three states.
  *
- * The wizard produces these from verification evidence
- * (`comboSlotFromEvidence`); the post-creation surfaces produce them from a
- * project's persisted connections (`connection-integrity.ts`). Both feed the
- * SAME presentational component, so the line a user sees during onboarding and
- * the line they see afterwards can never drift apart.
+ * Every producer reaches these through `connection-view.ts` (#176) — the
+ * wizard's Review step from draft verification evidence, the post-creation
+ * surfaces from a project's persisted connections — so the line a user sees
+ * during onboarding and the line they see afterwards can never drift apart.
  */
 export interface ConnectionComboSlot {
   readonly role: ProjectConnectionRole;
@@ -192,18 +198,6 @@ export function withConnectionIdentities(
     const identity = identities[slot.role];
     return identity === undefined ? slot : { ...slot, identity };
   });
-}
-
-/** One role's slot, derived from the verification evidence the wizard holds. */
-export function comboSlotFromEvidence(
-  role: ProjectConnectionRole,
-  evidence: ConnectionEvidence,
-): ConnectionComboSlot {
-  return {
-    role,
-    state: deriveConnectionState(evidence),
-    providerId: evidence.providerId,
-  };
 }
 
 /** What the tone rule needs of a slot: its role, and its state. */

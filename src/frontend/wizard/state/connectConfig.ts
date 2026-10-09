@@ -29,13 +29,6 @@ import {
 import type { ProviderDescriptor } from "../../connection/types.js";
 import type { WizardConnectionRole, WizardConnectState } from "../types.js";
 
-/**
- * The roles the Connect step collects, in a stable order — the ONE role list
- * (`PROJECT_CONNECTION_ROLES`), narrowed to the wizard's own role type.
- */
-export const CONNECTION_ROLES: readonly WizardConnectionRole[] =
-  PROJECT_CONNECTION_ROLES;
-
 /** The opposite role. */
 function otherRole(role: WizardConnectionRole): WizardConnectionRole {
   return role === "tracker" ? "gitHost" : "tracker";
@@ -60,7 +53,7 @@ export function draftConnectionIdentityTargets(
   connect: WizardConnectState,
   descriptors: readonly ProviderDescriptor[],
 ): ConnectionIdentityTarget[] {
-  return CONNECTION_ROLES.map((role) => {
+  return PROJECT_CONNECTION_ROLES.map((role) => {
     const providerId = connect[role].providerId;
     return {
       role,
@@ -136,7 +129,7 @@ export function rolesForProvider(
   connect: WizardConnectState,
   providerId: string,
 ): WizardConnectionRole[] {
-  return CONNECTION_ROLES.filter(
+  return PROJECT_CONNECTION_ROLES.filter(
     (role) => connect[role].providerId === providerId,
   );
 }
@@ -153,7 +146,7 @@ export function rolesForProvider(
  */
 function pruneProviderConfigs(connect: WizardConnectState): WizardConnectState {
   const referenced = new Set(
-    CONNECTION_ROLES.map((role) => connect[role].providerId).filter(
+    PROJECT_CONNECTION_ROLES.map((role) => connect[role].providerId).filter(
       (providerId): providerId is string => providerId !== null,
     ),
   );

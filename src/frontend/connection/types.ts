@@ -1,5 +1,9 @@
 // src/frontend/connection/types.ts — Wire types for the provider HTTP boundary (spec #133, ticket #143).
 // Re-declared in the frontend to avoid importing backend provider modules.
+// The connection role is `ProjectConnectionRole` from `src/shared/types.ts` —
+// THE role type; this module never declares its own (#176).
+
+import type { ProjectConnectionRole } from "../../shared/types.js";
 
 export type ProviderConfigUiType = "text" | "secret" | "url" | "email";
 
@@ -11,13 +15,13 @@ export interface ProviderConfigFieldDescriptor {
   secret?: boolean;
   placeholder?: string;
   help?: string;
-  roles?: ("tracker" | "gitHost")[];
+  roles?: ProjectConnectionRole[];
 }
 
 export interface ProviderDescriptor {
   id: string;
   displayName: string;
-  roles: ("tracker" | "gitHost")[];
+  roles: ProjectConnectionRole[];
   iconRef: string;
   capabilities: string[];
   configFields: ProviderConfigFieldDescriptor[];
@@ -53,7 +57,7 @@ export type ParseUrlResult = ParseUrlSuccess | ParseUrlError;
 
 export interface VerifyCredentialsPayload {
   providerId: string;
-  role: "tracker" | "gitHost";
+  role: ProjectConnectionRole;
   config: Record<string, unknown>;
 }
 
@@ -80,7 +84,7 @@ export interface RepositoriesEnvelope {
 
 export interface DiscoverRepositoriesPayload {
   providerId: string;
-  role: "tracker" | "gitHost";
+  role: ProjectConnectionRole;
   config: Record<string, unknown>;
 }
 
@@ -95,7 +99,7 @@ export interface DiscoverRepositoriesPayload {
  */
 export interface DescribeConnectionPayload {
   providerId: string;
-  role?: "tracker" | "gitHost" | undefined;
+  role?: ProjectConnectionRole | undefined;
   config: Record<string, unknown>;
 }
 
