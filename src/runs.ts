@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
 import { CommandRepository } from "./db/command-repository.js";
 import { createDatabase } from "./db/connection.js";
+import { DiagnosticsRepository } from "./db/diagnostics-repository.js";
 import { type EventRecord, EventRepository } from "./db/event-repository.js";
 import { type JobRecord, JobRepository } from "./db/job-repository.js";
 import { runMigrations } from "./db/migrator.js";
@@ -41,6 +42,7 @@ const jobRepoCache = new WeakMap<Database, JobRepository>();
 const eventRepoCache = new WeakMap<Database, EventRepository>();
 const commandRepoCache = new WeakMap<Database, CommandRepository>();
 const stageAttemptRepoCache = new WeakMap<Database, StageAttemptRepository>();
+const diagnosticsRepoCache = new WeakMap<Database, DiagnosticsRepository>();
 const operationLedgerRepoCache = new WeakMap<
   Database,
   OperationLedgerRepository
@@ -93,6 +95,16 @@ export function getCommandRepository(): CommandRepository {
   if (!repo) {
     repo = new CommandRepository(db);
     commandRepoCache.set(db, repo);
+  }
+  return repo;
+}
+
+export function getDiagnosticsRepository(): DiagnosticsRepository {
+  const db = getDb();
+  let repo = diagnosticsRepoCache.get(db);
+  if (!repo) {
+    repo = new DiagnosticsRepository(db);
+    diagnosticsRepoCache.set(db, repo);
   }
   return repo;
 }

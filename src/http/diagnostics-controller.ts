@@ -5,8 +5,7 @@ import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
-import { getDb, getJobRepository, getRunRepository } from "../runs.js";
-import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
+import { getDb, getDiagnosticsRepository, getJobRepository } from "../runs.js";
 import { jsonResponse } from "./responses.js";
 
 /**
@@ -54,18 +53,10 @@ function computeReadinessStatus() {
 
   try {
     const db = getDb();
-    const ping = db.query("SELECT 1 as alive;").get() as {
-      alive: number;
-    } | null;
-    if (ping?.alive === 1) {
-      dbReady = true;
-    }
-
+    const diagnostics = getDiagnosticsRepository();
+    dbReady = diagnostics.ping();
     schemaVersion = getSchemaVersion(db);
-    const jm = db.query("PRAGMA journal_mode;").get() as {
-      journal_mode: string;
-    } | null;
-    journalMode = jm?.journal_mode || "unknown";
+    journalMode = diagnostics.journalMode();
   } catch (err: unknown) {
     dbReady = false;
     dbError = err instanceof Error ? err.message : String(err);
@@ -140,33 +131,13 @@ export function handleReadinessRoute(): Response {
  */
 export function handleDiagnosticsRoute(): Response {
   const db = getDb();
+  const diagnostics = getDiagnosticsRepository();
   const jobRepo = getJobRepository();
-  const runRepo = getRunRepository();
 
-  const runs = runRepo.list();
-  const activeRuns = runs.filter((r) => !TERMINAL_RUN_STATUSES.has(r.status));
-
+  const runCounts = diagnostics.countRuns();
+  const jobCounts = diagnostics.countJobs();
   const staleJobs = jobRepo.findStaleClaimedJobs();
   const activeWorkers = getActiveWorkers();
-
-  // Query job counts by status directly from SQLite
-  const jobCountsRow = db
-    .query(
-      `SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) as claimed,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-      FROM jobs;`,
-    )
-    .get() as {
-    total: number;
-    pending: number | null;
-    claimed: number | null;
-    completed: number | null;
-    failed: number | null;
-  } | null;
 
   return jsonResponse({
     status: "ok",
@@ -179,15 +150,15 @@ export function handleDiagnosticsRoute(): Response {
       status: "healthy",
       version: getSchemaVersion(db),
       runs: {
-        total: runs.length,
-        active: activeRuns.length,
+        total: runCounts.total,
+        active: runCounts.active,
       },
       jobs: {
-        total: jobCountsRow?.total ?? 0,
-        pending: jobCountsRow?.pending ?? 0,
-        claimed: jobCountsRow?.claimed ?? 0,
-        completed: jobCountsRow?.completed ?? 0,
-        failed: jobCountsRow?.failed ?? 0,
+        total: jobCounts.total,
+        pending: jobCounts.pending,
+        claimed: jobCounts.claimed,
+        completed: jobCounts.completed,
+        failed: jobCounts.failed,
         stale: staleJobs.length,
       },
     },
