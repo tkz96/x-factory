@@ -89,7 +89,7 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     const initialCount = defaultSSERegistry.count;
 
     // 1. Client connects via SSE
-    const req = new Request(`http://localhost/api/runs/${run.id}/events`);
+    const req = new Request(`http://localhost:3777/api/runs/${run.id}/events`);
     const res = await handleApi(req, new URL(req.url));
     expect(res.status).toBe(200);
 
@@ -113,13 +113,17 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
     const run2 = createTestRun("run-multi-sub-2", runRepo);
 
     // Connect client to Run 1
-    const req1 = new Request(`http://localhost/api/runs/${run1.id}/events`);
+    const req1 = new Request(
+      `http://localhost:3777/api/runs/${run1.id}/events`,
+    );
     const res1 = await handleApi(req1, new URL(req1.url));
     const reader1 = res1.body?.getReader();
     expect(reader1).toBeDefined();
 
     // Connect client to Run 2
-    const req2 = new Request(`http://localhost/api/runs/${run2.id}/events`);
+    const req2 = new Request(
+      `http://localhost:3777/api/runs/${run2.id}/events`,
+    );
     const res2 = await handleApi(req2, new URL(req2.url));
     const reader2 = res2.body?.getReader();
     expect(reader2).toBeDefined();

@@ -16,7 +16,6 @@ import path from "node:path";
 import {
   appendProjectRecord,
   getProject,
-  getProjectsConfigPath,
   loadProjects,
   saveProject,
 } from "../config.js";
@@ -32,6 +31,7 @@ import {
   NotFoundError,
   SemanticValidationError,
 } from "../errors.js";
+import { getProjectsConfigPath } from "../paths.js";
 import {
   deleteProjectEnvKeys,
   loadProjectEnv,

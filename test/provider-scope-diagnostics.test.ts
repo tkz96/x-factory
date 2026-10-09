@@ -56,7 +56,7 @@ async function postScopes(
   status: number;
   data: DiagnosticBody;
 }> {
-  const req = new Request(`http://localhost/api/projects/${routeId}`, {
+  const req = new Request(`http://localhost:3777/api/projects/${routeId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

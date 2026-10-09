@@ -1,5 +1,5 @@
 import { createDatabase } from "../src/db/connection.js";
-import type { StageResult } from "../src/executors/index.js";
+import type { StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 
 const dbPath = process.argv[2];
@@ -15,10 +15,10 @@ const worker = new Worker({
   db,
   commandLeaseDurationMs: 150,
   deliverExecutor: {
-    async execute(): Promise<StageResult> {
+    async execute(): Promise<StageOutcome> {
       console.log("EXECUTOR_STARTED");
       await new Promise(() => {}); // hang forever
-      return { status: "success", output: { prUrl: "url" } };
+      return { outcome: "passed", output: { prUrl: "url" } };
     },
   },
 });

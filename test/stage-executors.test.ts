@@ -131,9 +131,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       expect(branchCreated).toBe(true);
       expect(worktreeCreated).toBe(true);
-      expect(result.status).toBe("success");
-      expect(result.nextStage).toBe("understand");
-      expect(result.nextRunStatus).toBe("understanding");
+      expect(result.outcome).toBe("passed");
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.worktreePath).toBe("/isolated/worktree/path");
@@ -162,9 +160,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const result = await executor.execute(context);
 
-      expect(result.status).toBe("success");
-      expect(result.nextStage).toBeUndefined();
-      expect(result.nextRunStatus).toBe("awaiting_understanding_approval");
+      expect(result.outcome).toBe("passed");
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.implementationContext?.relevantFiles).toEqual([
@@ -210,9 +206,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const result = await executor.execute(context);
 
-      expect(result.status).toBe("success");
-      expect(result.nextStage).toBeUndefined();
-      expect(result.nextRunStatus).toBe("awaiting_review");
+      expect(result.outcome).toBe("passed");
 
       const updatedRun = runRepo.get(context.run.id);
       expect(updatedRun?.review?.passed).toBe(true);
@@ -271,9 +265,10 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const result = await executor.execute(context);
 
-      expect(result.status).toBe("failed");
-      expect(result.nextRunStatus).toBe("failed");
-      expect(result.error).toContain("Code review was not approved");
+      expect(result).toMatchObject({
+        outcome: "rejected",
+        reason: expect.stringContaining("Code review was not approved"),
+      });
       expect(context.run.review?.findings).toEqual([
         { severity: "error", message: "Security concern found" },
       ]);
@@ -295,9 +290,11 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const result = await executor.execute(context);
 
-      expect(result.status).toBe("failed");
-      expect(result.nextRunStatus).toBe("failed");
-      expect(result.error).toContain("Deterministic verification is missing");
+      expect(result.outcome).toBe("error");
+      expect(result).toMatchObject({
+        outcome: "error",
+        error: expect.stringContaining("Deterministic verification is missing"),
+      });
       expect(sessionsCreated).toBe(0);
     });
 
@@ -347,10 +344,11 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const result = await executor.execute(context);
 
-      expect(result.status).toBe("failed");
-      expect(result.nextRunStatus).toBe("failed");
-      expect(result.nextRunStatus).not.toBe("awaiting_review");
-      expect(result.error).toContain("Deterministic verification is missing");
+      expect(result.outcome).toBe("error");
+      expect(result).toMatchObject({
+        outcome: "error",
+        error: expect.stringContaining("Deterministic verification is missing"),
+      });
       expect(sessionsCreated).toBe(0);
     });
   });
@@ -384,7 +382,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       expect(committed).toBe(true);
       expect(pushed).toBe(true);
-      expect(result.status).toBe("success");
+      expect(result.outcome).toBe("passed");
       expect((result.output as PullRequest).url).toBe(
         "https://github.com/org/repo/pull/42",
       );
@@ -426,7 +424,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const customExecutor = {
         stage: "custom_stage",
-        execute: async () => ({ status: "success" as const }),
+        execute: async () => ({ outcome: "passed" as const }),
       };
       registerStageExecutor("custom_stage", customExecutor);
       expect(getStageExecutor("custom_stage")).toBe(customExecutor);

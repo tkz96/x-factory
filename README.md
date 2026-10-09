@@ -128,7 +128,7 @@ On first launch, X-Factory starts with an empty project list. Click **"Onboard P
 > **Production Mode**: To run without Vite HMR on a single port:
 > ```bash
 > bun run build
-> bun run start:production  # Serves on http://localhost:3777
+> bun run start:production  # Serves on http://127.0.0.1:3777
 > bun run worker            # In a second terminal
 > ```
 

@@ -3,7 +3,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { buildImplementationContext } from "../understand.js";
-import type { StageContext, StageExecutor, StageResult } from "./types.js";
+import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
 export interface UnderstandDependencies {
   buildImplementationContext: typeof buildImplementationContext;
@@ -23,7 +23,7 @@ export class UnderstandExecutor implements StageExecutor {
     this.deps = { ...defaultUnderstandDeps, ...deps };
   }
 
-  async execute(context: StageContext): Promise<StageResult> {
+  async execute(context: StageContext): Promise<StageOutcome> {
     const { run, project } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
@@ -57,9 +57,7 @@ export class UnderstandExecutor implements StageExecutor {
     });
 
     return {
-      status: "success",
-      nextStage: undefined,
-      nextRunStatus: "awaiting_understanding_approval",
+      outcome: "passed",
       output: {
         relevantFilesCount: implContext.relevantFiles.length,
         constraintsCount: implContext.constraints.length,

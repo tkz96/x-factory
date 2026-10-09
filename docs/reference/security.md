@@ -40,3 +40,22 @@ The selected LLM API credentials are not stored in configuration files (like `se
 - **Pi API Key (`PI_API_KEY`)**: The system universally allows `PI_API_KEY` through the sandbox boundary to support the `pi` execution agent.
 
 Credentials are provided strictly via environment variables. They are never injected as command-line arguments to the agent process, ensuring they do not leak into process listings (`ps`).
+
+## Local-Only API Boundary
+
+The API is a local control surface. It can rewrite the user's git identity and start agent work, so it must not be reachable from other machines or driven by web pages in the user's browser.
+
+The guard in `src/http/request-guard.ts` covers every `/api` request. `/openapi.json` and the static UI files are served without these checks. They are public, read-only and not sensitive.
+
+1. **Loopback listen address**: the API listens on `127.0.0.1` by default. `X_FACTORY_HOST` replaces that address. It is both the address the server binds to and the only non-loopback host the guard accepts. Set it only when you deliberately want the API reachable from other machines, and set it to the exact hostname or IP address that clients will type. For example, `X_FACTORY_HOST=192.168.1.5` binds to that interface and accepts requests addressed to `192.168.1.5:<port>`. A wildcard such as `0.0.0.0` binds to every interface but still accepts only the literal `0.0.0.0:<port>` Host, so LAN clients receive `403`. IPv6 literals are written as `X_FACTORY_HOST=::1` and matched as `[::1]:<port>`.
+2. **Host check (DNS rebinding)**: every `/api` request, `GET` included, must carry a `Host` of `localhost` or `127.0.0.1` on the port the server is listening on. The match is case-insensitive. When `X_FACTORY_HOST` is set, `<X_FACTORY_HOST>:<port>` is also accepted. Any other Host, including a trailing-dot name such as `localhost.`, is rejected with `403`. A hostile domain that resolves to `127.0.0.1` therefore cannot read the API.
+3. **Origin check**: a `POST`, `PUT`, `PATCH` or `DELETE` request that carries an `Origin` header is rejected with `403` unless the origin is `http://localhost` or `http://127.0.0.1` on the listening port or on the Vite dev UI port `5173`, or is `http://<X_FACTORY_HOST>:<port>` when `X_FACTORY_HOST` is set. Requests with no `Origin` header (curl, server-to-server) are allowed.
+4. **JSON bodies only**: a `POST`, `PUT`, `PATCH` or `DELETE` request that carries a body must declare `Content-Type: application/json` (a charset parameter is allowed). Any other type is rejected with `415`. A cross-site HTML form or `text/plain` request therefore cannot reach a JSON endpoint. `GET` requests are not subject to this rule.
+
+The Host check runs first, then the Origin check, then the Content-Type check. All three run in `handleApi` before routing. The listening port is passed in from the server, not read from the environment per request.
+
+### Trust model
+
+- The API trusts the local machine's loopback network. Any process on the same machine can call it without a browser, and the Origin check does not stop it.
+- Any local web page served from `localhost:5173` or `127.0.0.1:5173` is trusted, because the Vite dev UI origin is allowed. Anything else that runs on that port on this machine (not only X-Factory's UI) can drive state-changing endpoints.
+- When `X_FACTORY_HOST` is set, the UI served from that host is trusted as the server's own origin, and every machine that can reach that host and port can call the API.
