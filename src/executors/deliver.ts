@@ -1,6 +1,7 @@
 // src/executors/deliver.ts — DeliverExecutor: Safe commit, remote push, and PR creation with operation ledger (XFM-28, XFM-32, XFM-33).
 
 import * as git from "../git.js";
+import { renderAcceptanceCriteria, renderTicketHeading } from "../prompts.js";
 import {
   hasCapability,
   type ProviderPullRequest,
@@ -23,7 +24,7 @@ export function buildPrMetadata(ticket: {
 }): PrMetadata {
   const commitMsg = `[X-Factory] ${ticket.id}: ${ticket.title}`;
   const prTitle = commitMsg;
-  const prBody = `Implemented by X-Factory.\n\nTicket: ${ticket.id} — ${ticket.title}\n\nAcceptance Criteria:\n${ticket.acceptanceCriteria.map((c) => `- ${c}`).join("\n") || "None specified"}`;
+  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}`;
   return { commitMsg, prTitle, prBody };
 }
 

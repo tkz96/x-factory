@@ -9,7 +9,7 @@ import {
   errorResponse,
   formatSSEMessage,
   jsonResponse,
-  type WireSSEEvent,
+  toWireEvent,
   withValidatedBody,
 } from "./responses.js";
 import {
@@ -147,12 +147,7 @@ function handleRunEvents(runId: string, req?: Request): Response {
             sinceSequence: lastSequence,
           });
           for (const event of events) {
-            const wireEvent: WireSSEEvent = {
-              id: event.sequence,
-              type: event.type,
-              payload: event.payload,
-              timestamp: event.createdAt,
-            };
+            const wireEvent = toWireEvent(event);
             controller.enqueue(encoder.encode(formatSSEMessage(wireEvent)));
             lastSequence = event.sequence;
 
