@@ -7,9 +7,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execStrict } from "../src/proc.js";
 import { startServer } from "../src/server.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 let server: ReturnType<typeof startServer>;
 let baseUrl: string;

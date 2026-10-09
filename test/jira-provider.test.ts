@@ -21,9 +21,6 @@ import {
   serializeProviderConfigSchema,
 } from "../src/providers/serializer.js";
 import { startServer } from "../src/server.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 describe("Jira provider module (#140)", () => {
   describe("Registration & Identity", () => {

@@ -4,6 +4,7 @@
 # are temporarily excluded and will be un-ignored as their test suites land.
 
 [test]
+preload = ["./test/helpers/preload-data-dir.ts"]
 coverage = true
 coverageThreshold = 0.80
 coveragePathIgnorePatterns = [

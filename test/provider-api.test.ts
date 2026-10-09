@@ -18,9 +18,6 @@ import type {
 import type { ProviderDescriptor } from "../src/providers/serializer.js";
 import { startServer } from "../src/server.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 let server: ReturnType<typeof startServer>;
 let baseUrl: string;

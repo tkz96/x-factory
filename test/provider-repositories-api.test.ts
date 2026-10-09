@@ -16,9 +16,6 @@ import type {
 } from "../src/providers/contract.js";
 import { startServer } from "../src/server.js";
 import { stubProvider } from "./fixtures/stub-provider.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 const DISCOVERED_REPOSITORIES: ProviderRepository[] = [
   {

@@ -37,9 +37,6 @@ import {
   serializeProviderConfigSchema,
 } from "../src/providers/serializer.js";
 import { startServer } from "../src/server.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 describe("GitHub Provider Module (Ticket #138)", () => {
   describe("Registration & Contract Conformance", () => {

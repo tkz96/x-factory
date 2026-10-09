@@ -15,9 +15,6 @@ import {
 } from "../src/errors.js";
 import { HttpError } from "../src/http/responses.js";
 import { chatWithRun, steerRun, stopRun } from "../src/runs.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 describe("Neutral Domain Errors", () => {
   it("defines presentation-agnostic error hierarchy", () => {

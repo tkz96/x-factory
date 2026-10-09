@@ -5,9 +5,6 @@ import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { defaultSSERegistry } from "../src/http/sse-registry.js";
 import { type ServerInstance, startServer } from "../src/server.js";
-import { isolateDataDir } from "./helpers/isolated-data-dir.js";
-
-isolateDataDir();
 
 describe("Coordinated Graceful Application Shutdown (XFM-71)", () => {
   let activeServer: ServerInstance | null = null;
