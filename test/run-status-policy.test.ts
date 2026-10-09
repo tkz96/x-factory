@@ -372,6 +372,29 @@ describe("One shared run-status policy import everywhere (#170)", () => {
     }
   });
 
+  it("no frontend or http file hand-rolls a status chain or status-literal array", () => {
+    const statusLiteral = `"(?:${ALL_RUN_STATUSES.join("|")})"`;
+    const chain = new RegExp(
+      `(?:===|!==)\\s*${statusLiteral}\\s*(?:\\|\\||&&)\\s*[\\w.?]+\\s*(?:===|!==)\\s*${statusLiteral}`,
+    );
+    const inlineArray = new RegExp(
+      `\\[\\s*${statusLiteral}(?:\\s*,\\s*${statusLiteral})+`,
+    );
+    for (const dir of ["frontend", "http"]) {
+      for (const file of sourceFilesIn(path.join(repoRoot, "src", dir))) {
+        const content = readFileSync(file, "utf-8");
+        expect({ file, chain: chain.test(content) }).toEqual({
+          file,
+          chain: false,
+        });
+        expect({ file, inlineArray: inlineArray.test(content) }).toEqual({
+          file,
+          inlineArray: false,
+        });
+      }
+    }
+  });
+
   it("every client consumer imports the shared policy module", () => {
     const consumers: Record<string, string[]> = {
       "src/frontend/hooks/useRunSSE.ts": ["TERMINAL_RUN_STATUSES"],
