@@ -82,6 +82,8 @@ export class Worker {
   private activeProcessingPromise: Promise<void> | null = null;
   private currentAbortController: AbortController | null = null;
   private commandAbortController: AbortController | null = null;
+  /** The run whose deliver command is in flight, so a stop for that run can abort it. */
+  private commandRunId: string | null = null;
 
   constructor(options?: WorkerOptions) {
     this.workerId =
@@ -340,6 +342,12 @@ export class Worker {
         );
         this.currentAbortController?.abort();
       }
+      if (this.commandRunId === command.runId) {
+        this.log(
+          `Aborting in-flight deliver for run ${command.runId} due to stop command`,
+        );
+        this.commandAbortController?.abort();
+      }
 
       this.leaseManager.completeCommand(command.id, this.workerId, {
         stopped: true,
@@ -384,6 +392,7 @@ export class Worker {
       this.policy.commandHeartbeatIntervalMs,
     );
     this.commandAbortController = new AbortController();
+    this.commandRunId = command.runId;
     try {
       await this.stageRunner.run(
         work,
@@ -392,6 +401,7 @@ export class Worker {
       );
     } finally {
       this.commandAbortController = null;
+      this.commandRunId = null;
     }
   }
 

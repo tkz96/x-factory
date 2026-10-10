@@ -77,6 +77,9 @@ export interface StageRunnerHost {
   emitLog(entry: Omit<WorkerLogRecord, "timestamp" | "worker_id">): void;
 }
 
+/** How often a running stage checks whether its run was stopped, to abort the executor. */
+export const CANCEL_POLL_INTERVAL_MS = 500;
+
 const CANCEL_REASON = "Run stopped by operator during stage execution";
 
 /** Log context naming the job; commands have no job id. */
@@ -211,13 +214,35 @@ export class StageRunner {
   async run(
     work: StageWork,
     executor: StageExecutor,
-    signal: AbortSignal,
+    workerSignal: AbortSignal,
   ): Promise<void> {
     const { repos } = this.host;
     const startTime = performance.now();
     this.host.log(
       `Stage started: id=${work.id} run_id=${work.runId} stage=${work.stage}`,
     );
+
+    // The executor's signal fires when the worker aborts it (shutdown, a stop command) and
+    // also when the run is found stopped, however that stop arrived: a stop reaches the
+    // database before any command does, and a deliver cannot be reached by a stop command
+    // while the command loop is busy running it.
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (workerSignal.aborted) abort();
+    else workerSignal.addEventListener("abort", abort, { once: true });
+    const signal = controller.signal;
+    const cancelWatch = setInterval(() => {
+      try {
+        if (
+          repos.runs.get(work.runId)?.status === "stopped" ||
+          work.isCancelled()
+        ) {
+          abort();
+        }
+      } catch (err: unknown) {
+        this.host.error(`Cancellation check failed for ${work.id}`, err);
+      }
+    }, CANCEL_POLL_INTERVAL_MS);
 
     const heartbeat = this.startHeartbeat(work);
     // Once aborted (shutdown, stop), this worker no longer vouches for the work.
@@ -309,6 +334,8 @@ export class StageRunner {
       }
     } finally {
       clearInterval(heartbeat);
+      clearInterval(cancelWatch);
+      workerSignal.removeEventListener("abort", abort);
     }
   }
 

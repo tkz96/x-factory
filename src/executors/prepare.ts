@@ -56,14 +56,20 @@ export async function prepareBranch(
   branch: string,
   branchExistsFn: typeof git.branchExists,
   createBranchFn: typeof git.createBranch,
+  signal?: AbortSignal | undefined,
 ): Promise<void> {
   await ledger.execute("create_branch", async () => {
-    const branchExists = await branchExistsFn(project.repositoryPath, branch);
+    const branchExists = await branchExistsFn(
+      project.repositoryPath,
+      branch,
+      signal,
+    );
     if (!branchExists) {
       await createBranchFn(
         project.repositoryPath,
         branch,
         project.defaultBranch,
+        signal,
       );
     }
     return {
@@ -81,6 +87,7 @@ export async function prepareWorktree(
   expectedWorktreePath: string,
   worktreeExistsFn: (path: string) => Promise<boolean>,
   createWorktreeFn: typeof git.createWorktree,
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const worktreeResult = await ledger.execute<{
     worktreePath: string;
@@ -98,6 +105,7 @@ export async function prepareWorktree(
       branch,
       project.id,
       runId,
+      signal,
     );
     return {
       externalId: wtPath,
@@ -140,7 +148,7 @@ export class PrepareExecutor implements StageExecutor {
   }
 
   async execute(context: StageContext): Promise<StageOutcome> {
-    const { run, project, ledger } = context;
+    const { run, project, ledger, signal } = context;
 
     context.emit("info", { text: `Preparing branch ${run.branch}…` });
 
@@ -151,6 +159,7 @@ export class PrepareExecutor implements StageExecutor {
       run.branch,
       this.deps.branchExists,
       this.deps.createBranch,
+      signal,
     );
 
     // 2. Idempotent external worktree creation (XFM-32, XFM-33)
@@ -167,6 +176,7 @@ export class PrepareExecutor implements StageExecutor {
       expectedWorktreePath,
       this.deps.worktreeExists,
       this.deps.createWorktree,
+      signal,
     );
 
     // 3. Reconstructable baseline tracking (XFM-35)
@@ -175,7 +185,7 @@ export class PrepareExecutor implements StageExecutor {
       baselinePathFor(run.artifactsDir),
       worktreePath,
       this.deps.readFile,
-      this.deps.recordBaseline,
+      (worktree) => this.deps.recordBaseline(worktree, signal),
       this.deps.writeFile,
     );
 

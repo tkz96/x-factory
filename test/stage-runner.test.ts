@@ -47,6 +47,16 @@ const PR: PullRequest = {
   title: "T1",
 };
 
+function stopMidStageFrom(
+  repos: Repositories,
+  runId: string,
+  from: "ready_for_pr",
+): void {
+  repos.runs.transitionRun(runId, from, "stopped", {
+    event: { type: "status", payload: { status: "stopped", text: "stop" } },
+  });
+}
+
 function stopMidStage(repos: Repositories, runId: string): void {
   repos.runs.transitionRun(runId, "preparing", "stopped", {
     event: { type: "status", payload: { status: "stopped", text: "stop" } },
@@ -123,6 +133,83 @@ describe("stage runner", () => {
     expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
       ["cancelled"],
     );
+  });
+
+  it("aborts the in-flight deliver when the run is stopped under it (#163)", async () => {
+    const { db, repos, run } = setup("ready_for_pr");
+    const command = repos.commands.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+    });
+    let abortedAfterMs: number | null = null;
+    const startedAt = Date.now();
+    const worker = new Worker({
+      db,
+      workerId: "worker-stop-inflight-deliver",
+      deliverExecutor: {
+        stage: "deliver",
+        execute(ctx: StageContext): Promise<StageOutcome> {
+          return new Promise((_, reject) => {
+            ctx.signal.addEventListener("abort", () => {
+              abortedAfterMs = Date.now() - startedAt;
+              reject(new Error("aborted"));
+            });
+            // Never finishes on its own: only the abort ends it.
+            setTimeout(() => reject(new Error("never aborted")), 4000);
+          });
+        },
+      },
+    });
+    setTimeout(() => stopMidStageFrom(repos, run.id, "ready_for_pr"), 50);
+
+    await worker.stepCommandOnce();
+
+    expect(abortedAfterMs).not.toBeNull();
+    expect(abortedAfterMs ?? Number.POSITIVE_INFINITY).toBeLessThan(2500);
+    expect(repos.runs.get(run.id)?.status).toBe("stopped");
+    expect(repos.commands.getCommand(command.id)?.status).toBe("failed");
+    expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
+      ["cancelled"],
+    );
+  });
+
+  it("aborts the in-flight deliver when a stop command targets its run (#163)", async () => {
+    const { db, repos, run } = setup("ready_for_pr");
+    repos.commands.insertOrRetryCommand({ runId: run.id, command: "deliver" });
+    const worker = new Worker({
+      db,
+      workerId: "worker-stop-cmd-deliver",
+      deliverExecutor: {
+        stage: "deliver",
+        execute(ctx: StageContext): Promise<StageOutcome> {
+          return new Promise((resolve) => {
+            ctx.signal.addEventListener("abort", () =>
+              resolve({ outcome: "error", error: "aborted" }),
+            );
+            setTimeout(
+              () => resolve({ outcome: "error", error: "never aborted" }),
+              4000,
+            );
+          });
+        },
+      },
+    });
+    const delivering = worker.stepCommandOnce();
+    // The deliver command is claimed first; hand the worker the stop while it runs.
+    const stopCommand = repos.commands.insertOrRetryCommand({
+      runId: run.id,
+      command: "stop",
+      payload: {},
+      idempotencyKey: `stop:${run.id}`,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    await worker.processCommand(stopCommand);
+    await delivering;
+
+    const attempts = repos.stageAttempts.listForRun(run.id);
+    expect(attempts.map((a) => [a.status, a.error])).toEqual([
+      ["failed", "aborted"],
+    ]);
   });
 
   it("closes the attempt and commits nothing when the run status changes between the re-check and the commit", async () => {
