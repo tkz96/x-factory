@@ -21,6 +21,7 @@ import {
   CONNECTIONS_COPY,
   DEGRADED_CAPABILITY_COPY,
   ERROR_COPY,
+  formatRetryCountdown,
   STATE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
@@ -28,7 +29,7 @@ import {
   ModalProvider,
   useModal,
 } from "../src/frontend/context/ModalContext.js";
-import { api } from "../src/frontend/lib/api-client.js";
+import { ApiError, api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import {
   clearWizardDraft,
@@ -512,6 +513,74 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
       "createPullRequest mutation failed",
     );
     expect(updatedBanner?.textContent).not.toContain("insufficient_scope");
+  });
+
+  it("AC4: unwraps normalized AUTH_LOCKED from ApiError.data and shows specific canonical copy", async () => {
+    setupStep2Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    act(() => {
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "github" },
+      });
+    });
+
+    api.providers.verify = mock(async () => {
+      throw new ApiError("Auth locked", 423, {
+        code: "AUTH_LOCKED",
+        context: "VERIFY",
+        error: "Auth locked",
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-gitHost"));
+    });
+
+    const gitHostCard = getEl("connection-card-gitHost");
+    const errorBanner = gitHostCard.querySelector(".feedback-banner--error");
+    expect(errorBanner).not.toBeNull();
+    const messageEl = errorBanner?.querySelector(".feedback-banner-message");
+    expect(messageEl?.textContent).toBe(ERROR_COPY.AUTH_LOCKED.VERIFY);
+  });
+
+  it("AC4: unwraps normalized RATE_LIMITED from ApiError.data, displays retry countdown, and disables retry action", async () => {
+    setupStep2Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    act(() => {
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "github" },
+      });
+    });
+
+    api.providers.verify = mock(async () => {
+      throw new ApiError("Rate limited", 429, {
+        code: "RATE_LIMITED",
+        context: "VERIFY",
+        error: "Rate limited",
+        retryAfterMs: 30000,
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-gitHost"));
+    });
+
+    const gitHostCard = getEl("connection-card-gitHost");
+    const errorBanner = gitHostCard.querySelector(".feedback-banner--error");
+    expect(errorBanner).not.toBeNull();
+    const messageEl = errorBanner?.querySelector(".feedback-banner-message");
+    expect(messageEl?.textContent).toBe(ERROR_COPY.RATE_LIMITED.VERIFY);
+    expect(errorBanner?.querySelector(".feedback-countdown")?.textContent).toBe(
+      formatRetryCountdown(30000),
+    );
+    const retryBtn = errorBanner?.querySelector(
+      "button.retry-action",
+    ) as HTMLButtonElement | null;
+    expect(retryBtn?.disabled).toBe(true);
   });
 
   it("State persistence: over-privileged warning and degraded scope notice persist across navigation", async () => {

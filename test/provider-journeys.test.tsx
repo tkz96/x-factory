@@ -37,7 +37,7 @@ import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.j
 import {
   comboSlots,
   deriveConnectionIntegrity,
-  REQUIRED_CONNECTION_ROLES,
+  REQUIRED_POST_CREATION_ROLES,
 } from "../src/frontend/components/projects/connection-integrity.js";
 import { formatDegradedCapabilityNotice } from "../src/frontend/connection/scope-feedback.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
@@ -527,7 +527,7 @@ function journeyTests(fixture: JourneyFixture): void {
     const { container } = render(
       <ConnectionComboLine
         slots={comboSlots(integrity)}
-        tone={comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)}
+        tone={comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES)}
         descriptors={descriptors}
       />,
     );

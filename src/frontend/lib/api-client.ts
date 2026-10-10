@@ -104,6 +104,8 @@ export interface ProjectCreationPayload {
 
 export class ApiError extends Error {
   readonly code?: string | undefined;
+  readonly context?: string | undefined;
+  readonly retryAfterMs?: number | undefined;
   constructor(
     message: string,
     public readonly status: number,
@@ -111,13 +113,17 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
-    if (
-      data &&
-      typeof data === "object" &&
-      "code" in data &&
-      typeof (data as { code: unknown }).code === "string"
-    ) {
-      this.code = (data as { code: string }).code;
+    if (data && typeof data === "object") {
+      const d = data as Record<string, unknown>;
+      if (typeof d.code === "string") {
+        this.code = d.code;
+      }
+      if (typeof d.context === "string") {
+        this.context = d.context;
+      }
+      if (typeof d.retryAfterMs === "number") {
+        this.retryAfterMs = d.retryAfterMs;
+      }
     }
   }
 }
@@ -152,10 +158,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export interface VerifyProjectScopesResponse {
   ok: boolean;
   overPrivileged?: boolean | undefined;
-  scopes?: Record<string, unknown> | undefined;
+  scopes?: Record<string, boolean> | undefined;
   errors?: string[] | undefined;
   warnings?: string[] | undefined;
-  error?: NormalizedError | undefined;
 }
 
 export const api = {

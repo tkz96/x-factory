@@ -17,16 +17,22 @@ import { api } from "../../lib/api-client.js";
 import { ConnectionComboLine } from "../connections/ConnectionComboLine.js";
 import { comboTone } from "../connections/connection-state.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
-import { CONNECTIONS_COPY } from "../feedback/copy-map.js";
+import {
+  CONNECTIONS_COPY,
+  formatRetryCountdown,
+  resolveErrorCopy,
+  unwrapNormalizedError,
+} from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
+import { useRetryCountdown } from "../feedback/use-retry-countdown.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
   applyConnectionIntegrity,
   comboSlots,
   connectionDisplayValues,
   deriveConnectionIntegrity,
-  REQUIRED_CONNECTION_ROLES,
+  REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
   resolveProviderLabel,
 } from "./connection-integrity.js";
@@ -46,6 +52,7 @@ const READY_DERIVED: DerivedAsyncState = {
 interface ScopeTestResult {
   ok: boolean;
   overPrivileged?: boolean | undefined;
+  error?: unknown;
 }
 
 export function TrackerSection({ project }: TrackerSectionProps) {
@@ -64,6 +71,8 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<ScopeTestResult | null>(null);
+  const testNormalized = unwrapNormalizedError(testResult?.error);
+  const remainingMs = useRetryCountdown(testNormalized?.retryAfterMs);
 
   if (integrity.hasIntegrityFailure) {
     return (
@@ -104,8 +113,8 @@ export function TrackerSection({ project }: TrackerSectionProps) {
     try {
       const res = await api.verifyProjectScopes(project.id);
       setTestResult({ ok: res.ok, overPrivileged: res.overPrivileged });
-    } catch {
-      setTestResult({ ok: false });
+    } catch (err) {
+      setTestResult({ ok: false, error: err });
     } finally {
       setTesting(false);
     }
@@ -125,7 +134,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
       <ConnectionComboLine
         slots={slots}
-        tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
+        tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
         descriptors={descriptors}
         roles={["tracker"]}
       />
@@ -157,7 +166,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
             type="button"
             className="btn-secondary btn-sm"
             onClick={handleVerifyScopes}
-            disabled={testing}
+            disabled={testing || (remainingMs !== undefined && remainingMs > 0)}
           >
             {testing
               ? CONNECTIONS_COPY.verifyScopesPending
@@ -174,8 +183,17 @@ export function TrackerSection({ project }: TrackerSectionProps) {
               <strong>
                 {testResult.ok
                   ? CONNECTIONS_COPY.verifyScopesOk
-                  : CONNECTIONS_COPY.verifyScopesFailed}
+                  : testResult.error
+                    ? resolveErrorCopy(testResult.error)
+                    : CONNECTIONS_COPY.verifyScopesFailed}
               </strong>
+              {!testResult.ok &&
+                remainingMs !== undefined &&
+                remainingMs > 0 && (
+                  <div className="feedback-countdown">
+                    {formatRetryCountdown(remainingMs)}
+                  </div>
+                )}
               {testResult.overPrivileged && (
                 <div className="tracker-overprivileged-notice">
                   {CONNECTIONS_COPY.overPrivileged}

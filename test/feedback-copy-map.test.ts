@@ -12,12 +12,14 @@ import {
   resolveErrorCopy,
   resolveFormValidationError,
   STATE_COPY,
+  unwrapNormalizedError,
   VALIDATION_FALLBACK_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type {
   FeedbackErrorCode,
   FeedbackErrorContext,
 } from "../src/frontend/components/feedback/types.js";
+import { ApiError } from "../src/frontend/lib/api-client.js";
 
 const CODES: readonly FeedbackErrorCode[] = [
   "AUTH_INVALID",
@@ -142,6 +144,37 @@ describe("feedback copy map", () => {
         STATE_COPY.errorFallback,
       );
       expect(resolveErrorCopy(undefined)).toBe(STATE_COPY.errorFallback);
+    });
+
+    it("unwraps a normalized envelope from an ApiError instance with .data (#163)", () => {
+      const apiErrLocked = new ApiError("Locked", 423, {
+        error: "Sign-in locked",
+        code: "AUTH_LOCKED",
+        context: "TICKETS",
+      });
+      expect(isNormalizedError(apiErrLocked)).toBe(true);
+      expect(unwrapNormalizedError(apiErrLocked)).toMatchObject({
+        error: "Sign-in locked",
+        code: "AUTH_LOCKED",
+        context: "TICKETS",
+      });
+      expect(resolveErrorCopy(apiErrLocked)).toBe(
+        "Sign-in is temporarily locked, so tickets could not load. Wait a moment, then try again.",
+      );
+
+      const apiErrRateLimited = new ApiError("Too Many Requests", 429, {
+        error: "Rate limited",
+        code: "RATE_LIMITED",
+        context: "VERIFY",
+        retryAfterMs: 30000,
+      });
+      expect(isNormalizedError(apiErrRateLimited)).toBe(true);
+      expect(unwrapNormalizedError(apiErrRateLimited)?.retryAfterMs).toBe(
+        30000,
+      );
+      expect(resolveErrorCopy(apiErrRateLimited)).toBe(
+        "The provider is limiting requests, so the connection check failed. Wait a moment, then try again.",
+      );
     });
   });
 

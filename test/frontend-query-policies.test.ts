@@ -3,6 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
+import { ApiError } from "../src/frontend/lib/api-client.js";
 import {
   invalidateProject,
   invalidateProjects,
@@ -11,6 +12,8 @@ import {
   invalidateSettings,
   invalidateTickets,
   patchRunCache,
+  queryClient,
+  shouldRetryQuery,
 } from "../src/frontend/lib/query-client.js";
 import {
   QUERY_POLICIES,
@@ -319,5 +322,41 @@ describe("Explicit Targeted Invalidation (XFM-43)", () => {
     // Target invalidation of settings
     await invalidateSettings(client);
     expect(settingsQuery?.isStale()).toBe(true);
+  });
+});
+
+describe("Global Query Retry Policy (#163)", () => {
+  it("never retries 4xx ApiErrors, especially 429 RATE_LIMITED", () => {
+    expect(shouldRetryQuery(0, new ApiError("Bad request", 400))).toBe(false);
+    expect(shouldRetryQuery(0, new ApiError("Unauthorized", 401))).toBe(false);
+    expect(shouldRetryQuery(0, new ApiError("Forbidden", 403))).toBe(false);
+    expect(shouldRetryQuery(0, new ApiError("Not found", 404))).toBe(false);
+    expect(shouldRetryQuery(0, new ApiError("Rate limited", 429))).toBe(false);
+    expect(shouldRetryQuery(0, { status: 429, message: "Rate limit" })).toBe(
+      false,
+    );
+  });
+
+  it("retries 5xx server errors and network errors once, but not twice", () => {
+    expect(shouldRetryQuery(0, new ApiError("Server error", 500))).toBe(true);
+    expect(shouldRetryQuery(1, new ApiError("Server error", 500))).toBe(false);
+    expect(shouldRetryQuery(0, new Error("Network offline"))).toBe(true);
+    expect(shouldRetryQuery(1, new Error("Network offline"))).toBe(false);
+  });
+
+  it("queryClient default options wire shouldRetryQuery", () => {
+    const retryFn = queryClient.getDefaultOptions().queries?.retry;
+    expect(typeof retryFn).toBe("function");
+    if (typeof retryFn === "function") {
+      expect(
+        (retryFn as typeof shouldRetryQuery)(0, new ApiError("Locked", 423)),
+      ).toBe(false);
+      expect(
+        (retryFn as typeof shouldRetryQuery)(
+          0,
+          new ApiError("Bad gateway", 502),
+        ),
+      ).toBe(true);
+    }
   });
 });

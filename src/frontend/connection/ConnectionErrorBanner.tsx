@@ -1,9 +1,9 @@
 // src/frontend/connection/ConnectionErrorBanner.tsx — Error banner for ConnectionCard.
 
 import {
-  isNormalizedError,
   resolveErrorCopy,
   resolveFormValidationError,
+  unwrapNormalizedError,
 } from "../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import "./ConnectionCard.css";
@@ -29,9 +29,8 @@ export function ConnectionErrorBanner({
     );
   }
 
-  const retryAfterMs = isNormalizedError(verificationError)
-    ? verificationError.retryAfterMs
-    : undefined;
+  const normalized = unwrapNormalizedError(verificationError);
+  const retryAfterMs = normalized?.retryAfterMs;
 
   return (
     <FeedbackBanner

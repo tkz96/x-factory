@@ -528,6 +528,7 @@ export function resolveFormValidationError(code: string): string {
 
 /**
  * Runtime guard for values crossing the API boundary as error envelopes.
+ * Unwraps from ApiError.data if an error wrapper is passed (#163).
  * Mirrors the provider contract's `isProviderError` (#129): a positive
  * `retryAfterMs` or none at all.
  */
@@ -535,7 +536,15 @@ export function isNormalizedError(value: unknown): value is NormalizedError {
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const candidate = value as Partial<NormalizedError>;
+  const candidate = (
+    "data" in value &&
+    typeof (value as { data: unknown }).data === "object" &&
+    (value as { data: unknown }).data !== null &&
+    !("context" in value)
+      ? (value as { data: unknown }).data
+      : value
+  ) as Partial<NormalizedError>;
+
   return (
     typeof candidate.code === "string" &&
     typeof candidate.context === "string" &&
@@ -547,6 +556,27 @@ export function isNormalizedError(value: unknown): value is NormalizedError {
   );
 }
 
+/**
+ * Unwraps a normalized error envelope from an error payload, including from
+ * ApiError.data (#163).
+ */
+export function unwrapNormalizedError(
+  error: unknown,
+): NormalizedError | undefined {
+  if (error && typeof error === "object") {
+    if (
+      "data" in error &&
+      isNormalizedError((error as { data: unknown }).data)
+    ) {
+      return (error as { data: NormalizedError }).data;
+    }
+    if (isNormalizedError(error)) {
+      return error;
+    }
+  }
+  return undefined;
+}
+
 /** Resolves canonical copy for a known (code, context) pair. */
 export function getErrorCopy(
   code: FeedbackErrorCode,
@@ -556,13 +586,14 @@ export function getErrorCopy(
 }
 
 /**
- * Resolves canonical copy for any error payload. Normalized envelopes go
- * through the map; everything else gets the fallback — a raw provider body or
- * message is never rendered.
+ * Resolves canonical copy for any error payload. Normalized envelopes (including
+ * those unwrapped from ApiError.data) go through the map; everything else gets
+ * the fallback — a raw provider body or message is never rendered (#163).
  */
 export function resolveErrorCopy(error: unknown): string {
-  return isNormalizedError(error)
-    ? getErrorCopy(error.code, error.context)
+  const normalized = unwrapNormalizedError(error);
+  return normalized
+    ? getErrorCopy(normalized.code, normalized.context)
     : STATE_COPY.errorFallback;
 }
 

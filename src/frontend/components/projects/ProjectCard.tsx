@@ -24,7 +24,7 @@ import { RetryAction } from "../feedback/RetryAction.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
-  REQUIRED_CONNECTION_ROLES,
+  REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "./connection-integrity.js";
 
@@ -78,7 +78,7 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
 
         <ConnectionComboLine
           slots={slots}
-          tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
+          tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
           descriptors={descriptors}
           className="connection-combo-line--compact"
         />

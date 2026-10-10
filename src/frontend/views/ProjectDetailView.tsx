@@ -17,7 +17,7 @@ import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
-  REQUIRED_CONNECTION_ROLES,
+  REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
@@ -113,7 +113,7 @@ export function ProjectDetailView() {
         <ConnectionComboLine
           id="project-connections-combo"
           slots={slots}
-          tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
+          tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
           descriptors={descriptors}
         />
 

@@ -249,6 +249,39 @@ describe("client run-state module (#191)", () => {
     expect(reduceRun(run, stale).status).toBe("ready_for_pr");
   });
 
+  it("a replayed historical status event older than the snapshot does not regress status (#163)", () => {
+    // awaiting_review -> understanding is a legal transition in TRANSITIONS (e.g. user feedback),
+    // but an older replayed event from earlier in the run must not regress a reopened run snapshot.
+    const run = {
+      ...runSnapshot("awaiting_review"),
+      updatedAt: "2026-10-01T10:30:00.000Z",
+    } as Run;
+
+    const oldReplayedEvent: RunEvent = {
+      id: 2,
+      timestamp: "2026-10-01T10:05:00.000Z",
+      type: "status",
+      payload: { status: "understanding" },
+    };
+
+    // Stale historical event older than updatedAt must not regress status
+    expect(reduceRun(run, oldReplayedEvent).status).toBe("awaiting_review");
+
+    // A newer event (live transition after review feedback) must be applied
+    const newLiveEvent: RunEvent = {
+      id: 15,
+      timestamp: "2026-10-01T10:35:00.000Z",
+      type: "status",
+      payload: { status: "understanding" },
+    };
+
+    const updated = reduceRun(run, newLiveEvent);
+    expect(updated.status).toBe("understanding");
+    expect((updated as { updatedAt?: string }).updatedAt).toBe(
+      "2026-10-01T10:35:00.000Z",
+    );
+  });
+
   it("invalidates the run once per burst of events, not once per event", async () => {
     const records = recordDeliveredRun();
     const queryClient = new QueryClient();
