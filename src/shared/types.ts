@@ -598,8 +598,10 @@ export type ResumeRunResponse = RunOkResponse;
 
 /**
  * Request body of `POST /api/runs/:id/abandon`: an optional reason the server
- * records on the run's status event. A bodyless POST from an older client is
- * still accepted.
+ * records on the run's status event and the cancelled job text. The reason is
+ * trimmed and must be at most 500 characters with no control characters
+ * (CR and LF included); a longer or control-character reason is a 400. A
+ * bodyless POST from an older client is still accepted.
  */
 export interface AbandonRunRequest {
   reason?: string | undefined;

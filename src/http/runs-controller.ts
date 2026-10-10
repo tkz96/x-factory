@@ -20,9 +20,11 @@ import {
   jsonResponse,
   parseJsonBody,
   toWireEvent,
+  validateAgainstSchema,
   withValidatedBody,
 } from "./responses.js";
 import {
+  AbandonRunBodySchema,
   ChatRunBodySchema,
   CreateRunBodySchema,
   TransitionRunBodySchema,
@@ -326,11 +328,17 @@ export async function handleAbandonRun(
   req: Request,
   runId: string,
 ): Promise<Response> {
-  // The reason body is optional (#182): older clients POST with no body at
-  // all, and a body that fails to parse simply abandons without a reason.
+  // The reason body is optional (#182): older clients POST with no body at all,
+  // and a body that fails to parse simply abandons without a reason. A body that
+  // does parse is validated (#163 follow-up): `reason` is a trimmed string of at
+  // most 500 characters with no control characters, or the request is a 400.
   const parsed = await parseJsonBody(req);
-  const reason =
-    parsed && typeof parsed.reason === "string" ? parsed.reason : undefined;
+  let reason: string | undefined;
+  if (parsed && typeof parsed === "object") {
+    const result = validateAgainstSchema(parsed, AbandonRunBodySchema);
+    if (!result.ok) return result.response;
+    reason = result.data.reason;
+  }
   const run = await runs.abandonRun(repos, runId, reason);
   return jsonResponse<AbandonRunResponse>({ ok: true, run });
 }
