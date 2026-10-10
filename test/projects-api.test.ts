@@ -301,8 +301,17 @@ describe("Project Onboarding & Management APIs", () => {
     });
 
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { exists: boolean; gitRepos: string[] };
+    const body = (await res.json()) as {
+      exists: boolean;
+      existsLocally: boolean;
+      resolvedPath: string;
+      gitRepos: string[];
+    };
     assert.equal(body.exists, true);
+    // The retired validate-path alias asserted these two; the canonical
+    // check-path route must keep carrying them (#192).
+    assert.equal(body.existsLocally, true);
+    assert.ok(body.resolvedPath.length > 0);
     assert.ok(Array.isArray(body.gitRepos));
   });
 

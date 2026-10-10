@@ -11,7 +11,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { saveProject, validateProject } from "../src/config.js";
-import { getOpenApiSpec, ROUTE_TABLE } from "../src/http/route-table.js";
+import { getOpenApiSpec, ROUTE_TABLE, route } from "../src/http/route-table.js";
 import { handleApi } from "../src/http/routes.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
@@ -84,6 +84,16 @@ describe("the discovery and inspection namespaces no longer alias projects (#192
     expect(inspect.status).toBe(200);
     const check = await api("POST", "projects/check-path", { path: baseDir });
     expect(check.status).toBe(200);
+    // The retired validate-path alias asserted these; the canonical route must
+    // keep carrying them (#192).
+    const checkBody = (await check.json()) as {
+      exists: boolean;
+      existsLocally: boolean;
+      resolvedPath: string;
+    };
+    expect(checkBody.exists).toBe(true);
+    expect(checkBody.existsLocally).toBe(true);
+    expect(checkBody.resolvedPath.length).toBeGreaterThan(0);
   });
 });
 
@@ -116,16 +126,24 @@ describe("a project whose id shadows a removed alias stays reachable (#192)", ()
 });
 
 describe("the OpenAPI document lists every route in the table (#192)", () => {
-  it("documents every table method + path", () => {
+  it("documents exactly the table's method + path set, both ways", () => {
     const spec = getOpenApiSpec();
     const paths = spec.paths as unknown as Record<
       string,
       Record<string, unknown>
     >;
-    for (const entry of ROUTE_TABLE) {
-      expect(Object.keys(paths)).toContain(entry.path);
-      expect(paths[entry.path]?.[entry.method.toLowerCase()]).toBeDefined();
+    const documented = new Set<string>();
+    for (const [path, methods] of Object.entries(paths)) {
+      for (const method of Object.keys(methods)) {
+        documented.add(`${method.toUpperCase()} ${path}`);
+      }
     }
+    const table = new Set(
+      ROUTE_TABLE.map((entry) => `${entry.method} ${entry.path}`),
+    );
+    // Set equality in BOTH directions: a table route missing from the document
+    // fails, and a documented operation with no handler fails too (#192).
+    expect([...documented].sort()).toEqual([...table].sort());
   });
 
   it("includes chat, transitions, readiness, diagnostics and docs", () => {
@@ -171,5 +189,69 @@ describe("the request guard still runs ahead of dispatch (#219, #192)", () => {
       repos: createTestRepositories(),
     });
     expect(res.status).toBe(415);
+  });
+});
+describe("a literal segment beats a same-shape {id} pattern (#192)", () => {
+  it("orders the table so no earlier param pattern shadows a literal route", () => {
+    const segments = (p: string) => p.split("/").filter(Boolean);
+    for (const [i, literal] of ROUTE_TABLE.entries()) {
+      if (literal.path.includes("{")) continue;
+      for (const earlier of ROUTE_TABLE.slice(0, i)) {
+        if (earlier.method !== literal.method) continue;
+        const pattern = segments(earlier.path);
+        const actual = segments(literal.path);
+        if (pattern.length !== actual.length) continue;
+        const matches = pattern.every((seg, k) =>
+          seg.startsWith("{") ? true : seg === actual[k],
+        );
+        expect(matches).toBe(false);
+      }
+    }
+  });
+
+  it("POST /api/projects/inspect-repository and check-path hit their literal handlers", async () => {
+    for (const id of ["inspect-repository", "check-path"]) {
+      await saveProject(
+        validateProject({
+          id,
+          name: `Literal ${id}`,
+          repositoryPath: baseDir,
+          defaultBranch: "main",
+          testCommand: "bun test",
+        }),
+      );
+    }
+
+    const inspect = await api("POST", "projects/inspect-repository", {
+      path: baseDir,
+    });
+    expect(inspect.status).toBe(200);
+    expect(
+      ((await inspect.json()) as { readiness: unknown }).readiness,
+    ).toBeDefined();
+
+    const check = await api("POST", "projects/check-path", { path: baseDir });
+    expect(check.status).toBe(200);
+    expect(((await check.json()) as { exists: boolean }).exists).toBe(true);
+  });
+});
+
+describe("handlers read only the params their path declares (#192)", () => {
+  it("types params from the path template and rejects an undeclared read", () => {
+    const entry = route({
+      method: "GET",
+      path: "/api/runs/{id}",
+      tags: ["Runs"],
+      summary: "Typed params probe",
+      operationId: "typedParamsProbe",
+      responseDescription: "probe only",
+      handler: ({ params }) => {
+        const id: string = params.id;
+        // @ts-expect-error "idd" is not declared by "/api/runs/{id}"
+        const typo = params.idd;
+        return new Response(JSON.stringify({ id, typo }));
+      },
+    });
+    expect(entry.path).toBe("/api/runs/{id}");
   });
 });
