@@ -42,6 +42,8 @@ export interface GitHubFetchOptions {
   body?: string | undefined;
   fetchFn?: HttpTransport | undefined;
   timeoutMs?: number | undefined;
+  /** Caller's cancellation; aborts the in-flight request. */
+  signal?: AbortSignal | undefined;
 }
 
 export interface GitHubFetchResponse {
@@ -96,6 +98,9 @@ export async function githubFetch(
   }
   if (options.body !== undefined) {
     fetchOpts.body = options.body;
+  }
+  if (options.signal !== undefined) {
+    fetchOpts.signal = options.signal;
   }
   const res = await providerFetch(url, fetchOpts);
 

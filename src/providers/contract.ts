@@ -319,13 +319,21 @@ export interface Provider<Id extends string = string> {
   ): Promise<TrackerTicket[]>;
   /** Recognizes a provider URL and returns a config draft, or `null`. */
   parseQuickUrl?(url: string): QuickUrlDraft | null;
+  /**
+   * `signal` is the caller's optional cancellation (`StageContext.signal`). A
+   * provider must abort its in-flight HTTP request when it aborts, so a worker
+   * stop during delivery ends the call promptly instead of waiting it out.
+   */
   createPullRequest?(
     config: ProviderConfig,
     input: CreatePullRequestInput,
+    signal?: AbortSignal,
   ): Promise<ProviderPullRequest>;
+  /** See `createPullRequest`; `signal` aborts the lookup's in-flight request. */
   findExistingPullRequest?(
     config: ProviderConfig,
     input: FindPullRequestInput,
+    signal?: AbortSignal,
   ): Promise<ProviderPullRequest | null>;
   /**
    * The connection's identity as a human reads it (#133 story 34): a SHORT,

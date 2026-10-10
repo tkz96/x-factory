@@ -416,6 +416,15 @@ again."), while `hasCapability` still reports the capability as absent. The
 deliver stage fails with exactly that message, and the worker logs only the
 message, never the raw provider failure kept as `cause`.
 
+**Cancellation.** Both calls accept an optional third argument, `signal:
+AbortSignal`. Delivery passes the stage's cancellation signal, so a worker stop
+mid-request aborts the in-flight HTTP call (`providerFetch` already takes a
+signal) rather than waiting out the request timeout: the call rejects, no pull
+request is recorded, and the run is left stopped. The GitHub and Azure adapters
+thread the signal into `githubFetch` / `azureFetch`, and the registry wrapper
+forwards it unchanged. The contract types `signal?` on `createPullRequest` and
+`findExistingPullRequest` in `src/providers/contract.ts`.
+
 ### Registry error contract (#184)
 
 `getProvider`, `requireProvider` and `listProviders` return a wrapper around the

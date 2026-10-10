@@ -902,6 +902,7 @@ export function createAzureProvider(
     async createPullRequest(
       config: ProviderConfig,
       input: CreatePullRequestInput,
+      signal?: AbortSignal,
     ): Promise<ProviderPullRequest> {
       // Safety invariant: X-Factory creates pull requests, never merges or closes them
       const { cleanOrgUrl, encodedProject, authHeader } =
@@ -929,6 +930,7 @@ export function createAzureProvider(
         },
         body: JSON.stringify(payload),
         fetchFn: getFetcher(),
+        ...(signal ? { signal } : {}),
       });
 
       const data = (
@@ -957,6 +959,7 @@ export function createAzureProvider(
     async findExistingPullRequest(
       config: ProviderConfig,
       input: FindPullRequestInput,
+      signal?: AbortSignal,
     ): Promise<ProviderPullRequest | null> {
       const { cleanOrgUrl, encodedProject, authHeader } =
         await prepareAzureContext(
@@ -974,6 +977,7 @@ export function createAzureProvider(
           Accept: "application/json",
         },
         fetchFn: getFetcher(),
+        ...(signal ? { signal } : {}),
       });
 
       const prsPayload = res.data as { value?: unknown[] } | null | undefined;

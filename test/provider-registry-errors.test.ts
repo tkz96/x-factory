@@ -14,6 +14,7 @@ import {
   type ProviderErrorContext,
 } from "../src/providers/contract.js";
 import { ProviderError } from "../src/providers/errors.js";
+import { githubConfigSchema } from "../src/providers/github/config.js";
 import { createGithubProvider } from "../src/providers/github-module.js";
 import { createJiraProvider } from "../src/providers/jira-module.js";
 import {
@@ -242,5 +243,46 @@ describe("registry providers throw normalized ProviderErrors (#184)", () => {
     expect(requireProvider("jira", registry)).toBe(
       requireProvider("jira", registry),
     );
+  });
+
+  test("the wrapper forwards the pull-request cancellation signal to the provider (#163)", async () => {
+    const received: Array<AbortSignal | undefined> = [];
+    const provider: Provider = {
+      id: "signalspy",
+      displayName: "Signal spy",
+      roles: ["gitHost"],
+      iconRef: "provider-github",
+      configSchema: githubConfigSchema,
+      async verifyCredentials() {
+        return { status: "ok", warnings: [] };
+      },
+      toUserError(_raw, context) {
+        return { code: "UNKNOWN", context };
+      },
+      async createPullRequest(_config, _input, signal) {
+        received.push(signal);
+        return {
+          url: "https://example.test/pr/1",
+          status: "open",
+          sourceBranch: "feat",
+          targetBranch: "main",
+        };
+      },
+      async findExistingPullRequest(_config, _input, signal) {
+        received.push(signal);
+        return null;
+      },
+    };
+    const wrapped = wrapProvider(provider);
+    const controller = new AbortController();
+
+    await wrapped.createPullRequest({}, PR_INPUT, controller.signal);
+    await wrapped.findExistingPullRequest?.(
+      {},
+      { repository: "acme/repo", sourceBranch: "feat" },
+      controller.signal,
+    );
+
+    expect(received).toEqual([controller.signal, controller.signal]);
   });
 });
