@@ -159,6 +159,22 @@ export class LeaseManager {
   }
 
   /**
+   * Logs one job a sweep could not settle. The failed transaction rolled back,
+   * the sweep carries on with the next job, and the job is retried later.
+   */
+  private emitSweepError(job: JobRecord, err: unknown, message: string): void {
+    this.emitLog({
+      result: "error",
+      run_id: job.runId,
+      job_id: job.id,
+      stage: job.stage,
+      attempt: job.attempts,
+      message,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  /**
    * Closes any currently running stage attempt for a run and stage because its
    * lease expired. Returns true when an attempt was closed.
    */
@@ -209,15 +225,11 @@ export class LeaseManager {
       try {
         if (this.settleExhaustedPendingJob(job, now) === "skipped") continue;
       } catch (err) {
-        this.emitLog({
-          result: "error",
-          run_id: job.runId,
-          job_id: job.id,
-          stage: job.stage,
-          attempt: job.attempts,
-          message: `Could not settle exhausted pending job ${job.id} for run ${job.runId}.`,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        this.emitSweepError(
+          job,
+          err,
+          `Could not settle exhausted pending job ${job.id} for run ${job.runId}.`,
+        );
         continue;
       }
       result.expiredCount++;
@@ -232,15 +244,11 @@ export class LeaseManager {
       } catch (err) {
         // One job that cannot be settled must not stop the sweep or the claim
         // that follows it. Its transaction rolled back, so it is retried later.
-        this.emitLog({
-          result: "error",
-          run_id: job.runId,
-          job_id: job.id,
-          stage: job.stage,
-          attempt: job.attempts,
-          message: `Could not settle stale job ${job.id} for run ${job.runId}.`,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        this.emitSweepError(
+          job,
+          err,
+          `Could not settle stale job ${job.id} for run ${job.runId}.`,
+        );
         continue;
       }
       if (outcome === "skipped") continue;
