@@ -81,6 +81,26 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     expect(spec.paths["/api/settings"].post).toBeDefined();
   });
 
+  it("declares every tag its operations use, and no orphan tag (#163 B5)", () => {
+    const spec = getOpenApiSpec();
+    const declared = new Set(spec.tags.map((tag) => tag.name));
+    const used = new Set<string>();
+    for (const item of Object.values(spec.paths)) {
+      for (const operation of Object.values(
+        item as Record<string, { tags?: string[] }>,
+      )) {
+        for (const tag of operation.tags ?? []) used.add(tag);
+      }
+    }
+
+    // "Discovery" and "Inspection" had no routes of their own.
+    expect(declared.has("Discovery")).toBe(false);
+    expect(declared.has("Inspection")).toBe(false);
+    for (const tag of used) {
+      expect(declared.has(tag)).toBe(true);
+    }
+  });
+
   it("defines essential reusable schemas in components", () => {
     const spec = getOpenApiSpec();
     const schemas = spec.components.schemas;

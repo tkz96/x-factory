@@ -436,7 +436,12 @@ with:
 - the raw failure only as `cause`.
 
 A `ProviderError` thrown by a provider is re-tagged with the capability's
-context. Callers catch `ProviderError`; they do not call `toUserError`.
+context: the registry wrapper's `normalizeFailure` maps a non-`ProviderError`
+raw failure through `provider.toUserError(err, context)` and re-throws a
+`ProviderError`. A route that must answer a raw throw itself —
+`/api/providers/verify`, `/api/providers/repositories` and the project ticket
+probe — calls the provider's own `toUserError(err, context)` to build the wire
+`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs? }`).
 
 ### `parseQuickUrl` accepted URL shapes (GitHub reference)
 - `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
@@ -601,9 +606,12 @@ Review (#146):
   the diagnostics and the structured logs never echo them, and the stored project
   record holds only the provider's non-secret configuration.
 - `connections` is **additive** to the legacy `issueTracker`/`repositoryPath`/
-  `defaultBranch`/`testCommand` fields, which stay populated so queue, deliver
-  and readiness keep resolving. No runtime redesign, no config migration of
-  existing projects (#133 open question 2).
+  `defaultBranch`/`testCommand` fields, which stay populated for API
+  compatibility. The runtime resolves a project's tracker through its
+  `connections` set (`loadProjectConnections`); the legacy `issueTracker` view is
+  the tracker source only for a record that has NO connection set, never a second
+  read of the mirror on a record that has one. No runtime redesign, no config
+  migration of existing projects (#133 open question 2).
 - The legacy view is **derived from the connection**, never re-typed by the
   client: `deriveIssueTracker` namespaces the tracker connection's own (secret-free)
   config under the provider id and mirrors the flat fields that share a config
