@@ -30,15 +30,18 @@ function computeReadinessStatus(repos: Repositories) {
   let dbReady = false;
   let schemaVersion = 0;
   let journalMode = "unknown";
-  let dbError: string | undefined;
+  // A degraded database is reported by CODE, never by the driver's raw text:
+  // readiness is unauthenticated runtime telemetry, and a SQLite error message
+  // can quote a path or a statement (#163 B3).
+  let dbErrorCode: string | undefined;
 
   try {
     dbReady = repos.diagnostics.ping();
     schemaVersion = repos.diagnostics.schemaVersion();
     journalMode = repos.diagnostics.journalMode();
-  } catch (err: unknown) {
+  } catch {
     dbReady = false;
-    dbError = err instanceof Error ? err.message : String(err);
+    dbErrorCode = "DATABASE_UNAVAILABLE";
   }
 
   const activeWorkers = getActiveWorkers(new LeaseManager(repos));
@@ -54,7 +57,7 @@ function computeReadinessStatus(repos: Repositories) {
       status: dbReady ? "ready" : "unavailable",
       version: schemaVersion,
       journalMode,
-      ...(dbError ? { error: dbError } : {}),
+      ...(dbErrorCode ? { error: dbErrorCode } : {}),
     },
     worker: {
       status: workerReady ? "ready" : "unavailable",
@@ -69,7 +72,7 @@ function computeReadinessStatus(repos: Repositories) {
         status: dbReady ? "pass" : "fail",
         message: dbReady
           ? `SQLite version ${schemaVersion} (${journalMode})`
-          : dbError || "Database connection unavailable",
+          : "Database connection unavailable",
       },
       {
         name: "Background Worker",

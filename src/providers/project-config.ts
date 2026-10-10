@@ -5,6 +5,8 @@
 // The only provider-keyed shape is the migration request (`ProjectMigrationInput`),
 // whose per-provider tracker fields are the wire contract for that route.
 
+import { z } from "zod/v4";
+import { SemanticValidationError, ValidationError } from "../errors.js";
 import { maskSecret } from "../settings.js";
 import type {
   IssueTrackerProvider,
@@ -12,7 +14,12 @@ import type {
   ProjectConnection,
   ProjectIssueTracker,
 } from "../shared/types.js";
-import type { Provider, ProviderErrorEnvelope } from "./contract.js";
+import { toTypedProviderConfig } from "./config-validation.js";
+import type {
+  Provider,
+  ProviderErrorEnvelope,
+  ProviderRole,
+} from "./contract.js";
 import {
   type ResolvedProjectConnection,
   resolveConnectionForRole,
@@ -20,6 +27,7 @@ import {
   storedSecretValue,
 } from "./project-connections.js";
 import { PROVIDER_REGISTRY, type ProviderRegistry } from "./registry.js";
+import { routeConnectionSecrets } from "./secret-routing.js";
 
 /**
  * Maps a request's secret value onto a provider's own secret field name.
@@ -170,78 +178,83 @@ export async function testProjectTrackerConnection(
   }
 }
 
-export interface ProjectMigrationInput {
-  targetProvider: IssueTrackerProvider;
-  name?: string | undefined;
-  newProjectId?: string | undefined;
-  azure?:
-    | { orgUrl: string; project: string; requiredLabel?: string | undefined }
-    | undefined;
-  jira?:
-    | {
-        host: string;
-        email: string;
-        project?: string | undefined;
-        requiredLabel?: string | undefined;
-      }
-    | undefined;
-  github?:
-    | {
-        repo?: string | undefined;
-        repoOwner?: string | undefined;
-        repository?: string | undefined;
-        baseUrl?: string | undefined;
-        requiredLabel?: string | undefined;
-      }
-    | undefined;
-  secrets?: { pat?: string; token?: string } | undefined;
-}
+/**
+ * The wire contract for POST /api/projects/:id/migrate (#163 B1): the target
+ * provider, its target-keyed non-secret fields and the secrets to route. The
+ * HTTP body schema derives from this schema, so the transport contract and the
+ * migration input can never drift.
+ */
+export const ProjectMigrationInputSchema = z.looseObject({
+  targetProvider: z
+    .string({ error: "targetProvider is required." })
+    .trim()
+    .min(1, "targetProvider is required."),
+  newProjectId: z.string().optional(),
+  name: z.string().optional(),
+  secrets: z.record(z.string(), z.string()).optional(),
+  azure: z.record(z.string(), z.unknown()).optional(),
+  jira: z.record(z.string(), z.unknown()).optional(),
+  github: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type ProjectMigrationInput = z.infer<typeof ProjectMigrationInputSchema>;
 
 /**
- * The connections the migrated project has: the target tracker, plus every
- * other connection with its tracker role removed, so a surviving git host keeps
- * serving the project. A project with no connections stays legacy (`undefined`).
+ * One connection of a migration plan: the connection as it will be persisted
+ * (secret-free) plus the secret values it carries, keyed by env key. The shape
+ * matches the shared connection-set write plan's `PreparedConnection` (#187)
+ * without importing it, so the providers layer stays inside its zone.
  */
-function migratedConnections(
-  project: Project,
-  body: ProjectMigrationInput,
-): ProjectConnection[] | undefined {
-  if (!project.connections || project.connections.length === 0) {
-    return undefined;
-  }
-  const target = body.targetProvider;
-  const previous = project.connections.find((c) => c.providerId === target);
-  const trackerConfig = Object.fromEntries(
-    Object.entries(
-      ((body as unknown as Record<string, unknown>)[target] ?? {}) as Record<
-        string,
-        unknown
-      >,
-    ).filter(([, value]) => value !== undefined),
-  );
-  const targetConnection: ProjectConnection = {
-    providerId: target,
-    roles: previous?.roles.includes("gitHost")
-      ? ["tracker", "gitHost"]
-      : ["tracker"],
-    config: { ...(previous?.config ?? {}), ...trackerConfig },
-  };
-  const survivors = project.connections
-    .filter((c) => c.providerId !== target)
-    .map((c) => ({ ...c, roles: c.roles.filter((r) => r !== "tracker") }))
-    .filter((c) => c.roles.length > 0);
-  return [targetConnection, ...survivors];
+export interface MigrationConnectionPlan {
+  providerId: string;
+  roles: ProviderRole[];
+  connection: ProjectConnection;
+  secrets: Record<string, string>;
 }
 
+/** Everything a migration write needs, decided before any write. */
 export interface MigrationPlan {
   newId: string;
   newProject: Project;
   archivedOldProject: Project;
+  /** Non-empty secret values keyed by env key. */
   secretsToSave: Record<string, string>;
+  /**
+   * The successor's connection set with its secrets, or `undefined` for a
+   * legacy successor (a project that carries no connection set stays legacy).
+   */
+  connections: MigrationConnectionPlan[] | undefined;
+}
+
+/** Reads a request's provider-keyed section, tolerating any JSON value. */
+function providerSection(
+  body: ProjectMigrationInput,
+  providerId: string,
+): Record<string, unknown> {
+  const raw = (body as unknown as Record<string, unknown>)[providerId];
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
 }
 
 /**
- * Builds the successor project model, archived predecessor model, and credentials mapping.
+ * Builds the successor project model, the archived predecessor model, and the
+ * credentials mapping (#163 B1).
+ *
+ * Everything is decided BEFORE any write. The target connection is assembled
+ * from the stored connection (when the target provider already served the
+ * project), the request's own non-secret fields, and its secret fields — the
+ * request's value first, the stored value for a field the request omits, so a
+ * migration that does not re-enter a credential keeps the one already stored.
+ * The assembled config is validated through the shared `toTypedProviderConfig`
+ * entry point and split by `routeConnectionSecrets`, so a declared secret can
+ * never be persisted on the project record and the legacy `issueTracker` mirror
+ * is derived from the secret-free connection, never from the request body.
+ *
+ * The successor's connection set is the target plus every other connection with
+ * its tracker role removed, so a surviving git host keeps serving the project.
+ * Each connection carries its secret values for the shared write plan; a
+ * project that has no connection set stays legacy (`connections: undefined`).
  */
 export function buildProjectMigrationPlan(
   project: Project,
@@ -249,24 +262,106 @@ export function buildProjectMigrationPlan(
   registry: ProviderRegistry = PROVIDER_REGISTRY,
   storedEnv: Record<string, string> = {},
 ): MigrationPlan {
+  const provider = registry.get(body.targetProvider);
+  if (!provider) {
+    throw new SemanticValidationError({ formErrors: ["UNKNOWN_PROVIDER"] });
+  }
+
   const newId =
     body.newProjectId?.trim() || `${project.id}-${body.targetProvider}`;
 
-  const newIssueTracker: ProjectIssueTracker = {
-    provider: body.targetProvider,
-    connectionId: body.targetProvider,
-    azure: body.targetProvider === "azure" ? body.azure : undefined,
-    jira: body.targetProvider === "jira" ? body.jira : undefined,
-    github: body.targetProvider === "github" ? body.github : undefined,
+  const previousConnections = project.connections ?? [];
+  const previousTarget = previousConnections.find(
+    (connection) => connection.providerId === provider.id,
+  );
+  const targetRoles: ProviderRole[] = previousTarget?.roles.includes("gitHost")
+    ? ["tracker", "gitHost"]
+    : ["tracker"];
+
+  const effective: Record<string, unknown> = {
+    ...(previousTarget?.config ?? {}),
+  };
+  for (const [key, value] of Object.entries(
+    providerSection(body, provider.id),
+  )) {
+    if (value !== undefined) effective[key] = value;
+  }
+  const requestSecrets = secretBodyValues(
+    provider,
+    (body.secrets ?? {}) as Record<string, unknown>,
+  );
+  for (const route of secretRoutesOf(provider)) {
+    const provided = requestSecrets[route.name];
+    if (provided !== undefined) {
+      effective[route.name] = provided;
+      continue;
+    }
+    const stored = storedSecretValue(route.envKey, storedEnv);
+    if (stored) effective[route.name] = stored;
+    else delete effective[route.name];
+  }
+
+  const parsed = toTypedProviderConfig(provider, effective);
+  if (!parsed.ok) {
+    throw new ValidationError(
+      "Invalid provider configuration for the migration target.",
+      "INVALID_CONFIG",
+    );
+  }
+  const routed = routeConnectionSecrets(provider.configSchema, parsed.config);
+  const target: MigrationConnectionPlan = {
+    providerId: provider.id,
+    roles: targetRoles,
+    connection: {
+      providerId: provider.id,
+      roles: targetRoles,
+      config: routed.config,
+    },
+    secrets: routed.secrets,
   };
 
-  const connections = migratedConnections(project, body);
+  // Survivors: every other connection with its tracker role removed; the
+  // secrets already stored for it travel with it.
+  const survivors: MigrationConnectionPlan[] = previousConnections
+    .filter((connection) => connection.providerId !== provider.id)
+    .map((connection) => ({
+      ...connection,
+      roles: connection.roles.filter((role) => role !== "tracker"),
+    }))
+    .filter((connection) => connection.roles.length > 0)
+    .map((connection) => {
+      const connectionProvider = registry.get(connection.providerId);
+      const secrets: Record<string, string> = {};
+      if (connectionProvider) {
+        for (const route of secretRoutesOf(connectionProvider)) {
+          const value = storedSecretValue(route.envKey, storedEnv);
+          if (value) secrets[route.envKey] = value;
+        }
+      }
+      return {
+        providerId: connection.providerId,
+        roles: [...connection.roles],
+        connection,
+        secrets,
+      };
+    });
+
+  const connections =
+    previousConnections.length > 0 ? [target, ...survivors] : undefined;
+
+  const secretsToSave: Record<string, string> = { ...target.secrets };
+  for (const survivor of survivors) {
+    for (const [envKey, value] of Object.entries(survivor.secrets)) {
+      secretsToSave[envKey] = value;
+    }
+  }
+
   const newProject: Project = {
     ...project,
     id: newId,
     name: body.name?.trim() || project.name,
-    issueTracker: newIssueTracker,
-    connections,
+    issueTracker: deriveIssueTracker(provider.id, target.connection.config),
+    connections: connections?.map((connection) => connection.connection),
     archived: false,
     archivedAt: undefined,
     successorId: undefined,
@@ -280,32 +375,11 @@ export function buildProjectMigrationPlan(
     successorId: newId,
   };
 
-  const secretsToSave: Record<string, string> = {};
-  const provider = registry.get(body.targetProvider);
-  const [route] = provider ? secretRoutesOf(provider) : [];
-  const secret = Object.values(body.secrets ?? {}).find(
-    (value): value is string => typeof value === "string" && value !== "",
-  );
-  if (route && secret) {
-    secretsToSave[route.envKey] = secret;
-  }
-  // Secrets the surviving connections already hold move with them to the new
-  // project id; the target's own secret, when supplied, takes precedence.
-  for (const connection of connections ?? []) {
-    const connectionProvider = registry.get(connection.providerId);
-    if (!connectionProvider) continue;
-    for (const { envKey } of secretRoutesOf(connectionProvider)) {
-      const carried = storedEnv[envKey];
-      if (carried && secretsToSave[envKey] === undefined) {
-        secretsToSave[envKey] = carried;
-      }
-    }
-  }
-
   return {
     newId,
     newProject,
     archivedOldProject,
     secretsToSave,
+    connections,
   };
 }

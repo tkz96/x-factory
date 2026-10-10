@@ -128,4 +128,29 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
     expect(body.checks[0]?.name).toBe("Database");
     expect(body.checks[0]?.status).toBe("pass");
   });
+
+  it("GET /api/readiness reports a degraded database by code, never the driver's raw text (#163 B3)", async () => {
+    const raw =
+      "SQLITE_CANTOPEN: unable to open /Users/secret-path/x-factory.db";
+    repos.diagnostics.ping = () => {
+      throw new Error(raw);
+    };
+
+    const req = new Request("http://localhost:3777/api/readiness");
+    const res = await handleApi(req, new URL(req.url), { repos });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      database: { status: string; error?: string };
+      checks: Array<{ name: string; status: string; message: string }>;
+    };
+    expect(body.database.status).toBe("unavailable");
+    expect(body.database.error).toBe("DATABASE_UNAVAILABLE");
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("secret-path");
+    expect(serialized).not.toContain("SQLITE_CANTOPEN");
+    expect(body.checks.find((c) => c.name === "Database")?.message).toBe(
+      "Database connection unavailable",
+    );
+  });
 });

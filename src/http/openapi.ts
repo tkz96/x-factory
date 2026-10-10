@@ -40,16 +40,6 @@ function documentedSpec() {
           "Project management, tracker authentication, and repository mapping",
       },
       {
-        name: "Discovery",
-        description:
-          "Online and local repository discovery (Azure DevOps, GitHub, Jira, local disk)",
-      },
-      {
-        name: "Inspection",
-        description:
-          "Local directory inspection, tooling detection, and test commands",
-      },
-      {
         name: "Runs",
         description:
           "Agent execution lifecycle, event streaming, and PR delivery",
@@ -387,7 +377,7 @@ function documentedSpec() {
       },
       "/api/projects/inspect-repository": {
         post: {
-          tags: ["Inspection"],
+          tags: ["Projects"],
           summary: "Inspect Repository Tooling",
           description:
             "Analyzes a local repository folder to detect package managers (bun, npm, pnpm, yarn), test frameworks, linters, and verification scripts.",
@@ -426,7 +416,7 @@ function documentedSpec() {
       },
       "/api/projects/configure-git-identity": {
         post: {
-          tags: ["Inspection"],
+          tags: ["Projects"],
           summary: "Configure Git Identity",
           description:
             "Sets the author user.name and user.email git configuration for a local repository or globally (#161).",
@@ -519,7 +509,7 @@ function documentedSpec() {
       },
       "/api/projects/check-path": {
         post: {
-          tags: ["Inspection"],
+          tags: ["Projects"],
           summary: "Check Local Filesystem Path",
           description:
             "Validates whether a specified file or directory path exists on the host machine and checks if it is a directory.",

@@ -436,7 +436,12 @@ with:
 - the raw failure only as `cause`.
 
 A `ProviderError` thrown by a provider is re-tagged with the capability's
-context. Callers catch `ProviderError`; they do not call `toUserError`.
+context: the registry wrapper's `normalizeFailure` maps a non-`ProviderError`
+raw failure through `provider.toUserError(err, context)` and re-throws a
+`ProviderError`. A route that must answer a raw throw itself —
+`/api/providers/verify`, `/api/providers/repositories` and the project ticket
+probe — calls the provider's own `toUserError(err, context)` to build the wire
+`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs? }`).
 
 ### `parseQuickUrl` accepted URL shapes (GitHub reference)
 - `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
@@ -601,9 +606,12 @@ Review (#146):
   the diagnostics and the structured logs never echo them, and the stored project
   record holds only the provider's non-secret configuration.
 - `connections` is **additive** to the legacy `issueTracker`/`repositoryPath`/
-  `defaultBranch`/`testCommand` fields, which stay populated so queue, deliver
-  and readiness keep resolving. No runtime redesign, no config migration of
-  existing projects (#133 open question 2).
+  `defaultBranch`/`testCommand` fields, which stay populated for API
+  compatibility. The runtime resolves a project's tracker through its
+  `connections` set (`loadProjectConnections`); the legacy `issueTracker` view is
+  the tracker source only for a record that has NO connection set, never a second
+  read of the mirror on a record that has one. No runtime redesign, no config
+  migration of existing projects (#133 open question 2).
 - The legacy view is **derived from the connection**, never re-typed by the
   client: `deriveIssueTracker` namespaces the tracker connection's own (secret-free)
   config under the provider id and mirrors the flat fields that share a config
@@ -667,11 +675,14 @@ write through `createProject`, after the tracker gate above.
 | Connection set covers only one role (create), the replacement set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Two distinct providers in one set declare the same env key with different values (create or update) | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
-| Persistence failure | 500 | `{ error }` |
+| Any other unexpected failure (including a persistence failure) | 500 | `{ error: "Internal error", code: "INTERNAL" }` |
 | Provider failure on `GET /api/projects/:id/tickets` and `POST /api/projects/:id/tracker/test` and `/tracker/scopes` | by code, below | `{ error, code, context, retryAfterMs? }` |
 
 Codes only — provider and zod messages never cross the boundary. Upstream
-failures use the separate `ProviderError` envelope.
+failures use the separate `ProviderError` envelope. An unexpected error is never
+described to the caller either: `handleApi` logs its text — which can quote SQL,
+a filesystem path or a secret — through the structured logger and answers the
+generic `{ error: "Internal error", code: "INTERNAL" }` envelope (#163 B2).
 
 The provider-failure body is built in one place (`providerErrorResponse` in
 `src/http/responses.ts`): `error` is the canonical copy, `code` and `context`

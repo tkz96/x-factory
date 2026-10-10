@@ -226,6 +226,53 @@ export async function saveProject(
 }
 
 /**
+ * Commits a project migration as ONE file write: the archived predecessor and
+ * its successor land together, so a reader can never see the old project gone
+ * while the new one is still missing (and a crash can never separate them).
+ *
+ * The successor id is re-checked against the file it is about to write — the
+ * same duplicate-id rule `appendProjectRecord` enforces — so a concurrent
+ * creation or a second migration cannot overwrite a stored record. A missing
+ * predecessor is a `NotFoundError`; an id that already exists, or a predecessor
+ * that a concurrent migration has already archived, is a `ConflictError`.
+ */
+export async function commitProjectMigration(
+  archivedPredecessor: Project,
+  successor: Project,
+  configPath: string = getProjectsConfigPath(),
+): Promise<Project> {
+  const projects = await loadProjects(configPath);
+
+  const currentPredecessor = projects.find(
+    (p) => p.id === archivedPredecessor.id,
+  );
+  if (!currentPredecessor) {
+    throw new NotFoundError(`Project "${archivedPredecessor.id}" not found.`);
+  }
+  // The creation claim is keyed on the successor id, so two migrations of the
+  // same predecessor to different ids hold different claims. The commit itself
+  // must refuse a predecessor that is already archived: otherwise the second
+  // write would replace the first migration's archive record.
+  if (currentPredecessor.archived || currentPredecessor.successorId) {
+    throw new ConflictError(
+      `Project "${archivedPredecessor.id}" has already been migrated.`,
+    );
+  }
+  if (projects.some((p) => p.id === successor.id)) {
+    throw new ConflictError(
+      `Project with ID "${successor.id}" already exists.`,
+    );
+  }
+
+  const next = projects.map((project) =>
+    project.id === archivedPredecessor.id ? archivedPredecessor : project,
+  );
+  next.push(successor);
+  await saveProjects(next, configPath);
+  return successor;
+}
+
+/**
  * Delete a project by ID from projects.json.
  */
 export async function deleteProject(

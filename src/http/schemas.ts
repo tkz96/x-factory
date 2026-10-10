@@ -5,7 +5,34 @@ import {
   ProjectConnectionInputSchema,
   ProjectInputSchema,
 } from "../config-schema.js";
+import {
+  type ProjectMigrationInput,
+  ProjectMigrationInputSchema,
+} from "../providers/project-config.js";
 import { hasControlCharacters } from "../shared/validation.js";
+
+/** Request body schema for POST /api/settings (#163 B4). */
+export const WorkbenchSettingsSchema = z.object({
+  theme: z.enum(["dark", "light"]).optional(),
+  models: z
+    .object({
+      sessionA: z
+        .object({
+          provider: z.string().optional(),
+          model: z.string().optional(),
+        })
+        .optional(),
+      sessionB: z
+        .object({
+          provider: z.string().optional(),
+          model: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+export type WorkbenchSettingsBody = z.infer<typeof WorkbenchSettingsSchema>;
 
 /** Request body schema for POST /api/runs */
 export const CreateRunBodySchema = z
@@ -46,6 +73,15 @@ export const UpdateProjectConnectionsBodySchema = z.looseObject({
   /** Secret field names to clear, applied before validation (#131). */
   clearSecrets: z.array(z.string().min(1)).optional(),
 });
+
+/**
+ * Request body schema for POST /api/projects/:id/migrate (#163 B1), derived from
+ * the provider layer's `ProjectMigrationInputSchema` so the wire contract and
+ * the migration input are one shape and cannot drift.
+ */
+export const MigrateProjectBodySchema = ProjectMigrationInputSchema;
+
+export type MigrateProjectBody = ProjectMigrationInput;
 
 /** Request body schema for POST /api/runs/:id/transitions */
 export const TransitionRunBodySchema = z

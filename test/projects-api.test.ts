@@ -200,11 +200,11 @@ describe("Project Onboarding & Management APIs", () => {
         }),
       });
       assert.equal(res.status, 500);
-      const body = (await res.json()) as { error: string };
-      assert.ok(
-        body.error.includes("Invalid JSON") ||
-          body.error.includes("Unexpected token"),
-      );
+      const body = (await res.json()) as { error: string; code?: string };
+      // #163 B2: the parse failure's text can quote the malformed file, so the
+      // client only ever sees the generic envelope. The detail is logged
+      // server-side (test/http-error-translation.test.ts owns that assertion).
+      assert.deepEqual(body, { error: "Internal error", code: "INTERNAL" });
     } finally {
       // Restore previous projects file for rest of tests
       await writeFile(projectsJsonPath, currentProjects, "utf-8");

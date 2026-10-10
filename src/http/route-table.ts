@@ -48,7 +48,7 @@ import {
   handleRepositoriesRoute,
   handleVerifyRoute,
 } from "./providers-controller.js";
-import { catchHttpErrors, jsonResponse } from "./responses.js";
+import { jsonResponse } from "./responses.js";
 import type { RouteEntry, RouteRequest } from "./route-contract.js";
 import {
   handleAbandonRun,
@@ -313,7 +313,13 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "migrateProject",
     responseDescription: "The archived predecessor and the new project",
     handler: projectRoute(({ req, params, ctx }) =>
-      handleMigrateProject(params.id, req, registryOf(ctx), ctx.repos),
+      handleMigrateProject(
+        params.id,
+        req,
+        registryOf(ctx),
+        ctx.repos,
+        ctx.projectWriteStore,
+      ),
     ),
   }),
   route({
@@ -496,7 +502,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getProviderManifest",
     responseDescription: "Provider descriptors, capabilities and config fields",
     handler: ({ req, url, ctx }) =>
-      catchHttpErrors(() => handleManifestRoute(req, url, registryOf(ctx))),
+      handleManifestRoute(req, url, registryOf(ctx)),
   }),
   route({
     method: "POST",
@@ -505,8 +511,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Verify Provider Credentials",
     operationId: "verifyProviderCredentials",
     responseDescription: "Verification result or a normalized provider error",
-    handler: ({ req, ctx }) =>
-      catchHttpErrors(() => handleVerifyRoute(req, registryOf(ctx))),
+    handler: ({ req, ctx }) => handleVerifyRoute(req, registryOf(ctx)),
   }),
   route({
     method: "POST",
@@ -515,8 +520,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Parse Provider URL",
     operationId: "parseProviderUrl",
     responseDescription: "A connection draft or an unmatched-URL fallback",
-    handler: ({ req, ctx }) =>
-      catchHttpErrors(() => handleParseUrlRoute(req, registryOf(ctx))),
+    handler: ({ req, ctx }) => handleParseUrlRoute(req, registryOf(ctx)),
   }),
   route({
     method: "POST",
@@ -525,8 +529,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Discover Provider Repositories",
     operationId: "discoverProviderRepositories",
     responseDescription: "Visible repositories or a normalized provider error",
-    handler: ({ req, ctx }) =>
-      catchHttpErrors(() => handleRepositoriesRoute(req, registryOf(ctx))),
+    handler: ({ req, ctx }) => handleRepositoriesRoute(req, registryOf(ctx)),
   }),
   route({
     method: "POST",
@@ -535,8 +538,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Describe Provider Connection",
     operationId: "describeProviderConnection",
     responseDescription: "The non-secret connection identity, or null",
-    handler: ({ req, ctx }) =>
-      catchHttpErrors(() => handleDescribeRoute(req, registryOf(ctx))),
+    handler: ({ req, ctx }) => handleDescribeRoute(req, registryOf(ctx)),
   }),
 ];
 
