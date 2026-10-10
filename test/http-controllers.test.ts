@@ -13,47 +13,13 @@ import { execStrict } from "../src/proc.js";
 import * as runs from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { dispatchHttp } from "./helpers/http-dispatch.js";
 
 let repos: Repositories;
 
 beforeEach(() => {
   repos = createTestRepositories();
 });
-
-/**
- * These controller tests drive the HTTP API seam (#192): the route table
- * dispatches from the request's method + URL, so the positional dispatcher
- * arguments the pre-#192 suite passed are accepted and ignored here.
- */
-function handleRunsRoute(
-  _method: string,
-  _id: string | undefined,
-  _action: string | undefined,
-  _partsCount: number,
-  req: Request,
-  _repos?: unknown,
-): Promise<Response> {
-  return handleApi(req, new URL(req.url), { repos });
-}
-
-function handleProjectsRoute(
-  _method: string,
-  _id: string | undefined,
-  _action: string | undefined,
-  _subactionOrPartsCount: string | number | undefined,
-  partsCountOrReq: number | Request,
-  maybeReq?: Request,
-  _ctx?: unknown,
-): Promise<Response> {
-  const req = (
-    typeof partsCountOrReq === "number" ? maybeReq : partsCountOrReq
-  ) as Request;
-  return handleApi(req, new URL(req.url), { repos });
-}
-
-function handleSettingsRoute(_method: string, req: Request): Promise<Response> {
-  return handleApi(req, new URL(req.url), { repos });
-}
 
 describe("HTTP Routing & Controllers (src/http)", () => {
   describe("parseAcceptanceCriteria", () => {
@@ -153,14 +119,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "GET",
       });
-      const res = await handleRunsRoute(
-        "GET",
-        undefined,
-        undefined,
-        1,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 200);
       const data = await res.json();
@@ -173,14 +132,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: "{ bad json",
       });
-      const res = await handleRunsRoute(
-        "POST",
-        undefined,
-        undefined,
-        1,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -193,14 +145,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketId: "RUN-1" }),
       });
-      const res = await handleRunsRoute(
-        "POST",
-        undefined,
-        undefined,
-        1,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -214,14 +159,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: "unknown-proj-404" }),
       });
-      const res = await handleRunsRoute(
-        "POST",
-        undefined,
-        undefined,
-        1,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 404);
       const data = await res.json();
@@ -277,14 +215,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           }),
         });
 
-        const res = await handleRunsRoute(
-          "POST",
-          undefined,
-          undefined,
-          1,
-          req,
-          repos,
-        );
+        const res = await dispatchHttp(req, repos);
         assert.ok(res);
         assert.equal(res.status, 201);
         const data = await res.json();
@@ -304,14 +235,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           method: "GET",
         },
       );
-      const res = await handleRunsRoute(
-        "GET",
-        "nonexistent-run",
-        undefined,
-        2,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 404);
       const data = await res.json();
@@ -323,14 +247,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         "http://localhost:3777/api/runs/nonexistent-run/events",
         { method: "GET" },
       );
-      const res = await handleRunsRoute(
-        "GET",
-        "nonexistent-run",
-        "events",
-        3,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 404);
     });
@@ -344,14 +261,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: JSON.stringify({ message: "steer msg" }),
         },
       );
-      const res = await handleRunsRoute(
-        "POST",
-        "nonexistent-run",
-        "steer",
-        3,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       // Steering was removed (#167); the route table turns this into a 404.
       assert.equal(res.status, 404);
     });
@@ -365,14 +275,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: JSON.stringify({ message: "   " }),
         },
       );
-      const res = await handleRunsRoute(
-        "POST",
-        "nonexistent-run",
-        "chat",
-        3,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -388,14 +291,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: "{ malformed json",
         },
       );
-      const res = await handleRunsRoute(
-        "POST",
-        "nonexistent-run",
-        "chat",
-        3,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -411,14 +307,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: JSON.stringify({ message: "hello" }),
         },
       );
-      const res = await handleRunsRoute(
-        "POST",
-        "nonexistent-run",
-        "chat",
-        3,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 404);
       const data = await res.json();
@@ -461,14 +350,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const getReq = new Request(`http://localhost:3777/api/runs/${runId}`, {
         method: "GET",
       });
-      const getRes = await handleRunsRoute(
-        "GET",
-        runId,
-        undefined,
-        2,
-        getReq,
-        repos,
-      );
+      const getRes = await dispatchHttp(getReq, repos);
       assert.ok(getRes);
       assert.equal(getRes.status, 200);
       const getData = await getRes.json();
@@ -479,14 +361,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         `http://localhost:3777/api/runs/${runId}/events`,
         { method: "GET" },
       );
-      const eventsRes = await handleRunsRoute(
-        "GET",
-        runId,
-        "events",
-        3,
-        eventsReq,
-        repos,
-      );
+      const eventsRes = await dispatchHttp(eventsReq, repos);
       assert.ok(eventsRes);
       assert.equal(eventsRes.status, 200);
       assert.equal(eventsRes.headers.get("Content-Type"), "text/event-stream");
@@ -505,14 +380,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: JSON.stringify({ message: "Hello" }),
         },
       );
-      const chatFailRes = await handleRunsRoute(
-        "POST",
-        runId,
-        "chat",
-        3,
-        chatFailReq,
-        repos,
-      );
+      const chatFailRes = await dispatchHttp(chatFailReq, repos);
       assert.ok(chatFailRes);
       assert.equal(chatFailRes.status, 409);
 
@@ -533,14 +401,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           body: JSON.stringify({ message: "Hello" }),
         },
       );
-      const chatRes = await handleRunsRoute(
-        "POST",
-        runId,
-        "chat",
-        3,
-        chatReq,
-        repos,
-      );
+      const chatRes = await dispatchHttp(chatReq, repos);
       assert.ok(chatRes);
       assert.equal(chatRes.status, 200);
       chatSpy.mockRestore();
@@ -552,14 +413,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           method: "POST",
         },
       );
-      const stopRes = await handleRunsRoute(
-        "POST",
-        runId,
-        "stop",
-        3,
-        stopReq,
-        repos,
-      );
+      const stopRes = await dispatchHttp(stopReq, repos);
       assert.ok(stopRes);
       assert.equal(stopRes.status, 200);
       const stopData = (await stopRes.json()) as { ok: boolean };
@@ -573,14 +427,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "DELETE",
       });
-      const res = await handleRunsRoute(
-        "DELETE",
-        undefined,
-        undefined,
-        1,
-        req,
-        repos,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.equal(res.status, 404);
     });
   });
@@ -593,7 +440,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           method: "GET",
         },
       );
-      const res = await handleProjectsRoute("GET", "proj-1", "unknown", 3, req);
+      const res = await dispatchHttp(req, repos);
       assert.equal(res.status, 404);
     });
 
@@ -604,13 +451,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           method: "GET",
         },
       );
-      const res = await handleProjectsRoute(
-        "GET",
-        "unknown-proj-999",
-        undefined,
-        2,
-        req,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 404);
     });
@@ -621,13 +462,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: "bad json",
       });
-      const res = await handleProjectsRoute(
-        "POST",
-        undefined,
-        undefined,
-        1,
-        req,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -640,13 +475,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const res = await handleProjectsRoute(
-        "POST",
-        undefined,
-        undefined,
-        1,
-        req,
-      );
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -660,7 +489,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/settings", {
         method: "GET",
       });
-      const res = await handleSettingsRoute("GET", req);
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 200);
       const data = await res.json();
@@ -673,7 +502,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         headers: { "Content-Type": "application/json" },
         body: "bad json",
       });
-      const res = await handleSettingsRoute("POST", req);
+      const res = await dispatchHttp(req, repos);
       assert.ok(res);
       assert.equal(res.status, 400);
     });
@@ -682,7 +511,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       const req = new Request("http://localhost:3777/api/settings", {
         method: "DELETE",
       });
-      const res = await handleSettingsRoute("DELETE", req);
+      const res = await dispatchHttp(req, repos);
       assert.equal(res.status, 404);
     });
   });
