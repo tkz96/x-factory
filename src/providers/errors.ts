@@ -9,6 +9,10 @@
 // - Capability calls throw ProviderError tagged with its operation context.
 
 import {
+  getProviderErrorCopy,
+  PROVIDER_ERROR_COPY,
+} from "../shared/provider-error-copy.js";
+import {
   isProviderError,
   type ProviderErrorCode,
   type ProviderErrorContext,
@@ -16,73 +20,22 @@ import {
 } from "./contract.js";
 
 /**
- * The canonical (code, context) -> message map for provider errors.
- * Context names the failed operation so the message explains what broke
- * without leaking raw provider bodies, headers, or internal trace text.
+ * The canonical (code, context) -> message map for provider errors, re-exported
+ * from the shared copy table so the provider layer and the frontend copy map
+ * share one definition (#184). Context names the failed operation so the
+ * message explains what broke without leaking raw provider bodies, headers, or
+ * internal trace text.
  */
 export const PROVIDER_ERROR_MESSAGES: Readonly<
   Record<ProviderErrorCode, Readonly<Record<ProviderErrorContext, string>>>
-> = {
-  AUTH_INVALID: {
-    VERIFY: "The credentials were rejected. Check the token and try again.",
-    DISCOVERY:
-      "The credentials were rejected while discovering repositories. Check the token and try again.",
-    TICKETS:
-      "The credentials were rejected while loading tickets. Check the token and try again.",
-    PR: "The credentials were rejected while creating the pull request. Check the token and try again.",
-  },
-  AUTH_LOCKED: {
-    VERIFY:
-      "Sign-in is temporarily locked by the provider. Wait a moment, then try again.",
-    DISCOVERY:
-      "Sign-in is temporarily locked, so repositories could not load. Wait a moment, then try again.",
-    TICKETS:
-      "Sign-in is temporarily locked, so tickets could not load. Wait a moment, then try again.",
-    PR: "Sign-in is temporarily locked, so the pull request could not be created. Wait a moment, then try again.",
-  },
-  NOT_FOUND: {
-    VERIFY:
-      "The account or workspace is not visible to this token. Check the address and token.",
-    DISCOVERY:
-      "The organization, project, or workspace could not be found. Check the URL.",
-    TICKETS:
-      "The tickets source could not be found. Check the project and repository addresses.",
-    PR: "The pull request target could not be found. Check the repository and branches.",
-  },
-  RATE_LIMITED: {
-    VERIFY:
-      "The provider is limiting requests, so the connection check failed. Wait a moment, then try again.",
-    DISCOVERY:
-      "The provider is limiting requests, so repositories could not load. Wait a moment, then try again.",
-    TICKETS:
-      "The provider is limiting requests, so tickets could not load. Wait a moment, then try again.",
-    PR: "The provider is limiting requests, so the pull request could not be created. Wait a moment, then try again.",
-  },
-  PERMISSION: {
-    VERIFY:
-      "The token does not have the permissions required to verify this connection.",
-    DISCOVERY:
-      "The token does not have the permissions required to discover repositories.",
-    TICKETS:
-      "The token does not have the permissions required to load tickets.",
-    PR: "The token does not have the permissions required to create the pull request.",
-  },
-  UNKNOWN: {
-    VERIFY:
-      "An unexpected error occurred while verifying the connection. Try again.",
-    DISCOVERY:
-      "An unexpected error occurred while discovering repositories. Try again.",
-    TICKETS: "An unexpected error occurred while loading tickets. Try again.",
-    PR: "An unexpected error occurred while creating the pull request. Try again.",
-  },
-};
+> = PROVIDER_ERROR_COPY;
 
 /** Resolves canonical copy for a (code, context) pair. */
 export function getProviderErrorMessage(
   code: ProviderErrorCode,
   context: ProviderErrorContext,
 ): string {
-  return PROVIDER_ERROR_MESSAGES[code][context];
+  return getProviderErrorCopy(code, context);
 }
 
 export interface ProviderErrorOptions {

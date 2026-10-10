@@ -78,6 +78,16 @@ export function getOpenApiSpec() {
 const openApiHandler = () => jsonResponse(getOpenApiSpec());
 
 /**
+ * The project-update handler, declared once for both `PUT` and `PATCH`
+ * `/api/projects/{id}`: the two routes already shared one behavior, so
+ * they share the handler instead of repeating it.
+ */
+const updateProjectHandler = projectRoute<{ id: string }>(
+  ({ req, params, ctx }) =>
+    handleUpdateProject(params.id, req, registryOf(ctx), ctx.projectWriteStore),
+);
+
+/**
  * Declares one route entry, checking its handler against the params its own
  * path template declares (#192). The literal `path` is inferred into `Path`, so
  * the handler may only read those named params; the runtime entry erases them.
@@ -271,14 +281,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Update Project",
     operationId: "replaceProject",
     responseDescription: "The updated project",
-    handler: projectRoute(({ req, params, ctx }) =>
-      handleUpdateProject(
-        params.id,
-        req,
-        registryOf(ctx),
-        ctx.projectWriteStore,
-      ),
-    ),
+    handler: updateProjectHandler,
   }),
   route({
     method: "PATCH",
@@ -287,14 +290,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Update Project (partial)",
     operationId: "patchProject",
     responseDescription: "The updated project",
-    handler: projectRoute(({ req, params, ctx }) =>
-      handleUpdateProject(
-        params.id,
-        req,
-        registryOf(ctx),
-        ctx.projectWriteStore,
-      ),
-    ),
+    handler: updateProjectHandler,
   }),
   route({
     method: "DELETE",
