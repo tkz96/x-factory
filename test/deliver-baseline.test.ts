@@ -17,6 +17,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 let tempDir: string;
 let repo: string;
@@ -60,6 +61,11 @@ function setupWorker() {
   runMigrations(db);
   const runRepo = new RunRepository(db);
   const commandRepo = new CommandRepository(db);
+  ensureProject("proj-baseline", {
+    name: "Baseline Project",
+    workspacePath: repo,
+    repositoryPath: repo,
+  });
   const run = runRepo.create({
     id: "run-baseline",
     projectId: "proj-baseline",

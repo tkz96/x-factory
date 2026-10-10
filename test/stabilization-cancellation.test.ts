@@ -14,6 +14,7 @@ import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { stopRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 let repos: Repositories;
 
@@ -32,6 +33,12 @@ function setupTest() {
   const commandRepo = new CommandRepository(db);
   const eventRepo = new EventRepository(db);
   const stageAttemptRepo = new StageAttemptRepository(db);
+
+  ensureProject("proj-1", {
+    name: "Project 1",
+    workspacePath: "/tmp/worktrees-cancel",
+    repositoryPath: "/tmp/worktrees-cancel",
+  });
 
   const run = runRepo.create({
     id: "run-cancel-test",

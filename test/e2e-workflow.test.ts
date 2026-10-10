@@ -17,6 +17,7 @@ import type {
 } from "../src/executors/index.js";
 import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
@@ -34,6 +35,11 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     const stageAttemptRepo = new StageAttemptRepository(db);
 
     const runId = `run-e2e-gate-${Date.now()}`;
+    ensureProject("proj-e2e", {
+      name: "E2E Gate Project",
+      workspacePath: `/tmp/worktrees-${runId}`,
+      repositoryPath: `/tmp/worktrees-${runId}`,
+    });
     const run = runRepo.create({
       id: runId,
       projectId: "proj-e2e",

@@ -22,11 +22,17 @@ import { PrepareExecutor } from "../src/executors/prepare.js";
 import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 function setup(status: "preparing" | "understanding" | "ready_for_pr") {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
   const repos = createRepositories(db);
+  ensureProject("proj-sr", {
+    name: "Proj SR",
+    workspacePath: "/tmp/sr-worktree",
+    repositoryPath: "/tmp/sr-worktree",
+  });
   const run = repos.runs.create({
     id: "run-sr-1",
     projectId: "proj-sr",
@@ -210,6 +216,64 @@ describe("stage runner", () => {
     await worker.stepCommandOnce();
 
     expect(created).toBe(0);
+    const after = repos.runs.get(run.id);
+    expect(after?.status).toBe("stopped");
+    expect(after?.pullRequest).toBeNull();
+    expect(repos.commands.getCommand(command.id)?.status).toBe("failed");
+  });
+
+  it("aborts an in-flight pull request call when the run is stopped during create_pr (#163)", async () => {
+    const { db, repos, run } = setup("ready_for_pr");
+    const command = repos.commands.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+    });
+    let prRequests = 0;
+    let abortedAfterMs: number | null = null;
+    const startedAt = Date.now();
+    const worker = new Worker({
+      db,
+      workerId: "worker-abort-inflight-pr",
+      deliverExecutor: new DeliverExecutor({
+        loadRecordedBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        safeCommitAll: async () => {},
+        getHeadSha: async () => "sha-1",
+        getHeadMessage: async () => "msg",
+        getParentSha: async () => "sha-0",
+        getRemoteBranchSha: async () => null,
+        findCommitByMessageAndParent: async () => null,
+        push: async () => {},
+        findExistingPullRequest: async () => null,
+        createPullRequest: (_project, _input, signal) => {
+          prRequests += 1;
+          return new Promise<string>((_resolve, reject) => {
+            // The provider call must end when the caller's signal aborts.
+            signal?.addEventListener("abort", () => {
+              abortedAfterMs = Date.now() - startedAt;
+              reject(new Error("pull request aborted"));
+            });
+            // Never finishes on its own: only the abort ends it.
+            setTimeout(
+              () => reject(new Error("pull request was never aborted")),
+              4000,
+            );
+          });
+        },
+      }),
+    });
+
+    // The stop lands while the provider request is in flight; the runner notices
+    // it within its poll interval and aborts the executor's signal.
+    setTimeout(() => stopMidStageFrom(repos, run.id, "ready_for_pr"), 50);
+
+    await worker.stepCommandOnce();
+
+    expect(prRequests).toBe(1);
+    expect(abortedAfterMs).not.toBeNull();
+    expect(abortedAfterMs ?? Number.POSITIVE_INFINITY).toBeLessThan(2500);
     const after = repos.runs.get(run.id);
     expect(after?.status).toBe("stopped");
     expect(after?.pullRequest).toBeNull();

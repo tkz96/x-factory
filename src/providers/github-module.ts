@@ -81,15 +81,17 @@ export function createGithubProvider(
     createPullRequest(
       config: ProviderConfig,
       input: CreatePullRequestInput,
+      signal?: AbortSignal,
     ): Promise<ProviderPullRequest> {
-      return createGitHubPullRequest(config, input, fetchFn);
+      return createGitHubPullRequest(config, input, fetchFn, signal);
     },
 
     findExistingPullRequest(
       config: ProviderConfig,
       input: FindPullRequestInput,
+      signal?: AbortSignal,
     ): Promise<ProviderPullRequest | null> {
-      return findExistingGitHubPullRequest(config, input, fetchFn);
+      return findExistingGitHubPullRequest(config, input, fetchFn, signal);
     },
 
     describeConnection(config: ProviderConfig): string | null {

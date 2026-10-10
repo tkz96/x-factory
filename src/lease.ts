@@ -85,6 +85,58 @@ const LEASE_RELEASED_REASON =
 const ORPHANED_RUN_REASON =
   "Active run found without any pending or claimed workflow jobs on worker startup.";
 
+/**
+ * (job id, stable error identity) keys already logged for a settlement failure
+ * in this process, kept in insertion order so the oldest key can be evicted.
+ * A job that cannot be settled rolls back on every sweep, so the worker would
+ * otherwise log the same line once per poll tick (~1s) forever (#163). Each
+ * distinct (job id, error identity) is logged at most once per process; the
+ * sweep still isolates the failure and keeps claiming the other jobs.
+ */
+const loggedSettleFailures = new Set<string>();
+
+/**
+ * Hard cap on remembered settle-failure keys. Past it the oldest key is evicted
+ * first, so a stream of distinct poison identities cannot grow the set without
+ * bound. Re-logging an evicted identity once is harmless next to memory that
+ * never stops growing.
+ */
+export const SETTLE_FAILURE_LOG_CAP = 1000;
+
+/**
+ * A stable identity for an error: its class name plus its code when it carries
+ * one. Deliberately NOT the message, which may embed a timestamp, counter or id
+ * that changes per attempt and would make every tick look like a new failure.
+ */
+function stableErrorIdentity(err: unknown): string {
+  if (err instanceof Error) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" || typeof code === "number") {
+      return `${err.name}:${String(code)}`;
+    }
+    return err.name;
+  }
+  // A non-Error throw is rare; classify by type, never by stringified content.
+  return typeof err;
+}
+
+/** Records one settle-failure log key; false when that (job, error identity) was logged before. */
+function shouldLogSettleFailure(jobId: string, err: unknown): boolean {
+  const key = JSON.stringify([jobId, stableErrorIdentity(err)]);
+  if (loggedSettleFailures.has(key)) return false;
+  loggedSettleFailures.add(key);
+  if (loggedSettleFailures.size > SETTLE_FAILURE_LOG_CAP) {
+    const oldest = loggedSettleFailures.values().next().value;
+    if (oldest !== undefined) loggedSettleFailures.delete(oldest);
+  }
+  return true;
+}
+
+/** Test seam: how many distinct settle-failure identities are remembered right now. */
+export function settleFailureLogSizeForTesting(): number {
+  return loggedSettleFailures.size;
+}
+
 export interface LeaseManagerOptions {
   clock?: Clock | undefined;
   policy?:
@@ -163,6 +215,9 @@ export class LeaseManager {
    * the sweep carries on with the next job, and the job is retried later.
    */
   private emitSweepError(job: JobRecord, err: unknown, message: string): void {
+    // A poisoned job fails on every sweep; log it once per (job id, error
+    // identity) per process rather than on every poll tick.
+    if (!shouldLogSettleFailure(job.id, err)) return;
     this.emitLog({
       result: "error",
       run_id: job.runId,
@@ -243,7 +298,9 @@ export class LeaseManager {
         outcome = this.settleStaleJob(job, requeue, now);
       } catch (err) {
         // One job that cannot be settled must not stop the sweep or the claim
-        // that follows it. Its transaction rolled back, so it is retried later.
+        // that follows it. Its transaction rolled back, so it is retried later;
+        // that repeated failure is logged once per (job id, error identity) per
+        // process.
         this.emitSweepError(
           job,
           err,

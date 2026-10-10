@@ -114,6 +114,7 @@ export async function createGitHubPullRequest(
   config: ProviderConfig,
   input: CreatePullRequestInput,
   fetchFn?: typeof fetch | HttpTransport | undefined,
+  signal?: AbortSignal | undefined,
 ): Promise<ProviderPullRequest> {
   const { token, owner, repo, root } = prepareGitHubPrContext(
     config,
@@ -131,6 +132,7 @@ export async function createGitHubPullRequest(
       base: input.targetBranch,
     }),
     fetchFn,
+    signal,
   });
 
   return parsePullRequestResponse(res.data, input);
@@ -144,6 +146,7 @@ export async function findExistingGitHubPullRequest(
   config: ProviderConfig,
   input: FindPullRequestInput,
   fetchFn?: typeof fetch | HttpTransport | undefined,
+  signal?: AbortSignal | undefined,
 ): Promise<ProviderPullRequest | null> {
   const { token, owner, repo, root } = prepareGitHubPrContext(
     config,
@@ -157,6 +160,7 @@ export async function findExistingGitHubPullRequest(
   const res = await githubFetch(endpoint, {
     headers: resolveGitHubHeaders(token),
     fetchFn,
+    signal,
   });
 
   if (!Array.isArray(res.data)) {

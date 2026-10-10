@@ -10,6 +10,7 @@ import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import { Worker, type WorkerLogEntry } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 describe("Worker Lifecycle", () => {
   function setup() {
@@ -17,6 +18,12 @@ describe("Worker Lifecycle", () => {
     runMigrations(db);
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
+    // The worker resolves the run's project from the configuration (#163).
+    ensureProject("proj-1", {
+      name: "Project One",
+      workspacePath: "/tmp/worktrees-w1",
+      repositoryPath: "/tmp/worktrees-w1",
+    });
 
     const run = runRepo.create({
       id: "run-w-1",
@@ -253,5 +260,55 @@ describe("Worker Lifecycle", () => {
         .listForRun("run-w-1")
         .map((a) => [a.status, a.error?.startsWith('Project "proj-1"')]),
     ).toEqual([["failed", true]]);
+  });
+
+  it("fails the stage when the run's project is missing from the configuration, instead of running against a stand-in (#163)", async () => {
+    const { db, jobRepo, job } = setup();
+    const configDir = await mkdtemp(path.join(tmpdir(), "wl-missing-config-"));
+    const configPath = path.join(configDir, "projects.json");
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ projects: [] }, null, 2)}\n`,
+    );
+    const previous = process.env.X_FACTORY_CONFIG_PATH;
+    process.env.X_FACTORY_CONFIG_PATH = configPath;
+    let executed = false;
+    try {
+      const worker = new Worker({
+        db,
+        workerId: "test-worker-missing-project",
+        getStageExecutor: () => ({
+          stage: "prepare",
+          async execute() {
+            executed = true;
+            return { outcome: "passed" as const };
+          },
+        }),
+      });
+      const claimed = jobRepo.claimNextJob(
+        "test-worker-missing-project",
+        30000,
+      );
+      if (!claimed) throw new Error("Job claim failed unexpectedly.");
+      await worker.processJob(claimed);
+    } finally {
+      if (previous === undefined) delete process.env.X_FACTORY_CONFIG_PATH;
+      else process.env.X_FACTORY_CONFIG_PATH = previous;
+      await rm(configDir, { recursive: true, force: true });
+    }
+
+    expect(executed).toBe(false);
+    const failed = jobRepo.getJob(job.id);
+    expect(failed?.status).toBe("pending");
+    expect(failed?.error).toBe(
+      'Project "proj-1" is not in the projects configuration.',
+    );
+    expect(
+      new StageAttemptRepository(db)
+        .listForRun("run-w-1")
+        .map((a) => [a.status, a.error]),
+    ).toEqual([
+      ["failed", 'Project "proj-1" is not in the projects configuration.'],
+    ]);
   });
 });

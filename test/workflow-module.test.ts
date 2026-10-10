@@ -20,6 +20,7 @@ import type {
 } from "../src/executors/index.js";
 import { resumeRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
@@ -30,6 +31,11 @@ function setup(status: "executing" | "recovery_required" | "planning") {
   const runRepo = new RunRepository(db);
   const jobRepo = new JobRepository(db);
   const stageAttemptRepo = new StageAttemptRepository(db);
+  ensureProject("proj-wf", {
+    name: "Workflow Project",
+    workspacePath: "/tmp/worktrees-wf",
+    repositoryPath: "/tmp/worktrees-wf",
+  });
   const run = runRepo.create({
     id: "run-wf-1",
     projectId: "proj-wf",

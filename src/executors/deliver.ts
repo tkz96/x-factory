@@ -57,27 +57,36 @@ export async function defaultCreatePullRequest(
     prBody: string;
   },
   registry: ProviderRegistry = PROVIDER_REGISTRY,
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const { provider, config, repository } = await resolveGitHostConnection(
     project,
     registry,
   );
 
-  const existing = await provider.findExistingPullRequest?.(config, {
-    repository,
-    sourceBranch: params.branch,
-  });
+  const existing = await provider.findExistingPullRequest?.(
+    config,
+    {
+      repository,
+      sourceBranch: params.branch,
+    },
+    signal,
+  );
   if (existing?.url) {
     return existing.url;
   }
 
-  const pr = await provider.createPullRequest(config, {
-    repository,
-    title: params.prTitle,
-    description: params.prBody,
-    sourceBranch: params.branch,
-    targetBranch: project.defaultBranch,
-  });
+  const pr = await provider.createPullRequest(
+    config,
+    {
+      repository,
+      title: params.prTitle,
+      description: params.prBody,
+      sourceBranch: params.branch,
+      targetBranch: project.defaultBranch,
+    },
+    signal,
+  );
 
   return pr.url;
 }
@@ -89,6 +98,7 @@ export async function defaultFindExistingPullRequest(
     worktree: string;
   },
   registry: ProviderRegistry = PROVIDER_REGISTRY,
+  signal?: AbortSignal | undefined,
 ): Promise<ProviderPullRequest | null> {
   const { provider, config, repository } = await resolveGitHostConnection(
     project,
@@ -96,10 +106,14 @@ export async function defaultFindExistingPullRequest(
   );
 
   return (
-    provider.findExistingPullRequest?.(config, {
-      repository,
-      sourceBranch: params.branch,
-    }) ?? null
+    (await provider.findExistingPullRequest?.(
+      config,
+      {
+        repository,
+        sourceBranch: params.branch,
+      },
+      signal,
+    )) ?? null
   );
 }
 
@@ -118,22 +132,30 @@ export async function createPullRequestWithFallback(
   signal?.throwIfAborted();
 
   // External PR Crash Recovery: check for existing PR first
-  const existing = await deps.findExistingPullRequest(project, {
-    branch,
-    worktree,
-  });
+  const existing = await deps.findExistingPullRequest(
+    project,
+    {
+      branch,
+      worktree,
+    },
+    signal,
+  );
   if (existing?.url) {
     return existing.url;
   }
 
   // A stop that landed during the lookup must not open a pull request.
   signal?.throwIfAborted();
-  return deps.createPullRequest(project, {
-    branch,
-    worktree,
-    prTitle,
-    prBody,
-  });
+  return deps.createPullRequest(
+    project,
+    {
+      branch,
+      worktree,
+      prTitle,
+      prBody,
+    },
+    signal,
+  );
 }
 
 export interface DeliverDependencies {
@@ -148,6 +170,7 @@ export interface DeliverDependencies {
       prTitle: string;
       prBody: string;
     },
+    signal?: AbortSignal | undefined,
   ) => Promise<string>;
   findExistingPullRequest: (
     project: Project,
@@ -155,6 +178,7 @@ export interface DeliverDependencies {
       branch: string;
       worktree: string;
     },
+    signal?: AbortSignal | undefined,
   ) => Promise<ProviderPullRequest | null>;
   getHeadMessage: typeof git.getHeadMessage;
   getHeadSha: typeof git.getHeadSha;
@@ -167,8 +191,10 @@ export const defaultDeliverDeps: DeliverDependencies = {
   loadRecordedBaseline,
   safeCommitAll: git.safeCommitAll,
   push: git.push,
-  createPullRequest: defaultCreatePullRequest,
-  findExistingPullRequest: defaultFindExistingPullRequest,
+  createPullRequest: (project, input, signal) =>
+    defaultCreatePullRequest(project, input, PROVIDER_REGISTRY, signal),
+  findExistingPullRequest: (project, input, signal) =>
+    defaultFindExistingPullRequest(project, input, PROVIDER_REGISTRY, signal),
   getHeadMessage: git.getHeadMessage,
   getHeadSha: git.getHeadSha,
   getParentSha: git.getParentSha,
@@ -362,10 +388,14 @@ export class DeliverExecutor implements StageExecutor {
           );
         }
 
-        const existing = await this.deps.findExistingPullRequest(project, {
-          branch: run.branch,
-          worktree,
-        });
+        const existing = await this.deps.findExistingPullRequest(
+          project,
+          {
+            branch: run.branch,
+            worktree,
+          },
+          signal,
+        );
 
         if (existing) {
           const raw = existing as unknown as Record<string, unknown>;

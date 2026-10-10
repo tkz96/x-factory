@@ -507,9 +507,9 @@ export class Worker {
   }
 
   /**
-   * The configured project for a run. A project missing from the configuration falls back
-   * to a minimal record built from the run itself; a configuration that cannot be read
-   * throws, so the stage fails with the reason instead of running against a made-up project.
+   * The configured project for a run. Both a configuration that cannot be read and a
+   * project missing from it throw here, so the stage fails with the reason instead of
+   * running against a made-up project.
    */
   private async resolveProject(run: RunRecord): Promise<Project> {
     let project: Project | null;
@@ -524,18 +524,9 @@ export class Worker {
     }
     if (project) return project;
 
-    return {
-      id: run.project.id,
-      name: run.project.name,
-      workspacePath: run.worktreePath || run.artifactsDir,
-      repositoryPath: run.worktreePath || run.artifactsDir,
-      defaultBranch: "main",
-      testCommand: "bun test",
-      repositories: [],
-      issueTracker: {
-        provider: "jira",
-      },
-    };
+    throw new Error(
+      `Project "${run.project.id}" is not in the projects configuration.`,
+    );
   }
 
   /**
