@@ -5,6 +5,10 @@ import {
   ProjectConnectionInputSchema,
   ProjectInputSchema,
 } from "../config-schema.js";
+import {
+  type ProjectMigrationInput,
+  ProjectMigrationInputSchema,
+} from "../providers/project-config.js";
 import { hasControlCharacters } from "../shared/validation.js";
 
 /** Request body schema for POST /api/settings (#163 B4). */
@@ -70,21 +74,14 @@ export const UpdateProjectConnectionsBodySchema = z.looseObject({
   clearSecrets: z.array(z.string().min(1)).optional(),
 });
 
-/** Request body schema for POST /api/projects/:id/migrate (#163 B1). */
-export const MigrateProjectBodySchema = z.looseObject({
-  targetProvider: z
-    .string({ error: "targetProvider is required." })
-    .trim()
-    .min(1, "targetProvider is required."),
-  newProjectId: z.string().optional(),
-  name: z.string().optional(),
-  secrets: z.record(z.string(), z.string()).optional(),
-  azure: z.record(z.string(), z.unknown()).optional(),
-  jira: z.record(z.string(), z.unknown()).optional(),
-  github: z.record(z.string(), z.unknown()).optional(),
-});
+/**
+ * Request body schema for POST /api/projects/:id/migrate (#163 B1), derived from
+ * the provider layer's `ProjectMigrationInputSchema` so the wire contract and
+ * the migration input are one shape and cannot drift.
+ */
+export const MigrateProjectBodySchema = ProjectMigrationInputSchema;
 
-export type MigrateProjectBody = z.infer<typeof MigrateProjectBodySchema>;
+export type MigrateProjectBody = ProjectMigrationInput;
 
 /** Request body schema for POST /api/runs/:id/transitions */
 export const TransitionRunBodySchema = z

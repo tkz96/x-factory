@@ -649,7 +649,7 @@ export async function migrateProject(
 
   const migrationBody: ProjectMigrationInput = {
     ...body,
-    targetProvider: targetProvider as ProjectMigrationInput["targetProvider"],
+    targetProvider,
   };
   const newId =
     migrationBody.newProjectId?.trim() || `${projectId}-${targetProvider}`;

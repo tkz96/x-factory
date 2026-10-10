@@ -5,6 +5,7 @@
 // The only provider-keyed shape is the migration request (`ProjectMigrationInput`),
 // whose per-provider tracker fields are the wire contract for that route.
 
+import { z } from "zod/v4";
 import { SemanticValidationError, ValidationError } from "../errors.js";
 import { maskSecret } from "../settings.js";
 import type {
@@ -177,32 +178,26 @@ export async function testProjectTrackerConnection(
   }
 }
 
-export interface ProjectMigrationInput {
-  targetProvider: IssueTrackerProvider;
-  name?: string | undefined;
-  newProjectId?: string | undefined;
-  azure?:
-    | { orgUrl: string; project: string; requiredLabel?: string | undefined }
-    | undefined;
-  jira?:
-    | {
-        host: string;
-        email: string;
-        project?: string | undefined;
-        requiredLabel?: string | undefined;
-      }
-    | undefined;
-  github?:
-    | {
-        repo?: string | undefined;
-        repoOwner?: string | undefined;
-        repository?: string | undefined;
-        baseUrl?: string | undefined;
-        requiredLabel?: string | undefined;
-      }
-    | undefined;
-  secrets?: { pat?: string; token?: string } | undefined;
-}
+/**
+ * The wire contract for POST /api/projects/:id/migrate (#163 B1): the target
+ * provider, its target-keyed non-secret fields and the secrets to route. The
+ * HTTP body schema derives from this schema, so the transport contract and the
+ * migration input can never drift.
+ */
+export const ProjectMigrationInputSchema = z.looseObject({
+  targetProvider: z
+    .string({ error: "targetProvider is required." })
+    .trim()
+    .min(1, "targetProvider is required."),
+  newProjectId: z.string().optional(),
+  name: z.string().optional(),
+  secrets: z.record(z.string(), z.string()).optional(),
+  azure: z.record(z.string(), z.unknown()).optional(),
+  jira: z.record(z.string(), z.unknown()).optional(),
+  github: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type ProjectMigrationInput = z.infer<typeof ProjectMigrationInputSchema>;
 
 /**
  * One connection of a migration plan: the connection as it will be persisted

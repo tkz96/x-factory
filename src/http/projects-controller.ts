@@ -31,7 +31,6 @@ import {
 import { ProviderError } from "../providers/errors.js";
 import {
   extractTrackerCredentialsToSave,
-  type ProjectMigrationInput,
   resolveProjectTrackerSummary,
   testProjectTrackerConnection,
 } from "../providers/project-config.js";
@@ -436,11 +435,9 @@ export async function handleMigrateProject(
     req,
     MigrateProjectBodySchema,
     async (body) => {
-      const saved = await migrateProject(
-        projectId,
-        body as unknown as ProjectMigrationInput,
-        { registry, store },
-      );
+      // `body` is the provider layer's own `ProjectMigrationInput`: the schema
+      // derives from it, so no cast is needed (#163 B2 review).
+      const saved = await migrateProject(projectId, body, { registry, store });
       return jsonResponse(
         {
           ok: true,
