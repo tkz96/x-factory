@@ -59,6 +59,29 @@ export const ChatRunBodySchema = z
   })
   .passthrough();
 
+/**
+ * Request body schema for POST /api/runs/:id/abandon (#182, #163 follow-up).
+ *
+ * The reason is optional — a bodyless POST from an older client still abandons
+ * without one — but when present it must be a string, trimmed, at most 500
+ * characters, with no control characters (CR and LF included), so the reason
+ * recorded on the status event and the cancelled job text stays printable and
+ * bounded.
+ */
+export const AbandonRunBodySchema = z
+  .object({
+    reason: z
+      .string({ error: "Reason must be a string." })
+      .trim()
+      .max(500, "Reason must be at most 500 characters.")
+      .refine(
+        (val) => !hasControlCharacters(val),
+        "Reason must not contain control characters.",
+      )
+      .optional(),
+  })
+  .passthrough();
+
 /** Request body schema for saving / creating projects */
 export const SaveProjectBodySchema = ProjectInputSchema;
 
