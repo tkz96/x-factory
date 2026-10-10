@@ -8,9 +8,9 @@ import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { ReviewExecutor } from "../src/executors/review.js";
-import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
@@ -104,7 +104,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   });
 
   // Test 11: Deliver finalization atomicity
-  it("atomically commits pullRequest, pr_step, stage_evidence, pr_created, and command completion in single transaction", () => {
+  it("atomically commits pullRequest, pr_step, stage_evidence, pr_created, and command completion in single transaction", async () => {
     const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
 
     runRepo.update(run.id, { status: "awaiting_review" });
@@ -124,18 +124,17 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
       title: "Ticket 1",
     };
 
-    commandRepo.claimPendingCommands("worker-deliv", 10000, 30_000);
-
-    finalizeDeliver(
+    // The stage runner commits the executor's outcome, the transition and the command's
+    // completion together (it replaced finalizeDeliver).
+    const worker = new Worker({
       db,
-      runRepo,
-      eventRepo,
-      commandRepo,
-      run.id,
-      cmd.id,
-      "worker-deliv",
-      pr,
-    );
+      workerId: "worker-deliv",
+      deliverExecutor: {
+        stage: "deliver",
+        execute: async () => deliveredOutcome(pr),
+      },
+    });
+    await worker.stepCommandOnce();
 
     // Run status is pr_created and pullRequest is attached
     const finalizedRun = runRepo.get(run.id);
@@ -186,7 +185,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
       execute: async () => {
         externalPrCalls++;
         // Simulate: PR was already created externally before process crashed
-        return existingPr;
+        return deliveredOutcome(existingPr);
       },
     };
 

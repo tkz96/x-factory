@@ -1,9 +1,13 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
-import type { RunRecord } from "../db/run-repository.js";
 import { type ReviewSessionFactory, reviewRun } from "../review.js";
 import { loadSettings } from "../settings.js";
-import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
+import type {
+  StageContext,
+  StageExecutor,
+  StageOutcome,
+  StageRecord,
+} from "./types.js";
 
 export interface ReviewDependencies {
   loadSettings: typeof loadSettings;
@@ -27,57 +31,47 @@ export class ReviewExecutor implements StageExecutor {
     const { run } = context;
     const worktreePath = run.worktreePath || run.artifactsDir;
 
-    context.eventRepo.appendEvent(run.id, "info", {
-      text: "Conducting automated code review…",
-    });
+    context.emit("info", { text: "Conducting automated code review…" });
 
-    const currentRun = context.runRepo.get(run.id);
-    if (!currentRun?.verification) {
+    if (!run.verification) {
       return {
         outcome: "error",
         error:
           "Deterministic verification is missing. ReviewExecutor cannot fabricate a successful result.",
       };
     }
-    context.run = currentRun;
 
     const settings = await this.deps.loadSettings(false);
     // reviewRun owns review.json; this executor only records the result.
     const rResult = await reviewRun({
       worktreePath,
       artifactsDir: run.artifactsDir,
-      ticket: context.run.ticket,
-      plan: context.run.plan,
-      diff: context.run.diff || "",
-      verification: currentRun.verification,
-      understanding: currentRun.implementationContext,
+      ticket: run.ticket,
+      plan: run.plan,
+      diff: run.diff || "",
+      verification: run.verification,
+      understanding: run.implementationContext,
       modelConfig: settings.models?.sessionB,
       signal: context.signal,
       sessionFactory: this.deps.sessionFactory,
     });
 
-    // Atomically update review record and append events (Phase 2, Section 31)
-    let updatedRun: RunRecord | undefined;
-    const tx = context.db.transaction(() => {
-      updatedRun = context.runRepo.update(run.id, {
-        review: rResult,
-        expectedRevision: context.run.revision,
-      });
-
-      context.eventRepo.appendEvent(run.id, "review", { result: rResult });
-
-      context.eventRepo.appendEvent(run.id, "stage_evidence", {
-        stage: "review",
-        evidence: rResult.passed
-          ? `Review approved: ${rResult.summary}`
-          : `Review rejected: ${rResult.summary}`,
-      });
-    });
-    tx();
-
-    if (updatedRun) {
-      context.run = updatedRun;
-    }
+    // The review record and its events are committed by the runner with the transition.
+    const record: StageRecord = {
+      run: { review: rResult },
+      events: [
+        { type: "review", payload: { result: rResult } },
+        {
+          type: "stage_evidence",
+          payload: {
+            stage: "review",
+            evidence: rResult.passed
+              ? `Review approved: ${rResult.summary}`
+              : `Review rejected: ${rResult.summary}`,
+          },
+        },
+      ],
+    };
 
     if (rResult.passed) {
       return {
@@ -86,12 +80,14 @@ export class ReviewExecutor implements StageExecutor {
           passed: true,
           summary: rResult.summary,
         },
+        record,
       };
     }
 
     return {
       outcome: "rejected",
       reason: `Code review was not approved: ${rResult.summary}`,
+      record,
     };
   }
 }

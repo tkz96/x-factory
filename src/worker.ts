@@ -9,27 +9,13 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { createRepositories, openProcessDatabase } from "./composition-root.js";
 import { getProject } from "./config.js";
-import type {
-  CommandRecord,
-  CommandRepository,
-} from "./db/command-repository.js";
-import type { EventRepository } from "./db/event-repository.js";
+import type { CommandRecord } from "./db/command-repository.js";
 import type { JobRecord, JobRepository } from "./db/job-repository.js";
 import { runMigrations } from "./db/migrator.js";
-import type { OperationLedgerRepository } from "./db/operation-ledger-repository.js";
 import type { RunRecord, RunRepository } from "./db/run-repository.js";
-import type {
-  StageAttemptRecord,
-  StageAttemptRepository,
-} from "./db/stage-attempt-repository.js";
 import type { WorkerHeartbeatRepository } from "./db/worker-heartbeat-repository.js";
 import { DeliverExecutor } from "./executors/deliver.js";
-import {
-  getStageExecutor,
-  type StageContext,
-  type StageExecutor,
-  type StageOutcome,
-} from "./executors/index.js";
+import { getStageExecutor, type StageExecutor } from "./executors/index.js";
 import {
   type Clock,
   LeaseManager,
@@ -37,17 +23,14 @@ import {
   type WorkerLogRecord,
 } from "./lease.js";
 import { ProviderError } from "./providers/errors.js";
-import { finalizeDeliver } from "./services/deliver-service.js";
+import { AWAITING_HUMAN_RUN_STATUSES } from "./shared/run-status-policy.js";
+import type { Project } from "./shared/types.js";
 import {
-  AWAITING_HUMAN_RUN_STATUSES,
-  canTransition,
-} from "./shared/run-status-policy.js";
-import type { Project, PullRequest, RunStatus } from "./shared/types.js";
-import {
-  isWorkflowStage,
-  PASSED_ROUTES,
-  REJECTED_RUN_STATUS,
-} from "./workflow.js";
+  deliverCommandWork,
+  jobWork,
+  StageRunner,
+  type StageRunnerHost,
+} from "./stage-runner.js";
 
 export type WorkerLogEntry = WorkerLogRecord;
 
@@ -65,12 +48,7 @@ export interface WorkerOptions {
   shutdownTimeoutMs?: number | undefined;
   onLog?: ((entry: WorkerLogEntry) => void) | undefined;
   getStageExecutor?: ((stage: string) => StageExecutor) | undefined;
-  deliverExecutor?:
-    | {
-        deliver?: (ctx: StageContext) => Promise<PullRequest>;
-        execute?: (ctx: StageContext) => Promise<StageOutcome | PullRequest>;
-      }
-    | undefined;
+  deliverExecutor?: StageExecutor | undefined;
 }
 
 /**
@@ -90,20 +68,13 @@ export class Worker {
   private ownsDb: boolean;
   private runRepo: RunRepository;
   private jobRepo: JobRepository;
-  private commandRepo: CommandRepository;
   private heartbeatRepo: WorkerHeartbeatRepository;
-  private stageAttemptRepo: StageAttemptRepository;
-  private operationLedgerRepo: OperationLedgerRepository;
-  private eventRepo: EventRepository;
+  private stageRunner: StageRunner;
+  private runnerHost: StageRunnerHost;
   private leaseManager: LeaseManager;
   private policy: LeasePolicy;
   private stageExecutorResolver: (stage: string) => StageExecutor;
-  private deliverExecutor?:
-    | {
-        deliver?: (ctx: StageContext) => Promise<PullRequest>;
-        execute?: (ctx: StageContext) => Promise<StageOutcome | PullRequest>;
-      }
-    | undefined;
+  private deliverExecutor?: StageExecutor | undefined;
   private pollIntervalMs: number;
   private commandPollIntervalMs: number;
   private shutdownTimeoutMs: number;
@@ -113,8 +84,7 @@ export class Worker {
   private currentJob: JobRecord | null = null;
   private activeProcessingPromise: Promise<void> | null = null;
   private currentAbortController: AbortController | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private commandHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private commandAbortController: AbortController | null = null;
 
   constructor(options?: WorkerOptions) {
     this.workerId =
@@ -124,11 +94,7 @@ export class Worker {
     const repos = createRepositories(this.db);
     this.runRepo = repos.runs;
     this.jobRepo = repos.jobs;
-    this.commandRepo = repos.commands;
     this.heartbeatRepo = repos.heartbeats;
-    this.stageAttemptRepo = repos.stageAttempts;
-    this.eventRepo = repos.events;
-    this.operationLedgerRepo = repos.operationLedger;
     this.deliverExecutor = options?.deliverExecutor;
     this.stageExecutorResolver = options?.getStageExecutor ?? getStageExecutor;
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
@@ -155,6 +121,23 @@ export class Worker {
       onLog: (entry) => this.emitStructuredLog(entry),
     });
     this.policy = this.leaseManager.policy;
+
+    this.runnerHost = {
+      workerId: this.workerId,
+      repos,
+      leases: this.leaseManager,
+      resolveProject: async (runId) => {
+        const run = this.runRepo.get(runId);
+        if (!run) throw new Error(`Run ${runId} not found`);
+        return this.resolveProject(run);
+      },
+      upsertHeartbeat: () => this.upsertHeartbeat(),
+      isShuttingDown: () => this.isStopping,
+      log: (message) => this.log(message),
+      error: (message, err) => this.error(message, err),
+      emitLog: (entry) => this.emitStructuredLog(entry),
+    };
+    this.stageRunner = new StageRunner(this.runnerHost);
   }
 
   private upsertHeartbeat(): void {
@@ -320,13 +303,10 @@ export class Worker {
     this.isStopping = true;
     this.isRunning = false;
     this.log("Stopping worker cleanly...");
-    this.stopHeartbeat();
-    this.stopCommandHeartbeat();
 
     // Signal cancellation to any actively executing stage
-    if (this.currentAbortController) {
-      this.currentAbortController.abort();
-    }
+    this.currentAbortController?.abort();
+    this.commandAbortController?.abort();
 
     // If an active job is processing, wait up to shutdownTimeoutMs for clean completion
     if (this.activeProcessingPromise) {
@@ -373,88 +353,6 @@ export class Worker {
     }
 
     this.log("Worker stopped.");
-  }
-
-  private startHeartbeat(jobId: string): void {
-    this.stopHeartbeat();
-    this.heartbeatTimer = setInterval(() => {
-      try {
-        // Renew worker heartbeat in SQLite
-        this.upsertHeartbeat();
-
-        const ok = this.leaseManager.renewJobLease(
-          jobId,
-          this.workerId,
-          this.policy.jobLeaseTtlMs,
-        );
-        if (!ok) {
-          this.emitStructuredLog({
-            job_id: jobId,
-            result: "heartbeat_lost",
-            message: `Heartbeat lease renewal failed for job ${jobId}. Worker may have lost lease.`,
-          });
-        } else {
-          this.emitStructuredLog({
-            job_id: jobId,
-            result: "renewed",
-            message: "Worker lease renewed successfully",
-          });
-        }
-      } catch (err: unknown) {
-        this.error(`Heartbeat error renewing lease for job ${jobId}`, err);
-      }
-    }, this.policy.heartbeatIntervalMs);
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-  }
-
-  private startCommandHeartbeat(
-    commandId: string,
-    leaseDurationMs: number,
-  ): void {
-    this.stopCommandHeartbeat();
-    const intervalMs = this.policy.commandHeartbeatIntervalMs;
-
-    this.commandHeartbeatTimer = setInterval(() => {
-      try {
-        this.upsertHeartbeat();
-
-        const ok = this.leaseManager.renewCommandLease(
-          commandId,
-          this.workerId,
-          leaseDurationMs,
-        );
-        if (!ok) {
-          this.emitStructuredLog({
-            result: "heartbeat_lost",
-            message: `Command lease renewal failed for command ${commandId}. Worker may have lost lease.`,
-          });
-          this.stopCommandHeartbeat();
-        } else {
-          this.emitStructuredLog({
-            result: "renewed",
-            message: `Command ${commandId} lease renewed successfully`,
-          });
-        }
-      } catch (err: unknown) {
-        this.error(
-          `Heartbeat error renewing lease for command ${commandId}`,
-          err,
-        );
-      }
-    }, intervalMs);
-  }
-
-  private stopCommandHeartbeat(): void {
-    if (this.commandHeartbeatTimer) {
-      clearInterval(this.commandHeartbeatTimer);
-      this.commandHeartbeatTimer = null;
-    }
   }
 
   /**
@@ -532,93 +430,21 @@ export class Worker {
       return;
     }
 
-    const project = await this.resolveProject(run);
-
-    const dummyJob: JobRecord = {
-      id: `cmd-job-${command.id}`,
-      runId: run.id,
-      stage: "deliver",
-      status: "claimed",
-      workerId: this.workerId,
-      attempts: 1,
-      maxAttempts: 3,
-      availableAt: new Date().toISOString(),
-      leaseUntil: new Date(
-        this.leaseManager.nowMs() + this.policy.commandLeaseTtlMs,
-      ).toISOString(),
-      lastHeartbeatAt: new Date().toISOString(),
-      error: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const attempt = this.stageAttemptRepo.recordStart(run.id, "deliver", 1);
-    this.startCommandHeartbeat(command.id, this.policy.commandLeaseTtlMs);
-
+    const work = deliverCommandWork(
+      command,
+      this.runnerHost,
+      this.policy.commandLeaseTtlMs,
+      this.policy.commandHeartbeatIntervalMs,
+    );
+    this.commandAbortController = new AbortController();
     try {
-      const deliverExecutor = this.deliverExecutor ?? new DeliverExecutor();
-      const stageCtx = {
-        run,
-        job: dummyJob,
-        project,
-        workerId: this.workerId,
-        db: this.db,
-        runRepo: this.runRepo,
-        jobRepo: this.jobRepo,
-        eventRepo: this.eventRepo,
-        stageAttemptRepo: this.stageAttemptRepo,
-        operationLedgerRepo: this.operationLedgerRepo,
-        attemptId: attempt.id,
-      };
-      let pr: PullRequest;
-      if (deliverExecutor.deliver) {
-        pr = await deliverExecutor.deliver(stageCtx);
-      } else if (deliverExecutor.execute) {
-        const res: StageOutcome | PullRequest =
-          await deliverExecutor.execute(stageCtx);
-        if ("url" in res) {
-          pr = res;
-        } else if (res.outcome === "passed" && res.output) {
-          pr = res.output as PullRequest;
-        } else {
-          throw new Error(
-            (res.outcome === "error" && res.error) ||
-              "Deliver failed without output",
-          );
-        }
-      } else {
-        throw new Error("No deliver executor available");
-      }
-
-      finalizeDeliver(
-        this.db,
-        this.runRepo,
-        this.eventRepo,
-        this.commandRepo,
-        run.id,
-        command.id,
-        this.workerId,
-        pr,
+      await this.stageRunner.run(
+        work,
+        this.deliverExecutor ?? new DeliverExecutor(),
+        this.commandAbortController.signal,
       );
-
-      this.stageAttemptRepo.recordCompletion(attempt.id, {
-        ok: true,
-        output: pr,
-      });
-
-      this.log(
-        `Deliver command ${command.id} completed successfully for run ${run.id}: ${pr.url}`,
-      );
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.stageAttemptRepo.recordCompletion(attempt.id, {
-        ok: false,
-        error: errorMsg,
-      });
-      this.error(`Deliver command ${command.id} failed: ${errorMsg}`, err);
-      this.leaseManager.failCommand(command.id, this.workerId, errorMsg);
     } finally {
-      this.stopCommandHeartbeat();
+      this.commandAbortController = null;
     }
   }
 
@@ -638,6 +464,12 @@ export class Worker {
       return null;
     }
 
+    await this.runClaimedJob(job);
+    return job;
+  }
+
+  /** Logs the claim and runs the job through the stage runner, tracking it for stop and shutdown. */
+  private async runClaimedJob(job: JobRecord): Promise<void> {
     this.currentJob = job;
     this.emitStructuredLog({
       job_id: job.id,
@@ -648,15 +480,12 @@ export class Worker {
       message: `Job claimed by worker ${this.workerId}`,
     });
 
-    this.startHeartbeat(job.id);
     const processPromise = this.processJob(job);
     this.activeProcessingPromise = processPromise;
     try {
       await processPromise;
-      return job;
     } finally {
       this.activeProcessingPromise = null;
-      this.stopHeartbeat();
       this.currentJob = null;
     }
   }
@@ -677,27 +506,8 @@ export class Worker {
       return null;
     }
 
-    this.currentJob = job;
-    this.emitStructuredLog({
-      job_id: job.id,
-      run_id: job.runId,
-      stage: job.stage,
-      attempt: job.attempts,
-      result: "claimed",
-      message: `Job claimed by worker ${this.workerId}`,
-    });
-
-    this.startHeartbeat(job.id);
-    const processPromise = this.processJob(job);
-    this.activeProcessingPromise = processPromise;
-    try {
-      await processPromise;
-      return job;
-    } finally {
-      this.activeProcessingPromise = null;
-      this.stopHeartbeat();
-      this.currentJob = null;
-    }
+    await this.runClaimedJob(job);
+    return job;
   }
 
   /**
@@ -727,26 +537,7 @@ export class Worker {
         );
 
         if (job) {
-          this.currentJob = job;
-          this.emitStructuredLog({
-            job_id: job.id,
-            run_id: job.runId,
-            stage: job.stage,
-            attempt: job.attempts,
-            result: "claimed",
-            message: `Job claimed by worker ${this.workerId}`,
-          });
-
-          this.startHeartbeat(job.id);
-          const processPromise = this.processJob(job);
-          this.activeProcessingPromise = processPromise;
-          try {
-            await processPromise;
-          } finally {
-            this.activeProcessingPromise = null;
-            this.stopHeartbeat();
-            this.currentJob = null;
-          }
+          await this.runClaimedJob(job);
         } else {
           // No job ready; sleep for pollInterval
           await new Promise((r) => setTimeout(r, this.pollIntervalMs));
@@ -780,322 +571,25 @@ export class Worker {
     };
   }
 
-  private checkAndHandleCancellation(
-    job: JobRecord,
-    attemptId: string,
-    startTime: number,
-  ): boolean {
-    const currentRun = this.runRepo.get(job.runId);
-    const currentJob = this.jobRepo.getJob(job.id);
-    if (
-      currentRun?.status === "stopped" ||
-      currentJob?.status === "cancelled"
-    ) {
-      const duration = Math.round(performance.now() - startTime);
-      this.stageAttemptRepo.recordCancellation(
-        attemptId,
-        "Run stopped by operator during stage execution",
-      );
-      this.emitStructuredLog({
-        job_id: job.id,
-        run_id: job.runId,
-        stage: job.stage,
-        attempt: job.attempts,
-        duration_ms: duration,
-        result: "cancelled",
-        message: `Stage '${job.stage}' cancelled due to run stop.`,
-      });
-      return true;
-    }
-    return false;
-  }
-
   /**
-   * Executes a claimed job using discrete stage executors and atomic SQLite transactions (XFM-28, XFM-29, XFM-30, XFM-31).
+   * Runs a claimed job through the stage runner: claim, attempt, heartbeat, execute,
+   * cancellation re-check, then output and transition committed atomically (#190).
    */
   async processJob(job: JobRecord): Promise<void> {
-    const startTime = performance.now();
-    this.log(
-      `Job started: job_id=${job.id} run_id=${job.runId} stage=${job.stage}`,
-    );
-
-    // Section 12: Early Cancellation Gate
-    const run = this.runRepo.get(job.runId);
-    const freshJob = this.jobRepo.getJob(job.id);
-    if (
-      !run ||
-      run.status === "stopped" ||
-      !freshJob ||
-      freshJob.status === "cancelled"
-    ) {
-      this.log(
-        `Job ${job.id} skipped due to early cancellation: run status is ${run?.status}, job status is ${freshJob?.status}`,
-      );
-      return;
-    }
-
-    // Load project configuration
-    const project = await this.resolveProject(run);
-
-    // Durably record stage attempt start in SQLite (XFM-29)
-    const attempt = this.stageAttemptRepo.recordStart(
-      run.id,
-      job.stage,
-      job.attempts,
-    );
-
     this.currentAbortController = new AbortController();
-
     try {
-      const executor = this.stageExecutorResolver(job.stage);
-
-      // Execute isolated stage
-      const result = await executor.execute({
-        run,
-        job,
-        project,
-        workerId: this.workerId,
-        db: this.db,
-        runRepo: this.runRepo,
-        jobRepo: this.jobRepo,
-        eventRepo: this.eventRepo,
-        stageAttemptRepo: this.stageAttemptRepo,
-        operationLedgerRepo: this.operationLedgerRepo,
-        attemptId: attempt.id,
-        signal: this.currentAbortController.signal,
-      });
-
-      if (this.isStopping) return;
-
-      // Section 13: Re-read state after executor completion to catch mid-flight stops
-      if (this.checkAndHandleCancellation(job, attempt.id, startTime)) {
-        return;
-      }
-
-      const duration = Math.round(performance.now() - startTime);
-
-      if (result.outcome === "passed") {
-        this.commitStageProgression(job, attempt, result, duration, run.status);
-      } else if (result.outcome === "rejected") {
-        this.commitRejection(job, run, attempt, result.reason, duration);
-      } else {
-        this.handleStageFailure(job, run, attempt.id, result.error, duration);
-      }
-    } catch (err: unknown) {
-      if (this.isStopping) return;
-
-      // Section 13: Re-read state in catch handler to catch mid-flight stops
-      if (this.checkAndHandleCancellation(job, attempt.id, startTime)) {
-        return;
-      }
-
-      const duration = Math.round(performance.now() - startTime);
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.handleStageFailure(job, run, attempt.id, errorMsg, duration);
+      await this.stageRunner.run(
+        jobWork(
+          job,
+          this.runnerHost,
+          this.policy.jobLeaseTtlMs,
+          this.policy.heartbeatIntervalMs,
+        ),
+        this.stageExecutorResolver(job.stage),
+        this.currentAbortController.signal,
+      );
     } finally {
       this.currentAbortController = null;
-    }
-  }
-
-  private commitStageProgression(
-    job: JobRecord,
-    attempt: StageAttemptRecord,
-    result: Extract<StageOutcome, { outcome: "passed" }>,
-    duration: number,
-    expectedRunStatus: RunStatus,
-  ): boolean {
-    const route = isWorkflowStage(job.stage) ? PASSED_ROUTES[job.stage] : null;
-
-    const committed = this.db.transaction(() => {
-      // Section 11: Worker Progression CAS verification
-      const j = this.jobRepo.getJob(job.id);
-      const r = this.runRepo.get(job.runId);
-
-      if (
-        j?.status !== "claimed" ||
-        j?.workerId !== this.workerId ||
-        r?.status !== expectedRunStatus
-      ) {
-        return false;
-      }
-
-      this.stageAttemptRepo.recordCompletion(attempt.id, result.output);
-
-      if (route && r.status !== route.to) {
-        this.runRepo.transitionRun(job.runId, r.status, route.to, {
-          event: {
-            type: "status",
-            payload: {
-              status: route.to,
-              text: `Stage '${job.stage}' completed. Transitioning to '${route.to}'.`,
-            },
-          },
-        });
-      }
-
-      // Section 15: the workflow route decides which stage runs next.
-      if (route?.nextStage) {
-        this.jobRepo.createJob({
-          runId: job.runId,
-          stage: route.nextStage,
-          status: "pending",
-        });
-      }
-
-      this.jobRepo.completeJob(job.id, this.workerId);
-      return true;
-    })();
-
-    if (!committed) {
-      this.log(
-        `Progression CAS check failed for job ${job.id} on run ${job.runId}. Stage progression aborted.`,
-      );
-      return false;
-    }
-
-    this.emitStructuredLog({
-      job_id: job.id,
-      run_id: job.runId,
-      stage: job.stage,
-      attempt: job.attempts,
-      duration_ms: duration,
-      result: "success",
-      message: `Stage '${job.stage}' completed successfully`,
-    });
-    this.log(
-      `Job completed successfully: job_id=${job.id}, stage=${job.stage}`,
-    );
-
-    return true;
-  }
-
-  /**
-   * A rejected stage is a verdict: the job fails without a retry and the run ends in
-   * `failed` carrying the rejection (#181).
-   */
-  private commitRejection(
-    job: JobRecord,
-    run: RunRecord,
-    attempt: StageAttemptRecord,
-    reason: string,
-    duration: number,
-  ): void {
-    this.error(`Stage '${job.stage}' rejected: ${reason}`);
-
-    try {
-      this.stageAttemptRepo.recordFailure(attempt.id, reason);
-    } catch (e: unknown) {
-      this.error("Failed to record stage attempt rejection", e);
-    }
-
-    try {
-      this.db.transaction(() => {
-        this.jobRepo.rejectJob(job.id, this.workerId, reason);
-        const latestRun = this.runRepo.get(run.id);
-        if (!latestRun) return;
-        if (canTransition(latestRun.status, REJECTED_RUN_STATUS)) {
-          this.runRepo.transitionRun(
-            run.id,
-            latestRun.status,
-            REJECTED_RUN_STATUS,
-            {
-              event: {
-                type: "status",
-                payload: {
-                  status: REJECTED_RUN_STATUS,
-                  text: `Run failed during stage '${job.stage}': ${reason}`,
-                },
-              },
-            },
-          );
-        } else {
-          const text = `Rejection not applied: run is in status "${latestRun.status}", which cannot transition to ${REJECTED_RUN_STATUS}.`;
-          this.eventRepo.appendEvent(run.id, "info", { text });
-          this.error(`Run ${run.id}: ${text}`);
-        }
-      })();
-    } catch (err: unknown) {
-      this.error(`Failed to end run ${run.id} after rejection`, err);
-      return;
-    }
-
-    this.emitStructuredLog({
-      job_id: job.id,
-      run_id: job.runId,
-      stage: job.stage,
-      attempt: job.attempts,
-      duration_ms: duration,
-      result: "failure",
-      message: `Stage '${job.stage}' rejected; run ended without retry`,
-      error: reason,
-    });
-  }
-
-  private handleStageFailure(
-    job: JobRecord,
-    run: RunRecord,
-    attemptId: string,
-    errorMsg: string,
-    durationMs: number,
-  ): void {
-    this.error(`Stage '${job.stage}' execution failed: ${errorMsg}`);
-
-    // Record failure in stage_attempts (XFM-29)
-    try {
-      this.stageAttemptRepo.recordFailure(attemptId, errorMsg);
-    } catch (e: unknown) {
-      this.error("Failed to record stage attempt failure", e);
-    }
-
-    // Fail job in job repository with bounded retries
-    const retryStatus = this.jobRepo.failJob(job.id, this.workerId, errorMsg);
-
-    if (retryStatus.willRetry) {
-      this.emitStructuredLog({
-        job_id: job.id,
-        run_id: job.runId,
-        stage: job.stage,
-        attempt: retryStatus.attempts,
-        duration_ms: durationMs,
-        result: "retry",
-        message: `Job scheduled for retry (${retryStatus.attempts}/${job.maxAttempts})`,
-        error: errorMsg,
-      });
-      this.log(
-        `Job scheduled for retry (attempt ${retryStatus.attempts}/${job.maxAttempts}): job_id=${job.id}`,
-      );
-    } else {
-      this.emitStructuredLog({
-        job_id: job.id,
-        run_id: job.runId,
-        stage: job.stage,
-        attempt: retryStatus.attempts,
-        duration_ms: durationMs,
-        result: "failure",
-        message: `Job entered terminal failure (exhausted ${retryStatus.attempts} attempts)`,
-        error: errorMsg,
-      });
-      this.log(
-        `Job entered terminal failure (exhausted ${retryStatus.attempts} attempts): job_id=${job.id}`,
-      );
-
-      // Transition run to failed if allowed by FSM
-      try {
-        const latestRun = this.runRepo.get(run.id);
-        if (latestRun && canTransition(latestRun.status, "failed")) {
-          this.runRepo.transitionRun(run.id, latestRun.status, "failed", {
-            event: {
-              type: "status",
-              payload: {
-                status: "failed",
-                text: `Run failed during stage '${job.stage}': ${errorMsg}`,
-              },
-            },
-          });
-        }
-      } catch (err: unknown) {
-        this.error(`Failed to transition run ${run.id} to failed`, err);
-      }
     }
   }
 }

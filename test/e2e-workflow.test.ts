@@ -108,10 +108,10 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
             baseBranch: "main",
             title: "[X-Factory] GATE-1: PR created after approval",
           };
-          ctx.runRepo.update(ctx.run.id, { pullRequest: pr });
           return {
             outcome: "passed",
             output: pr,
+            record: { run: { pullRequest: pr } },
           };
         },
       },

@@ -30,16 +30,16 @@ export interface Route {
 }
 
 /**
- * Stage outcome → route for a passed stage. `deliver` is null on purpose: delivery runs as
- * the deliver command and finishes through finalizeDeliver, not through worker progression.
+ * Stage outcome → route for a passed stage. Delivery runs as the deliver command and goes
+ * through the same stage runner as a job; it just has no next stage.
  */
-export const PASSED_ROUTES: Readonly<Record<WorkflowStage, Route | null>> = {
+export const PASSED_ROUTES: Readonly<Record<WorkflowStage, Route>> = {
   prepare: { to: "understanding", nextStage: "understand" },
   understand: { to: "awaiting_understanding_approval" },
   plan: { to: "awaiting_plan_approval" },
   execute: { to: "awaiting_review" },
   review: { to: "awaiting_review" },
-  deliver: null,
+  deliver: { to: "pr_created" },
 };
 
 /** A rejected stage (a review that did not approve) ends the run; it is never retried. */

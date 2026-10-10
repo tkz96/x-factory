@@ -204,10 +204,10 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
   });
 
   // Test 8: Progression CAS guard
-  it("prevents stage progression if run was stopped or job cancelled before progression commit", async () => {
+  it("prevents stage progression when the job lease was lost before the progression commit", async () => {
     const { db, runRepo, jobRepo, run } = setupTest();
 
-    jobRepo.createJob({
+    const job = jobRepo.createJob({
       runId: run.id,
       stage: "execute",
       status: "pending",
@@ -218,37 +218,25 @@ describe("Stabilization Pass — Cancellation & Progression CAS", () => {
     const worker = new Worker({
       db,
       workerId: "worker-cas",
+      getStageExecutor: () => ({
+        stage: "execute",
+        async execute(): Promise<StageOutcome> {
+          // Another worker takes the job over while this stage runs.
+          db.run("UPDATE jobs SET worker_id = 'worker-other' WHERE id = ?", [
+            job.id,
+          ]);
+          return { outcome: "passed" };
+        },
+      }),
     });
 
-    // Run is stopped externally before progression commits
-    await stopRun(repos, run.id);
+    await worker.processJob(claimed);
 
-    // Worker attempts progression
-    const committed = (
-      worker as unknown as {
-        commitStageProgression: (
-          claimedJob: typeof claimed,
-          attempt: { id: string },
-          result: { outcome: "passed"; output?: unknown },
-          duration: number,
-          expectedRunStatus: string,
-        ) => boolean;
-      }
-    ).commitStageProgression(
-      claimed,
-      { id: "attempt-cas" },
-      { outcome: "passed" },
-      0,
-      "executing",
-    );
-
-    // CAS rejected!
-    expect(committed).toBe(false);
-
-    // Run remains stopped and no verify job created
-    expect(runRepo.get(run.id)?.status).toBe("stopped");
-    const jobs = jobRepo.listJobsForRun(run.id);
-    expect(jobs.length).toBe(1);
+    // CAS rejected: the run did not progress and no next job was created
+    expect(runRepo.get(run.id)?.status).toBe("executing");
+    expect(jobRepo.getJob(job.id)?.status).toBe("claimed");
+    expect(jobRepo.getJob(job.id)?.workerId).toBe("worker-other");
+    expect(jobRepo.listJobsForRun(run.id).length).toBe(1);
   });
 
   // Test 24: Job allowlist

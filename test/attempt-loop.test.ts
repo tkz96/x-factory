@@ -388,7 +388,7 @@ ${CHECK_OFF_FIRST_TASK}
     );
   });
 
-  it("writes the workspace scaffold, streams loop events, and persists verification before review starts", async () => {
+  it("writes the workspace scaffold, streams loop events, and hands review the verification, committing it with the stage", async () => {
     await commitAndRecordBaseline();
     await installSbx(`
 echo "Iteration 1: Working on Task 1"
@@ -396,23 +396,12 @@ echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
     await configureProject("true");
-    const seenByReview: {
-      diff?: string | null | undefined;
-      passed?: boolean | undefined;
-    } = {};
-    const reviewHolder: { runRepo?: RunRepository } = {};
     const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
     const review = new ReviewExecutor({
       loadSettings: async () => ({}),
-      sessionFactory: async () => {
-        const persisted = reviewHolder.runRepo?.get("run-attempt-loop");
-        seenByReview.diff = persisted?.diff;
-        seenByReview.passed = persisted?.verification?.passed;
-        return session;
-      },
+      sessionFactory: async () => session,
     });
     const { run, runRepo, jobRepo, eventRepo, worker } = setup({}, review);
-    reviewHolder.runRepo = runRepo;
 
     const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
     if (!claimed) throw new Error("Expected a claimed job");
@@ -421,8 +410,10 @@ ${CHECK_OFF_FIRST_TASK}
     const finished = runRepo.get(run.id);
     expect(finished?.status).toBe("awaiting_review");
     expect(finished?.review?.passed).toBe(true);
-    expect(seenByReview.passed).toBe(true);
-    expect(seenByReview.diff).toContain("+export const updated = true;");
+    // Review ran on the verification the loop produced: its prompt carries the diff.
+    expect(session.prompts[0]).toContain("+export const updated = true;");
+    expect(finished?.verification?.passed).toBe(true);
+    expect(finished?.diff).toContain("+export const updated = true;");
     expect(finished?.diff).not.toContain(".agent/");
     expect(finished?.diff).not.toContain("ralph.sh");
 

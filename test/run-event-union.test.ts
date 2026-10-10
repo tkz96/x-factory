@@ -13,14 +13,11 @@ import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
-import { OperationLedgerRepository } from "../src/db/operation-ledger-repository.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import { DeliverExecutor } from "../src/executors/deliver.js";
 import { PlanExecutor } from "../src/executors/plan.js";
 import { ReviewExecutor } from "../src/executors/review.js";
-import type { StageContext } from "../src/executors/types.js";
 import { handleApi } from "../src/http/routes.js";
-import { finalizeDeliver } from "../src/services/deliver-service.js";
 import type {
   PullRequest,
   Run,
@@ -32,6 +29,7 @@ import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
 } from "./helpers/scripted-review-session.js";
+import { executeStage } from "./helpers/stage-harness.js";
 
 let repos: Repositories;
 
@@ -242,14 +240,12 @@ describe("Shared run-event union (#171)", () => {
   it("real producers write expected payload shapes: plan, review, and deliver stages", async () => {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
-    const runRepo = new RunRepository(db);
-    const eventRepo = new EventRepository(db);
-    const jobRepo = new JobRepository(db);
-    const stageAttemptRepo = new StageAttemptRepository(db);
-    const operationLedgerRepo = new OperationLedgerRepository(db);
+    const repos = createRepositories(db);
+    const runRepo = repos.runs;
+    const eventRepo = repos.events;
 
     const runId = "run-producer-stages-test";
-    const run = runRepo.create({
+    runRepo.create({
       id: runId,
       projectId: "proj-1",
       projectName: "Project 1",
@@ -261,34 +257,9 @@ describe("Shared run-event union (#171)", () => {
       worktreePath: `/tmp/worktrees-${runId}`,
     });
 
-    const job = jobRepo.createJob({ runId, stage: "plan" });
-    const attempt = stageAttemptRepo.recordStart(runId, "plan", 1);
-    const context: StageContext = {
-      run,
-      job,
-      project: {
-        id: "proj-1",
-        name: "Project 1",
-        workspacePath: "/tmp",
-        repositoryPath: "/tmp",
-        defaultBranch: "main",
-        testCommand: "true",
-        repositories: [],
-        issueTracker: { provider: "jira" },
-      },
-      workerId: "worker-stages-test",
-      db,
-      runRepo,
-      jobRepo,
-      eventRepo,
-      stageAttemptRepo,
-      operationLedgerRepo,
-      attemptId: attempt.id,
-    };
-
     // 1. PlanExecutor producer (emits info and stage_evidence)
     const planExecutor = new PlanExecutor();
-    await planExecutor.execute(context);
+    await executeStage(repos, planExecutor, runId, "plan");
 
     const eventsAfterPlan = eventRepo.getEventsForRun(runId);
     const infoEvt = eventsAfterPlan.find((e) => e.type === "info");
@@ -321,13 +292,16 @@ describe("Shared run-event union (#171)", () => {
       hasPollution: false,
       summary: "All tests passed",
     };
-    runRepo.update(runId, { verification: mockVerification });
+    runRepo.update(runId, {
+      status: "executing",
+      verification: mockVerification,
+    });
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
       sessionFactory: async () => scriptedReviewSession(PASSING_REVIEW_OUTPUT),
     });
-    await reviewExecutor.execute(context);
+    await executeStage(repos, reviewExecutor, runId, "review");
 
     const eventsAfterReview = eventRepo.getEventsForRun(runId);
     const reviewEvt = eventsAfterReview.find((e) => e.type === "review");
@@ -343,27 +317,35 @@ describe("Shared run-event union (#171)", () => {
       evidence: expect.stringContaining("Review approved"),
     });
 
-    // 3. finalizeDeliver producer (emits pr_step, stage_evidence, status)
+    // 3. DeliverExecutor producer; the stage runner commits its pr_step, stage_evidence and
+    // status events with the transition.
     runRepo.update(runId, { status: "ready_for_pr" });
     const pullRequest: PullRequest = {
       url: "https://github.com/example/repo/pull/42",
       branch: "factory/t-2",
       baseBranch: "main",
-      title: "Deliver ticket 2",
+      title: "[X-Factory] T-2: Ticket 2",
     };
-    finalizeDeliver(
-      db,
-      runRepo,
-      eventRepo,
-      undefined,
-      runId,
-      "",
-      "worker-stages-test",
-      pullRequest,
-    );
+    const deliverExecutor = new DeliverExecutor({
+      loadRecordedBaseline: async () => ({
+        trackedFiles: new Set<string>(),
+        untrackedFiles: new Set<string>(),
+      }),
+      safeCommitAll: async () => {},
+      push: async () => {},
+      createPullRequest: async () => pullRequest.url,
+      getHeadSha: async () => "sha-head",
+      getParentSha: async () => "sha-parent",
+      getHeadMessage: async () => "msg",
+      findExistingPullRequest: async () => null,
+      getRemoteBranchSha: async () => null,
+    });
+    await executeStage(repos, deliverExecutor, runId, "deliver");
 
     const eventsAfterDeliver = eventRepo.getEventsForRun(runId);
-    const prStepEvt = eventsAfterDeliver.find((e) => e.type === "pr_step");
+    const prStepEvt = eventsAfterDeliver
+      .filter((e) => e.type === "pr_step")
+      .find((e) => e.payload.step === "pr_created");
     expect(prStepEvt).toBeDefined();
     expect(prStepEvt?.payload).toEqual({
       step: "pr_created",

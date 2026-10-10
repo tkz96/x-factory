@@ -18,8 +18,16 @@ import {
   type StageExecutor,
   type StageOutcome,
 } from "../src/executors/index.js";
-import type { RunStatus } from "../src/shared/types.js";
+import type { PullRequest, RunStatus } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+
+const CRASH_PR: PullRequest = {
+  url: "https://github.com/org/repo/pull/1",
+  branch: "factory/D-1",
+  baseBranch: "main",
+  title: "Crash recovery PR",
+};
 
 describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
   const STAGES: Array<{
@@ -61,14 +69,10 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
         switch (stage) {
           case "prepare": {
             // Use operation ledger like the real PrepareExecutor
-            await context.operationLedgerRepo.executeWithLedger(
-              context.run.id,
-              "create_branch",
-              async () => ({
-                externalId: context.run.branch,
-                result: { branch: context.run.branch },
-              }),
-            );
+            await context.ledger.execute("create_branch", async () => ({
+              externalId: context.run.branch,
+              result: { branch: context.run.branch },
+            }));
             return {
               outcome: "passed",
               output: { prepared: true },
@@ -93,25 +97,17 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
             };
           }
           case "deliver": {
-            await context.operationLedgerRepo.executeWithLedger(
-              context.run.id,
-              "git_commit",
-              async () => ({
-                externalId: "commit-123",
-                result: { committed: true },
-              }),
-            );
-            await context.operationLedgerRepo.executeWithLedger(
-              context.run.id,
-              "create_pull_request",
-              async () => ({
-                externalId: "https://github.com/org/repo/pull/1",
-                result: {
-                  prUrl: "https://github.com/org/repo/pull/1",
-                  prNumber: 1,
-                },
-              }),
-            );
+            await context.ledger.execute("git_commit", async () => ({
+              externalId: "commit-123",
+              result: { committed: true },
+            }));
+            await context.ledger.execute("create_pull_request", async () => ({
+              externalId: "https://github.com/org/repo/pull/1",
+              result: {
+                prUrl: "https://github.com/org/repo/pull/1",
+                prNumber: 1,
+              },
+            }));
             return {
               outcome: "passed",
               output: { prUrl: "https://github.com/org/repo/pull/1" },
@@ -534,14 +530,16 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       workerId: "worker-A-crasher",
       db,
       commandLeaseDurationMs: 150,
-      commandHeartbeatIntervalMs: 50,
+      // A crashed worker stops heartbeating: this one never beats within the test.
+      commandHeartbeatIntervalMs: 60_000,
       deliverExecutor: {
+        stage: "deliver",
         async execute(_ctx: StageContext): Promise<StageOutcome> {
           executorAStarted = true;
           while (!executorHalt) {
             await new Promise((r) => setTimeout(r, 10));
           }
-          return { outcome: "passed", output: { prUrl: "url" } };
+          return deliveredOutcome(CRASH_PR);
         },
       },
     });
@@ -552,15 +550,8 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       await new Promise((r) => setTimeout(r, 10));
     }
 
-    // Terminate Worker A's execution/process without calling its normal shutdown path
-    // Clear the heartbeat timer and mark not running so it doesn't pollute the DB further
-    clearInterval(
-      (
-        workerA as unknown as {
-          commandHeartbeatTimer: ReturnType<typeof setInterval>;
-        }
-      ).commandHeartbeatTimer,
-    );
+    // Terminate Worker A's execution/process without calling its normal shutdown path.
+    // It never heartbeats (see its interval above), so its lease simply lapses.
     (workerA as unknown as { isRunning: boolean }).isRunning = false;
 
     // Wait for the lease to expire (commandLeaseDurationMs is 150)
@@ -574,9 +565,10 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       commandLeaseDurationMs: 150,
       commandHeartbeatIntervalMs: 50,
       deliverExecutor: {
+        stage: "deliver",
         async execute(_ctx: StageContext): Promise<StageOutcome> {
           executorBStarted = true;
-          return { outcome: "passed", output: { prUrl: "url" } };
+          return deliveredOutcome(CRASH_PR);
         },
       },
     });
@@ -670,12 +662,10 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
       db,
       commandLeaseDurationMs: 150,
       deliverExecutor: {
+        stage: "deliver",
         async execute(): Promise<StageOutcome> {
           executorBStarted = true;
-          return {
-            outcome: "passed",
-            output: { prUrl: "url" },
-          } as StageOutcome;
+          return deliveredOutcome(CRASH_PR);
         },
       },
     });

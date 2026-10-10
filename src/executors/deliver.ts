@@ -172,6 +172,31 @@ export const defaultDeliverDeps: DeliverDependencies = {
   findCommitByMessageAndParent: git.findCommitByMessageAndParent,
 };
 
+/** A delivered pull request as a stage outcome: what the stage runner commits for deliver. */
+export function deliveredOutcome(pr: PullRequest): StageOutcome {
+  return {
+    outcome: "passed",
+    output: pr,
+    record: {
+      run: { pullRequest: pr },
+      events: [
+        { type: "pr_step", payload: { step: "pr_created", url: pr.url } },
+        {
+          type: "stage_evidence",
+          payload: {
+            stage: "deliver",
+            evidence: `Pull Request created: ${pr.url}`,
+          },
+        },
+      ],
+      statusPayload: {
+        text: `Pull Request created: ${pr.url}`,
+        pullRequest: pr,
+      },
+    },
+  };
+}
+
 export class DeliverExecutor implements StageExecutor {
   readonly stage = "deliver";
   private deps: DeliverDependencies;
@@ -180,29 +205,17 @@ export class DeliverExecutor implements StageExecutor {
     this.deps = { ...defaultDeliverDeps, ...deps };
   }
 
-  async deliver(context: StageContext): Promise<PullRequest> {
-    const result = await this.execute(context);
-    if (result.outcome !== "passed" || !result.output) {
-      throw new Error(
-        (result.outcome === "error" && result.error) ||
-          "Deliver failed without output",
-      );
-    }
-    return result.output as PullRequest;
-  }
-
   async execute(context: StageContext): Promise<StageOutcome> {
-    const { run, project, operationLedgerRepo } = context;
+    const { run, project, ledger } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
     const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket);
 
     // 1. Idempotent Git commit (XFM-32, XFM-33)
-    await operationLedgerRepo.executeWithLedger(
-      run.id,
+    await ledger.execute(
       "git_commit",
       async () => {
-        context.eventRepo.appendEvent(run.id, "pr_step", {
+        context.emit("pr_step", {
           step: "git_commit",
           text: "Committing verified changes safely…",
         });
@@ -267,11 +280,10 @@ export class DeliverExecutor implements StageExecutor {
     );
 
     // 2. Idempotent Git remote push (XFM-32, XFM-33)
-    await operationLedgerRepo.executeWithLedger(
-      run.id,
+    await ledger.execute(
       "git_push",
       async () => {
-        context.eventRepo.appendEvent(run.id, "pr_step", {
+        context.emit("pr_step", {
           step: "git_push",
           text: "Pushing branch to remote…",
         });
@@ -299,11 +311,10 @@ export class DeliverExecutor implements StageExecutor {
     );
 
     // 3. Idempotent Pull Request creation (XFM-32, XFM-33)
-    const pr = await operationLedgerRepo.executeWithLedger<PullRequest>(
-      run.id,
+    const pr = await ledger.execute<PullRequest>(
       "create_pr",
       async () => {
-        context.eventRepo.appendEvent(run.id, "pr_step", {
+        context.emit("pr_step", {
           step: "create_pr",
           text: "Creating pull request…",
         });
@@ -372,11 +383,8 @@ export class DeliverExecutor implements StageExecutor {
       },
     );
 
-    // Note: State finalization (updating pullRequest, stage evidence, transition to pr_created)
-    // is delegated to finalizeDeliver in src/services/deliver-service.ts to ensure single-transaction atomicity.
-    return {
-      outcome: "passed",
-      output: pr,
-    };
+    // The run's pullRequest, the evidence, and the ready_for_pr -> pr_created transition are
+    // committed by the stage runner, in one transaction with finishing the command.
+    return deliveredOutcome(pr);
   }
 }

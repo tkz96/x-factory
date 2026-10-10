@@ -108,10 +108,10 @@ describe("API Process Restart Resilience (XFM-58)", () => {
     const mockExecutor: StageExecutor = {
       stage: "prepare",
       async execute(ctx: StageContext): Promise<StageOutcome> {
-        if (ctx.job.stage === "prepare") {
+        if (ctx.stage === "prepare") {
           prepareExecuted = true;
           // emit an event into event repo
-          ctx.eventRepo.appendEvent(ctx.run.id, "info", {
+          ctx.emit("info", {
             text: "Prepared during API restart window",
           });
           return {
@@ -119,9 +119,9 @@ describe("API Process Restart Resilience (XFM-58)", () => {
             output: { step: 1 },
           };
         }
-        if (ctx.job.stage === "understand") {
+        if (ctx.stage === "understand") {
           understandExecuted = true;
-          ctx.eventRepo.appendEvent(ctx.run.id, "info", {
+          ctx.emit("info", {
             text: "Understood while API was restarted",
           });
           return {

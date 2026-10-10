@@ -17,6 +17,7 @@ import { WorkerHeartbeatRepository } from "../src/db/worker-heartbeat-repository
 import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
 
 let repos: Repositories;
@@ -209,14 +210,15 @@ describe("Stabilization Pass — Commands, Leasing & Heartbeats", () => {
       db,
       workerId: "surviving-worker",
       deliverExecutor: {
-        deliver: async () => {
+        stage: "deliver",
+        execute: async () => {
           deliverRuns += 1;
-          return {
+          return deliveredOutcome({
             url: "https://example.test/pr/1",
             branch: "factory/cmd-1",
             baseBranch: "main",
             title: "Deliver from dead target",
-          };
+          });
         },
       },
     });
