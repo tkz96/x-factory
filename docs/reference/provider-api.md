@@ -420,10 +420,12 @@ message, never the raw provider failure kept as `cause`.
 AbortSignal`. Delivery passes the stage's cancellation signal, so a worker stop
 mid-request aborts the in-flight HTTP call (`providerFetch` already takes a
 signal) rather than waiting out the request timeout: the call rejects, no pull
-request is recorded, and the run is left stopped. The GitHub and Azure adapters
-thread the signal into `githubFetch` / `azureFetch`, and the registry wrapper
-forwards it unchanged. The contract types `signal?` on `createPullRequest` and
-`findExistingPullRequest` in `src/providers/contract.ts`.
+request is recorded, and the run is left stopped. PR creation is REST-API only
+(see *PR creation is API-only* above), so there is no `gh` subprocess to cancel:
+the only in-flight work a stop has to end is that HTTP request. The GitHub and
+Azure adapters thread the signal into `githubFetch` / `azureFetch`, and the
+registry wrapper forwards it unchanged. The contract types `signal?` on
+`createPullRequest` and `findExistingPullRequest` in `src/providers/contract.ts`.
 
 ### Registry error contract (#184)
 

@@ -12,6 +12,7 @@ import { GitHubHttpError } from "../src/providers/github/errors.js";
 import { githubFetch } from "../src/providers/github/http.js";
 import { createGithubProvider } from "../src/providers/github-module.js";
 import {
+  type HttpTransport,
   ProviderHttpError,
   parseRetryAfter,
   providerFetch,
@@ -572,6 +573,119 @@ describe("Provider HTTP Module (#173)", () => {
           .catch(() => undefined);
         expect(signals.length).toBeGreaterThan(0);
         for (const s of signals) expect(s).toBeInstanceOf(AbortSignal);
+      });
+    });
+
+    describe("adapter-level pull request abort (#163)", () => {
+      /**
+       * A transport whose pull request response never arrives before the abort:
+       * only the caller's signal, reaching the in-flight request, can end it.
+       */
+      function slowTransport(): {
+        transport: HttpTransport;
+        started: () => boolean;
+      } {
+        let started = false;
+        const transport: HttpTransport = async (_input, init) => {
+          started = true;
+          return new Promise<Response>((resolve, reject) => {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const onAbort = () => {
+              if (timer !== undefined) clearTimeout(timer);
+              reject(
+                new DOMException("The operation was aborted", "AbortError"),
+              );
+            };
+            timer = setTimeout(() => {
+              init?.signal?.removeEventListener("abort", onAbort);
+              resolve(
+                jsonResponse({
+                  html_url: "https://example.test/pull/1",
+                  pullRequestId: 1,
+                }),
+              );
+            }, 1000);
+            init?.signal?.addEventListener("abort", onAbort, { once: true });
+          });
+        };
+        return { transport, started: () => started };
+      }
+
+      it("aborts an in-flight GitHub createPullRequest promptly and returns no PR", async () => {
+        const { transport, started } = slowTransport();
+        const provider = createGithubProvider({ fetchFn: transport });
+        if (!provider.createPullRequest)
+          throw new Error("createPullRequest missing");
+        const controller = new AbortController();
+        const begin = Date.now();
+
+        const pending = provider.createPullRequest(
+          { token: "token", repoOwner: "acme", repository: "repo" },
+          {
+            repository: "acme/repo",
+            title: "feat: something",
+            description: "desc",
+            sourceBranch: "feat",
+            targetBranch: "main",
+          },
+          controller.signal,
+        );
+
+        // Abort while the request is in flight; the transport is slow by design.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        controller.abort();
+
+        const outcome = await pending.then(
+          (pr) => ({ resolved: true as const, pr }),
+          (err: unknown) => ({ resolved: false as const, err }),
+        );
+
+        expect(started()).toBe(true);
+        expect(outcome.resolved).toBe(false);
+        expect(Date.now() - begin).toBeLessThan(500);
+        if (!outcome.resolved) {
+          expect(outcome.err).toBeInstanceOf(GitHubHttpError);
+        }
+      });
+
+      it("aborts an in-flight Azure createPullRequest promptly and returns no PR", async () => {
+        const { transport, started } = slowTransport();
+        const provider = createAzureProvider({ fetchFn: transport });
+        if (!provider.createPullRequest)
+          throw new Error("createPullRequest missing");
+        const controller = new AbortController();
+        const begin = Date.now();
+
+        const pending = provider.createPullRequest(
+          {
+            orgUrl: "https://dev.azure.com/acme",
+            project: "Proj",
+            pat: "token",
+          },
+          {
+            repository: "repo-1",
+            title: "feat: something",
+            description: "desc",
+            sourceBranch: "feat",
+            targetBranch: "main",
+          },
+          controller.signal,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        controller.abort();
+
+        const outcome = await pending.then(
+          (pr) => ({ resolved: true as const, pr }),
+          (err: unknown) => ({ resolved: false as const, err }),
+        );
+
+        expect(started()).toBe(true);
+        expect(outcome.resolved).toBe(false);
+        expect(Date.now() - begin).toBeLessThan(500);
+        if (!outcome.resolved) {
+          expect(outcome.err).toBeInstanceOf(AzureApiError);
+        }
       });
     });
 
