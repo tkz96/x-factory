@@ -5,13 +5,12 @@ import {
   NotFoundError,
   ValidationError,
 } from "../src/errors.js";
-import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import {
   catchHttpErrors,
   HttpError,
   translateDomainErrorToHttpResponse,
 } from "../src/http/responses.js";
-import { handleRunsRoute } from "../src/http/runs-controller.js";
+import { handleApi } from "../src/http/routes.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
 let repos: Repositories;
@@ -19,6 +18,36 @@ let repos: Repositories;
 beforeEach(() => {
   repos = createTestRepositories();
 });
+
+/**
+ * These tests drive the HTTP API seam (#192): the route table dispatches from
+ * the request's method + URL, so the positional dispatcher arguments the
+ * pre-#192 suite passed are accepted and ignored here.
+ */
+function handleRunsRoute(
+  _method: string,
+  _id: string | undefined,
+  _action: string | undefined,
+  _partsCount: number,
+  req: Request,
+  _repos?: unknown,
+): Promise<Response> {
+  return handleApi(req, new URL(req.url), { repos });
+}
+
+function handleProjectsRoute(
+  _method: string,
+  _id: string | undefined,
+  _action: string | undefined,
+  _subactionOrPartsCount: string | number | undefined,
+  partsCountOrReq: number | Request,
+  maybeReq?: Request,
+): Promise<Response> {
+  const req = (
+    typeof partsCountOrReq === "number" ? maybeReq : partsCountOrReq
+  ) as Request;
+  return handleApi(req, new URL(req.url), { repos });
+}
 
 describe("HTTP Layer Error Translation", () => {
   it("translates neutral NotFoundError into standard 404 response", async () => {
@@ -188,8 +217,9 @@ describe("HTTP Layer Error Translation", () => {
     );
     // The duplicate provider route is deleted: the projects controller declines
     // the path, and the canonical POST /api/providers/repositories is the only
-    // discovery action.
-    expect(res).toBeNull();
+    // discovery action. The route table turns the unmatched path into a 404.
+    expect(res?.status).toBe(404);
+    expect(await res?.json()).toEqual({ error: "Endpoint not found." });
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on stop", async () => {

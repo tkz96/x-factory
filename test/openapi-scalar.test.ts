@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Repositories } from "../src/composition-root.js";
-import { getOpenApiSpec } from "../src/http/openapi.js";
+import { getOpenApiSpec } from "../src/http/route-table.js";
 import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
 import { createTestRepositories } from "./helpers/composition.js";

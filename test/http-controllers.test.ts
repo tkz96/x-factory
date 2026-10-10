@@ -7,13 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import type { Repositories } from "../src/composition-root.js";
 import { deleteProject, saveProject, validateProject } from "../src/config.js";
-import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import { handleApi } from "../src/http/routes.js";
-import {
-  handleRunsRoute,
-  parseAcceptanceCriteria,
-} from "../src/http/runs-controller.js";
-import { handleSettingsRoute } from "../src/http/settings-controller.js";
+import { parseAcceptanceCriteria } from "../src/http/runs-controller.js";
 import { execStrict } from "../src/proc.js";
 import * as runs from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
@@ -24,6 +19,41 @@ let repos: Repositories;
 beforeEach(() => {
   repos = createTestRepositories();
 });
+
+/**
+ * These controller tests drive the HTTP API seam (#192): the route table
+ * dispatches from the request's method + URL, so the positional dispatcher
+ * arguments the pre-#192 suite passed are accepted and ignored here.
+ */
+function handleRunsRoute(
+  _method: string,
+  _id: string | undefined,
+  _action: string | undefined,
+  _partsCount: number,
+  req: Request,
+  _repos?: unknown,
+): Promise<Response> {
+  return handleApi(req, new URL(req.url), { repos });
+}
+
+function handleProjectsRoute(
+  _method: string,
+  _id: string | undefined,
+  _action: string | undefined,
+  _subactionOrPartsCount: string | number | undefined,
+  partsCountOrReq: number | Request,
+  maybeReq?: Request,
+  _ctx?: unknown,
+): Promise<Response> {
+  const req = (
+    typeof partsCountOrReq === "number" ? maybeReq : partsCountOrReq
+  ) as Request;
+  return handleApi(req, new URL(req.url), { repos });
+}
+
+function handleSettingsRoute(_method: string, req: Request): Promise<Response> {
+  return handleApi(req, new URL(req.url), { repos });
+}
 
 describe("HTTP Routing & Controllers (src/http)", () => {
   describe("parseAcceptanceCriteria", () => {
@@ -102,12 +132,11 @@ describe("HTTP Routing & Controllers (src/http)", () => {
 
     it("handles unexpected controller errors with 500 status", async () => {
       const runsController = await import("../src/http/runs-controller.js");
-      const spy = spyOn(
-        runsController,
-        "handleRunsRoute",
-      ).mockImplementationOnce(() => {
-        throw new Error("Catastrophic database failure");
-      });
+      const spy = spyOn(runsController, "handleGetRuns").mockImplementationOnce(
+        () => {
+          throw new Error("Catastrophic database failure");
+        },
+      );
       const req = new Request("http://localhost:3777/api/runs", {
         method: "GET",
       });
@@ -323,8 +352,8 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         req,
         repos,
       );
-      // Steering was removed (#167); handleApi turns this into a 404.
-      assert.equal(res, null);
+      // Steering was removed (#167); the route table turns this into a 404.
+      assert.equal(res.status, 404);
     });
 
     it("POST /api/runs/:id/chat validates message field", async () => {
@@ -540,7 +569,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       await rm(tempDir, { recursive: true, force: true });
     });
 
-    it("returns null for unsupported method on runs route", async () => {
+    it("returns 404 for unsupported method on runs route", async () => {
       const req = new Request("http://localhost:3777/api/runs", {
         method: "DELETE",
       });
@@ -552,12 +581,12 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         req,
         repos,
       );
-      assert.equal(res, null);
+      assert.equal(res.status, 404);
     });
   });
 
   describe("handleProjectsRoute Controller", () => {
-    it("returns null for unmatched action on projects route", async () => {
+    it("returns 404 for unmatched action on projects route", async () => {
       const req = new Request(
         "http://localhost:3777/api/projects/proj-1/unknown",
         {
@@ -565,7 +594,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         },
       );
       const res = await handleProjectsRoute("GET", "proj-1", "unknown", 3, req);
-      assert.equal(res, null);
+      assert.equal(res.status, 404);
     });
 
     it("returns 404 for unknown project inspection", async () => {
@@ -649,12 +678,12 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.equal(res.status, 400);
     });
 
-    it("returns null for unsupported method on settings route", async () => {
+    it("returns 404 for unsupported method on settings route", async () => {
       const req = new Request("http://localhost:3777/api/settings", {
         method: "DELETE",
       });
       const res = await handleSettingsRoute("DELETE", req);
-      assert.equal(res, null);
+      assert.equal(res.status, 404);
     });
   });
 });

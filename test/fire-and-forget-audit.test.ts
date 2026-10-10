@@ -11,7 +11,7 @@ import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
-import { handleRunsRoute } from "../src/http/runs-controller.js";
+import { handleApi } from "../src/http/routes.js";
 
 let repos: Repositories;
 
@@ -123,20 +123,11 @@ describe("Fire-and-Forget Execution Audit (XFM-75)", () => {
         body: JSON.stringify({}),
       });
 
-      const res = await handleRunsRoute(
-        "POST",
-        undefined,
-        undefined,
-        1,
-        req,
-        repos,
-      );
-      expect(res).not.toBeNull();
-      if (res) {
-        expect(res.status).toBe(400);
-        const body = (await res.json()) as { error: string };
-        expect(body.error).toBeDefined();
-      }
+      const url = new URL(req.url);
+      const res = await handleApi(req, url, { repos });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toBeDefined();
     });
   });
 });

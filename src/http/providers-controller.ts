@@ -36,12 +36,7 @@ import {
 // The ONE definition of a presentable identity, shared with the read that
 // attaches it to a line: an empty identity is nothing to show, on either side.
 import { presentableIdentity } from "../shared/connection-identity.js";
-import {
-  catchHttpErrors,
-  errorResponse,
-  jsonResponse,
-  withValidatedBody,
-} from "./responses.js";
+import { errorResponse, jsonResponse, withValidatedBody } from "./responses.js";
 
 /**
  * Request shape shared by every provider route that takes one connection
@@ -431,40 +426,4 @@ export async function handleDescribeRoute(
       return jsonResponse({ providerId: provider.id, identity: null }, 200);
     }
   });
-}
-
-/**
- * Dispatcher for all /api/providers/* routes.
- */
-export async function handleProvidersRoute(
-  method: string,
-  parts: string[],
-  req: Request,
-  url: URL,
-  customRegistry?: ProviderRegistry,
-): Promise<Response> {
-  const registry = customRegistry ?? PROVIDER_REGISTRY;
-  const action = parts[0];
-
-  if (method === "GET" && action === "manifest") {
-    return catchHttpErrors(() => handleManifestRoute(req, url, registry));
-  }
-
-  if (method === "POST" && action === "verify") {
-    return catchHttpErrors(() => handleVerifyRoute(req, registry));
-  }
-
-  if (method === "POST" && action === "parse-url") {
-    return catchHttpErrors(() => handleParseUrlRoute(req, registry));
-  }
-
-  if (method === "POST" && action === "repositories") {
-    return catchHttpErrors(() => handleRepositoriesRoute(req, registry));
-  }
-
-  if (method === "POST" && action === "describe") {
-    return catchHttpErrors(() => handleDescribeRoute(req, registry));
-  }
-
-  return errorResponse("Endpoint not found.", 404);
 }

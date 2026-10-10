@@ -1,6 +1,12 @@
-// src/http/openapi.ts — OpenAPI 3.1.0 specification for X-Factory developer workbench REST API.
+// src/http/openapi.ts — OpenAPI 3.1.0 specification for X-Factory developer
+// workbench REST API.
+//
+// The per-path operations are hand-written here; `buildOpenApiDocument` merges
+// them with the route table (#192) so every dispatchable route is documented.
 
-export function getOpenApiSpec() {
+import type { RouteEntry } from "./route-contract.js";
+
+function documentedSpec() {
   return {
     openapi: "3.1.0",
     info: {
@@ -56,6 +62,10 @@ export function getOpenApiSpec() {
         name: "Providers",
         description:
           "Provider manifest discovery, credential verification, and Quick-URL resolution",
+      },
+      {
+        name: "Docs",
+        description: "In-app Diátaxis documentation catalog and search",
       },
     ],
     paths: {
@@ -2053,4 +2063,36 @@ export function getOpenApiSpec() {
       },
     },
   };
+}
+
+/** A generated operation for a table route with no hand-written entry. */
+function generatedOperation(entry: RouteEntry) {
+  return {
+    tags: [...entry.tags],
+    summary: entry.summary,
+    operationId: entry.operationId,
+    responses: {
+      "200": { description: entry.responseDescription },
+    },
+  };
+}
+
+/**
+ * The published contract: the hand-written operations plus one path for every
+ * route table entry (#192). A table route with no hand-written operation still
+ * gets one generated from its own metadata, so dispatch and docs cannot drift.
+ */
+export function buildOpenApiDocument(entries: readonly RouteEntry[]) {
+  const spec = documentedSpec();
+  const paths = spec.paths as unknown as Record<
+    string,
+    Record<string, unknown>
+  >;
+  for (const entry of entries) {
+    const method = entry.method.toLowerCase();
+    const item = paths[entry.path] ?? {};
+    paths[entry.path] = item;
+    if (!item[method]) item[method] = generatedOperation(entry);
+  }
+  return spec;
 }
