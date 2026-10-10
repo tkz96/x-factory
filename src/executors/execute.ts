@@ -94,6 +94,15 @@ export class ExecuteExecutor implements StageExecutor {
         record: verificationRecord(),
       };
     }
+    if (result.outcome === "exhausted") {
+      // The repair budget is the attempt cap: a spent budget is a verdict like a rejected
+      // review, so the run ends and the job is not retried into more agent loops (#163).
+      return {
+        outcome: "rejected",
+        reason: result.error,
+        record: verificationRecord(),
+      };
+    }
     if (result.outcome === "failed") {
       return {
         outcome: "error",

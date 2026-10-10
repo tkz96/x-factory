@@ -199,7 +199,9 @@ export interface AttemptLoopInput {
 export type AttemptLoopResult =
   | { outcome: "verified"; verification: VerificationResult }
   | { outcome: "aborted" }
-  | { outcome: "failed"; error: string };
+  | { outcome: "failed"; error: string }
+  /** The one repair budget is spent and verification still fails: the stage's verdict, never retried. */
+  | { outcome: "exhausted"; error: string; verification: VerificationResult };
 
 async function scaffold(input: AttemptLoopInput): Promise<string> {
   const agentDir = path.join(input.worktreePath, ".agent");
@@ -364,8 +366,16 @@ export async function runAttemptLoop(
   emit("error", {
     message: `Deterministic verification failed after ${MAX_REPAIR_ATTEMPTS} attempts.`,
   });
+  // Unreachable: every pass of the loop sets `verification` or returns.
+  if (!verification) {
+    return {
+      outcome: "failed",
+      error: "Execution failed: no verification ran",
+    };
+  }
   return {
-    outcome: "failed",
-    error: `Execution failed: Verification did not pass after bounded repairs. Summary: ${verification?.summary}`,
+    outcome: "exhausted",
+    error: `Execution failed: Verification did not pass after bounded repairs. Summary: ${verification.summary}`,
+    verification,
   };
 }
