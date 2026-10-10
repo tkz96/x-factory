@@ -56,13 +56,53 @@ describe("HTTP Layer Error Translation", () => {
     expect(body).toEqual({ error: "Unprocessable payload" });
   });
 
-  it("translates unhandled generic Error to 500", async () => {
+  it("translates unhandled generic Error to a generic 500 that never quotes the message", async () => {
     const res = await catchHttpErrors(async () => {
       throw new Error("Unexpected internal failure");
     });
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body).toEqual({ error: "Unexpected internal failure" });
+    // #163 B2: an unexpected error's text can quote SQL, a filesystem path or a
+    // secret, so the client only ever sees the generic envelope.
+    expect(body).toEqual({ error: "Internal error", code: "INTERNAL" });
+  });
+
+  it("logs an unexpected handler error's detail server-side and answers the generic 500", async () => {
+    const logged: string[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args.map(String).join(" "));
+    };
+    try {
+      // The leaked detail is exactly the kind of text the client must never see:
+      // it quotes SQL that names a column holding a secret.
+      const throwingRepos = {
+        ...repos,
+        runs: {
+          ...repos.runs,
+          list(): never {
+            throw new Error("SQLITE_ERROR: no such column: secret_token");
+          },
+        },
+      } as unknown as Repositories;
+
+      const res = await dispatchHttp(
+        new Request("http://localhost:3777/api/runs"),
+        throwingRepos,
+      );
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({
+        error: "Internal error",
+        code: "INTERNAL",
+      });
+    } finally {
+      console.error = originalError;
+    }
+
+    const journal = logged.join("\n");
+    expect(journal).toContain("SQLITE_ERROR: no such column: secret_token");
+    expect(journal).toContain("/api/runs");
   });
 
   it("translateDomainErrorToHttpResponse directly converts domain errors", async () => {

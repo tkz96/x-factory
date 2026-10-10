@@ -34,6 +34,16 @@ export function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
+/**
+ * The generic envelope for an unexpected failure (#163 B2): `{error:"Internal
+ * error", code:"INTERNAL"}`. The error's own text can quote SQL, a filesystem
+ * path or a secret, so it is logged server-side and never described to the
+ * caller.
+ */
+export function internalErrorResponse(): Response {
+  return jsonResponse({ error: "Internal error", code: "INTERNAL" }, 500);
+}
+
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -294,9 +304,9 @@ export async function withValidatedBody<T>(
 
 /**
  * The ONE error-translation helper (#163 B2): a thrown error maps by family
- * (see `translateDomainErrorToHttpResponse`) or becomes a 500. `handleApi`
- * routes every handler failure through it, so controllers never translate
- * themselves.
+ * (see `translateDomainErrorToHttpResponse`) or becomes the generic 500
+ * envelope. The error's detail is never sent to the client; `handleApi` logs it
+ * at the dispatch boundary, where it also has the request context.
  */
 export async function catchHttpErrors(
   action: () => Promise<Response>,
@@ -304,12 +314,7 @@ export async function catchHttpErrors(
   try {
     return await action();
   } catch (err: unknown) {
-    const mapped = translateDomainErrorToHttpResponse(err);
-    if (mapped) {
-      return mapped;
-    }
-    const msg = err instanceof Error ? err.message : String(err);
-    return errorResponse(msg, 500);
+    return translateDomainErrorToHttpResponse(err) ?? internalErrorResponse();
   }
 }
 

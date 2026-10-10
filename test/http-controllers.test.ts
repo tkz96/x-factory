@@ -96,21 +96,34 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.ok(typeof data === "object");
     });
 
-    it("handles unexpected controller errors with 500 status", async () => {
+    it("handles unexpected controller errors with the generic 500 and logs the detail", async () => {
       const runsController = await import("../src/http/runs-controller.js");
       const spy = spyOn(runsController, "handleGetRuns").mockImplementationOnce(
         () => {
           throw new Error("Catastrophic database failure");
         },
       );
-      const req = new Request("http://localhost:3777/api/runs", {
-        method: "GET",
-      });
-      const res = await handleApi(req, new URL(req.url), { repos });
-      assert.equal(res.status, 500);
-      const body = await res.json();
-      assert.ok(body.error.includes("Catastrophic database failure"));
-      spy.mockRestore();
+      const logged: string[] = [];
+      const originalError = console.error;
+      console.error = (...args: unknown[]) => {
+        logged.push(args.map(String).join(" "));
+      };
+      try {
+        const req = new Request("http://localhost:3777/api/runs", {
+          method: "GET",
+        });
+        const res = await handleApi(req, new URL(req.url), { repos });
+        assert.equal(res.status, 500);
+        // #163 B2: the raw text is logged server-side and never sent.
+        assert.deepEqual(await res.json(), {
+          error: "Internal error",
+          code: "INTERNAL",
+        });
+      } finally {
+        console.error = originalError;
+        spy.mockRestore();
+      }
+      assert.ok(logged.join("\n").includes("Catastrophic database failure"));
     });
   });
 

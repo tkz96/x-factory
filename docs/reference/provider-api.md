@@ -675,11 +675,14 @@ write through `createProject`, after the tracker gate above.
 | Connection set covers only one role (create), the replacement set would after an update, or a body without `connections` names no usable tracker | 409 | `{ formErrors: ["MISSING_TRACKER_CONNECTION" \| "MISSING_GIT_HOST_CONNECTION"] }` |
 | Two distinct providers in one set declare the same env key with different values (create or update) | 409 | `{ formErrors: ["INCOMPATIBLE_CONFIGURATION"] }` |
 | Duplicate project id (create-only) | 409 | `{ error }` |
-| Persistence failure | 500 | `{ error }` |
+| Any other unexpected failure (including a persistence failure) | 500 | `{ error: "Internal error", code: "INTERNAL" }` |
 | Provider failure on `GET /api/projects/:id/tickets` and `POST /api/projects/:id/tracker/test` and `/tracker/scopes` | by code, below | `{ error, code, context, retryAfterMs? }` |
 
 Codes only — provider and zod messages never cross the boundary. Upstream
-failures use the separate `ProviderError` envelope.
+failures use the separate `ProviderError` envelope. An unexpected error is never
+described to the caller either: `handleApi` logs its text — which can quote SQL,
+a filesystem path or a secret — through the structured logger and answers the
+generic `{ error: "Internal error", code: "INTERNAL" }` envelope (#163 B2).
 
 The provider-failure body is built in one place (`providerErrorResponse` in
 `src/http/responses.ts`): `error` is the canonical copy, `code` and `context`

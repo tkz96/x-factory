@@ -48,13 +48,16 @@ describe("catchHttpErrors", () => {
     expect(body.error).toBe("I'm a teapot");
   });
 
-  it("translates native Error to 500", async () => {
+  it("translates native Error to the generic 500 envelope", async () => {
     const res = await catchHttpErrors(async () => {
       throw new Error("Synthetic database failure");
     });
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toBe("Synthetic database failure");
+    // #163 B2: the raw text can quote SQL, a path or a secret, so it is only
+    // logged server-side. test/http-error-translation.test.ts owns the log-side
+    // assertion at the dispatch boundary.
+    expect(body).toEqual({ error: "Internal error", code: "INTERNAL" });
   });
 });
 
