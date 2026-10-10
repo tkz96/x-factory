@@ -252,11 +252,16 @@ export class JobRepository {
     newWorkerId: string | null,
     now = new Date().toISOString(),
   ): boolean {
+    // A job handed back to 'pending' was never run to an outcome, so the attempt its
+    // claim counted is returned: repeated releases must not spend the retry budget.
+    const refund =
+      targetStatus === "pending" ? "attempts = MAX(attempts - 1, 0)," : "";
     const stmt = this.db.prepare(`
       UPDATE jobs
       SET status = $targetStatus,
           worker_id = $newWorkerId,
           lease_until = NULL,
+          ${refund}
           updated_at = $now
       WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
       RETURNING id;
@@ -379,6 +384,7 @@ export class JobRepository {
 
   /**
    * Voluntarily releases an active lease back to 'pending' (e.g. during graceful shutdown).
+   * The attempt the claim counted is given back, so a released job is not closer to its cap.
    */
   releaseLease(jobId: string, workerId: string, now?: string): boolean {
     return this.transitionClaimedJob(jobId, workerId, "pending", null, now);
@@ -437,6 +443,46 @@ export class JobRepository {
             error = $error,
             updated_at = $now
         WHERE id = $jobId AND status = 'claimed' AND lease_until < $now
+        RETURNING id;
+      `,
+      )
+      .get({ $jobId: jobId, $error: error, $now: now });
+    return !!row;
+  }
+
+  /**
+   * Pending jobs whose attempts are already spent. No claim can ever take them
+   * (claiming needs attempts < max_attempts), so the lease module exhausts them.
+   */
+  findExhaustedPendingJobs(): JobRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM jobs
+         WHERE status = 'pending' AND attempts >= max_attempts
+         ORDER BY created_at ASC;`,
+      )
+      .all() as JobRow[];
+    return rows.map(rowToJobRecord);
+  }
+
+  /**
+   * Fails a pending job whose attempts are spent. Returns false when it changed meanwhile.
+   */
+  failExhaustedPendingJob(
+    jobId: string,
+    error: string,
+    now = new Date().toISOString(),
+  ): boolean {
+    const row = this.db
+      .prepare(
+        `
+        UPDATE jobs
+        SET status = 'failed',
+            worker_id = NULL,
+            lease_until = NULL,
+            error = $error,
+            updated_at = $now
+        WHERE id = $jobId AND status = 'pending' AND attempts >= max_attempts
         RETURNING id;
       `,
       )

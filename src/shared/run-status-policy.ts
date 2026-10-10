@@ -12,7 +12,7 @@ import type { RunStatus, WorkflowStage } from "./types.js";
  * docs/reference/state-machine-matrix.md).
  */
 export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
-  queued: ["preparing", "failed", "stopped"],
+  queued: ["preparing", "failed", "stopped", "recovery_required"],
   preparing: ["understanding", "failed", "stopped", "recovery_required"],
   understanding: [
     "awaiting_understanding_approval",

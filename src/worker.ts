@@ -10,8 +10,7 @@ import os from "node:os";
 import { createRepositories, openProcessDatabase } from "./composition-root.js";
 import { getProject } from "./config.js";
 import type { CommandRecord } from "./db/command-repository.js";
-import type { JobRecord, JobRepository } from "./db/job-repository.js";
-import { runMigrations } from "./db/migrator.js";
+import type { JobRecord } from "./db/job-repository.js";
 import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { WorkerHeartbeatRepository } from "./db/worker-heartbeat-repository.js";
 import { DeliverExecutor } from "./executors/deliver.js";
@@ -23,7 +22,6 @@ import {
   type WorkerLogRecord,
 } from "./lease.js";
 import { ProviderError } from "./providers/errors.js";
-import { AWAITING_HUMAN_RUN_STATUSES } from "./shared/run-status-policy.js";
 import type { Project } from "./shared/types.js";
 import {
   deliverCommandWork,
@@ -67,7 +65,6 @@ export class Worker {
   /** True when the worker opened its own connection and so closes it on stop. */
   private ownsDb: boolean;
   private runRepo: RunRepository;
-  private jobRepo: JobRepository;
   private heartbeatRepo: WorkerHeartbeatRepository;
   private stageRunner: StageRunner;
   private runnerHost: StageRunnerHost;
@@ -93,7 +90,6 @@ export class Worker {
     this.db = options?.db ?? openProcessDatabase();
     const repos = createRepositories(this.db);
     this.runRepo = repos.runs;
-    this.jobRepo = repos.jobs;
     this.heartbeatRepo = repos.heartbeats;
     this.deliverExecutor = options?.deliverExecutor;
     this.stageExecutorResolver = options?.getStageExecutor ?? getStageExecutor;
@@ -218,48 +214,9 @@ export class Worker {
     const recoveredJobs = swept.recoveredCount;
     let recoveryRequiredRuns = swept.recoveryRequiredCount;
 
-    for (const run of this.runRepo.listActive()) {
-      if (
-        this.jobRepo.findActiveJobsForRun(run.id).length === 0 &&
-        this.reclaimOrphanedRun(run)
-      ) {
-        recoveryRequiredRuns++;
-      }
-    }
+    recoveryRequiredRuns += this.leaseManager.recoverOrphanedRuns();
 
     return { recoveredJobs, recoveryRequiredRuns };
-  }
-
-  private reclaimOrphanedRun(run: RunRecord): boolean {
-    if (AWAITING_HUMAN_RUN_STATUSES.has(run.status)) {
-      return false;
-    }
-
-    this.emitStructuredLog({
-      result: "recovery_required",
-      run_id: run.id,
-      message: `Active run ${run.id} in status "${run.status}" has no pending or claimed jobs. Transitioning to recovery_required.`,
-    });
-
-    try {
-      this.runRepo.transitionRun(run.id, run.status, "recovery_required", {
-        event: {
-          type: "status",
-          payload: {
-            status: "recovery_required",
-            reason:
-              "Active run found without any pending or claimed workflow jobs on worker startup.",
-          },
-        },
-      });
-      return true;
-    } catch (err: unknown) {
-      this.error(
-        `Failed to transition orphaned run ${run.id} to recovery_required:`,
-        err,
-      );
-      return false;
-    }
   }
 
   async start(): Promise<void> {
@@ -267,18 +224,8 @@ export class Worker {
     this.isRunning = true;
     this.isStopping = false;
 
-    // Validate database and run migrations before accepting any work
-    try {
-      const migrationResult = runMigrations(this.db);
-      this.log(
-        `Database verified at schema version ${migrationResult.currentVersion} (${migrationResult.applied} migration(s) applied).`,
-      );
-    } catch (err: unknown) {
-      this.error("Database migration check failed. Halting worker.", err);
-      throw err;
-    }
-
-    // Register worker heartbeat in SQLite after migrations succeed (Phase 3, Section 47)
+    // Register worker heartbeat in SQLite (Phase 3, Section 47). The connection arrives migrated: openProcessDatabase
+    // runs them, and a caller that passes its own `db` owns that.
     this.upsertHeartbeat();
 
     // Startup recovery for incomplete work / dead workers (XFM-36, XFM-37)

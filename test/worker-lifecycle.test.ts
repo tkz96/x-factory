@@ -5,6 +5,7 @@ import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
+import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
 import { Worker, type WorkerLogEntry } from "../src/worker.js";
 
 describe("Worker Lifecycle", () => {
@@ -140,5 +141,74 @@ describe("Worker Lifecycle", () => {
     const refreshed = jobRepo.getJob(job.id);
     expect(refreshed?.status).toBe("pending");
     expect(refreshed?.workerId).toBeNull();
+  });
+
+  it("does not burn an attempt when a worker stop releases the job, so repeated stops never strand it (#163)", async () => {
+    const { db, jobRepo, runRepo, job } = setup();
+    db.prepare("UPDATE jobs SET max_attempts = 3 WHERE id = ?").run(job.id);
+    let nowMs = Date.now() + 60_000;
+    const clock = { now: () => nowMs };
+
+    for (let stop = 1; stop <= 4; stop++) {
+      nowMs += 60_000;
+      const workerId = `stopping-worker-${stop}`;
+      const worker = new Worker({
+        db,
+        workerId,
+        clock,
+        shutdownTimeoutMs: 10,
+      });
+      const claimed = jobRepo.claimNextJob(workerId, 30_000, nowMs);
+      expect(claimed?.id).toBe(job.id);
+      expect(claimed?.attempts).toBe(1);
+      (worker as unknown as { currentJob: typeof claimed }).currentJob =
+        claimed;
+      await worker.stop();
+
+      const released = jobRepo.getJob(job.id);
+      expect(released?.status).toBe("pending");
+      expect(released?.attempts).toBe(0);
+    }
+    expect(runRepo.get("run-w-1")?.status).toBe("preparing");
+  });
+
+  it("closes the stage attempt a stop left running when it releases the job", async () => {
+    const { db, jobRepo, job } = setup();
+    const attempts = new StageAttemptRepository(db);
+    const claimed = jobRepo.claimNextJob("releasing-worker", 30_000);
+    attempts.recordStart("run-w-1", "prepare", 1);
+    const worker = new Worker({
+      db,
+      workerId: "releasing-worker",
+      shutdownTimeoutMs: 10,
+    });
+    (worker as unknown as { currentJob: typeof claimed }).currentJob = claimed;
+    await worker.stop();
+
+    expect(jobRepo.getJob(job.id)?.status).toBe("pending");
+    expect(attempts.listForRun("run-w-1").map((a) => a.status)).toEqual([
+      "failed",
+    ]);
+  });
+
+  it("sends a pending job already at its last attempt to recovery_required instead of leaving it stuck", async () => {
+    const { db, jobRepo, runRepo, job } = setup();
+    // The state older releases left behind: pending, with every attempt spent.
+    db.prepare(
+      "UPDATE jobs SET attempts = 3, max_attempts = 3, status = 'pending' WHERE id = ?",
+    ).run(job.id);
+    const worker = new Worker({
+      db,
+      workerId: "sweeping-worker",
+      clock: { now: () => Date.now() + 10_000 },
+    });
+
+    expect(await worker.stepOnce()).toBeNull();
+
+    expect(jobRepo.getJob(job.id)?.status).toBe("failed");
+    expect(jobRepo.getJob(job.id)?.error).toBe(
+      "Maximum retry attempts exhausted across worker lifetimes.",
+    );
+    expect(runRepo.get("run-w-1")?.status).toBe("recovery_required");
   });
 });

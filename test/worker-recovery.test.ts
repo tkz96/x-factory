@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { createDatabase } from "../src/db/connection.js";
+import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
@@ -152,6 +153,63 @@ describe("Worker Startup Recovery (XFM-36, XFM-37)", () => {
 
     const updatedRun = runRepo.get(run.id);
     expect(updatedRun?.status).toBe("recovery_required");
+  });
+
+  it("recovers an orphaned queued run through a legal, recorded transition without logging an error", async () => {
+    const { runRepo, worker, db } = setupTest();
+    const run = runRepo.create({
+      id: "run-recov-queued",
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-5", title: "Queued orphan", acceptanceCriteria: [] },
+      plan: "Plan",
+      branch: "factory/T-5",
+      status: "queued",
+      artifactsDir: "/tmp/artifacts-recov-5",
+      worktreePath: "/tmp/worktrees-recov-5",
+    });
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args);
+    };
+    let recovery: Awaited<ReturnType<typeof worker.recoverOnStartup>>;
+    try {
+      recovery = await worker.recoverOnStartup();
+    } finally {
+      console.error = originalError;
+    }
+
+    expect(recovery.recoveryRequiredRuns).toBe(1);
+    expect(errors).toEqual([]);
+    const after = runRepo.get(run.id);
+    expect(after?.status).toBe("recovery_required");
+    expect(after?.revision).toBe(run.revision + 1);
+    const events = new EventRepository(db).getEventsForRun(run.id);
+    expect(events.map((e) => e.type)).toContain("status");
+  });
+
+  it("closes the running stage attempt of an orphaned run when it moves it to recovery_required", async () => {
+    const { runRepo, stageAttemptRepo, worker } = setupTest();
+    const run = runRepo.create({
+      id: "run-recov-attempt",
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-6", title: "Orphan attempt", acceptanceCriteria: [] },
+      plan: "Plan",
+      branch: "factory/T-6",
+      status: "planning",
+      artifactsDir: "/tmp/artifacts-recov-6",
+      worktreePath: "/tmp/worktrees-recov-6",
+    });
+    stageAttemptRepo.recordStart(run.id, "plan", 1);
+
+    await worker.recoverOnStartup();
+
+    expect(runRepo.get(run.id)?.status).toBe("recovery_required");
+    expect(stageAttemptRepo.listForRun(run.id).map((a) => a.status)).toEqual([
+      "failed",
+    ]);
   });
 
   it("leaves ready_for_pr runs alone during startup recovery", async () => {

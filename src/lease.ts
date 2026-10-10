@@ -8,6 +8,7 @@ import type { CommandRecord } from "./db/command-repository.js";
 import type { JobRecord } from "./db/job-repository.js";
 import type { WorkerHeartbeatRecord } from "./db/worker-heartbeat-repository.js";
 import {
+  AWAITING_HUMAN_RUN_STATUSES,
   canTransition,
   EXECUTABLE_RUN_STATUSES,
 } from "./shared/run-status-policy.js";
@@ -76,6 +77,13 @@ const ABANDONED = "Run no longer allows this job; job abandoned.";
 /** The one reason recorded on a stage attempt closed because its lease expired. */
 const LEASE_EXPIRED_REASON =
   "Worker lease expired; Worker process terminated during execution.";
+
+/** The reason recorded on a stage attempt closed because its worker released the job. */
+const LEASE_RELEASED_REASON =
+  "Worker released the job during shutdown before the stage finished.";
+
+const ORPHANED_RUN_REASON =
+  "Active run found without any pending or claimed workflow jobs on worker startup.";
 
 export interface LeaseManagerOptions {
   clock?: Clock | undefined;
@@ -158,17 +166,14 @@ export class LeaseManager {
     runId: string,
     stage: string,
     now: string,
+    reason = LEASE_EXPIRED_REASON,
   ): boolean {
     const latestAttempt = this.repos.stageAttempts.getLatestAttempt(
       runId,
       stage,
     );
     if (latestAttempt && latestAttempt.status === "running") {
-      this.repos.stageAttempts.recordFailure(
-        latestAttempt.id,
-        LEASE_EXPIRED_REASON,
-        now,
-      );
+      this.repos.stageAttempts.recordFailure(latestAttempt.id, reason, now);
       return true;
     }
     return false;
@@ -198,6 +203,27 @@ export class LeaseManager {
       recoveredCount: 0,
     };
     const now = this.nowIso();
+
+    // A pending job with no attempts left can never be claimed; settle it first.
+    for (const job of this.repos.jobs.findExhaustedPendingJobs()) {
+      try {
+        if (this.settleExhaustedPendingJob(job, now) === "skipped") continue;
+      } catch (err) {
+        this.emitLog({
+          result: "error",
+          run_id: job.runId,
+          job_id: job.id,
+          stage: job.stage,
+          attempt: job.attempts,
+          message: `Could not settle exhausted pending job ${job.id} for run ${job.runId}.`,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        continue;
+      }
+      result.expiredCount++;
+      result.recoveryRequiredCount++;
+      this.logStaleOutcome(job, "exhausted");
+    }
 
     for (const job of this.repos.jobs.findStaleClaimedJobs(now)) {
       let outcome: StaleOutcome;
@@ -301,6 +327,109 @@ export class LeaseManager {
       .immediate();
   }
 
+  /**
+   * Settles a pending job whose attempts are spent: the job fails and its run goes to
+   * recovery_required, in one transaction. Returns "abandoned" when the run no longer
+   * allows recovery (the job still fails, the run is untouched).
+   */
+  private settleExhaustedPendingJob(job: JobRecord, now: string): StaleOutcome {
+    return this.repos.db
+      .transaction((): StaleOutcome => {
+        const run = this.repos.runs.get(job.runId);
+        if (!run || !canTransition(run.status, "recovery_required")) {
+          return this.repos.jobs.failExhaustedPendingJob(job.id, ABANDONED, now)
+            ? "abandoned"
+            : "skipped";
+        }
+        if (!this.repos.jobs.failExhaustedPendingJob(job.id, EXHAUSTED, now))
+          return "skipped";
+        this.closeRunningStageAttempt(job.runId, job.stage, now);
+        this.repos.runs.transitionRun(run.id, run.status, "recovery_required", {
+          expectedRevision: run.revision,
+          now,
+          event: {
+            type: "status",
+            payload: {
+              status: "recovery_required",
+              reason: `Job attempts (${job.attempts}/${job.maxAttempts}) exhausted for stage ${job.stage}.`,
+            },
+          },
+        });
+        return "exhausted";
+      })
+      .immediate();
+  }
+
+  /**
+   * Startup recovery for runs that hold no live work: an active run that is not
+   * waiting on a human and has no pending or claimed job goes to recovery_required,
+   * its running stage attempts closed, in one transaction per run. Returns how
+   * many runs were moved.
+   */
+  recoverOrphanedRuns(): number {
+    let moved = 0;
+    const now = this.nowIso();
+    for (const candidate of this.repos.runs.listActive()) {
+      if (AWAITING_HUMAN_RUN_STATUSES.has(candidate.status)) continue;
+      try {
+        const done = this.repos.db
+          .transaction((): boolean => {
+            const run = this.repos.runs.get(candidate.id);
+            if (
+              !run ||
+              AWAITING_HUMAN_RUN_STATUSES.has(run.status) ||
+              !canTransition(run.status, "recovery_required") ||
+              this.repos.jobs.findActiveJobsForRun(run.id).length > 0
+            ) {
+              return false;
+            }
+            for (const attempt of this.repos.stageAttempts.listForRun(run.id)) {
+              if (attempt.status === "running") {
+                this.repos.stageAttempts.recordFailure(
+                  attempt.id,
+                  ORPHANED_RUN_REASON,
+                  now,
+                );
+              }
+            }
+            this.repos.runs.transitionRun(
+              run.id,
+              run.status,
+              "recovery_required",
+              {
+                expectedRevision: run.revision,
+                now,
+                event: {
+                  type: "status",
+                  payload: {
+                    status: "recovery_required",
+                    reason: ORPHANED_RUN_REASON,
+                  },
+                },
+              },
+            );
+            return true;
+          })
+          .immediate();
+        if (!done) continue;
+        moved++;
+        this.emitLog({
+          result: "recovery_required",
+          run_id: candidate.id,
+          message: `Active run ${candidate.id} in status "${candidate.status}" has no pending or claimed jobs. Transitioned to recovery_required.`,
+        });
+      } catch (err) {
+        this.emitLog({
+          result: "error",
+          run_id: candidate.id,
+          message: `Failed to transition orphaned run ${candidate.id} to recovery_required.`,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return moved;
+  }
+
   private logStaleOutcome(job: JobRecord, outcome: StaleOutcome): void {
     const base = {
       run_id: job.runId,
@@ -400,7 +529,23 @@ export class LeaseManager {
    * Releases an active lease back to 'pending' (e.g. during graceful shutdown).
    */
   releaseJobLease(jobId: string, workerId: string): boolean {
-    return this.repos.jobs.releaseLease(jobId, workerId, this.nowIso());
+    const now = this.nowIso();
+    return this.repos.db
+      .transaction((): boolean => {
+        const job = this.repos.jobs.getJob(jobId);
+        if (!this.repos.jobs.releaseLease(jobId, workerId, now)) return false;
+        // The released work never finished: its attempt must not stay "running".
+        if (job) {
+          this.closeRunningStageAttempt(
+            job.runId,
+            job.stage,
+            now,
+            LEASE_RELEASED_REASON,
+          );
+        }
+        return true;
+      })
+      .immediate();
   }
 
   /**
