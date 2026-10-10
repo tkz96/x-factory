@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { handleProjectsRoute } from "../src/http/projects-controller.js";
+import { handleApi } from "../src/http/routes.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
 let baseDir: string;
@@ -53,19 +53,28 @@ afterAll(async () => {
 describe("project routes with a conflicting stored connection", () => {
   for (const action of ["tracker", "tickets"] as const) {
     it(`GET /api/projects/stale/${action} answers 409 CONNECTION_CONFLICT`, async () => {
-      const res = await handleProjectsRoute(
-        "GET",
-        "stale",
-        action,
-        3,
-        new Request(`http://localhost:3777/api/projects/stale/${action}`),
-        undefined,
-        { repos: createTestRepositories() },
-      );
-      expect(res?.status).toBe(409);
-      const body = (await res?.json()) as { code: string; error: string };
+      const url = new URL(`http://localhost:3777/api/projects/stale/${action}`);
+      const res = await handleApi(new Request(url), url, {
+        repos: createTestRepositories(),
+      });
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as { code: string; error: string };
       expect(body.code).toBe("CONNECTION_CONFLICT");
       expect(body.error).toContain("conflicting settings");
     });
   }
+  // #183: the canonical "Verify scopes" action reads the STORED connection, so a
+  // conflicting stored record is rejected there (it replaced test-scopes).
+  it("POST /api/projects/stale/tracker/scopes answers 409 CONNECTION_CONFLICT", async () => {
+    const url = new URL(
+      "http://localhost:3777/api/projects/stale/tracker/scopes",
+    );
+    const res = await handleApi(new Request(url, { method: "POST" }), url, {
+      repos: createTestRepositories(),
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string; error: string };
+    expect(body.code).toBe("CONNECTION_CONFLICT");
+    expect(body.error).toContain("conflicting settings");
+  });
 });

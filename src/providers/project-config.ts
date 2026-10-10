@@ -12,11 +12,10 @@ import type {
   ProjectConnection,
   ProjectIssueTracker,
 } from "../shared/types.js";
-import { toTypedProviderConfig } from "./config-validation.js";
-import type { Provider, ProviderConfig } from "./contract.js";
+import type { Provider, ProviderErrorEnvelope } from "./contract.js";
 import {
-  findConnectionForRole,
-  mergeStoredSecrets,
+  type ResolvedProjectConnection,
+  resolveConnectionForRole,
   secretRoutesOf,
   storedSecretValue,
 } from "./project-connections.js";
@@ -101,16 +100,18 @@ export function resolveProjectTrackerSummary(
   env: Record<string, string>,
   registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): ProjectTrackerSummary {
-  const connection = findConnectionForRole(project, "tracker", registry);
-  const provider = connection ? registry.get(connection.providerId) : undefined;
+  // Resolved through the project connections module: the connection (even when
+  // it names a provider the registry no longer has) plus that provider.
+  const resolved = resolveConnectionForRole(project, "tracker", registry);
+  const provider = resolved?.provider;
   const [route] = provider ? secretRoutesOf(provider) : [];
 
   const secret = route ? storedSecretValue(route.envKey, env) : "";
   const hasSecret = Boolean(secret.trim());
 
   return {
-    provider: connection?.providerId ?? "",
-    config: { ...(connection?.config ?? {}) },
+    provider: resolved?.connection.providerId ?? "",
+    config: { ...(resolved?.connection.config ?? {}) },
     hasSecret,
     secretMask: hasSecret ? maskSecret(secret) : "",
     secretKey: route?.envKey ?? "",
@@ -135,85 +136,37 @@ export function extractTrackerCredentialsToSave(
   return varsToSave;
 }
 
-/** `text` with every occurrence of each non-empty secret value masked. */
-function redactValues(text: string, values: readonly string[]): string {
-  let redacted = text;
-  for (const value of [...values].sort((a, b) => b.length - a.length)) {
-    redacted = redacted.split(value).join("[redacted]");
-  }
-  return redacted;
-}
-
-export interface TrackerTestResult {
-  ok: boolean;
-  message?: string | undefined;
-  error?: string | undefined;
-}
+/**
+ * The outcome of a live tracker probe. A success carries the canonical
+ * confirmation copy; a failure carries the provider's normalized (code,
+ * context) envelope — never the raw thrown text, which can echo a token or the
+ * configuration (#183).
+ */
+export type TrackerTestResult =
+  | { ok: true; message: string }
+  | { ok: false; error: ProviderErrorEnvelope };
 
 /**
- * Executes a live connection probe with the provider. The config is the
- * project's tracker connection when the request names that same provider, with
- * the stored secrets and any non-empty request values layered over it.
+ * Executes a live connection probe with the provider resolved for the project's
+ * STORED tracker connection: its recorded config plus the secrets the project's
+ * env storage holds. Nothing from a request body reaches the provider; the
+ * caller supplies only the resolved connection and the repository coordinate.
  */
 export async function testProjectTrackerConnection(
-  providerId: string,
-  project: Project,
-  env: Record<string, string>,
-  bodyData: Record<string, unknown>,
+  connection: ResolvedProjectConnection,
   repositoryPath: string,
-  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): Promise<TrackerTestResult> {
-  const provider = registry.get(providerId);
-  if (!provider) {
-    return { ok: false, error: `Unsupported provider: ${providerId}` };
-  }
-
-  const connection = findConnectionForRole(project, "tracker", registry);
-  const base = connection?.providerId === providerId ? connection.config : {};
-
-  const overlay: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(bodyData)) {
-    if (key === "provider" || value === undefined || value === null) continue;
-    if (typeof value === "string" && value.trim() === "") continue;
-    overlay[key] = value;
-  }
-  for (const [name, value] of Object.entries(
-    secretBodyValues(provider, bodyData),
-  )) {
-    overlay[name] = value;
-  }
-
-  const config: ProviderConfig = {
-    ...mergeStoredSecrets(provider, base, env),
-    ...overlay,
-  };
-
-  const check = toTypedProviderConfig(provider, config);
-  if (!check.ok) {
-    return {
-      ok: false,
-      error: "Connection settings are incomplete or invalid.",
-    };
-  }
-
-  // Secret values never leave this function: a provider's failure text can echo
-  // a token, so every stored or supplied secret is masked from the message.
-  const secretValues = secretRoutesOf(provider)
-    .map((route) => config[route.name])
-    .filter(
-      (value): value is string => typeof value === "string" && value !== "",
-    );
+  const { provider, config } = connection;
   try {
-    await provider.verifyCredentials({ ...check.config, cwd: repositoryPath });
+    await provider.verifyCredentials({ ...config, cwd: repositoryPath });
     return {
       ok: true,
       message: `${provider.displayName} connection successful.`,
     };
   } catch (err: unknown) {
-    return {
-      ok: false,
-      error: redactValues((err as Error).message, secretValues),
-    };
+    // Normalized envelope only: the thrown text, which may quote a token or the
+    // configuration, never crosses this boundary.
+    return { ok: false, error: provider.toUserError(err, "VERIFY") };
   }
 }
 

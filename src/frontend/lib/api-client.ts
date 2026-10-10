@@ -144,6 +144,20 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * The wire shape of the project-scoped "verify scopes" answer (#183): the
+ * success/degraded report, or — when the provider threw — no report at all,
+ * because a thrown failure answers non-2xx with the normalized provider error.
+ */
+export interface VerifyProjectScopesResponse {
+  ok: boolean;
+  overPrivileged?: boolean | undefined;
+  scopes?: Record<string, unknown> | undefined;
+  errors?: string[] | undefined;
+  warnings?: string[] | undefined;
+  error?: NormalizedError | undefined;
+}
+
 export const api = {
   // Providers (spec #133, ticket #143)
   providers: {
@@ -357,47 +371,21 @@ export const api = {
     return handleResponse<PrRunResponse>(res);
   },
 
-  async testScopes(payload: {
-    projectId?: string | undefined;
-    providerId?: string | undefined;
-    organization?: string | undefined;
-    project?: string | undefined;
-    pat?: string | undefined;
-    [key: string]: unknown;
-  }): Promise<{
-    ok: boolean;
-    overPrivileged?: boolean | undefined;
-    scopes?: Record<string, unknown> | undefined;
-    errors?: string[] | undefined;
-    warnings?: string[] | undefined;
-    error?: string | undefined;
-  }> {
-    const res = await fetch("/api/projects/test-scopes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{
-      ok: boolean;
-      overPrivileged?: boolean | undefined;
-      scopes?: Record<string, unknown> | undefined;
-      errors?: string[] | undefined;
-      warnings?: string[] | undefined;
-      error?: string | undefined;
-    }>(res);
-  },
-
   /**
-   * @deprecated Use `testScopes` instead. Retained for backwards compatibility.
+   * "Verify scopes" on an existing project (#183): the canonical project-scoped
+   * tracker action. The server resolves the project's STORED tracker connection
+   * (recorded config + stored secrets); the request carries no configuration.
+   * A provider failure arrives as the normalized provider error — a non-2xx
+   * status with `{ error, code, context }` — never raw text.
    */
-  async testAzureScopes(payload: {
-    projectId?: string | undefined;
-    organization?: string | undefined;
-    project?: string | undefined;
-    pat?: string | undefined;
-    [key: string]: unknown;
-  }) {
-    return this.testScopes(payload);
+  async verifyProjectScopes(
+    projectId: string,
+  ): Promise<VerifyProjectScopesResponse> {
+    const res = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/tracker/scopes`,
+      { method: "POST" },
+    );
+    return handleResponse<VerifyProjectScopesResponse>(res);
   },
 
   // Settings & Readiness

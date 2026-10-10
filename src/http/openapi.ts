@@ -1,6 +1,13 @@
-// src/http/openapi.ts — OpenAPI 3.1.0 specification for X-Factory developer workbench REST API.
+// src/http/openapi.ts — OpenAPI 3.1.0 specification for X-Factory developer
+// workbench REST API.
+//
+// The per-path operations here are hand-written; `buildOpenApiDocument` takes
+// its operation list from the route table (#192), so these entries may only
+// enrich a method + path the table already dispatches.
 
-export function getOpenApiSpec() {
+import type { RouteEntry } from "./route-contract.js";
+
+function documentedSpec() {
   return {
     openapi: "3.1.0",
     info: {
@@ -56,6 +63,10 @@ export function getOpenApiSpec() {
         name: "Providers",
         description:
           "Provider manifest discovery, credential verification, and Quick-URL resolution",
+      },
+      {
+        name: "Docs",
+        description: "In-app Diátaxis documentation catalog and search",
       },
     ],
     paths: {
@@ -205,7 +216,7 @@ export function getOpenApiSpec() {
             },
           },
         },
-        post: {
+        put: {
           tags: ["Projects"],
           summary: "Update Project",
           description:
@@ -338,124 +349,13 @@ export function getOpenApiSpec() {
           },
         },
       },
-      "/api/projects/{id}/env": {
-        get: {
-          tags: ["Projects"],
-          summary: "Get Project Environment Variables",
-          description:
-            "Retrieves project-scoped environment variables with secrets masked for safe display.",
-          operationId: "getProjectEnv",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Project identifier",
-              schema: { type: "string" },
-            },
-          ],
-          responses: {
-            "200": {
-              description: "Dictionary of project environment variables",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    additionalProperties: {
-                      type: "object",
-                      properties: {
-                        value: { type: "string" },
-                        isSecret: { type: "boolean" },
-                        maskedValue: { type: "string" },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        post: {
-          tags: ["Projects"],
-          summary: "Update Project Environment Variables",
-          description:
-            "Saves encrypted/masked project-level environment variables (e.g. tracker PAT tokens, custom keys).",
-          operationId: "updateProjectEnv",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Project identifier",
-              schema: { type: "string" },
-            },
-          ],
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  additionalProperties: { type: "string" },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Updated environment variables successfully saved",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    additionalProperties: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      "/api/projects/{id}/repos": {
-        get: {
-          tags: ["Projects"],
-          summary: "Get Project Repositories",
-          description:
-            "Lists configured repositories and auto-discovered repositories for a project.",
-          operationId: "getProjectRepos",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Project identifier",
-              schema: { type: "string" },
-            },
-          ],
-          responses: {
-            "200": {
-              description: "List of repositories",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "array",
-                    items: {
-                      $ref: "#/components/schemas/DiscoveredRepository",
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      "/api/projects/{id}/test-connection": {
+      "/api/projects/{id}/tracker/test": {
         post: {
           tags: ["Projects"],
           summary: "Test Project Tracker Connection",
           description:
-            "Tests connectivity, authentication, and permission scopes for the project's configured issue tracker.",
-          operationId: "testProjectConnection",
+            "Probes the project's STORED tracker connection: connectivity, authentication, and permission scopes. The connection is resolved through the project connections module from the recorded `connections` plus the project's stored secrets; the request body carries no configuration (it is ignored). A thrown provider failure returns the normalized ProviderError status and body — raw provider text never crosses the boundary.",
+          operationId: "testProjectTracker",
           parameters: [
             {
               name: "id",
@@ -476,62 +376,12 @@ export function getOpenApiSpec() {
                 },
               },
             },
-          },
-        },
-      },
-      "/api/projects/discover-repositories": {
-        post: {
-          tags: ["Discovery"],
-          summary: "Discover Repositories (Legacy)",
-          description:
-            "Legacy wire endpoint for repository discovery. Retained for backward compatibility; delegates to the provider registry. The canonical endpoint is POST /api/providers/repositories.",
-          deprecated: true,
-          operationId: "discoverRepositories",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  required: ["provider"],
-                  properties: {
-                    provider: {
-                      type: "string",
-                      enum: ["azure", "github", "gitlab", "jira", "local"],
-                      example: "azure",
-                    },
-                    orgUrl: {
-                      type: "string",
-                      example: "https://dev.azure.com/my-org",
-                    },
-                    project: { type: "string", example: "CorePlatform" },
-                    pat: { type: "string", example: "••••••••" },
-                    localPath: { type: "string", example: "~/code/workbench" },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Discovered repositories",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    properties: {
-                      ok: { type: "boolean" },
-                      repositories: {
-                        type: "array",
-                        items: {
-                          $ref: "#/components/schemas/DiscoveredRepository",
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
+            "401": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "403": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "404": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "423": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "429": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "502": { $ref: "#/components/responses/ProviderErrorResponse" },
           },
         },
       },
@@ -627,39 +477,26 @@ export function getOpenApiSpec() {
           },
         },
       },
-      "/api/projects/test-scopes": {
+      "/api/projects/{id}/tracker/scopes": {
         post: {
-          tags: ["Discovery"],
-          summary: "Verify Tracker Provider Scopes",
+          tags: ["Projects"],
+          summary: "Verify Project Tracker Scopes",
           description:
-            "Probes the resolved tracker provider's credentials for the capabilities that provider must hold. The provider is resolved from `providerId`, or from the tracker connection recorded on `projectId`; a connection whose provider does not declare the `verifyScopes` capability is reported as a capability gap, never substituted for.",
-          operationId: "testScopes",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    providerId: {
-                      type: "string",
-                      example: "azure",
-                    },
-                    projectId: { type: "string", example: "proj-1" },
-                    orgUrl: {
-                      type: "string",
-                      example: "https://dev.azure.com/my-org",
-                    },
-                    project: { type: "string", example: "Platform" },
-                    pat: { type: "string", example: "token-string" },
-                  },
-                },
-              },
+            "Probes the project's STORED tracker connection for the capabilities its provider must hold. The connection is resolved through the project connections module from the recorded `connections` plus the project's stored secrets — never from the request body, which is ignored. A provider that does not declare the `verifyScopes` capability is reported as a capability gap (200 with `ok: false`); a thrown provider failure returns the normalized ProviderError status and body, never raw provider text.",
+          operationId: "verifyProjectScopes",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              description: "Project identifier",
+              schema: { type: "string" },
             },
-          },
+          ],
           responses: {
             "200": {
-              description: "Provider scope audit report",
+              description:
+                "Provider scope audit report, including the capability-gap result",
               content: {
                 "application/json": {
                   schema: {
@@ -668,54 +505,15 @@ export function getOpenApiSpec() {
                 },
               },
             },
-          },
-        },
-      },
-      "/api/projects/test-azure-scopes": {
-        post: {
-          tags: ["Discovery"],
-          summary: "Verify Tracker Provider Scopes (Legacy Wire Alias)",
-          description:
-            "Legacy wire alias for `/api/projects/test-scopes`. Probes the resolved tracker provider's credentials for required capabilities. Kept for backward compatibility with older clients.",
-          deprecated: true,
-          operationId: "testAzureScopes",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    // The registry's own id. The example is the id that a
-                    // client can actually send; `azure-devops` is not a
-                    // registered provider.
-                    providerId: {
-                      type: "string",
-                      example: "azure",
-                    },
-                    projectId: { type: "string", example: "proj-1" },
-                    orgUrl: {
-                      type: "string",
-                      example: "https://dev.azure.com/my-org",
-                    },
-                    project: { type: "string", example: "Platform" },
-                    pat: { type: "string", example: "token-string" },
-                  },
-                },
-              },
+            "400": { description: "The project records no tracker connection" },
+            "401": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "403": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "404": {
+              description: "Project not found, or provider NOT_FOUND",
             },
-          },
-          responses: {
-            "200": {
-              description: "Provider scope audit report",
-              content: {
-                "application/json": {
-                  schema: {
-                    $ref: "#/components/schemas/ScopeVerificationResult",
-                  },
-                },
-              },
-            },
+            "423": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "429": { $ref: "#/components/responses/ProviderErrorResponse" },
+            "502": { $ref: "#/components/responses/ProviderErrorResponse" },
           },
         },
       },
@@ -1366,6 +1164,17 @@ export function getOpenApiSpec() {
             },
           },
         },
+        ProviderErrorResponse: {
+          description:
+            "Normalized provider failure: canonical copy plus (code, context), never raw provider text",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/ProviderErrorResponseBody",
+              },
+            },
+          },
+        },
         NotFoundError: {
           description: "Requested resource not found",
           content: {
@@ -1990,6 +1799,37 @@ export function getOpenApiSpec() {
             },
           },
         },
+        ProviderErrorResponseBody: {
+          type: "object",
+          required: ["error", "code", "context"],
+          properties: {
+            error: {
+              type: "string",
+              description:
+                "Canonical copy resolved from (code, context); never raw provider text",
+              example:
+                "The credentials were rejected. Check the token and try again.",
+            },
+            code: {
+              type: "string",
+              enum: [
+                "AUTH_INVALID",
+                "AUTH_LOCKED",
+                "NOT_FOUND",
+                "RATE_LIMITED",
+                "PERMISSION",
+                "UNKNOWN",
+              ],
+              example: "AUTH_INVALID",
+            },
+            context: {
+              type: "string",
+              enum: ["VERIFY", "DISCOVERY", "TICKETS", "PR"],
+              example: "VERIFY",
+            },
+            retryAfterMs: { type: "number", example: 30000 },
+          },
+        },
         ProviderError: {
           type: "object",
           required: ["code", "context"],
@@ -2113,4 +1953,42 @@ export function getOpenApiSpec() {
       },
     },
   };
+}
+
+/** A generated operation for a table route with no hand-written entry. */
+function generatedOperation(entry: RouteEntry) {
+  return {
+    tags: [...entry.tags],
+    summary: entry.summary,
+    operationId: entry.operationId,
+    responses: {
+      "200": { description: entry.responseDescription },
+    },
+  };
+}
+
+/**
+ * The published contract: one operation per route table entry (#192). The table
+ * is the source of operations — the hand-written entries below may only
+ * ENRICH a method + path the table already dispatches. A table route with no
+ * hand-written operation still gets one generated from its own metadata, and an
+ * operation the table does not have is never published, so dispatch and docs
+ * cannot drift.
+ */
+export function buildOpenApiDocument(entries: readonly RouteEntry[]) {
+  const spec = documentedSpec();
+  const documented = spec.paths as unknown as Record<
+    string,
+    Record<string, unknown>
+  >;
+  const paths: Record<string, Record<string, unknown>> = {};
+  for (const entry of entries) {
+    const method = entry.method.toLowerCase();
+    const item = paths[entry.path] ?? {};
+    paths[entry.path] = item;
+    item[method] =
+      documented[entry.path]?.[method] ?? generatedOperation(entry);
+  }
+  spec.paths = paths as unknown as typeof spec.paths;
+  return spec;
 }

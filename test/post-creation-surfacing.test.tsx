@@ -572,13 +572,12 @@ describe("Project detail surface — combo line and tracker card", () => {
 
 describe("Tracker card — capability-driven diagnostics (#147)", () => {
   it("renders the scope diagnostic when the connection declares the capability", async () => {
-    const testScopes = mock(async (_payload: { projectId?: string }) => ({
+    const verifyProjectScopes = mock(async (_projectId: string) => ({
       ok: true,
       overPrivileged: true,
       scopes: { listTickets: true },
     }));
-    api.testScopes = testScopes as never;
-    api.testAzureScopes = testScopes as never;
+    api.verifyProjectScopes = verifyProjectScopes as never;
 
     const { container } = renderDetail(makeProject(), makeClient());
     const action = Array.from(container.querySelectorAll("button")).find(
@@ -592,8 +591,8 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
       fireEvent.click(action);
     });
 
-    expect(testScopes).toHaveBeenCalledTimes(1);
-    expect(testScopes.mock.calls[0]?.[0]).toEqual({ projectId: "proj-1" });
+    expect(verifyProjectScopes).toHaveBeenCalledTimes(1);
+    expect(verifyProjectScopes.mock.calls[0]?.[0]).toBe("proj-1");
     await waitFor(() => {
       if (!container.textContent?.includes(CONNECTIONS_COPY.verifyScopesOk)) {
         throw new Error("verification result missing");
@@ -603,11 +602,10 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
   });
 
   it("renders no capability-driven action when the connection declares none", () => {
-    const testScopes = mock(async (_payload: { projectId?: string }) => ({
+    const verifyProjectScopes = mock(async (_projectId: string) => ({
       ok: true,
     }));
-    api.testScopes = testScopes as never;
-    api.testAzureScopes = testScopes as never;
+    api.verifyProjectScopes = verifyProjectScopes as never;
 
     const { container } = renderDetail(
       makeProject({
@@ -634,7 +632,7 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
         (button) => button.textContent === CONNECTIONS_COPY.verifyScopes,
       ),
     ).toBe(false);
-    expect(testScopes).toHaveBeenCalledTimes(0);
+    expect(verifyProjectScopes).toHaveBeenCalledTimes(0);
   });
 });
 
