@@ -78,15 +78,14 @@ function rowToJobRecord(row: JobRow): JobRecord {
 export class JobRepository {
   constructor(private db: Database) {}
 
-  createJob(input: CreateJobInput, txDb?: Database): JobRecord {
-    const conn = txDb || this.db;
+  createJob(input: CreateJobInput): JobRecord {
     const id = input.id || `job-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
     const availableAt = input.availableAt || now;
     const status = input.status || "pending";
     const maxAttempts = input.maxAttempts ?? 3;
 
-    const stmt = conn.prepare(`
+    const stmt = this.db.prepare(`
       INSERT INTO jobs (
         id, run_id, stage, status, attempts, max_attempts,
         available_at, worker_id, lease_until, last_heartbeat_at, error,
@@ -112,16 +111,14 @@ export class JobRepository {
     return rowToJobRecord(row);
   }
 
-  getJob(id: string, txDb?: Database): JobRecord | null {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare("SELECT * FROM jobs WHERE id = ?;");
+  getJob(id: string): JobRecord | null {
+    const stmt = this.db.prepare("SELECT * FROM jobs WHERE id = ?;");
     const row = stmt.get(id) as JobRow | null;
     return row ? rowToJobRecord(row) : null;
   }
 
-  listJobsForRun(runId: string, txDb?: Database): JobRecord[] {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare(
+  listJobsForRun(runId: string): JobRecord[] {
+    const stmt = this.db.prepare(
       "SELECT * FROM jobs WHERE run_id = ? ORDER BY created_at ASC;",
     );
     const rows = stmt.all(runId) as JobRow[];
@@ -135,10 +132,8 @@ export class JobRepository {
   claimNextJob(
     workerId: string,
     leaseDurationMs: number,
-    txDb?: Database,
     nowMs = Date.now(),
   ): JobRecord | null {
-    const conn = txDb || this.db;
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -163,7 +158,7 @@ export class JobRepository {
       RETURNING *;
     `;
 
-    const row = conn.prepare(claimQuery).get({
+    const row = this.db.prepare(claimQuery).get({
       $workerId: workerId,
       $leaseUntil: leaseUntil,
       $now: now,
@@ -179,10 +174,8 @@ export class JobRepository {
     runId: string,
     workerId: string,
     leaseDurationMs: number,
-    txDb?: Database,
     nowMs = Date.now(),
   ): JobRecord | null {
-    const conn = txDb || this.db;
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
@@ -208,7 +201,7 @@ export class JobRepository {
       RETURNING *;
     `;
 
-    const row = conn.prepare(claimQuery).get({
+    const row = this.db.prepare(claimQuery).get({
       $runId: runId,
       $workerId: workerId,
       $leaseUntil: leaseUntil,
@@ -225,14 +218,12 @@ export class JobRepository {
     jobId: string,
     workerId: string,
     leaseDurationMs: number,
-    txDb?: Database,
     nowMs = Date.now(),
   ): boolean {
-    const conn = txDb || this.db;
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
-    const stmt = conn.prepare(`
+    const stmt = this.db.prepare(`
       UPDATE jobs
       SET lease_until = $leaseUntil,
           last_heartbeat_at = $now,
@@ -259,11 +250,9 @@ export class JobRepository {
     workerId: string,
     targetStatus: "completed" | "pending",
     newWorkerId: string | null,
-    txDb?: Database,
     now = new Date().toISOString(),
   ): boolean {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare(`
+    const stmt = this.db.prepare(`
       UPDATE jobs
       SET status = $targetStatus,
           worker_id = $newWorkerId,
@@ -286,14 +275,8 @@ export class JobRepository {
   /**
    * Marks a job as completed successfully.
    */
-  completeJob(jobId: string, workerId: string, txDb?: Database): boolean {
-    return this.transitionClaimedJob(
-      jobId,
-      workerId,
-      "completed",
-      workerId,
-      txDb,
-    );
+  completeJob(jobId: string, workerId: string): boolean {
+    return this.transitionClaimedJob(jobId, workerId, "completed", workerId);
   }
 
   /**
@@ -306,10 +289,8 @@ export class JobRepository {
     workerId: string,
     errorMsg: string,
     retryDelayMs = 5000,
-    txDb?: Database,
   ): { willRetry: boolean; attempts: number } {
-    const conn = txDb || this.db;
-    const current = this.getJob(jobId, conn);
+    const current = this.getJob(jobId);
     if (!current) {
       throw new Error(`Job "${jobId}" not found.`);
     }
@@ -320,8 +301,9 @@ export class JobRepository {
 
     if (willRetry) {
       const availableAt = new Date(nowMs + retryDelayMs).toISOString();
-      const res = conn
-        .prepare(`
+      const res = this.db
+        .prepare(
+          `
           UPDATE jobs
           SET status = 'pending',
               worker_id = NULL,
@@ -330,7 +312,8 @@ export class JobRepository {
               error = $error,
               updated_at = $now
           WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
-        `)
+        `,
+        )
         .run({
           $jobId: jobId,
           $workerId: workerId,
@@ -344,7 +327,7 @@ export class JobRepository {
         );
       }
     } else {
-      this.markClaimedJobFailed(jobId, workerId, errorMsg, now, conn);
+      this.markClaimedJobFailed(jobId, workerId, errorMsg, now);
     }
 
     return { willRetry, attempts: current.attempts };
@@ -354,18 +337,12 @@ export class JobRepository {
    * Ends a claimed job as failed with no retry. Used when a stage's outcome is a verdict
    * (a rejected review), not a fault worth another attempt (#181).
    */
-  rejectJob(
-    jobId: string,
-    workerId: string,
-    reason: string,
-    txDb?: Database,
-  ): void {
+  rejectJob(jobId: string, workerId: string, reason: string): void {
     this.markClaimedJobFailed(
       jobId,
       workerId,
       reason,
       new Date().toISOString(),
-      txDb || this.db,
     );
   }
 
@@ -374,10 +351,10 @@ export class JobRepository {
     workerId: string,
     errorMsg: string,
     now: string,
-    conn: Database,
   ): void {
-    const res = conn
-      .prepare(`
+    const res = this.db
+      .prepare(
+        `
         UPDATE jobs
         SET status = 'failed',
             worker_id = NULL,
@@ -385,7 +362,8 @@ export class JobRepository {
             error = $error,
             updated_at = $now
         WHERE id = $jobId AND worker_id = $workerId AND status = 'claimed'
-      `)
+      `,
+      )
       .run({
         $jobId: jobId,
         $workerId: workerId,
@@ -402,29 +380,16 @@ export class JobRepository {
   /**
    * Voluntarily releases an active lease back to 'pending' (e.g. during graceful shutdown).
    */
-  releaseLease(
-    jobId: string,
-    workerId: string,
-    txDb?: Database,
-    now?: string,
-  ): boolean {
-    return this.transitionClaimedJob(
-      jobId,
-      workerId,
-      "pending",
-      null,
-      txDb,
-      now,
-    );
+  releaseLease(jobId: string, workerId: string, now?: string): boolean {
+    return this.transitionClaimedJob(jobId, workerId, "pending", null, now);
   }
 
   /**
    * Finds all jobs currently claimed whose lease has expired (XFM-36).
    */
-  findStaleClaimedJobs(nowISO?: string, txDb?: Database): JobRecord[] {
-    const conn = txDb || this.db;
+  findStaleClaimedJobs(nowISO?: string): JobRecord[] {
     const now = nowISO || new Date().toISOString();
-    const stmt = conn.prepare(`
+    const stmt = this.db.prepare(`
       SELECT * FROM jobs
       WHERE status = 'claimed' AND lease_until < ?
       ORDER BY created_at ASC;
@@ -437,13 +402,8 @@ export class JobRepository {
    * Re-queues a claimed job whose lease has expired back to 'pending' (recovery from a dead
    * worker, XFM-36). A job renewed in the meantime is left alone and false is returned.
    */
-  requeueJob(
-    jobId: string,
-    txDb?: Database,
-    now = new Date().toISOString(),
-  ): boolean {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare(`
+  requeueJob(jobId: string, now = new Date().toISOString()): boolean {
+    const stmt = this.db.prepare(`
       UPDATE jobs
       SET status = 'pending',
           worker_id = NULL,
@@ -465,12 +425,11 @@ export class JobRepository {
   failExhaustedJob(
     jobId: string,
     error: string,
-    txDb?: Database,
     now = new Date().toISOString(),
   ): boolean {
-    const conn = txDb || this.db;
-    const row = conn
-      .prepare(`
+    const row = this.db
+      .prepare(
+        `
         UPDATE jobs
         SET status = 'failed',
             worker_id = NULL,
@@ -479,7 +438,8 @@ export class JobRepository {
             updated_at = $now
         WHERE id = $jobId AND status = 'claimed' AND lease_until < $now
         RETURNING id;
-      `)
+      `,
+      )
       .get({ $jobId: jobId, $error: error, $now: now });
     return !!row;
   }
@@ -487,9 +447,8 @@ export class JobRepository {
   /**
    * Finds all active (pending or claimed) jobs for a given run (XFM-36).
    */
-  findActiveJobsForRun(runId: string, txDb?: Database): JobRecord[] {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare(`
+  findActiveJobsForRun(runId: string): JobRecord[] {
+    const stmt = this.db.prepare(`
       SELECT * FROM jobs
       WHERE run_id = ? AND status IN ('pending', 'claimed')
       ORDER BY created_at ASC;
@@ -501,9 +460,8 @@ export class JobRepository {
   /**
    * Finds the currently claimed job for a run, returning its workerId and job record (Phase 1, Item 7).
    */
-  findActiveJobForRun(runId: string, txDb?: Database): JobRecord | null {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare(`
+  findActiveJobForRun(runId: string): JobRecord | null {
+    const stmt = this.db.prepare(`
       SELECT * FROM jobs
       WHERE run_id = ? AND status = 'claimed'
       ORDER BY created_at ASC
@@ -516,15 +474,11 @@ export class JobRepository {
   /**
    * Terminally cancels all active jobs for a run (e.g. when run is stopped or abandoned) (XFM-37).
    */
-  cancelJobsForRun(
-    runId: string,
-    reason = "Run stopped.",
-    txDb?: Database,
-  ): void {
-    const conn = txDb || this.db;
+  cancelJobsForRun(runId: string, reason = "Run stopped."): void {
     const now = new Date().toISOString();
-    conn
-      .prepare(`
+    this.db
+      .prepare(
+        `
         UPDATE jobs
         SET status = 'cancelled',
             worker_id = NULL,
@@ -532,7 +486,8 @@ export class JobRepository {
             error = $error,
             updated_at = $now
         WHERE run_id = $runId AND status IN ('pending', 'claimed');
-      `)
+      `,
+      )
       .run({
         $runId: runId,
         $error: reason,

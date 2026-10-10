@@ -113,14 +113,14 @@ export function jobWork(
     renew: () => leases.renewJobLease(job.id, workerId, jobLeaseTtlMs),
     isCancelled: () => repos.jobs.getJob(job.id)?.status === "cancelled",
     holdsLease: () => {
-      const current = repos.jobs.getJob(job.id, repos.db);
+      const current = repos.jobs.getJob(job.id);
       return current?.status === "claimed" && current.workerId === workerId;
     },
     complete: () => {
-      repos.jobs.completeJob(job.id, workerId, repos.db);
+      repos.jobs.completeJob(job.id, workerId);
     },
     reject: (reason) => {
-      repos.jobs.rejectJob(job.id, workerId, reason, repos.db);
+      repos.jobs.rejectJob(job.id, workerId, reason);
     },
     fail: (error) => repos.jobs.failJob(job.id, workerId, error),
     cancel: () => {},
@@ -135,13 +135,7 @@ export function deliverCommandWork(
 ): StageWork {
   const { repos, leases, workerId } = host;
   const failCommand = (error: string): void => {
-    repos.commands.failCommand(
-      command.id,
-      workerId,
-      error,
-      repos.db,
-      leases.nowIso(),
-    );
+    repos.commands.failCommand(command.id, workerId, error, leases.nowIso());
   };
   return {
     id: command.id,
@@ -156,7 +150,7 @@ export function deliverCommandWork(
       leases.renewCommandLease(command.id, workerId, commandLeaseTtlMs),
     isCancelled: () => false,
     holdsLease: () => {
-      const current = repos.commands.getCommand(command.id, repos.db);
+      const current = repos.commands.getCommand(command.id);
       return current?.status === "claimed" && current.workerId === workerId;
     },
     invalidPassed: (outcome) =>
@@ -168,7 +162,6 @@ export function deliverCommandWork(
         command.id,
         workerId,
         { prUrl: outcome.record?.run?.pullRequest?.url },
-        repos.db,
         leases.nowIso(),
       );
     },
@@ -359,10 +352,10 @@ export class StageRunner {
     if (!record) return;
     const { repos } = this.host;
     if (record.run && hasFields(record.run)) {
-      repos.runs.update(runId, record.run, repos.db);
+      repos.runs.update(runId, record.run);
     }
     for (const event of record.events ?? ([] as readonly StageEvent[])) {
-      repos.events.appendEvent(runId, event.type, event.payload, repos.db);
+      repos.events.appendEvent(runId, event.type, event.payload);
     }
   }
 
@@ -379,43 +372,34 @@ export class StageRunner {
       : null;
 
     const committed = repos.db.transaction(() => {
-      const current = repos.runs.get(work.runId, repos.db);
+      const current = repos.runs.get(work.runId);
       if (!work.holdsLease() || current?.status !== expectedRunStatus) {
         return false;
       }
 
-      repos.stageAttempts.recordCompletion(
-        attempt.id,
-        outcome.output,
-        repos.db,
-      );
+      repos.stageAttempts.recordCompletion(attempt.id, outcome.output);
       this.applyRecord(work.runId, outcome.record);
 
       if (route && current.status !== route.to) {
-        repos.runs.transitionRun(
-          work.runId,
-          current.status,
-          route.to,
-          {
-            event: {
-              type: "status",
-              payload: {
-                status: route.to,
-                text: `Stage '${work.stage}' completed. Transitioning to '${route.to}'.`,
-                ...outcome.record?.statusPayload,
-              },
+        repos.runs.transitionRun(work.runId, current.status, route.to, {
+          event: {
+            type: "status",
+            payload: {
+              status: route.to,
+              text: `Stage '${work.stage}' completed. Transitioning to '${route.to}'.`,
+              ...outcome.record?.statusPayload,
             },
           },
-          repos.db,
-        );
+        });
       }
 
       // The workflow route decides which stage runs next.
       if (route?.nextStage) {
-        repos.jobs.createJob(
-          { runId: work.runId, stage: route.nextStage, status: "pending" },
-          repos.db,
-        );
+        repos.jobs.createJob({
+          runId: work.runId,
+          stage: route.nextStage,
+          status: "pending",
+        });
       }
 
       work.complete(outcome);
@@ -471,7 +455,7 @@ export class StageRunner {
     try {
       repos.db.transaction(() => {
         work.reject(reason);
-        const latest = repos.runs.get(work.runId, repos.db);
+        const latest = repos.runs.get(work.runId);
         if (!latest) return;
         this.applyRecord(work.runId, outcome.record);
         if (canTransition(latest.status, REJECTED_RUN_STATUS)) {
@@ -488,11 +472,10 @@ export class StageRunner {
                 },
               },
             },
-            repos.db,
           );
         } else {
           const text = `Rejection not applied: run is in status "${latest.status}", which cannot transition to ${REJECTED_RUN_STATUS}.`;
-          repos.events.appendEvent(work.runId, "info", { text }, repos.db);
+          repos.events.appendEvent(work.runId, "info", { text });
           this.host.error(`Run ${work.runId}: ${text}`);
         }
       })();

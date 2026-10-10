@@ -508,11 +508,23 @@ describe("tracker credentials and errors", () => {
     jiraVerifyFailure = `auth rejected for token ${SAVED}`;
     try {
       const res = await api("POST", `projects/${PROJECT_ID}/tracker/test`, {});
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { ok: boolean; error?: string };
-      expect(body.ok).toBe(false);
-      expect(body.error ?? "").not.toContain(SAVED);
-      expect(body.error ?? "").toContain("[redacted]");
+      // A thrown provider failure is a provider error (the raw message maps to
+      // UNKNOWN → 502), so only the canonical envelope crosses the boundary.
+      expect(res.status).toBe(502);
+      const body = (await res.json()) as {
+        error?: string;
+        code?: string;
+        context?: string;
+      };
+      expect(body).toEqual({
+        error:
+          "An unexpected error occurred while verifying the connection. Try again.",
+        code: "UNKNOWN",
+        context: "VERIFY",
+      });
+      const wire = JSON.stringify(body);
+      expect(wire).not.toContain(SAVED);
+      expect(wire).not.toContain("auth rejected");
     } finally {
       jiraVerifyFailure = null;
     }

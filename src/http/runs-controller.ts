@@ -43,7 +43,7 @@ export function parseAcceptanceCriteria(raw: unknown): string[] {
   return [];
 }
 
-async function handleCreateRun(
+export async function handleCreateRun(
   repos: Repositories,
   req: Request,
 ): Promise<Response> {
@@ -86,17 +86,17 @@ async function handleCreateRun(
   );
 }
 
-function handleGetRuns(repos: Repositories): Response {
+export function handleGetRuns(repos: Repositories): Response {
   return jsonResponse(runs.listRuns(repos));
 }
 
-function handleGetRun(repos: Repositories, runId: string): Response {
+export function handleGetRun(repos: Repositories, runId: string): Response {
   const run = runs.getRun(repos, runId);
   if (!run) return errorResponse("Run not found.", 404);
   return jsonResponse(run);
 }
 
-function handleRunEvents(
+export function handleRunEvents(
   repos: Repositories,
   runId: string,
   req?: Request,
@@ -260,7 +260,7 @@ function handleRunEvents(
   });
 }
 
-async function handleChatMessage(
+export async function handleChatMessage(
   repos: Repositories,
   req: Request,
   runId: string,
@@ -277,7 +277,7 @@ async function handleChatMessage(
   );
 }
 
-async function handleStopRun(
+export async function handleStopRun(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
@@ -289,7 +289,7 @@ async function handleStopRun(
   );
 }
 
-async function handleTransitions(
+export async function handleTransitions(
   repos: Repositories,
   req: Request,
   runId: string,
@@ -311,7 +311,7 @@ async function handleTransitions(
   );
 }
 
-async function handleCreatePR(
+export async function handleCreatePR(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
@@ -321,7 +321,7 @@ async function handleCreatePR(
   });
 }
 
-async function handleResumeRun(
+export async function handleResumeRun(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
@@ -331,7 +331,7 @@ async function handleResumeRun(
   });
 }
 
-async function handleAbandonRun(
+export async function handleAbandonRun(
   repos: Repositories,
   req: Request,
   runId: string,
@@ -345,55 +345,4 @@ async function handleAbandonRun(
     const run = await runs.abandonRun(repos, runId, reason);
     return jsonResponse<AbandonRunResponse>({ ok: true, run });
   });
-}
-
-async function handleRunAction(
-  repos: Repositories,
-  action: string,
-  method: string,
-  runId: string,
-  req: Request,
-): Promise<Response | null> {
-  if (method === "GET" && action === "events") {
-    return handleRunEvents(repos, runId, req);
-  }
-  if (method === "POST") {
-    switch (action) {
-      case "chat":
-        return handleChatMessage(repos, req, runId);
-      case "transitions":
-        return handleTransitions(repos, req, runId);
-      case "stop":
-        return handleStopRun(repos, runId);
-      case "pr":
-        return handleCreatePR(repos, runId);
-      case "resume":
-        return handleResumeRun(repos, runId);
-      case "abandon":
-        return handleAbandonRun(repos, req, runId);
-    }
-  }
-  return null;
-}
-
-export async function handleRunsRoute(
-  method: string,
-  id: string | undefined,
-  action: string | undefined,
-  partsCount: number,
-  req: Request,
-  repos: Repositories,
-): Promise<Response | null> {
-  if (!id) {
-    if (method === "GET") return handleGetRuns(repos);
-    if (method === "POST") return handleCreateRun(repos, req);
-    return null;
-  }
-  if (!action && partsCount === 2) {
-    return method === "GET" ? handleGetRun(repos, id) : null;
-  }
-  if (action && partsCount === 3) {
-    return handleRunAction(repos, action, method, id, req);
-  }
-  return null;
 }

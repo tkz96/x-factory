@@ -2,6 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import type { RunEventPayloadMap, RunEventType } from "../shared/types.js";
+import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
 export type EventRecord<T extends RunEventType = RunEventType> =
   T extends RunEventType
@@ -25,19 +26,19 @@ export interface EventRow {
 }
 
 export function rowToEventRecord(row: EventRow): EventRecord {
-  let parsedPayload: unknown;
-  try {
-    parsedPayload = JSON.parse(row.payload);
-  } catch {
-    parsedPayload = row.payload;
-  }
-
   return {
     id: row.id,
     runId: row.run_id,
     sequence: row.sequence,
     type: row.type as RunEventType,
-    payload: parsedPayload as RunEventPayloadMap[RunEventType],
+    // A malformed payload degrades to its raw text; only this field is lost.
+    // Free-form diagnostic payloads keep the corrupt text so operators can
+    // see what was stored (the rationale lives in src/db/row-codec.ts).
+    payload: parseJsonColumn<unknown>(row.payload, row.payload, {
+      table: "run_events",
+      column: "payload",
+      rowId: String(row.id),
+    }) as RunEventPayloadMap[RunEventType],
     createdAt: row.created_at,
   } as EventRecord;
 }
@@ -53,12 +54,9 @@ export class EventRepository {
     runId: string,
     type: T,
     payload: RunEventPayloadMap[T],
-    txDb?: Database,
   ): EventRecord<T> {
-    const conn = txDb || this.db;
     const now = new Date().toISOString();
-    const serializedPayload =
-      typeof payload === "string" ? payload : JSON.stringify(payload ?? {});
+    const serializedPayload = serializeJsonColumn(payload ?? {}) ?? "{}";
 
     const query = `
       INSERT INTO run_events (run_id, sequence, type, payload, created_at)
@@ -72,7 +70,7 @@ export class EventRepository {
       RETURNING *;
     `;
 
-    const stmt = conn.prepare<
+    const stmt = this.db.prepare<
       EventRow,
       {
         $runId: string;
@@ -102,9 +100,7 @@ export class EventRepository {
   getEventsForRun(
     runId: string,
     options?: { sinceSequence?: number | undefined },
-    txDb?: Database,
   ): EventRecord[] {
-    const conn = txDb || this.db;
     const sinceSequence = options?.sinceSequence ?? null;
 
     let query: string;
@@ -116,7 +112,7 @@ export class EventRepository {
         WHERE run_id = $runId AND sequence > $sinceSequence
         ORDER BY sequence ASC;
       `;
-      const stmt = conn.prepare<
+      const stmt = this.db.prepare<
         EventRow,
         {
           $runId: string;
@@ -130,7 +126,7 @@ export class EventRepository {
         WHERE run_id = $runId
         ORDER BY sequence ASC;
       `;
-      const stmt = conn.prepare<EventRow, { $runId: string }>(query);
+      const stmt = this.db.prepare<EventRow, { $runId: string }>(query);
       rows = stmt.all({ $runId: runId });
     }
 
@@ -140,11 +136,11 @@ export class EventRepository {
   /**
    * Gets the highest sequence number recorded for a run (or 0 if none exist).
    */
-  getLatestSequence(runId: string, txDb?: Database): number {
-    const conn = txDb || this.db;
-    const stmt = conn.prepare<{ max_seq: number | null }, { $runId: string }>(
-      "SELECT MAX(sequence) as max_seq FROM run_events WHERE run_id = $runId;",
-    );
+  getLatestSequence(runId: string): number {
+    const stmt = this.db.prepare<
+      { max_seq: number | null },
+      { $runId: string }
+    >("SELECT MAX(sequence) as max_seq FROM run_events WHERE run_id = $runId;");
     const result = stmt.get({ $runId: runId });
     return result?.max_seq ?? 0;
   }

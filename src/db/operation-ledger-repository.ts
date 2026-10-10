@@ -2,6 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
 export type OperationStatus = "pending" | "completed" | "failed";
 
@@ -30,22 +31,20 @@ export interface OperationLedgerRecord {
 }
 
 function rowToRecord(row: OperationLedgerRow): OperationLedgerRecord {
-  let parsedResult: unknown = null;
-  if (row.result) {
-    try {
-      parsedResult = JSON.parse(row.result);
-    } catch {
-      parsedResult = row.result;
-    }
-  }
-
   return {
     id: row.id,
     runId: row.run_id,
     operation: row.operation,
     status: row.status as OperationStatus,
     externalId: row.external_id,
-    result: parsedResult,
+    // A malformed result degrades to its raw text; only this field is lost.
+    // Free-form diagnostic payloads keep the corrupt text so operators can
+    // see what was stored (the rationale lives in src/db/row-codec.ts).
+    result: parseJsonColumn(row.result, row.result, {
+      table: "operation_ledger",
+      column: "result",
+      rowId: row.id,
+    }),
     error: row.error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -95,10 +94,7 @@ export class OperationLedgerRepository {
   ): OperationLedgerRecord {
     const now = new Date().toISOString();
     const id = randomUUID();
-    const serializedResult =
-      options.result !== undefined && options.result !== null
-        ? JSON.stringify(options.result)
-        : null;
+    const serializedResult = serializeJsonColumn(options.result);
 
     const stmt = this.db.prepare(`
       INSERT INTO operation_ledger (

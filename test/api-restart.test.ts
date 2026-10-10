@@ -17,8 +17,8 @@ import type {
   StageExecutor,
   StageOutcome,
 } from "../src/executors/index.js";
-import { getOpenApiSpec } from "../src/http/openapi.js";
 import { jsonResponse } from "../src/http/responses.js";
+import { getOpenApiSpec } from "../src/http/route-table.js";
 import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
 import { getPublicDir } from "../src/server.js";

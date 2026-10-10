@@ -198,9 +198,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   };
 
   it("successful review -> persisted review -> review SSE event", async () => {
-    const { run, repos, runRepo, eventRepo, db } = setupTestContext();
+    const { run, repos, runRepo, eventRepo } = setupTestContext();
     // Persist verification first
-    runRepo.update(run.id, { verification: sampleVerification }, db);
+    runRepo.update(run.id, { verification: sampleVerification });
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
@@ -225,8 +225,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
   });
 
   it("review failure does not produce awaiting_review", async () => {
-    const { run, repos, runRepo, db } = setupTestContext();
-    runRepo.update(run.id, { verification: sampleVerification }, db);
+    const { run, repos, runRepo } = setupTestContext();
+    runRepo.update(run.id, { verification: sampleVerification });
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),

@@ -208,7 +208,7 @@ describe("stage runner", () => {
       command: "deliver",
     });
     // A worker that died holding the command: claimed once, lease long expired.
-    repos.commands.claimPendingCommands("worker-dead", 10, 10, undefined, 1000);
+    repos.commands.claimPendingCommands("worker-dead", 10, 10, 1000);
 
     let attemptSeen = -1;
     const worker = new Worker({

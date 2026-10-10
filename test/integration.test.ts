@@ -1,6 +1,9 @@
 // test/integration.test.ts — Lightweight integration tests validating server startup, static asset delivery, health check, and core API contracts.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { Repositories } from "../src/composition-root.js";
 import { type ServerInstance, startServer } from "../src/server.js";
 import { createTestRepositories } from "./helpers/composition.js";
@@ -243,59 +246,109 @@ describe("Integration — Server Lifecycle & Core Contracts", () => {
     });
   });
 
-  describe("Scope Diagnostics API (the historical `test-azure-scopes` route)", () => {
-    // The route's path keeps the historical provider-named name; its RESOLUTION
-    // does not (correction: #141). The accepted body is
-    // `{ providerId? , projectId?, …provider config }` — an explicit providerId
-    // wins, otherwise the project's recorded tracker connection decides
-    // (`docs/reference/provider-api.md`). The historical Azure-shaped body names
-    // NEITHER, so it resolves nothing and is answered as such.
-    it("resolves the provider the request names and reports that provider's scope outcome", async () => {
+  describe("Scope Diagnostics API — the project-scoped tracker action (#183)", () => {
+    // The flat body-driven routes are deleted. "Verify scopes" on an existing
+    // project is `POST /api/projects/{id}/tracker/scopes`, which probes the
+    // project's STORED connection; the request body carries no configuration.
+    it("no longer serves the flat test-scopes / test-azure-scopes routes", async () => {
       for (const route of ["test-scopes", "test-azure-scopes"]) {
-        // A registered tracker provider that ships WITHOUT `verifyScopes`: the
-        // diagnostic resolved it, asked for the capability, and reported the gap
-        // honestly — which is a real outcome, not a silent non-answer.
         const res = await fetch(`${baseUrl}/api/projects/${route}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ providerId: "jira" }),
         });
 
-        expect(res.status).toBe(200);
-        const data = (await res.json()) as {
-          ok: boolean;
-          scopes: unknown;
-          errors: string[];
-        };
-        expect(data.ok).toBe(false);
-        expect(data).toHaveProperty("scopes");
-        expect(data.scopes).toEqual({});
-        expect(data.errors).toEqual([
-          "The resolved tracker provider does not support scope verification.",
-        ]);
-        // Provider-agnostic: the copy names the gap, never the provider.
-        expect(JSON.stringify(data).toLowerCase()).not.toContain("jira");
+        expect(res.status).toBe(404);
+        expect(await res.json()).toEqual({ error: "Endpoint not found." });
       }
     });
 
-    it("reports an unresolved diagnostic for a body that names no provider and no project", async () => {
-      for (const route of ["test-scopes", "test-azure-scopes"]) {
-        for (const body of [
-          {},
-          { orgUrl: "", project: "", pat: "synthetic-pat" },
-        ]) {
-          const res = await fetch(`${baseUrl}/api/projects/${route}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
+    it("answers 404 for a project that is not recorded", async () => {
+      const res = await fetch(
+        `${baseUrl}/api/projects/no-such-project/tracker/scopes`,
+        { method: "POST" },
+      );
 
-          expect(res.status).toBe(200);
-          const data = (await res.json()) as { ok: boolean; errors: string[] };
-          expect(data.ok).toBe(false);
-          expect(data.errors[0]).toContain("No tracker connection resolved");
-          expect(JSON.stringify(data).toLowerCase()).not.toContain("azure");
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: 'Project "no-such-project" not found.',
+      });
+    });
+
+    it("probes the stored tracker connection of a real project (shipped registry)", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "xf-183-scopes-"));
+      const savedConfigPath = process.env.X_FACTORY_CONFIG_PATH;
+      process.env.X_FACTORY_CONFIG_PATH = path.join(dir, "projects.json");
+      try {
+        const created = await fetch(`${baseUrl}/api/projects`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: "integration-183",
+            name: "Integration 183",
+            workspacePath: dir,
+            connections: [
+              {
+                providerId: "jira",
+                roles: ["tracker"],
+                config: {
+                  host: "https://rocket.atlassian.net",
+                  email: "dev@example.com",
+                  apiToken: "jira-marker",
+                  project: "ROCKET",
+                },
+              },
+              {
+                providerId: "github",
+                roles: ["gitHost"],
+                config: {
+                  token: "ghp-marker",
+                  repoOwner: "acme",
+                  repository: "web",
+                },
+              },
+            ],
+            repositories: [
+              {
+                id: "integration-183-web",
+                name: "web",
+                remote: "https://github.com/acme/web.git",
+                defaultBranch: "main",
+                localPath: path.join(dir, "web"),
+                role: "backend",
+                primary: true,
+              },
+            ],
+          }),
+        });
+        expect(created.status).toBe(201);
+
+        // Jira ships WITHOUT `verifyScopes`: the stored connection resolved, the
+        // capability was asked for, and the gap is reported honestly in
+        // provider-agnostic copy — never substituted for.
+        const res = await fetch(
+          `${baseUrl}/api/projects/integration-183/tracker/scopes`,
+          { method: "POST" },
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json();
+        expect(data).toEqual({
+          ok: false,
+          overPrivileged: false,
+          scopes: {},
+          errors: [
+            "The resolved tracker provider does not support scope verification.",
+          ],
+          warnings: [],
+        });
+        expect(JSON.stringify(data).toLowerCase()).not.toContain("jira");
+      } finally {
+        if (savedConfigPath === undefined) {
+          delete process.env.X_FACTORY_CONFIG_PATH;
+        } else {
+          process.env.X_FACTORY_CONFIG_PATH = savedConfigPath;
         }
+        await rm(dir, { recursive: true, force: true });
       }
     });
   });

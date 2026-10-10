@@ -7,6 +7,17 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Repositories } from "../src/composition-root.js";
 import { execStrict } from "../src/proc.js";
+import { azureProvider } from "../src/providers/azure-module.js";
+import type {
+  Provider,
+  ProviderConfig,
+  ProviderErrorContext,
+  ProviderErrorEnvelope,
+  VerificationResult,
+} from "../src/providers/contract.js";
+import { githubProvider } from "../src/providers/github-module.js";
+import { jiraProvider } from "../src/providers/jira-module.js";
+import type { ProviderRegistry } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
@@ -31,7 +42,7 @@ beforeAll(async () => {
   tempDir = await mkdtemp(path.join(tmpdir(), "xf-proj-api-test-"));
   // Run on an ephemeral port; the server and the seeding share one connection.
   repos = createTestRepositories();
-  server = startServer(0, undefined, repos.db);
+  server = startServer(0, undefined, repos.db, testRegistry);
   baseUrl = `http://localhost:${server.port}`;
 });
 
@@ -44,6 +55,41 @@ afterAll(async () => {
     await writeFile(projectsJsonPath, originalProjectsJson, "utf-8");
   }
 });
+
+/**
+ * Deterministic provider probes (#183). These tests must never touch the
+ * network, so the three providers keep their REAL config schemas while their
+ * network calls are recorded stubs. `verifyCredentials` succeeds by default;
+ * `trackerVerifyFailure` turns the next probe into a normalized AUTH_INVALID
+ * failure (401 at the boundary) so both outcomes are asserted exactly.
+ */
+const trackerVerifyCalls: ProviderConfig[] = [];
+let trackerVerifyFailure: Error | null = null;
+
+function withDeterministicProbe(provider: Provider): Provider {
+  return {
+    ...provider,
+    async verifyCredentials(
+      config: ProviderConfig,
+    ): Promise<VerificationResult> {
+      trackerVerifyCalls.push(config);
+      if (trackerVerifyFailure !== null) throw trackerVerifyFailure;
+      return { status: "ok", warnings: [] };
+    },
+    toUserError(
+      _raw: unknown,
+      context: ProviderErrorContext,
+    ): ProviderErrorEnvelope {
+      return { code: "AUTH_INVALID", context };
+    },
+  };
+}
+
+const testRegistry: ProviderRegistry = new Map<string, Provider>([
+  [azureProvider.id, withDeterministicProbe(azureProvider)],
+  [githubProvider.id, withDeterministicProbe(githubProvider)],
+  [jiraProvider.id, withDeterministicProbe(jiraProvider)],
+]);
 
 describe("Project Onboarding & Management APIs", () => {
   const testProjectId = `proj-${Date.now()}`;
@@ -212,16 +258,28 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.isGitRepo, true);
   });
 
-  it("POST /api/projects/discover-repositories rejects unsupported provider", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/discover-repositories`, {
+  // Rewritten for #183: the flat provider aliases in the projects controller are
+  // deleted. The coverage these tests pinned for the deleted routes is replaced
+  // at this seam by asserting they are gone, and by the canonical providers
+  // route still answering for the same request shape.
+  it("POST /api/projects/discover-repositories is gone; the providers route is canonical (#183)", async () => {
+    const flat = await fetch(`${baseUrl}/api/projects/discover-repositories`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: "nonexistent" }),
     });
+    assert.equal(flat.status, 404);
+    assert.deepEqual(await flat.json(), { error: "Endpoint not found." });
 
-    assert.equal(res.status, 400);
-    const err = (await res.json()) as { error: string };
-    assert.ok(err.error.includes("Unsupported discovery provider"));
+    const canonical = await fetch(`${baseUrl}/api/providers/repositories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "nonexistent", config: {} }),
+    });
+    assert.equal(canonical.status, 409);
+    assert.deepEqual(await canonical.json(), {
+      formErrors: ["UNKNOWN_PROVIDER"],
+    });
   });
 
   it("DELETE /api/projects/:id removes project", async () => {
@@ -243,76 +301,55 @@ describe("Project Onboarding & Management APIs", () => {
     });
 
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { exists: boolean; gitRepos: string[] };
+    const body = (await res.json()) as {
+      exists: boolean;
+      existsLocally: boolean;
+      resolvedPath: string;
+      gitRepos: string[];
+    };
     assert.equal(body.exists, true);
+    // The retired validate-path alias asserted these two; the canonical
+    // check-path route must keep carrying them (#192).
+    assert.equal(body.existsLocally, true);
+    assert.ok(body.resolvedPath.length > 0);
     assert.ok(Array.isArray(body.gitRepos));
   });
 
-  it("POST /api/projects/test-connection validates connection parameters", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-connection`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
-    });
+  // Rewritten for #183. The flat connection-test and scope-diagnostic aliases
+  // are deleted: connection testing is `POST /api/providers/verify` (or the
+  // project-scoped `POST /api/projects/{id}/tracker/test`), and scope
+  // verification is `POST /api/projects/{id}/tracker/scopes` — both covered at
+  // the HTTP API seam in test/provider-scope-diagnostics.test.ts and
+  // test/project-connections-api.test.ts.
+  it("the flat connection-test and scope-diagnostic aliases are gone (#183)", async () => {
+    const aliases = [
+      "test-connection",
+      "test-tracker",
+      "test-scopes",
+      "test-azure-scopes",
+    ];
 
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(body.ok, false);
+    for (const alias of aliases) {
+      const res = await fetch(`${baseUrl}/api/projects/${alias}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
+      });
+
+      assert.equal(res.status, 404);
+      assert.deepEqual(await res.json(), { error: "Endpoint not found." });
+    }
   });
 
-  it("POST /api/projects/test-connection rejects missing provider with 400", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-connection`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project: "nonexistent" }),
-    });
-
-    assert.equal(res.status, 400);
-    const body = (await res.json()) as { error: string };
-    assert.ok(body.error.includes("Provider is required"));
-  });
-
-  it("POST /api/projects/test-scopes verifies scopes through generic endpoint", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-scopes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ providerId: "jira" }),
-    });
-
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean; errors: string[] };
-    assert.equal(body.ok, false);
-    assert.ok(body.errors[0]?.includes("does not support scope verification"));
-  });
-
-  it("POST /api/projects/validate-path routes to path checking and returns existsLocally", async () => {
+  it("the removed validate-path alias answers 404 (canonical route is check-path, #192)", async () => {
     const res = await fetch(`${baseUrl}/api/projects/validate-path`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: tempDir }),
     });
 
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as {
-      exists: boolean;
-      existsLocally: boolean;
-      resolvedPath: string;
-    };
-    assert.equal(body.exists, true);
-    assert.equal(body.existsLocally, true);
-    assert.ok(body.resolvedPath.length > 0);
-  });
-
-  it("POST /api/projects/test-tracker routes to connection test", async () => {
-    const res = await fetch(`${baseUrl}/api/projects/test-tracker`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "azure", project: "nonexistent" }),
-    });
-
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(body.ok, false);
+    assert.equal(res.status, 404);
+    assert.deepEqual(await res.json(), { error: "Endpoint not found." });
   });
 
   it("POST /api/projects/inspect-repository includes readiness status", async () => {
@@ -519,16 +556,15 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.readiness.status, "pending_setup");
   });
 
-  it("POST /api/discovery/validate-path routes through discovery namespace", async () => {
+  it("the removed /api/discovery namespace answers 404 (#192)", async () => {
     const res = await fetch(`${baseUrl}/api/discovery/validate-path`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: tempDir }),
     });
 
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { exists: boolean };
-    assert.equal(body.exists, true);
+    assert.equal(res.status, 404);
+    assert.deepEqual(await res.json(), { error: "Endpoint not found." });
   });
 
   const trackerProjId = `proj-tracker-${Date.now()}`;
@@ -612,9 +648,19 @@ describe("Project Onboarding & Management APIs", () => {
       },
     );
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(typeof body.ok, "boolean");
-  }, 15000);
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      message: "Azure DevOps connection successful.",
+    });
+    // The probe received the project's STORED connection: recorded config plus
+    // the secret merged back from per-project env storage.
+    assert.equal(
+      trackerVerifyCalls.at(-1)?.orgUrl,
+      "https://dev.azure.com/testorg",
+    );
+    assert.equal(trackerVerifyCalls.at(-1)?.project, "TestProject");
+    assert.equal(trackerVerifyCalls.at(-1)?.pat, "test-azure-pat-9999");
+  });
 
   it("POST /api/projects/:id/tracker/test rejects malformed JSON with 400", async () => {
     const res = await fetch(
@@ -638,8 +684,45 @@ describe("Project Onboarding & Management APIs", () => {
       },
     );
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { ok: boolean };
-    assert.equal(typeof body.ok, "boolean");
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      message: "Azure DevOps connection successful.",
+    });
+  });
+
+  it("POST /api/projects/:id/tracker/test maps a provider throw to the normalized envelope without raw text", async () => {
+    // A thrown provider failure crosses the boundary as the normalized
+    // provider error (AUTH_INVALID → 401); the raw text, which may quote the
+    // stored token, never reaches the client.
+    trackerVerifyFailure = new Error(
+      "verify exploded for token test-azure-pat-9999",
+    );
+    try {
+      const res = await fetch(
+        `${baseUrl}/api/projects/${trackerProjId}/tracker/test`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+      assert.equal(res.status, 401);
+      const body = (await res.json()) as {
+        error: string;
+        code: string;
+        context: string;
+      };
+      assert.deepEqual(body, {
+        error: "The credentials were rejected. Check the token and try again.",
+        code: "AUTH_INVALID",
+        context: "VERIFY",
+      });
+      const wire = JSON.stringify(body);
+      assert.ok(!wire.includes("verify exploded"));
+      assert.ok(!wire.includes("test-azure-pat-9999"));
+    } finally {
+      trackerVerifyFailure = null;
+    }
   });
 
   it("tracker credentials and test endpoints fail closed with 400 when project has no tracker configured", async () => {
@@ -677,7 +760,8 @@ describe("Project Onboarding & Management APIs", () => {
       const credBody = (await credRes.json()) as { error: string };
       assert.ok(credBody.error.includes("Missing issue tracker provider"));
 
-      // POST /tracker/test should fail closed with 400 when body does not specify a provider
+      // POST /tracker/test resolves the STORED connection, so a project with no
+      // tracker fails closed with 400 for the same reason the scope action does.
       const testRes = await fetch(
         `${baseUrl}/api/projects/${noTrackerProjId}/tracker/test`,
         {
@@ -688,7 +772,7 @@ describe("Project Onboarding & Management APIs", () => {
       );
       assert.equal(testRes.status, 400);
       const testBody = (await testRes.json()) as { error: string };
-      assert.ok(testBody.error.includes("Missing issue tracker provider"));
+      assert.ok(testBody.error.includes("has no issue tracker configured"));
     } finally {
       spy.mockRestore();
     }
@@ -819,7 +903,11 @@ describe("Project Onboarding & Management APIs", () => {
       },
     );
     assert.equal(testRes.status, 200);
-  }, 15000);
+    assert.deepEqual(await testRes.json(), {
+      ok: true,
+      message: "GitHub connection successful.",
+    });
+  });
 
   it("tests Jira tracker endpoints", async () => {
     const jiraProjId = `proj-jira-${Date.now()}`;
@@ -877,7 +965,11 @@ describe("Project Onboarding & Management APIs", () => {
       },
     );
     assert.equal(testRes.status, 200);
-  }, 15000);
+    assert.deepEqual(await testRes.json(), {
+      ok: true,
+      message: "Jira Cloud connection successful.",
+    });
+  });
 
   it("POST /api/projects creates and persists a 14-repository Azure/Converso project with real metadata (#114)", async () => {
     const fourteenRepoProjId = `proj-azure-converso-14-${Date.now()}`;

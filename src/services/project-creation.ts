@@ -26,7 +26,6 @@ import {
   MISSING_CONNECTION_ROLE_CODES,
   type ProjectConnectionInput,
 } from "../config-schema.js";
-import { emitStructuredLog } from "../diagnostics/correlation.js";
 import {
   ConflictError,
   NotFoundError,
@@ -51,6 +50,7 @@ import {
   getSecretFieldRoutes,
   routeConnectionSecrets,
 } from "../providers/secret-routing.js";
+import { emitStructuredLog } from "../shared/correlation.js";
 import type {
   GitIdentity,
   Project,

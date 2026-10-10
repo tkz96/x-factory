@@ -297,37 +297,11 @@ describe("Routes hand adapters typed config (#186)", () => {
     });
   }
 
-  it("test-connection rejects a conflicting config without contacting the provider", async () => {
-    const res = await post("/api/projects/test-connection", {
-      provider: "github",
-      ...conflictingGithub,
-    });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      ok: false,
-      error: "Connection settings are incomplete, invalid or conflicting.",
-    });
-  });
-
-  it("discover-repositories rejects a conflicting config", async () => {
-    const res = await post("/api/projects/discover-repositories", {
-      provider: "github",
-      ...conflictingGithub,
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it("test-scopes rejects a conflicting config", async () => {
-    const res = await post("/api/projects/test-scopes", {
-      providerId: "github",
-      ...conflictingGithub,
-    });
-    const body = (await res.json()) as { ok: boolean; errors: string[] };
-    expect(body.ok).toBe(false);
-    expect(body.errors).toEqual([
-      "Connection settings are incomplete, invalid or conflicting.",
-    ]);
-  });
+  // #183 deleted the legacy project routes (test-connection,
+  // discover-repositories, test-scopes). Their conflict rejection now lives on
+  // the canonical routes: providers/verify and providers/repositories below,
+  // and the stored-connection scope action in
+  // test/stored-connection-conflict-route.test.ts.
 
   it("providers/verify answers 409 with a codes-only envelope for a conflict", async () => {
     const res = await post("/api/providers/verify", {

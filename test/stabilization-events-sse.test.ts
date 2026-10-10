@@ -48,8 +48,8 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
 
     expect(() => {
       db.transaction(() => {
-        runRepo.update(run.id, { diff: "New atomic diff" }, db);
-        eventRepo.appendEvent(run.id, "info", { text: "Atomic update" }, db);
+        runRepo.update(run.id, { diff: "New atomic diff" });
+        eventRepo.appendEvent(run.id, "info", { text: "Atomic update" });
         throw new Error("Simulated failure inside transaction");
       })();
     }).toThrow("Simulated failure inside transaction");

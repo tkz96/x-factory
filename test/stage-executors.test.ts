@@ -164,12 +164,12 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     };
 
     it("routes to deliver stage when review is approved", async () => {
-      const { context, runRepo, db, repos } = setupTestContext("review", {
+      const { context, runRepo, repos } = setupTestContext("review", {
         status: "executing",
         artifactsDir: artifactDirs.make(),
       });
-      runRepo.update(context.run.id, { verification: mockVerification }, db);
-      const updatedRunForTest = runRepo.get(context.run.id, db);
+      runRepo.update(context.run.id, { verification: mockVerification });
+      const updatedRunForTest = runRepo.get(context.run.id);
       if (updatedRunForTest) {
         context.run = updatedRunForTest;
       }
@@ -207,11 +207,11 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     });
 
     it("aborts an in-flight review when the stage signal aborts", async () => {
-      const { context, runRepo, db } = setupTestContext("review", {
+      const { context, runRepo } = setupTestContext("review", {
         artifactsDir: artifactDirs.make(),
       });
-      runRepo.update(context.run.id, { verification: mockVerification }, db);
-      const persisted = runRepo.get(context.run.id, db);
+      runRepo.update(context.run.id, { verification: mockVerification });
+      const persisted = runRepo.get(context.run.id);
       if (persisted) context.run = persisted;
       const controller = new AbortController();
       context.signal = controller.signal;
@@ -231,11 +231,11 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     });
 
     it("fails when review is rejected", async () => {
-      const { context, runRepo, db } = setupTestContext("review", {
+      const { context, runRepo } = setupTestContext("review", {
         artifactsDir: artifactDirs.make(),
       });
-      runRepo.update(context.run.id, { verification: mockVerification }, db);
-      const updatedRunForTest = runRepo.get(context.run.id, db);
+      runRepo.update(context.run.id, { verification: mockVerification });
+      const updatedRunForTest = runRepo.get(context.run.id);
       if (updatedRunForTest) {
         context.run = updatedRunForTest;
       }
@@ -282,7 +282,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     });
 
     it("gives the reviewer the persisted verification summary", async () => {
-      const { context, runRepo, db } = setupTestContext("review", {
+      const { context, runRepo } = setupTestContext("review", {
         artifactsDir: artifactDirs.make(),
       });
 
@@ -290,8 +290,8 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         ...mockVerification,
         filesChanged: ["src/a.ts", "src/b.ts"],
       };
-      runRepo.update(context.run.id, { verification }, db);
-      const persisted = runRepo.get(context.run.id, db);
+      runRepo.update(context.run.id, { verification });
+      const persisted = runRepo.get(context.run.id);
       if (persisted) context.run = persisted;
 
       const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
