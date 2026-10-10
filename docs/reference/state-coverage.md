@@ -10,7 +10,7 @@ All async and input feedback renders through the presentation-only family at `sr
 - `FieldFeedback` — inline input states: `valid | invalid | warning | indeterminate` (plus `default`, which renders nothing).
 - `FeedbackBanner` — inline partial/degraded warnings and rate-limit timed guidance, with `role="status"` semantics.
 - `RetryAction` — the uniform retry affordance.
-- `copy-map.ts` — THE canonical `(code, context) → message` map plus the five-state guidance strings. All canonical copy lives there, nowhere else.
+- `copy-map.ts` — THE canonical `(code, context) → message` map plus the five-state guidance strings. All canonical copy lives there, nowhere else. The provider error table itself is defined once in `src/shared/provider-error-copy.ts` and re-exported here, because the provider layer (`src/providers/errors.ts`) must resolve the same strings and the frontend may not import `src/providers/`.
 
 Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). All feedback renders inline in its region — there is no toast system, ever.
 

@@ -423,15 +423,15 @@ export class JobRepository {
   }
 
   /**
-   * Fails a claimed job whose lease expired with its retry budget spent. Unlike
-   * `failJob`, the caller does not hold the lease, so no worker check applies.
-   * Only an expired lease can be failed: a job renewed since the caller read it
-   * is left alone. Returns false when nothing changed.
+   * Fails a job in one statement under an extra guard. The guard names why the
+   * job can no longer run: a claimed job whose lease expired, or a pending job
+   * whose attempts are spent. Returns false when the guard no longer holds.
    */
-  failExhaustedJob(
+  private failJobUnderGuard(
+    guard: string,
     jobId: string,
     error: string,
-    now = new Date().toISOString(),
+    now: string,
   ): boolean {
     const row = this.db
       .prepare(
@@ -442,12 +442,31 @@ export class JobRepository {
             lease_until = NULL,
             error = $error,
             updated_at = $now
-        WHERE id = $jobId AND status = 'claimed' AND lease_until < $now
+        WHERE id = $jobId AND ${guard}
         RETURNING id;
       `,
       )
       .get({ $jobId: jobId, $error: error, $now: now });
     return !!row;
+  }
+
+  /**
+   * Fails a claimed job whose lease expired with its retry budget spent. Unlike
+   * `failJob`, the caller does not hold the lease, so no worker check applies.
+   * Only an expired lease can be failed: a job renewed since the caller read it
+   * is left alone. Returns false when nothing changed.
+   */
+  failExhaustedJob(
+    jobId: string,
+    error: string,
+    now = new Date().toISOString(),
+  ): boolean {
+    return this.failJobUnderGuard(
+      "status = 'claimed' AND lease_until < $now",
+      jobId,
+      error,
+      now,
+    );
   }
 
   /**
@@ -473,21 +492,12 @@ export class JobRepository {
     error: string,
     now = new Date().toISOString(),
   ): boolean {
-    const row = this.db
-      .prepare(
-        `
-        UPDATE jobs
-        SET status = 'failed',
-            worker_id = NULL,
-            lease_until = NULL,
-            error = $error,
-            updated_at = $now
-        WHERE id = $jobId AND status = 'pending' AND attempts >= max_attempts
-        RETURNING id;
-      `,
-      )
-      .get({ $jobId: jobId, $error: error, $now: now });
-    return !!row;
+    return this.failJobUnderGuard(
+      "status = 'pending' AND attempts >= max_attempts",
+      jobId,
+      error,
+      now,
+    );
   }
 
   /**

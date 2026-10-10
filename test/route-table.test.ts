@@ -236,6 +236,22 @@ describe("a literal segment beats a same-shape {id} pattern (#192)", () => {
   });
 });
 
+describe("PUT and PATCH /api/projects/{id} share one update handler", () => {
+  it("declares the project-update handler once", () => {
+    const find = (method: string) =>
+      ROUTE_TABLE.find(
+        (entry) =>
+          entry.method === method && entry.path === "/api/projects/{id}",
+      );
+    const put = find("PUT");
+    const patch = find("PATCH");
+    expect(put?.handler).toBeDefined();
+    expect(patch?.handler).toBeDefined();
+    // Reference identity: one handler instance, not two identical closures.
+    expect(patch?.handler).toBe(put?.handler);
+  });
+});
+
 describe("handlers read only the params their path declares (#192)", () => {
   it("types params from the path template and rejects an undeclared read", () => {
     const entry = route({

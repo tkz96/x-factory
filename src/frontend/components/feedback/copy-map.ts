@@ -3,7 +3,9 @@
 // Decided in #135 (spec #133, resolution #129): this module is the ONLY place
 // canonical feedback copy lives. It carries the (code, context) → message map
 // for the normalized error envelope, the five-state guidance strings, and the
-// retry/refresh/countdown labels. Feedback components must not declare copy
+// retry/refresh/countdown labels. The provider error table is re-exported from
+// `src/shared/provider-error-copy.ts` so the provider layer and the
+// frontend resolve one definition. Feedback components must not declare copy
 // inline; screens override copy only through props when a region needs
 // bespoke guidance. Localization stays possible because every string lives
 // here (spec #133 §Out of scope).
@@ -12,6 +14,10 @@
 // not a normalized envelope gets `STATE_COPY.errorFallback` (spec #133:
 // "never a raw provider body").
 
+import {
+  getProviderErrorCopy,
+  PROVIDER_ERROR_COPY,
+} from "../../../shared/provider-error-copy.js";
 import type {
   FeedbackErrorCode,
   FeedbackErrorContext,
@@ -21,66 +27,15 @@ import type {
 type GitIdentityScope = import("../../../shared/types.js").GitIdentityScope;
 
 /**
- * The (code, context) → message map. Codes and contexts mirror the provider
- * contract's closed sets (#129); context names the failed operation so the
- * message can say what broke without provider-specific terminology.
+ * The (code, context) → message map, re-exported from the shared copy table so
+ * the frontend and the provider layer share one definition. Codes and
+ * contexts mirror the provider contract's closed sets (#129); context names the
+ * failed operation so the message can say what broke without provider-specific
+ * terminology.
  */
 export const ERROR_COPY: Readonly<
   Record<FeedbackErrorCode, Readonly<Record<FeedbackErrorContext, string>>>
-> = {
-  AUTH_INVALID: {
-    VERIFY: "The credentials were rejected. Check the token and try again.",
-    DISCOVERY:
-      "The credentials were rejected while discovering repositories. Check the token and try again.",
-    TICKETS:
-      "The credentials were rejected while loading tickets. Check the token and try again.",
-    PR: "The credentials were rejected while creating the pull request. Check the token and try again.",
-  },
-  AUTH_LOCKED: {
-    VERIFY:
-      "Sign-in is temporarily locked by the provider. Wait a moment, then try again.",
-    DISCOVERY:
-      "Sign-in is temporarily locked, so repositories could not load. Wait a moment, then try again.",
-    TICKETS:
-      "Sign-in is temporarily locked, so tickets could not load. Wait a moment, then try again.",
-    PR: "Sign-in is temporarily locked, so the pull request could not be created. Wait a moment, then try again.",
-  },
-  NOT_FOUND: {
-    VERIFY:
-      "The account or workspace is not visible to this token. Check the address and token.",
-    DISCOVERY:
-      "The organization, project, or workspace could not be found. Check the URL.",
-    TICKETS:
-      "The tickets source could not be found. Check the project and repository addresses.",
-    PR: "The pull request target could not be found. Check the repository and branches.",
-  },
-  RATE_LIMITED: {
-    VERIFY:
-      "The provider is limiting requests, so the connection check failed. Wait a moment, then try again.",
-    DISCOVERY:
-      "The provider is limiting requests, so repositories could not load. Wait a moment, then try again.",
-    TICKETS:
-      "The provider is limiting requests, so tickets could not load. Wait a moment, then try again.",
-    PR: "The provider is limiting requests, so the pull request could not be created. Wait a moment, then try again.",
-  },
-  PERMISSION: {
-    VERIFY:
-      "The token does not have the permissions required to verify this connection.",
-    DISCOVERY:
-      "The token does not have the permissions required to discover repositories.",
-    TICKETS:
-      "The token does not have the permissions required to load tickets.",
-    PR: "The token does not have the permissions required to create the pull request.",
-  },
-  UNKNOWN: {
-    VERIFY:
-      "An unexpected error occurred while verifying the connection. Try again.",
-    DISCOVERY:
-      "An unexpected error occurred while discovering repositories. Try again.",
-    TICKETS: "An unexpected error occurred while loading tickets. Try again.",
-    PR: "An unexpected error occurred while creating the pull request. Try again.",
-  },
-};
+> = PROVIDER_ERROR_COPY;
 
 /** Canonical copy for the five-state taxonomy and the uniform actions. */
 export const STATE_COPY = {
@@ -574,7 +529,7 @@ export function getErrorCopy(
   code: FeedbackErrorCode,
   context: FeedbackErrorContext,
 ): string {
-  return ERROR_COPY[code][context];
+  return getProviderErrorCopy(code, context);
 }
 
 /**
