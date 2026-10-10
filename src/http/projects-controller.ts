@@ -470,7 +470,9 @@ export async function handleMigrateProject(
  * with the role rules answers 409 with its code instead of crashing the route
  * (#186). The route table applies it to every project entry (#192).
  */
-export function projectRoute(handler: RouteHandler): RouteHandler {
+export function projectRoute<
+  Params extends Record<string, string> = Record<string, string>,
+>(handler: RouteHandler<Params>): RouteHandler<Params> {
   return async (request) => {
     try {
       return await handler(request);

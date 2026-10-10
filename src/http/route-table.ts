@@ -78,11 +78,22 @@ export function getOpenApiSpec() {
 const openApiHandler = () => jsonResponse(getOpenApiSpec());
 
 /**
+ * Declares one route entry, checking its handler against the params its own
+ * path template declares (#192). The literal `path` is inferred into `Path`, so
+ * the handler may only read those named params; the runtime entry erases them.
+ */
+export function route<const Path extends string>(
+  entry: RouteEntry<Path>,
+): RouteEntry {
+  return entry as unknown as RouteEntry;
+}
+
+/**
  * Every API route, declared once. Static patterns come before `{param}`
  * patterns with the same shape so a literal segment always wins.
  */
 export const ROUTE_TABLE: readonly RouteEntry[] = [
-  {
+  route({
     method: "GET",
     path: "/api/health",
     tags: ["Health"],
@@ -90,10 +101,13 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getHealth",
     responseDescription: "Server status, uptime and version",
     handler: () => handleHealthRoute(),
-  },
-  {
-    // The liveness probe used to answer any method; POST is kept so existing
-    // clients and the request-guard's allowance checks stay compatible (#192).
+  }),
+  route({
+    // The liveness probe used to answer any method. POST is kept because the
+    // request-guard conformance suite (test/api-request-guard.test.ts) uses it
+    // as the one state-changing route that answers 200 for an empty or absent
+    // body — dropping it would force that suite to stop proving the guard lets
+    // a body-less state-changing request through (#192).
     method: "POST",
     path: "/api/health",
     tags: ["Health"],
@@ -101,8 +115,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "postHealth",
     responseDescription: "Server status, uptime and version",
     handler: () => handleHealthRoute(),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/ready",
     tags: ["Health"],
@@ -110,8 +124,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getReady",
     responseDescription: "Ready when the database and a worker are available",
     handler: ({ ctx }) => handleReadyRoute(ctx.repos),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/readiness",
     tags: ["Health"],
@@ -119,8 +133,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getReadiness",
     responseDescription: "Full readiness assessment for the dashboard",
     handler: ({ ctx }) => handleReadinessRoute(ctx.repos),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/diagnostics",
     tags: ["Health"],
@@ -128,8 +142,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getDiagnostics",
     responseDescription: "Database counts, active jobs and the worker fleet",
     handler: ({ ctx }) => handleDiagnosticsRoute(ctx.repos),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/openapi.json",
     tags: ["Docs"],
@@ -137,8 +151,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getOpenApiDocument",
     responseDescription: "The generated OpenAPI 3.1.0 document",
     handler: openApiHandler,
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/openapi",
     tags: ["Docs"],
@@ -146,8 +160,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getOpenApiDocumentAlias",
     responseDescription: "The generated OpenAPI 3.1.0 document",
     handler: openApiHandler,
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/docs",
     tags: ["Docs"],
@@ -155,8 +169,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getDocsCatalog",
     responseDescription: "Diátaxis categories and documents",
     handler: ({ req }) => handleDocsRoute("GET", undefined, undefined, req),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/docs/search",
     tags: ["Docs"],
@@ -164,8 +178,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "searchDocs",
     responseDescription: "Section-level matches across the documentation index",
     handler: ({ req }) => handleDocsRoute("GET", "search", undefined, req),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/docs/{category}/{slug}",
     tags: ["Docs"],
@@ -174,8 +188,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "The markdown body of one document",
     handler: ({ req, params }) =>
       handleDocsRoute("GET", params.category, params.slug, req),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/settings",
     tags: ["Settings"],
@@ -183,8 +197,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getSettings",
     responseDescription: "The masked workbench settings",
     handler: () => handleGetSettings(),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/settings",
     tags: ["Settings"],
@@ -192,9 +206,9 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "updateSettings",
     responseDescription: "The updated workbench settings",
     handler: ({ req }) => handleUpdateSettings(req),
-  },
+  }),
   // Projects — static patterns first, then member patterns.
-  {
+  route({
     method: "POST",
     path: "/api/projects/inspect-repository",
     tags: ["Projects"],
@@ -202,8 +216,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "inspectRepository",
     responseDescription: "Local repository identity, tooling and readiness",
     handler: projectRoute(({ req }) => handleInspectRepository(req)),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/projects/configure-git-identity",
     tags: ["Projects"],
@@ -211,8 +225,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "configureGitIdentity",
     responseDescription: "The resolved repository git identity",
     handler: projectRoute(({ req }) => handleConfigureGitIdentity(req)),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/projects/check-path",
     tags: ["Projects"],
@@ -220,8 +234,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "checkPath",
     responseDescription: "Whether the path exists and the git repos it holds",
     handler: projectRoute(({ req }) => handleCheckPath(req)),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/projects",
     tags: ["Projects"],
@@ -229,8 +243,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "listProjects",
     responseDescription: "Configured multi-repository projects",
     handler: projectRoute(({ req }) => handleGetProjects(req)),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/projects",
     tags: ["Projects"],
@@ -240,19 +254,17 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     handler: projectRoute(({ req, ctx }) =>
       handleCreateProject(req, registryOf(ctx), ctx.projectWriteStore),
     ),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/projects/{id}",
     tags: ["Projects"],
     summary: "Get Project",
     operationId: "getProject",
     responseDescription: "The project with its readiness",
-    handler: projectRoute(({ params }) =>
-      handleGetProject(params.id as string),
-    ),
-  },
-  {
+    handler: projectRoute(({ params }) => handleGetProject(params.id)),
+  }),
+  route({
     method: "PUT",
     path: "/api/projects/{id}",
     tags: ["Projects"],
@@ -261,14 +273,14 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "The updated project",
     handler: projectRoute(({ req, params, ctx }) =>
       handleUpdateProject(
-        params.id as string,
+        params.id,
         req,
         registryOf(ctx),
         ctx.projectWriteStore,
       ),
     ),
-  },
-  {
+  }),
+  route({
     method: "PATCH",
     path: "/api/projects/{id}",
     tags: ["Projects"],
@@ -277,25 +289,23 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "The updated project",
     handler: projectRoute(({ req, params, ctx }) =>
       handleUpdateProject(
-        params.id as string,
+        params.id,
         req,
         registryOf(ctx),
         ctx.projectWriteStore,
       ),
     ),
-  },
-  {
+  }),
+  route({
     method: "DELETE",
     path: "/api/projects/{id}",
     tags: ["Projects"],
     summary: "Delete Project",
     operationId: "deleteProject",
     responseDescription: "Confirmation that the project was removed",
-    handler: projectRoute(({ params }) =>
-      handleDeleteProject(params.id as string),
-    ),
-  },
-  {
+    handler: projectRoute(({ params }) => handleDeleteProject(params.id)),
+  }),
+  route({
     method: "POST",
     path: "/api/projects/{id}/migrate",
     tags: ["Projects"],
@@ -303,15 +313,10 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "migrateProject",
     responseDescription: "The archived predecessor and the new project",
     handler: projectRoute(({ req, params, ctx }) =>
-      handleMigrateProject(
-        params.id as string,
-        req,
-        registryOf(ctx),
-        ctx.repos,
-      ),
+      handleMigrateProject(params.id, req, registryOf(ctx), ctx.repos),
     ),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/projects/{id}/tickets",
     tags: ["Projects"],
@@ -319,21 +324,19 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getProjectTickets",
     responseDescription: "Tickets from the project's tracker",
     handler: projectRoute(({ params, ctx }) =>
-      handleGetProjectTickets(params.id as string, registryOf(ctx)),
+      handleGetProjectTickets(params.id, registryOf(ctx)),
     ),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/projects/{id}/readiness",
     tags: ["Projects"],
     summary: "Get Project Readiness",
     operationId: "getProjectReadiness",
     responseDescription: "The project's readiness assessment",
-    handler: projectRoute(({ params }) =>
-      handleGetProjectReadiness(params.id as string),
-    ),
-  },
-  {
+    handler: projectRoute(({ params }) => handleGetProjectReadiness(params.id)),
+  }),
+  route({
     method: "GET",
     path: "/api/projects/{id}/tracker",
     tags: ["Projects"],
@@ -341,10 +344,10 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "getProjectTracker",
     responseDescription: "The resolved tracker connection summary",
     handler: projectRoute(({ params, ctx }) =>
-      handleGetProjectTracker(params.id as string, registryOf(ctx)),
+      handleGetProjectTracker(params.id, registryOf(ctx)),
     ),
-  },
-  {
+  }),
+  route({
     method: "PUT",
     path: "/api/projects/{id}/tracker/credentials",
     tags: ["Projects"],
@@ -352,14 +355,10 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "updateProjectTrackerCredentials",
     responseDescription: "Confirmation that credentials were stored",
     handler: projectRoute(({ req, params, ctx }) =>
-      handleUpdateProjectTrackerCredentials(
-        params.id as string,
-        req,
-        registryOf(ctx),
-      ),
+      handleUpdateProjectTrackerCredentials(params.id, req, registryOf(ctx)),
     ),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/projects/{id}/tracker/credentials",
     tags: ["Projects"],
@@ -367,14 +366,10 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "updateProjectTrackerCredentialsPost",
     responseDescription: "Confirmation that credentials were stored",
     handler: projectRoute(({ req, params, ctx }) =>
-      handleUpdateProjectTrackerCredentials(
-        params.id as string,
-        req,
-        registryOf(ctx),
-      ),
+      handleUpdateProjectTrackerCredentials(params.id, req, registryOf(ctx)),
     ),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/projects/{id}/tracker/test",
     tags: ["Projects"],
@@ -382,10 +377,10 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "testProjectTracker",
     responseDescription: "The stored tracker connection's probe result",
     handler: projectRoute(({ req, params, ctx }) =>
-      handleTestProjectTracker(params.id as string, req, registryOf(ctx)),
+      handleTestProjectTracker(params.id, req, registryOf(ctx)),
     ),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/projects/{id}/tracker/scopes",
     tags: ["Projects"],
@@ -393,12 +388,12 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "verifyProjectScopes",
     responseDescription: "The scope verification report",
     handler: projectRoute(({ params, ctx }) =>
-      handleVerifyProjectScopes(params.id as string, registryOf(ctx)),
+      handleVerifyProjectScopes(params.id, registryOf(ctx)),
     ),
-  },
+  }),
 
   // Runs.
-  {
+  route({
     method: "GET",
     path: "/api/runs",
     tags: ["Runs"],
@@ -406,8 +401,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "listRuns",
     responseDescription: "Run summaries",
     handler: ({ ctx }) => handleGetRuns(ctx.repos),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/runs",
     tags: ["Runs"],
@@ -415,17 +410,17 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "createRun",
     responseDescription: "The created run",
     handler: ({ req, ctx }) => handleCreateRun(ctx.repos, req),
-  },
-  {
+  }),
+  route({
     method: "GET",
     path: "/api/runs/{id}",
     tags: ["Runs"],
     summary: "Get Run",
     operationId: "getRun",
     responseDescription: "The run with its stages and artifacts",
-    handler: ({ params, ctx }) => handleGetRun(ctx.repos, params.id as string),
-  },
-  {
+    handler: ({ params, ctx }) => handleGetRun(ctx.repos, params.id),
+  }),
+  route({
     method: "GET",
     path: "/api/runs/{id}/events",
     tags: ["Runs"],
@@ -433,9 +428,9 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "streamRunEvents",
     responseDescription: "Server-Sent Events stream of run events",
     handler: ({ req, params, ctx }) =>
-      handleRunEvents(ctx.repos, params.id as string, req),
-  },
-  {
+      handleRunEvents(ctx.repos, params.id, req),
+  }),
+  route({
     method: "POST",
     path: "/api/runs/{id}/chat",
     tags: ["Runs"],
@@ -443,9 +438,9 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "chatWithRun",
     responseDescription: "The agent's reply",
     handler: ({ req, params, ctx }) =>
-      handleChatMessage(ctx.repos, req, params.id as string),
-  },
-  {
+      handleChatMessage(ctx.repos, req, params.id),
+  }),
+  route({
     method: "POST",
     path: "/api/runs/{id}/transitions",
     tags: ["Runs"],
@@ -453,38 +448,36 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "transitionRun",
     responseDescription: "The run after the transition",
     handler: ({ req, params, ctx }) =>
-      handleTransitions(ctx.repos, req, params.id as string),
-  },
-  {
+      handleTransitions(ctx.repos, req, params.id),
+  }),
+  route({
     method: "POST",
     path: "/api/runs/{id}/stop",
     tags: ["Runs"],
     summary: "Stop Run",
     operationId: "stopRun",
     responseDescription: "The stopped run",
-    handler: ({ params, ctx }) => handleStopRun(ctx.repos, params.id as string),
-  },
-  {
+    handler: ({ params, ctx }) => handleStopRun(ctx.repos, params.id),
+  }),
+  route({
     method: "POST",
     path: "/api/runs/{id}/pr",
     tags: ["Runs"],
     summary: "Create Pull Request",
     operationId: "createPullRequest",
     responseDescription: "The created pull request",
-    handler: ({ params, ctx }) =>
-      handleCreatePR(ctx.repos, params.id as string),
-  },
-  {
+    handler: ({ params, ctx }) => handleCreatePR(ctx.repos, params.id),
+  }),
+  route({
     method: "POST",
     path: "/api/runs/{id}/resume",
     tags: ["Runs"],
     summary: "Resume Run",
     operationId: "resumeRun",
     responseDescription: "The resumed run",
-    handler: ({ params, ctx }) =>
-      handleResumeRun(ctx.repos, params.id as string),
-  },
-  {
+    handler: ({ params, ctx }) => handleResumeRun(ctx.repos, params.id),
+  }),
+  route({
     method: "POST",
     path: "/api/runs/{id}/abandon",
     tags: ["Runs"],
@@ -492,10 +485,10 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "abandonRun",
     responseDescription: "The abandoned run",
     handler: ({ req, params, ctx }) =>
-      handleAbandonRun(ctx.repos, req, params.id as string),
-  },
+      handleAbandonRun(ctx.repos, req, params.id),
+  }),
   // Providers.
-  {
+  route({
     method: "GET",
     path: "/api/providers/manifest",
     tags: ["Providers"],
@@ -504,8 +497,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "Provider descriptors, capabilities and config fields",
     handler: ({ req, url, ctx }) =>
       catchHttpErrors(() => handleManifestRoute(req, url, registryOf(ctx))),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/providers/verify",
     tags: ["Providers"],
@@ -514,8 +507,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "Verification result or a normalized provider error",
     handler: ({ req, ctx }) =>
       catchHttpErrors(() => handleVerifyRoute(req, registryOf(ctx))),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/providers/parse-url",
     tags: ["Providers"],
@@ -524,8 +517,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "A connection draft or an unmatched-URL fallback",
     handler: ({ req, ctx }) =>
       catchHttpErrors(() => handleParseUrlRoute(req, registryOf(ctx))),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/providers/repositories",
     tags: ["Providers"],
@@ -534,8 +527,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "Visible repositories or a normalized provider error",
     handler: ({ req, ctx }) =>
       catchHttpErrors(() => handleRepositoriesRoute(req, registryOf(ctx))),
-  },
-  {
+  }),
+  route({
     method: "POST",
     path: "/api/providers/describe",
     tags: ["Providers"],
@@ -544,7 +537,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "The non-secret connection identity, or null",
     handler: ({ req, ctx }) =>
       catchHttpErrors(() => handleDescribeRoute(req, registryOf(ctx))),
-  },
+  }),
 ];
 
 function segmentsOf(pathname: string): string[] {
