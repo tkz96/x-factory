@@ -104,8 +104,6 @@ export interface ProjectCreationPayload {
 
 export class ApiError extends Error {
   readonly code?: string | undefined;
-  readonly context?: string | undefined;
-  readonly retryAfterMs?: number | undefined;
   constructor(
     message: string,
     public readonly status: number,
@@ -117,12 +115,6 @@ export class ApiError extends Error {
       const d = data as Record<string, unknown>;
       if (typeof d.code === "string") {
         this.code = d.code;
-      }
-      if (typeof d.context === "string") {
-        this.context = d.context;
-      }
-      if (typeof d.retryAfterMs === "number") {
-        this.retryAfterMs = d.retryAfterMs;
       }
     }
   }

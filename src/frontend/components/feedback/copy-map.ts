@@ -528,7 +528,6 @@ export function resolveFormValidationError(code: string): string {
 
 /**
  * Runtime guard for values crossing the API boundary as error envelopes.
- * Unwraps from ApiError.data if an error wrapper is passed (#163).
  * Mirrors the provider contract's `isProviderError` (#129): a positive
  * `retryAfterMs` or none at all.
  */
@@ -536,14 +535,7 @@ export function isNormalizedError(value: unknown): value is NormalizedError {
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const candidate = (
-    "data" in value &&
-    typeof (value as { data: unknown }).data === "object" &&
-    (value as { data: unknown }).data !== null &&
-    !("context" in value)
-      ? (value as { data: unknown }).data
-      : value
-  ) as Partial<NormalizedError>;
+  const candidate = value as Partial<NormalizedError>;
 
   return (
     typeof candidate.code === "string" &&

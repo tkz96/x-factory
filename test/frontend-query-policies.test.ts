@@ -179,6 +179,7 @@ describe("Direct SSE Cache Patching (XFM-42)", () => {
       status,
       startedAt: new Date().toISOString(),
       finishedAt: null,
+      updatedAt: new Date().toISOString(),
       implementationContext: null,
       verification: null,
       review: null,

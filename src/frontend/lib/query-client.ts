@@ -15,19 +15,17 @@ export function shouldRetryQuery(
   error: unknown,
 ): boolean {
   if (failureCount >= 1) return false;
-  if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+  const status =
+    error instanceof ApiError
+      ? error.status
+      : error &&
+          typeof error === "object" &&
+          "status" in error &&
+          typeof (error as { status: unknown }).status === "number"
+        ? (error as { status: number }).status
+        : undefined;
+  if (status !== undefined && status >= 400 && status < 500) {
     return false;
-  }
-  if (
-    error &&
-    typeof error === "object" &&
-    "status" in error &&
-    typeof (error as { status: unknown }).status === "number"
-  ) {
-    const status = (error as { status: number }).status;
-    if (status >= 400 && status < 500) {
-      return false;
-    }
   }
   return true;
 }

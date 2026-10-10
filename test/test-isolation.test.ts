@@ -1,13 +1,8 @@
 // test/test-isolation.test.ts — Preload isolates projects config and database path (#163).
 
 import { describe, expect, it } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { saveProject } from "../src/config.js";
 import {
@@ -22,6 +17,10 @@ describe("Test Isolation: Preloaded config and database path (#163)", () => {
     const repoConfig = path.join(process.cwd(), "config", "projects.json");
     const activeConfig = getProjectsConfigPath();
 
+    expect(process.env.X_FACTORY_CONFIG_PATH).toBeDefined();
+    expect(path.resolve(process.env.X_FACTORY_CONFIG_PATH ?? "")).not.toBe(
+      path.resolve(repoConfig),
+    );
     expect(activeConfig).not.toBe(repoConfig);
     expect(existsSync(activeConfig)).toBe(true);
 
@@ -37,60 +36,54 @@ describe("Test Isolation: Preloaded config and database path (#163)", () => {
   });
 
   it("leaves repo config/projects.json byte-identical when config writes occur", async () => {
-    const repoConfigDir = path.join(process.cwd(), "config");
-    const repoConfigFile = path.join(repoConfigDir, "projects.json");
+    const repoConfigFile = path.join(process.cwd(), "config", "projects.json");
 
-    mkdirSync(repoConfigDir, { recursive: true });
-    const initialContent = `${JSON.stringify({ projects: [] }, null, 2)}\n`;
-    const existedBefore = existsSync(repoConfigFile);
-    const originalContent = existedBefore
-      ? readFileSync(repoConfigFile, "utf8")
+    expect(process.env.X_FACTORY_CONFIG_PATH).toBeDefined();
+    expect(path.resolve(process.env.X_FACTORY_CONFIG_PATH ?? "")).not.toBe(
+      path.resolve(repoConfigFile),
+    );
+
+    const checksumBefore = existsSync(repoConfigFile)
+      ? createHash("sha256").update(readFileSync(repoConfigFile)).digest("hex")
       : null;
 
-    try {
-      writeFileSync(repoConfigFile, initialContent, "utf8");
-
-      // Perform a write using default getProjectsConfigPath()
-      const sampleProject: Project = {
-        id: "isolated-sample-project",
-        name: "Isolated Sample Project",
-        workspacePath: "/tmp/isolated",
-        repositoryPath: "/tmp/isolated/repo-1",
-        defaultBranch: "main",
-        testCommand: "bun test",
-        issueTracker: {
-          provider: "github",
-          github: { repo: "example/repo-1" },
+    // Perform a write using default getProjectsConfigPath()
+    const sampleProject: Project = {
+      id: "isolated-sample-project",
+      name: "Isolated Sample Project",
+      workspacePath: "/tmp/isolated",
+      repositoryPath: "/tmp/isolated/repo-1",
+      defaultBranch: "main",
+      testCommand: "bun test",
+      issueTracker: {
+        provider: "github",
+        github: { repo: "example/repo-1" },
+      },
+      gitIdentity: { name: "Agent", email: "agent@example.com" },
+      connections: [],
+      repositories: [
+        {
+          id: "repo-1",
+          name: "repo-1",
+          path: "/tmp/isolated/repo-1",
+          role: "backend",
+          remote: "https://github.com/example/repo-1.git",
+          defaultBranch: "main",
         },
-        gitIdentity: { name: "Agent", email: "agent@example.com" },
-        connections: [],
-        repositories: [
-          {
-            id: "repo-1",
-            name: "repo-1",
-            path: "/tmp/isolated/repo-1",
-            role: "backend",
-            remote: "https://github.com/example/repo-1.git",
-            defaultBranch: "main",
-          },
-        ],
-      };
+      ],
+    };
 
-      await saveProject(sampleProject);
+    await saveProject(sampleProject);
 
-      // Verify the write went to activeConfig, NOT repoConfigFile
-      const repoContentAfter = readFileSync(repoConfigFile, "utf8");
-      expect(repoContentAfter).toBe(initialContent);
+    // Verify repo config file checksum is unchanged
+    const checksumAfter = existsSync(repoConfigFile)
+      ? createHash("sha256").update(readFileSync(repoConfigFile)).digest("hex")
+      : null;
+    expect(checksumAfter).toBe(checksumBefore);
 
-      const activeConfig = getProjectsConfigPath();
-      const activeContent = readFileSync(activeConfig, "utf8");
-      expect(activeContent).toContain("isolated-sample-project");
-    } finally {
-      if (existedBefore && originalContent !== null) {
-        writeFileSync(repoConfigFile, originalContent, "utf8");
-      } else {
-        rmSync(repoConfigFile, { force: true });
-      }
-    }
+    // Verify the write went to activeConfig, NOT repoConfigFile
+    const activeConfig = getProjectsConfigPath();
+    const activeContent = readFileSync(activeConfig, "utf8");
+    expect(activeContent).toContain("isolated-sample-project");
   });
 });

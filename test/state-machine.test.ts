@@ -83,6 +83,7 @@ describe("Run Object Shape", () => {
       status: "preparing",
       startedAt: new Date().toISOString(),
       finishedAt: null,
+      updatedAt: new Date().toISOString(),
       implementationContext: null,
       verification: null,
       review: null,

@@ -152,7 +152,8 @@ describe("feedback copy map", () => {
         code: "AUTH_LOCKED",
         context: "TICKETS",
       });
-      expect(isNormalizedError(apiErrLocked)).toBe(true);
+      // isNormalizedError is a strict guard on the envelope itself; ApiError is unwrapped by unwrapNormalizedError
+      expect(isNormalizedError(apiErrLocked)).toBe(false);
       expect(unwrapNormalizedError(apiErrLocked)).toMatchObject({
         error: "Sign-in locked",
         code: "AUTH_LOCKED",
@@ -168,7 +169,7 @@ describe("feedback copy map", () => {
         context: "VERIFY",
         retryAfterMs: 30000,
       });
-      expect(isNormalizedError(apiErrRateLimited)).toBe(true);
+      expect(isNormalizedError(apiErrRateLimited)).toBe(false);
       expect(unwrapNormalizedError(apiErrRateLimited)?.retryAfterMs).toBe(
         30000,
       );

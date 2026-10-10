@@ -1666,6 +1666,7 @@ function documentedSpec() {
                 prUrl: { type: "string" },
                 branch: { type: "string" },
                 worktreePath: { type: "string" },
+                updatedAt: { type: "string", format: "date-time" },
               },
             },
           ],
