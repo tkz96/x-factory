@@ -503,6 +503,12 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
     const feedbackFiles = getSourceFiles(FEEDBACK_DIR, [".ts", ".tsx"]);
     expect(feedbackFiles.length).toBeGreaterThan(0);
 
+    // The shared layer is the one family escape the architecture boundaries
+    // allow (`frontend` may import `shared`; `.fallowrc.json`), and the
+    // canonical provider error copy table lives there. Every other
+    // escape lands in screen- or app-specific wiring and stays a violation.
+    const SHARED_DIR = path.join(ROOT_DIR, "src", "shared");
+
     const importPattern = /from\s+"(\.[^"]*)"/g;
     const violations: Array<{ file: string; line: number; text: string }> = [];
 
@@ -513,13 +519,22 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
         const line = lines[i] ?? "";
         for (const match of line.matchAll(importPattern)) {
           // A relative import starting with "../" escapes the feedback family.
-          if ((match[1] ?? "").startsWith("..")) {
-            violations.push({
-              file: path.relative(ROOT_DIR, filePath),
-              line: i + 1,
-              text: line.trim(),
-            });
+          const specifier = match[1] ?? "";
+          if (!specifier.startsWith("..")) {
+            continue;
           }
+          const resolved = path.resolve(path.dirname(filePath), specifier);
+          if (
+            resolved === SHARED_DIR ||
+            resolved.startsWith(`${SHARED_DIR}${path.sep}`)
+          ) {
+            continue;
+          }
+          violations.push({
+            file: path.relative(ROOT_DIR, filePath),
+            line: i + 1,
+            text: line.trim(),
+          });
         }
       }
     }
