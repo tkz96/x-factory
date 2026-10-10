@@ -150,6 +150,50 @@ describe("stage runner", () => {
     );
   });
 
+  it("writes nothing for a failed stage whose lease was lost, and does not throw", async () => {
+    const { db, repos, run } = setup("understanding");
+    const job = repos.jobs.createJob({ runId: run.id, stage: "understand" });
+    const worker = new Worker({
+      db,
+      workerId: "worker-lost-lease",
+      getStageExecutor: () => ({
+        stage: "understand",
+        async execute(): Promise<StageOutcome> {
+          // Another worker now owns the job.
+          db.run(
+            "UPDATE jobs SET worker_id = 'worker-other', lease_until = ? WHERE id = ?",
+            [new Date(Date.now() + 60_000).toISOString(), job.id],
+          );
+          return {
+            outcome: "error",
+            error: "boom",
+            record: {
+              run: { diff: "leaked diff" },
+              events: [{ type: "info", payload: { text: "leaked event" } }],
+            },
+          };
+        },
+      }),
+    });
+
+    await worker.stepOnce();
+
+    const after = repos.runs.get(run.id);
+    expect(after?.diff).toBeNull();
+    expect(after?.status).toBe("understanding");
+    expect(
+      repos.events
+        .getEventsForRun(run.id)
+        .some((e) => JSON.stringify(e.payload).includes("leaked event")),
+    ).toBe(false);
+    const stillOther = repos.jobs.getJob(job.id);
+    expect(stillOther?.status).toBe("claimed");
+    expect(stillOther?.workerId).toBe("worker-other");
+    expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
+      ["cancelled"],
+    );
+  });
+
   it("gives executors only inputs, emit, ledger, signal and identity, never repositories", async () => {
     const jobSetup = setup("understanding");
     jobSetup.repos.jobs.createJob({

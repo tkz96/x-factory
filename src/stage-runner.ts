@@ -265,6 +265,7 @@ export class StageRunner {
           attempt,
           err instanceof Error ? err.message : String(err),
           elapsed(startTime),
+          run.status,
         );
         return;
       }
@@ -277,14 +278,21 @@ export class StageRunner {
       if (outcome.outcome === "passed") {
         const invalid = work.invalidPassed?.(outcome);
         if (invalid) {
-          this.fail(work, attempt, invalid, duration);
+          this.fail(work, attempt, invalid, duration, run.status);
         } else {
           this.commitPassed(work, attempt, outcome, duration, run.status);
         }
       } else if (outcome.outcome === "rejected") {
         this.commitRejected(work, attempt, outcome, duration);
       } else {
-        this.fail(work, attempt, outcome.error, duration, outcome.record);
+        this.fail(
+          work,
+          attempt,
+          outcome.error,
+          duration,
+          run.status,
+          outcome.record,
+        );
       }
     } finally {
       clearInterval(heartbeat);
@@ -496,33 +504,75 @@ export class StageRunner {
     });
   }
 
+  /**
+   * Fails the work. The stage's record, the attempt's failure, the work's own failure and
+   * (when no retry is left) the run's failure all commit in one transaction, and only if this
+   * worker still holds the lease and the run is still in the status the stage started in. A
+   * worker that lost either writes nothing.
+   */
   private fail(
     work: StageWork,
     attempt: StageAttemptRecord,
     errorMsg: string,
     durationMs: number,
+    expectedRunStatus: RunStatus,
     record?: StageRecord,
   ): void {
     const { repos } = this.host;
     this.host.error(`Stage '${work.stage}' execution failed: ${errorMsg}`);
 
-    if (record) {
-      try {
-        repos.db.transaction(() => this.applyRecord(work.runId, record))();
-      } catch (e: unknown) {
-        this.host.error("Failed to record failed stage's output", e);
-      }
-    }
-
+    let retry: { willRetry: boolean; attempts: number } | null;
     try {
-      repos.stageAttempts.recordFailure(attempt.id, errorMsg);
-    } catch (e: unknown) {
-      this.host.error("Failed to record stage attempt failure", e);
+      retry = repos.db.transaction(() => {
+        const current = repos.runs.get(work.runId);
+        if (!work.holdsLease() || current?.status !== expectedRunStatus) {
+          return null;
+        }
+        this.applyRecord(work.runId, record);
+        repos.stageAttempts.recordFailure(attempt.id, errorMsg);
+        const outcome = work.fail(errorMsg);
+        if (
+          !outcome.willRetry &&
+          work.failsRunWhenExhausted &&
+          canTransition(current.status, "failed")
+        ) {
+          repos.runs.transitionRun(work.runId, current.status, "failed", {
+            event: {
+              type: "status",
+              payload: {
+                status: "failed",
+                text: `Run failed during stage '${work.stage}': ${errorMsg}`,
+              },
+            },
+          });
+        }
+        return outcome;
+      })();
+    } catch (err: unknown) {
+      this.host.error(
+        `Failed to record failure of ${work.kind} ${work.id}`,
+        err,
+      );
+      return;
     }
 
-    const retry = work.fail(errorMsg);
-    const subject = logSubject(work);
+    if (!retry) {
+      // Lease lost or run status changed: write nothing but close the attempt.
+      try {
+        repos.stageAttempts.recordCancellation(
+          attempt.id,
+          "Failure not committed: lease lost or run status changed",
+        );
+      } catch (e: unknown) {
+        this.host.error("Failed to close the uncommitted stage attempt", e);
+      }
+      this.host.log(
+        `Failure of ${work.kind} ${work.id} on run ${work.runId} not committed: lease lost or run status changed.`,
+      );
+      return;
+    }
 
+    const subject = logSubject(work);
     if (retry.willRetry) {
       this.host.emitLog({
         ...subject,
@@ -556,24 +606,6 @@ export class StageRunner {
       error: errorMsg,
     });
     this.host.log(`${noun} entered ${detail}: id=${work.id}`);
-
-    if (!work.failsRunWhenExhausted) return;
-    try {
-      const latest = repos.runs.get(work.runId);
-      if (latest && canTransition(latest.status, "failed")) {
-        repos.runs.transitionRun(work.runId, latest.status, "failed", {
-          event: {
-            type: "status",
-            payload: {
-              status: "failed",
-              text: `Run failed during stage '${work.stage}': ${errorMsg}`,
-            },
-          },
-        });
-      }
-    } catch (err: unknown) {
-      this.host.error(`Failed to transition run ${work.runId} to failed`, err);
-    }
   }
 }
 
