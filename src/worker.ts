@@ -496,13 +496,23 @@ export class Worker {
     }
   }
 
+  /**
+   * The configured project for a run. A project missing from the configuration falls back
+   * to a minimal record built from the run itself; a configuration that cannot be read
+   * throws, so the stage fails with the reason instead of running against a made-up project.
+   */
   private async resolveProject(run: RunRecord): Promise<Project> {
+    let project: Project | null;
     try {
-      const project = await getProject(run.project.id);
-      if (project) return project;
-    } catch {
-      // Fallback below
+      project = await getProject(run.project.id);
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Project "${run.project.id}" could not be loaded: ${reason}`,
+        { cause: err },
+      );
     }
+    if (project) return project;
 
     return {
       id: run.project.id,

@@ -234,12 +234,25 @@ export class StageRunner {
         return;
       }
 
-      const project = await this.host.resolveProject(work.runId);
       const attempt = repos.stageAttempts.recordStart(
         run.id,
         work.stage,
         work.attempt,
       );
+      let project: Project;
+      try {
+        project = await this.host.resolveProject(work.runId);
+      } catch (err: unknown) {
+        if (this.host.isShuttingDown()) return;
+        this.fail(
+          work,
+          attempt,
+          err instanceof Error ? err.message : String(err),
+          elapsed(startTime),
+          run.status,
+        );
+        return;
+      }
 
       const context = buildStageContext(repos, run, project, {
         stage: work.stage,

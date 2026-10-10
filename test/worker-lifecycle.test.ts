@@ -1,6 +1,9 @@
 // test/worker-lifecycle.test.ts — Unit tests for independent Worker polling and job lifecycle.
 
 import { describe, expect, it } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { createDatabase } from "../src/db/connection.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
@@ -210,5 +213,45 @@ describe("Worker Lifecycle", () => {
       "Maximum retry attempts exhausted across worker lifetimes.",
     );
     expect(runRepo.get("run-w-1")?.status).toBe("recovery_required");
+  });
+
+  it("fails the stage with a clear message when the project config cannot be read, instead of running against an invented project (#163)", async () => {
+    const { db, jobRepo, job } = setup();
+    const configDir = await mkdtemp(path.join(tmpdir(), "wl-config-"));
+    const configPath = path.join(configDir, "projects.json");
+    await writeFile(configPath, "{ not json");
+    const previous = process.env.X_FACTORY_CONFIG_PATH;
+    process.env.X_FACTORY_CONFIG_PATH = configPath;
+    let executed = false;
+    try {
+      const worker = new Worker({
+        db,
+        workerId: "test-worker-no-project",
+        getStageExecutor: () => ({
+          stage: "prepare",
+          async execute() {
+            executed = true;
+            return { outcome: "passed" as const };
+          },
+        }),
+      });
+      const claimed = jobRepo.claimNextJob("test-worker-no-project", 30000);
+      if (!claimed) throw new Error("Job claim failed unexpectedly.");
+      await worker.processJob(claimed);
+    } finally {
+      if (previous === undefined) delete process.env.X_FACTORY_CONFIG_PATH;
+      else process.env.X_FACTORY_CONFIG_PATH = previous;
+      await rm(configDir, { recursive: true, force: true });
+    }
+
+    expect(executed).toBe(false);
+    const failed = jobRepo.getJob(job.id);
+    expect(failed?.status).toBe("pending");
+    expect(failed?.error).toContain('Project "proj-1" could not be loaded');
+    expect(
+      new StageAttemptRepository(db)
+        .listForRun("run-w-1")
+        .map((a) => [a.status, a.error?.startsWith('Project "proj-1"')]),
+    ).toEqual([["failed", true]]);
   });
 });
