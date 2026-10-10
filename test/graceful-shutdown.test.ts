@@ -1,19 +1,24 @@
 // test/graceful-shutdown.test.ts — Coordinated application shutdown and lifecycle tests (XFM-71).
 
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, describe, expect, it } from "bun:test";
+import { rmSync } from "node:fs";
+import path from "node:path";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { defaultSSERegistry } from "../src/http/sse-registry.js";
 import { type ServerInstance, startServer } from "../src/server.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 describe("Coordinated Graceful Application Shutdown (XFM-71)", () => {
   let activeServer: ServerInstance | null = null;
-  let activeDbPaths: string[] = [];
+  const tempDirs: string[] = [];
 
+  // `mkdtemp` gives every run its own directory, so two suites that start in
+  // the same millisecond can no longer share a SQLite file (#163 follow-up).
   const getTestDbPath = () => {
-    const p = `/tmp/test-shutdown-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
-    activeDbPaths.push(p);
-    return p;
+    const dir = createTempDir("xf-shutdown-");
+    tempDirs.push(dir);
+    return path.join(dir, "shutdown.db");
   };
 
   afterEach(async () => {
@@ -21,15 +26,12 @@ describe("Coordinated Graceful Application Shutdown (XFM-71)", () => {
       await activeServer.shutdown(1000).catch(() => {});
       activeServer = null;
     }
-    for (const p of activeDbPaths) {
-      try {
-        const db = createDatabase({ path: p });
-        db.close();
-      } catch {
-        // ignore
-      }
+  });
+
+  afterAll(() => {
+    for (const dir of tempDirs) {
+      rmSync(dir, { recursive: true, force: true });
     }
-    activeDbPaths = [];
   });
 
   it("closes all active SSE streams on sseRegistry.closeAll during shutdown", async () => {

@@ -9,21 +9,18 @@ import {
   loadMigrations,
   runMigrations,
 } from "../src/db/migrator.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 describe("Migration & Recovery Test Fixture (XFM-68)", () => {
-  const testDbFile = path.resolve(
-    process.cwd(),
-    `.test-migration-fixture-${Date.now()}.db`,
-  );
+  // `mkdtemp` asks the OS for a unique directory atomically. A `${Date.now()}`
+  // name let two suites that started in the same millisecond open one SQLite
+  // file, so the second one hit `UNIQUE constraint failed: runs.id`
+  // (#163 follow-up).
+  const tempDir = createTempDir("xf-migration-fixture-");
+  const testDbFile = path.join(tempDir, "migration-fixture.db");
 
   afterAll(() => {
-    try {
-      rmSync(testDbFile, { force: true });
-      rmSync(`${testDbFile}-wal`, { force: true });
-      rmSync(`${testDbFile}-shm`, { force: true });
-    } catch {
-      // ignore cleanup
-    }
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it("migrates incrementally from older schema (v3) to latest (v9) preserving existing data", () => {
