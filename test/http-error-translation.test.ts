@@ -5,14 +5,13 @@ import {
   NotFoundError,
   ValidationError,
 } from "../src/errors.js";
-import { handleProjectsRoute } from "../src/http/projects-controller.js";
 import {
   catchHttpErrors,
   HttpError,
   translateDomainErrorToHttpResponse,
 } from "../src/http/responses.js";
-import { handleRunsRoute } from "../src/http/runs-controller.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { dispatchHttp } from "./helpers/http-dispatch.js";
 
 let repos: Repositories;
 
@@ -99,14 +98,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleRunsRoute(
-      "POST",
-      "nonexistent-run",
-      "chat",
-      3,
-      req,
-      repos,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -121,14 +113,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleProjectsRoute(
-      "DELETE",
-      "nonexistent-proj",
-      undefined,
-      undefined,
-      2,
-      req,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -154,13 +139,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleProjectsRoute(
-      "POST",
-      "configure-git-identity",
-      undefined,
-      2,
-      req,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(400);
     const body = (await res?.json()) as { error?: string; code?: string };
@@ -178,18 +157,12 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleProjectsRoute(
-      "POST",
-      "discover-repositories",
-      undefined,
-      undefined,
-      2,
-      req,
-    );
+    const res = await dispatchHttp(req, repos);
     // The duplicate provider route is deleted: the projects controller declines
     // the path, and the canonical POST /api/providers/repositories is the only
-    // discovery action.
-    expect(res).toBeNull();
+    // discovery action. The route table turns the unmatched path into a 404.
+    expect(res?.status).toBe(404);
+    expect(await res?.json()).toEqual({ error: "Endpoint not found." });
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on stop", async () => {
@@ -200,14 +173,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleRunsRoute(
-      "POST",
-      "nonexistent-run",
-      "stop",
-      3,
-      req,
-      repos,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -222,14 +188,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleRunsRoute(
-      "POST",
-      "nonexistent-run",
-      "pr",
-      3,
-      req,
-      repos,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -244,14 +203,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleRunsRoute(
-      "POST",
-      "nonexistent-run",
-      "resume",
-      3,
-      req,
-      repos,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -266,14 +218,7 @@ describe("HTTP Layer Error Translation", () => {
       },
     );
 
-    const res = await handleRunsRoute(
-      "POST",
-      "nonexistent-run",
-      "abandon",
-      3,
-      req,
-      repos,
-    );
+    const res = await dispatchHttp(req, repos);
     expect(res).not.toBeNull();
     expect(res?.status).toBe(404);
     const body = await res?.json();
@@ -299,7 +244,7 @@ describe("HTTP Layer Error Translation", () => {
     const prReq = new Request(`http://localhost:3777/api/runs/${runId}/pr`, {
       method: "POST",
     });
-    const prRes = await handleRunsRoute("POST", runId, "pr", 3, prReq, repos);
+    const prRes = await dispatchHttp(prReq, repos);
     expect(prRes).not.toBeNull();
     expect(prRes?.status).toBe(409);
     const prBody = await prRes?.json();
@@ -314,14 +259,7 @@ describe("HTTP Layer Error Translation", () => {
         method: "POST",
       },
     );
-    const resumeRes = await handleRunsRoute(
-      "POST",
-      runId,
-      "resume",
-      3,
-      resumeReq,
-      repos,
-    );
+    const resumeRes = await dispatchHttp(resumeReq, repos);
     expect(resumeRes).not.toBeNull();
     expect(resumeRes?.status).toBe(409);
     const resumeBody = await resumeRes?.json();
@@ -336,14 +274,7 @@ describe("HTTP Layer Error Translation", () => {
         method: "POST",
       },
     );
-    const abandonRes = await handleRunsRoute(
-      "POST",
-      runId,
-      "abandon",
-      3,
-      abandonReq,
-      repos,
-    );
+    const abandonRes = await dispatchHttp(abandonReq, repos);
     expect(abandonRes).not.toBeNull();
     expect(abandonRes?.status).toBe(409);
     const abandonBody = await abandonRes?.json();
@@ -374,14 +305,7 @@ describe("HTTP Layer Error Translation", () => {
         method: "POST",
       },
     );
-    const stopRes = await handleRunsRoute(
-      "POST",
-      prCreatedRunId,
-      "stop",
-      3,
-      stopReq,
-      repos,
-    );
+    const stopRes = await dispatchHttp(stopReq, repos);
     expect(stopRes).not.toBeNull();
     expect(stopRes?.status).toBe(409);
     const stopBody = await stopRes?.json();

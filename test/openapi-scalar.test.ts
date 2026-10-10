@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Repositories } from "../src/composition-root.js";
-import { getOpenApiSpec } from "../src/http/openapi.js";
+import { getOpenApiSpec } from "../src/http/route-table.js";
 import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
 import { createTestRepositories } from "./helpers/composition.js";
@@ -43,11 +43,13 @@ describe("OpenAPI 3.1 Specification Engine", () => {
     expect(spec.paths["/api/projects"].post).toBeDefined();
     expect(paths).toContain("/api/projects/{id}");
     expect(spec.paths["/api/projects/{id}"].get).toBeDefined();
-    expect(spec.paths["/api/projects/{id}"].post).toBeDefined();
+    expect(spec.paths["/api/projects/{id}"].put).toBeDefined();
     expect(spec.paths["/api/projects/{id}"].delete).toBeDefined();
     expect(paths).toContain("/api/projects/{id}/tickets");
-    expect(paths).toContain("/api/projects/{id}/env");
-    expect(paths).toContain("/api/projects/{id}/repos");
+    // The table dispatches no POST/{id}/env or {id}/repos operation, so the
+    // document must never advertise one (#192).
+    expect(paths).not.toContain("/api/projects/{id}/env");
+    expect(paths).not.toContain("/api/projects/{id}/repos");
     // The project-scoped tracker actions are the canonical ones; the flat
     // provider aliases are gone (#183).
     expect(paths).toContain("/api/projects/{id}/tracker/test");
@@ -154,7 +156,7 @@ describe("OpenAPI 3.1 Specification Engine", () => {
       "clearSecrets",
     );
     expect(
-      JSON.stringify(spec.paths["/api/projects/{id}"].post.requestBody),
+      JSON.stringify(spec.paths["/api/projects/{id}"].put.requestBody),
     ).toContain("ProjectConnectionUpdate");
   });
 });

@@ -301,8 +301,17 @@ describe("Project Onboarding & Management APIs", () => {
     });
 
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { exists: boolean; gitRepos: string[] };
+    const body = (await res.json()) as {
+      exists: boolean;
+      existsLocally: boolean;
+      resolvedPath: string;
+      gitRepos: string[];
+    };
     assert.equal(body.exists, true);
+    // The retired validate-path alias asserted these two; the canonical
+    // check-path route must keep carrying them (#192).
+    assert.equal(body.existsLocally, true);
+    assert.ok(body.resolvedPath.length > 0);
     assert.ok(Array.isArray(body.gitRepos));
   });
 
@@ -332,22 +341,15 @@ describe("Project Onboarding & Management APIs", () => {
     }
   });
 
-  it("POST /api/projects/validate-path routes to path checking and returns existsLocally", async () => {
+  it("the removed validate-path alias answers 404 (canonical route is check-path, #192)", async () => {
     const res = await fetch(`${baseUrl}/api/projects/validate-path`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: tempDir }),
     });
 
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as {
-      exists: boolean;
-      existsLocally: boolean;
-      resolvedPath: string;
-    };
-    assert.equal(body.exists, true);
-    assert.equal(body.existsLocally, true);
-    assert.ok(body.resolvedPath.length > 0);
+    assert.equal(res.status, 404);
+    assert.deepEqual(await res.json(), { error: "Endpoint not found." });
   });
 
   it("POST /api/projects/inspect-repository includes readiness status", async () => {
@@ -554,16 +556,15 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.readiness.status, "pending_setup");
   });
 
-  it("POST /api/discovery/validate-path routes through discovery namespace", async () => {
+  it("the removed /api/discovery namespace answers 404 (#192)", async () => {
     const res = await fetch(`${baseUrl}/api/discovery/validate-path`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: tempDir }),
     });
 
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as { exists: boolean };
-    assert.equal(body.exists, true);
+    assert.equal(res.status, 404);
+    assert.deepEqual(await res.json(), { error: "Endpoint not found." });
   });
 
   const trackerProjId = `proj-tracker-${Date.now()}`;

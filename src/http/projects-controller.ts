@@ -2,7 +2,7 @@
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import type { ApiContext, Repositories } from "../composition-root.js";
+import type { Repositories } from "../composition-root.js";
 import {
   createProject,
   deleteProject,
@@ -39,10 +39,7 @@ import {
   resolveProjectConnection,
 } from "../providers/project-connections.js";
 import { redactConfigForProvider } from "../providers/redaction.js";
-import {
-  PROVIDER_REGISTRY,
-  type ProviderRegistry,
-} from "../providers/registry.js";
+import type { ProviderRegistry } from "../providers/registry.js";
 import type { ProjectWriteStore } from "../services/connection-write-plan.js";
 import {
   assertLegacyTrackerUsable,
@@ -62,13 +59,14 @@ import {
   withJsonBody,
   withValidatedBody,
 } from "./responses.js";
+import type { RouteHandler } from "./route-contract.js";
 import {
   ConfigureGitIdentityBodySchema,
   SaveProjectBodySchema,
   UpdateProjectConnectionsBodySchema,
 } from "./schemas.js";
 
-async function handleGetProjects(req: Request): Promise<Response> {
+export async function handleGetProjects(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const includeArchived = url.searchParams.get("includeArchived") === "true";
   const projects = await loadProjects();
@@ -78,7 +76,7 @@ async function handleGetProjects(req: Request): Promise<Response> {
   return jsonResponse(filtered);
 }
 
-async function handleCreateProject(
+export async function handleCreateProject(
   req: Request,
   registry: ProviderRegistry,
   store?: ProjectWriteStore | undefined,
@@ -109,7 +107,7 @@ async function handleCreateProject(
   );
 }
 
-async function handleGetProject(projectId: string): Promise<Response> {
+export async function handleGetProject(projectId: string): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const readiness = await checkProjectReadiness(project);
@@ -124,7 +122,7 @@ function hasOwnConnections(body: unknown): boolean {
   );
 }
 
-async function handleUpdateProject(
+export async function handleUpdateProject(
   projectId: string,
   req: Request,
   registry: ProviderRegistry,
@@ -172,14 +170,16 @@ async function handleUpdateProject(
   });
 }
 
-async function handleDeleteProject(projectId: string): Promise<Response> {
+export async function handleDeleteProject(
+  projectId: string,
+): Promise<Response> {
   return catchHttpErrors(async () => {
     await deleteProject(projectId);
     return jsonResponse({ ok: true });
   });
 }
 
-async function handleInspectRepository(req: Request): Promise<Response> {
+export async function handleInspectRepository(req: Request): Promise<Response> {
   return withJsonBody<{
     path?: string;
     remote?: string;
@@ -214,7 +214,9 @@ async function handleInspectRepository(req: Request): Promise<Response> {
   );
 }
 
-async function handleConfigureGitIdentity(req: Request): Promise<Response> {
+export async function handleConfigureGitIdentity(
+  req: Request,
+): Promise<Response> {
   return withValidatedBody(
     req,
     ConfigureGitIdentityBodySchema,
@@ -234,7 +236,9 @@ async function handleConfigureGitIdentity(req: Request): Promise<Response> {
   );
 }
 
-async function handleGetProjectReadiness(projectId: string): Promise<Response> {
+export async function handleGetProjectReadiness(
+  projectId: string,
+): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
   const readiness = await checkProjectReadiness(project);
@@ -273,7 +277,7 @@ async function resolveProjectTrackerConnection(
   return { ok: true, connection };
 }
 
-async function handleGetProjectTickets(
+export async function handleGetProjectTickets(
   projectId: string,
   registry: ProviderRegistry,
 ): Promise<Response> {
@@ -306,7 +310,7 @@ async function handleGetProjectTickets(
   }
 }
 
-async function handleGetProjectTracker(
+export async function handleGetProjectTracker(
   projectId: string,
   registry: ProviderRegistry,
 ): Promise<Response> {
@@ -324,7 +328,7 @@ async function handleGetProjectTracker(
   });
 }
 
-async function handleUpdateProjectTrackerCredentials(
+export async function handleUpdateProjectTrackerCredentials(
   projectId: string,
   req: Request,
   registry: ProviderRegistry,
@@ -366,7 +370,7 @@ async function handleUpdateProjectTrackerCredentials(
  * parsed only so malformed JSON still answers 400. A thrown provider failure
  * crosses the boundary as the normalized provider error (status by code).
  */
-async function handleTestProjectTracker(
+export async function handleTestProjectTracker(
   projectId: string,
   req: Request,
   registry: ProviderRegistry,
@@ -399,7 +403,7 @@ async function handleTestProjectTracker(
   return withJsonBody(req, processRequest, "Invalid JSON for tracker test.");
 }
 
-async function handleMigrateProject(
+export async function handleMigrateProject(
   projectId: string,
   req: Request,
   registry: ProviderRegistry,
@@ -461,66 +465,29 @@ async function handleMigrateProject(
   );
 }
 
-async function handleProjectMemberCrud(
-  method: string,
-  id: string,
-  req: Request,
-  registry: ProviderRegistry,
-  store?: ProjectWriteStore | undefined,
-): Promise<Response | null> {
-  switch (method) {
-    case "GET":
-      return handleGetProject(id);
-    case "PATCH":
-    case "PUT":
-      return handleUpdateProject(id, req, registry, store);
-    case "DELETE":
-      return handleDeleteProject(id);
-    default:
-      return null;
-  }
+/**
+ * Wraps a project route handler so a stored connection whose settings conflict
+ * with the role rules answers 409 with its code instead of crashing the route
+ * (#186). The route table applies it to every project entry (#192).
+ */
+export function projectRoute<
+  Params extends Record<string, string> = Record<string, string>,
+>(handler: RouteHandler<Params>): RouteHandler<Params> {
+  return async (request) => {
+    try {
+      return await handler(request);
+    } catch (err) {
+      const mapped =
+        err instanceof ConnectionConflictError
+          ? translateDomainErrorToHttpResponse(err)
+          : null;
+      if (mapped) return mapped;
+      throw err;
+    }
+  };
 }
 
-async function handleProjectMemberRoute(
-  method: string,
-  id: string,
-  action: string | undefined,
-  subaction: string | undefined,
-  partsCount: number,
-  req: Request,
-  registry: ProviderRegistry,
-  store?: ProjectWriteStore | undefined,
-): Promise<Response | null> {
-  if (action === "tickets" && method === "GET") {
-    return handleGetProjectTickets(id, registry);
-  }
-  if (action === "readiness" && method === "GET") {
-    return handleGetProjectReadiness(id);
-  }
-  if (action === "tracker") {
-    if (!subaction && method === "GET") {
-      return handleGetProjectTracker(id, registry);
-    }
-    if (
-      subaction === "credentials" &&
-      (method === "PUT" || method === "POST")
-    ) {
-      return handleUpdateProjectTrackerCredentials(id, req, registry);
-    }
-    if (subaction === "test" && method === "POST") {
-      return handleTestProjectTracker(id, req, registry);
-    }
-    if (subaction === "scopes" && method === "POST") {
-      return handleVerifyProjectScopes(id, registry);
-    }
-  }
-  if (!action && partsCount === 2) {
-    return handleProjectMemberCrud(method, id, req, registry, store);
-  }
-  return null;
-}
-
-async function handleCheckPath(req: Request): Promise<Response> {
+export async function handleCheckPath(req: Request): Promise<Response> {
   return withJsonBody<{ path?: string }>(
     req,
     async ({ path: rawPath }) => {
@@ -572,7 +539,7 @@ async function handleCheckPath(req: Request): Promise<Response> {
  * Failures cross the boundary as the provider's normalized (code, context)
  * envelope; a raw provider message never reaches the client.
  */
-async function handleVerifyProjectScopes(
+export async function handleVerifyProjectScopes(
   projectId: string,
   registry: ProviderRegistry,
 ): Promise<Response> {
@@ -624,83 +591,4 @@ async function handleVerifyProjectScopes(
     errors,
     warnings,
   });
-}
-
-/**
- * Routes a project request. A stored record whose connection settings conflict
- * answers 409 with its code instead of crashing the route.
- */
-export async function handleProjectsRoute(
-  ...args: Parameters<typeof routeProjectsRequest>
-): Promise<Response | null> {
-  try {
-    return await routeProjectsRequest(...args);
-  } catch (err) {
-    const mapped =
-      err instanceof ConnectionConflictError
-        ? translateDomainErrorToHttpResponse(err)
-        : null;
-    if (mapped) return mapped;
-    throw err;
-  }
-}
-
-async function routeProjectsRequest(
-  method: string,
-  id: string | undefined,
-  action: string | undefined,
-  subactionOrPartsCount: string | number | undefined,
-  partsCountOrReq: number | Request,
-  maybeReq?: Request,
-  ctx?: ApiContext,
-): Promise<Response | null> {
-  let subaction: string | undefined;
-  let partsCount: number;
-  let req: Request;
-  const registry = ctx?.providerRegistry ?? PROVIDER_REGISTRY;
-  const store = ctx?.projectWriteStore;
-
-  if (typeof subactionOrPartsCount === "number") {
-    subaction = undefined;
-    partsCount = subactionOrPartsCount;
-    req = partsCountOrReq as Request;
-  } else {
-    subaction = subactionOrPartsCount;
-    partsCount = typeof partsCountOrReq === "number" ? partsCountOrReq : 0;
-    req = maybeReq as Request;
-  }
-
-  const isInspect =
-    id === "inspect-repository" || id === "quick-inspect" || id === "inspect";
-  if (isInspect && method === "POST") return handleInspectRepository(req);
-
-  const isConfigureIdentity = id === "configure-git-identity";
-  if (isConfigureIdentity && method === "POST") {
-    return handleConfigureGitIdentity(req);
-  }
-
-  const isCheckPath = id === "check-path" || id === "validate-path";
-  if (isCheckPath && method === "POST") return handleCheckPath(req);
-
-  if (!id) {
-    if (method === "GET") return handleGetProjects(req);
-    if (method === "POST") return handleCreateProject(req, registry, store);
-    return null;
-  }
-
-  if (action === "migrate" && method === "POST") {
-    if (!ctx) throw new Error("Project migration needs the composition root.");
-    return handleMigrateProject(id, req, registry, ctx.repos);
-  }
-
-  return handleProjectMemberRoute(
-    method,
-    id,
-    action,
-    subaction,
-    partsCount,
-    req,
-    registry,
-    store,
-  );
 }

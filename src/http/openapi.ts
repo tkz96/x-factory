@@ -1,6 +1,13 @@
-// src/http/openapi.ts — OpenAPI 3.1.0 specification for X-Factory developer workbench REST API.
+// src/http/openapi.ts — OpenAPI 3.1.0 specification for X-Factory developer
+// workbench REST API.
+//
+// The per-path operations here are hand-written; `buildOpenApiDocument` takes
+// its operation list from the route table (#192), so these entries may only
+// enrich a method + path the table already dispatches.
 
-export function getOpenApiSpec() {
+import type { RouteEntry } from "./route-contract.js";
+
+function documentedSpec() {
   return {
     openapi: "3.1.0",
     info: {
@@ -56,6 +63,10 @@ export function getOpenApiSpec() {
         name: "Providers",
         description:
           "Provider manifest discovery, credential verification, and Quick-URL resolution",
+      },
+      {
+        name: "Docs",
+        description: "In-app Diátaxis documentation catalog and search",
       },
     ],
     paths: {
@@ -205,7 +216,7 @@ export function getOpenApiSpec() {
             },
           },
         },
-        post: {
+        put: {
           tags: ["Projects"],
           summary: "Update Project",
           description:
@@ -334,117 +345,6 @@ export function getOpenApiSpec() {
             },
             "404": {
               $ref: "#/components/responses/NotFoundError",
-            },
-          },
-        },
-      },
-      "/api/projects/{id}/env": {
-        get: {
-          tags: ["Projects"],
-          summary: "Get Project Environment Variables",
-          description:
-            "Retrieves project-scoped environment variables with secrets masked for safe display.",
-          operationId: "getProjectEnv",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Project identifier",
-              schema: { type: "string" },
-            },
-          ],
-          responses: {
-            "200": {
-              description: "Dictionary of project environment variables",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    additionalProperties: {
-                      type: "object",
-                      properties: {
-                        value: { type: "string" },
-                        isSecret: { type: "boolean" },
-                        maskedValue: { type: "string" },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        post: {
-          tags: ["Projects"],
-          summary: "Update Project Environment Variables",
-          description:
-            "Saves encrypted/masked project-level environment variables (e.g. tracker PAT tokens, custom keys).",
-          operationId: "updateProjectEnv",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Project identifier",
-              schema: { type: "string" },
-            },
-          ],
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  additionalProperties: { type: "string" },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Updated environment variables successfully saved",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    additionalProperties: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      "/api/projects/{id}/repos": {
-        get: {
-          tags: ["Projects"],
-          summary: "Get Project Repositories",
-          description:
-            "Lists configured repositories and auto-discovered repositories for a project.",
-          operationId: "getProjectRepos",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              description: "Project identifier",
-              schema: { type: "string" },
-            },
-          ],
-          responses: {
-            "200": {
-              description: "List of repositories",
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "array",
-                    items: {
-                      $ref: "#/components/schemas/DiscoveredRepository",
-                    },
-                  },
-                },
-              },
             },
           },
         },
@@ -2053,4 +1953,42 @@ export function getOpenApiSpec() {
       },
     },
   };
+}
+
+/** A generated operation for a table route with no hand-written entry. */
+function generatedOperation(entry: RouteEntry) {
+  return {
+    tags: [...entry.tags],
+    summary: entry.summary,
+    operationId: entry.operationId,
+    responses: {
+      "200": { description: entry.responseDescription },
+    },
+  };
+}
+
+/**
+ * The published contract: one operation per route table entry (#192). The table
+ * is the source of operations — the hand-written entries below may only
+ * ENRICH a method + path the table already dispatches. A table route with no
+ * hand-written operation still gets one generated from its own metadata, and an
+ * operation the table does not have is never published, so dispatch and docs
+ * cannot drift.
+ */
+export function buildOpenApiDocument(entries: readonly RouteEntry[]) {
+  const spec = documentedSpec();
+  const documented = spec.paths as unknown as Record<
+    string,
+    Record<string, unknown>
+  >;
+  const paths: Record<string, Record<string, unknown>> = {};
+  for (const entry of entries) {
+    const method = entry.method.toLowerCase();
+    const item = paths[entry.path] ?? {};
+    paths[entry.path] = item;
+    item[method] =
+      documented[entry.path]?.[method] ?? generatedOperation(entry);
+  }
+  spec.paths = paths as unknown as typeof spec.paths;
+  return spec;
 }
