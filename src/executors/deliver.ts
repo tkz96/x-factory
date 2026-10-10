@@ -112,8 +112,10 @@ export async function createPullRequestWithFallback(
     prBody: string;
   },
   deps: DeliverDependencies,
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const { project, branch, worktree, prTitle, prBody } = params;
+  signal?.throwIfAborted();
 
   // External PR Crash Recovery: check for existing PR first
   const existing = await deps.findExistingPullRequest(project, {
@@ -124,6 +126,8 @@ export async function createPullRequestWithFallback(
     return existing.url;
   }
 
+  // A stop that landed during the lookup must not open a pull request.
+  signal?.throwIfAborted();
   return deps.createPullRequest(project, {
     branch,
     worktree,
@@ -313,6 +317,8 @@ export class DeliverExecutor implements StageExecutor {
     );
 
     // 3. Idempotent Pull Request creation (XFM-32, XFM-33)
+    // A stop that landed after the push must not open a pull request.
+    signal.throwIfAborted();
     const pr = await ledger.execute<PullRequest>(
       "create_pr",
       async () => {
@@ -330,6 +336,7 @@ export class DeliverExecutor implements StageExecutor {
             prBody,
           },
           this.deps,
+          signal,
         );
 
         const createdPr: PullRequest = {

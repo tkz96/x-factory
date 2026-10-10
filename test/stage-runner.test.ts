@@ -12,6 +12,7 @@ import {
 } from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
+import { DeliverExecutor } from "../src/executors/deliver.js";
 import type {
   StageContext,
   StageExecutor,
@@ -171,6 +172,48 @@ describe("stage runner", () => {
     expect(repos.stageAttempts.listForRun(run.id).map((a) => a.status)).toEqual(
       ["cancelled"],
     );
+  });
+
+  it("opens no pull request when the run is stopped between push and create_pr (#163)", async () => {
+    const { db, repos, run } = setup("ready_for_pr");
+    const command = repos.commands.insertOrRetryCommand({
+      runId: run.id,
+      command: "deliver",
+    });
+    let created = 0;
+    const worker = new Worker({
+      db,
+      workerId: "worker-stop-before-pr",
+      deliverExecutor: new DeliverExecutor({
+        loadRecordedBaseline: async () => ({
+          trackedFiles: new Set(),
+          untrackedFiles: new Set(),
+        }),
+        safeCommitAll: async () => {},
+        getHeadSha: async () => "sha-1",
+        getHeadMessage: async () => "msg",
+        getParentSha: async () => "sha-0",
+        getRemoteBranchSha: async () => null,
+        findCommitByMessageAndParent: async () => null,
+        push: async () => {
+          // The stop lands during the push; the runner notices it within its poll interval.
+          stopMidStageFrom(repos, run.id, "ready_for_pr");
+          await new Promise((r) => setTimeout(r, 800));
+        },
+        findExistingPullRequest: async () => null,
+        createPullRequest: async () => {
+          created++;
+          return "https://example.test/pr/9";
+        },
+      }),
+    });
+    await worker.stepCommandOnce();
+
+    expect(created).toBe(0);
+    const after = repos.runs.get(run.id);
+    expect(after?.status).toBe("stopped");
+    expect(after?.pullRequest).toBeNull();
+    expect(repos.commands.getCommand(command.id)?.status).toBe("failed");
   });
 
   it("aborts the in-flight deliver when a stop command targets its run (#163)", async () => {
