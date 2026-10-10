@@ -20,11 +20,10 @@ import {
 } from "../inspection/index.js";
 import { expandUserPath, scanGitSubdirectories } from "../paths.js";
 import { loadProjectEnv, saveProjectEnv } from "../project-env.js";
-import { toTypedProviderConfig } from "../providers/config-validation.js";
 import {
   hasCapability,
-  type Provider,
   REQUIRED_WORKFLOW_LABEL,
+  type ScopeVerificationReport,
 } from "../providers/contract.js";
 import { ProviderError } from "../providers/errors.js";
 import {
@@ -35,12 +34,12 @@ import {
   testProjectTrackerConnection,
 } from "../providers/project-config.js";
 import {
-  findConnectionForRole,
+  type ResolvedProjectConnection,
+  resolveConnectionForRole,
   resolveProjectConnection,
 } from "../providers/project-connections.js";
 import { redactConfigForProvider } from "../providers/redaction.js";
 import {
-  getProvider,
   PROVIDER_REGISTRY,
   type ProviderRegistry,
 } from "../providers/registry.js";
@@ -51,6 +50,7 @@ import {
   updateProjectConnectionsById,
 } from "../services/project-creation.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
+import type { Project } from "../types.js";
 import {
   catchHttpErrors,
   errorResponse,
@@ -179,50 +179,6 @@ async function handleDeleteProject(projectId: string): Promise<Response> {
   });
 }
 
-/**
- * POST /api/projects/discover-repositories (legacy wire endpoint)
- * Retained for backward compatibility; delegates to the provider registry.
- * Canonical discovery is POST /api/providers/repositories (via api.providers.listRepositories).
- */
-async function handleDiscoverRepositories(
-  req: Request,
-  registry: ProviderRegistry = PROVIDER_REGISTRY,
-): Promise<Response> {
-  return withJsonBody<Record<string, unknown>>(
-    req,
-    (body) =>
-      catchHttpErrors(async () => {
-        const providerId = body.provider as string | undefined;
-        if (!providerId) {
-          return errorResponse(
-            "Provider is required for repository discovery.",
-            400,
-          );
-        }
-        const provider = getProvider(providerId, registry);
-        if (!provider || !hasCapability(provider, "listRepositories")) {
-          return errorResponse(
-            `Unsupported discovery provider: ${providerId}`,
-            400,
-          );
-        }
-        const typed = toTypedProviderConfig(provider, body);
-        if (!typed.ok) {
-          return errorResponse(
-            "Connection settings are incomplete, invalid or conflicting.",
-            400,
-          );
-        }
-        const repos = await provider.listRepositories(typed.config);
-        return jsonResponse({
-          provider: providerId,
-          repositories: repos,
-        });
-      }),
-    "Invalid JSON for repository discovery.",
-  );
-}
-
 async function handleInspectRepository(req: Request): Promise<Response> {
   return withJsonBody<{
     path?: string;
@@ -285,6 +241,38 @@ async function handleGetProjectReadiness(projectId: string): Promise<Response> {
   return jsonResponse(readiness);
 }
 
+/**
+ * The tracker connection a project-scoped tracker action must use, or the
+ * Response that explains why there is none. The ticket list and the scope
+ * diagnostic both resolve through here, so the two can never disagree about
+ * which connection is the project's tracker, nor about why one is missing.
+ */
+async function resolveProjectTrackerConnection(
+  project: Project,
+  registry: ProviderRegistry,
+): Promise<
+  | { readonly ok: true; readonly connection: ResolvedProjectConnection }
+  | { readonly ok: false; readonly response: Response }
+> {
+  const env = await loadProjectEnv(project.id);
+  const connection = resolveProjectConnection(
+    project,
+    "tracker",
+    env,
+    registry,
+  );
+  if (!connection) {
+    return {
+      ok: false,
+      response: errorResponse(
+        `Project "${project.id}" has no issue tracker configured.`,
+        400,
+      ),
+    };
+  }
+  return { ok: true, connection };
+}
+
 async function handleGetProjectTickets(
   projectId: string,
   registry: ProviderRegistry,
@@ -297,20 +285,9 @@ async function handleGetProjectTickets(
       400,
     );
   }
-  const env = await loadProjectEnv(projectId);
-  const connection = resolveProjectConnection(
-    project,
-    "tracker",
-    env,
-    registry,
-  );
-  if (!connection) {
-    return errorResponse(
-      `Project "${projectId}" has no issue tracker configured.`,
-      400,
-    );
-  }
-  const { provider, config } = connection;
+  const resolved = await resolveProjectTrackerConnection(project, registry);
+  if (!resolved.ok) return resolved.response;
+  const { provider, config } = resolved.connection;
   if (!hasCapability(provider, "listTickets")) {
     return errorResponse(
       `Unsupported issue tracker provider: "${provider.id}".`,
@@ -358,18 +335,23 @@ async function handleUpdateProjectTrackerCredentials(
   return withJsonBody<Record<string, string>>(
     req,
     async (body) => {
-      const connection = findConnectionForRole(project, "tracker", registry);
-      if (!connection) {
+      // The tracker connection comes from the project connections module; its
+      // provider is resolved there, so "no tracker" and "unknown provider" keep
+      // their distinct, fail-closed messages.
+      const resolved = resolveConnectionForRole(project, "tracker", registry);
+      if (!resolved) {
         return errorResponse("Missing issue tracker provider.", 400);
       }
-      const provider = registry.get(connection.providerId);
-      if (!provider) {
+      if (!resolved.provider) {
         return errorResponse(
-          `Issue tracker provider "${connection.providerId}" is not registered; no credentials were saved.`,
+          `Issue tracker provider "${resolved.connection.providerId}" is not registered; no credentials were saved.`,
           400,
         );
       }
-      const varsToSave = extractTrackerCredentialsToSave(body, provider);
+      const varsToSave = extractTrackerCredentialsToSave(
+        body,
+        resolved.provider,
+      );
       await saveProjectEnv(projectId, varsToSave);
       return jsonResponse({ ok: true, message: "Credentials updated." });
     },
@@ -377,6 +359,13 @@ async function handleUpdateProjectTrackerCredentials(
   );
 }
 
+/**
+ * POST /api/projects/:id/tracker/test — probes the project's STORED tracker
+ * connection (#183). The connection is resolved through the project connections
+ * module, so the request body's values never reach the provider; the body is
+ * parsed only so malformed JSON still answers 400. A thrown provider failure
+ * crosses the boundary as the normalized provider error (status by code).
+ */
 async function handleTestProjectTracker(
   projectId: string,
   req: Request,
@@ -385,28 +374,26 @@ async function handleTestProjectTracker(
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
-  const processRequest = async (bodyData: Record<string, unknown>) => {
-    const provider =
-      (bodyData.provider as string | undefined) ||
-      findConnectionForRole(project, "tracker", registry)?.providerId;
-    if (!provider) {
-      return errorResponse("Missing issue tracker provider.", 400);
-    }
-    const env = await loadProjectEnv(projectId);
+  const processRequest = async () => {
+    const resolved = await resolveProjectTrackerConnection(project, registry);
+    if (!resolved.ok) return resolved.response;
 
     const result = await testProjectTrackerConnection(
-      provider,
-      project,
-      env,
-      bodyData,
+      resolved.connection,
       project.repositoryPath,
-      registry,
     );
+    if (!result.ok) {
+      return providerErrorResponse(
+        new ProviderError(result.error.code, result.error.context, {
+          retryAfterMs: result.error.retryAfterMs,
+        }),
+      );
+    }
     return jsonResponse(result);
   };
 
   if (!req.body) {
-    return processRequest({});
+    return processRequest();
   }
 
   return withJsonBody(req, processRequest, "Invalid JSON for tracker test.");
@@ -523,6 +510,9 @@ async function handleProjectMemberRoute(
     if (subaction === "test" && method === "POST") {
       return handleTestProjectTracker(id, req, registry);
     }
+    if (subaction === "scopes" && method === "POST") {
+      return handleVerifyProjectScopes(id, registry);
+    }
   }
   if (!action && partsCount === 2) {
     return handleProjectMemberCrud(method, id, req, registry, store);
@@ -571,192 +561,69 @@ async function handleCheckPath(req: Request): Promise<Response> {
   );
 }
 
-async function handleTestConnection(req: Request): Promise<Response> {
-  return withJsonBody<Record<string, unknown>>(
-    req,
-    async (data) => {
-      const rawProvider = data.provider;
-      if (typeof rawProvider !== "string" || !rawProvider.trim()) {
-        return errorResponse(
-          "Provider is required for connection testing.",
-          400,
-        );
-      }
-      const providerId = rawProvider.trim();
-      const provider = getProvider(providerId);
-      if (!provider) {
-        return jsonResponse({
-          ok: false,
-          error: `Unknown provider "${providerId}".`,
-        });
-      }
-
-      const typed = toTypedProviderConfig(provider, data);
-      if (!typed.ok) {
-        return jsonResponse({
-          ok: false,
-          error: "Connection settings are incomplete, invalid or conflicting.",
-        });
-      }
-
-      try {
-        const verifyResult = await provider.verifyCredentials(typed.config);
-        const ok =
-          verifyResult.status === "ok" || verifyResult.status === "degraded";
-
-        if (data.validateScopes || data.pat) {
-          if (hasCapability(provider, "verifyScopes")) {
-            const scopeResult = await provider.verifyScopes(typed.config);
-            const scopeErrors: string[] = [];
-            const scopeWarnings: string[] = [];
-            const scopes: Record<string, boolean> = {};
-
-            for (const f of scopeResult.findings) {
-              scopes[f.capability] = f.status === "confirmed";
-              if (f.status === "missing") {
-                scopeErrors.push(`Missing capability: ${f.capability}`);
-              }
-            }
-
-            return jsonResponse({
-              ok: ok && scopeErrors.length === 0,
-              status: verifyResult.status,
-              scopes,
-              overPrivileged: scopeResult.overPrivileged,
-              scopeErrors,
-              scopeWarnings,
-              warnings: scopeWarnings,
-              error: !ok
-                ? "Credential verification failed."
-                : scopeErrors.length > 0
-                  ? `Scope verification failed: ${scopeErrors.join(" ")}`
-                  : undefined,
-            });
-          }
-        }
-
-        return jsonResponse({
-          ok,
-          status: verifyResult.status,
-          message: `${provider.displayName} connection successful.`,
-        });
-      } catch (err: unknown) {
-        return jsonResponse({
-          ok: false,
-          error: (err as Error).message,
-        });
-      }
-    },
-    "Invalid JSON for connection test.",
-  );
-}
-
 /**
- * Resolves the provider a scope diagnostic runs against WITHOUT naming one
- * (#141): the request may name an explicit `providerId`, otherwise the
- * project's own tracker connection decides. `undefined` means nothing could be
- * resolved — the caller reports that instead of guessing a provider.
+ * POST /api/projects/:id/tracker/scopes — "Verify scopes" on an existing
+ * project (#183). The project's OWN tracker connection is the diagnostic's
+ * subject: it is resolved through the project connections module, so the config
+ * the provider is probed with is the recorded connection plus the project's
+ * stored secrets — never anything the request body carries. The body is not
+ * read at all.
+ *
+ * Failures cross the boundary as the provider's normalized (code, context)
+ * envelope; a raw provider message never reaches the client.
  */
-async function resolveScopeDiagnosticProvider(
-  data: Record<string, unknown>,
-  registry: ProviderRegistry,
-): Promise<Provider | undefined> {
-  const requested = data.providerId;
-  if (typeof requested === "string" && requested.trim()) {
-    return getProvider(requested.trim(), registry);
-  }
-  const projectId = data.projectId;
-  if (typeof projectId !== "string" || !projectId.trim()) return undefined;
-  const project = await getProject(projectId.trim());
-  if (!project) return undefined;
-  const recorded = findConnectionForRole(project, "tracker", registry);
-  return recorded ? getProvider(recorded.providerId, registry) : undefined;
-}
-
-/**
- * Why a scope diagnostic resolved no provider — accurate for the request that
- * was actually sent. A body that named an UNREGISTERED provider is not told to
- * "pass an explicit providerId": it did, and that id is the problem.
- */
-function scopeResolutionError(data: Record<string, unknown>): string {
-  const requested = data.providerId;
-  if (typeof requested === "string" && requested.trim()) {
-    return `No tracker connection resolved for scope verification: no provider "${requested.trim()}" is registered.`;
-  }
-  return "No tracker connection resolved for scope verification: pass a projectId with a registered tracker connection, or an explicit providerId.";
-}
-
-async function handleTestProviderScopes(
-  req: Request,
+async function handleVerifyProjectScopes(
+  projectId: string,
   registry: ProviderRegistry,
 ): Promise<Response> {
-  return withJsonBody<Record<string, unknown>>(
-    req,
-    async (data) => {
-      const provider = await resolveScopeDiagnosticProvider(data, registry);
-      if (!provider) {
-        return jsonResponse({
-          ok: false,
-          scopes: {},
-          errors: [scopeResolutionError(data)],
-        });
-      }
-      if (!hasCapability(provider, "verifyScopes")) {
-        return jsonResponse({
-          ok: false,
-          scopes: {},
-          errors: [
-            "The resolved tracker provider does not support scope verification.",
-          ],
-        });
-      }
-      const typed = toTypedProviderConfig(provider, data, {
-        diagnosticOnly: true,
-      });
-      if (!typed.ok) {
-        return jsonResponse({
-          ok: false,
-          scopes: {},
-          errors: [
-            "Connection settings are incomplete, invalid or conflicting.",
-          ],
-        });
-      }
-      try {
-        const report = await provider.verifyScopes(typed.config);
-        const errors: string[] = [];
-        const warnings: string[] = [];
-        const scopes: Record<string, boolean> = {};
+  const project = await getProject(projectId);
+  if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
 
-        for (const finding of report.findings) {
-          scopes[finding.capability] = finding.status === "confirmed";
-          if (finding.status === "missing") {
-            errors.push(`Missing scope for ${finding.capability}`);
-          } else if (finding.status === "unconfirmed") {
-            warnings.push(`Unconfirmed capability: ${finding.capability}`);
-          }
-        }
+  const resolved = await resolveProjectTrackerConnection(project, registry);
+  if (!resolved.ok) return resolved.response;
+  const { provider, config } = resolved.connection;
+  if (!hasCapability(provider, "verifyScopes")) {
+    return jsonResponse({
+      ok: false,
+      overPrivileged: false,
+      scopes: {},
+      errors: [
+        "The resolved tracker provider does not support scope verification.",
+      ],
+      warnings: [],
+    });
+  }
 
-        const ok = errors.length === 0;
-        return jsonResponse({
-          ok,
-          overPrivileged: report.overPrivileged,
-          scopes,
-          errors,
-          warnings,
-        });
-      } catch (err: unknown) {
-        return jsonResponse({
-          ok: false,
-          overPrivileged: false,
-          scopes: {},
-          errors: [(err as Error).message],
-          warnings: [],
-        });
-      }
-    },
-    "Invalid JSON for scope verification.",
-  );
+  let report: ScopeVerificationReport;
+  try {
+    report = await provider.verifyScopes(config);
+  } catch (err: unknown) {
+    // The registry normalizes a capability throw to a ProviderError, so the
+    // failure crosses the boundary with its status by code and the canonical
+    // body — the thrown text (which may quote the configuration) never does.
+    if (err instanceof ProviderError) return providerErrorResponse(err);
+    throw err;
+  }
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const scopes: Record<string, boolean> = {};
+  for (const finding of report.findings) {
+    scopes[finding.capability] = finding.status === "confirmed";
+    if (finding.status === "missing") {
+      errors.push(`Missing scope for ${finding.capability}`);
+    } else if (finding.status === "unconfirmed") {
+      warnings.push(`Unconfirmed capability: ${finding.capability}`);
+    }
+  }
+
+  return jsonResponse({
+    ok: errors.length === 0,
+    overPrivileged: report.overPrivileged,
+    scopes,
+    errors,
+    warnings,
+  });
 }
 
 /**
@@ -803,13 +670,6 @@ async function routeProjectsRequest(
     req = maybeReq as Request;
   }
 
-  const isDiscover =
-    id === "discover-repositories" ||
-    id === "discover" ||
-    id === "repositories";
-  if (isDiscover && method === "POST")
-    return handleDiscoverRepositories(req, registry);
-
   const isInspect =
     id === "inspect-repository" || id === "quick-inspect" || id === "inspect";
   if (isInspect && method === "POST") return handleInspectRepository(req);
@@ -817,16 +677,6 @@ async function routeProjectsRequest(
   const isConfigureIdentity = id === "configure-git-identity";
   if (isConfigureIdentity && method === "POST") {
     return handleConfigureGitIdentity(req);
-  }
-
-  const isTest = id === "test-connection" || id === "test-tracker";
-  if (isTest && method === "POST") return handleTestConnection(req);
-
-  // The wire path supports generic /api/projects/test-scopes, while keeping
-  // its historical test-azure-scopes route as a legacy wire alias.
-  const isTestScopes = id === "test-scopes" || id === "test-azure-scopes";
-  if (isTestScopes && method === "POST") {
-    return handleTestProviderScopes(req, registry);
   }
 
   const isCheckPath = id === "check-path" || id === "validate-path";

@@ -135,7 +135,40 @@ describe("HTTP Layer Error Translation", () => {
     expect(body).toEqual({ error: 'Project "nonexistent-proj" not found.' });
   });
 
-  it("projects controller translates neutral ValidationError to 400 response on discover-repositories", async () => {
+  it("projects controller maps a real ValidationError to 400 (git identity, non-existent directory)", async () => {
+    // A neutral ValidationError from the readiness/inspection module reaches
+    // the boundary through a real trigger: configuring a local git identity for
+    // a directory that does not exist. The discover-repositories route that
+    // used to cover this mapping is gone with #183.
+    const req = new Request(
+      "http://localhost:3777/api/projects/configure-git-identity",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: "/nonexistent/x-factory-183-directory",
+          name: "Ada Lovelace",
+          email: "ada@example.com",
+          scope: "local",
+        }),
+      },
+    );
+
+    const res = await handleProjectsRoute(
+      "POST",
+      "configure-git-identity",
+      undefined,
+      2,
+      req,
+    );
+    expect(res).not.toBeNull();
+    expect(res?.status).toBe(400);
+    const body = (await res?.json()) as { error?: string; code?: string };
+    expect(body.code).toBe("DIRECTORY_MISSING");
+    expect(body.error).toContain("does not exist");
+  });
+
+  it("projects controller no longer claims the flat discovery route (#183)", async () => {
     const req = new Request(
       "http://localhost:3777/api/projects/discover-repositories",
       {
@@ -153,10 +186,10 @@ describe("HTTP Layer Error Translation", () => {
       2,
       req,
     );
-    expect(res).not.toBeNull();
-    expect(res?.status).toBe(400);
-    const body = await res?.json();
-    expect(body.error).toContain("Unsupported discovery provider");
+    // The duplicate provider route is deleted: the projects controller declines
+    // the path, and the canonical POST /api/providers/repositories is the only
+    // discovery action.
+    expect(res).toBeNull();
   });
 
   it("runs controller translates neutral NotFoundError to 404 response on stop", async () => {

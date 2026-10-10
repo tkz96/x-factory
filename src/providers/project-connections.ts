@@ -157,6 +157,31 @@ export function findConnectionForRole(
 }
 
 /**
+ * The connection serving `role` together with its registered provider, or
+ * `undefined` when the project has no such connection. `provider` is
+ * `undefined` when the connection names a provider the registry does not have.
+ *
+ * `findConnectionForRole` answers only "which connection", leaving every caller
+ * to ask the registry itself. This is the module's one answer for a caller that
+ * must tell "no connection" from "the connection names an unknown provider" —
+ * the tracker credentials update, which reports those two differently (#183).
+ */
+export function resolveConnectionForRole(
+  project: Project,
+  role: ProviderRole,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+):
+  | {
+      readonly connection: ProjectConnection;
+      readonly provider: RegisteredProvider | undefined;
+    }
+  | undefined {
+  const connection = findConnectionForRole(project, role, registry);
+  if (!connection) return undefined;
+  return { connection, provider: getProvider(connection.providerId, registry) };
+}
+
+/**
  * Merges each declared secret into the config by its schema `envKey`: the
  * project's own env storage first, then the process environment, exactly as the
  * legacy resolution did. A secret with no value is left out of the config.
