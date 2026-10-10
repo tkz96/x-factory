@@ -15,21 +15,16 @@ import type {
 } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { ensureProject } from "./helpers/project-fixture.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)", () => {
-  const testDbPath = path.resolve(
-    process.cwd(),
-    `.test-concurrent-${Date.now()}.db`,
-  );
+  // `mkdtemp` gives every run its own directory, so two suites that start in
+  // the same millisecond can no longer share a SQLite file (#163 follow-up).
+  const tempDir = createTempDir("xf-concurrent-");
+  const testDbPath = path.join(tempDir, "concurrent.db");
 
   afterAll(() => {
-    try {
-      rmSync(testDbPath, { force: true });
-      rmSync(`${testDbPath}-wal`, { force: true });
-      rmSync(`${testDbPath}-shm`, { force: true });
-    } catch {
-      // ignore cleanup errors
-    }
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it("ensures two workers never claim the same job concurrently and process all jobs without duplicate execution", async () => {

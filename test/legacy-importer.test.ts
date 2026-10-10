@@ -7,6 +7,7 @@ import path from "node:path";
 import { importLegacyRuns } from "../src/db/importer.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 describe("Legacy run.json Migration & Artifact Separation (XFM-10, XFM-11)", () => {
   let db: Database;
@@ -17,8 +18,9 @@ describe("Legacy run.json Migration & Artifact Separation (XFM-10, XFM-11)", () 
     db.exec("PRAGMA foreign_keys = ON;");
     runMigrations(db);
 
-    testDataDir = path.join("/tmp", `xf-test-import-${Date.now()}`);
-    await mkdir(testDataDir, { recursive: true });
+    // `mkdtemp` gives every run its own directory, so two suites that start in
+    // the same millisecond can no longer share a data dir (#163 follow-up).
+    testDataDir = createTempDir("xf-test-import-");
   });
 
   afterEach(async () => {

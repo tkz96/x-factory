@@ -9,6 +9,7 @@ import type { StageContext, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 import { ensureProject } from "./helpers/project-fixture.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 const LEASE_PR = {
   url: "https://example.test/pr/lease",
@@ -18,17 +19,13 @@ const LEASE_PR = {
 };
 
 describe("Command Lease Renewal", () => {
-  const testDbPath = path.resolve(
-    process.cwd(),
-    `.test-cmd-lease-${Date.now()}.db`,
-  );
+  // `mkdtemp` gives every run its own directory, so two suites that start in
+  // the same millisecond can no longer share a SQLite file (#163 follow-up).
+  const tempDir = createTempDir("xf-cmd-lease-");
+  const testDbPath = path.join(tempDir, "cmd-lease.db");
 
   afterAll(() => {
-    try {
-      rmSync(testDbPath, { force: true });
-      rmSync(`${testDbPath}-wal`, { force: true });
-      rmSync(`${testDbPath}-shm`, { force: true });
-    } catch {}
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   function setupDb() {

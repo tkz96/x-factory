@@ -808,8 +808,9 @@ function documentedSpec() {
                   properties: {
                     reason: {
                       type: "string",
+                      maxLength: 500,
                       description:
-                        "Operator's reason, recorded on the run's status event",
+                        "Operator's reason, recorded on the run's status event and the cancelled job text. Trimmed; must not contain control characters; at most 500 characters.",
                     },
                   },
                 },

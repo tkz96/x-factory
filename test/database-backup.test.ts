@@ -1,7 +1,15 @@
 // test/database-backup.test.ts — Live WAL backup and restoration verification (XFM-72).
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
+import { existsSync, rmSync, unlinkSync } from "node:fs";
+import path from "node:path";
 import { backupDatabase, restoreDatabase } from "../src/db/backup.js";
 import { createDatabase } from "../src/db/connection.js";
 import { EventRepository } from "../src/db/event-repository.js";
@@ -9,11 +17,17 @@ import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
 import { StageAttemptRepository } from "../src/db/stage-attempt-repository.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 describe("Live Database Backup & Recovery (XFM-72)", () => {
-  const liveDbPath = `/tmp/test-live-${Date.now()}.db`;
-  const backupPath = `/tmp/test-backup-${Date.now()}.db`;
-  const restorePath = `/tmp/test-restored-${Date.now()}.db`;
+  // A per-process directory the OS creates atomically. A clock-derived name
+  // (`test-live-${Date.now()}.db`) made two suites that started in the same
+  // millisecond share one SQLite file, so the second insert hit
+  // `UNIQUE constraint failed: runs.id` (#163 follow-up).
+  const tempDir = createTempDir("xf-db-backup-");
+  const liveDbPath = path.join(tempDir, "live.db");
+  const backupPath = path.join(tempDir, "backup.db");
+  const restorePath = path.join(tempDir, "restored.db");
 
   beforeEach(() => {
     // Cleanup any lingering test databases
@@ -30,6 +44,10 @@ describe("Live Database Backup & Recovery (XFM-72)", () => {
       if (existsSync(`${p}-wal`)) unlinkSync(`${p}-wal`);
       if (existsSync(`${p}-shm`)) unlinkSync(`${p}-shm`);
     }
+  });
+
+  afterAll(() => {
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it("creates a verified, consistent atomic backup while database is in WAL mode", async () => {

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { spawn } from "node:child_process";
-import fs from "node:fs";
+import { rmSync } from "node:fs";
 import path from "node:path";
 import { CommandRepository } from "../src/db/command-repository.js";
 import { createDatabase } from "../src/db/connection.js";
@@ -22,6 +22,7 @@ import type { PullRequest, RunStatus } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 import { ensureProject } from "./helpers/project-fixture.js";
+import { createTempDir } from "./helpers/temp-dirs.js";
 
 const CRASH_PR: PullRequest = {
   url: "https://github.com/org/repo/pull/1",
@@ -607,10 +608,10 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
   });
 
   it("verifies real subprocess crash and command lease expiration allows reclaim", async () => {
-    const dbDir = path.join(process.cwd(), ".scratch");
-    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
-    const dbPath = path.join(dbDir, `crash-test-${Date.now()}.sqlite`);
+    // `mkdtemp` gives every run its own directory, so two suites that start in
+    // the same millisecond can no longer share a SQLite file (#163 follow-up).
+    const dbDir = createTempDir("xf-worker-crash-");
+    const dbPath = path.join(dbDir, "crash-test.sqlite");
     const db = createDatabase({ path: dbPath });
     runMigrations(db);
 
@@ -703,8 +704,6 @@ describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
     expect(completedCmd?.workerId).toBe("worker-B-reclaimer");
 
     // Clean up
-    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
-    if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
-    if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
+    rmSync(dbDir, { recursive: true, force: true });
   });
 });
