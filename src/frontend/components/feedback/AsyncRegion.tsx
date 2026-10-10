@@ -12,9 +12,9 @@
 import type { ReactNode } from "react";
 import {
   formatRetryCountdown,
-  isNormalizedError,
   resolveErrorCopy,
   STATE_COPY,
+  unwrapNormalizedError,
 } from "./copy-map.js";
 import { FeedbackBanner } from "./FeedbackBanner.js";
 import { RetryAction } from "./RetryAction.js";
@@ -55,9 +55,8 @@ export function AsyncRegion({
   emptyAction,
   children,
 }: AsyncRegionProps) {
-  const retryAfterMs = isNormalizedError(derived.error)
-    ? derived.error.retryAfterMs
-    : undefined;
+  const normalized = unwrapNormalizedError(derived.error);
+  const retryAfterMs = normalized?.retryAfterMs;
   const remainingMs = useRetryCountdown(retryAfterMs);
   const rateLimited = remainingMs !== undefined && remainingMs > 0;
   const hasSuppressedError = derived.suppressed.includes("error");

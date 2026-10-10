@@ -77,6 +77,7 @@ function runSnapshot(status: RunStatus): Run {
     status,
     startedAt: "2026-10-01T10:00:00.000Z",
     finishedAt: null,
+    updatedAt: "2026-10-01T10:00:00.000Z",
     implementationContext: null,
     verification: null,
     review: null,
@@ -86,7 +87,7 @@ function runSnapshot(status: RunStatus): Run {
     repairAttempts: 0,
     artifactsDir: "/tmp",
     worktreePath: "/tmp",
-  } as Run;
+  };
 }
 
 /** Records a complete delivered run through the real event repository. */
@@ -247,6 +248,70 @@ describe("client run-state module (#191)", () => {
       createdAt: "2026-10-01T10:01:00.000Z",
     }) as RunEvent;
     expect(reduceRun(run, stale).status).toBe("ready_for_pr");
+  });
+
+  it("a replayed historical status event older than the snapshot does not regress status (#163)", () => {
+    // awaiting_review -> understanding is a legal transition in TRANSITIONS (e.g. user feedback),
+    // but an older replayed event from earlier in the run must not regress a reopened run snapshot.
+    const run: Run = {
+      ...runSnapshot("awaiting_review"),
+      updatedAt: "2026-10-01T10:30:00.000Z",
+    };
+
+    const oldReplayedEvent: RunEvent = {
+      id: 2,
+      timestamp: "2026-10-01T10:05:00.000Z",
+      type: "status",
+      payload: { status: "understanding" },
+    };
+
+    // Stale historical event older than updatedAt must not regress status
+    expect(reduceRun(run, oldReplayedEvent).status).toBe("awaiting_review");
+
+    // A newer event (live transition after review feedback) must be applied
+    const newLiveEvent: RunEvent = {
+      id: 15,
+      timestamp: "2026-10-01T10:35:00.000Z",
+      type: "status",
+      payload: { status: "understanding" },
+    };
+
+    const updated = reduceRun(run, newLiveEvent);
+    expect(updated.status).toBe("understanding");
+    expect(updated.updatedAt).toBe("2026-10-01T10:35:00.000Z");
+  });
+
+  it("real run-detail API payload carries updatedAt and works in reduceRun without casts (#163)", () => {
+    const db = createDatabase({ path: ":memory:" });
+    runMigrations(db);
+    const runRepo = new RunRepository(db);
+    const record = runRepo.create({
+      id: "run-wire-shape",
+      projectId: "proj-1",
+      projectName: "Project 1",
+      ticket: { id: "T-1", title: "Run state", acceptanceCriteria: [] },
+      plan: "plan",
+      branch: "factory/run-state",
+      status: "queued",
+      artifactsDir: "/tmp/artifacts",
+      worktreePath: "/tmp/worktree",
+    });
+
+    // The API response is serialized from the repository record (which carries updatedAt)
+    const apiPayload: Run = JSON.parse(JSON.stringify(record));
+    expect(typeof apiPayload.updatedAt).toBe("string");
+    expect(new Date(apiPayload.updatedAt).getTime()).not.toBeNaN();
+
+    // Verify reduceRun consumes this real API shape directly with no cast
+    const liveEvent: RunEvent = {
+      id: 1,
+      timestamp: new Date(Date.now() + 10000).toISOString(),
+      type: "status",
+      payload: { status: "preparing" },
+    };
+    const updated = reduceRun(apiPayload, liveEvent);
+    expect(updated.status).toBe("preparing");
+    expect(updated.updatedAt).toBe(liveEvent.timestamp);
   });
 
   it("invalidates the run once per burst of events, not once per event", async () => {

@@ -2,7 +2,33 @@
 
 import { QueryClient } from "@tanstack/react-query";
 import type { Run } from "../../shared/types.js";
+import { ApiError } from "./api-client.js";
 import { queryKeys } from "./query-policies.js";
+
+/**
+ * Global query retry rule (#163):
+ * - Never retry 4xx client errors (and especially not 429 RATE_LIMITED).
+ * - Allow at most 1 retry for transient/server errors (5xx, network failures).
+ */
+export function shouldRetryQuery(
+  failureCount: number,
+  error: unknown,
+): boolean {
+  if (failureCount >= 1) return false;
+  const status =
+    error instanceof ApiError
+      ? error.status
+      : error &&
+          typeof error === "object" &&
+          "status" in error &&
+          typeof (error as { status: unknown }).status === "number"
+        ? (error as { status: number }).status
+        : undefined;
+  if (status !== undefined && status >= 400 && status < 500) {
+    return false;
+  }
+  return true;
+}
 
 /**
  * Global QueryClient instance with conservative default policies.
@@ -11,7 +37,7 @@ import { queryKeys } from "./query-policies.js";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: shouldRetryQuery,
       refetchOnWindowFocus: false,
     },
   },

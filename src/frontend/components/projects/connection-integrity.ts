@@ -145,10 +145,10 @@ export function recordedConnectionIdentityTargets(
  * this list at compile time rather than silently reporting nothing.
  *
  * Surfaces pass this to the ONE tone rule with their line's slots
- * (`comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES)`); there is no
+ * (`comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES)`); there is no
  * second implementation of the rule here.
  */
-export const REQUIRED_CONNECTION_ROLES = [
+export const REQUIRED_POST_CREATION_ROLES = [
   "tracker",
 ] as const satisfies readonly ProjectConnectionRole[];
 

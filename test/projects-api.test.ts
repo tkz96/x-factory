@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Repositories } from "../src/composition-root.js";
+import { getProjectsConfigPath } from "../src/paths.js";
 import { execStrict } from "../src/proc.js";
 import { azureProvider } from "../src/providers/azure-module.js";
 import type {
@@ -27,12 +28,7 @@ let repos: Repositories;
 let baseUrl: string;
 let tempDir: string;
 let originalProjectsJson: string | null = null;
-const projectsJsonPath = path.resolve(
-  __dirname,
-  "..",
-  "config",
-  "projects.json",
-);
+const projectsJsonPath = getProjectsConfigPath();
 
 beforeAll(async () => {
   try {

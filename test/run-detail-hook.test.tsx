@@ -48,6 +48,7 @@ function runSnapshot(id: string, status: RunStatus): Run {
     status,
     startedAt: "2026-10-01T10:00:00.000Z",
     finishedAt: null,
+    updatedAt: "2026-10-01T10:00:00.000Z",
     implementationContext: null,
     verification: null,
     review: null,
@@ -57,7 +58,7 @@ function runSnapshot(id: string, status: RunStatus): Run {
     repairAttempts: 0,
     artifactsDir: "/tmp",
     worktreePath: "/tmp",
-  } as Run;
+  };
 }
 
 function Probe({ runId }: { runId: string }) {

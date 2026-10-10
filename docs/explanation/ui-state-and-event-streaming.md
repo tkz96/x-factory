@@ -58,11 +58,12 @@ This mechanism updates the user interface immediately with zero full-page flicke
 
 ### Declarative Polling Fallback
 Network proxies can terminate silent SSE connections.
-To maintain resilience against dropped connections, the client uses declarative polling policies:
+To maintain resilience against dropped connections, the client uses declarative freshness and polling policies:
 - An active run polls the run endpoint every 2 seconds, whatever the state of its stream (`ACTIVE_RUN_POLL_INTERVAL_MS` in `query-policies.ts`).
 - A finished run never polls. Its history comes from the replay.
-- The runs list has no interval. It refetches when its data is stale (15 seconds) and on window focus.
-- Diagnostics have no interval either. They refetch when stale (10 seconds) and on window focus.
+- The global `QueryClient` default sets `refetchOnWindowFocus: false`. Explicit per-resource `QUERY_POLICIES` in `query-policies.ts` override this for resources that require freshness:
+  - The runs list has no interval. It refetches when its data is stale (15 seconds) and on window focus (`QUERY_POLICIES.runs.refetchOnWindowFocus: true`).
+  - Diagnostics have no interval either. They refetch when stale (10 seconds) and on window focus (`QUERY_POLICIES.diagnostics.refetchOnWindowFocus: true`).
 
 This layered approach guarantees that the user interface always reflects true system state.
 

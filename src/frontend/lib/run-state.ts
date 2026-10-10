@@ -50,10 +50,27 @@ export function reduceRun(run: Run, event: RunEvent): Run {
           ? { ...run, pullRequest }
           : run;
       }
+      if (run.updatedAt && event.timestamp) {
+        const eventTime = new Date(event.timestamp).getTime();
+        const runTime = new Date(run.updatedAt).getTime();
+        if (eventTime < runTime) {
+          return run;
+        }
+      }
       if (!canTransition(run.status, status)) return run;
+      const nextUpdatedAt = event.timestamp || run.updatedAt;
       return status === "pr_created"
-        ? { ...run, status, pullRequest: pullRequest ?? null }
-        : { ...run, status };
+        ? {
+            ...run,
+            status,
+            pullRequest: pullRequest ?? null,
+            updatedAt: nextUpdatedAt,
+          }
+        : {
+            ...run,
+            status,
+            updatedAt: nextUpdatedAt,
+          };
     }
     case "verification": {
       const { result } = event.payload;

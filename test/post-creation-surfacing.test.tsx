@@ -40,6 +40,8 @@ import { ConnectionComboLine } from "../src/frontend/components/connections/Conn
 import { comboTone } from "../src/frontend/components/connections/connection-state.js";
 import {
   CONNECTIONS_COPY,
+  ERROR_COPY,
+  formatRetryCountdown,
   PROJECT_CARD_COPY,
   PROJECT_DETAIL_COPY,
   QUEUE_COPY,
@@ -47,7 +49,7 @@ import {
 import {
   comboSlots,
   deriveConnectionIntegrity,
-  REQUIRED_CONNECTION_ROLES,
+  REQUIRED_POST_CREATION_ROLES,
 } from "../src/frontend/components/projects/connection-integrity.js";
 import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
@@ -56,7 +58,7 @@ import {
   useModal,
 } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
-import { api } from "../src/frontend/lib/api-client.js";
+import { ApiError, api } from "../src/frontend/lib/api-client.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
 import { QueueView } from "../src/frontend/views/QueueView.js";
@@ -217,7 +219,7 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
         slots: comboSlots(integrity),
-        tone: comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES),
+        tone: comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -245,7 +247,7 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
         slots: comboSlots(integrity),
-        tone: comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES),
+        tone: comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -270,7 +272,7 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
         slots: comboSlots(integrity),
-        tone: comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES),
+        tone: comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -316,7 +318,7 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
         slots: comboSlots(integrity),
-        tone: comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES),
+        tone: comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES),
         descriptors: [gitlab],
       }),
       makeClient(),
@@ -331,7 +333,7 @@ describe("ConnectionComboLine — the git host + tracker combo (#147)", () => {
     const { container } = renderUi(
       React.createElement(ConnectionComboLine, {
         slots: comboSlots(integrity, ["tracker"]),
-        tone: comboTone(comboSlots(integrity), REQUIRED_CONNECTION_ROLES),
+        tone: comboTone(comboSlots(integrity), REQUIRED_POST_CREATION_ROLES),
         descriptors: MANIFEST,
       }),
       makeClient(),
@@ -633,6 +635,70 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
       ),
     ).toBe(false);
     expect(verifyProjectScopes).toHaveBeenCalledTimes(0);
+  });
+
+  it("renders specific canonical copy when verifyScopes throws AUTH_LOCKED ApiError", async () => {
+    api.verifyProjectScopes = mock(async () => {
+      throw new ApiError("Auth locked", 423, {
+        code: "AUTH_LOCKED",
+        context: "VERIFY",
+        error: "Auth locked",
+      });
+    }) as never;
+
+    const { container } = renderDetail(makeProject(), makeClient());
+    const action = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === CONNECTIONS_COPY.verifyScopes,
+    );
+    if (!(action instanceof HTMLElement)) {
+      throw new Error("capability-driven scope action missing");
+    }
+
+    await act(async () => {
+      fireEvent.click(action);
+    });
+
+    await waitFor(() => {
+      if (!container.textContent?.includes(ERROR_COPY.AUTH_LOCKED.VERIFY)) {
+        throw new Error("AUTH_LOCKED canonical copy missing");
+      }
+    });
+    expect(container.textContent).not.toContain(
+      CONNECTIONS_COPY.verifyScopesFailed,
+    );
+  });
+
+  it("renders countdown and disables button when verifyScopes throws RATE_LIMITED ApiError", async () => {
+    api.verifyProjectScopes = mock(async () => {
+      throw new ApiError("Rate limited", 429, {
+        code: "RATE_LIMITED",
+        context: "VERIFY",
+        error: "Rate limited",
+        retryAfterMs: 30000,
+      });
+    }) as never;
+
+    const { container } = renderDetail(makeProject(), makeClient());
+    const action = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === CONNECTIONS_COPY.verifyScopes,
+    );
+    if (!(action instanceof HTMLElement)) {
+      throw new Error("capability-driven scope action missing");
+    }
+
+    await act(async () => {
+      fireEvent.click(action);
+    });
+
+    await waitFor(() => {
+      if (!container.textContent?.includes(ERROR_COPY.RATE_LIMITED.VERIFY)) {
+        throw new Error("RATE_LIMITED canonical copy missing");
+      }
+    });
+    expect(container.querySelector(".feedback-countdown")?.textContent).toBe(
+      formatRetryCountdown(30000),
+    );
+    expect((action as HTMLButtonElement).disabled).toBe(true);
   });
 });
 
@@ -972,6 +1038,75 @@ describe("Work Queue — combo state matrix", () => {
     expect(container.textContent).toContain(QUEUE_COPY.empty);
     expect(container.textContent).not.toContain(
       CONNECTIONS_COPY.integrityFailure.message,
+    );
+  });
+
+  it("unwraps AUTH_LOCKED error from ApiError.data when ticket loading fails", async () => {
+    const client = makeClient();
+    const project = makeProject();
+    client.setQueryData(queryKeys.projects(), [project]);
+    api.getTickets = mock(async () => {
+      throw new ApiError("Auth locked", 423, {
+        code: "AUTH_LOCKED",
+        context: "TICKETS",
+        error: "Auth locked",
+      });
+    }) as never;
+
+    const { container } = renderUi(
+      React.createElement(
+        Routes,
+        null,
+        React.createElement(Route, {
+          path: "/queue",
+          element: React.createElement(QueueView),
+        }),
+      ),
+      client,
+      ["/queue"],
+    );
+
+    await waitFor(() => {
+      if (!container.textContent?.includes(ERROR_COPY.AUTH_LOCKED.TICKETS)) {
+        throw new Error("AUTH_LOCKED copy missing in queue");
+      }
+    });
+    expect(container.querySelector(".async-region--error")).not.toBeNull();
+  });
+
+  it("unwraps RATE_LIMITED error with retry countdown when ticket loading fails", async () => {
+    const client = makeClient();
+    const project = makeProject();
+    client.setQueryData(queryKeys.projects(), [project]);
+    api.getTickets = mock(async () => {
+      throw new ApiError("Rate limited", 429, {
+        code: "RATE_LIMITED",
+        context: "TICKETS",
+        error: "Rate limited",
+        retryAfterMs: 30000,
+      });
+    }) as never;
+
+    const { container } = renderUi(
+      React.createElement(
+        Routes,
+        null,
+        React.createElement(Route, {
+          path: "/queue",
+          element: React.createElement(QueueView),
+        }),
+      ),
+      client,
+      ["/queue"],
+    );
+
+    await waitFor(() => {
+      if (!container.textContent?.includes(ERROR_COPY.RATE_LIMITED.TICKETS)) {
+        throw new Error("RATE_LIMITED copy missing in queue");
+      }
+    });
+    expect(container.querySelector(".feedback-countdown")?.textContent).toBe(
+      formatRetryCountdown(30000),
     );
   });
 });

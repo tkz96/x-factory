@@ -447,6 +447,7 @@ export interface Run {
   status: RunStatus;
   startedAt: string;
   finishedAt: string | null;
+  updatedAt: string;
   implementationContext: ImplementationContext | null;
   verification: VerificationResult | null;
   review: ReviewResult | null;

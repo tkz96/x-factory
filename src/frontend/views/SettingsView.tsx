@@ -12,7 +12,7 @@ import { RetryAction } from "../components/feedback/RetryAction.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
-  REQUIRED_CONNECTION_ROLES,
+  REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
 import { useModal } from "../context/ModalContext.js";
@@ -283,7 +283,7 @@ function ConnectionsTabContent({
                     <td className="connections-cell">
                       <ConnectionComboLine
                         slots={slots}
-                        tone={comboTone(slots, REQUIRED_CONNECTION_ROLES)}
+                        tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
                         descriptors={descriptors}
                         className="connection-combo-line--compact"
                       />
