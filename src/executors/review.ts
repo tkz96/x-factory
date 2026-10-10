@@ -59,33 +59,19 @@ export class ReviewExecutor implements StageExecutor {
     // Atomically update review record and append events (Phase 2, Section 31)
     let updatedRun: RunRecord | undefined;
     const tx = context.db.transaction(() => {
-      updatedRun = context.runRepo.update(
-        run.id,
-        {
-          review: rResult,
-          expectedRevision: context.run.revision,
-        },
-        context.db,
-      );
+      updatedRun = context.runRepo.update(run.id, {
+        review: rResult,
+        expectedRevision: context.run.revision,
+      });
 
-      context.eventRepo.appendEvent(
-        run.id,
-        "review",
-        { result: rResult },
-        context.db,
-      );
+      context.eventRepo.appendEvent(run.id, "review", { result: rResult });
 
-      context.eventRepo.appendEvent(
-        run.id,
-        "stage_evidence",
-        {
-          stage: "review",
-          evidence: rResult.passed
-            ? `Review approved: ${rResult.summary}`
-            : `Review rejected: ${rResult.summary}`,
-        },
-        context.db,
-      );
+      context.eventRepo.appendEvent(run.id, "stage_evidence", {
+        stage: "review",
+        evidence: rResult.passed
+          ? `Review approved: ${rResult.summary}`
+          : `Review rejected: ${rResult.summary}`,
+      });
     });
     tx();
 

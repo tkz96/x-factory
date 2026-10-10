@@ -44,29 +44,25 @@ export class WorkerHeartbeatRepository {
           lastHeartbeat?: string;
           startedAt?: string;
         },
-    pidOrTxDb?: number | Database,
+    pid?: number,
     hostname?: string,
-    txDb?: Database,
   ): WorkerHeartbeatRecord {
     let workerId: string;
-    let pid: number;
+    let workerPid: number;
     let host: string;
-    let conn: Database;
     let lastHeartbeat: string;
     let startedAt: string;
 
     if (typeof workerIdOrData === "object") {
       workerId = workerIdOrData.workerId;
-      pid = workerIdOrData.pid;
+      workerPid = workerIdOrData.pid;
       host = workerIdOrData.hostname;
-      conn = (pidOrTxDb as Database | undefined) || this.db;
       lastHeartbeat = workerIdOrData.lastHeartbeat || new Date().toISOString();
       startedAt = workerIdOrData.startedAt || new Date().toISOString();
     } else {
       workerId = workerIdOrData;
-      pid = pidOrTxDb as number;
+      workerPid = pid ?? 0;
       host = hostname || "";
-      conn = txDb || this.db;
       const now = new Date().toISOString();
       lastHeartbeat = now;
       startedAt = now;
@@ -82,7 +78,7 @@ export class WorkerHeartbeatRepository {
       RETURNING *;
     `;
 
-    const row = conn
+    const row = this.db
       .prepare<
         WorkerHeartbeatRow,
         {
@@ -95,7 +91,7 @@ export class WorkerHeartbeatRepository {
       >(query)
       .get({
         $workerId: workerId,
-        $pid: pid,
+        $pid: workerPid,
         $hostname: host,
         $lastHeartbeat: lastHeartbeat,
         $startedAt: startedAt,
@@ -111,15 +107,10 @@ export class WorkerHeartbeatRepository {
   /**
    * Retrieves active workers that heartbeated within the specified TTL.
    */
-  getActiveWorkers(
-    ttlMs: number,
-    txDb?: Database,
-    nowMs = Date.now(),
-  ): WorkerHeartbeatRecord[] {
-    const conn = txDb || this.db;
+  getActiveWorkers(ttlMs: number, nowMs = Date.now()): WorkerHeartbeatRecord[] {
     const cutoff = new Date(nowMs - ttlMs).toISOString();
 
-    const rows = conn
+    const rows = this.db
       .prepare<WorkerHeartbeatRow, [string]>(
         "SELECT * FROM worker_heartbeats WHERE last_heartbeat > ? ORDER BY last_heartbeat DESC;",
       )
@@ -131,11 +122,10 @@ export class WorkerHeartbeatRepository {
   /**
    * Determines if at least one worker has heartbeated within the TTL.
    */
-  isReady(ttlMs: number, txDb?: Database, nowMs = Date.now()): boolean {
-    const conn = txDb || this.db;
+  isReady(ttlMs: number, nowMs = Date.now()): boolean {
     const cutoff = new Date(nowMs - ttlMs).toISOString();
 
-    const row = conn
+    const row = this.db
       .prepare<{ cnt: number }, [string]>(
         "SELECT COUNT(*) as cnt FROM worker_heartbeats WHERE last_heartbeat > ?;",
       )
@@ -147,16 +137,10 @@ export class WorkerHeartbeatRepository {
   /**
    * Determines if a specific worker has heartbeated within the TTL.
    */
-  isWorkerActive(
-    workerId: string,
-    ttlMs: number,
-    txDb?: Database,
-    nowMs = Date.now(),
-  ): boolean {
-    const conn = txDb || this.db;
+  isWorkerActive(workerId: string, ttlMs: number, nowMs = Date.now()): boolean {
     const cutoff = new Date(nowMs - ttlMs).toISOString();
 
-    const row = conn
+    const row = this.db
       .prepare<{ cnt: number }, [string, string]>(
         "SELECT COUNT(*) as cnt FROM worker_heartbeats WHERE worker_id = ? AND last_heartbeat > ?;",
       )
@@ -168,9 +152,8 @@ export class WorkerHeartbeatRepository {
   /**
    * Removes a worker heartbeat upon graceful shutdown.
    */
-  remove(workerId: string, txDb?: Database): boolean {
-    const conn = txDb || this.db;
-    const result = conn
+  remove(workerId: string): boolean {
+    const result = this.db
       .prepare("DELETE FROM worker_heartbeats WHERE worker_id = ?;")
       .run(workerId);
     return result.changes > 0;

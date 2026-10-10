@@ -24,31 +24,22 @@ function persistVerificationResult(
   context: StageContext,
   verification: VerificationResult,
 ): RunRecord {
-  const currentRun = context.runRepo.get(context.run.id, context.db);
+  const currentRun = context.runRepo.get(context.run.id);
   const expectedRevision = currentRun
     ? currentRun.revision
     : context.run.revision;
 
   let updatedRun: RunRecord | undefined;
   const tx = context.db.transaction(() => {
-    updatedRun = context.runRepo.update(
-      context.run.id,
-      {
-        diff: verification.diff,
-        verification,
-        expectedRevision,
-      },
-      context.db,
-    );
+    updatedRun = context.runRepo.update(context.run.id, {
+      diff: verification.diff,
+      verification,
+      expectedRevision,
+    });
 
-    context.eventRepo.appendEvent(
-      context.run.id,
-      "verification",
-      {
-        result: verification,
-      },
-      context.db,
-    );
+    context.eventRepo.appendEvent(context.run.id, "verification", {
+      result: verification,
+    });
   });
   tx();
 

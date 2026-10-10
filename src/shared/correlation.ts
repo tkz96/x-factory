@@ -1,4 +1,8 @@
-// src/diagnostics/correlation.ts — Standard correlation format across API, worker, and workflow execution (XFM-73).
+// src/shared/correlation.ts — Standard correlation format across API, worker, and workflow execution (XFM-73).
+//
+// Lives in shared (not diagnostics) so data-zone modules such as the row codec
+// can emit structured warnings without crossing an architecture boundary
+// (#179).
 
 import { randomUUID } from "node:crypto";
 

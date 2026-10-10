@@ -69,6 +69,9 @@ describe("Lease module (#180)", () => {
       status: "pending",
       maxAttempts: 3,
     });
+    // The job's available_at is stamped by the real clock; sample after it so
+    // the injected clock never reads earlier than that (a rare 1ms race).
+    currentTime = Date.now();
 
     // Worker 1 claims job at currentTime
     const worker1 = new Worker({
@@ -81,7 +84,6 @@ describe("Lease module (#180)", () => {
     const claimedJob1 = repos.jobs.claimNextJob(
       worker1.workerId,
       30_000,
-      undefined,
       currentTime,
     );
     expect(claimedJob1).not.toBeNull();
@@ -132,14 +134,16 @@ describe("Lease module (#180)", () => {
     });
 
     const pastLease = new Date(currentTime + 30_000).toISOString();
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE jobs
       SET status = 'claimed',
           worker_id = 'crashed-worker',
           lease_until = $leaseUntil,
           attempts = 3
       WHERE id = $id;
-    `).run({ $leaseUntil: pastLease, $id: job.id });
+    `,
+    ).run({ $leaseUntil: pastLease, $id: job.id });
 
     // Record attempt 3 as running
     const attempt3 = repos.stageAttempts.recordStart(runId, "execute", 3);
@@ -192,14 +196,16 @@ describe("Lease module (#180)", () => {
 
     // Claim it initially
     const leaseUntil = new Date(currentTime + 300_000).toISOString();
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE run_commands
       SET status = 'claimed',
           worker_id = 'crashed-worker',
           lease_until = $leaseUntil,
           attempts = 1
       WHERE id = $id;
-    `).run({ $leaseUntil: leaseUntil, $id: cmd.id });
+    `,
+    ).run({ $leaseUntil: leaseUntil, $id: cmd.id });
 
     const claimedCmd = repos.commands.getCommand(cmd.id);
     expect(claimedCmd?.status).toBe("claimed");
@@ -299,12 +305,14 @@ describe("Lease module (#180)", () => {
         status: "pending",
         maxAttempts: 3,
       });
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE jobs
         SET status = 'claimed', worker_id = 'crashed-worker',
             lease_until = $leaseUntil, attempts = 3
         WHERE id = $id;
-      `).run({
+      `,
+      ).run({
         $leaseUntil: new Date(leaseUntilMs).toISOString(),
         $id: job.id,
       });

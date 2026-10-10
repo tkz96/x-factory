@@ -2,10 +2,7 @@
 // dispatch through the declarative route table (#192).
 
 import type { ApiContext } from "../composition-root.js";
-import {
-  emitStructuredLog,
-  extractRequestId,
-} from "../diagnostics/correlation.js";
+import { emitStructuredLog, extractRequestId } from "../shared/correlation.js";
 import { DEFAULT_API_GUARD, guardApiRequest } from "./request-guard.js";
 import { errorResponse } from "./responses.js";
 import { dispatchApi } from "./route-table.js";

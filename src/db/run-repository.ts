@@ -22,6 +22,7 @@ import {
   type EventRow,
   rowToEventRecord,
 } from "./event-repository.js";
+import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
 export class RunNotFoundError extends NotFoundError {
   readonly runId: string;
@@ -120,18 +121,19 @@ interface RunRow {
 }
 
 function rowToRunRecord(row: RunRow): RunRecord {
-  let criteria: string[] = [];
-  try {
-    criteria = JSON.parse(row.ticket_acceptance_criteria) as string[];
-  } catch {
-    criteria = [];
-  }
-
   const ticket: Ticket = {
     id: row.ticket_id,
     title: row.ticket_title,
     description: row.ticket_description || undefined,
-    acceptanceCriteria: criteria,
+    acceptanceCriteria: parseJsonColumn<string[]>(
+      row.ticket_acceptance_criteria,
+      [],
+      {
+        table: "runs",
+        column: "ticket_acceptance_criteria",
+        rowId: row.id,
+      },
+    ),
   };
 
   return {
@@ -150,17 +152,37 @@ function rowToRunRecord(row: RunRow): RunRecord {
     artifactsDir: row.artifacts_dir,
     worktreePath: row.worktree_path,
     diff: row.diff,
-    implementationContext: row.implementation_context
-      ? (JSON.parse(row.implementation_context) as ImplementationContext)
-      : null,
-    verification: row.verification
-      ? (JSON.parse(row.verification) as VerificationResult)
-      : null,
-    review: row.review ? (JSON.parse(row.review) as ReviewResult) : null,
-    artifacts: row.artifacts ? JSON.parse(row.artifacts) : [],
-    pullRequest: row.pull_request
-      ? (JSON.parse(row.pull_request) as PullRequest)
-      : null,
+    // Each JSON column degrades to its typed fallback on malformed text; the
+    // codec logs a warning naming the column (see src/db/row-codec.ts).
+    implementationContext: parseJsonColumn<ImplementationContext | null>(
+      row.implementation_context,
+      null,
+      {
+        table: "runs",
+        column: "implementation_context",
+        rowId: row.id,
+      },
+    ),
+    verification: parseJsonColumn<VerificationResult | null>(
+      row.verification,
+      null,
+      { table: "runs", column: "verification", rowId: row.id },
+    ),
+    review: parseJsonColumn<ReviewResult | null>(row.review, null, {
+      table: "runs",
+      column: "review",
+      rowId: row.id,
+    }),
+    artifacts: parseJsonColumn<Run["artifacts"]>(row.artifacts, [], {
+      table: "runs",
+      column: "artifacts",
+      rowId: row.id,
+    }),
+    pullRequest: parseJsonColumn<PullRequest | null>(row.pull_request, null, {
+      table: "runs",
+      column: "pull_request",
+      rowId: row.id,
+    }),
     revision: row.revision,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -170,16 +192,11 @@ function rowToRunRecord(row: RunRow): RunRecord {
 export class RunRepository {
   constructor(private db: Database) {}
 
-  private getDb(txDb?: Database): Database {
-    return txDb ?? this.db;
-  }
-
-  create(input: CreateRunRecordInput, txDb?: Database): RunRecord {
-    const db = this.getDb(txDb);
+  create(input: CreateRunRecordInput): RunRecord {
     const now = new Date().toISOString();
     const startedAt = input.startedAt || now;
 
-    const stmt = db.prepare(`
+    const stmt = this.db.prepare(`
       INSERT INTO runs (
         id, project_id, project_name, ticket_id, ticket_title, ticket_description,
         ticket_acceptance_criteria, plan, branch, status, started_at, finished_at,
@@ -201,7 +218,7 @@ export class RunRepository {
       $ticketId: input.ticket.id,
       $ticketTitle: input.ticket.title,
       $ticketDescription: input.ticket.description ?? null,
-      $criteria: JSON.stringify(input.ticket.acceptanceCriteria || []),
+      $criteria: serializeJsonColumn(input.ticket.acceptanceCriteria || []),
       $plan: input.plan,
       $branch: input.branch,
       $status: input.status,
@@ -215,16 +232,16 @@ export class RunRepository {
     return rowToRunRecord(row);
   }
 
-  get(id: string, txDb?: Database): RunRecord | null {
-    const db = this.getDb(txDb);
-    const stmt = db.prepare("SELECT * FROM runs WHERE id = ?;");
+  get(id: string): RunRecord | null {
+    const stmt = this.db.prepare("SELECT * FROM runs WHERE id = ?;");
     const row = stmt.get(id) as RunRow | null;
     return row ? rowToRunRecord(row) : null;
   }
 
-  list(txDb?: Database): RunRecord[] {
-    const db = this.getDb(txDb);
-    const stmt = db.prepare("SELECT * FROM runs ORDER BY created_at DESC;");
+  list(): RunRecord[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM runs ORDER BY created_at DESC;",
+    );
     const rows = stmt.all() as RunRow[];
     return rows.map(rowToRunRecord);
   }
@@ -234,11 +251,10 @@ export class RunRepository {
    * `recovery_required` hold no live work, so they are excluded alongside the
    * terminal statuses.
    */
-  listActive(txDb?: Database): RunRecord[] {
-    const db = this.getDb(txDb);
+  listActive(): RunRecord[] {
     const excludedStatuses = [...NON_LIVE_RUN_STATUSES];
     const placeholders = excludedStatuses.map(() => "?").join(", ");
-    const stmt = db.prepare(`
+    const stmt = this.db.prepare(`
       SELECT * FROM runs
       WHERE status NOT IN (${placeholders})
       ORDER BY created_at ASC;
@@ -247,13 +263,8 @@ export class RunRepository {
     return rows.map(rowToRunRecord);
   }
 
-  update(
-    id: string,
-    updates: UpdateRunRecordInput,
-    txDb?: Database,
-  ): RunRecord {
-    const db = this.getDb(txDb);
-    const current = this.get(id, db);
+  update(id: string, updates: UpdateRunRecordInput): RunRecord {
+    const current = this.get(id);
     if (!current) {
       throw new RunNotFoundError(id);
     }
@@ -304,21 +315,19 @@ export class RunRepository {
 
     if (updates.implementationContext !== undefined) {
       fields.push("implementation_context = $implementationContext");
-      params.$implementationContext = updates.implementationContext
-        ? JSON.stringify(updates.implementationContext)
-        : null;
+      params.$implementationContext = serializeJsonColumn(
+        updates.implementationContext,
+      );
     }
 
     if (updates.verification !== undefined) {
       fields.push("verification = $verification");
-      params.$verification = updates.verification
-        ? JSON.stringify(updates.verification)
-        : null;
+      params.$verification = serializeJsonColumn(updates.verification);
     }
 
     if (updates.review !== undefined) {
       fields.push("review = $review");
-      params.$review = updates.review ? JSON.stringify(updates.review) : null;
+      params.$review = serializeJsonColumn(updates.review);
     }
 
     if (updates.diff !== undefined) {
@@ -328,9 +337,7 @@ export class RunRepository {
 
     if (updates.pullRequest !== undefined) {
       fields.push("pull_request = $pullRequest");
-      params.$pullRequest = updates.pullRequest
-        ? JSON.stringify(updates.pullRequest)
-        : null;
+      params.$pullRequest = serializeJsonColumn(updates.pullRequest);
     }
 
     if (updates.worktreePath !== undefined) {
@@ -351,9 +358,9 @@ export class RunRepository {
       RETURNING *;
     `;
 
-    const row = db.prepare(sql).get(params) as RunRow | null;
+    const row = this.db.prepare(sql).get(params) as RunRow | null;
     if (!row) {
-      const refreshed = this.get(id, db);
+      const refreshed = this.get(id);
       if (!refreshed) {
         throw new RunNotFoundError(id);
       }
@@ -381,17 +388,14 @@ export class RunRepository {
       /** Timestamp for the transition and its event; defaults to the wall clock. */
       now?: string | undefined;
     },
-    txDb?: Database,
   ): { run: RunRecord; event: EventRecord | null } {
     // 1. Verify transition legality against FSM (XFM-08)
     if (!canTransition(fromState, toState)) {
       throw new IllegalStateTransitionError(fromState, toState);
     }
 
-    const execute = (
-      db: Database,
-    ): { run: RunRecord; event: EventRecord | null } => {
-      const selectStmt = db.prepare("SELECT * FROM runs WHERE id = ?;");
+    const execute = (): { run: RunRecord; event: EventRecord | null } => {
+      const selectStmt = this.db.prepare("SELECT * FROM runs WHERE id = ?;");
       const current = selectStmt.get(runId) as RunRow | null;
       if (!current) {
         throw new RunNotFoundError(runId);
@@ -424,7 +428,7 @@ export class RunRepository {
             ? now
             : current.finished_at;
 
-      const updateStmt = db.prepare(`
+      const updateStmt = this.db.prepare(`
         UPDATE runs
         SET status = $status,
             revision = $revision,
@@ -454,7 +458,7 @@ export class RunRepository {
       let insertedEvent: EventRecord | null = null;
       // 3. Atomically insert event into run_events table if specified (XFM-14)
       if (options?.event) {
-        const insertEventStmt = db.prepare(`
+        const insertEventStmt = this.db.prepare(`
           INSERT INTO run_events (run_id, sequence, type, payload, created_at)
           VALUES (
             $runId,
@@ -469,10 +473,7 @@ export class RunRepository {
         const eventRow = insertEventStmt.get({
           $runId: runId,
           $type: options.event.type,
-          $payload:
-            typeof options.event.payload === "string"
-              ? options.event.payload
-              : JSON.stringify(options.event.payload ?? {}),
+          $payload: serializeJsonColumn(options.event.payload ?? {}),
           $createdAt: now,
         }) as EventRow | null;
 
@@ -487,17 +488,12 @@ export class RunRepository {
       };
     };
 
-    if (txDb) {
-      return execute(txDb);
-    }
-
-    const tx = this.db.transaction(() => execute(this.db));
+    const tx = this.db.transaction(() => execute());
     return tx();
   }
 
-  delete(id: string, txDb?: Database): boolean {
-    const db = this.getDb(txDb);
-    const stmt = db.prepare("DELETE FROM runs WHERE id = ?;");
+  delete(id: string): boolean {
+    const stmt = this.db.prepare("DELETE FROM runs WHERE id = ?;");
     const result = stmt.run(id);
     return result.changes > 0;
   }

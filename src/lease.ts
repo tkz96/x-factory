@@ -167,7 +167,6 @@ export class LeaseManager {
       this.repos.stageAttempts.recordFailure(
         latestAttempt.id,
         LEASE_EXPIRED_REASON,
-        undefined,
         now,
       );
       return true;
@@ -244,10 +243,9 @@ export class LeaseManager {
     requeue: boolean,
     now: string,
   ): StaleOutcome {
-    const conn = this.repos.db;
-    return conn
+    return this.repos.db
       .transaction((): StaleOutcome => {
-        const fresh = this.repos.jobs.getJob(job.id, conn);
+        const fresh = this.repos.jobs.getJob(job.id);
         if (
           !fresh ||
           fresh.status !== "claimed" ||
@@ -260,7 +258,7 @@ export class LeaseManager {
         const exhausted = fresh.attempts >= fresh.maxAttempts;
 
         const abandon = (): StaleOutcome => {
-          if (!this.repos.jobs.failExhaustedJob(fresh.id, ABANDONED, conn, now))
+          if (!this.repos.jobs.failExhaustedJob(fresh.id, ABANDONED, now))
             return "skipped";
           this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
           return "abandoned";
@@ -269,7 +267,7 @@ export class LeaseManager {
         if (exhausted) {
           if (!run || !canTransition(run.status, "recovery_required"))
             return abandon();
-          if (!this.repos.jobs.failExhaustedJob(fresh.id, EXHAUSTED, conn, now))
+          if (!this.repos.jobs.failExhaustedJob(fresh.id, EXHAUSTED, now))
             return "skipped";
           this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
           this.repos.runs.transitionRun(
@@ -287,7 +285,6 @@ export class LeaseManager {
                 },
               },
             },
-            conn,
           );
           return "exhausted";
         }
@@ -297,7 +294,7 @@ export class LeaseManager {
           return "expired";
         }
         if (!run || !EXECUTABLE_RUN_STATUSES.has(run.status)) return abandon();
-        if (!this.repos.jobs.requeueJob(fresh.id, conn, now)) return "skipped";
+        if (!this.repos.jobs.requeueJob(fresh.id, now)) return "skipped";
         this.closeRunningStageAttempt(fresh.runId, fresh.stage, now);
         return "requeued";
       })
@@ -346,7 +343,6 @@ export class LeaseManager {
     const claimed = this.repos.jobs.claimNextJob(
       workerId,
       leaseDurationMs,
-      undefined,
       this.nowMs(),
     );
     this.closePriorAttempt(claimed);
@@ -367,7 +363,6 @@ export class LeaseManager {
       runId,
       workerId,
       leaseDurationMs,
-      undefined,
       this.nowMs(),
     );
     this.closePriorAttempt(claimed);
@@ -397,7 +392,6 @@ export class LeaseManager {
       jobId,
       workerId,
       leaseDurationMs,
-      undefined,
       this.nowMs(),
     );
   }
@@ -406,12 +400,7 @@ export class LeaseManager {
    * Releases an active lease back to 'pending' (e.g. during graceful shutdown).
    */
   releaseJobLease(jobId: string, workerId: string): boolean {
-    return this.repos.jobs.releaseLease(
-      jobId,
-      workerId,
-      undefined,
-      this.nowIso(),
-    );
+    return this.repos.jobs.releaseLease(jobId, workerId, this.nowIso());
   }
 
   /**
@@ -438,7 +427,6 @@ export class LeaseManager {
       workerId,
       leaseDurationMs,
       heartbeatTtlMs,
-      undefined,
       this.nowMs(),
     );
   }
@@ -455,7 +443,6 @@ export class LeaseManager {
       commandId,
       workerId,
       leaseDurationMs,
-      undefined,
       this.nowMs(),
     );
   }
@@ -469,7 +456,6 @@ export class LeaseManager {
       commandId,
       workerId,
       result,
-      undefined,
       this.nowIso(),
     );
   }
@@ -479,7 +465,6 @@ export class LeaseManager {
       commandId,
       workerId,
       error,
-      undefined,
       this.nowIso(),
     );
   }
@@ -489,7 +474,6 @@ export class LeaseManager {
     return this.repos.heartbeats.isWorkerActive(
       workerId,
       this.policy.heartbeatTtlMs,
-      undefined,
       this.nowMs(),
     );
   }
@@ -498,7 +482,6 @@ export class LeaseManager {
   isReady(): boolean {
     return this.repos.heartbeats.isReady(
       this.policy.heartbeatTtlMs,
-      undefined,
       this.nowMs(),
     );
   }
@@ -506,7 +489,6 @@ export class LeaseManager {
   activeWorkers(): WorkerHeartbeatRecord[] {
     return this.repos.heartbeats.getActiveWorkers(
       this.policy.heartbeatTtlMs,
-      undefined,
       this.nowMs(),
     );
   }

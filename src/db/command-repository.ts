@@ -2,6 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
 export type CommandType = "stop" | "deliver";
 export type CommandStatus = "pending" | "claimed" | "completed" | "failed";
@@ -19,7 +20,7 @@ export interface CommandRecord {
   attempts: number;
   maxAttempts: number;
   error: string | null;
-  result: string | null;
+  result: unknown;
   createdAt: string;
   processedAt: string | null;
 }
@@ -43,20 +44,17 @@ interface CommandRow {
 }
 
 function rowToRecord(row: CommandRow): CommandRecord {
-  let parsedPayload: Record<string, unknown> | null = null;
-  if (row.payload) {
-    try {
-      parsedPayload = JSON.parse(row.payload);
-    } catch {
-      parsedPayload = null;
-    }
-  }
-
   return {
     id: row.id,
     runId: row.run_id,
     command: row.command as CommandType,
-    payload: parsedPayload,
+    // A malformed payload degrades to null; only this field is lost (the
+    // rationale lives in src/db/row-codec.ts).
+    payload: parseJsonColumn<Record<string, unknown> | null>(
+      row.payload,
+      null,
+      { table: "run_commands", column: "payload", rowId: row.id },
+    ),
     idempotencyKey: row.idempotency_key,
     targetWorkerId: row.target_worker_id,
     status: row.status as CommandStatus,
@@ -65,7 +63,14 @@ function rowToRecord(row: CommandRow): CommandRecord {
     attempts: row.attempts,
     maxAttempts: row.max_attempts,
     error: row.error,
-    result: row.result,
+    // A malformed result degrades to its raw text; only this field is lost.
+    // Free-form diagnostic payloads keep the corrupt text so operators can
+    // see what was stored (the rationale lives in src/db/row-codec.ts).
+    result: parseJsonColumn(row.result, row.result, {
+      table: "run_commands",
+      column: "result",
+      rowId: row.id,
+    }),
     createdAt: row.created_at,
     processedAt: row.processed_at,
   };
@@ -87,15 +92,11 @@ export class CommandRepository {
   /**
    * Inserts a new command, or recovers/resets a previously failed command with the same idempotency key.
    */
-  insertOrRetryCommand(
-    input: InsertCommandInput,
-    txDb?: Database,
-  ): CommandRecord {
-    const conn = txDb || this.db;
+  insertOrRetryCommand(input: InsertCommandInput): CommandRecord {
     const now = new Date().toISOString();
 
     if (input.idempotencyKey) {
-      const existing = conn
+      const existing = this.db
         .prepare<CommandRow, [string]>(
           "SELECT * FROM run_commands WHERE idempotency_key = ?;",
         )
@@ -104,8 +105,9 @@ export class CommandRepository {
       if (existing) {
         if (existing.status === "failed") {
           // Retry failed command: reset to pending
-          const updated = conn
-            .prepare<CommandRow, { $key: string; $now: string }>(`
+          const updated = this.db
+            .prepare<CommandRow, { $key: string; $now: string }>(
+              `
               UPDATE run_commands
               SET status = 'pending',
                   attempts = 0,
@@ -117,7 +119,8 @@ export class CommandRepository {
                   processed_at = NULL
               WHERE idempotency_key = $key AND status = 'failed'
               RETURNING *;
-            `)
+            `,
+            )
             .get({ $key: input.idempotencyKey, $now: now });
           if (updated) return rowToRecord(updated);
         }
@@ -126,11 +129,9 @@ export class CommandRepository {
     }
 
     const id = input.id || `cmd-${randomUUID().slice(0, 8)}`;
-    const serializedPayload = input.payload
-      ? JSON.stringify(input.payload)
-      : null;
+    const serializedPayload = serializeJsonColumn(input.payload);
 
-    const row = conn
+    const row = this.db
       .prepare<
         CommandRow,
         {
@@ -143,7 +144,8 @@ export class CommandRepository {
           $maxAttempts: number;
           $now: string;
         }
-      >(`
+      >(
+        `
         INSERT INTO run_commands (
           id, run_id, command, payload, idempotency_key, target_worker_id,
           status, attempts, max_attempts, created_at
@@ -154,7 +156,8 @@ export class CommandRepository {
         ON CONFLICT(idempotency_key) DO UPDATE SET
           attempts = attempts -- no-op, returns row
         RETURNING *;
-      `)
+      `,
+      )
       .get({
         $id: id,
         $runId: input.runId,
@@ -176,12 +179,8 @@ export class CommandRepository {
   /**
    * Retrieves the command stored under an idempotency key, if any.
    */
-  getCommandByIdempotencyKey(
-    key: string,
-    txDb?: Database,
-  ): CommandRecord | null {
-    const conn = txDb || this.db;
-    const row = conn
+  getCommandByIdempotencyKey(key: string): CommandRecord | null {
+    const row = this.db
       .prepare<CommandRow, [string]>(
         "SELECT * FROM run_commands WHERE idempotency_key = ?;",
       )
@@ -192,9 +191,8 @@ export class CommandRepository {
   /**
    * Retrieves a command by ID.
    */
-  getCommand(id: string, txDb?: Database): CommandRecord | null {
-    const conn = txDb || this.db;
-    const row = conn
+  getCommand(id: string): CommandRecord | null {
+    const row = this.db
       .prepare<CommandRow, [string]>("SELECT * FROM run_commands WHERE id = ?;")
       .get(id);
     return row ? rowToRecord(row) : null;
@@ -204,10 +202,10 @@ export class CommandRepository {
    * The one place a claimed command with a spent retry budget and an expired
    * lease becomes failed. Returns how many commands it failed.
    */
-  failExpiredCommands(now: string, txDb?: Database): number {
-    const conn = txDb || this.db;
-    return conn
-      .prepare(`
+  failExpiredCommands(now: string): number {
+    return this.db
+      .prepare(
+        `
         UPDATE run_commands
         SET status = 'failed',
             worker_id = NULL,
@@ -215,7 +213,8 @@ export class CommandRepository {
             error = 'Command lease expired; retries exhausted',
             processed_at = $now
         WHERE status = 'claimed' AND lease_until < $now AND attempts >= max_attempts;
-      `)
+      `,
+      )
       .run({ $now: now }).changes;
   }
 
@@ -226,10 +225,8 @@ export class CommandRepository {
     workerId: string,
     leaseDurationMs: number,
     heartbeatTtlMs: number,
-    txDb?: Database,
     nowMs = Date.now(),
   ): CommandRecord[] {
-    const conn = txDb || this.db;
     const now = new Date(nowMs).toISOString();
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
     const cutoff = new Date(nowMs - heartbeatTtlMs).toISOString();
@@ -238,41 +235,47 @@ export class CommandRepository {
     // module (`failExpiredCommands`), so the claim below never sees them.
 
     // 1. Resolve stale targeted commands (where target is a different worker)
-    const pendingTargeted = conn
-      .prepare<CommandRow & { target_heartbeat: string | null }, [string]>(`
+    const pendingTargeted = this.db
+      .prepare<CommandRow & { target_heartbeat: string | null }, [string]>(
+        `
         SELECT c.*, w.last_heartbeat as target_heartbeat
         FROM run_commands c
         LEFT JOIN worker_heartbeats w ON c.target_worker_id = w.worker_id
         WHERE c.status = 'pending'
           AND c.target_worker_id IS NOT NULL
           AND c.target_worker_id != ?;
-      `)
+      `,
+      )
       .all(workerId);
 
     for (const cmd of pendingTargeted) {
       const isDead = !cmd.target_heartbeat || cmd.target_heartbeat <= cutoff;
       if (isDead) {
         if (cmd.command === "stop") {
-          conn
-            .prepare(`
+          this.db
+            .prepare(
+              `
               UPDATE run_commands
               SET status = 'completed',
                   result = 'Target worker dead; run already stopped',
                   processed_at = $now
               WHERE id = $id AND status = 'pending';
-            `)
+            `,
+            )
             .run({ $id: cmd.id, $now: now });
         } else if (cmd.command !== "deliver") {
           // Leftover command types from versions that still had steering
           // (#167) fail cleanly instead of lingering unclaimable.
-          conn
-            .prepare(`
+          this.db
+            .prepare(
+              `
               UPDATE run_commands
               SET status = 'failed',
                   error = 'Target worker dead; command discarded',
                   processed_at = $now
               WHERE id = $id AND status = 'pending';
-            `)
+            `,
+            )
             .run({ $id: cmd.id, $now: now });
         }
       }
@@ -300,7 +303,7 @@ export class CommandRepository {
       RETURNING *;
     `;
 
-    const rows = conn
+    const rows = this.db
       .prepare<
         CommandRow,
         {
@@ -324,10 +327,8 @@ export class CommandRepository {
   findCommandByRunAndType(
     runId: string,
     command: CommandType,
-    txDb?: Database,
   ): CommandRecord | null {
-    const conn = txDb || this.db;
-    const row = conn
+    const row = this.db
       .prepare<CommandRow, [string, string]>(
         "SELECT * FROM run_commands WHERE run_id = ? AND command = ? ORDER BY created_at DESC LIMIT 1;",
       )
@@ -342,25 +343,20 @@ export class CommandRepository {
     id: string,
     workerId: string,
     result?: unknown,
-    txDb?: Database,
     now = new Date().toISOString(),
   ): boolean {
-    const conn = txDb || this.db;
-    const serializedResult =
-      result !== undefined
-        ? typeof result === "string"
-          ? result
-          : JSON.stringify(result)
-        : null;
+    const serializedResult = serializeJsonColumn(result);
 
-    const res = conn
-      .prepare(`
+    const res = this.db
+      .prepare(
+        `
         UPDATE run_commands
         SET status = 'completed',
             result = $result,
             processed_at = $now
         WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
-      `)
+      `,
+      )
       .run({
         $id: id,
         $workerId: workerId,
@@ -377,16 +373,14 @@ export class CommandRepository {
     id: string,
     workerId: string,
     error: string,
-    txDb?: Database,
     now = new Date().toISOString(),
   ): boolean {
-    const conn = txDb || this.db;
-
-    const cmd = this.getCommand(id, conn);
+    const cmd = this.getCommand(id);
     if (!cmd) return false;
 
-    const res = conn
-      .prepare(`
+    const res = this.db
+      .prepare(
+        `
         UPDATE run_commands
         SET status = 'failed',
             worker_id = NULL,
@@ -394,7 +388,8 @@ export class CommandRepository {
             error = $error,
             processed_at = $now
         WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
-      `)
+      `,
+      )
       .run({
         $id: id,
         $workerId: workerId,
@@ -411,18 +406,18 @@ export class CommandRepository {
     id: string,
     workerId: string,
     leaseDurationMs: number,
-    txDb?: Database,
     nowMs = Date.now(),
   ): boolean {
-    const conn = txDb || this.db;
     const leaseUntil = new Date(nowMs + leaseDurationMs).toISOString();
 
-    const res = conn
-      .prepare(`
+    const res = this.db
+      .prepare(
+        `
         UPDATE run_commands
         SET lease_until = $leaseUntil
         WHERE id = $id AND worker_id = $workerId AND status = 'claimed';
-      `)
+      `,
+      )
       .run({
         $id: id,
         $workerId: workerId,
