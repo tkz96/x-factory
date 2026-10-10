@@ -7,6 +7,29 @@ import {
 } from "../config-schema.js";
 import { hasControlCharacters } from "../shared/validation.js";
 
+/** Request body schema for POST /api/settings (#163 B4). */
+export const WorkbenchSettingsSchema = z.object({
+  theme: z.enum(["dark", "light"]).optional(),
+  models: z
+    .object({
+      sessionA: z
+        .object({
+          provider: z.string().optional(),
+          model: z.string().optional(),
+        })
+        .optional(),
+      sessionB: z
+        .object({
+          provider: z.string().optional(),
+          model: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+export type WorkbenchSettingsBody = z.infer<typeof WorkbenchSettingsSchema>;
+
 /** Request body schema for POST /api/runs */
 export const CreateRunBodySchema = z
   .object({
@@ -46,6 +69,22 @@ export const UpdateProjectConnectionsBodySchema = z.looseObject({
   /** Secret field names to clear, applied before validation (#131). */
   clearSecrets: z.array(z.string().min(1)).optional(),
 });
+
+/** Request body schema for POST /api/projects/:id/migrate (#163 B1). */
+export const MigrateProjectBodySchema = z.looseObject({
+  targetProvider: z
+    .string({ error: "targetProvider is required." })
+    .trim()
+    .min(1, "targetProvider is required."),
+  newProjectId: z.string().optional(),
+  name: z.string().optional(),
+  secrets: z.record(z.string(), z.string()).optional(),
+  azure: z.record(z.string(), z.unknown()).optional(),
+  jira: z.record(z.string(), z.unknown()).optional(),
+  github: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type MigrateProjectBody = z.infer<typeof MigrateProjectBodySchema>;
 
 /** Request body schema for POST /api/runs/:id/transitions */
 export const TransitionRunBodySchema = z

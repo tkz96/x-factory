@@ -293,7 +293,10 @@ export async function withValidatedBody<T>(
 }
 
 /**
- * Higher-order controller helper: safely catches unhandled errors and maps to standard response.
+ * The ONE error-translation helper (#163 B2): a thrown error maps by family
+ * (see `translateDomainErrorToHttpResponse`) or becomes a 500. `handleApi`
+ * routes every handler failure through it, so controllers never translate
+ * themselves.
  */
 export async function catchHttpErrors(
   action: () => Promise<Response>,

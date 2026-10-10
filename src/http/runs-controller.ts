@@ -15,7 +15,6 @@ import type {
   TransitionRunResponse,
 } from "../shared/types.js";
 import {
-  catchHttpErrors,
   errorResponse,
   formatSSEMessage,
   jsonResponse,
@@ -50,38 +49,37 @@ export async function handleCreateRun(
   return withValidatedBody(
     req,
     CreateRunBodySchema,
-    (body) =>
-      catchHttpErrors(async () => {
-        const projectId = body.projectId;
-        const project = await getProject(projectId, true);
-        if (!project) {
-          return errorResponse(
-            `Project "${projectId}" not found or inaccessible.`,
-            404,
-          );
-        }
-
-        const ticketId = body.ticketId || "";
-        const ticketTitle = body.ticketTitle || ticketId;
-        const plan = body.plan || "";
-        const acceptanceCriteria = parseAcceptanceCriteria(
-          body.acceptanceCriteria,
+    async (body) => {
+      const projectId = body.projectId;
+      const project = await getProject(projectId, true);
+      if (!project) {
+        return errorResponse(
+          `Project "${projectId}" not found or inaccessible.`,
+          404,
         );
-        const description = body.description;
-        const branch = body.branch;
+      }
 
-        const run = await runs.createRun(
-          repos,
-          project,
-          ticketId,
-          ticketTitle,
-          plan,
-          acceptanceCriteria,
-          description,
-          branch,
-        );
-        return jsonResponse<CreateRunResponse>(run, 201);
-      }),
+      const ticketId = body.ticketId || "";
+      const ticketTitle = body.ticketTitle || ticketId;
+      const plan = body.plan || "";
+      const acceptanceCriteria = parseAcceptanceCriteria(
+        body.acceptanceCriteria,
+      );
+      const description = body.description;
+      const branch = body.branch;
+
+      const run = await runs.createRun(
+        repos,
+        project,
+        ticketId,
+        ticketTitle,
+        plan,
+        acceptanceCriteria,
+        description,
+        branch,
+      );
+      return jsonResponse<CreateRunResponse>(run, 201);
+    },
     "Invalid JSON in request body.",
   );
 }
@@ -268,11 +266,10 @@ export async function handleChatMessage(
   return withValidatedBody(
     req,
     ChatRunBodySchema,
-    (body) =>
-      catchHttpErrors(async () => {
-        const result = await runs.chatWithRun(repos, runId, body.message);
-        return jsonResponse<ChatWithRunResponse>(result);
-      }),
+    async (body) => {
+      const result = await runs.chatWithRun(repos, runId, body.message);
+      return jsonResponse<ChatWithRunResponse>(result);
+    },
     "Invalid JSON in request body.",
   );
 }
@@ -281,12 +278,10 @@ export async function handleStopRun(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
-  return catchHttpErrors(async () =>
-    jsonResponse<StopRunResponse>({
-      ok: true,
-      run: await runs.stopRun(repos, runId),
-    }),
-  );
+  return jsonResponse<StopRunResponse>({
+    ok: true,
+    run: await runs.stopRun(repos, runId),
+  });
 }
 
 export async function handleTransitions(
@@ -297,16 +292,15 @@ export async function handleTransitions(
   return withValidatedBody(
     req,
     TransitionRunBodySchema,
-    (body) =>
-      catchHttpErrors(async () => {
-        const run = await runs.handleTransition(
-          repos,
-          runId,
-          body.action,
-          body.payload,
-        );
-        return jsonResponse<TransitionRunResponse>({ ok: true, run });
-      }),
+    async (body) => {
+      const run = await runs.handleTransition(
+        repos,
+        runId,
+        body.action,
+        body.payload,
+      );
+      return jsonResponse<TransitionRunResponse>({ ok: true, run });
+    },
     "Invalid JSON in request body.",
   );
 }
@@ -315,20 +309,16 @@ export async function handleCreatePR(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
-  return catchHttpErrors(async () => {
-    const result = await runs.createPR(repos, runId);
-    return jsonResponse<PrRunResponse>(result);
-  });
+  const result = await runs.createPR(repos, runId);
+  return jsonResponse<PrRunResponse>(result);
 }
 
 export async function handleResumeRun(
   repos: Repositories,
   runId: string,
 ): Promise<Response> {
-  return catchHttpErrors(async () => {
-    const run = await runs.resumeRun(repos, runId);
-    return jsonResponse<ResumeRunResponse>({ ok: true, run });
-  });
+  const run = await runs.resumeRun(repos, runId);
+  return jsonResponse<ResumeRunResponse>({ ok: true, run });
 }
 
 export async function handleAbandonRun(
@@ -336,13 +326,11 @@ export async function handleAbandonRun(
   req: Request,
   runId: string,
 ): Promise<Response> {
-  return catchHttpErrors(async () => {
-    // The reason body is optional (#182): older clients POST with no body at
-    // all, and a body that fails to parse simply abandons without a reason.
-    const parsed = await parseJsonBody(req);
-    const reason =
-      parsed && typeof parsed.reason === "string" ? parsed.reason : undefined;
-    const run = await runs.abandonRun(repos, runId, reason);
-    return jsonResponse<AbandonRunResponse>({ ok: true, run });
-  });
+  // The reason body is optional (#182): older clients POST with no body at
+  // all, and a body that fails to parse simply abandons without a reason.
+  const parsed = await parseJsonBody(req);
+  const reason =
+    parsed && typeof parsed.reason === "string" ? parsed.reason : undefined;
+  const run = await runs.abandonRun(repos, runId, reason);
+  return jsonResponse<AbandonRunResponse>({ ok: true, run });
 }

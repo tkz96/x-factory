@@ -343,6 +343,42 @@ export const ProjectInputSchema = z.union([
 ]);
 
 /**
+ * The legacy `PUT`/`PATCH /api/projects/{id}` body (#163 B4): a partial project
+ * record merged onto the stored one. Every field it may carry is declared and
+ * typed, so a wrong-typed or empty value (`testCommand: 5`,
+ * `defaultBranch: ""`) is a 400 with field errors instead of being merged and
+ * silently ignored by the record validator's passthrough.
+ */
+export const ProjectUpdateBodySchema = z.looseObject({
+  name: NonEmptyString.optional(),
+  workspacePath: OptionalTrimmedString,
+  commandTimeoutMs: z.number().positive().optional(),
+  issueTracker: IssueTrackerInputSchema,
+  repositories: z.array(z.unknown()).min(1).optional(),
+  connections: z.array(ProjectConnectionInputSchema).min(1).optional(),
+  gitIdentity: z
+    .object({ name: z.string().min(1), email: z.string().min(1) })
+    .optional(),
+  archived: z.boolean().optional(),
+  archivedAt: z.string().optional(),
+  successorId: z.string().optional(),
+  predecessorId: z.string().optional(),
+  repositoryPath: OptionalTrimmedString,
+  defaultBranch: OptionalTrimmedString,
+  testCommand: OptionalTrimmedString,
+  typecheckCommand: OptionalTrimmedString,
+  lintCommand: OptionalTrimmedString,
+  knowledgeRepositoryPath: OptionalTrimmedString,
+  knowledgeRepository: z
+    .object({
+      repositoryId: z.string().optional(),
+      path: z.string().min(1),
+      type: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
  * The union's own discriminator (#131): a payload that satisfies the normalized
  * connections branch IS the connections payload. Declared next to the union it
  * discriminates so the create path never hand-rolls a second, duck-typed check.

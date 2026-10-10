@@ -4,7 +4,7 @@
 import type { ApiContext } from "../composition-root.js";
 import { emitStructuredLog, extractRequestId } from "../shared/correlation.js";
 import { DEFAULT_API_GUARD, guardApiRequest } from "./request-guard.js";
-import { errorResponse } from "./responses.js";
+import { catchHttpErrors, errorResponse } from "./responses.js";
 import { dispatchApi } from "./route-table.js";
 
 export async function handleApi(
@@ -36,7 +36,12 @@ export async function handleApi(
       `API Error [${method} ${url.pathname}]: ${message}`,
       { request_id: requestId },
     );
-    const errRes = errorResponse(message, 500);
+    // The ONE error-translation point for the API (#163 B2): a handler that
+    // throws maps by error family here, never inside a controller. Re-thrown
+    // through the shared mapper so the mapping itself lives in one function.
+    const errRes = await catchHttpErrors(() => {
+      throw err;
+    });
     errRes.headers.set("X-Request-ID", requestId);
     return errRes;
   }
