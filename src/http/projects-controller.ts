@@ -10,7 +10,10 @@ import {
   loadProjects,
   saveProject,
 } from "../config.js";
-import { isConnectionsProjectInput } from "../config-schema.js";
+import {
+  isConnectionsProjectInput,
+  ProjectUpdateBodySchema,
+} from "../config-schema.js";
 import { ConnectionConflictError } from "../errors.js";
 import {
   checkProjectReadiness,
@@ -27,7 +30,6 @@ import {
 } from "../providers/contract.js";
 import { ProviderError } from "../providers/errors.js";
 import {
-  buildProjectMigrationPlan,
   extractTrackerCredentialsToSave,
   type ProjectMigrationInput,
   resolveProjectTrackerSummary,
@@ -44,12 +46,12 @@ import type { ProjectWriteStore } from "../services/connection-write-plan.js";
 import {
   assertLegacyTrackerUsable,
   createProjectFromConnections,
+  migrateProject,
   updateProjectConnectionsById,
 } from "../services/project-creation.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type { Project } from "../types.js";
 import {
-  catchHttpErrors,
   errorResponse,
   jsonResponse,
   parseJsonBody,
@@ -62,6 +64,8 @@ import {
 import type { RouteHandler } from "./route-contract.js";
 import {
   ConfigureGitIdentityBodySchema,
+  type MigrateProjectBody,
+  MigrateProjectBodySchema,
   SaveProjectBodySchema,
   UpdateProjectConnectionsBodySchema,
 } from "./schemas.js";
@@ -84,25 +88,24 @@ export async function handleCreateProject(
   return withValidatedBody(
     req,
     SaveProjectBodySchema,
-    (body) =>
-      catchHttpErrors(async () => {
-        // The validated union's own discrimination decides the path (#131):
-        // a payload that satisfies the normalized connections branch creates
-        // through it; everything else keeps the legacy configuration path.
-        if (isConnectionsProjectInput(body)) {
-          return jsonResponse(
-            await createProjectFromConnections(body, { registry, store }),
-            201,
-          );
-        }
-        // The legacy path is gated BEFORE its write (#133 correction 1): a
-        // legacy record's git host IS its repository, so the connection-array
-        // form of the role rule does not apply to it — but a project whose
-        // tracker names nothing the registry can serve must not be created in
-        // the first place, on either branch.
-        assertLegacyTrackerUsable(body.issueTracker, registry);
-        return jsonResponse(await createProject(body), 201);
-      }),
+    async (body) => {
+      // The validated union's own discrimination decides the path (#131):
+      // a payload that satisfies the normalized connections branch creates
+      // through it; everything else keeps the legacy configuration path.
+      if (isConnectionsProjectInput(body)) {
+        return jsonResponse(
+          await createProjectFromConnections(body, { registry, store }),
+          201,
+        );
+      }
+      // The legacy path is gated BEFORE its write (#133 correction 1): a
+      // legacy record's git host IS its repository, so the connection-array
+      // form of the role rule does not apply to it — but a project whose
+      // tracker names nothing the registry can serve must not be created in
+      // the first place, on either branch.
+      assertLegacyTrackerUsable(body.issueTracker, registry);
+      return jsonResponse(await createProject(body), 201);
+    },
     "Invalid JSON for project creation.",
   );
 }
@@ -143,14 +146,12 @@ export async function handleUpdateProject(
       return validated.response;
     }
 
-    return catchHttpErrors(async () => {
-      const saved = await updateProjectConnectionsById(
-        projectId,
-        validated.data,
-        { registry, store },
-      );
-      return jsonResponse(saved);
-    });
+    const saved = await updateProjectConnectionsById(
+      projectId,
+      validated.data,
+      { registry, store },
+    );
+    return jsonResponse(saved);
   }
 
   const project = await getProject(projectId);
@@ -158,25 +159,29 @@ export async function handleUpdateProject(
     return errorResponse(`Project "${projectId}" not found.`, 404);
   }
 
-  return catchHttpErrors(async () => {
-    const merged = {
-      ...project,
-      ...raw,
-      id: projectId,
-    };
+  // The legacy merge is validated (#163 B4): a wrong-typed or empty value is a
+  // 400 with field errors, never merged and silently ignored by the record
+  // validator's passthrough.
+  const validatedBody = validateAgainstSchema(raw, ProjectUpdateBodySchema);
+  if (!validatedBody.ok) {
+    return validatedBody.response;
+  }
 
-    const saved = await saveProject(merged);
-    return jsonResponse(saved);
-  });
+  const merged = {
+    ...project,
+    ...validatedBody.data,
+    id: projectId,
+  };
+
+  const saved = await saveProject(merged);
+  return jsonResponse(saved);
 }
 
 export async function handleDeleteProject(
   projectId: string,
 ): Promise<Response> {
-  return catchHttpErrors(async () => {
-    await deleteProject(projectId);
-    return jsonResponse({ ok: true });
-  });
+  await deleteProject(projectId);
+  return jsonResponse({ ok: true });
 }
 
 export async function handleInspectRepository(req: Request): Promise<Response> {
@@ -192,22 +197,20 @@ export async function handleInspectRepository(req: Request): Promise<Response> {
       }
       const expandedPath = expandUserPath(repoPath);
       const targetRemote = remote || expectedRemote;
-      return catchHttpErrors(async () => {
-        const result = await inspectLocalRepository(expandedPath, targetRemote);
-        const readiness = await evaluateRepositoryReadiness({
-          id: "repo",
-          name: path.basename(expandedPath),
-          path: expandedPath,
-          remote: targetRemote,
-          defaultBranch: result.defaultBranch || "main",
-        });
-        return jsonResponse({
-          ...result,
-          readiness: {
-            status: readiness.status,
-            message: readiness.message,
-          },
-        });
+      const result = await inspectLocalRepository(expandedPath, targetRemote);
+      const readiness = await evaluateRepositoryReadiness({
+        id: "repo",
+        name: path.basename(expandedPath),
+        path: expandedPath,
+        remote: targetRemote,
+        defaultBranch: result.defaultBranch || "main",
+      });
+      return jsonResponse({
+        ...result,
+        readiness: {
+          status: readiness.status,
+          message: readiness.message,
+        },
       });
     },
     "Invalid JSON for repository inspection.",
@@ -222,15 +225,13 @@ export async function handleConfigureGitIdentity(
     ConfigureGitIdentityBodySchema,
     async ({ path: repoPath, name, email, scope }) => {
       const expandedPath = expandUserPath(repoPath);
-      return catchHttpErrors(async () => {
-        const result = await configureGitIdentity({
-          path: expandedPath,
-          name,
-          email,
-          scope,
-        });
-        return jsonResponse(result);
+      const result = await configureGitIdentity({
+        path: expandedPath,
+        name,
+        email,
+        scope,
       });
+      return jsonResponse(result);
     },
     "Invalid JSON for git identity configuration.",
   );
@@ -408,6 +409,7 @@ export async function handleMigrateProject(
   req: Request,
   registry: ProviderRegistry,
   repos: Repositories,
+  store?: ProjectWriteStore | undefined,
 ): Promise<Response> {
   const project = await getProject(projectId);
   if (!project) return errorResponse(`Project "${projectId}" not found.`, 404);
@@ -427,36 +429,26 @@ export async function handleMigrateProject(
     );
   }
 
-  return withJsonBody<ProjectMigrationInput>(
+  // The body shape is validated here (#163 B1); the write itself goes through
+  // `migrateProject`, which validates the provider configuration and the
+  // successor's connection set before writing anything.
+  return withValidatedBody<MigrateProjectBody>(
     req,
+    MigrateProjectBodySchema,
     async (body) => {
-      if (!body.targetProvider) {
-        return errorResponse("targetProvider is required.", 400);
-      }
-
-      const { newId, newProject, archivedOldProject, secretsToSave } =
-        buildProjectMigrationPlan(
-          project,
-          body,
-          registry,
-          await loadProjectEnv(projectId),
-        );
-
-      await saveProject(archivedOldProject);
-      const savedNewProject = await saveProject(newProject);
-
-      if (Object.keys(secretsToSave).length > 0) {
-        await saveProjectEnv(newId, secretsToSave);
-      }
-
+      const saved = await migrateProject(
+        projectId,
+        body as unknown as ProjectMigrationInput,
+        { registry, store },
+      );
       return jsonResponse(
         {
           ok: true,
           archivedProjectId: project.id,
           predecessorId: project.id,
-          newProjectId: newId,
-          project: savedNewProject,
-          migratedProject: savedNewProject,
+          newProjectId: saved.id,
+          project: saved,
+          migratedProject: saved,
         },
         201,
       );

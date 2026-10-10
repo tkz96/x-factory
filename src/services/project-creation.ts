@@ -21,6 +21,7 @@
 // API boundary.
 
 import path from "node:path";
+import { commitProjectMigration } from "../config.js";
 import {
   type ConnectionsProjectInput,
   MISSING_CONNECTION_ROLE_CODES,
@@ -30,6 +31,7 @@ import {
   ConflictError,
   NotFoundError,
   SemanticValidationError,
+  ValidationError,
 } from "../errors.js";
 import { getProjectsConfigPath } from "../paths.js";
 import { toTypedProviderConfig } from "../providers/config-validation.js";
@@ -39,7 +41,11 @@ import {
   type ProviderCapability,
   type ProviderRole,
 } from "../providers/contract.js";
-import { deriveIssueTracker } from "../providers/project-config.js";
+import {
+  buildProjectMigrationPlan,
+  deriveIssueTracker,
+  type ProjectMigrationInput,
+} from "../providers/project-config.js";
 import { registryTrackerProviderId } from "../providers/project-connections.js";
 import { redactConnections } from "../providers/redaction.js";
 import {
@@ -185,14 +191,15 @@ function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
 
 /**
  * Builds the project record: the normalized connections plus every legacy field
- * the runtime still resolves (issueTracker, repositoryPath, defaultBranch,
- * testCommand), so queue/deliver/readiness keep working unchanged.
+ * the record still carries (issueTracker, repositoryPath, defaultBranch,
+ * testCommand) for API compatibility.
  *
- * The legacy `issueTracker` mirror is written on EVERY new record on purpose
- * (#145): the queue, delivery and readiness runtime still resolves a project's
- * tracker through that legacy view, and #133 leaves legacy config migration an
- * open question, so the mirror is what keeps the pre-#145 runtime working for a
- * #145-created project. It is always DERIVED from the tracker connection
+ * The legacy `issueTracker` mirror is written on EVERY new record for
+ * compatibility (#145): clients and stored records still read that view, and
+ * `loadProjectConnections` uses it as the tracker source only for a record that
+ * has no connection set. The runtime resolves a project that HAS a connection
+ * set through `connections`, never through the mirror, so the mirror is a
+ * derived compatibility field: always DERIVED from the tracker connection
  * (`deriveIssueTracker`), never supplied, and never the default.
  *
  * `trackerConnection` is the carrier the role-coverage gate already proved
@@ -597,4 +604,116 @@ export async function updateProjectConnections(
   options: ProjectCreationOptions = {},
 ): Promise<Project> {
   return updateProjectConnectionsById(project.id, input, options);
+}
+
+/**
+ * Migrates a project's tracker to another provider (#163 B1).
+ *
+ * Ordered writes, inside the per-id creation claim for the SUCCESSOR id:
+ * validate everything in memory → reject an id that already exists → secrets →
+ * the archived predecessor and the successor committed as ONE config write. A
+ * failure before the commit leaves the predecessor unarchived and no successor
+ * behind; a successor can never exist without its predecessor being archived,
+ * because the two records land in a single write.
+ *
+ * Validation runs through the same ladder creation uses: the target provider
+ * must be registered, its configuration must satisfy the provider schema (so a
+ * built-in default can never stand in for a malformed request), and — when the
+ * successor carries a connection set — the shared write plan (#187) requires
+ * exactly-once role coverage and rejects an env-key conflict before any secret
+ * or record is written.
+ */
+export async function migrateProject(
+  projectId: string,
+  body: ProjectMigrationInput,
+  options: ProjectCreationOptions = {},
+): Promise<Project> {
+  const registry = options.registry ?? PROVIDER_REGISTRY;
+  const configPath = options.configPath ?? getProjectsConfigPath();
+  const store = options.store ?? FILE_PROJECT_WRITE_STORE;
+
+  const targetProvider =
+    typeof body.targetProvider === "string" ? body.targetProvider.trim() : "";
+  if (!targetProvider) {
+    throw new ValidationError(
+      "targetProvider is required.",
+      "TARGET_PROVIDER_REQUIRED",
+    );
+  }
+  if (!registry.get(targetProvider)) {
+    throw new ValidationError(
+      `Unknown provider "${targetProvider}".`,
+      "UNKNOWN_PROVIDER",
+    );
+  }
+
+  const migrationBody: ProjectMigrationInput = {
+    ...body,
+    targetProvider: targetProvider as ProjectMigrationInput["targetProvider"],
+  };
+  const newId =
+    migrationBody.newProjectId?.trim() || `${projectId}-${targetProvider}`;
+
+  try {
+    return await withCreationClaim(
+      newId,
+      async (claim) => {
+        const project = await store.getProject(projectId, false, configPath);
+        if (!project) {
+          throw new NotFoundError(`Project "${projectId}" not found.`);
+        }
+        if (project.archived) {
+          throw new ValidationError(
+            `Project "${projectId}" is already archived.`,
+            "ALREADY_ARCHIVED",
+          );
+        }
+
+        const storedEnv = await store.loadProjectEnv(projectId);
+        const plan = buildProjectMigrationPlan(
+          project,
+          migrationBody,
+          registry,
+          storedEnv,
+        );
+
+        // The duplicate-id rule `appendProjectRecord` enforces, run BEFORE any
+        // write: a rejected id must not leave orphaned secrets behind. The
+        // commit re-checks it atomically.
+        const existing = await store.loadProjects(configPath);
+        if (existing.some((p) => p.id === plan.newId)) {
+          throw new ConflictError(
+            `Project with ID "${plan.newId}" already exists.`,
+          );
+        }
+
+        const writeRecord = () =>
+          commitProjectMigration(
+            plan.archivedOldProject,
+            plan.newProject,
+            configPath,
+          );
+
+        if (plan.connections && plan.connections.length > 0) {
+          const setPlan = planConnectionSetWrite(plan.connections);
+          return applyConnectionSetPlan({
+            store,
+            projectId: plan.newId,
+            plan: setPlan,
+            writeRecord,
+            claim,
+          });
+        }
+
+        if (Object.keys(plan.secretsToSave).length > 0) {
+          await store.saveProjectEnv(plan.newId, plan.secretsToSave);
+        }
+        await claim.assertHeld();
+        return writeRecord();
+      },
+      options.claim,
+    );
+  } catch (err) {
+    translateClaimError(err, newId);
+  }
 }

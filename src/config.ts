@@ -226,6 +226,41 @@ export async function saveProject(
 }
 
 /**
+ * Commits a project migration as ONE file write: the archived predecessor and
+ * its successor land together, so a reader can never see the old project gone
+ * while the new one is still missing (and a crash can never separate them).
+ *
+ * The successor id is re-checked against the file it is about to write — the
+ * same duplicate-id rule `appendProjectRecord` enforces — so a concurrent
+ * creation or a second migration cannot overwrite a stored record. A missing
+ * predecessor is a `NotFoundError`; an id that already exists is a
+ * `ConflictError`.
+ */
+export async function commitProjectMigration(
+  archivedPredecessor: Project,
+  successor: Project,
+  configPath: string = getProjectsConfigPath(),
+): Promise<Project> {
+  const projects = await loadProjects(configPath);
+
+  if (!projects.some((p) => p.id === archivedPredecessor.id)) {
+    throw new NotFoundError(`Project "${archivedPredecessor.id}" not found.`);
+  }
+  if (projects.some((p) => p.id === successor.id)) {
+    throw new ConflictError(
+      `Project with ID "${successor.id}" already exists.`,
+    );
+  }
+
+  const next = projects.map((project) =>
+    project.id === archivedPredecessor.id ? archivedPredecessor : project,
+  );
+  next.push(successor);
+  await saveProjects(next, configPath);
+  return successor;
+}
+
+/**
  * Delete a project by ID from projects.json.
  */
 export async function deleteProject(
