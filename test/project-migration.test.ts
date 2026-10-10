@@ -11,12 +11,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ApiContext } from "../src/composition-root.js";
+import { commitProjectMigration, loadProjects } from "../src/config.js";
 import { handleApi } from "../src/http/routes.js";
 import { loadProjectEnv } from "../src/project-env.js";
 import {
   FILE_PROJECT_WRITE_STORE,
   type ProjectWriteStore,
 } from "../src/services/connection-write-plan.js";
+import type { Project } from "../src/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
 
 let dataDir: string;
@@ -117,6 +119,46 @@ describe("POST /api/projects/:id/migrate (#163 B1)", () => {
     const other = projects.find((p) => p.id === "other-app");
     expect(other?.name).toBe("Other App");
     expect(projects.length).toBe(2);
+  });
+
+  test("a concurrent migration cannot overwrite the successor of an already-archived predecessor", async () => {
+    // The creation claim fences on the SUCCESSOR id, so two migrations of the
+    // same predecessor to different successor ids hold different claims. The
+    // commit itself must refuse a predecessor that is already archived.
+    const predecessor = (await loadProjects(configPath)).find(
+      (p) => p.id === "legacy-app",
+    );
+    if (!predecessor) throw new Error("seeded predecessor missing");
+
+    const archived: Project = {
+      ...predecessor,
+      archived: true,
+      archivedAt: new Date().toISOString(),
+      successorId: "legacy-app-gh",
+    };
+    const firstSuccessor: Project = {
+      ...predecessor,
+      id: "legacy-app-gh",
+      predecessorId: "legacy-app",
+    };
+    const secondSuccessor: Project = {
+      ...predecessor,
+      id: "legacy-app-az",
+      predecessorId: "legacy-app",
+    };
+
+    await commitProjectMigration(archived, firstSuccessor, configPath);
+
+    await expect(
+      commitProjectMigration(archived, secondSuccessor, configPath),
+    ).rejects.toThrow('Project "legacy-app" has already been migrated.');
+
+    const projects = await storedProjects();
+    expect(projects.find((p) => p.id === "legacy-app")?.successorId).toBe(
+      "legacy-app-gh",
+    );
+    expect(projects.some((p) => p.id === "legacy-app-az")).toBe(false);
+    expect(projects.length).toBe(3);
   });
 
   test("an unknown target provider is a 400 with a machine-readable code", async () => {
