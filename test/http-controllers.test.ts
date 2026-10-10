@@ -14,6 +14,7 @@ import * as runs from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { dispatchHttp } from "./helpers/http-dispatch.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
 
@@ -385,7 +386,7 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.equal(chatFailRes.status, 409);
 
       // Transition to awaiting_understanding_approval to test successful chat
-      runRepo.update(runId, { status: "awaiting_understanding_approval" });
+      forceRunStatus(repos.db, runId, "awaiting_understanding_approval");
 
       const chatSpy = spyOn(runs, "chatWithRun").mockResolvedValue({
         ok: true,
