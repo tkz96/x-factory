@@ -98,7 +98,8 @@ function splitterViolations(sql: string): string[] {
     }
   });
 
-  // Semicolons inside string literals, checked on SQL with whole-line comments removed.
+  // Semicolons inside string literals or quoted identifiers, checked on SQL with
+  // whole-line comments removed.
   const code = lines
     .filter((line) => !line.trimStart().startsWith("--"))
     .join("\n");
@@ -106,6 +107,13 @@ function splitterViolations(sql: string): string[] {
     if (literal.includes(";")) {
       violations.push(
         `string literal ${literal} contains a semicolon: the splitter splits on every semicolon, even inside a string literal.`,
+      );
+    }
+  }
+  for (const identifier of code.match(/"(?:[^"]|"")*"/g) ?? []) {
+    if (identifier.includes(";")) {
+      violations.push(
+        `quoted identifier ${identifier} contains a semicolon: the splitter splits on every semicolon, even inside a quoted identifier.`,
       );
     }
   }
@@ -144,6 +152,9 @@ describe("Migration SQL stays within what splitStatements can split", () => {
     expect(splitterViolations("/* note */\nSELECT 1;")).toHaveLength(1);
     expect(splitterViolations("SELECT 1; -- trailing\n")).toHaveLength(1);
     expect(splitterViolations("INSERT INTO t VALUES ('a;b');")).toHaveLength(1);
+    expect(splitterViolations('CREATE TABLE "a;b" (x INTEGER);')).toHaveLength(
+      1,
+    );
     expect(splitterViolations("-- whole line; comment\nSELECT 1;\n")).toEqual(
       [],
     );

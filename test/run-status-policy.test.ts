@@ -250,11 +250,16 @@ describe("Shared run-status policy matches server guards (#170)", () => {
       path.join(process.cwd(), "src", "runs.ts"),
       "utf-8",
     );
-    const start = source.indexOf("export async function chatWithRun(");
-    const end = source.indexOf('eventRepo.appendEvent(id, "chat_user"', start);
-    const guard = source.slice(start, end);
-    expect(guard).toContain('canRunAction(run.status, "chat")');
-    expect(guard).not.toContain('"approve"');
+    const body = /export\s+async\s+function\s+chatWithRun\b[\s\S]*?\n\}\n/.exec(
+      source,
+    )?.[0];
+    if (body === undefined) {
+      throw new Error(
+        "Could not find `export async function chatWithRun` in src/runs.ts; update this pin to the new location.",
+      );
+    }
+    expect(body).toMatch(/canRunAction\(\s*[\w.]+\s*,\s*"chat"\s*\)/);
+    expect(body).not.toMatch(/canRunAction\(\s*[\w.]+\s*,\s*"approve"\s*\)/);
   });
 
   it("allowedActionsFor returns the table row, or [] for an unknown status", () => {

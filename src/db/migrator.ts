@@ -34,6 +34,7 @@ export function loadMigrations(migrationsDir?: string): Migration[] {
  * Splits migration SQL into single statements. Line comments are removed first,
  * so a semicolon inside a comment cannot split a statement. The migrations contain
  * no triggers and no semicolons inside string literals, which this split relies on.
+ * test/db-migrations.test.ts enforces these assumptions for every migration file.
  */
 export function splitStatements(sql: string): string[] {
   return sql
