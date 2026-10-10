@@ -215,6 +215,9 @@ export class LeaseManager {
    * the sweep carries on with the next job, and the job is retried later.
    */
   private emitSweepError(job: JobRecord, err: unknown, message: string): void {
+    // A poisoned job fails on every sweep; log it once per (job id, error
+    // identity) per process rather than on every poll tick.
+    if (!shouldLogSettleFailure(job.id, err)) return;
     this.emitLog({
       result: "error",
       run_id: job.runId,
