@@ -20,6 +20,7 @@ import { jiraProvider } from "../src/providers/jira-module.js";
 import type { ProviderRegistry } from "../src/providers/registry.js";
 import { startServer } from "../src/server.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let server: ReturnType<typeof startServer>;
 let repos: Repositories;
@@ -809,7 +810,7 @@ describe("Project Onboarding & Management APIs", () => {
     assert.ok(errBody.error.includes("active runs"));
 
     // Finish the run
-    runRepo.update(activeRunId, { status: "stopped" });
+    forceRunStatus(repos.db, activeRunId, "stopped");
   });
 
   it("POST /api/projects/:id/migrate archives predecessor and creates successor", async () => {

@@ -5,8 +5,6 @@ It specifies permitted state transitions, transition invariants, and terminal co
 
 The policy behind this contract — the transition matrix, the terminal/active/stoppable sets, the actions allowed per status, status→stage for display, and labels — is implemented once in [`src/shared/run-status-policy.ts`](../../src/shared/run-status-policy.ts) and imported by both the server and the client. `test/run-status-policy.test.ts` exercises the server's action guards and fails if they drift from the shared policy.
 
-> The current runtime is not yet fully conformant with this contract. Runtime conformance is implemented by follow-up issues.
-
 ## Terminology
 
 ```text
@@ -67,14 +65,14 @@ Transitions not listed in this matrix are invalid and fail validation.
 
 | Current State | Permitted Target States | Trigger Mechanism |
 |---|---|---|
-| `queued` | `preparing`, `failed`, `stopped` | Worker claim, error, or user stop. |
+| `queued` | `preparing`, `failed`, `stopped`, `recovery_required` | Worker claim, error, user stop, or startup recovery of a queued run that has no job. |
 | `preparing` | `understanding`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
-| `understanding` | `awaiting_understanding_approval`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
+| `understanding` | `awaiting_understanding_approval`, `planning`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. The workflow routes a completed `understand` stage to `awaiting_understanding_approval`; the direct edge to `planning` is permitted by the matrix and no route uses it today. |
 | `awaiting_understanding_approval` | `planning`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
 | `planning` | `awaiting_plan_approval`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
 | `awaiting_plan_approval` | `executing`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
 | `executing` | `awaiting_review`, `failed`, `stopped`, `recovery_required` | Ralph loop completion, error, or user stop. |
-| `awaiting_review` | `ready_for_pr`, `understanding` (requeue), `failed`, `stopped`, `recovery_required` | Human approval, human requeue with feedback, error, or user stop. |
+| `awaiting_review` | `ready_for_pr`, `planning` (requeue), `understanding`, `failed`, `stopped`, `recovery_required` | Human approval, human requeue with feedback (goes to `planning`), error, or user stop. The edge to `understanding` is permitted by the matrix and no route uses it today. |
 | `ready_for_pr` | `pr_created`, `failed`, `stopped` | User requests pull request creation, error, or user stop. |
 | `recovery_required` | `preparing`, `understanding`, `planning`, `executing`, `ready_for_pr`, `failed`, `stopped` | Automated recovery cycle attempts to resume execution. Resuming a run whose interrupted stage was `deliver` returns it to `ready_for_pr` and enqueues the deliver command. |
 | `pr_created` | None | Terminal state. |
@@ -89,7 +87,7 @@ State machine transitions adhere to these formal invariants:
 
 ### 1. Monotonic Execution with Explicit Requeues
 Runs advance linearly through configured stages.
-Runs only return to earlier stages when a human explicitly requeues the run during `awaiting_understanding_approval`, `awaiting_plan_approval`, or `awaiting_review`. Requeueing from `awaiting_review` transitions all the way back to `understanding` for a fresh chat to update the plan before re-execution.
+Runs only return to earlier stages when a human explicitly sends them back from `awaiting_understanding_approval`, `awaiting_plan_approval`, or `awaiting_review`. A restart from an approval gate goes back to `understanding` (`RESTART_ROUTE`). A requeue from `awaiting_review` goes back to `planning` (`REQUEUE_ROUTE`) with the reviewer's feedback, so the plan is revised before re-execution.
 
 ### 2. Autonomous Execution Phase (Phase 2)
 The `executing` state collapses the formerly separate `implementing`, `verifying`, and `reviewing` FSM states into a single active FSM state.
@@ -106,5 +104,13 @@ A run cannot transition automatically from `ready_for_pr` to `pr_created`.
 Transition to `pr_created` requires an explicit HTTP command: `POST /api/runs/:id/pr`.
 
 ### 5. Immediate Cancellation
-A user can halt an active run at any non-terminal state through `POST /api/runs/:id/stop`.
-This command transitions the run immediately to `stopped` and marks active jobs as terminated.
+A user can halt a run through `POST /api/runs/:id/stop` from the states in `STOPPABLE_RUN_STATUSES`: `queued`, `preparing`, `understanding`, `awaiting_understanding_approval`, `planning`, `awaiting_plan_approval`, `executing` and `awaiting_review`.
+This command transitions the run immediately to `stopped` and marks active jobs as terminated. A stage that is running notices the stop (its executor's abort signal fires within about half a second, whether the stop arrived as a command or only as the run's status) and commits nothing.
+
+`ready_for_pr` and `recovery_required` are not stoppable, by design, although the matrix permits `ready_for_pr` → `stopped` and `recovery_required` → `stopped`. The only action on a `ready_for_pr` run is delivery, and a pull request that may already exist on the remote cannot be half-undone by a stop. A `recovery_required` run holds no live work, so its way out is `resume` or `abandon`, and `abandon` ends it as `failed`. This is the code's behaviour, kept as is, and `test/run-status-policy.test.ts` guards it.
+
+### 6. Released and Exhausted Jobs
+A worker that releases a job on shutdown gives back the attempt the claim counted, so stops never use up a job's retry budget. A pending or expired job with no attempts left is failed by the lease module and its run moves to `recovery_required` in one transaction. A run that is in an active state with no pending or claimed job (found at worker startup) moves to `recovery_required` the same way, including a `queued` run.
+
+### 7. One Repair Budget
+A stage's repair budget is its single attempt cap. An `execute` stage whose verification still fails after the budget is spent ends the run as `failed`, like a rejected review, with the verification evidence kept. The job is not retried.

@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import type { Repositories } from "../src/composition-root.js";
 import { handleApi } from "../src/http/routes.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
 
@@ -462,7 +463,7 @@ describe("string values round-trip through the codec (#179)", () => {
 describe("chatWithRun consumes the codec-parsed implementationContext (#179)", () => {
   it("answers a chat on an approval gate without re-parsing the context", async () => {
     seedRun();
-    repos.runs.update("run-1", { status: "awaiting_plan_approval" });
+    forceRunStatus(repos.db, "run-1", "awaiting_plan_approval");
     repos.runs.update("run-1", {
       implementationContext: {
         relevantFiles: ["src/runs.ts"],

@@ -87,8 +87,10 @@ function parseStatus(raw: string): StatusEntry[] {
 async function gitOutput(
   worktreePath: string,
   args: string[],
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const result = await execStrict("git", args, {
+    signal,
     cwd: worktreePath,
     rawStdout: true,
     maxBufferChars: STATUS_MAX_CHARS,
@@ -102,9 +104,16 @@ async function gitOutput(
   return result.stdout;
 }
 
-async function readStatus(worktreePath: string): Promise<StatusEntry[]> {
+async function readStatus(
+  worktreePath: string,
+  signal?: AbortSignal | undefined,
+): Promise<StatusEntry[]> {
   return parseStatus(
-    await gitOutput(worktreePath, ["status", "--porcelain", "-z", "-uall"]),
+    await gitOutput(
+      worktreePath,
+      ["status", "--porcelain", "-z", "-uall"],
+      signal,
+    ),
   );
 }
 
@@ -113,13 +122,14 @@ async function readStatus(worktreePath: string): Promise<StatusEntry[]> {
  */
 export async function recordBaseline(
   worktreePath: string,
+  signal?: AbortSignal | undefined,
 ): Promise<BaselineState> {
-  const tracked = await gitOutput(worktreePath, ["ls-files", "-z"]);
+  const tracked = await gitOutput(worktreePath, ["ls-files", "-z"], signal);
   const trackedFiles = new Set(
     tracked.split("\0").filter((f) => f && !isGitMetadataPath(f)),
   );
   const untrackedFiles = new Set(
-    (await readStatus(worktreePath))
+    (await readStatus(worktreePath, signal))
       .filter((entry) => entry.status === UNTRACKED)
       .map((entry) => entry.path),
   );
@@ -134,9 +144,10 @@ export async function recordBaseline(
 export async function readWorktreeState(
   worktreePath: string,
   baseline: BaselineState,
+  signal?: AbortSignal | undefined,
 ): Promise<WorktreeState> {
   const changes: WorktreeChange[] = [];
-  for (const entry of await readStatus(worktreePath)) {
+  for (const entry of await readStatus(worktreePath, signal)) {
     const kind = classify(entry.path);
     const preExisting =
       entry.status === UNTRACKED && baseline.untrackedFiles.has(entry.path);

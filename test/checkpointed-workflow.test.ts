@@ -14,6 +14,7 @@ import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
 
@@ -161,21 +162,21 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
       } else {
         const currentRun = runRepo.get(run.id);
         if (currentRun?.status === "awaiting_understanding_approval") {
-          runRepo.update(run.id, { status: "planning" });
+          forceRunStatus(db, run.id, "planning");
           jobRepo.createJob({
             runId: run.id,
             stage: "plan",
             status: "pending",
           });
         } else if (currentRun?.status === "awaiting_plan_approval") {
-          runRepo.update(run.id, { status: "executing" });
+          forceRunStatus(db, run.id, "executing");
           jobRepo.createJob({
             runId: run.id,
             stage: "execute",
             status: "pending",
           });
         } else if (currentRun?.status === "awaiting_review") {
-          runRepo.update(run.id, { status: "ready_for_pr" });
+          forceRunStatus(db, run.id, "ready_for_pr");
         } else {
           break;
         }
@@ -216,7 +217,7 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     const commandRepo = new CommandRepository(db);
 
     // Set run to ready_for_pr
-    runRepo.update("run-cp-1", { status: "ready_for_pr" });
+    forceRunStatus(db, "run-cp-1", "ready_for_pr");
 
     // Trigger createPR
     const prRes = await createPR(repos, "run-cp-1");

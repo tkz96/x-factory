@@ -20,6 +20,7 @@ import type {
 } from "../src/executors/index.js";
 import { resumeRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
 
@@ -155,7 +156,7 @@ describe("Workflow module (#181)", () => {
     ] as const;
     for (const c of cases) {
       const { db, runRepo, jobRepo, run } = setup("executing");
-      runRepo.update(run.id, { status: c.from });
+      forceRunStatus(db, run.id, c.from);
       const job = jobRepo.createJob({
         runId: run.id,
         stage: c.stage,
@@ -348,7 +349,7 @@ describe("Workflow module (#181)", () => {
     expect(claimed?.id).toBe(job.id);
     if (!claimed) throw new Error("claim failed");
     // The run moves on while the job is claimed, so a late rejection cannot reach failed.
-    runRepo.update(run.id, { status: "pr_created" });
+    forceRunStatus(db, run.id, "pr_created");
 
     await worker.processJob(claimed);
 

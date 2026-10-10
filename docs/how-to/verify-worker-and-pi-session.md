@@ -37,8 +37,7 @@ bun run worker
 3. Verify that the worker terminal displays the startup log:
 
 ```text
-Database verified at schema version 6.
-Worker started. Polling for pending jobs...
+Worker started. Polling for pending jobs and commands...
 ```
 
 ## Step 3: Submit a Test Run

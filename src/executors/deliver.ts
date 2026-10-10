@@ -112,8 +112,10 @@ export async function createPullRequestWithFallback(
     prBody: string;
   },
   deps: DeliverDependencies,
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const { project, branch, worktree, prTitle, prBody } = params;
+  signal?.throwIfAborted();
 
   // External PR Crash Recovery: check for existing PR first
   const existing = await deps.findExistingPullRequest(project, {
@@ -124,6 +126,8 @@ export async function createPullRequestWithFallback(
     return existing.url;
   }
 
+  // A stop that landed during the lookup must not open a pull request.
+  signal?.throwIfAborted();
   return deps.createPullRequest(project, {
     branch,
     worktree,
@@ -206,7 +210,7 @@ export class DeliverExecutor implements StageExecutor {
   }
 
   async execute(context: StageContext): Promise<StageOutcome> {
-    const { run, project, ledger } = context;
+    const { run, project, ledger, signal } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
     const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket);
@@ -223,7 +227,7 @@ export class DeliverExecutor implements StageExecutor {
         const baseline = await this.deps.loadRecordedBaseline(
           baselinePathFor(run.artifactsDir),
         );
-        await this.deps.safeCommitAll(worktree, commitMsg, baseline);
+        await this.deps.safeCommitAll(worktree, commitMsg, baseline, signal);
 
         return {
           externalId: commitMsg,
@@ -239,9 +243,9 @@ export class DeliverExecutor implements StageExecutor {
           );
         }
 
-        const headMsg = await this.deps.getHeadMessage(worktree);
-        const headSha = await this.deps.getHeadSha(worktree);
-        const parentSha = await this.deps.getParentSha(worktree);
+        const headMsg = await this.deps.getHeadMessage(worktree, signal);
+        const headSha = await this.deps.getHeadSha(worktree, signal);
+        const parentSha = await this.deps.getParentSha(worktree, signal);
 
         if (
           headMsg === commitMsg &&
@@ -257,6 +261,7 @@ export class DeliverExecutor implements StageExecutor {
           worktree,
           commitMsg,
           preCommitSha,
+          signal,
         );
         if (matchedSha) {
           return {
@@ -274,7 +279,7 @@ export class DeliverExecutor implements StageExecutor {
         return null; // Not matching and HEAD hasn't advanced -> allow mutation
       },
       async () => {
-        const preCommitSha = await this.deps.getHeadSha(worktree);
+        const preCommitSha = await this.deps.getHeadSha(worktree, signal);
         return { preCommitSha };
       },
     );
@@ -287,18 +292,19 @@ export class DeliverExecutor implements StageExecutor {
           step: "git_push",
           text: "Pushing branch to remote…",
         });
-        await this.deps.push(worktree, run.branch);
+        await this.deps.push(worktree, run.branch, signal);
         return {
           externalId: run.branch,
           result: { pushed: true, branch: run.branch },
         };
       },
       async () => {
-        const headSha = await this.deps.getHeadSha(worktree);
+        const headSha = await this.deps.getHeadSha(worktree, signal);
         const remoteSha = await this.deps.getRemoteBranchSha(
           worktree,
           "origin",
           run.branch,
+          signal,
         );
         if (headSha === remoteSha) {
           return {
@@ -311,6 +317,8 @@ export class DeliverExecutor implements StageExecutor {
     );
 
     // 3. Idempotent Pull Request creation (XFM-32, XFM-33)
+    // A stop that landed after the push must not open a pull request.
+    signal.throwIfAborted();
     const pr = await ledger.execute<PullRequest>(
       "create_pr",
       async () => {
@@ -328,6 +336,7 @@ export class DeliverExecutor implements StageExecutor {
             prBody,
           },
           this.deps,
+          signal,
         );
 
         const createdPr: PullRequest = {
@@ -345,7 +354,7 @@ export class DeliverExecutor implements StageExecutor {
       async () => {
         // We only want to recover, not mutate. So we call the finder directly.
         const currentHeadSha = await this.deps
-          .getHeadSha(worktree)
+          .getHeadSha(worktree, signal)
           .catch(() => null);
         if (!currentHeadSha) {
           throw new Error(

@@ -17,6 +17,7 @@ import type {
 } from "../src/executors/index.js";
 import { createPR } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
 
@@ -145,7 +146,7 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     expect(runRepo.get(run.id)?.status).toBe("awaiting_understanding_approval");
 
     // Manually approve understand
-    runRepo.update(run.id, { status: "planning" });
+    forceRunStatus(db, run.id, "planning");
     jobRepo.createJob({ runId: run.id, stage: "plan", status: "pending" });
 
     // Poll until run reaches awaiting_plan_approval
@@ -158,7 +159,7 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     expect(runRepo.get(run.id)?.status).toBe("awaiting_plan_approval");
 
     // Manually approve plan
-    runRepo.update(run.id, { status: "executing" });
+    forceRunStatus(db, run.id, "executing");
     jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
 
     // Poll until run reaches awaiting_review
@@ -171,7 +172,7 @@ describe("End-to-End Deterministic Workflow with Human Approval Gate (XFM-67)", 
     expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
 
     // Manually approve review (simulating human action)
-    runRepo.update(run.id, { status: "ready_for_pr" });
+    forceRunStatus(db, run.id, "ready_for_pr");
 
     // 2. Assert that run has stopped at ready_for_pr
     const runAtGate = runRepo.get(run.id);

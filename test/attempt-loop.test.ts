@@ -335,6 +335,32 @@ ${CHECK_OFF_FIRST_TASK}
     );
   });
 
+  it("ends the run when the repair budget is spent: the job is not retried and the evidence is kept (#163)", async () => {
+    await commitAndRecordBaseline();
+    const log = path.join(tempDir, "sbx.log");
+    await installSbx(`
+echo run >> "${log}"
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("false");
+    const { run, runRepo, jobRepo, worker } = setup();
+
+    // Two job attempts remain after the first claim; none may be used.
+    expect(await worker.stepOnce()).not.toBeNull();
+    expect(await worker.stepOnce()).toBeNull();
+
+    expect(await lines(log)).toEqual(["run", "run", "run"]);
+    const finished = runRepo.get(run.id);
+    expect(finished?.status).toBe("failed");
+    expect(finished?.verification?.passed).toBe(false);
+    expect(finished?.verification?.repairAttempt).toBe(3);
+    expect(finished?.diff).toContain("export const updated = true;");
+    const [job] = jobRepo.listJobsForRun(run.id);
+    expect(job?.status).toBe("failed");
+    expect(job?.attempts).toBe(1);
+  });
+
   it("gives the loop the implementation session's credentials only", async () => {
     await commitAndRecordBaseline();
     const envFile = path.join(tempDir, "sbx-env.txt");

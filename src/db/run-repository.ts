@@ -79,8 +79,11 @@ export interface CreateRunRecordInput {
   repairAttempts?: number | undefined;
 }
 
+/**
+ * Run fields `update` may change. `status` is deliberately absent: it changes only through
+ * `transitionRun`, so the state machine cannot be bypassed.
+ */
 export interface UpdateRunRecordInput {
-  status?: RunStatus | undefined;
   plan?: string | undefined;
   finishedAt?: string | null | undefined;
   repairAttempts?: number | undefined;
@@ -292,11 +295,6 @@ export class RunRepository {
       $revision: newRevision,
       $updatedAt: now,
     };
-
-    if (updates.status !== undefined) {
-      fields.push("status = $status");
-      params.$status = updates.status;
-    }
 
     if (updates.plan !== undefined) {
       fields.push("plan = $plan");

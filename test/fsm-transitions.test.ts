@@ -197,7 +197,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
     // update() method also enforces StaleRevisionError
     expect(() => {
       runRepo.update("run-stale", {
-        status: "understanding",
+        plan: "stale plan",
         expectedRevision: 99,
       });
     }).toThrow(StaleRevisionError);
@@ -307,7 +307,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
           }
         }
       }
-      expect(legalCount).toBe(44);
+      expect(legalCount).toBe(45);
     });
 
     it("verifies every illegal transition is strictly rejected", () => {
@@ -324,7 +324,7 @@ describe("Atomic FSM Transitions & Concurrency Guard (XFM-08, XFM-09, XFM-14)", 
           }
         }
       }
-      expect(illegalCount).toBe(ALL_STATUSES.length * ALL_STATUSES.length - 44);
+      expect(illegalCount).toBe(ALL_STATUSES.length * ALL_STATUSES.length - 45);
     });
 
     it("enforces that terminal states (pr_created, failed, stopped) reject all transitions", () => {

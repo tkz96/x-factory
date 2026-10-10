@@ -63,20 +63,40 @@ describe("RunRepository", () => {
     });
 
     const updated = repo.update("run-2", {
-      status: "understanding",
+      plan: "Revised plan",
       expectedRevision: 1,
     });
 
-    expect(updated.status).toBe("understanding");
+    expect(updated.plan).toBe("Revised plan");
     expect(updated.revision).toBe(2);
 
     // Conflict detection on stale revision
     expect(() =>
       repo.update("run-2", {
-        status: "executing",
+        plan: "Stale plan",
         expectedRevision: 1, // Stale! Current is 2
       }),
     ).toThrow(/Conflict/);
+  });
+
+  it("changes status only through transitionRun: update() does not accept it (#163)", () => {
+    const repo = setupRepo();
+    repo.create({
+      id: "run-status-only",
+      projectId: "proj-1",
+      projectName: "Project One",
+      ticket: { id: "T-103", title: "Test", acceptanceCriteria: [] },
+      plan: "Plan",
+      branch: "factory/T-103",
+      status: "preparing",
+      artifactsDir: "/tmp/artifacts/run-so",
+      worktreePath: "/tmp/worktrees/run-so",
+    });
+
+    // @ts-expect-error status is not an UpdateRunRecordInput field; the type checker enforces it
+    const updated = repo.update("run-status-only", { status: "failed" });
+
+    expect(updated.status).toBe("preparing");
   });
 
   it("deletes runs cleanly", () => {

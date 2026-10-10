@@ -25,6 +25,7 @@ import type {
   VerificationResult,
 } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
@@ -82,7 +83,7 @@ describe("Shared run-event union (#171)", () => {
     expect(typeof chatAgentEvt?.payload.text).toBe("string");
 
     // 2. handleTransition requeue producer via handleApi (emits user_feedback and status)
-    runRepo.update(runId, { status: "awaiting_review" });
+    forceRunStatus(db, runId, "awaiting_review");
     const requeueReq = new Request(
       `http://localhost:3777/api/runs/${runId}/transitions`,
       {
@@ -122,7 +123,7 @@ describe("Shared run-event union (#171)", () => {
     });
 
     // 3. handleTransition restart producer (emits status)
-    runRepo.update(runId, { status: "awaiting_plan_approval" });
+    forceRunStatus(db, runId, "awaiting_plan_approval");
     const restartReq = new Request(
       `http://localhost:3777/api/runs/${runId}/transitions`,
       {
@@ -146,7 +147,7 @@ describe("Shared run-event union (#171)", () => {
     });
 
     // 4. handleTransition abort / stop producer (emits status)
-    runRepo.update(runId, { status: "awaiting_plan_approval" });
+    forceRunStatus(db, runId, "awaiting_plan_approval");
     const stopReq = new Request(
       `http://localhost:3777/api/runs/${runId}/stop`,
       {
@@ -173,7 +174,7 @@ describe("Shared run-event union (#171)", () => {
     });
     const jobRepo = new JobRepository(db);
 
-    runRepo.update(runId, { status: "executing" });
+    forceRunStatus(db, runId, "executing");
     const pastTime = new Date(Date.now() - 60000).toISOString();
     const job = jobRepo.createJob({
       runId,
@@ -292,10 +293,8 @@ describe("Shared run-event union (#171)", () => {
       hasPollution: false,
       summary: "All tests passed",
     };
-    runRepo.update(runId, {
-      status: "executing",
-      verification: mockVerification,
-    });
+    forceRunStatus(db, runId, "executing");
+    runRepo.update(runId, { verification: mockVerification });
 
     const reviewExecutor = new ReviewExecutor({
       loadSettings: async () => ({}),
@@ -319,7 +318,7 @@ describe("Shared run-event union (#171)", () => {
 
     // 3. DeliverExecutor producer; the stage runner commits its pr_step, stage_evidence and
     // status events with the transition.
-    runRepo.update(runId, { status: "ready_for_pr" });
+    forceRunStatus(db, runId, "ready_for_pr");
     const pullRequest: PullRequest = {
       url: "https://github.com/example/repo/pull/42",
       branch: "factory/t-2",

@@ -27,11 +27,12 @@ export interface DiffResult {
 export async function branchExists(
   repoPath: string,
   branchName: string,
+  signal?: AbortSignal | undefined,
 ): Promise<boolean> {
   const result = await execCommand(
     "git",
     ["rev-parse", "--verify", `refs/heads/${branchName}`],
-    { cwd: repoPath, envPolicy: "inherit" },
+    { cwd: repoPath, envPolicy: "inherit", signal },
   );
   return result.exitCode === 0;
 }
@@ -43,13 +44,15 @@ export async function createBranch(
   repoPath: string,
   branchName: string,
   baseBranch: string,
+  signal?: AbortSignal | undefined,
 ): Promise<void> {
-  if (await branchExists(repoPath, branchName)) {
+  if (await branchExists(repoPath, branchName, signal)) {
     throw new Error(`Branch "${branchName}" already exists in ${repoPath}`);
   }
   await execStrict("git", ["branch", branchName, baseBranch], {
     cwd: repoPath,
     envPolicy: "inherit",
+    signal,
   });
 }
 
@@ -66,6 +69,7 @@ export async function createWorktree(
   branchName: string,
   projectId: string,
   runId: string,
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const worktreePath = getWorktreePath(projectId, runId);
   await ensureDir(getProjectWorktreesDir(projectId));
@@ -74,6 +78,7 @@ export async function createWorktree(
   await execStrict("git", ["worktree", "add", worktreePath, branchName], {
     cwd: repoPath,
     envPolicy: "inherit",
+    signal,
   });
 
   // Write .xfactory-run marker in the run artifacts directory (outside worktree)
@@ -146,6 +151,7 @@ export async function reportStaleWorktrees(
 export async function getDiffText(
   worktreePath: string,
   state: WorktreeState,
+  signal?: AbortSignal | undefined,
 ): Promise<string> {
   const implementation = state.changes.filter(
     (c) => c.kind === "implementation",
@@ -162,7 +168,7 @@ export async function getDiffText(
     const result = await execCommand(
       "git",
       ["--literal-pathspecs", "diff", "HEAD", "--", ...tracked],
-      { cwd: worktreePath, envPolicy: "inherit" },
+      { cwd: worktreePath, envPolicy: "inherit", signal },
     );
     parts.push(result.stdout);
   }
@@ -171,7 +177,7 @@ export async function getDiffText(
     const result = await execCommand(
       "git",
       ["diff", "--no-index", "--", "/dev/null", file],
-      { cwd: worktreePath, envPolicy: "inherit" },
+      { cwd: worktreePath, envPolicy: "inherit", signal },
     );
     parts.push(result.stdout);
   }
@@ -184,10 +190,11 @@ export async function getDiffText(
 export async function getDiff(
   worktreePath: string,
   baseline: BaselineState,
+  signal?: AbortSignal | undefined,
 ): Promise<DiffResult> {
-  const state = await readWorktreeState(worktreePath, baseline);
+  const state = await readWorktreeState(worktreePath, baseline, signal);
   return {
-    diff: await getDiffText(worktreePath, state),
+    diff: await getDiffText(worktreePath, state, signal),
     filesChanged: state.implementationPaths,
   };
 }
@@ -219,8 +226,9 @@ export async function safeCommitAll(
   worktreePath: string,
   message: string,
   baseline: BaselineState,
+  signal?: AbortSignal | undefined,
 ): Promise<void> {
-  const state = await readWorktreeState(worktreePath, baseline);
+  const state = await readWorktreeState(worktreePath, baseline, signal);
   if (state.hasPollution) {
     throw new Error(
       `Cannot commit changes due to pollution:\n${state.pollutionDetails.join("\n")}`,
@@ -242,7 +250,7 @@ export async function safeCommitAll(
       await execStrict(
         "git",
         ["--literal-pathspecs", "restore", "--staged", "--", ...paths],
-        { cwd: worktreePath, envPolicy: "inherit" },
+        { cwd: worktreePath, envPolicy: "inherit", signal },
       );
     }
   }
@@ -266,7 +274,7 @@ export async function safeCommitAll(
       await execStrict(
         "git",
         ["--literal-pathspecs", "add", "-A", "--", ...paths],
-        { cwd: worktreePath, envPolicy: "inherit" },
+        { cwd: worktreePath, envPolicy: "inherit", signal },
       );
     }
   }
@@ -274,6 +282,7 @@ export async function safeCommitAll(
   const staged = await execStrict("git", ["diff", "--cached", "--name-only"], {
     cwd: worktreePath,
     envPolicy: "inherit",
+    signal,
   });
   if (staged.stdout.length === 0) {
     throw new Error("Nothing to commit — working tree is clean.");
@@ -282,6 +291,7 @@ export async function safeCommitAll(
   await execStrict("git", ["commit", "-m", message], {
     cwd: worktreePath,
     envPolicy: "inherit",
+    signal,
   });
 }
 
@@ -291,10 +301,12 @@ export async function safeCommitAll(
 export async function push(
   worktreePath: string,
   branchName: string,
+  signal?: AbortSignal | undefined,
 ): Promise<void> {
   await execStrict("git", ["push", "-u", "origin", branchName], {
     cwd: worktreePath,
     envPolicy: "inherit",
+    signal,
   });
 }
 
@@ -320,10 +332,14 @@ export async function validateRepo(repoPath: string): Promise<void> {
 /**
  * Get current commit SHA at HEAD.
  */
-export async function getHeadSha(repoPath: string): Promise<string> {
+export async function getHeadSha(
+  repoPath: string,
+  signal?: AbortSignal | undefined,
+): Promise<string> {
   const result = await execStrict("git", ["rev-parse", "HEAD"], {
     cwd: repoPath,
     envPolicy: "inherit",
+    signal,
   });
   return result.stdout.trim();
 }
@@ -331,10 +347,14 @@ export async function getHeadSha(repoPath: string): Promise<string> {
 /**
  * Get parent commit SHA of HEAD.
  */
-export async function getParentSha(repoPath: string): Promise<string> {
+export async function getParentSha(
+  repoPath: string,
+  signal?: AbortSignal | undefined,
+): Promise<string> {
   const result = await execStrict("git", ["log", "-1", "--format=%P"], {
     cwd: repoPath,
     envPolicy: "inherit",
+    signal,
   });
   return result.stdout.trim().split(" ")[0] || "";
 }
@@ -342,10 +362,14 @@ export async function getParentSha(repoPath: string): Promise<string> {
 /**
  * Get current commit message at HEAD.
  */
-export async function getHeadMessage(repoPath: string): Promise<string> {
+export async function getHeadMessage(
+  repoPath: string,
+  signal?: AbortSignal | undefined,
+): Promise<string> {
   const result = await execStrict("git", ["log", "-1", "--pretty=format:%B"], {
     cwd: repoPath,
     envPolicy: "inherit",
+    signal,
   });
   return result.stdout.trim();
 }
@@ -358,11 +382,12 @@ export async function findCommitByMessageAndParent(
   repoPath: string,
   message: string,
   parentSha: string,
+  signal?: AbortSignal | undefined,
 ): Promise<string | null> {
   const result = await execCommand(
     "git",
     ["log", "--format=%H %P", "--grep", message, "--fixed-strings"],
-    { cwd: repoPath, envPolicy: "inherit" },
+    { cwd: repoPath, envPolicy: "inherit", signal },
   );
 
   if (result.exitCode !== 0) {
@@ -394,6 +419,7 @@ export async function getRemoteBranchSha(
   repoPath: string,
   remote: string,
   branchName: string,
+  signal?: AbortSignal | undefined,
 ): Promise<string | null> {
   const result = await execCommand(
     "git",
@@ -401,6 +427,7 @@ export async function getRemoteBranchSha(
     {
       cwd: repoPath,
       envPolicy: "inherit",
+      signal,
     },
   );
   if (result.exitCode !== 0) {

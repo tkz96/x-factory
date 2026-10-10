@@ -11,6 +11,7 @@ import { ReviewExecutor } from "../src/executors/review.js";
 import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { forceRunStatus } from "./helpers/run-status-fixture.js";
 import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
@@ -107,7 +108,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   it("atomically commits pullRequest, pr_step, stage_evidence, pr_created, and command completion in single transaction", async () => {
     const { db, runRepo, commandRepo, eventRepo, run } = setupTest();
 
-    runRepo.update(run.id, { status: "awaiting_review" });
+    forceRunStatus(db, run.id, "awaiting_review");
     runRepo.transitionRun(run.id, "awaiting_review", "ready_for_pr");
 
     const cmd = commandRepo.insertOrRetryCommand({
@@ -161,7 +162,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
   it("idempotently discovers existing pull request on retry after external crash before SQLite finalization", async () => {
     const { db, runRepo, commandRepo, run } = setupTest();
 
-    runRepo.update(run.id, { status: "awaiting_review" });
+    forceRunStatus(db, run.id, "awaiting_review");
     runRepo.transitionRun(run.id, "awaiting_review", "ready_for_pr");
 
     const cmd = commandRepo.insertOrRetryCommand({
