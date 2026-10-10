@@ -85,6 +85,23 @@ const LEASE_RELEASED_REASON =
 const ORPHANED_RUN_REASON =
   "Active run found without any pending or claimed workflow jobs on worker startup.";
 
+/**
+ * (job id, error) keys already logged for a settlement failure in this process.
+ * A job that cannot be settled rolls back on every sweep, so the worker would
+ * otherwise log the same line once per poll tick (~1s) forever (#163). Each
+ * distinct (job id, error) is logged at most once per process; the sweep still
+ * isolates the failure and keeps claiming the other jobs.
+ */
+const loggedSettleFailures = new Set<string>();
+
+/** Records one settle-failure log key; false when that (job, error) was logged before. */
+function shouldLogSettleFailure(jobId: string, error: string): boolean {
+  const key = JSON.stringify([jobId, error]);
+  if (loggedSettleFailures.has(key)) return false;
+  loggedSettleFailures.add(key);
+  return true;
+}
+
 export interface LeaseManagerOptions {
   clock?: Clock | undefined;
   policy?:
@@ -209,15 +226,18 @@ export class LeaseManager {
       try {
         if (this.settleExhaustedPendingJob(job, now) === "skipped") continue;
       } catch (err) {
-        this.emitLog({
-          result: "error",
-          run_id: job.runId,
-          job_id: job.id,
-          stage: job.stage,
-          attempt: job.attempts,
-          message: `Could not settle exhausted pending job ${job.id} for run ${job.runId}.`,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        const error = err instanceof Error ? err.message : String(err);
+        if (shouldLogSettleFailure(job.id, error)) {
+          this.emitLog({
+            result: "error",
+            run_id: job.runId,
+            job_id: job.id,
+            stage: job.stage,
+            attempt: job.attempts,
+            message: `Could not settle exhausted pending job ${job.id} for run ${job.runId}.`,
+            error,
+          });
+        }
         continue;
       }
       result.expiredCount++;
@@ -231,16 +251,20 @@ export class LeaseManager {
         outcome = this.settleStaleJob(job, requeue, now);
       } catch (err) {
         // One job that cannot be settled must not stop the sweep or the claim
-        // that follows it. Its transaction rolled back, so it is retried later.
-        this.emitLog({
-          result: "error",
-          run_id: job.runId,
-          job_id: job.id,
-          stage: job.stage,
-          attempt: job.attempts,
-          message: `Could not settle stale job ${job.id} for run ${job.runId}.`,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        // that follows it. Its transaction rolled back, so it is retried later;
+        // that repeated failure is logged once per (job id, error) per process.
+        const error = err instanceof Error ? err.message : String(err);
+        if (shouldLogSettleFailure(job.id, error)) {
+          this.emitLog({
+            result: "error",
+            run_id: job.runId,
+            job_id: job.id,
+            stage: job.stage,
+            attempt: job.attempts,
+            message: `Could not settle stale job ${job.id} for run ${job.runId}.`,
+            error,
+          });
+        }
         continue;
       }
       if (outcome === "skipped") continue;
