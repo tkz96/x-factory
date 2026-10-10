@@ -22,11 +22,17 @@ import { PrepareExecutor } from "../src/executors/prepare.js";
 import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 function setup(status: "preparing" | "understanding" | "ready_for_pr") {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
   const repos = createRepositories(db);
+  ensureProject("proj-sr", {
+    name: "Proj SR",
+    workspacePath: "/tmp/sr-worktree",
+    repositoryPath: "/tmp/sr-worktree",
+  });
   const run = repos.runs.create({
     id: "run-sr-1",
     projectId: "proj-sr",

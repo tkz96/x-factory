@@ -21,6 +21,7 @@ import {
 import type { PullRequest, RunStatus } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 const CRASH_PR: PullRequest = {
   url: "https://github.com/org/repo/pull/1",
@@ -30,6 +31,22 @@ const CRASH_PR: PullRequest = {
 };
 
 describe("Worker Crash & Restart Recovery Across All 6 Stages (XFM-57)", () => {
+  // Every run the worker drives names a real project in the config (#163).
+  ensureProject("proj-crash", {
+    name: "Crash Project",
+    workspacePath: "/tmp/worktrees-crash",
+    repositoryPath: "/tmp/worktrees-crash",
+  });
+  ensureProject("proj-1", {
+    name: "Project 1",
+    workspacePath: "/tmp/worktrees-crash-1",
+    repositoryPath: "/tmp/worktrees-crash-1",
+  });
+  ensureProject("proj-pending", {
+    name: "Pending Project",
+    workspacePath: "/tmp/worktrees-crash-pending",
+    repositoryPath: "/tmp/worktrees-crash-pending",
+  });
   const STAGES: Array<{
     stage: string;
     runStatus: RunStatus;

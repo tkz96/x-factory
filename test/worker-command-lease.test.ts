@@ -8,6 +8,7 @@ import { RunRepository } from "../src/db/run-repository.js";
 import type { StageContext, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 const LEASE_PR = {
   url: "https://example.test/pr/lease",
@@ -33,6 +34,11 @@ describe("Command Lease Renewal", () => {
   function setupDb() {
     const db = createDatabase({ path: testDbPath });
     runMigrations(db);
+    ensureProject("proj-1", {
+      name: "Proj 1",
+      workspacePath: "/tmp/worktrees-cmd",
+      repositoryPath: "/tmp/worktrees-cmd",
+    });
     return db;
   }
 

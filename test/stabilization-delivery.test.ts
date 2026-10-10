@@ -11,6 +11,7 @@ import { ReviewExecutor } from "../src/executors/review.js";
 import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 import {
   PASSING_REVIEW_OUTPUT,
@@ -30,6 +31,12 @@ function setupTest() {
   const jobRepo = new JobRepository(db);
   const commandRepo = new CommandRepository(db);
   const eventRepo = new EventRepository(db);
+
+  ensureProject("proj-1", {
+    name: "Project 1",
+    workspacePath: "/tmp/worktrees-stab-deliver",
+    repositoryPath: "/tmp/worktrees-stab-deliver",
+  });
 
   const run = runRepo.create({
     id: "run-deliver-test",

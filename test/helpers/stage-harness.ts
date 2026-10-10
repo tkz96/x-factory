@@ -13,6 +13,7 @@ import type {
 import type { Project } from "../../src/shared/types.js";
 import { buildStageContext } from "../../src/stage-runner.js";
 import { Worker } from "../../src/worker.js";
+import { ensureProject } from "./project-fixture.js";
 
 export function stageContext(
   repos: Repositories,
@@ -42,6 +43,12 @@ export async function executeStage(
   runId: string,
   stage: string,
 ): Promise<StageOutcome> {
+  // The worker resolves the run's project from the configuration; register a
+  // real fixture for it so a stage runs against the project it names (#163).
+  const runRecord = repos.runs.get(runId);
+  if (runRecord) {
+    ensureProject(runRecord.project.id, { name: runRecord.project.name });
+  }
   let outcome: StageOutcome | undefined;
   let thrown: unknown;
   const capturing: StageExecutor = {

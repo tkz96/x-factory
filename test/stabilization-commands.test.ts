@@ -19,6 +19,7 @@ import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 import { insertLegacySteerCommand } from "./helpers/legacy-steer-command.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 let repos: Repositories;
 
@@ -36,6 +37,12 @@ function setupTest() {
   const commandRepo = new CommandRepository(db);
   const eventRepo = new EventRepository(db);
   const heartbeatRepo = new WorkerHeartbeatRepository(db);
+
+  ensureProject("proj-1", {
+    name: "Project 1",
+    workspacePath: "/tmp/worktrees-stab-cmd",
+    repositoryPath: "/tmp/worktrees-stab-cmd",
+  });
 
   const run = runRepo.create({
     id: "run-cmd-test-1",

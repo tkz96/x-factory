@@ -23,6 +23,7 @@ import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
 import { getPublicDir } from "../src/server.js";
 import { Worker } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 let repos: Repositories;
 
@@ -63,6 +64,11 @@ describe("API Process Restart Resilience (XFM-58)", () => {
 
     // 1. Create a run and two sequential jobs
     const runId = `run-api-restart-${Date.now()}`;
+    ensureProject("proj-restart", {
+      name: "Restart Test Project",
+      workspacePath: `/tmp/worktrees-${runId}`,
+      repositoryPath: `/tmp/worktrees-${runId}`,
+    });
     const run = runRepo.create({
       id: runId,
       projectId: "proj-restart",

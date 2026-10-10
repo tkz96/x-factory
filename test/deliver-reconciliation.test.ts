@@ -11,6 +11,7 @@ import {
   DeliverExecutor,
 } from "../src/executors/deliver.js";
 import { Worker } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 import { stageContext } from "./helpers/stage-harness.js";
 
 function claimFirstPendingCommand(
@@ -29,6 +30,12 @@ describe("DeliverExecutor Reconciliation Recovery Branches (Issue #106)", () => 
     const runRepo = new RunRepository(db);
     const operationLedgerRepo = new OperationLedgerRepository(db);
     const commandRepo = new CommandRepository(db);
+
+    ensureProject("proj-1", {
+      name: "Project 1",
+      workspacePath: "/tmp/worktrees",
+      repositoryPath: "/tmp/worktrees",
+    });
 
     const run = runRepo.create({
       id: "run-recov",

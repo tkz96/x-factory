@@ -23,6 +23,7 @@ import { githubConfigSchema } from "../src/providers/github/config.js";
 import type { ProviderRegistry } from "../src/providers/registry.js";
 import type { Project } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 const RAW = "RAW-PROVIDER-TEXT-77aa internal trace";
 
@@ -76,6 +77,7 @@ async function deliverWith(host: Provider) {
   const registry: ProviderRegistry = new Map([["stubhost", host]]);
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
+  ensureProject("proj-deliver-errors", { name: "Web" });
   const runRepo = new RunRepository(db);
   const commandRepo = new CommandRepository(db);
   const run = runRepo.create({

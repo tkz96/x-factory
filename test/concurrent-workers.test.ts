@@ -14,6 +14,7 @@ import type {
   StageOutcome,
 } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 
 describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)", () => {
   const testDbPath = path.resolve(
@@ -40,6 +41,12 @@ describe("Concurrent Worker Multi-Processing & Atomic Claim Exclusion (XFM-63)",
 
     const runRepo = new RunRepository(db1);
     const jobRepo1 = new JobRepository(db1);
+
+    ensureProject("proj-concurrent", {
+      name: "Concurrent Project",
+      workspacePath: "/tmp/worktrees-conc",
+      repositoryPath: "/tmp/worktrees-conc",
+    });
 
     const totalRuns = 10;
     const runIds: string[] = [];

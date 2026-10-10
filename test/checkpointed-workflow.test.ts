@@ -14,6 +14,7 @@ import type { StageExecutor, StageOutcome } from "../src/executors/index.js";
 import { Worker } from "../src/worker.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
+import { ensureProject } from "./helpers/project-fixture.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
@@ -30,6 +31,12 @@ describe("Checkpointed Workflow Engine (XFM-30, XFM-31)", () => {
     const runRepo = new RunRepository(db);
     const jobRepo = new JobRepository(db);
     const stageAttemptRepo = new StageAttemptRepository(db);
+
+    ensureProject("proj-cp", {
+      name: "Checkpointed Project",
+      workspacePath: "/tmp/worktrees-cp",
+      repositoryPath: "/tmp/worktrees-cp",
+    });
 
     const run = runRepo.create({
       id: "run-cp-1",
