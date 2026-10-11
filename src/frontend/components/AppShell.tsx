@@ -17,7 +17,6 @@ import {
   ProjectProvider,
   useCurrentProject,
 } from "../context/ProjectContext.js";
-import { useAppEvents } from "../hooks/useAppEvents.js";
 import {
   useReadiness,
   useRun,
@@ -518,9 +517,9 @@ function AppShellContent() {
     saveSettings.mutate({ appearance: toggleTheme() });
   };
   const stopRunMutation = useStopRun();
-  // The app-wide stream keeps the runs cache live on every screen (#257), so the
-  // Runs badge and the tab title follow a run from any section (#259).
-  useAppEvents();
+  // The app-wide stream (#257) keeps the runs cache live on every screen, so the
+  // Runs badge and the tab title follow a run from any section (#259). It is
+  // opened once, by the NotificationProvider that wraps this shell (#264).
   const { data: runsList } = useRuns();
   const needsYouCount = countRunsByFilter(runsList ?? [])["needs-you"];
   useEffect(() => {

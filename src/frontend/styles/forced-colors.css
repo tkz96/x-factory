@@ -97,7 +97,12 @@
     border: var(--border-width) solid ButtonBorder;
   }
 
-  :root .ui-segment[data-selected] {
+  /* The browser paints a Canvas backplate behind text in forced colours, which
+     hid HighlightText on a selected segment. Opt the segment out of forced
+     adjustment and give it system colours itself, backplate and all. */
+  :root .ui-segment[data-selected],
+  :root .ui-segment[data-selected] * {
+    forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
   }

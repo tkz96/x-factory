@@ -168,4 +168,27 @@ describe("forced colours: emulated in a browser (#249)", () => {
     expect(parseFloat(style.borderWidth)).toBeGreaterThan(0);
     await context.close();
   }, 120_000);
+
+  test("the selected segment's label stays readable under forced colours", async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.goto(`${instance.url}/runs`, { waitUntil: "load" });
+
+    const selected = page.locator(".ui-segment[data-selected]").first();
+    await selected.waitFor();
+    // The browser paints a Canvas backplate behind forced-colour text; a
+    // selected segment must not end up with its text colour on that backplate.
+    const colours = await selected.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        text: cs.color,
+        fill: cs.backgroundColor,
+        adjust: cs.getPropertyValue("forced-color-adjust"),
+      };
+    });
+    expect(colours.adjust).toBe("none");
+    expect(colours.text).not.toBe(colours.fill);
+    await context.close();
+  }, 120_000);
 });
