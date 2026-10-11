@@ -12,6 +12,12 @@ import {
 import { hasControlCharacters } from "../shared/validation.js";
 
 /** Request body schema for POST /api/settings (#163 B4). */
+/** A role's model (#278); `null` in a settings patch clears the role. */
+const RoleAssignmentSchema = z.object({
+  connectionId: z.string().trim().min(1),
+  modelId: z.string().trim().min(1),
+});
+
 export const WorkbenchSettingsSchema = z.object({
   theme: z.enum(["dark", "light"]).optional(),
   models: z
@@ -31,6 +37,12 @@ export const WorkbenchSettingsSchema = z.object({
     })
     .optional(),
   allowUnsandboxed: z.boolean().optional(),
+  roles: z
+    .object({
+      builder: RoleAssignmentSchema.nullable().optional(),
+      reviewer: RoleAssignmentSchema.nullable().optional(),
+    })
+    .optional(),
 });
 
 export type WorkbenchSettingsBody = z.infer<typeof WorkbenchSettingsSchema>;

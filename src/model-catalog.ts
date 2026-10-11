@@ -202,6 +202,7 @@ type Catalog = Record<
   {
     contextWindow?: number;
     maxTokens?: number;
+    reasoning?: boolean;
     cost?: { input?: number; output?: number };
   }
 >;
@@ -232,4 +233,13 @@ export function runtimeCatalogDetails(
     inputPricePerMTok: entry.cost?.input,
     outputPricePerMTok: entry.cost?.output,
   });
+}
+
+/** Whether the runtime catalogue marks a model as reasoning (#278); undefined if unknown. */
+export function runtimeCatalogReasoning(
+  apiType: ModelApiType,
+  baseUrl: string,
+  modelId: string,
+): boolean | undefined {
+  return catalogFor(apiType, baseUrl)?.[modelId]?.reasoning;
 }

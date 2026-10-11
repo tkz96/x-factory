@@ -507,7 +507,23 @@ export interface WorkbenchSettings {
       }
     | undefined;
   allowUnsandboxed?: boolean | undefined;
+  /** Which model each role uses (#278); replaces models.sessionA/sessionB. */
+  roles?: ModelRoles | undefined;
 }
+
+/** A role's model: a model ID on a model connection (#278). */
+export interface RoleAssignment {
+  connectionId: string;
+  modelId: string;
+}
+
+/** Builder: understand, plan, code, chat. Reviewer: review (#278). */
+export interface ModelRoles {
+  builder?: RoleAssignment | undefined;
+  reviewer?: RoleAssignment | undefined;
+}
+
+export type ModelRoleName = keyof ModelRoles;
 
 /** Request body of `POST /api/settings`: a patch merged into stored settings. */
 export type SettingsUpdateRequest = Partial<WorkbenchSettings>;
