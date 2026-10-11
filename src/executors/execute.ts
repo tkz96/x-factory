@@ -122,6 +122,7 @@ export class ExecuteExecutor implements StageExecutor {
         allowUnsandboxed,
         signal,
         recordModelCall: () => context.recordModelCall?.(builderModel),
+        checkBudget: () => context.assertBudget?.(builderModel),
         emit: context.emit,
         onVerification: (verification) => {
           latest = verification;

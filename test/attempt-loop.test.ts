@@ -113,6 +113,7 @@ type Settings = Awaited<ReturnType<typeof loadSettings>>;
 function setup(
   settings: Settings = {},
   reviewExecutor: StageExecutor = PASSING_REVIEW,
+  resolveRole: typeof stubResolveRole = stubResolveRole,
 ) {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
@@ -134,7 +135,7 @@ function setup(
   });
   jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
   const executor = new ExecuteExecutor({
-    resolveRole: stubResolveRole,
+    resolveRole,
     loadSettings: async () => settings,
     reviewExecutor,
   });
@@ -232,6 +233,49 @@ afterEach(async () => {
 });
 
 describe("Attempt loop at the Worker seam", () => {
+  it("stops the loop at the iteration that spends the day's calls and pauses the run (#281)", async () => {
+    await commitAndRecordBaseline();
+    // A scripted loop that would print five iterations if left alone.
+    await installSbx(`
+for i in 1 2 3 4 5; do
+  echo "Iteration $i of 5"
+  sleep 0.3
+done
+`);
+    await configureProject("true");
+    const { run, repos, runRepo, jobRepo, worker } = setup(
+      {},
+      PASSING_REVIEW,
+      async (role) => {
+        const model = await stubResolveRole(role);
+        return { ...model, budget: { perDay: { requests: 2 } } };
+      },
+    );
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    // N allows exactly N: the second counted call spends the budget and ends the loop.
+    expect(
+      repos.modelCalls.countForModel("test-connection", "test/model"),
+    ).toBe(2);
+    const announced = repos.events
+      .getEventsForRun(run.id)
+      .filter(
+        (e) =>
+          e.type === "ralph_progress" &&
+          (e.payload as { text: string }).text.includes("Iteration"),
+      );
+    expect(announced).toHaveLength(2);
+    expect(runRepo.get(run.id)?.status).toBe("recovery_required");
+    const lastError = repos.events
+      .getEventsForRun(run.id)
+      .filter((e) => e.type === "error")
+      .at(-1);
+    expect(JSON.stringify(lastError?.payload)).toContain("daily budget");
+  });
+
   it("runs X-Factory's own loop script even when the repository ships a ralph.sh", async () => {
     const marker = path.join(tempDir, "repo-ralph-ran");
     await write("ralph.sh", `#!/usr/bin/env bash\ntouch "${marker}"\nexit 1\n`);

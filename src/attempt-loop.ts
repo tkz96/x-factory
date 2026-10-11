@@ -228,6 +228,12 @@ export interface AttemptLoopInput {
    * so each iteration the script announces is one call.
    */
   recordModelCall?: (() => void) | undefined;
+  /**
+   * Throws a "budget reached" ModelUnavailableError when the day's calls are spent. Checked
+   * after each counted iteration: the iteration that spends the budget is the last one, and
+   * the loop is aborted there (#281).
+   */
+  checkBudget?: (() => void) | undefined;
   /** Whether running without a sandbox is explicitly allowed via setting or env var. */
   allowUnsandboxed?: boolean | undefined;
   signal?: AbortSignal | undefined;
@@ -350,6 +356,14 @@ function handleAttemptError(
   throw err;
 }
 
+function budgetStopped(
+  err: ModelUnavailableError,
+  emit: AttemptLoopInput["emit"],
+): AttemptLoopResult {
+  emit("error", { message: err.message });
+  return { outcome: "budget_exceeded", error: err.message };
+}
+
 /**
  * Runs the implementation loop and verifies it, repairing until verification passes or the single attempt cap
  * (`MAX_REPAIR_ATTEMPTS`) is spent. A stop signal ends the loop before any new attempt starts.
@@ -414,6 +428,12 @@ export async function runAttemptLoop(
     // Every progress line belongs to a loop iteration; the script prints "Iteration N of M", so
     // the number is read from the line and carried on the event (#256).
     let iteration = 1;
+    // The loop's own signal: the run's stop signal, or the iteration that spends the day's budget.
+    const loopAbort = new AbortController();
+    const onStop = () => loopAbort.abort();
+    if (signal?.aborted) loopAbort.abort();
+    else signal?.addEventListener("abort", onStop, { once: true });
+    let budgetStop: ModelUnavailableError | null = null;
     const forward = progressLineForwarder((line) => {
       const parsed = line.match(/Iteration (\d+)/i);
       if (parsed?.[1]) {
@@ -421,6 +441,15 @@ export async function runAttemptLoop(
         // Pi runs in a subprocess here, so its own calls are invisible: the
         // iteration the script announces is the one model call it makes (#281).
         input.recordModelCall?.();
+        if (!budgetStop) {
+          try {
+            input.checkBudget?.();
+          } catch (err: unknown) {
+            if (!isBudgetReached(err)) throw err;
+            budgetStop = err;
+            loopAbort.abort();
+          }
+        }
       }
       emit("ralph_progress", { text: line, iteration });
     });
@@ -433,7 +462,7 @@ export async function runAttemptLoop(
           env,
           envPolicy: "sanitized",
           timeoutMs,
-          signal,
+          signal: loopAbort.signal,
           onOutputChunk: (chunk, stream) => {
             if (stream !== "stdout") return;
             forward(chunk);
@@ -447,14 +476,18 @@ export async function runAttemptLoop(
       loop = await runLoopWithGateway(
         runLoop,
         input.gate,
-        signal,
+        loopAbort.signal,
         emit,
         () => iteration,
       );
     } catch (err: unknown) {
+      if (budgetStop) return budgetStopped(budgetStop, emit);
       return handleAttemptError(err, signal, emit);
+    } finally {
+      signal?.removeEventListener("abort", onStop);
     }
 
+    if (budgetStop) return budgetStopped(budgetStop, emit);
     if (signal?.aborted) return { outcome: "aborted" };
     if (loop.timedOut) {
       return {
