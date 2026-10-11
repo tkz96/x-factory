@@ -10,7 +10,7 @@
 }
 
 .review-summary-card {
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   padding: var(--space-5);
@@ -25,7 +25,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
 }
 
 .review-row:last-child {
@@ -68,7 +68,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   font-size: var(--text-subhead);
@@ -88,7 +88,7 @@
   font-size: var(--text-caption-1);
   font-weight: 600;
   color: var(--green);
-  border: 1px solid var(--green);
+  border: var(--border-width) solid var(--green);
   border-radius: var(--radius-pill);
   padding: 0 var(--space-2);
 }

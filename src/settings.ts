@@ -55,7 +55,8 @@ export type FactorySettings = WorkbenchSettings;
 // There is deliberately no default model (#278): a fresh install has none until
 // the user connects one and assigns it to the Builder and Reviewer roles.
 const DEFAULT_SETTINGS: FactorySettings = {
-  theme: "dark",
+  theme: "default",
+  appearance: "automatic",
   models: { sessionA: {}, sessionB: {} },
   allowUnsandboxed: false,
 };
@@ -151,9 +152,21 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
     const raw = await readFile(filePath, "utf-8");
     const parsed = JSON.parse(raw) as Partial<FactorySettings>;
     const models = normalizeModels(parsed.models);
+
+    // Settings saved before Appearance existed carry theme "dark" | "light".
+    // That was the old default, written for everyone, not a choice — so they
+    // start at Automatic, like a new install (#248).
+    const appearance = parsed.appearance ?? "automatic";
+    const theme =
+      !parsed.theme || parsed.theme === "dark" || parsed.theme === "light"
+        ? "default"
+        : parsed.theme;
+
     current = {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      theme,
+      appearance,
       models,
       allowUnsandboxed:
         typeof parsed.allowUnsandboxed === "boolean"
@@ -180,11 +193,16 @@ export async function saveSettings(
   const filePath = getSettingsPath();
   const existing = await loadSettings(false);
 
+  let appearance = patch.appearance || existing.appearance || "automatic";
+  if (appearance === "auto") appearance = "automatic";
+  const theme = patch.theme || existing.theme || "default";
+
   // The file format is the {provider, model} contract (#182): the merged entry
   // is normalized on the way out, so legacy index keys can never be re-spread
   // into a saved file.
   const updated: FactorySettings = {
-    theme: patch.theme || existing.theme || "dark",
+    theme,
+    appearance,
     models: normalizeModels({
       sessionA: { ...existing.models?.sessionA, ...patch.models?.sessionA },
       sessionB: { ...existing.models?.sessionB, ...patch.models?.sessionB },

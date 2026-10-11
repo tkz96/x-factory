@@ -22,6 +22,8 @@ import {
   useReadiness,
   useRun,
   useRuns,
+  useSaveSettings,
+  useSettings,
   useStopRun,
   useTickets,
 } from "../hooks/useQueries.js";
@@ -510,7 +512,18 @@ function AppShellContent() {
     setSelectedProjectId,
   } = useCurrentProject();
   const { openNewRunModal } = useModal();
-  const { toggleTheme } = useTheme();
+  const { toggleTheme, setAppearance } = useTheme();
+  const { data: settings } = useSettings();
+  const saveSettings = useSaveSettings();
+  // The settings object is the source of truth for Appearance (#248); browser
+  // storage only lets the pre-paint script apply it before React loads.
+  const savedAppearance = settings?.appearance;
+  useEffect(() => {
+    if (savedAppearance) setAppearance(savedAppearance);
+  }, [savedAppearance, setAppearance]);
+  const handleToggleTheme = () => {
+    saveSettings.mutate({ appearance: toggleTheme() });
+  };
   const stopRunMutation = useStopRun();
 
   const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
@@ -592,7 +605,7 @@ function AppShellContent() {
         queueCount={queueCount}
         activeRunsCount={activeRunsCount}
         readiness={readiness}
-        onToggleTheme={toggleTheme}
+        onToggleTheme={handleToggleTheme}
       />
 
       <main
@@ -606,7 +619,7 @@ function AppShellContent() {
           title={title}
           subtitle={subtitle}
           docBreadcrumb={docBreadcrumb}
-          onToggleTheme={toggleTheme}
+          onToggleTheme={handleToggleTheme}
           onOpenNewRun={openNewRunModal}
           activeRunId={activeRunId}
           onStopRun={handleStopRun}

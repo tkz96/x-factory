@@ -2,7 +2,7 @@
 
 .queue-error-message {
   margin: var(--space-4) auto;
-  max-width: 450px;
+  max-width: var(--content-max-md);
 }
 
 /* The manual path stays open when the queue cannot load (#147). */

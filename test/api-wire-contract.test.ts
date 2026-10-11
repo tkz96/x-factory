@@ -151,7 +151,8 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
       expect(postRes.status).toBe(200);
       const saved = (await postRes.json()) as WorkbenchSettings;
       expect(saved).toEqual({
-        theme: "dark",
+        theme: "default",
+        appearance: "automatic",
         models: payload.models,
         allowUnsandboxed: false,
       });

@@ -580,12 +580,21 @@ export interface AzureConnectionResult {
 // annotated against these types, so changing a response shape on either side
 // fails the typecheck. The route table (#192) consumes them later.
 
+export type ThemeName = "default" | "graphite" | "sandstone";
+export type AppearanceSetting = "automatic" | "auto" | "light" | "dark";
+export type ResolvedAppearance = "light" | "dark";
+export type ContrastSetting = "standard" | "more";
+
 /**
  * Workbench settings shape — the body of `GET /api/settings`, the response of
  * `POST /api/settings`, and the on-disk `settings.json` contract.
  */
 export interface WorkbenchSettings {
-  theme?: "dark" | "light" | undefined;
+  /** Visual theme (#248, #249): Default, Graphite, Sandstone. */
+  theme?: ThemeName | "dark" | "light" | undefined;
+  /** Appearance (#248): Automatic (follows OS), Light, Dark. */
+  appearance?: AppearanceSetting | undefined;
+
   models?:
     | {
         sessionA?:
