@@ -67,12 +67,13 @@ http://localhost:5173
 On first launch, X-Factory starts with an empty workspace.
 
 1. Open **Projects** in the section switcher at the top of the window (on a phone, the bottom tab bar).
-2. Click **"+ Onboard Project"** to open the wizard modal.
+2. Click **"Add Project"** in the toolbar to open the assistant sheet.
 3. Provide a project name and select or input the absolute path to a local Git repository on your machine.
 4. Optionally configure your issue tracker connection (GitHub Issues, Azure DevOps, or Jira).
 5. Click **"Save Project"**.
 
-Your project card will appear in the workspace with repository readiness indicators.
+Your project appears in the Projects list, and its detail pane shows the
+repository, tracker and branch it is wired to.
 
 ---
 
