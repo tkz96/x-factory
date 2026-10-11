@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createReviewSession } from "../src/agents/pi.js";
+import { createReadOnlySession } from "../src/agents/pi.js";
 import { resolveRole } from "../src/model-roles.js";
 
 const shouldRunLive = process.env.XF_TEST_PI === "1";
@@ -21,7 +21,7 @@ describe("Live Pi Integration (Gated)", () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-live-"));
     try {
       // Live runs use the Reviewer role configured in the test data dir (#278).
-      const pi = await createReviewSession(tmp, {
+      const pi = await createReadOnlySession(tmp, {
         resolved: await resolveRole("reviewer"),
       });
       let receivedText = false;

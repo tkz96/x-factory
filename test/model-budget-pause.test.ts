@@ -271,3 +271,42 @@ describe("budget pause in StageRunner", () => {
     expect(statusEvent).toBeDefined();
   });
 });
+
+describe("Builder stages that spend a budget pause, not fail (#281, #282)", () => {
+  it("Understand hands a spent budget to the runner instead of reporting a stage error", async () => {
+    const { UnderstandExecutor } = await import(
+      "../src/executors/understand.js"
+    );
+    const { BudgetExceededError } = await import("../src/model-budgets.js");
+    const { stubResolveRole } = await import("./helpers/resolved-model.js");
+    const { scriptedReviewSession } = await import(
+      "./helpers/scripted-review-session.js"
+    );
+    const executor = new UnderstandExecutor({
+      resolveRole: stubResolveRole,
+      sessionFactory: async () => scriptedReviewSession("unused"),
+    });
+    const context = {
+      run: {
+        id: "run-budget-understand",
+        ticket: { id: "T-1", title: "T", acceptanceCriteria: [] },
+        plan: "",
+        artifactsDir: "/tmp",
+        worktreePath: "/tmp",
+      },
+      project: { id: "p", name: "P", repositories: [] },
+      stage: "understand",
+      attempt: 1,
+      emit: () => {},
+      recordModel: () => {},
+      reportUsage: () => {},
+      assertBudget: () => {
+        throw new BudgetExceededError("Daily budget reached for test/model.");
+      },
+      signal: new AbortController().signal,
+    } as unknown as Parameters<typeof executor.execute>[0];
+
+    const err = await executor.execute(context).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BudgetExceededError);
+  });
+});

@@ -12,6 +12,7 @@ describe("Ralph Loop Script", () => {
   let workDir: string;
   let binDir: string;
   let originalPath: string;
+  let originalAllowUnsandboxed: string | undefined;
 
   beforeEach(async () => {
     workDir = await mkdtemp(join(tmpdir(), "ralph-script-test-"));
@@ -26,10 +27,17 @@ describe("Ralph Loop Script", () => {
     // Ensure deterministic tests by excluding host-installed custom binaries (sbx, pi)
     // while keeping standard UNIX paths so bash, awk, and other utilities still work.
     process.env.PATH = `${binDir}:/usr/bin:/bin:/usr/sbin:/sbin`;
+    // The host's no-sandbox opt-in must not leak into these tests (#275):
+    // each test sets it only when it means to.
+    originalAllowUnsandboxed = process.env.X_FACTORY_ALLOW_UNSANDBOXED;
+    delete process.env.X_FACTORY_ALLOW_UNSANDBOXED;
   });
 
   afterEach(async () => {
     process.env.PATH = originalPath;
+    if (originalAllowUnsandboxed === undefined)
+      delete process.env.X_FACTORY_ALLOW_UNSANDBOXED;
+    else process.env.X_FACTORY_ALLOW_UNSANDBOXED = originalAllowUnsandboxed;
     await rm(workDir, { recursive: true, force: true });
   });
 

@@ -66,7 +66,8 @@ export function assertBudgetNotExceeded(
  * Maps a stage to its assigned model role, or null if the stage does not use a model.
  */
 export function modelRoleForStage(stage: string): ModelRoleName | null {
-  if (stage === "execute") return "builder";
+  if (stage === "understand" || stage === "plan" || stage === "execute")
+    return "builder";
   if (stage === "review") return "reviewer";
   return null;
 }

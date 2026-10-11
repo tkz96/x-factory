@@ -153,10 +153,13 @@ describe("model budgets", () => {
       expect(modelRoleForStage("review")).toBe("reviewer");
     });
 
+    it("maps understand and plan to builder, since they call the Builder model (#282)", () => {
+      expect(modelRoleForStage("understand")).toBe("builder");
+      expect(modelRoleForStage("plan")).toBe("builder");
+    });
+
     it("returns null for non-model stages", () => {
       expect(modelRoleForStage("prepare")).toBeNull();
-      expect(modelRoleForStage("understand")).toBeNull();
-      expect(modelRoleForStage("plan")).toBeNull();
       expect(modelRoleForStage("deliver")).toBeNull();
     });
   });

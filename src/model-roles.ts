@@ -135,6 +135,21 @@ export async function assertRolesReady(): Promise<void> {
   }
 }
 
+/**
+ * The reason a stage reports for a model it could not use (#282): the failure
+ * category, then the message that says how to fix it. `Key rejected` and
+ * `Model unavailable` are the two labels the run page and the operator already
+ * read for review (#278).
+ */
+export function modelFailureReason(err: ModelUnavailableError): string {
+  const label =
+    err.category === "key rejected" ? "Key rejected" : "Model unavailable";
+  // A classified key error already names its category; never say it twice.
+  return err.message.startsWith(label)
+    ? err.message
+    : `${label}: ${err.message}`;
+}
+
 /** The record of which model did some work, as it is now (#279). */
 export function modelUse(resolved: ResolvedModel): ModelUse {
   return {

@@ -6,7 +6,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as pi from "../src/agents/pi.js";
-import { createReviewSession, XFACTORY_PROVIDER_ID } from "../src/agents/pi.js";
+import {
+  createReadOnlySession,
+  XFACTORY_PROVIDER_ID,
+} from "../src/agents/pi.js";
 import type { ResolvedModel } from "../src/model-roles.js";
 
 /** A role resolved to a local OpenAI-compatible endpoint; creating a session makes no request. */
@@ -35,7 +38,7 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("creates review session with strictly read-only tools", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-rev-"));
     try {
-      const piAgent = await createReviewSession(tmp, { resolved: RESOLVED });
+      const piAgent = await createReadOnlySession(tmp, { resolved: RESOLVED });
       assert.ok(piAgent);
       assert.ok(piAgent.session);
       // The session surface every caller relies on (restored from the deleted
@@ -72,7 +75,7 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("subscribes to session events cleanly", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-sub-"));
     try {
-      const piAgent = await createReviewSession(tmp, { resolved: RESOLVED });
+      const piAgent = await createReadOnlySession(tmp, { resolved: RESOLVED });
       const events: string[] = [];
       const unsub = piAgent.subscribe((e) => {
         events.push(e.type);
@@ -87,7 +90,7 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("runs the session on the role's model through X-Factory's own provider (#278)", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-model-"));
     try {
-      const revAgent = await createReviewSession(tmp, {
+      const revAgent = await createReadOnlySession(tmp, {
         resolved: RESOLVED,
         thinkingLevel: "low",
       });

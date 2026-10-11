@@ -1,12 +1,14 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
+import type { ReadOnlySessionFactory } from "../agents/pi.js";
 import {
   ModelUnavailableError,
+  modelFailureReason,
   modelUse,
   resolveRole,
   usageWithCost,
 } from "../model-roles.js";
-import { type ReviewSessionFactory, reviewRun } from "../review.js";
+import { reviewRun } from "../review.js";
 import type {
   StageContext,
   StageExecutor,
@@ -17,7 +19,7 @@ import type {
 export interface ReviewDependencies {
   resolveRole: typeof resolveRole;
   /** Test seam: replaces the Pi review session that reviewRun creates. */
-  sessionFactory?: ReviewSessionFactory | undefined;
+  sessionFactory?: ReadOnlySessionFactory | undefined;
 }
 
 export const defaultReviewDeps: ReviewDependencies = {
@@ -80,11 +82,7 @@ export class ReviewExecutor implements StageExecutor {
         return { outcome: "paused", reason: err.message };
       }
       if (err instanceof ModelUnavailableError) {
-        const label =
-          err.category === "key rejected"
-            ? "Key rejected"
-            : "Model unavailable";
-        return { outcome: "error", error: `${label}: ${err.message}` };
+        return { outcome: "error", error: modelFailureReason(err) };
       }
       throw err;
     }

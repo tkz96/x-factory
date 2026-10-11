@@ -13,10 +13,11 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
+  buildPlanPrompt,
   buildRalphPrompt,
   buildRepairPrompt,
   buildReviewPrompt,
-  generateDefaultPlan,
+  buildUnderstandingPrompt,
 } from "../src/prompts.js";
 import type {
   ImplementationContext,
@@ -283,17 +284,64 @@ describe("Prompt module (src/prompts.ts)", () => {
     });
   });
 
-  describe("the default execution plan", () => {
-    it("renders byte-identically to the literal", () => {
-      expect(generateDefaultPlan(ticket)).toBe(
-        "# Execution Plan for #T-9: Ship dark mode\n\n## Task 1: Setup & Tests\n- [ ] Create test fixtures and failing test cases for acceptance criteria\n- [ ] Run test suite to verify failing (RED) state\n\n## Task 2: Core Implementation\n- [ ] Implement Must not break the build\n- [ ] Implement Must add tests\n- [ ] Run test suite to verify passing (GREEN) state\n\n## Task 3: Quality Verification & Refactor\n- [ ] Refactor implementation for maintainability and clarity\n- [ ] Run typecheck and lint to ensure clean build\n- [ ] Ensure zero test regressions",
+  describe("the Understand and Plan prompts (#282)", () => {
+    it("asks the Builder to understand the ticket in named sections", () => {
+      const prompt = buildUnderstandingPrompt({
+        ticket,
+        project,
+        plan: "1. Toggle",
+        namedFiles: ["src/theme.ts"],
+        rootFiles: ["package.json"],
+        notes: ["Repository instructions available in AGENTS.md"],
+      });
+
+      expect(prompt).toContain("#T-9 — Ship dark mode");
+      expect(prompt).toContain("- Must not break the build");
+      expect(prompt).toContain("- Must add tests");
+      expect(prompt).toContain("Test Command: `bun test`");
+      expect(prompt).toContain("Root files: package.json");
+      expect(prompt).toContain("Paths the ticket and plan name: src/theme.ts");
+      expect(prompt).toContain(
+        "Repository instructions available in AGENTS.md",
       );
+      expect(prompt).toContain("## Plan\n1. Toggle");
+      expect(prompt).toContain("RELEVANT_FILES:");
+      expect(prompt).toContain("SUMMARY:");
+      expect(prompt).toContain("Name only files that exist in this repository");
     });
 
-    it("renders byte-identically to the literal when the ticket has no criteria", () => {
-      expect(generateDefaultPlan({ ...ticket, acceptanceCriteria: [] })).toBe(
-        "# Execution Plan for #T-9: Ship dark mode\n\n## Task 1: Setup & Tests\n- [ ] Create test fixtures and failing test cases for acceptance criteria\n- [ ] Run test suite to verify failing (RED) state\n\n## Task 2: Core Implementation\n- [ ] Implement Implement required functionality according to ticket specifications\n- [ ] Run test suite to verify passing (GREEN) state\n\n## Task 3: Quality Verification & Refactor\n- [ ] Refactor implementation for maintainability and clarity\n- [ ] Run typecheck and lint to ensure clean build\n- [ ] Ensure zero test regressions",
+    it("asks the Builder for a plan naming files and tests, with the plan so far", () => {
+      const prompt = buildPlanPrompt({
+        ticket,
+        project,
+        draft: "1. Toggle",
+        understanding,
+      });
+
+      expect(prompt).toContain("# Execution Plan for #T-9: Ship dark mode");
+      expect(prompt).toContain("## Codebase Understanding");
+      expect(prompt).toContain("Relevant files: src/auth.ts");
+      expect(prompt).toContain("## Plan so far\n1. Toggle");
+      expect(prompt).toContain(
+        "Every task must name the repository-relative file",
       );
+      expect(prompt).toContain("Answer with the plan only");
+    });
+
+    it("leaves the optional blocks out when the run has none of them", () => {
+      const bareProject: Project = { ...project, testCommand: "" };
+      const understandingPrompt = buildUnderstandingPrompt({
+        ticket,
+        project: bareProject,
+      });
+      expect(understandingPrompt).not.toContain("## Repository");
+      expect(understandingPrompt).not.toContain("## Plan");
+      expect(understandingPrompt).not.toContain("### Verification Commands:");
+
+      const planPrompt = buildPlanPrompt({ ticket, project: bareProject });
+      expect(planPrompt).not.toContain("## Plan so far");
+      expect(planPrompt).not.toContain("## Codebase Understanding");
+      expect(planPrompt).not.toContain("### Verification Commands:");
     });
   });
 

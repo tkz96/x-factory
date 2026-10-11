@@ -37,7 +37,7 @@ Because `HOME` passes through, the sanitization does not protect credential file
 Model API keys never live in `settings.json`. Each role (Builder, Reviewer) points at a model on a model connection (#278), and every model call uses that connection's key and nothing else.
 
 - **No fallback model**: a role with no model, an unchecked connection, a missing key, or a key the provider rejects stops the work with that reason. X-Factory never switches to another model or to the agent runtime's default.
-- **In-process calls (review, chat)**: X-Factory registers the role's connection with the agent runtime as one X-Factory-owned provider holding exactly that model. The runtime reads nothing from the user's `~/.pi`; its own config lives in `<data dir>/pi-agent`.
+- **In-process calls (understand, plan, review, chat)**: X-Factory registers the role's connection with the agent runtime as one X-Factory-owned provider holding exactly that model. The runtime reads nothing from the user's `~/.pi`; its own config lives in `<data dir>/pi-agent`. Understand and Plan run as the Builder with the runtime's read-only tools (`read`, `grep`, `find`, `ls`), so a stage can inspect the repository but never change it.
 - **The coding agent**: each run gets its own agent config directory in its artifacts (`PI_CODING_AGENT_DIR`). Its `models.json` names only the Builder's model and refers to the key as `$XF_MODEL_API_KEY`, so no key is written to disk. The key reaches the agent only through that variable. Provider key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`) are not passed to it.
 - **Pi API Key (`PI_API_KEY`)**: still passed through the sandbox boundary to support the `pi` execution agent.
 
