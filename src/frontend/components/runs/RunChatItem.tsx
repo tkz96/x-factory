@@ -3,7 +3,6 @@
 // Each kind of chat item has one row shape. Every time goes through RunTime, so a moment
 // reads the same everywhere: relative when recent, the exact time on hover.
 
-import { useEffect, useState } from "react";
 import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import {
   formatRelativeTime,
@@ -12,16 +11,6 @@ import {
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
 import { Button } from "../ui/Button.js";
-
-/** The current time, refreshed each minute so relative labels stay true. */
-export function useNow(intervalMs = 60_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
 
 export function RunTime({ at, now }: { at: string; now: number }) {
   return (

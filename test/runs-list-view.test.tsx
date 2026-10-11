@@ -132,6 +132,19 @@ describe("Runs filter segments", () => {
     expect(rowTitles(view).join("|")).not.toContain("Ticket b");
   });
 
+  it("defaults to Needs you when the waiting run is in another project than the scope", () => {
+    window.localStorage.setItem("xf_selected_project", "other");
+    const mine = {
+      ...run("m", "executing"),
+      project: { id: "other", name: "Other" },
+    } as Run;
+    const view = renderRuns(
+      makeClient([run("a", "awaiting_plan_approval"), mine]),
+    );
+    window.localStorage.removeItem("xf_selected_project");
+    expect(isChecked(segment(view, /^Needs you/))).toBe(true);
+  });
+
   it("keeps the last filter the user chose when nothing waits", () => {
     const client = makeClient([run("c", "pr_created"), run("b", "executing")]);
     const first = renderRuns(client);
@@ -163,7 +176,11 @@ describe("Runs rows", () => {
     expect(row.textContent).toContain("Add login");
     expect(row.textContent).toContain("Demo App");
     expect(row.textContent).toContain("Review the plan");
-    expect(row.textContent).toContain("minutes ago");
+    expect(row.textContent).toContain("5 min ago");
+    const time = row.querySelector("time");
+    expect(time?.getAttribute("title")).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+    );
   });
 });
 
@@ -207,6 +224,46 @@ describe("Live updates from the app-wide stream", () => {
     expect(fetches).toBe(0);
     fireEvent.click(segment(view, /^Needs you/));
     expect(rowTitles(view).join("|")).toContain("Ticket b");
+  });
+  it("adds a run created elsewhere by fetching that one run, not the list", async () => {
+    const client = makeClient([run("b", "executing")]);
+    const view = renderRuns(client, "/runs?filter=all");
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify(run("n", "awaiting_plan_approval")), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    let onMessage: ((data: string) => void) | undefined;
+    const stop = subscribeAppEvents({
+      queryClient: client,
+      initialCursor: 0,
+      transport: (_cursor, handlers) => {
+        onMessage = handlers.onMessage;
+        return () => {};
+      },
+    });
+    const envelope = {
+      id: 7,
+      runId: "n",
+      sequence: 1,
+      type: "status",
+      payload: { status: "awaiting_plan_approval", text: "Plan ready" },
+      time: new Date().toISOString(),
+      ticket: run("n", "executing").ticket,
+      project: { id: "demo", name: "Demo App" },
+    } as AppEventEnvelope;
+    act(() => onMessage?.(JSON.stringify(envelope)));
+    stop();
+
+    await waitFor(() =>
+      expect(rowTitles(view).join("|")).toContain("Ticket n"),
+    );
+    expect(urls).toEqual(["/api/runs/n"]);
+    expect(segment(view, /^All\s*2$/)).toBeTruthy();
   });
 });
 

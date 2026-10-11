@@ -5,14 +5,18 @@ import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
+import { useNow } from "../hooks/useNow.js";
 import { useRuns } from "../hooks/useQueries.js";
+import {
+  formatRelativeTime,
+  formatTimestamp,
+} from "../lib/format-timestamp.js";
 import { runsInScope } from "../lib/project-scope.js";
 import { runStatusText } from "../lib/run-status-ui.js";
 import {
   countRunsByFilter,
   defaultRunsFilter,
   filterRunsList,
-  formatRelativeTime,
   parseRunsFilter,
   RUNS_FILTERS,
   type RunsFilterId,
@@ -67,7 +71,9 @@ export function RunsView() {
   const runsQuery = useRuns();
   // The shared project scope narrows the list and its counts (#260).
   const { scope } = useCurrentProject();
-  const runs = runsInScope(runsQuery.data ?? [], scope);
+  const allRuns = runsQuery.data ?? [];
+  const runs = runsInScope(allRuns, scope);
+  const now = useNow();
   const { refetch } = runsQuery;
   const [params, setParams] = useSearchParams();
   const [lastChosen] = useState(readLastChosenFilter);
@@ -75,7 +81,12 @@ export function RunsView() {
   const counts = countRunsByFilter(runs);
   const filter: RunsFilterId =
     parseRunsFilter(params.get("filter")) ??
-    defaultRunsFilter({ needsYouCount: counts["needs-you"], lastChosen });
+    defaultRunsFilter({
+      // The same unscoped count the Runs badge shows, so a run waiting in another
+      // project still makes Needs you the default (#259).
+      needsYouCount: countRunsByFilter(allRuns)["needs-you"],
+      lastChosen,
+    });
 
   const shown = filterRunsList(runs, filter);
   const derived = deriveAsyncState(runsQuery, {
@@ -148,8 +159,9 @@ export function RunsView() {
                         <time
                           className="run-card-time code-sub"
                           dateTime={r.updatedAt}
+                          title={formatTimestamp(r.updatedAt)}
                         >
-                          {formatRelativeTime(r.updatedAt, Date.now())}
+                          {formatRelativeTime(r.updatedAt, now)}
                         </time>
                       </div>
                     </div>

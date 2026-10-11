@@ -6,7 +6,6 @@ import {
   countRunsByFilter,
   defaultRunsFilter,
   filterRunsList,
-  formatRelativeTime,
   parseRunsFilter,
   RUNS_FILTERS,
 } from "../src/frontend/lib/runs-list.js";
@@ -91,28 +90,5 @@ describe("Runs filter default", () => {
     expect(parseRunsFilter("needs-you")).toBe("needs-you");
     expect(parseRunsFilter("bogus")).toBeUndefined();
     expect(parseRunsFilter(null)).toBeUndefined();
-  });
-});
-
-describe("Relative time on a row", () => {
-  const now = Date.parse("2026-10-11T12:00:00.000Z");
-
-  it("says how long ago the run last changed, in plain words", () => {
-    expect(formatRelativeTime("2026-10-11T11:59:40.000Z", now)).toBe(
-      "just now",
-    );
-    expect(formatRelativeTime("2026-10-11T11:55:00.000Z", now)).toBe(
-      "5 minutes ago",
-    );
-    expect(formatRelativeTime("2026-10-11T09:00:00.000Z", now)).toBe(
-      "3 hours ago",
-    );
-    expect(formatRelativeTime("2026-10-08T12:00:00.000Z", now)).toBe(
-      "3 days ago",
-    );
-  });
-
-  it("returns the input unchanged when it is not a time", () => {
-    expect(formatRelativeTime("not a time", now)).toBe("not a time");
   });
 });

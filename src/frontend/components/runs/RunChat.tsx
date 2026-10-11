@@ -13,6 +13,7 @@ import {
 import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import { canRunAction } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
+import { useNow } from "../../hooks/useNow.js";
 import { api } from "../../lib/api-client.js";
 import {
   type ParsedDiffFile,
@@ -26,7 +27,7 @@ import { runNow } from "../../lib/run-now.js";
 import { runStatusUi } from "../../lib/run-status-ui.js";
 import { Button } from "../ui/Button.js";
 import { DiffModal } from "./DiffModal.js";
-import { RunChatRow, useNow } from "./RunChatItem.js";
+import { RunChatRow } from "./RunChatItem.js";
 import { type CheckpointAction, RunCheckpointBar } from "./RunCheckpointBar.js";
 import { RunNowHeader } from "./RunNowHeader.js";
 
