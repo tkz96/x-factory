@@ -124,6 +124,12 @@ export const AWAITING_HUMAN_RUN_STATUSES = new Set<RunStatus>([
   "ready_for_pr",
 ]);
 
+/** Statuses that need human intervention: awaiting-human plus recovery_required (#241, #257). */
+export const NEEDS_YOU_RUN_STATUSES = new Set<RunStatus>([
+  ...AWAITING_HUMAN_RUN_STATUSES,
+  "recovery_required",
+]);
+
 /** Statuses that hold no live work: terminal runs plus `recovery_required`. */
 export const NON_LIVE_RUN_STATUSES = new Set<RunStatus>([
   ...TERMINAL_RUN_STATUSES,

@@ -34,7 +34,13 @@ import {
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
-import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
+import type {
+  AppEventEnvelope,
+  EventsSnapshot,
+  ModelRoleName,
+  ModelUsage,
+  ModelUse,
+} from "./shared/types.js";
 import { initializeRunArtifacts, removeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
 import {
@@ -52,6 +58,47 @@ export function getRunEvents(
   options?: { sinceSequence?: number | undefined },
 ): EventRecord[] {
   return repos.events.getEventsForRun(runId, options);
+}
+
+/**
+ * Returns a consistent snapshot of current run statuses, Needs-you trigger events (no age limit)
+ * and Finished history (last 7 days, max 100) with cursor inside one SQLite read transaction (#257, spec #241).
+ */
+export function getEventsSnapshot(
+  repos: Repositories,
+  options?: { sevenDaysAgo?: string | undefined },
+): EventsSnapshot {
+  const sevenDaysAgo =
+    options?.sevenDaysAgo ??
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  return repos.db.transaction(() => {
+    const cursor = repos.events.getHighestEventId();
+    const runsList = repos.runs.list();
+    const needsYou = repos.events.getNeedsYouTriggerEvents(cursor);
+    const finished = repos.events.getFinishedHistoryEvents(
+      cursor,
+      sevenDaysAgo,
+    );
+
+    return {
+      cursor,
+      runs: runsList,
+      needsYou,
+      finished,
+    };
+  })();
+}
+
+/**
+ * Retrieves notification-relevant events across all runs with global id strictly greater than sinceId (#257).
+ */
+export function getAppEvents(
+  repos: Repositories,
+  sinceId: number,
+  limit?: number,
+): AppEventEnvelope[] {
+  return repos.events.getAppEventsSince(sinceId, limit);
 }
 
 export function getStageAttempts(

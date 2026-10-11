@@ -17,6 +17,8 @@ export const queryKeys = {
   run: (runId: string) => ["runs", runId] as const,
   /** The per-run event log (#191). Outside the ["runs"] prefix so run invalidation never drops it. */
   runEvents: (runId: string) => ["run-events", runId] as const,
+  /** App-wide events snapshot (#257, spec #241). */
+  eventsSnapshot: () => ["events", "snapshot"] as const,
   settings: () => ["settings"] as const,
   /** Model connections (#276/#277); keys are never in the cache, only last 4. */
   modelConnections: () => ["model-connections"] as const,

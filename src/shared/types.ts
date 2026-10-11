@@ -498,6 +498,34 @@ export type RunEvent<T extends RunEventType = RunEventType> =
     : never;
 
 /**
+ * App-wide event stream envelope (#257, spec #241).
+ * Carries the global run-events ID as its envelope ID and SSE `id:`,
+ * plus run ID, per-run sequence, type, payload, creation time, ticket and project.
+ */
+export interface AppEventEnvelope<T extends RunEventType = RunEventType> {
+  id: number;
+  runId: string;
+  sequence: number;
+  type: T;
+  payload: RunEventPayloadMap[T];
+  time: string;
+  ticket: Ticket;
+  project: Pick<Project, "id" | "name">;
+}
+
+/**
+ * App-wide events snapshot (#257, spec #241).
+ * Consistent read of current run statuses, Needs-you trigger events (no age limit),
+ * and Finished history (7 days, max 100) with cursor inside one SQLite read transaction.
+ */
+export interface EventsSnapshot {
+  cursor: number;
+  runs: Run[];
+  needsYou: AppEventEnvelope[];
+  finished: AppEventEnvelope[];
+}
+
+/**
  * Public run shape exposed via API.
  */
 export interface Run {
