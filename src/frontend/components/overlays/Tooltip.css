@@ -22,3 +22,20 @@
     opacity: 1;
   }
 }
+
+/* Closing (#250): React Aria holds the tooltip while its exit animation runs, marked
+   `data-exiting`, and unmounts it when the animation ends. It fades only — a tooltip is
+   descriptive, so it should not pull the eye as it goes — on the quicker rung of the
+   ladder (#252) than arriving. A plain fade needs no reduced-motion path. */
+.xf-tooltip[data-exiting] {
+  animation: xfTooltipFadeOut var(--duration-instant) var(--ease-in);
+}
+
+@keyframes xfTooltipFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

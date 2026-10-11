@@ -5,14 +5,18 @@
 
 import "./Tooltip.css";
 
-import { type ReactNode, useContext } from "react";
+import { type ReactNode, useContext, useRef } from "react";
 import {
   Tooltip as RACTooltip,
   type TooltipProps as RACTooltipProps,
   TooltipTrigger as RACTooltipTrigger,
   TooltipTriggerStateContext,
 } from "react-aria-components";
-import { useOverlayDismiss, useRestoreFocus } from "./overlay-stack.js";
+import {
+  useOverlayDismiss,
+  useOverlayPresence,
+  useRestoreFocus,
+} from "./overlay-stack.js";
 
 export const TooltipTrigger = RACTooltipTrigger;
 
@@ -23,13 +27,24 @@ export interface TooltipProps extends Omit<RACTooltipProps, "children"> {
 
 export function Tooltip({ className, children, ...props }: TooltipProps) {
   const state = useContext(TooltipTriggerStateContext);
-  useOverlayDismiss(state?.isOpen ?? false, () => state?.close(true));
-  useRestoreFocus(state?.isOpen ?? false);
+  const isOpen = state?.isOpen ?? false;
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  useOverlayDismiss(isOpen, () => state?.close(true));
+  // Closing animates (#250): React Aria marks the tooltip `data-exiting` and Tooltip.css
+  // plays the exit from that state, so it stays mounted until the fade has ended.
+  const isPresent = useOverlayPresence(tooltipRef, isOpen);
+  // Focus returns to the trigger once the tooltip has left the screen, not while its
+  // exit fade still plays.
+  useRestoreFocus(isPresent);
 
-  if (state && !state.isOpen) return null;
+  if (!isPresent) return null;
 
   return (
-    <RACTooltip className={`xf-tooltip ${className ?? ""}`.trim()} {...props}>
+    <RACTooltip
+      ref={tooltipRef}
+      className={`xf-tooltip ${className ?? ""}`.trim()}
+      {...props}
+    >
       {children}
     </RACTooltip>
   );

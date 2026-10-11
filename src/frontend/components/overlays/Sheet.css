@@ -79,6 +79,55 @@
     transform: translateX(0);
   }
 }
+/* Closing (#250): the sheet slides back out along the edge it came from, on the quicker
+   rung of the ladder, while its surface crossfades. React Aria holds it in the DOM,
+   marked `data-exiting`, until these animations end. The rules are declared here, after
+   the surface's own exit in Dialog.css, so each position keeps its direction. */
+.xf-dialog-overlay[data-exiting] .xf-sheet-bottom {
+  animation: xfSheetSlideDown var(--duration-instant) var(--ease-in);
+}
+
+.xf-dialog-overlay[data-exiting] .xf-sheet-right {
+  animation: xfSheetSlideOutRight var(--duration-instant) var(--ease-in);
+}
+
+.xf-dialog-overlay[data-exiting] .xf-sheet-left {
+  animation: xfSheetSlideOutLeft var(--duration-instant) var(--ease-in);
+}
+
+@keyframes xfSheetSlideDown {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@keyframes xfSheetSlideOutRight {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes xfSheetSlideOutLeft {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+
 /* Reduced motion: each sheet keyframe is declared again as a fade, so the same
    animation names crossfade in place instead of sliding. */
 @media (prefers-reduced-motion: reduce) {
@@ -106,6 +155,33 @@
     }
     100% {
       opacity: 1;
+    }
+  }
+
+  @keyframes xfSheetSlideDown {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes xfSheetSlideOutRight {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes xfSheetSlideOutLeft {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
     }
   }
 }
