@@ -40,8 +40,8 @@ export function TicketSearchToolbar({
         type="button"
         id="btn-queue-refresh"
         className="btn-secondary btn-sm"
-        title="Refresh work queue"
-        aria-label="Refresh work queue"
+        title="Refresh tickets"
+        aria-label="Refresh tickets"
         onClick={onRefresh}
         disabled={isRefreshing}
       >

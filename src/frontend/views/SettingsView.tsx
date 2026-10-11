@@ -294,6 +294,23 @@ function GeneralTabContent({
         </div>
       </div>
 
+      {/* Help lives here and in the command palette, at every width (#258). */}
+      <div className="setting-item mt-4">
+        <span className="setting-label">Help</span>
+        <ul className="settings-help-links">
+          <li>
+            <a href="/docs" target="_blank" rel="noopener noreferrer">
+              Documentation
+            </a>
+          </li>
+          <li>
+            <a href="/reference" target="_blank" rel="noopener noreferrer">
+              API Reference
+            </a>
+          </li>
+        </ul>
+      </div>
+
       {showConfirmModal && (
         <Modal
           id="modal-confirm-unsandboxed"

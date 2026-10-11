@@ -1,7 +1,7 @@
 import "./AppShell.css";
 import "./AppShellDocsPhone.css";
 
-import { useEffect, useState } from "react";
+import { type UIEvent, useEffect, useState } from "react";
 import {
   NavLink,
   Outlet,
@@ -9,10 +9,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
-import {
-  ACTIVE_RUN_STATUSES,
-  STOPPABLE_RUN_STATUSES,
-} from "../../shared/run-status-policy.js";
+import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import {
@@ -22,11 +19,9 @@ import {
 import {
   useReadiness,
   useRun,
-  useRuns,
   useSaveSettings,
   useSettings,
   useStopRun,
-  useTickets,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
 import {
@@ -39,50 +34,61 @@ import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
+import { SegmentedControl } from "./ui/SegmentedControl.js";
+
+/** Scrolling past this many pixels moves the page title into the toolbar. */
+const COMPACT_TITLE_SCROLL = 32;
+
+/** The three workbench sections, in toolbar and tab-bar order (#258). */
+const SECTIONS = [
+  { id: "tickets", label: "Tickets", icon: "icon-layers" },
+  { id: "runs", label: "Runs", icon: "icon-play" },
+  { id: "projects", label: "Projects", icon: "icon-folder" },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]["id"];
+
+/** The section a path belongs to, or "" on Settings and Docs. */
+function sectionFor(pathname: string): SectionId | "" {
+  if (pathname.startsWith("/tickets")) return "tickets";
+  if (pathname.startsWith("/runs")) return "runs";
+  if (pathname.startsWith("/projects")) return "projects";
+  return "";
+}
 
 function getActiveTitle(pathname: string): { title: string; subtitle: string } {
   if (pathname.startsWith("/runs/")) {
     return {
-      title: "Run Detail",
-      subtitle: "Live execution events and stage artifacts",
+      title: "Run",
+      subtitle: "What the run is doing and what it needs from you",
     };
   }
   if (pathname.startsWith("/projects/")) {
     return {
-      title: "Project Detail",
-      subtitle: "Repository workspace and tracker configuration",
+      title: "Project",
+      subtitle: "Repository and issue tracker for this project",
     };
   }
   switch (pathname) {
     case "/runs":
       return {
-        title: "Active Runs",
-        subtitle: "In-flight agentic pipelines and verification",
-      };
-    case "/history":
-      return {
-        title: "Execution History",
-        subtitle: "Audit log of past ticket implementations",
+        title: "Runs",
+        subtitle: "Runs that are working or waiting for you",
       };
     case "/projects":
       return {
         title: "Projects",
-        subtitle: "Workspace repositories and issue tracker connections",
+        subtitle: "Repositories and issue trackers",
       };
     case "/settings":
       return {
         title: "Settings",
-        subtitle: "LLM model selection, API credentials, and runtime limits",
-      };
-    case "/docs":
-      return {
-        title: "Documentation",
-        subtitle: "Personal Access Token scopes, architecture & security guide",
+        subtitle: "Models, connections, appearance and diagnostics",
       };
     default:
       return {
-        title: "Work Queue",
-        subtitle: "Tickets ready for agentic implementation",
+        title: "Tickets",
+        subtitle: "Pick a ticket to start a run",
       };
   }
 }
@@ -121,203 +127,36 @@ export function ThemeToggleButton({
   );
 }
 
-interface AppShellSidebarProps {
-  isDocs: boolean;
+const SECTIONS_LABEL = "Sections";
+
+interface DocsSidebarProps {
   docsNavOpen: boolean;
   onCloseDocsNav: () => void;
-  projects: Project[];
-  isProjectsLoading: boolean;
-  selectedProjectId: string;
-  onSelectProject: (id: string) => void;
-  queueCount: number;
-  activeRunsCount: number;
-  readiness: ReturnType<typeof useReadiness>["data"];
   onToggleTheme: () => void;
 }
 
-function AppShellSidebar({
-  isDocs,
+/** The Docs document list. It is the Docs screen's own navigation, not the app's. */
+function DocsSidebar({
   docsNavOpen,
   onCloseDocsNav,
-  projects,
-  isProjectsLoading,
-  selectedProjectId,
-  onSelectProject,
-  queueCount,
-  activeRunsCount,
-  readiness,
   onToggleTheme,
-}: AppShellSidebarProps) {
-  if (isDocs) {
-    return (
-      <aside
-        id="app-sidebar"
-        className={`sidebar${docsNavOpen ? " docs-nav-open" : ""}`}
-      >
-        <button
-          type="button"
-          className="docs-nav-close btn-secondary btn-sm mobile-only"
-          onClick={onCloseDocsNav}
-        >
-          Close document list
-        </button>
-        <DocsSidebarNav
-          onToggleTheme={onToggleTheme}
-          ThemeToggleButton={ThemeToggleButton}
-        />
-      </aside>
-    );
-  }
-
+}: DocsSidebarProps) {
   return (
-    <aside id="app-sidebar" className="sidebar">
-      <div className="sidebar-header">
-        <div className="brand">
-          <span className="brand-title">X-Factory</span>
-        </div>
-
-        <div className="project-selector-wrapper">
-          <label htmlFor="select-project" className="sr-only">
-            Target Project
-          </label>
-          <select
-            id="select-project"
-            className="sidebar-select"
-            value={selectedProjectId}
-            onChange={(e) => onSelectProject(e.target.value)}
-            disabled={isProjectsLoading || projects.length === 0}
-          >
-            {isProjectsLoading ? (
-              <option value="" disabled>
-                Loading projects…
-              </option>
-            ) : projects.length === 0 ? (
-              <option value="" disabled>
-                No projects configured
-              </option>
-            ) : (
-              projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-      </div>
-
-      <nav id="sidebar-nav" className="sidebar-nav">
-        <div className="nav-section-title">WORKBENCH</div>
-
-        <NavLink
-          to="/queue"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="queue"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-layers" />
-          </svg>
-          <span>Work Queue</span>
-          <span id="queue-badge" className="nav-badge">
-            {queueCount}
-          </span>
-        </NavLink>
-
-        <NavLink
-          to="/runs"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="runs"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-play" />
-          </svg>
-          <span>Active Runs</span>
-          {activeRunsCount > 0 && (
-            <span id="active-runs-badge" className="nav-badge pulse">
-              {activeRunsCount}
-            </span>
-          )}
-        </NavLink>
-
-        <NavLink
-          to="/history"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="history"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-clock" />
-          </svg>
-          <span>History</span>
-        </NavLink>
-
-        <div className="nav-section-title">CONFIGURATION</div>
-
-        <NavLink
-          to="/projects"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="projects"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-folder" />
-          </svg>
-          <span>Projects</span>
-        </NavLink>
-
-        <NavLink
-          to="/settings"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="settings"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-settings" />
-          </svg>
-          <span>Settings</span>
-        </NavLink>
-
-        <a
-          href="/docs"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nav-item"
-          data-area="docs"
-          title="Open Documentation in New Tab"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-book-open" />
-          </svg>
-          <span>Documentation ↗</span>
-        </a>
-
-        <a
-          href="/reference"
-          target="_blank"
-          rel="noreferrer"
-          className="nav-item"
-          data-area="reference"
-          title="Open Interactive Scalar API Reference"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-code" />
-          </svg>
-          <span>API Reference ↗</span>
-        </a>
-      </nav>
-
-      <div className="sidebar-footer">
-        <div className="system-status">
-          <span
-            className={`status-dot ${readiness?.ready !== false ? "online" : "offline"}`}
-          />
-          <span className="status-label">
-            {readiness?.ready !== false ? "Ready" : "Degraded"}
-          </span>
-        </div>
-        <ThemeToggleButton
-          id="theme-toggle"
-          className="theme-toggle"
-          onToggle={onToggleTheme}
-        />
-      </div>
+    <aside
+      id="app-sidebar"
+      className={`sidebar${docsNavOpen ? " docs-nav-open" : ""}`}
+    >
+      <button
+        type="button"
+        className="docs-nav-close btn-secondary btn-sm mobile-only"
+        onClick={onCloseDocsNav}
+      >
+        Close document list
+      </button>
+      <DocsSidebarNav
+        onToggleTheme={onToggleTheme}
+        ThemeToggleButton={ThemeToggleButton}
+      />
     </aside>
   );
 }
@@ -338,39 +177,129 @@ const CATEGORY_TITLES: Record<string, string> = {
   security: "Credentials & Scopes",
 };
 
+interface ContextActionProps {
+  section: SectionId | "";
+  isRunDetail: boolean;
+  activeRunId: string | undefined;
+  stopPending: boolean;
+  onStopRun: () => void;
+  onStartRun: () => void;
+  onAddProject: () => void;
+}
+
+/** The action that belongs to the screen in front of the user (#258). */
+function ContextAction({
+  section,
+  isRunDetail,
+  activeRunId,
+  stopPending,
+  onStopRun,
+  onStartRun,
+  onAddProject,
+}: ContextActionProps) {
+  if (isRunDetail) {
+    if (!activeRunId) return null;
+    return (
+      <button
+        id="btn-stop"
+        className="btn-danger btn-sm"
+        type="button"
+        onClick={onStopRun}
+        disabled={stopPending}
+      >
+        <svg className="icon icon-sm" aria-hidden="true">
+          <use href="/assets/icons/sprite.svg#icon-square" />
+        </svg>
+        <span>{stopPending ? "Stopping…" : "Stop Run"}</span>
+      </button>
+    );
+  }
+  if (section === "tickets") {
+    return (
+      <button
+        id="btn-start-run"
+        className="btn-primary btn-sm"
+        type="button"
+        onClick={onStartRun}
+      >
+        <svg className="icon icon-sm" aria-hidden="true">
+          <use href="/assets/icons/sprite.svg#icon-plus" />
+        </svg>
+        <span>Start Run</span>
+      </button>
+    );
+  }
+  if (section === "projects") {
+    return (
+      <button
+        id="btn-add-project"
+        className="btn-primary btn-sm"
+        type="button"
+        onClick={onAddProject}
+      >
+        <svg className="icon icon-sm" aria-hidden="true">
+          <use href="/assets/icons/sprite.svg#icon-plus" />
+        </svg>
+        <span>Add Project</span>
+      </button>
+    );
+  }
+  return null;
+}
+
 interface AppShellHeaderProps {
   isDocs: boolean;
+  isRunDetail: boolean;
   docsNavOpen: boolean;
   onToggleDocsNav: () => void;
   title: string;
   subtitle: string;
+  compact: boolean;
   docBreadcrumb?:
     | {
         category: string;
         item: string;
       }
     | undefined;
+  section: SectionId | "";
+  onSelectSection: (id: string) => void;
   onToggleTheme: () => void;
-  onOpenNewRun: () => void;
+  readyLabel: string;
   activeRunId: string | undefined;
   onStopRun: () => void;
   stopPending: boolean;
+  onStartRun: () => void;
+  onAddProject: () => void;
   onOpenPalette: () => void;
+  projects: Project[];
+  isProjectsLoading: boolean;
+  selectedProjectId: string;
+  onSelectProject: (id: string) => void;
 }
 
 function AppShellHeader({
   isDocs,
+  isRunDetail,
   docsNavOpen,
   onToggleDocsNav,
   title,
   subtitle,
+  compact,
   docBreadcrumb,
+  section,
+  onSelectSection,
   onToggleTheme,
-  onOpenNewRun,
+  readyLabel,
   activeRunId,
   onStopRun,
   stopPending,
+  onStartRun,
+  onAddProject,
   onOpenPalette,
+  projects,
+  isProjectsLoading,
+  selectedProjectId,
+  onSelectProject,
 }: AppShellHeaderProps) {
   const paletteKeys =
     formatShortcut(getShortcut("palette"), isMacPlatform()) ?? "";
@@ -397,15 +326,39 @@ function AppShellHeader({
               {subtitle}
             </span>
           </nav>
-        ) : (
+        ) : isRunDetail ? (
+          // A run page is a locked layout with no large title, so its title
+          // lives here as the one h1.
           <>
-            <h1 id="toolbar-title">{title}</h1>
+            <h1 id="toolbar-title" className="toolbar-title is-visible">
+              {title}
+            </h1>
             <span id="toolbar-subtitle" className="toolbar-subtitle">
               {subtitle}
             </span>
           </>
+        ) : (
+          // The screen's large title is the one h1 here. This copy is for the
+          // eye only, and appears in the toolbar once the page has scrolled.
+          <span
+            className={`toolbar-title${compact ? " is-visible" : ""}`}
+            aria-hidden="true"
+          >
+            {compact ? title : ""}
+          </span>
         )}
       </div>
+
+      {!isDocs && (
+        <SegmentedControl
+          label={SECTIONS_LABEL}
+          value={section}
+          onChange={onSelectSection}
+          options={SECTIONS.map((s) => ({ id: s.id, label: s.label }))}
+          className="toolbar-sections desktop-only"
+        />
+      )}
+
       <div className="toolbar-actions">
         {isDocs && (
           <button
@@ -417,6 +370,33 @@ function AppShellHeader({
           >
             Browse documents
           </button>
+        )}
+        {!isDocs && section === "tickets" && projects.length > 0 && (
+          <select
+            id="select-project"
+            className="toolbar-select"
+            aria-label="Project"
+            value={selectedProjectId}
+            onChange={(e) => onSelectProject(e.target.value)}
+            disabled={isProjectsLoading}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {!isDocs && (
+          <ContextAction
+            section={section}
+            isRunDetail={isRunDetail}
+            activeRunId={activeRunId}
+            stopPending={stopPending}
+            onStopRun={onStopRun}
+            onStartRun={onStartRun}
+            onAddProject={onAddProject}
+          />
         )}
         <button
           type="button"
@@ -431,38 +411,33 @@ function AppShellHeader({
           </svg>
           <span>Search</span>
         </button>
+        <span
+          className="system-status desktop-only"
+          title={`X-Factory is ${readyLabel.toLowerCase()}`}
+        >
+          <span
+            className={`status-dot ${readyLabel === "Ready" ? "online" : "offline"}`}
+            aria-hidden="true"
+          />
+          <span className="status-label">{readyLabel}</span>
+        </span>
         <ThemeToggleButton
-          id="theme-toggle-mobile"
-          className="theme-toggle mobile-only"
+          id="theme-toggle"
+          className="theme-toggle"
           onToggle={onToggleTheme}
         />
-        {!isDocs &&
-          (activeRunId ? (
-            <button
-              id="btn-stop"
-              className="btn-danger btn-sm"
-              type="button"
-              onClick={onStopRun}
-              disabled={stopPending}
-            >
-              <svg className="icon icon-sm" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-square" />
-              </svg>
-              <span>{stopPending ? "Stopping…" : "Stop Run"}</span>
-            </button>
-          ) : (
-            <button
-              id="btn-open-new-run"
-              className="btn-primary btn-sm"
-              type="button"
-              onClick={onOpenNewRun}
-            >
-              <svg className="icon icon-sm" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-plus" />
-              </svg>
-              <span>New Run</span>
-            </button>
-          ))}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            `toolbar-gear ${isActive ? "active" : ""}`
+          }
+          aria-label="Settings"
+          title="Settings"
+        >
+          <svg className="icon icon-md" aria-hidden="true">
+            <use href="/assets/icons/sprite.svg#icon-settings" />
+          </svg>
+        </NavLink>
       </div>
     </header>
   );
@@ -475,70 +450,32 @@ function AppShellMobileTabBar() {
       className="mobile-tab-bar"
       aria-label="Mobile Navigation"
     >
-      <NavLink
-        to="/queue"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="queue"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-layers" />
-        </svg>
-        <span>Queue</span>
-      </NavLink>
-      <NavLink
-        to="/runs"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="runs"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-play" />
-        </svg>
-        <span>Runs</span>
-      </NavLink>
-      <NavLink
-        to="/history"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="history"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-clock" />
-        </svg>
-        <span>History</span>
-      </NavLink>
-      <NavLink
-        to="/projects"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="projects"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-folder" />
-        </svg>
-        <span>Projects</span>
-      </NavLink>
-      <NavLink
-        to="/settings"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="settings"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-settings" />
-        </svg>
-        <span>Settings</span>
-      </NavLink>
+      {SECTIONS.map((section) => (
+        <NavLink
+          key={section.id}
+          to={`/${section.id}`}
+          className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
+        >
+          <svg className="icon icon-lg" aria-hidden="true">
+            <use href={`/assets/icons/sprite.svg#${section.icon}`} />
+          </svg>
+          <span>{section.label}</span>
+        </NavLink>
+      ))}
     </nav>
   );
 }
 
 function AppShellContent() {
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     projects,
     isProjectsLoading,
     selectedProjectId,
     setSelectedProjectId,
   } = useCurrentProject();
-  const { openNewRunModal } = useModal();
-  const navigate = useNavigate();
+  const { openNewRunModal, openOnboardingModal } = useModal();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { toggleTheme, setAppearance } = useTheme();
@@ -583,16 +520,12 @@ function AppShellContent() {
     navigate,
   });
 
-  const { data: runs = [] } = useRuns();
-  const { data: tickets = [] } = useTickets(selectedProjectId);
   const { data: readiness } = useReadiness();
+  const readyLabel = readiness?.ready !== false ? "Ready" : "Degraded";
 
-  const activeRunsCount = runs.filter((r) =>
-    ACTIVE_RUN_STATUSES.has(r.status),
-  ).length;
-
-  const queueCount = tickets.length;
   const isDocs = location.pathname.startsWith("/docs");
+  const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
+  const section = sectionFor(location.pathname);
   const { title: genericTitle, subtitle: genericSubtitle } = getActiveTitle(
     location.pathname,
   );
@@ -631,42 +564,68 @@ function AppShellContent() {
     setDocsNavOpen(false);
   }, [docCategory, docSlug, isDocs]);
 
-  const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
+  // The large title shrinks into the toolbar once the page scrolls. On desktop
+  // the scrolling element is <main>; at phone width the window scrolls.
+  const [compact, setCompact] = useState(false);
+  const onMainScroll = (event: UIEvent<HTMLElement>) => {
+    setCompact(event.currentTarget.scrollTop > COMPACT_TITLE_SCROLL);
+  };
+  useEffect(() => {
+    const onWindowScroll = () => {
+      setCompact(window.scrollY > COMPACT_TITLE_SCROLL);
+    };
+    window.addEventListener("scroll", onWindowScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onWindowScroll);
+  }, []);
 
   return (
     <div id="app-shell" className="app-shell">
-      <AppShellSidebar
-        isDocs={isDocs}
-        docsNavOpen={docsNavOpen}
-        onCloseDocsNav={() => setDocsNavOpen(false)}
-        projects={projects}
-        isProjectsLoading={isProjectsLoading}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={setSelectedProjectId}
-        queueCount={queueCount}
-        activeRunsCount={activeRunsCount}
-        readiness={readiness}
-        onToggleTheme={handleToggleTheme}
-      />
+      {isDocs && (
+        <DocsSidebar
+          docsNavOpen={docsNavOpen}
+          onCloseDocsNav={() => setDocsNavOpen(false)}
+          onToggleTheme={handleToggleTheme}
+        />
+      )}
 
       <main
         id="app-main"
         className={`main-content ${isRunDetail ? "main-content-locked" : ""}`}
+        onScroll={onMainScroll}
       >
         <AppShellHeader
           isDocs={isDocs}
+          isRunDetail={isRunDetail}
           docsNavOpen={docsNavOpen}
           onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
           title={title}
           subtitle={subtitle}
+          compact={compact}
           docBreadcrumb={docBreadcrumb}
+          section={section}
+          onSelectSection={(id) => navigate(`/${id}`)}
           onToggleTheme={handleToggleTheme}
-          onOpenNewRun={openNewRunModal}
+          readyLabel={readyLabel}
           activeRunId={activeRunId}
           onStopRun={handleStopRun}
           stopPending={stopRunMutation.isPending}
+          onStartRun={() => openNewRunModal()}
+          onAddProject={() => openOnboardingModal()}
           onOpenPalette={() => setPaletteOpen(true)}
+          projects={projects}
+          isProjectsLoading={isProjectsLoading}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={setSelectedProjectId}
         />
+
+        {!isDocs && !isRunDetail && (
+          <div className="page-heading">
+            <h1 id="page-title" className="large-title">
+              {genericTitle}
+            </h1>
+            <p className="page-subtitle">{genericSubtitle}</p>
+          </div>
+        )}
 
         <div
           id="viewport-container"

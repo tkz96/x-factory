@@ -119,7 +119,7 @@ function renderShell(
   return render(
     <QueryClientProvider client={client}>
       <ModalProvider>
-        <MemoryRouter initialEntries={["/queue"]}>
+        <MemoryRouter initialEntries={["/tickets"]}>
           <Routes>
             <Route path="*" element={<Shell {...options} />} />
           </Routes>
@@ -190,8 +190,8 @@ describe("command palette (#254)", () => {
       .map((o) => o.textContent);
     const joined = options.join("|");
     for (const label of [
-      "Work Queue",
-      "Active Runs",
+      "Tickets",
+      "Runs",
       "Demo App",
       "ENG-7",
       "Start Run",
@@ -298,7 +298,7 @@ describe("command palette (#254)", () => {
     expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
     pick("Add Project");
     expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
-    expect(currentPath()).toBe("/queue");
+    expect(currentPath()).toBe("/tickets");
   });
 
   test("ArrowUp from the first item wraps to the last, and hovering highlights an item", () => {
@@ -328,7 +328,7 @@ describe("command palette (#254)", () => {
     act(() => {
       fireEvent.keyDown(input, { key: "Enter" });
     });
-    expect(currentPath()).toBe("/queue");
+    expect(currentPath()).toBe("/tickets");
     expect(dom().getByRole("dialog", { name: "Command palette" })).toBeTruthy();
   });
 
@@ -341,14 +341,14 @@ describe("command palette (#254)", () => {
 });
 
 describe("global shortcuts (#254)", () => {
-  test("G then T goes to the Work Queue; G then R goes to Active Runs", () => {
+  test("G then T goes to Tickets; G then R goes to Runs", () => {
     renderShell();
     press("g");
     press("r");
     expect(currentPath()).toBe("/runs");
     press("g");
     press("t");
-    expect(currentPath()).toBe("/queue");
+    expect(currentPath()).toBe("/tickets");
   });
 
   test("single keys are ignored while a text field has focus", () => {
@@ -360,7 +360,7 @@ describe("global shortcuts (#254)", () => {
     document.body.appendChild(field);
     press("g", {}, field);
     press("r", {}, field);
-    expect(currentPath()).toBe("/queue");
+    expect(currentPath()).toBe("/tickets");
     press("?", { shiftKey: true }, field);
     expect(
       dom().queryByRole("dialog", { name: "Keyboard shortcuts" }),

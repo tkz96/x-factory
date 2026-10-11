@@ -208,7 +208,6 @@ describe("screens that show no internal vocabulary at all", () => {
   for (const file of [
     "src/frontend/views/RunDetailView.tsx",
     "src/frontend/views/RunsView.tsx",
-    "src/frontend/views/HistoryView.tsx",
     "src/frontend/components/runs/HumanCheckpointSection.tsx",
   ]) {
     it(`${file}`, () => {
@@ -244,7 +243,7 @@ describe("AppShell wording", () => {
         },
         React.createElement(
           MemoryRouter,
-          { initialEntries: ["/queue"] },
+          { initialEntries: ["/tickets"] },
           React.createElement(AppShell),
         ),
       ),
