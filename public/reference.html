@@ -20,6 +20,13 @@
     })();
   </script>
   <style>
+    /* Scalar ships its own fonts from fonts.scalar.com. This page turns those
+       off (withDefaultFonts: false) and hands the viewer the fonts X-Factory
+       already serves, so no third-party host is asked for anything. */
+    :root {
+      --scalar-font: var(--font-sans);
+      --scalar-font-code: var(--font-mono);
+    }
     body {
       margin: 0;
       padding: 0;
@@ -153,6 +160,7 @@
         "searchHotKey": "k",
         "hideDownloadButton": false,
         "showSidebar": true,
+        "withDefaultFonts": false,
         "metaData": {
           "title": "X-Factory API Reference",
           "description": "Interactive OpenAPI 3.1 Reference for X-Factory developer workbench"
@@ -164,8 +172,11 @@
     <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📡</div>
     <h2>Interactive Scalar Reference</h2>
     <p>
-      The interactive Scalar reference library loads dynamically from CDN (<code>@scalar/api-reference</code>).
-      If you are working offline or external CDNs are restricted, you can inspect the full raw OpenAPI 3.1 specification directly.
+      The interactive Scalar reference library is served by X-Factory itself
+      (<code>@scalar/api-reference</code>, pinned in
+      <code>public/assets/api-reference/provenance.json</code>). If this copy
+      could not be loaded, you can inspect the full raw OpenAPI 3.1
+      specification directly.
     </p>
     <div class="offline-actions">
       <a href="/api/openapi.json" class="btn btn-primary" target="_blank">View OpenAPI Specification (JSON)</a>
@@ -173,7 +184,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference" onerror="document.getElementById('scalar-fallback').style.display='block';"></script>
+  <script src="/assets/api-reference/scalar-api-reference.min.js" onerror="document.getElementById('scalar-fallback').style.display='block';"></script>
 
   <script>
     // Theme toggle handling
