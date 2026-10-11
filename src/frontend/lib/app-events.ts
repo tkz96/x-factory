@@ -50,11 +50,23 @@ export const defaultAppEventTransport: AppEventTransport = (
   return () => source.close();
 };
 
+/** How an applied event reached the client (#265). */
+export interface AppEventDelivery {
+  /**
+   * True when the event was created after this connection was requested, so it is
+   * new rather than a backlog replayed on connect or resume. Desktop banners fire
+   * only for live events.
+   */
+  live: boolean;
+}
+
 export interface AppEventSubscription {
   queryClient: QueryClient;
   initialCursor: number;
   transport?: AppEventTransport | undefined;
-  onEvent?: ((envelope: AppEventEnvelope) => void) | undefined;
+  onEvent?:
+    | ((envelope: AppEventEnvelope, delivery: AppEventDelivery) => void)
+    | undefined;
   onConnectionChange?: ((connected: boolean) => void) | undefined;
   /** Delay before reconnect attempt n (0-based). Defaults to exponential backoff. */
   retryDelayMs?: ((attempt: number) => number) | undefined;
@@ -91,7 +103,10 @@ export function subscribeAppEvents({
   let dropCurrent: (() => void) | null = null;
   const seenEventIds = new Set<number>();
 
-  const applyEnvelope = (envelope: AppEventEnvelope) => {
+  const applyEnvelope = (
+    envelope: AppEventEnvelope,
+    delivery: AppEventDelivery,
+  ) => {
     if (seenEventIds.has(envelope.id)) return;
 
     // Direct cache update: patch run cache for status events (#257)
@@ -109,7 +124,7 @@ export function subscribeAppEvents({
       );
     }
 
-    onEvent?.(envelope);
+    onEvent?.(envelope, delivery);
 
     // Only now is the event applied: remember it and move the cursor.
     seenEventIds.add(envelope.id);
@@ -120,6 +135,8 @@ export function subscribeAppEvents({
 
   const connect = (): void => {
     if (stopped) return;
+    // Events created from this moment on are live; anything older is backlog.
+    const requestedAt = Date.now();
     let live = true;
     let close: (() => void) | null = null;
 
@@ -167,7 +184,9 @@ export function subscribeAppEvents({
           return;
         }
         try {
-          applyEnvelope(envelope);
+          applyEnvelope(envelope, {
+            live: Date.parse(envelope.time) >= requestedAt,
+          });
         } catch {
           // Not applied: the cursor stays put, so the connection is replaced and
           // this event comes again.
