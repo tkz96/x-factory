@@ -63,6 +63,8 @@ describe("TanStack Query Freshness Policies (XFM-41)", () => {
     expect(queryKeys.projects()).toEqual(["projects", "list"]);
     expect(queryKeys.project("p1")).toEqual(["projects", "detail", "p1"]);
     expect(queryKeys.tickets("p1")).toEqual(["tickets", "p1"]);
+    // The collection prefix, for one Refresh across every project (#260).
+    expect(queryKeys.allTickets()).toEqual(["tickets"]);
     expect(queryKeys.runs()).toEqual(["runs"]);
     expect(queryKeys.run("r1")).toEqual(["runs", "r1"]);
     expect(queryKeys.settings()).toEqual(["settings"]);

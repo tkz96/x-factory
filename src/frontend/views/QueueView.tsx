@@ -27,11 +27,13 @@ import {
 } from "../components/projects/connection-integrity.js";
 import { TicketCard } from "../components/queue/TicketCard.js";
 import { TicketSearchToolbar } from "../components/queue/TicketSearchToolbar.js";
+import { Button } from "../components/ui/Button.js";
 import type { ProviderDescriptor } from "../connection/types.js";
 import { useModal } from "../context/ModalContext.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useRuns, useTickets } from "../hooks/useQueries.js";
+import { queryKeys } from "../lib/query-policies.js";
 import { ticketRunLinkOf } from "../lib/ticket-runs.js";
 import "./QueueView.css";
 
@@ -98,17 +100,15 @@ function ProjectTickets({
   const showManualRun = integrityFailure || derived.state === "error";
 
   const manualRunAction = (
-    <button
-      type="button"
+    <Button
       id={heading ? undefined : "btn-queue-manual"}
-      className="btn-secondary btn-sm"
-      onClick={() => openNewRunModal({ projectId: project.id })}
+      variant="secondary"
+      size="sm"
+      icon="icon-plus"
+      onPress={() => openNewRunModal({ projectId: project.id })}
     >
-      <svg className="icon icon-sm" aria-hidden="true">
-        <use href="/assets/icons/sprite.svg#icon-plus" />
-      </svg>
-      <span>{QUEUE_COPY.manualRun}</span>
-    </button>
+      {QUEUE_COPY.manualRun}
+    </Button>
   );
 
   const list = (
@@ -131,13 +131,9 @@ function ProjectTickets({
         }
         emptyAction={
           searching ? (
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={onClearSearch}
-            >
+            <Button variant="secondary" size="sm" onPress={onClearSearch}>
               {QUEUE_COPY.clearFilter}
-            </button>
+            </Button>
           ) : (
             manualRunAction
           )
@@ -187,10 +183,10 @@ export function QueueView() {
   const descriptorsQuery = useProviderDescriptors();
   const descriptors = descriptorsQuery.data ?? EMPTY_DESCRIPTORS;
   const runs = useRuns().data ?? EMPTY_RUNS;
-  const isRefreshing = useIsFetching({ queryKey: ["tickets"] }) > 0;
+  const isRefreshing = useIsFetching({ queryKey: queryKeys.allTickets() }) > 0;
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.allTickets() });
   };
 
   // With no project at all there is no tracker to query: an empty workspace,
@@ -219,16 +215,14 @@ export function QueueView() {
             derived={empty}
             emptyCopy={QUEUE_COPY.noProjects}
             emptyAction={
-              <button
-                type="button"
-                className="btn-primary btn-sm"
-                onClick={openOnboardingModal}
+              <Button
+                variant="primary"
+                size="sm"
+                icon="icon-plus"
+                onPress={openOnboardingModal}
               >
-                <svg className="icon icon-sm" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-plus" />
-                </svg>
-                <span>{QUEUE_COPY.addProject}</span>
-              </button>
+                {QUEUE_COPY.addProject}
+              </Button>
             }
           />
         </div>
