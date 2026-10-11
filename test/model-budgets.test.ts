@@ -41,12 +41,22 @@ describe("model budgets", () => {
       ).not.toThrow();
     });
 
-    it("throws BudgetExceededError when request count reaches or exceeds limit", () => {
+    it("allows requests up to the limit and throws when exceeding limit", () => {
       const budget: ModelBudget = { perDay: { requests: 10 } };
+      // Attempt 10 includes the current stamped attempt: allowed
       expect(() =>
         checkModelBudget(
           budget,
           { requests: 10, costUsd: 0, spendUsd: 0 },
+          "claude-3",
+        ),
+      ).not.toThrow();
+
+      // Attempt 11 exceeds the limit of 10: throws
+      expect(() =>
+        checkModelBudget(
+          budget,
+          { requests: 11, costUsd: 0, spendUsd: 0 },
           "claude-3",
         ),
       ).toThrow(BudgetExceededError);
@@ -64,6 +74,49 @@ describe("model budgets", () => {
         expect((err as Error).message).toContain("claude-3");
         expect((err as Error).message).toContain("12/10 requests");
       }
+    });
+
+    it("allows exactly N attempts for a requests/day budget of N (N=1 and N=2)", () => {
+      // N = 1: allows exactly 1 attempt
+      const budget1: ModelBudget = { perDay: { requests: 1 } };
+      expect(() =>
+        checkModelBudget(
+          budget1,
+          { requests: 1, costUsd: 0, spendUsd: 0 },
+          "model-1",
+        ),
+      ).not.toThrow();
+      expect(() =>
+        checkModelBudget(
+          budget1,
+          { requests: 2, costUsd: 0, spendUsd: 0 },
+          "model-1",
+        ),
+      ).toThrow(BudgetExceededError);
+
+      // N = 2: allows exactly 2 attempts
+      const budget2: ModelBudget = { perDay: { requests: 2 } };
+      expect(() =>
+        checkModelBudget(
+          budget2,
+          { requests: 1, costUsd: 0, spendUsd: 0 },
+          "model-2",
+        ),
+      ).not.toThrow();
+      expect(() =>
+        checkModelBudget(
+          budget2,
+          { requests: 2, costUsd: 0, spendUsd: 0 },
+          "model-2",
+        ),
+      ).not.toThrow();
+      expect(() =>
+        checkModelBudget(
+          budget2,
+          { requests: 3, costUsd: 0, spendUsd: 0 },
+          "model-2",
+        ),
+      ).toThrow(BudgetExceededError);
     });
 
     it("throws BudgetExceededError when cost reaches or exceeds limit", () => {
@@ -120,7 +173,7 @@ describe("model budgets", () => {
     it("throws BudgetExceededError when repo reports usage exceeding budget", () => {
       const fakeRepo = {
         getDailyUsageForModel: () => ({
-          requests: 5,
+          requests: 6,
           costUsd: 0.5,
           spendUsd: 0.5,
         }),

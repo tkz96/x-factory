@@ -157,7 +157,7 @@ describe("listProviderModels", () => {
     });
   });
 
-  it("reports a rejected key as key_rejected with the status", async () => {
+  it("reports a rejected key as key rejected with the status", async () => {
     for (const key of ["rejected", "forbidden"]) {
       const result = await listProviderModels({
         apiType: "gemini",
@@ -166,12 +166,12 @@ describe("listProviderModels", () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) return;
-      expect(result.error.category).toBe("key_rejected");
+      expect(result.error.category).toBe("key rejected");
       expect(result.error.message).toMatch(/Key rejected \((401|403)\)/);
     }
   });
 
-  it("reports a missing key as key_rejected without calling the provider", async () => {
+  it("reports a missing key as key rejected without calling the provider", async () => {
     const result = await listProviderModels({
       apiType: "gemini",
       baseUrl: `${base}/gemini/v1beta`,
@@ -179,7 +179,7 @@ describe("listProviderModels", () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error.category).toBe("key_rejected");
+    expect(result.error.category).toBe("key rejected");
   });
 
   it("reports rate limits with the retry delay, from Retry-After or Gemini's error body", async () => {
@@ -190,7 +190,7 @@ describe("listProviderModels", () => {
     });
     expect(header.ok).toBe(false);
     if (header.ok) return;
-    expect(header.error.category).toBe("rate_limited");
+    expect(header.error.category).toBe("rate limited");
     expect(header.error.retryAfterSeconds).toBe(40);
     expect(header.error.message).toContain("40 s");
 
@@ -201,7 +201,7 @@ describe("listProviderModels", () => {
     });
     expect(body.ok).toBe(false);
     if (body.ok) return;
-    expect(body.error.category).toBe("rate_limited");
+    expect(body.error.category).toBe("rate limited");
     expect(body.error.retryAfterSeconds).toBe(50);
   });
 

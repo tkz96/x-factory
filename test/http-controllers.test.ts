@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, it, spyOn } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Repositories } from "../src/composition-root.js";
@@ -315,6 +315,100 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         if (savedDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
         else process.env.X_FACTORY_DATA_DIR = savedDataDir;
         await rm(emptyDataDir, { recursive: true, force: true });
+        await rm(gitDir, { recursive: true, force: true });
+      }
+    });
+
+    it("POST /api/runs is refused with 409 naming the model when assigned model is not available on connection (#287)", async () => {
+      const gitDir = await mkdtemp(path.join(os.tmpdir(), "xf-repo-run-"));
+      await execStrict("git", ["init", "-b", "main"], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
+      await execStrict("git", ["config", "user.name", "X-Factory Tester"], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
+      await execStrict(
+        "git",
+        ["config", "user.email", "tester@xfactory.local"],
+        { envPolicy: "inherit", cwd: gitDir },
+      );
+      await writeFile(path.join(gitDir, "README.md"), "# Init\n");
+      await execStrict("git", ["add", "."], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
+      await execStrict("git", ["commit", "-m", "Initial commit"], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
+      const validProject = validateProject({
+        id: "proj-http-bad-model",
+        name: "Bad Model Project",
+        repositoryPath: gitDir,
+        defaultBranch: "main",
+        testCommand: "bun test",
+      });
+      const savedDataDir = process.env.X_FACTORY_DATA_DIR;
+      const dataDir = await mkdtemp(
+        path.join(os.tmpdir(), "xf-bad-model-roles-"),
+      );
+      process.env.X_FACTORY_DATA_DIR = dataDir;
+      try {
+        await saveProject(validProject);
+        const { createModelConnection, updateModelConnection } = await import(
+          "../src/model-connections.js"
+        );
+        const { saveSettings } = await import("../src/settings.js");
+        const connection = await createModelConnection({
+          name: "Test Gemini",
+          apiType: "gemini",
+          apiKey: "AQ.test-key",
+        });
+        await updateModelConnection(connection.id, {
+          verifiedAt: new Date().toISOString(),
+        });
+        const connPath = path.join(dataDir, "model-connections.json");
+        const json = JSON.parse(await readFile(connPath, "utf-8"));
+        json.connections[0].availableModels = [
+          { id: "gemini-flash-lite-latest" },
+        ];
+        await writeFile(connPath, JSON.stringify(json));
+
+        await saveSettings({
+          roles: {
+            builder: {
+              connectionId: connection.id,
+              modelId: "nonexistent-model",
+            },
+            reviewer: {
+              connectionId: connection.id,
+              modelId: "gemini-flash-lite-latest",
+            },
+          },
+        });
+
+        const req = new Request("http://localhost:3777/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: validProject.id,
+            ticketId: "RUN-3",
+            ticketTitle: "Bad model",
+          }),
+        });
+        const res = await dispatchHttp(req, repos);
+        assert.ok(res);
+        assert.equal(res.status, 409);
+        const data = (await res.json()) as { error: string };
+        assert.match(data.error, /nonexistent-model/);
+        assert.match(data.error, /Test Gemini/);
+      } finally {
+        await deleteProject(validProject.id);
+        if (savedDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
+        else process.env.X_FACTORY_DATA_DIR = savedDataDir;
+        await rm(dataDir, { recursive: true, force: true });
         await rm(gitDir, { recursive: true, force: true });
       }
     });

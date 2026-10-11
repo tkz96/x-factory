@@ -18,11 +18,7 @@ import {
   NotFoundError,
 } from "./errors.js";
 import * as git from "./git.js";
-import {
-  assertBudgetNotExceeded,
-  BudgetExceededError,
-  modelRoleForStage,
-} from "./model-budgets.js";
+import { assertBudgetNotExceeded, modelRoleForStage } from "./model-budgets.js";
 import { ModelGateway } from "./model-gateway.js";
 import {
   ModelUnavailableError,
@@ -419,34 +415,50 @@ export async function resumeRun(
 
   verifyRecoveryRequired(runRepo, id, "resume");
 
-  const attempts = stageAttemptRepo.listForRun(id);
-  const attemptStages = attempts.map((attempt) => attempt.stage);
-  const route = resumeRouteFor(attemptStages);
+  const preliminaryAttempts = stageAttemptRepo.listForRun(id);
+  const preliminaryStages = preliminaryAttempts.map((attempt) => attempt.stage);
+  const preliminaryRoute = resumeRouteFor(preliminaryStages);
 
-  const targetStage = resumeStageName(attemptStages);
-  const targetRole =
-    modelRoleForStage(targetStage) ??
-    (route.jobStage ? modelRoleForStage(route.jobStage) : null);
-  if (targetRole) {
+  const preliminaryTargetStage = resumeStageName(preliminaryStages);
+  const preliminaryTargetRole =
+    modelRoleForStage(preliminaryTargetStage) ??
+    (preliminaryRoute.jobStage
+      ? modelRoleForStage(preliminaryRoute.jobStage)
+      : null);
+  let resolved: ResolvedModel | undefined;
+  if (preliminaryTargetRole) {
     const resolver = options?.resolveRole ?? resolveRole;
     try {
-      const resolved = await resolver(targetRole);
-      assertBudgetNotExceeded(stageAttemptRepo, resolved, options?.now);
+      resolved = await resolver(preliminaryTargetRole);
     } catch (err: unknown) {
-      if (err instanceof BudgetExceededError) {
+      if (err instanceof ModelUnavailableError) {
         throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);
       }
-      if (err instanceof ModelUnavailableError) {
-        // Model or role unavailable (e.g. unconfigured in test environments),
-        // not a budget exhaustion: do not block resuming the workflow.
-      } else {
-        throw err;
-      }
+      throw err;
     }
   }
 
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, "resume");
+
+    const attempts = stageAttemptRepo.listForRun(id);
+    const attemptStages = attempts.map((attempt) => attempt.stage);
+    const route = resumeRouteFor(attemptStages);
+    const targetStage = resumeStageName(attemptStages);
+    const targetRole =
+      modelRoleForStage(targetStage) ??
+      (route.jobStage ? modelRoleForStage(route.jobStage) : null);
+
+    if (targetRole && resolved) {
+      try {
+        assertBudgetNotExceeded(stageAttemptRepo, resolved, options?.now);
+      } catch (err: unknown) {
+        if (err instanceof ModelUnavailableError) {
+          throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);
+        }
+        throw err;
+      }
+    }
 
     if (route.command) {
       // A completed deliver command means the PR already exists. Resuming into
@@ -470,7 +482,7 @@ export async function resumeRun(
           type: "status",
           payload: {
             status: route.to,
-            text: `Run resumed by operator into stage ${resumeStageName(attemptStages)}.`,
+            text: `Run resumed by operator into stage ${targetStage}.`,
           },
         },
       },

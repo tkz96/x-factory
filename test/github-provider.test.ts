@@ -1591,7 +1591,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       });
     });
 
-    it("returns status: 'degraded' with CAPABILITY_UNCONFIRMED when PAT lacks 'repo' scope", async () => {
+    it("fails when classic PAT lacks 'repo' and 'workflow' scopes (#283)", async () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
@@ -1609,18 +1609,13 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
-      const result = await provider.verifyCredentials({
-        token: "ghp_public_only_token",
-      });
-
-      expect(result.status).toBe("degraded");
-      expect(result.warnings).toEqual([
-        {
-          kind: "CAPABILITY_UNCONFIRMED",
-          capability: "createPullRequest",
-          missingScopes: ["repo", "workflow"],
-        },
-      ]);
+      await expect(
+        provider.verifyCredentials({
+          token: "ghp_public_only_token",
+        }),
+      ).rejects.toThrow(
+        /GitHub token is missing required scope\(s\): repo, workflow/,
+      );
     });
 
     it("names the missing 'workflow' scope when a classic PAT has only 'repo' (#283)", async () => {
@@ -1635,18 +1630,13 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       }) as typeof fetch;
 
       const provider = createGithubProvider({ fetchFn: fakeFetch });
-      const result = await provider.verifyCredentials({
-        token: "ghp_repo_only_token",
-      });
-
-      expect(result.status).toBe("degraded");
-      expect(result.warnings).toEqual([
-        {
-          kind: "CAPABILITY_UNCONFIRMED",
-          capability: "createPullRequest",
-          missingScopes: ["workflow"],
-        },
-      ]);
+      await expect(
+        provider.verifyCredentials({
+          token: "ghp_repo_only_token",
+        }),
+      ).rejects.toThrow(
+        /GitHub token is missing required scope\(s\): workflow/,
+      );
     });
 
     it("returns status: 'degraded' when fine-grained PAT provides no x-oauth-scopes header", async () => {
@@ -1884,7 +1874,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
             { login: "octocat" },
             {
               status: 200,
-              headers: { "x-oauth-scopes": "repo" },
+              headers: { "x-oauth-scopes": "repo, workflow" },
             },
           );
         }

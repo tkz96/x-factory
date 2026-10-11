@@ -21,6 +21,7 @@ import type {
 import { resumeRun } from "../src/runs.js";
 import { Worker } from "../src/worker.js";
 import { ensureProject } from "./helpers/project-fixture.js";
+import { withReadyModelRoles } from "./helpers/resolved-model.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
@@ -216,19 +217,21 @@ describe("Workflow module (#181)", () => {
 
   for (const legacy of ["verify", "implement"] as const) {
     it(`resume of a run whose last recorded stage is the legacy "${legacy}" returns it to executing`, async () => {
-      const { db, runRepo, jobRepo, stageAttemptRepo, run } =
-        setup("recovery_required");
-      repos = createRepositories(db);
-      stageAttemptRepo.recordStart(run.id, legacy, 1);
+      await withReadyModelRoles(async () => {
+        const { db, runRepo, jobRepo, stageAttemptRepo, run } =
+          setup("recovery_required");
+        repos = createRepositories(db);
+        stageAttemptRepo.recordStart(run.id, legacy, 1);
 
-      const resumed = await resumeRun(repos, run.id);
+        const resumed = await resumeRun(repos, run.id);
 
-      expect(resumed.status).toBe("executing");
-      expect(runRepo.get(run.id)?.status).toBe("executing");
-      const executeJobs = jobRepo
-        .listJobsForRun(run.id)
-        .filter((j) => j.stage === "execute");
-      expect(executeJobs.length).toBe(1);
+        expect(resumed.status).toBe("executing");
+        expect(runRepo.get(run.id)?.status).toBe("executing");
+        const executeJobs = jobRepo
+          .listJobsForRun(run.id)
+          .filter((j) => j.stage === "execute");
+        expect(executeJobs.length).toBe(1);
+      });
     });
   }
 
@@ -249,20 +252,22 @@ describe("Workflow module (#181)", () => {
   });
 
   it("resume skips a newer pi_checkpoint attempt and resumes the execute stage before it", async () => {
-    const { db, runRepo, jobRepo, stageAttemptRepo, run } =
-      setup("recovery_required");
-    repos = createRepositories(db);
-    stageAttemptRepo.recordStart(run.id, "execute", 1);
-    stageAttemptRepo.recordStart(run.id, "pi_checkpoint", 1);
+    await withReadyModelRoles(async () => {
+      const { db, runRepo, jobRepo, stageAttemptRepo, run } =
+        setup("recovery_required");
+      repos = createRepositories(db);
+      stageAttemptRepo.recordStart(run.id, "execute", 1);
+      stageAttemptRepo.recordStart(run.id, "pi_checkpoint", 1);
 
-    const resumed = await resumeRun(repos, run.id);
+      const resumed = await resumeRun(repos, run.id);
 
-    expect(resumed.status).toBe("executing");
-    expect(runRepo.get(run.id)?.status).toBe("executing");
-    expect(
-      jobRepo.listJobsForRun(run.id).filter((j) => j.stage === "execute")
-        .length,
-    ).toBe(1);
+      expect(resumed.status).toBe("executing");
+      expect(runRepo.get(run.id)?.status).toBe("executing");
+      expect(
+        jobRepo.listJobsForRun(run.id).filter((j) => j.stage === "execute")
+          .length,
+      ).toBe(1);
+    });
   });
 
   it("resume of a run whose last recorded stage is unknown is refused with a 409", async () => {
@@ -370,17 +375,27 @@ describe("Workflow module (#181)", () => {
   });
 
   it("resume returns a recovery_required run to the stage it was in", async () => {
-    const { db, jobRepo, stageAttemptRepo, run } = setup("recovery_required");
+    await withReadyModelRoles(async () => {
+      const { db, jobRepo, stageAttemptRepo, run } = setup("recovery_required");
+      repos = createRepositories(db);
+      stageAttemptRepo.recordStart(run.id, "plan", 1);
+
+      const resumed = await resumeRun(repos, run.id);
+
+      expect(resumed.status).toBe("planning");
+      const planJobs = jobRepo
+        .listJobsForRun(run.id)
+        .filter((j) => j.stage === "plan");
+      expect(planJobs.length).toBe(1);
+    });
+  });
+
+  it("resume fails with ConflictError when the required model role is unavailable", async () => {
+    const { db, stageAttemptRepo, run } = setup("recovery_required");
     repos = createRepositories(db);
     stageAttemptRepo.recordStart(run.id, "plan", 1);
 
-    const resumed = await resumeRun(repos, run.id);
-
-    expect(resumed.status).toBe("planning");
-    const planJobs = jobRepo
-      .listJobsForRun(run.id)
-      .filter((j) => j.stage === "plan");
-    expect(planJobs.length).toBe(1);
+    await expect(resumeRun(repos, run.id)).rejects.toThrow(ConflictError);
   });
 
   it("resume into deliver returns the run to ready_for_pr and enqueues the deliver command", async () => {

@@ -51,6 +51,13 @@ export function getPiAgentDir(): string {
 }
 
 /**
+ * Per-run agent runtime (Pi) config directory (#278): <runDir>/pi-agent
+ */
+export function getRunPiAgentDir(runDir: string): string {
+  return path.join(runDir, "pi-agent");
+}
+
+/**
  * Get the SQLite database file path.
  * Defaults to ~/.x-factory/x-factory.db or X_FACTORY_DB_PATH if set.
  */

@@ -26,7 +26,7 @@ export function checkModelBudget(
   const name = modelName ?? "model";
   const { requests, usd } = budget.perDay;
 
-  if (requests !== undefined && usage.requests >= requests) {
+  if (requests !== undefined && usage.requests > requests) {
     throw new BudgetExceededError(
       `Model "${name}" exceeded daily budget: ${usage.requests}/${requests} requests today (UTC).`,
     );

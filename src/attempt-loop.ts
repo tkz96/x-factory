@@ -9,7 +9,7 @@ import {
   parseRetryDelayMs,
   RateLimitedError,
 } from "./model-gateway.js";
-import { ModelUnavailableError } from "./model-roles.js";
+import { isBudgetReached, ModelUnavailableError } from "./model-roles.js";
 import { execCommand, resolveSanitizedEnv } from "./proc.js";
 import { buildRalphPrompt, buildRepairPrompt } from "./prompts.js";
 import type {
@@ -337,7 +337,7 @@ function handleAttemptError(
   if (signal?.aborted) return { outcome: "aborted" };
   if (err instanceof ModelUnavailableError) {
     emit("error", { message: err.message });
-    return err.category === "budget reached"
+    return isBudgetReached(err)
       ? { outcome: "budget_exceeded", error: err.message }
       : { outcome: "failed", error: err.message };
   }

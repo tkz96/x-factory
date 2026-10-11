@@ -2,6 +2,7 @@
 
 import type { ReadOnlySessionFactory } from "../agents/pi.js";
 import {
+  isBudgetReached,
   ModelUnavailableError,
   modelFailureReason,
   modelUse,
@@ -97,10 +98,7 @@ export class ReviewExecutor implements StageExecutor {
       if (answer.trim())
         context.emit("review_activity", { text: answer.trim() });
     } catch (err: unknown) {
-      if (
-        err instanceof ModelUnavailableError &&
-        err.category === "budget reached"
-      ) {
+      if (isBudgetReached(err)) {
         return { outcome: "paused", reason: err.message };
       }
       if (err instanceof ModelUnavailableError) {

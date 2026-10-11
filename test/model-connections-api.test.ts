@@ -218,7 +218,7 @@ describe("/api/model-connections — check and models (#277)", () => {
     expect(checked.json as unknown).toEqual({
       ok: false,
       error: {
-        category: "key_rejected",
+        category: "key rejected",
         status: 401,
         message: "Key rejected (401)",
       },

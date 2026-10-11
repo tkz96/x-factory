@@ -9,8 +9,10 @@ import {
   getBackupsDir,
   getDatabasePath,
   getDataDir,
+  getPiAgentDir,
   getProjectsConfigPath,
   getRunDir,
+  getRunPiAgentDir,
   getSettingsPath,
   getWorktreePath,
 } from "../src/paths.js";
@@ -60,6 +62,10 @@ describe("Runtime locations derive from X_FACTORY_DATA_DIR (#175)", () => {
     );
     expect(getWorktreePath("proj-1", "run-1")).toBe(
       path.join(dataDir, "projects", "proj-1", "worktrees", "run-1"),
+    );
+    expect(getPiAgentDir()).toBe(path.join(dataDir, "pi-agent"));
+    expect(getRunPiAgentDir(getRunDir("proj-1", "run-1"))).toBe(
+      path.join(dataDir, "projects", "proj-1", "runs", "run-1", "pi-agent"),
     );
   });
 

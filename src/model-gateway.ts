@@ -119,11 +119,36 @@ export class ModelGateway {
     this.random = options.random ?? Math.random;
   }
 
-  private async acquire({ key, limit }: GatewayKey): Promise<() => void> {
+  async acquire(
+    { key, limit }: GatewayKey,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    if (signal?.aborted) {
+      throw signal.reason ?? new Error("Operation aborted");
+    }
     const lane = this.lanes.get(key) ?? { active: 0, waiting: [] };
     this.lanes.set(key, lane);
     if (lane.active >= Math.max(1, limit)) {
-      await new Promise<void>((resolve) => lane.waiting.push(resolve));
+      await new Promise<void>((resolve, reject) => {
+        let onAbort: (() => void) | undefined;
+        const waiter = () => {
+          if (signal && onAbort) {
+            signal.removeEventListener("abort", onAbort);
+          }
+          resolve();
+        };
+        if (signal) {
+          onAbort = () => {
+            const idx = lane.waiting.indexOf(waiter);
+            if (idx !== -1) {
+              lane.waiting.splice(idx, 1);
+            }
+            reject(signal.reason ?? new Error("Operation aborted"));
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+        }
+        lane.waiting.push(waiter);
+      });
     } else {
       lane.active++;
     }
@@ -159,7 +184,7 @@ export class ModelGateway {
     hooks: RunHooks = {},
   ): Promise<T> {
     await key.checkBudget?.();
-    const release = await this.acquire(key);
+    const release = await this.acquire(key, hooks.signal);
     try {
       let waited = 0;
       for (let retry = 0; ; retry++) {

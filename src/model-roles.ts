@@ -40,6 +40,14 @@ export class ModelUnavailableError extends DomainError {
   }
 }
 
+export function isBudgetReached(
+  err: unknown,
+): err is ModelUnavailableError & { category: "budget reached" } {
+  return (
+    err instanceof ModelUnavailableError && err.category === "budget reached"
+  );
+}
+
 export interface ResolvedModel {
   role: ModelRoleName;
   connectionId: string;
@@ -87,6 +95,15 @@ export async function resolveRole(role: ModelRoleName): Promise<ResolvedModel> {
     );
   }
   const { modelId } = assignment;
+  if (
+    connection.availableModels.length > 0 &&
+    !connection.availableModels.some((m) => m.id === modelId)
+  ) {
+    throw new ModelUnavailableError(
+      `${label}'s model "${modelId}" is not available on connection "${connection.name}". ${FIX_HINT}`,
+      "model unavailable",
+    );
+  }
   const record = connection.models.find((m) => m.modelId === modelId);
   const catalog = runtimeCatalogDetails(
     connection.apiType,
@@ -135,19 +152,27 @@ export async function assertRolesReady(): Promise<void> {
   }
 }
 
+const CATEGORY_LABELS: Readonly<Record<ModelFailureCategory, string>> = {
+  "model unavailable": "Model unavailable",
+  "key rejected": "Key rejected",
+  "rate limited": "Rate limited",
+  "context too large": "Context too large",
+  "budget reached": "Budget reached",
+};
+
 /**
  * The reason a stage reports for a model it could not use (#282): the failure
- * category, then the message that says how to fix it. `Key rejected` and
- * `Model unavailable` are the two labels the run page and the operator already
- * read for review (#278).
+ * category in plain words, then the message that says how to fix it.
  */
 export function modelFailureReason(err: ModelUnavailableError): string {
-  const label =
-    err.category === "key rejected" ? "Key rejected" : "Model unavailable";
-  // A classified key error already names its category; never say it twice.
-  return err.message.startsWith(label)
-    ? err.message
-    : `${label}: ${err.message}`;
+  const label = CATEGORY_LABELS[err.category] ?? "Model unavailable";
+  if (err.message.toLowerCase().startsWith(`${label.toLowerCase()}:`)) {
+    return err.message;
+  }
+  if (err.message.startsWith(label)) {
+    return err.message;
+  }
+  return `${label}: ${err.message}`;
 }
 
 /** The record of which model did some work, as it is now (#279). */

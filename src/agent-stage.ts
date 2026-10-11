@@ -27,6 +27,7 @@ import {
   modelGateway,
 } from "./model-gateway.js";
 import {
+  isBudgetReached,
   ModelUnavailableError,
   modelFailureReason,
   type ResolvedModel,
@@ -166,8 +167,7 @@ export async function runReadOnlyStage(
  */
 export function modelStageFailureReason(err: unknown): string | null {
   // A spent budget is not a failure: the stage runner pauses the run (#281).
-  if (err instanceof ModelUnavailableError && err.category === "budget reached")
-    return null;
+  if (isBudgetReached(err)) return null;
   if (err instanceof ModelUnavailableError) return modelFailureReason(err);
   if (err instanceof ModelOutputError) return err.message;
   return null;

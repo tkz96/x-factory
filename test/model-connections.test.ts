@@ -163,7 +163,7 @@ describe("model connections store", () => {
     await expect(deleteModelConnection("nope")).rejects.toThrow(/not found/i);
   });
 
-  it("lets a provider env var override the stored key for that API type", async () => {
+  it("lets a provider env var override the stored key for official endpoints", async () => {
     const created = await createModelConnection({
       name: "g",
       apiType: "gemini",
@@ -175,6 +175,21 @@ describe("model connections store", () => {
     );
     const view = await getModelConnection(created.id);
     expect(view?.keySource).toBe("environment");
+  });
+
+  it("does not let a provider env var override connections with custom base URLs", async () => {
+    const created = await createModelConnection({
+      name: "openrouter",
+      apiType: "openai-compatible",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "sk-or-stored-key-9999",
+    });
+    process.env.OPENAI_API_KEY = "openai-env-key";
+    expect(await resolveModelConnectionKey(created.id)).toBe(
+      "sk-or-stored-key-9999",
+    );
+    const view = await getModelConnection(created.id);
+    expect(view?.keySource).toBe("stored");
   });
 });
 

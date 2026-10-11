@@ -111,13 +111,13 @@ function checkScopeWarnings(headers: Headers): VerificationWarning[] {
       (scope) => !scopes.includes(scope),
     );
     if (missingScopes.length > 0) {
-      return [
+      throw new GitHubHttpError(
+        `GitHub token is missing required scope(s): ${missingScopes.join(", ")}.`,
         {
-          kind: "CAPABILITY_UNCONFIRMED",
-          capability: "createPullRequest",
-          missingScopes,
+          status: 403,
+          headers,
         },
-      ];
+      );
     }
     return [];
   }

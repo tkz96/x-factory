@@ -18,7 +18,7 @@ import {
   RateLimitedError,
 } from "../model-gateway.js";
 import { ModelUnavailableError, type ResolvedModel } from "../model-roles.js";
-import { getPiAgentDir } from "../paths.js";
+import { getPiAgentDir, getRunPiAgentDir } from "../paths.js";
 import type { ModelApiType } from "../shared/model-connection-types.js";
 
 type ThinkingLevel = NonNullable<CreateAgentSessionOptions["thinkingLevel"]>;
@@ -127,7 +127,7 @@ export async function writeRunAgentConfig(
   provider: string;
   model: string;
 }> {
-  const agentDir = path.join(runDir, "pi-agent");
+  const agentDir = getRunPiAgentDir(runDir);
   await mkdir(agentDir, { recursive: true });
   await writeFile(
     path.join(agentDir, "models.json"),
