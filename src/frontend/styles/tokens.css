@@ -284,6 +284,14 @@
   --button-height: 36px;
   --button-height-lg: 44px;
   --checkbox-size: 18px;
+  /* Control blocks (#251): the row height a list row and its static
+   * placeholder both reserve, and the switch's geometry. */
+  --list-row-height: 72px;
+  --switch-width: 52px;
+  --switch-height: 32px;
+  --switch-thumb-size: 26px;
+  --switch-thumb-inset: 2px;
+  --switch-thumb-travel: 20px;
   --stepper-node-size: 32px;
   --search-bar-height: 40px;
 

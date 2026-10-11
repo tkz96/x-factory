@@ -82,6 +82,104 @@
     border: var(--border-width) solid CanvasText;
   }
 
+  /* Building blocks (#251): every control, field, badge and row keeps its
+   * boundary, selection and disabled state in system colours. */
+  :root .ui-button,
+  :root .ui-button--primary,
+  :root .ui-button--secondary,
+  :root .ui-button--danger,
+  :root .ui-button--quiet,
+  :root .ui-icon-button,
+  :root .ui-segmented,
+  :root .ui-segment {
+    background: ButtonFace;
+    color: ButtonText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root .ui-segment[data-selected] {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root .ui-button[data-disabled],
+  :root .ui-icon-button[data-disabled],
+  :root .ui-segment[data-disabled],
+  :root .ui-switch[data-disabled] {
+    color: GrayText;
+    border-color: GrayText;
+  }
+
+  :root .ui-field,
+  :root .ui-field-input,
+  :root .ui-textarea,
+  :root .ui-select-trigger {
+    background: Field;
+    color: FieldText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root .ui-field-label {
+    color: FieldText;
+  }
+
+  :root .ui-select-popover,
+  :root .ui-select-listbox {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-select-item[data-focused] {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root .ui-switch {
+    color: CanvasText;
+  }
+
+  :root .ui-switch-track {
+    background: ButtonFace;
+    border-color: ButtonBorder;
+  }
+
+  :root .ui-switch[data-selected] .ui-switch-track {
+    background: Highlight;
+    border-color: Highlight;
+  }
+
+  :root .ui-switch-thumb {
+    background: CanvasText;
+  }
+
+  :root .ui-switch[data-selected] .ui-switch-thumb {
+    background: HighlightText;
+  }
+
+  :root .ui-badge,
+  :root .ui-badge--neutral,
+  :root .ui-badge--info,
+  :root .ui-badge--success,
+  :root .ui-badge--warning,
+  :root .ui-badge--error {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-list-row,
+  :root .ui-list-row--pressable,
+  :root .ui-list-row--placeholder {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-placeholder-line {
+    background: GrayText;
+  }
+
   :root .card,
   :root .metric-card,
   :root .telemetry-card,
