@@ -77,7 +77,10 @@ export function injectSavedTheme(html: string, saved: SavedTheme): string {
 
 async function readSettingsTheme(): Promise<SavedTheme> {
   const settings = await loadSettings(false);
-  return { theme: settings.theme, appearance: settings.appearance };
+  return {
+    theme: settings.theme ?? "default",
+    appearance: settings.appearance ?? "automatic",
+  };
 }
 
 /**
