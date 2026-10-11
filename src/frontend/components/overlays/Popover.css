@@ -1,0 +1,19 @@
+/* src/frontend/components/overlays/Popover.css — Popover overlay styles (#250) */
+
+.xf-popover {
+  background: var(--bg-modal);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-popover);
+  padding: var(--space-3);
+  outline: none;
+  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
+}
+
+.xf-popover-content {
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

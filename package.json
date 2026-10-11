@@ -41,6 +41,7 @@
     "@xyflow/react": "^12.11.6",
     "motion": "^14.1.0",
     "react": "^19.3.0",
+    "react-aria-components": "^1.22.1",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4",
     "zod": "^4.6.5"
