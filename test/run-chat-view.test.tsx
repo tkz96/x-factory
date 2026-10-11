@@ -307,3 +307,87 @@ describe("a failed reply is a system line, never an agent message", () => {
     expect(container.textContent).not.toContain("Sorry");
   });
 });
+
+describe("every kind of run event reads as its own line", () => {
+  it("shows evidence, stage starts, pull request links, errors and results", () => {
+    const events = [
+      ev(1, "stage_evidence", {
+        stage: "execute",
+        evidence: "bun test passed",
+      }),
+      ev(2, "stage_started", {
+        stage: "execute",
+        attempt: 1,
+        model: {
+          role: "builder",
+          connectionId: "c",
+          connectionName: "Gemini",
+          apiType: "x",
+          modelId: "gemini-x",
+        },
+      }),
+      ev(3, "pr_step", {
+        step: "pr",
+        url: "https://github.com/x/y/pull/7",
+        text: "Pull request opened",
+      }),
+      ev(4, "error", { message: "Disk full" }),
+      ev(5, "verification", {
+        result: { passed: true, summary: "All checks green" },
+      }),
+      ev(6, "review", { result: { passed: false, summary: "Missing a test" } }),
+    ];
+    const { container } = render(
+      <RunChat run={makeRun("executing")} events={events} />,
+    );
+    const chat = within(log(container));
+    expect(chat.getByText("bun test passed", { exact: false })).toBeTruthy();
+    expect(chat.getByText("Coding with gemini-x via Gemini")).toBeTruthy();
+    const link = chat.getByRole("link", { name: "Pull request opened" });
+    expect(link.getAttribute("href")).toBe("https://github.com/x/y/pull/7");
+    expect(chat.getByText("Disk full")).toBeTruthy();
+    expect(
+      chat.getByText("Verification passed", { exact: false }),
+    ).toBeTruthy();
+    expect(
+      chat.getByText("Review did not pass", { exact: false }),
+    ).toBeTruthy();
+  });
+
+  it("shows reviewer activity text, builder and reviewer output, and the user's own message", () => {
+    const events = [
+      ev(1, "review_activity", { text: "The tests cover the change." }),
+      ev(2, "pi_output_chunk", { role: "pi", text: "Writing the parser" }),
+      ev(3, "pi_output_chunk", { role: "reviewer", text: "Looks fine to me" }),
+      ev(4, "chat_user", { text: "Why this plan?" }),
+      ev(5, "chat_agent", { text: "Because it is small." }),
+    ];
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
+    );
+    const chat = within(log(container));
+    expect(chat.getByText("The tests cover the change.")).toBeTruthy();
+    expect(chat.getByText("Builder")).toBeTruthy();
+    expect(chat.getByText("Reviewer")).toBeTruthy();
+    expect(chat.getByText("Writing the parser")).toBeTruthy();
+    expect(chat.getByText("Why this plan?")).toBeTruthy();
+    expect(chat.getByText("Because it is small.")).toBeTruthy();
+  });
+
+  it("shows the unsandboxed warning as a notice", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("executing")}
+        events={[
+          ev(1, "info", {
+            text: "Running without a sandbox.",
+            warning: "unsandboxed",
+          }),
+        ]}
+      />,
+    );
+    expect(
+      within(log(container)).getByText("Running without a sandbox."),
+    ).toBeTruthy();
+  });
+});
