@@ -10,12 +10,21 @@ import {
 import { withoutUndefined } from "./aria-props.js";
 
 export interface IconButtonProps
-  extends Omit<AriaButtonProps, "className" | "children"> {
+  extends Omit<
+    AriaButtonProps,
+    "className" | "children" | "onPress" | "id" | "isDisabled"
+  > {
   /** The accessible name — never optional on an icon-only control. */
   label: string;
   /** Sprite icon id (`/assets/icons/sprite.svg`). */
   icon: string;
-  className?: string;
+  className?: string | undefined;
+  /** The press handler, narrowed to this vocabulary's shape. */
+  onPress?: (() => void) | undefined;
+  /** React Aria types these as `?: T` without `undefined`; the block drops
+   *  undefined values, so a screen may build them conditionally (#287). */
+  id?: string | undefined;
+  isDisabled?: boolean | undefined;
 }
 
 export function IconButton({

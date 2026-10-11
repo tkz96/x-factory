@@ -17,7 +17,10 @@ export type ButtonVariant = "primary" | "secondary" | "danger" | "quiet";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps
-  extends Omit<AriaButtonProps, "className" | "children" | "onPress"> {
+  extends Omit<
+    AriaButtonProps,
+    "className" | "children" | "onPress" | "id" | "isDisabled"
+  > {
   variant?: ButtonVariant;
   size?: ButtonSize;
   /** Sprite icon id (`/assets/icons/sprite.svg`), drawn before the label. */
@@ -26,6 +29,10 @@ export interface ButtonProps
   children?: ReactNode;
   /** The press handler, narrowed to this vocabulary's shape. */
   onPress?: (() => void) | undefined;
+  /** React Aria types these as `?: T` without `undefined`; the block drops
+   *  undefined values, so a screen may build them conditionally (#287). */
+  id?: string | undefined;
+  isDisabled?: boolean | undefined;
 }
 
 export function Button({
