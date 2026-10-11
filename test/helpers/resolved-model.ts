@@ -18,6 +18,7 @@ export function testResolvedModel(
     apiKey: "test-key",
     details: { contextWindow: 32000, maxOutputTokens: 4000 },
     limits: {},
+    budget: { perDay: {} },
   };
 }
 

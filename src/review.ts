@@ -14,7 +14,7 @@ import {
   gatewayKeyFor,
   modelGateway,
 } from "./model-gateway.js";
-import { ModelUnavailableError } from "./model-roles.js";
+import { ModelUnavailableError, type ResolvedModel } from "./model-roles.js";
 import { ensureDir } from "./paths.js";
 import { buildReviewPrompt } from "./prompts.js";
 import type {
@@ -50,6 +50,8 @@ export interface ReviewContext {
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
   sessionFactory?: ReviewSessionFactory | undefined;
+  /** Asserts that calling the reviewer model does not exceed its daily budget (#281). */
+  assertBudget?: ((resolved: ResolvedModel) => void) | undefined;
 }
 
 export type ReviewSessionFactory = (
@@ -166,12 +168,18 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
       ticket,
       onEvent,
       signal,
-      context.modelConfig
-        ? {
-            key: gatewayKeyFor(context.modelConfig.resolved),
-            onWait: context.onWait,
-          }
-        : undefined,
+      (() => {
+        const modelConfig = context.modelConfig;
+        if (!modelConfig) return undefined;
+        const assertBudget = context.assertBudget;
+        return {
+          key: gatewayKeyFor(
+            modelConfig.resolved,
+            assertBudget ? () => assertBudget(modelConfig.resolved) : undefined,
+          ),
+          onWait: context.onWait,
+        };
+      })(),
     );
   } finally {
     const usage = reviewSession.usage?.();

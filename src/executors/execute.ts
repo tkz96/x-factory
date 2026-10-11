@@ -71,10 +71,24 @@ export class ExecuteExecutor implements StageExecutor {
     let gateKey: ReturnType<typeof gatewayKeyFor>;
     try {
       const resolved = await this.deps.resolveRole("builder");
+      context.assertBudget?.(resolved);
       agent = await writeRunAgentConfig(run.artifactsDir, resolved);
-      gateKey = gatewayKeyFor(resolved);
+      const assertBudget = context.assertBudget;
+      gateKey = gatewayKeyFor(
+        resolved,
+        assertBudget ? () => assertBudget(resolved) : undefined,
+      );
       context.recordModel(modelUse(resolved));
     } catch (err: unknown) {
+      if (
+        err instanceof ModelUnavailableError &&
+        err.category === "budget reached"
+      ) {
+        return {
+          outcome: "paused",
+          reason: err.message,
+        };
+      }
       if (err instanceof ModelUnavailableError) {
         return { outcome: "error", error: `Model unavailable: ${err.message}` };
       }
@@ -121,6 +135,13 @@ export class ExecuteExecutor implements StageExecutor {
       return {
         outcome: "error",
         error: "Execution stopped",
+        record: verificationRecord(),
+      };
+    }
+    if (result.outcome === "budget_exceeded") {
+      return {
+        outcome: "paused",
+        reason: result.error,
         record: verificationRecord(),
       };
     }

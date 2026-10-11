@@ -2,6 +2,7 @@
 // connections (#276). Responses never carry an API key: only whether one is
 // set and its last four characters.
 
+import type { Repositories } from "../composition-root.js";
 import {
   addConnectionModel,
   checkModelConnection,
@@ -9,6 +10,7 @@ import {
   deleteModelConnection,
   getModelConnection,
   listModelConnections,
+  type ModelConnectionView,
   removeConnectionModel,
   updateConnectionModel,
   updateModelConnection,
@@ -25,14 +27,38 @@ import {
   UpdateModelConnectionBodySchema,
 } from "./schemas.js";
 
-export async function handleListModelConnections(): Promise<Response> {
-  return jsonResponse(await listModelConnections());
+function attachTodayUsage(
+  connections: ModelConnectionView[],
+  repos?: Repositories,
+): ModelConnectionView[] {
+  if (!repos) return connections;
+  const usageMap = repos.stageAttempts.getDailyUsageByModel();
+  for (const connection of connections) {
+    for (const model of connection.models) {
+      const usage = usageMap.get(`${connection.id}:${model.modelId}`);
+      model.todayUsage = {
+        usd: usage?.costUsd ?? usage?.spendUsd ?? 0,
+        requests: usage?.requests ?? 0,
+      };
+    }
+  }
+  return connections;
 }
 
-export async function handleGetModelConnection(id: string): Promise<Response> {
+export async function handleListModelConnections(
+  repos?: Repositories,
+): Promise<Response> {
+  const connections = await listModelConnections();
+  return jsonResponse(attachTodayUsage(connections, repos));
+}
+
+export async function handleGetModelConnection(
+  id: string,
+  repos?: Repositories,
+): Promise<Response> {
   const connection = await getModelConnection(id);
   return connection
-    ? jsonResponse(connection)
+    ? jsonResponse(attachTodayUsage([connection], repos)[0])
     : errorResponse(`Model connection "${id}" not found.`, 404);
 }
 

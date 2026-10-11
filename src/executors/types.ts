@@ -4,6 +4,7 @@
 // with the transition, or not at all.
 
 import type { RunRecord } from "../db/run-repository.js";
+import type { ResolvedModel } from "../model-roles.js";
 import type {
   ImplementationContext,
   ModelUsage,
@@ -54,6 +55,8 @@ export interface StageContext {
   recordModel(model: ModelUse): void;
   /** Adds tokens and cost a provider reported for this attempt (#279). */
   reportUsage(usage: ModelUsage): void;
+  /** Asserts that calling the model does not exceed its daily budget (#281). */
+  assertBudget?(resolved: ResolvedModel): void;
 }
 
 /** The run fields a stage may write. */
@@ -98,6 +101,12 @@ export type StageOutcome =
   | {
       outcome: "error";
       error: string;
+      output?: unknown;
+      record?: StageRecord | undefined;
+    }
+  | {
+      outcome: "paused";
+      reason: string;
       output?: unknown;
       record?: StageRecord | undefined;
     };

@@ -621,6 +621,7 @@ export const MODEL_CONNECTIONS_COPY = {
   tpd: "Tokens / day",
   budgetUsd: "Budget ($ / day)",
   budgetRequests: "Budget (requests / day)",
+  todayUsageLabel: (todayText: string) => `Today’s usage: ${todayText}`,
   saveModel: "Save Model",
   removeModel: "Remove",
 } as const;

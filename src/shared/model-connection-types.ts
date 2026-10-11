@@ -56,6 +56,8 @@ export interface ModelRecord extends ModelDetails {
   name?: string | undefined;
   limits: ModelLimits;
   budget: ModelBudget;
+  /** Today's recorded usage for this model in UTC (#281). */
+  todayUsage?: { usd: number; requests: number } | undefined;
 }
 
 /** Edits to a model record; `null` clears a detail. */

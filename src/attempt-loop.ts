@@ -239,6 +239,7 @@ export type AttemptLoopResult =
   | { outcome: "verified"; verification: VerificationResult }
   | { outcome: "aborted" }
   | { outcome: "failed"; error: string }
+  | { outcome: "budget_exceeded"; error: string }
   /** The one repair budget is spent and verification still fails: the stage's verdict, never retried. */
   | { outcome: "exhausted"; error: string; verification: VerificationResult };
 
@@ -289,6 +290,56 @@ function progressLineForwarder(onLine: (line: string) => void) {
       }
     }
   };
+}
+
+async function runLoopWithGateway(
+  runLoop: () => ReturnType<typeof execCommand>,
+  gate: AttemptLoopInput["gate"],
+  signal: AbortSignal | undefined,
+  emit: AttemptLoopInput["emit"],
+) {
+  if (!gate) return await runLoop();
+  return await gate.gateway.run(
+    gate.key,
+    async () => {
+      const result = await runLoop();
+      const output = `${result.stderr}\n${result.stdout}`;
+      if (
+        result.exitCode !== 0 &&
+        !result.timedOut &&
+        !signal?.aborted &&
+        isRateLimitMessage(output)
+      ) {
+        throw new RateLimitedError(
+          output.trim().slice(-500),
+          parseRetryDelayMs(output),
+        );
+      }
+      return result;
+    },
+    {
+      signal,
+      onWait: (ms) =>
+        emit("ralph_progress", {
+          text: `The provider is rate limiting the model; waiting ${Math.ceil(ms / 1000)} s, then retrying. This does not count as a repair attempt.`,
+        }),
+    },
+  );
+}
+
+function handleAttemptError(
+  err: unknown,
+  signal: AbortSignal | undefined,
+  emit: AttemptLoopInput["emit"],
+): AttemptLoopResult {
+  if (signal?.aborted) return { outcome: "aborted" };
+  if (err instanceof ModelUnavailableError) {
+    emit("error", { message: err.message });
+    return err.category === "budget reached"
+      ? { outcome: "budget_exceeded", error: err.message }
+      : { outcome: "failed", error: err.message };
+  }
+  throw err;
 }
 
 /**
@@ -375,43 +426,9 @@ export async function runAttemptLoop(
 
     let loop: Awaited<ReturnType<typeof runLoop>>;
     try {
-      loop = input.gate
-        ? await input.gate.gateway.run(
-            input.gate.key,
-            async () => {
-              const result = await runLoop();
-              const output = `${result.stderr}\n${result.stdout}`;
-              // A provider rate limit is waited out and the same attempt
-              // runs again; it never spends the repair budget (#280).
-              if (
-                result.exitCode !== 0 &&
-                !result.timedOut &&
-                !signal?.aborted &&
-                isRateLimitMessage(output)
-              ) {
-                throw new RateLimitedError(
-                  output.trim().slice(-500),
-                  parseRetryDelayMs(output),
-                );
-              }
-              return result;
-            },
-            {
-              signal,
-              onWait: (ms) =>
-                emit("ralph_progress", {
-                  text: `The provider is rate limiting the model; waiting ${Math.ceil(ms / 1000)} s, then retrying. This does not count as a repair attempt.`,
-                }),
-            },
-          )
-        : await runLoop();
+      loop = await runLoopWithGateway(runLoop, input.gate, signal, emit);
     } catch (err: unknown) {
-      if (signal?.aborted) return { outcome: "aborted" };
-      if (err instanceof ModelUnavailableError) {
-        emit("error", { message: err.message });
-        return { outcome: "failed", error: err.message };
-      }
-      throw err;
+      return handleAttemptError(err, signal, emit);
     }
 
     if (signal?.aborted) return { outcome: "aborted" };

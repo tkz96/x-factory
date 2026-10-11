@@ -14,16 +14,22 @@ import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
+import {
+  assertBudgetNotExceeded,
+  BudgetExceededError,
+  modelRoleForStage,
+} from "./model-budgets.js";
 import { ModelGateway } from "./model-gateway.js";
 import {
   ModelUnavailableError,
   modelUse,
+  type ResolvedModel,
   resolveRole,
   usageWithCost,
 } from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
-import type { ModelUsage, ModelUse } from "./shared/types.js";
+import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
 import {
@@ -329,19 +335,50 @@ export async function createPR(
   return tx();
 }
 
-export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
+export async function resumeRun(
+  repos: Repositories,
+  id: string,
+  options?: {
+    resolveRole?: ((role: ModelRoleName) => Promise<ResolvedModel>) | undefined;
+    now?: Date | undefined;
+  },
+): Promise<Run> {
   const { db } = repos;
   const runRepo = repos.runs;
   const jobRepo = repos.jobs;
   const commandRepo = repos.commands;
   const stageAttemptRepo = repos.stageAttempts;
 
+  verifyRecoveryRequired(runRepo, id, "resume");
+
+  const attempts = stageAttemptRepo.listForRun(id);
+  const attemptStages = attempts.map((attempt) => attempt.stage);
+  const route = resumeRouteFor(attemptStages);
+
+  const targetStage = resumeStageName(attemptStages);
+  const targetRole =
+    modelRoleForStage(targetStage) ??
+    (route.jobStage ? modelRoleForStage(route.jobStage) : null);
+  if (targetRole) {
+    const resolver = options?.resolveRole ?? resolveRole;
+    try {
+      const resolved = await resolver(targetRole);
+      assertBudgetNotExceeded(stageAttemptRepo, resolved, options?.now);
+    } catch (err: unknown) {
+      if (err instanceof BudgetExceededError) {
+        throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);
+      }
+      if (err instanceof ModelUnavailableError) {
+        // Model or role unavailable (e.g. unconfigured in test environments),
+        // not a budget exhaustion: do not block resuming the workflow.
+      } else {
+        throw err;
+      }
+    }
+  }
+
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, "resume");
-
-    const attempts = stageAttemptRepo.listForRun(id);
-    const attemptStages = attempts.map((attempt) => attempt.stage);
-    const route = resumeRouteFor(attemptStages);
 
     if (route.command) {
       // A completed deliver command means the PR already exists. Resuming into

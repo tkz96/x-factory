@@ -20,6 +20,7 @@ const RESOLVED: ResolvedModel = {
   apiKey: "test-key",
   details: { contextWindow: 32000, maxOutputTokens: 4000 },
   limits: {},
+  budget: { perDay: {} },
 };
 
 describe("Pi SDK Compatibility under Bun", () => {

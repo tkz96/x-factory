@@ -71,6 +71,7 @@ function resolved(apiKey: string): ResolvedModel {
     apiKey,
     details: { contextWindow: 32000, maxOutputTokens: 4000 },
     limits: {},
+    budget: { perDay: {} },
   };
 }
 

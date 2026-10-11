@@ -21,6 +21,8 @@ import type {
   StageRunUpdate,
 } from "./executors/types.js";
 import type { LeaseManager, WorkerLogRecord } from "./lease.js";
+import { assertBudgetNotExceeded } from "./model-budgets.js";
+import { ModelUnavailableError } from "./model-roles.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
 import {
@@ -91,7 +93,12 @@ function logSubject(work: StageWork): { job_id?: string } {
 function isStageOutcome(value: unknown): value is StageOutcome {
   if (typeof value !== "object" || value === null) return false;
   const outcome = (value as { outcome?: unknown }).outcome;
-  return outcome === "passed" || outcome === "rejected" || outcome === "error";
+  return (
+    outcome === "passed" ||
+    outcome === "rejected" ||
+    outcome === "error" ||
+    outcome === "paused"
+  );
 }
 
 // Finalization runs inside the commit transaction, so it calls the repositories on the
@@ -206,6 +213,9 @@ export function buildStageContext(
     reportUsage: (usage) => {
       if (attemptId) repos.stageAttempts.addUsage(attemptId, usage);
     },
+    assertBudget: (resolved) => {
+      assertBudgetNotExceeded(repos.stageAttempts, resolved);
+    },
     ledger: {
       execute: (operation, fn, reconcile, prepareContext) =>
         repos.operationLedger.executeWithLedger(
@@ -314,6 +324,19 @@ export class StageRunner {
       } catch (err: unknown) {
         if (this.host.isShuttingDown()) return;
         if (this.stoppedUnder(work, attempt, startTime)) return;
+        if (
+          err instanceof ModelUnavailableError &&
+          err.category === "budget reached"
+        ) {
+          this.pauseForBudget(
+            work,
+            attempt,
+            err.message,
+            elapsed(startTime),
+            run.status,
+          );
+          return;
+        }
         this.fail(
           work,
           attempt,
@@ -329,7 +352,16 @@ export class StageRunner {
       if (this.stoppedUnder(work, attempt, startTime)) return;
 
       const duration = elapsed(startTime);
-      if (outcome.outcome === "passed") {
+      if (outcome.outcome === "paused") {
+        this.pauseForBudget(
+          work,
+          attempt,
+          outcome.reason,
+          duration,
+          run.status,
+          outcome.record,
+        );
+      } else if (outcome.outcome === "passed") {
         const invalid = work.invalidPassed?.(outcome);
         if (invalid) {
           this.fail(work, attempt, invalid, duration, run.status);
@@ -494,6 +526,76 @@ export class StageRunner {
     this.host.log(
       `Stage completed successfully: id=${work.id}, stage=${work.stage}`,
     );
+  }
+
+  /**
+   * When a stage exceeds a model's daily budget, the work is failed without retry and the
+   * run moves to recovery_required carrying the structured budget reason (#281).
+   */
+  private pauseForBudget(
+    work: StageWork,
+    attempt: StageAttemptRecord,
+    reason: string,
+    duration: number,
+    expectedRunStatus: RunStatus,
+    record?: StageRecord,
+  ): void {
+    const { repos } = this.host;
+    this.host.error(`Stage '${work.stage}' paused: budget reached: ${reason}`);
+
+    try {
+      repos.stageAttempts.recordFailure(attempt.id, reason);
+    } catch (e: unknown) {
+      this.host.error(
+        "Failed to record stage attempt failure for budget pause",
+        e,
+      );
+    }
+
+    try {
+      repos.db.transaction(() => {
+        work.reject(reason);
+        const latest = repos.runs.get(work.runId);
+        if (!latest || latest.status !== expectedRunStatus) return;
+        this.applyRecord(work.runId, record);
+        if (canTransition(latest.status, "recovery_required")) {
+          repos.runs.transitionRun(
+            work.runId,
+            latest.status,
+            "recovery_required",
+            {
+              event: {
+                type: "status",
+                payload: {
+                  status: "recovery_required",
+                  category: "budget reached",
+                  reason,
+                  text: `Run paused: budget reached. ${reason}`,
+                },
+              },
+            },
+          );
+        } else {
+          const text = `Budget pause not applied: run is in status "${latest.status}", which cannot transition to recovery_required.`;
+          repos.events.appendEvent(work.runId, "info", { text });
+          this.host.error(`Run ${work.runId}: ${text}`);
+        }
+      })();
+    } catch (err: unknown) {
+      this.host.error(`Failed to pause run ${work.runId} for budget`, err);
+      return;
+    }
+
+    this.host.emitLog({
+      ...logSubject(work),
+      run_id: work.runId,
+      stage: work.stage,
+      attempt: work.attempt,
+      duration_ms: duration,
+      result: "failure",
+      message: `Stage '${work.stage}' paused: budget reached. Run moved to recovery_required`,
+      error: reason,
+    });
   }
 
   /**

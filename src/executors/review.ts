@@ -51,6 +51,7 @@ export class ReviewExecutor implements StageExecutor {
     let rResult: Awaited<ReturnType<typeof reviewRun>>;
     try {
       const resolved = await this.deps.resolveRole("reviewer");
+      context.assertBudget?.(resolved);
       context.recordModel(modelUse(resolved));
       // reviewRun owns review.json; this executor only records the result.
       rResult = await reviewRun({
@@ -62,6 +63,7 @@ export class ReviewExecutor implements StageExecutor {
         verification: run.verification,
         understanding: run.implementationContext,
         modelConfig: { resolved },
+        assertBudget: context.assertBudget,
         onWait: (ms) =>
           context.emit("info", {
             text: `The provider is rate limiting ${resolved.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
@@ -71,6 +73,12 @@ export class ReviewExecutor implements StageExecutor {
         sessionFactory: this.deps.sessionFactory,
       });
     } catch (err: unknown) {
+      if (
+        err instanceof ModelUnavailableError &&
+        err.category === "budget reached"
+      ) {
+        return { outcome: "paused", reason: err.message };
+      }
       if (err instanceof ModelUnavailableError) {
         const label =
           err.category === "key rejected"

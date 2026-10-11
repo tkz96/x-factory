@@ -15,6 +15,7 @@ import {
 import { loadSettings } from "./settings.js";
 import type {
   ModelApiType,
+  ModelBudget,
   ModelDetails,
   ModelLimits,
 } from "./shared/model-connection-types.js";
@@ -24,7 +25,8 @@ export type ModelFailureCategory =
   | "model unavailable"
   | "key rejected"
   | "rate limited"
-  | "context too large";
+  | "context too large"
+  | "budget reached";
 
 /** A model call that can't happen: the role or its model/key isn't usable. */
 export class ModelUnavailableError extends DomainError {
@@ -50,6 +52,8 @@ export interface ResolvedModel {
   details: ModelDetails & { reasoning?: boolean | undefined };
   /** The model's rate limits as recorded on its connection (#280). */
   limits: ModelLimits;
+  /** The model's daily budget (#281). */
+  budget: ModelBudget;
 }
 
 const ROLE_LABELS: Readonly<Record<ModelRoleName, string>> = {
@@ -111,6 +115,7 @@ export async function resolveRole(role: ModelRoleName): Promise<ResolvedModel> {
       ),
     },
     limits: record?.limits ?? {},
+    budget: record?.budget ?? { perDay: {} },
   };
 }
 

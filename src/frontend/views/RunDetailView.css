@@ -251,3 +251,8 @@
   width: 8px;
   height: 8px;
 }
+
+.recovery-error {
+  color: var(--danger);
+  font-weight: 500;
+}

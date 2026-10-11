@@ -429,6 +429,7 @@ describe("stage runner", () => {
     // recordModel and reportUsage write to the attempt without exposing the
     // repositories or the attempt id (#279).
     const expected = [
+      "assertBudget",
       "attempt",
       "emit",
       "ledger",

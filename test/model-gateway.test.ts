@@ -172,4 +172,26 @@ describe("ModelGateway.run", () => {
       await gateway.run({ key: "c1:m", limit: 1 }, async () => "next"),
     ).toBe("next");
   });
+
+  it("calls checkBudget before acquire, propagating errors without taking a slot", async () => {
+    const gateway = new ModelGateway({ clock: fakeClock().clock });
+    let executed = false;
+    const checkBudget = () => {
+      throw new ModelUnavailableError("Daily budget reached", "budget reached");
+    };
+
+    await expect(
+      gateway.run({ key: "c1:m", limit: 1, checkBudget }, async () => {
+        executed = true;
+        return "ok";
+      }),
+    ).rejects.toThrow("Daily budget reached");
+
+    expect(executed).toBe(false);
+
+    // Slot is still free for another call
+    expect(
+      await gateway.run({ key: "c1:m", limit: 1 }, async () => "unblocked"),
+    ).toBe("unblocked");
+  });
 });

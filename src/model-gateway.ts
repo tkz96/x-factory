@@ -88,6 +88,8 @@ export interface GatewayKey {
   /** One queue per model: connection ID and model ID. */
   key: string;
   limit: number;
+  /** Optional budget check hook called before acquiring a concurrency slot (#281). */
+  checkBudget?: (() => void | Promise<void>) | undefined;
 }
 
 export interface RunHooks {
@@ -156,6 +158,7 @@ export class ModelGateway {
     fn: () => Promise<T>,
     hooks: RunHooks = {},
   ): Promise<T> {
+    await key.checkBudget?.();
     const release = await this.acquire(key);
     try {
       let waited = 0;
@@ -183,10 +186,14 @@ export class ModelGateway {
 }
 
 /** The gateway queue a role's model uses: one per connection and model. */
-export function gatewayKeyFor(resolved: ResolvedModel): GatewayKey {
+export function gatewayKeyFor(
+  resolved: ResolvedModel,
+  checkBudget?: (() => void | Promise<void>) | undefined,
+): GatewayKey {
   return {
     key: `${resolved.connectionId}:${resolved.modelId}`,
     limit: concurrencyLimitFor(resolved.limits),
+    checkBudget,
   };
 }
 

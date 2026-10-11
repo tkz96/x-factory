@@ -164,3 +164,16 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
+
+.model-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.model-details-usage {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}

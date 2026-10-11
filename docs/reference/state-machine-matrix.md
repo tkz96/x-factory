@@ -114,3 +114,6 @@ A worker that releases a job on shutdown gives back the attempt the claim counte
 
 ### 7. One Repair Budget
 A stage's repair budget is its single attempt cap. An `execute` stage whose verification still fails after the budget is spent ends the run as `failed`, like a rejected review, with the verification evidence kept. The job is not retried.
+
+### 8. Budget-Exceeded Pauses and Resumption
+Starting a model call that would exceed the model's configured daily budget (either requests or USD per UTC day) does not fail or retry the job; instead, it pauses the stage and transitions the run to `recovery_required` carrying a structured reason with category `"budget reached"` (#281). Resuming the run via `POST /api/runs/:id/resume` re-checks the daily budget for the model assigned to the target stage. If the daily budget is still exceeded, the resume request is rejected with `409 Conflict` (`ConflictError`) and the run remains in `recovery_required`.

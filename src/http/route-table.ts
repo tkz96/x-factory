@@ -237,7 +237,7 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "listModelConnections",
     responseDescription:
       "Every model connection, keys masked to their last 4 characters",
-    handler: () => handleListModelConnections(),
+    handler: ({ ctx }) => handleListModelConnections(ctx.repos),
   }),
   route({
     method: "POST",
@@ -255,7 +255,8 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     summary: "Get Model Connection",
     operationId: "getModelConnection",
     responseDescription: "One model connection (key masked)",
-    handler: ({ params }) => handleGetModelConnection(params.id),
+    handler: ({ params, ctx }) =>
+      handleGetModelConnection(params.id, ctx.repos),
   }),
   route({
     method: "PATCH",

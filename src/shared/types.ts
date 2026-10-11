@@ -334,6 +334,7 @@ export interface StatusEventPayload {
   status: RunStatus;
   text?: string | undefined;
   reason?: string | undefined;
+  category?: string | undefined;
   pullRequest?: PullRequest | undefined;
 }
 

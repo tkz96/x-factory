@@ -10,6 +10,7 @@ import { useState } from "react";
 import {
   MODEL_API_TYPES,
   type ModelApiType,
+  type ModelBudget,
   type ModelConnectionView,
   type ModelListResult,
   type ModelRecord,
@@ -229,6 +230,23 @@ function toPatch(values: Record<FormKey, string>): ModelRecordPatch {
   };
 }
 
+function formatTodayUsage(
+  usage: { usd: number; requests: number } | undefined,
+  budget: ModelBudget,
+): string {
+  const usdUsed = usage?.usd ?? 0;
+  const reqUsed = usage?.requests ?? 0;
+  const costPart =
+    budget.perDay.usd !== undefined
+      ? `$${usdUsed.toFixed(2)} / $${budget.perDay.usd.toFixed(2)}`
+      : `$${usdUsed.toFixed(2)}`;
+  const reqPart =
+    budget.perDay.requests !== undefined
+      ? `${reqUsed} / ${budget.perDay.requests} reqs`
+      : `${reqUsed} reqs`;
+  return `${costPart} • ${reqPart}`;
+}
+
 function ModelDetailsForm({
   connectionId,
   model,
@@ -251,7 +269,14 @@ function ModelDetailsForm({
 
   return (
     <form className="model-details" onSubmit={save} noValidate>
-      <h5 className="model-details-title">{model.name ?? model.modelId}</h5>
+      <div className="model-details-header">
+        <h5 className="model-details-title">{model.name ?? model.modelId}</h5>
+        <span className="model-details-usage">
+          {COPY.todayUsageLabel(
+            formatTodayUsage(model.todayUsage, model.budget),
+          )}
+        </span>
+      </div>
       <div className="model-details-grid">
         {ALL_FIELDS.map((key) => (
           <label key={key} className="model-field" htmlFor={`${prefix}-${key}`}>

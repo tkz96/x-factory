@@ -343,6 +343,83 @@ export class StageAttemptRepository {
     return byRun;
   }
 
+  /**
+   * Daily spend and request count for a specific model, summed from recorded attempts (#281).
+   * By default, counts attempts started since the beginning of the current UTC day.
+   */
+  getDailyUsageForModel(
+    connectionId: string,
+    modelId: string,
+    options?: { since?: string | undefined; now?: Date | undefined },
+  ): DailyModelUsage {
+    const since = options?.since ?? startOfUtcDay(options?.now);
+    const row = this.db
+      .prepare<
+        { requests: number; spend_usd: number | null },
+        { $connectionId: string; $modelId: string; $since: string }
+      >(
+        `SELECT COUNT(*) AS requests,
+                SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
+         FROM stage_attempts
+         WHERE connection_id = $connectionId
+           AND model_id = $modelId
+           AND started_at >= $since`,
+      )
+      .get({
+        $connectionId: connectionId,
+        $modelId: modelId,
+        $since: since,
+      });
+    const spend = row?.spend_usd ?? 0;
+    return {
+      requests: row?.requests ?? 0,
+      spendUsd: spend,
+      costUsd: spend,
+    };
+  }
+
+  /**
+   * Daily spend and request counts for all models, grouped by `${connection_id}:${model_id}` (#281).
+   */
+  getDailyUsageByModel(options?: {
+    since?: string | undefined;
+    now?: Date | undefined;
+  }): Map<string, DailyModelUsage> {
+    const since = options?.since ?? startOfUtcDay(options?.now);
+    const rows = this.db
+      .prepare<
+        {
+          connection_id: string;
+          model_id: string;
+          requests: number;
+          spend_usd: number | null;
+        },
+        { $since: string }
+      >(
+        `SELECT connection_id,
+                model_id,
+                COUNT(*) AS requests,
+                SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
+         FROM stage_attempts
+         WHERE connection_id IS NOT NULL
+           AND model_id IS NOT NULL
+           AND started_at >= $since
+         GROUP BY connection_id, model_id`,
+      )
+      .all({ $since: since });
+
+    const map = new Map<string, DailyModelUsage>();
+    for (const row of rows) {
+      const spend = row.spend_usd ?? 0;
+      map.set(`${row.connection_id}:${row.model_id}`, {
+        requests: row.requests,
+        spendUsd: spend,
+        costUsd: spend,
+      });
+    }
+    return map;
+  }
+
   private listModels(
     where: string,
     params: Record<string, string>,
@@ -363,4 +440,16 @@ export class StageAttemptRepository {
       )
       .all(params);
   }
+}
+
+export interface DailyModelUsage {
+  spendUsd: number;
+  costUsd: number;
+  requests: number;
+}
+
+export function startOfUtcDay(date = new Date()): string {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
 }
