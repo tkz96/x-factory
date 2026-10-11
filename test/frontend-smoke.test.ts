@@ -561,3 +561,54 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
     expect(deriveSource).not.toContain("isStale: boolean");
   });
 });
+
+describe("Frontend Smoke — CSS variable resolution", () => {
+  function listFiles(dir: string, ext: string[]): string[] {
+    const out: string[] = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...listFiles(full, ext));
+      else if (ext.some((e) => entry.name.endsWith(e))) out.push(full);
+    }
+    return out;
+  }
+
+  const frontendDir = path.join(ROOT_DIR, "src/frontend");
+  const sources = listFiles(frontendDir, [".css", ".tsx"]).map((file) => ({
+    file: path.relative(ROOT_DIR, file),
+    css: file.endsWith(".css"),
+    text: fs.readFileSync(file, "utf-8"),
+  }));
+
+  it("every var(--x) used in frontend CSS resolves to a defined custom property", () => {
+    const defined = new Set<string>();
+    for (const { text, css } of sources) {
+      const declaration = css
+        ? /(?:^|[;{\s])(--[a-zA-Z0-9_-]+)\s*:/g
+        : /["'](--[a-zA-Z0-9_-]+)["']\s*:/g;
+      for (const m of text.matchAll(declaration)) defined.add(m[1] as string);
+    }
+    const undefinedUses: string[] = [];
+    for (const { file, text } of sources) {
+      for (const m of text.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)/g)) {
+        if (!defined.has(m[1] as string)) {
+          undefinedUses.push(`${file}: ${m[1]}`);
+        }
+      }
+    }
+    expect(undefinedUses).toEqual([]);
+  });
+
+  it("no var() carries a hard-coded colour fallback", () => {
+    const offenders: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      for (const m of text.matchAll(
+        /var\(\s*--[a-zA-Z0-9_-]+\s*,\s*(?:#|rgba?\(|hsla?\()[^)]*\)?/g,
+      )) {
+        offenders.push(`${file}: ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});

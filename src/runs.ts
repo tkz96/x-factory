@@ -14,10 +14,23 @@ import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
+import {
+  assertBudgetNotExceeded,
+  BudgetExceededError,
+  modelRoleForStage,
+} from "./model-budgets.js";
+import { ModelGateway } from "./model-gateway.js";
+import {
+  ModelUnavailableError,
+  modelUse,
+  type ResolvedModel,
+  resolveRole,
+  usageWithCost,
+} from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
-import { loadSettings } from "./settings.js";
 import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
+import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
 import {
@@ -51,12 +64,24 @@ export function getOperationLedger(
   return repos.operationLedger.listForRun(runId);
 }
 
+/**
+ * Chat replies run inside an HTTP request, so a rate limit is waited out for
+ * at most a minute before the reply says so (#280).
+ */
+const chatGateway = new ModelGateway({ maxWaitMs: 60_000 });
+
 export function getRun(repos: Repositories, id: string): Run | null {
-  return repos.runs.get(id);
+  const run = repos.runs.get(id);
+  return run
+    ? { ...run, stageModels: repos.stageAttempts.listModelsForRun(id) }
+    : null;
 }
 
 export function listRuns(repos: Repositories): Run[] {
-  return repos.runs.list();
+  const models = repos.stageAttempts.listModelsByRun();
+  return repos.runs
+    .list()
+    .map((run) => ({ ...run, stageModels: models.get(run.id) ?? [] }));
 }
 
 export function generateBranchName(
@@ -311,19 +336,50 @@ export async function createPR(
   return tx();
 }
 
-export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
+export async function resumeRun(
+  repos: Repositories,
+  id: string,
+  options?: {
+    resolveRole?: ((role: ModelRoleName) => Promise<ResolvedModel>) | undefined;
+    now?: Date | undefined;
+  },
+): Promise<Run> {
   const { db } = repos;
   const runRepo = repos.runs;
   const jobRepo = repos.jobs;
   const commandRepo = repos.commands;
   const stageAttemptRepo = repos.stageAttempts;
 
+  verifyRecoveryRequired(runRepo, id, "resume");
+
+  const attempts = stageAttemptRepo.listForRun(id);
+  const attemptStages = attempts.map((attempt) => attempt.stage);
+  const route = resumeRouteFor(attemptStages);
+
+  const targetStage = resumeStageName(attemptStages);
+  const targetRole =
+    modelRoleForStage(targetStage) ??
+    (route.jobStage ? modelRoleForStage(route.jobStage) : null);
+  if (targetRole) {
+    const resolver = options?.resolveRole ?? resolveRole;
+    try {
+      const resolved = await resolver(targetRole);
+      assertBudgetNotExceeded(stageAttemptRepo, resolved, options?.now);
+    } catch (err: unknown) {
+      if (err instanceof BudgetExceededError) {
+        throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);
+      }
+      if (err instanceof ModelUnavailableError) {
+        // Model or role unavailable (e.g. unconfigured in test environments),
+        // not a budget exhaustion: do not block resuming the workflow.
+      } else {
+        throw err;
+      }
+    }
+  }
+
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, "resume");
-
-    const attempts = stageAttemptRepo.listForRun(id);
-    const attemptStages = attempts.map((attempt) => attempt.stage);
-    const route = resumeRouteFor(attemptStages);
 
     if (route.command) {
       // A completed deliver command means the PR already exists. Resuming into
@@ -448,11 +504,12 @@ export async function chatWithRun(
   const ctx = run.implementationContext;
 
   let agentResponse: string;
+  // Which model wrote the reply, and what it cost (#279); unset when none did.
+  let replyModel: { model: ModelUse; usage: ModelUsage } | undefined;
 
   try {
-    const settings = await loadSettings();
-    const providerId = settings.models?.sessionA?.provider || "anthropic";
-    const modelId = settings.models?.sessionA?.model || "claude-3-7-sonnet";
+    // Chat uses the Builder role's model (#278); there is no fallback model.
+    const resolved = await resolveRole("builder");
 
     const events = eventRepo.getEventsForRun(id);
     const messages: ChatMessageInput[] = [];
@@ -483,19 +540,32 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
       }
     }
 
-    agentResponse = await chatWithModel(providerId, modelId, messages);
+    const reply = await chatWithModel(resolved, messages, {
+      gateway: chatGateway,
+    });
+    agentResponse = reply.text;
+    replyModel = {
+      model: modelUse(resolved),
+      usage: usageWithCost(resolved, reply.usage),
+    };
     if (!agentResponse?.trim()) {
       agentResponse =
         "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
     }
   } catch (err) {
     console.error("LLM Chat Error:", err);
+    // A model that can't be used says why (#278), instead of a generic line.
     agentResponse =
-      "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+      err instanceof ModelUnavailableError
+        ? `I can't reply: ${err.message}`
+        : "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
   }
 
   // Record agent response as an event
-  eventRepo.appendEvent(id, "chat_agent", { text: agentResponse });
+  eventRepo.appendEvent(id, "chat_agent", {
+    text: agentResponse,
+    ...(replyModel ?? {}),
+  });
 
   return { ok: true, message: agentResponse };
 }

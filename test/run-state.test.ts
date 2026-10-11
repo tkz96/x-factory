@@ -336,6 +336,39 @@ describe("client run-state module (#191)", () => {
     expect(invalidations).toEqual([["runs", RUN_ID]]);
   });
 
+  it("stage_started adds the attempt's model to the run once, even when replayed (#279)", () => {
+    const event = {
+      id: 7,
+      timestamp: "2026-10-01T10:00:00.000Z",
+      type: "stage_started",
+      payload: {
+        stage: "review",
+        attempt: 1,
+        model: {
+          role: "reviewer",
+          connectionId: "c1",
+          connectionName: "Gemini",
+          apiType: "gemini",
+          modelId: "gemini-x",
+        },
+      },
+    } as RunEvent;
+    const once = reduceRun(runSnapshot("executing"), event);
+    const twice = reduceRun(once, event);
+    expect(twice.stageModels).toEqual([
+      {
+        role: "reviewer",
+        connectionId: "c1",
+        connectionName: "Gemini",
+        apiType: "gemini",
+        modelId: "gemini-x",
+        stage: "review",
+        attempt: 1,
+        startedAt: "2026-10-01T10:00:00.000Z",
+      },
+    ]);
+  });
+
   it("the reducer handles every event type in the shared union", () => {
     const samples: { [K in RunEventType]: RunEventPayloadMap[K] } = {
       status: { status: "awaiting_review" },
@@ -357,6 +390,17 @@ describe("client run-state module (#191)", () => {
       review_activity: { tool: "read", text: "Running tool read" },
       info: { text: "info" },
       error: { message: "boom" },
+      stage_started: {
+        stage: "execute",
+        attempt: 1,
+        model: {
+          role: "builder",
+          connectionId: "c1",
+          connectionName: "Gemini",
+          apiType: "gemini",
+          modelId: "gemini-x",
+        },
+      },
     };
     const run = runSnapshot("executing");
     for (const type of Object.keys(samples) as RunEventType[]) {

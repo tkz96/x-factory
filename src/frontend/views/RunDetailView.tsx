@@ -8,6 +8,7 @@ import { CHECKPOINT_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ActivitySidebar } from "../components/runs/ActivitySidebar.js";
 import { HumanCheckpointSection } from "../components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../components/runs/RunChat.js";
+import { RunModelsCard } from "../components/runs/RunModelsCard.js";
 import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
 import {
   useAbandonRun,
@@ -86,43 +87,77 @@ export function RunDetailView() {
       <div className="run-detail-layout">
         {/* ── Main Content (2/3) ──────────────────────────────────────── */}
         <div className="run-detail-main">
+          <RunModelsCard stageModels={run.stageModels ?? []} />
+
           {/* Recovery Required Alert */}
-          {isRecoveryRequired && (
-            <div id="view-run" className="card">
-              <div className="recovery-box m-0">
-                <div>
-                  <strong>Pipeline requires operator recovery</strong>
-                  <p className="text-muted text-footnote m-0 mt-1">
-                    Worker process terminated or an unexpected state
-                    interruption occurred.
-                  </p>
+          {isRecoveryRequired &&
+            (() => {
+              const recoveryStatusEvent = [...events]
+                .reverse()
+                .find(
+                  (e) =>
+                    e.type === "status" &&
+                    (e.payload as { status?: string }).status ===
+                      "recovery_required",
+                );
+              const recoveryPayload = recoveryStatusEvent?.payload as
+                | { category?: string; reason?: string; text?: string }
+                | undefined;
+              const isBudgetPaused =
+                recoveryPayload?.category === "budget reached";
+              const budgetReason = recoveryPayload?.reason;
+
+              return (
+                <div id="view-run" className="card">
+                  <div className="recovery-box m-0">
+                    <div>
+                      <strong>
+                        {isBudgetPaused
+                          ? "Budget reached: run paused"
+                          : "Pipeline requires operator recovery"}
+                      </strong>
+                      <p className="text-muted text-footnote m-0 mt-1">
+                        {isBudgetPaused
+                          ? (budgetReason ??
+                            recoveryPayload?.text ??
+                            "A model call exceeded its daily budget.")
+                          : "Worker process terminated or an unexpected state interruption occurred."}
+                      </p>
+                      {resumeMutation.error && (
+                        <p className="recovery-error text-footnote m-0 mt-1">
+                          {resumeMutation.error.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex-center gap-2">
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm"
+                        disabled={resumeMutation.isPending}
+                        onClick={() => resumeMutation.mutate(run.id)}
+                      >
+                        {resumeMutation.isPending ? "Resuming…" : "Resume Run"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm btn-danger-text"
+                        disabled={abandonMutation.isPending}
+                        onClick={() =>
+                          abandonMutation.mutate({
+                            runId: run.id,
+                            reason: "Abandoned from operator console",
+                          })
+                        }
+                      >
+                        {abandonMutation.isPending
+                          ? "Abandoning…"
+                          : "Abandon Run"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-center gap-2">
-                  <button
-                    type="button"
-                    className="btn-primary btn-sm"
-                    disabled={resumeMutation.isPending}
-                    onClick={() => resumeMutation.mutate(run.id)}
-                  >
-                    {resumeMutation.isPending ? "Resuming…" : "Resume Run"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm btn-danger-text"
-                    disabled={abandonMutation.isPending}
-                    onClick={() =>
-                      abandonMutation.mutate({
-                        runId: run.id,
-                        reason: "Abandoned from operator console",
-                      })
-                    }
-                  >
-                    {abandonMutation.isPending ? "Abandoning…" : "Abandon Run"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              );
+            })()}
 
           {actionError && (
             <div id="run-error" className="error-message">

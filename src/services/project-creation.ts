@@ -20,7 +20,6 @@
 // coverage → duplicate id → persistence. Codes only — messages never cross the
 // API boundary.
 
-import path from "node:path";
 import { commitProjectMigration } from "../config.js";
 import {
   type ConnectionsProjectInput,
@@ -78,6 +77,7 @@ import {
   translateClaimError,
   withCreationClaim,
 } from "./creation-claim.js";
+import { resolveRepositoryPath } from "./repository-path.js";
 
 /** Capabilities a connection must support for each role it declares. */
 const ROLE_CAPABILITIES: Record<ProviderRole, readonly ProviderCapability[]> = {
@@ -170,10 +170,11 @@ interface BuiltRepository {
 
 function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
   return input.repositories.map((discovered) => {
-    const localPath = discovered.localPath ?? discovered.name;
-    const repositoryPath = input.workspacePath
-      ? path.resolve(input.workspacePath, localPath)
-      : path.resolve(localPath);
+    const repositoryPath = resolveRepositoryPath({
+      workspacePath: input.workspacePath,
+      repository: discovered,
+      repositoryCount: input.repositories.length,
+    });
 
     return {
       repository: {

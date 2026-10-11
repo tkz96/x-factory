@@ -1,0 +1,179 @@
+/* src/frontend/components/settings/ModelConnectionsPanel.css — Settings ›
+   Models › Model connections (#277). */
+
+.model-connections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.model-connections-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.model-connection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.model-connection-card,
+.model-connection-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.model-connection-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.model-connection-name {
+  display: block;
+  font-size: var(--text-headline);
+}
+
+.model-connection-meta {
+  display: block;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.model-badge {
+  flex-shrink: 0;
+  font-size: var(--text-footnote);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.model-badge--verified {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.model-connection-grid,
+.model-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.model-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.model-field-label {
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.model-actions--start {
+  justify-content: flex-start;
+}
+
+.model-confirm {
+  padding: var(--space-3);
+  border: 1px solid var(--red);
+  border-radius: var(--radius-md);
+  background: var(--red-dim);
+}
+
+.model-confirm p {
+  margin: 0 0 var(--space-2);
+}
+
+.model-found-count {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.model-found-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(var(--space-8) * 6);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.model-found-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.model-found-row:last-child {
+  border-bottom: none;
+}
+
+.model-found-id {
+  margin-left: var(--space-2);
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.model-chosen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.model-chosen-title,
+.model-details-title {
+  margin: 0;
+  font-size: var(--text-callout);
+}
+
+.model-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.model-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.model-details-usage {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}

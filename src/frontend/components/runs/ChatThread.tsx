@@ -1,28 +1,14 @@
 // src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and Ralph progress (Ticket 02, #191).
 
+import { stageStartedText } from "../../lib/run-models.js";
 import "./ChatThread.css";
 
 import { useEffect, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
+import { formatTimestamp } from "../../lib/format-timestamp.js";
 
 export interface ChatThreadProps {
   events: RunEvent[];
-}
-
-function formatFullTimestamp(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const year = d.getFullYear();
-    const month = pad(d.getMonth() + 1);
-    const day = pad(d.getDate());
-    const hours = pad(d.getHours());
-    const minutes = pad(d.getMinutes());
-    const seconds = pad(d.getSeconds());
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  } catch {
-    return iso;
-  }
 }
 
 function renderStatusBubble(item: RunEvent<"status">) {
@@ -35,7 +21,7 @@ function renderStatusBubble(item: RunEvent<"status">) {
       </div>
       <div className="chat-bubble-body">{text ?? ""}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -51,7 +37,7 @@ function renderEvidenceBubble(item: RunEvent<"stage_evidence">) {
       </div>
       <div className="chat-bubble-body">✓ {evidence}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -67,7 +53,7 @@ function renderRalphBubble(item: RunEvent<"ralph_progress">) {
       </div>
       <div className="chat-bubble-body">{text}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -92,7 +78,7 @@ function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
       </div>
       <div className="chat-bubble-body">{text}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -114,7 +100,7 @@ function renderChatUserBubble(item: RunEvent<"chat_user">) {
         {snippet || "User sent message in chat"}
       </div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -132,7 +118,7 @@ function renderChatAgentBubble(item: RunEvent<"chat_agent">) {
         {snippet || "Agent replied in chat"}
       </div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -146,10 +132,28 @@ function renderErrorBubble(item: RunEvent<"error">) {
       </div>
       <div className="chat-bubble-body">{item.payload.message}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
+}
+
+function renderInfoBubble(item: RunEvent<"info">) {
+  const text = item.payload.text;
+  if (item.payload.warning === "unsandboxed") {
+    return (
+      <div key={item.id} className="chat-bubble bubble-warning">
+        <div className="chat-bubble-header">
+          <span className="chat-bubble-badge">Warning</span>
+        </div>
+        <div className="chat-bubble-body">{text}</div>
+        <time className="chat-bubble-time" dateTime={item.timestamp}>
+          {formatTimestamp(item.timestamp)}
+        </time>
+      </div>
+    );
+  }
+  return renderTextBubble(item, text);
 }
 
 function renderTextBubble(item: RunEvent, text: string) {
@@ -157,7 +161,7 @@ function renderTextBubble(item: RunEvent, text: string) {
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-body">{text}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
-        {formatFullTimestamp(item.timestamp)}
+        {formatTimestamp(item.timestamp)}
       </time>
     </div>
   );
@@ -201,6 +205,7 @@ function renderBubble(item: RunEvent) {
     case "error":
       return renderErrorBubble(item);
     case "info":
+      return renderInfoBubble(item);
     case "user_feedback":
       return renderTextBubble(item, item.payload.text);
     case "pr_step":
@@ -208,6 +213,8 @@ function renderBubble(item: RunEvent) {
         item,
         item.payload.text ?? item.payload.url ?? "",
       );
+    case "stage_started":
+      return renderTextBubble(item, stageStartedText(item.payload));
     case "verification":
     case "review":
       return renderTextBubble(item, JSON.stringify(item.payload));

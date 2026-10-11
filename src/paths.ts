@@ -42,6 +42,15 @@ export function getDataDir(): string {
 }
 
 /**
+ * The agent runtime (Pi) config directory X-Factory owns (#278), used instead
+ * of the user's ~/.pi/agent so personal Pi settings never change how runs
+ * behave: ~/.x-factory/pi-agent
+ */
+export function getPiAgentDir(): string {
+  return path.join(getDataDir(), "pi-agent");
+}
+
+/**
  * Get the SQLite database file path.
  * Defaults to ~/.x-factory/x-factory.db or X_FACTORY_DB_PATH if set.
  */
@@ -57,6 +66,22 @@ export function getDatabasePath(): string {
  */
 export function getSettingsPath(): string {
   return path.join(getDataDir(), "settings.json");
+}
+
+/**
+ * Model connections (name, API type, base URL — never keys) (#276):
+ * ~/.x-factory/model-connections.json
+ */
+export function getModelConnectionsPath(): string {
+  return path.join(getDataDir(), "model-connections.json");
+}
+
+/**
+ * Model connection API keys, owner-only (0600) (#276):
+ * ~/.x-factory/model-secrets.json
+ */
+export function getModelSecretsPath(): string {
+  return path.join(getDataDir(), "model-secrets.json");
 }
 
 /**

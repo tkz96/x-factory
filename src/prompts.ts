@@ -83,37 +83,6 @@ function renderUnderstanding(
 }
 
 /**
- * The default execution plan for a ticket with no custom plan. It lives here so
- * the ticket heading and criteria list render through this module, and its output
- * is byte-for-byte what the plan executor has always produced (pinned by literal
- * tests in test/prompt-module.test.ts).
- */
-export function generateDefaultPlan(ticket: Ticket): string {
-  const criteria =
-    ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0
-      ? ticket.acceptanceCriteria
-      : ["Implement required functionality according to ticket specifications"];
-
-  let plan = `# Execution Plan for ${renderTicketHeading(ticket, { separator: ": " })}\n\n`;
-  plan += `## Task 1: Setup & Tests\n`;
-  plan += `- [ ] Create test fixtures and failing test cases for acceptance criteria\n`;
-  plan += `- [ ] Run test suite to verify failing (RED) state\n\n`;
-
-  plan += `## Task 2: Core Implementation\n`;
-  for (const ac of criteria) {
-    plan += `- [ ] Implement ${ac}\n`;
-  }
-  plan += `- [ ] Run test suite to verify passing (GREEN) state\n\n`;
-
-  plan += `## Task 3: Quality Verification & Refactor\n`;
-  plan += `- [ ] Refactor implementation for maintainability and clarity\n`;
-  plan += `- [ ] Run typecheck and lint to ensure clean build\n`;
-  plan += `- [ ] Ensure zero test regressions\n`;
-
-  return plan.trim();
-}
-
-/**
  * Builds .agent/PROMPT.md injecting Matt Pocock's TDD & implementation protocols.
  */
 export function buildRalphPrompt(
@@ -301,4 +270,151 @@ FINDINGS:
 
 VERDICT:
 [PASSED|FAILED] - <concise summary>`;
+}
+
+/**
+ * The project's verification commands as prompt lines (#282), or "" when the
+ * project has none set. The Ralph prompt renders its own command lines; this is
+ * the shape the Understand and Plan prompts share.
+ */
+function renderVerificationCommands(project: Project): string {
+  const lines: string[] = [];
+  if (project.testCommand?.trim()) {
+    lines.push(`- Test Command: \`${project.testCommand.trim()}\``);
+  }
+  if (project.typecheckCommand?.trim()) {
+    lines.push(`- Typecheck Command: \`${project.typecheckCommand.trim()}\``);
+  }
+  if (project.lintCommand?.trim()) {
+    lines.push(`- Lint Command: \`${project.lintCommand.trim()}\``);
+  }
+  return lines.join("\n");
+}
+
+/** The "## Verification Commands" block, or "" when the project sets none. */
+function renderVerificationBlock(project: Project): string {
+  const commands = renderVerificationCommands(project);
+  return commands ? `\n### Verification Commands:\n${commands}\n` : "";
+}
+
+/** What the Understand stage asks the Builder, and the facts it hands it (#282). */
+export interface UnderstandingPromptInput {
+  ticket: Ticket;
+  project: Project;
+  /** The run's plan, when it already has one. */
+  plan?: string | undefined;
+  /** Paths the ticket and plan name; a hint the Builder must confirm itself. */
+  namedFiles?: readonly string[] | undefined;
+  /** Root files found before the call. */
+  rootFiles?: readonly string[] | undefined;
+  /** Repository notes found before the call: instructions, knowledge repo. */
+  notes?: readonly string[] | undefined;
+}
+
+/**
+ * The Understand prompt (#282): the Builder reads the repository with read-only
+ * tools and answers in named sections, so the stage parses a summary and the
+ * files the ticket is about. It never asks for a generic description of a
+ * project: every section is about this ticket in this repository.
+ */
+export function buildUnderstandingPrompt(
+  input: UnderstandingPromptInput,
+): string {
+  const { ticket, project, plan, namedFiles, rootFiles, notes } = input;
+  const criteria = renderAcceptanceCriteria(ticket, {
+    fallback:
+      "1. The implementation must fulfill the ticket title and description without regressions.",
+  });
+  const repository = [
+    rootFiles?.length ? `Root files: ${rootFiles.join(", ")}` : "",
+    namedFiles?.length
+      ? `Paths the ticket and plan name: ${namedFiles.join(", ")}`
+      : "",
+    ...(notes ?? []),
+  ].filter(Boolean);
+  const repositoryBlock =
+    repository.length > 0 ? `## Repository\n${repository.join("\n")}\n\n` : "";
+  const planBlock = plan?.trim() ? `## Plan\n${plan.trim()}\n\n` : "";
+
+  return `You are analysing a repository for an upcoming ticket, before any code is written.
+You have read-only tools: read, grep, find, ls. You cannot change a file or run a command.
+
+## Ticket
+${renderTicketHeading(ticket)}
+${ticket.description ? `Description: ${ticket.description}\n` : ""}
+### Acceptance Criteria:
+${criteria}
+${renderVerificationBlock(project)}
+${repositoryBlock}${planBlock}## Your Task
+Inspect the repository with your tools, then answer with exactly these sections, in this order, and nothing else:
+
+RELEVANT_FILES:
+- <repository-relative path of a file that exists today and this ticket concerns>
+
+SUMMARY:
+<one paragraph: what the ticket asks for, and how it fits this repository>
+
+EXISTING_BEHAVIOR:
+<what those files do today, and what the change must not break>
+
+ARCHITECTURAL_NOTES:
+<the conventions, modules and boundaries the change must follow>
+
+CONSTRAINTS:
+- <a constraint the implementation must respect>
+
+RISKS:
+- <a risk or edge case the implementation must handle>
+
+Rules:
+- Name only files that exist in this repository today; never a path you have not read with your tools.
+- The RELEVANT_FILES lines are the files the summary is about.
+- One item per \`- \` line, no code fences, and no text outside the sections.`;
+}
+
+/** What the Plan stage asks the Builder, plus the plan the run already has (#282). */
+export interface PlanPromptInput {
+  ticket: Ticket;
+  project: Project;
+  /** The plan the run already has: the operator's draft, or the last plan plus feedback. */
+  draft?: string | undefined;
+  /** What the Understand stage learned, when the run has it. */
+  understanding?: ImplementationContext | null | undefined;
+}
+
+/**
+ * The Plan prompt (#282): the Builder turns the ticket, the run's own draft plan
+ * and what Understand learned into concrete steps that name the files and tests
+ * they touch. The plan it answers with is what the run shows for approval.
+ */
+export function buildPlanPrompt(input: PlanPromptInput): string {
+  const { ticket, project, draft, understanding } = input;
+  const criteria = renderAcceptanceCriteria(ticket, {
+    fallback:
+      "1. The implementation must fulfill the ticket title and description without regressions.",
+  });
+  const understandingBlock = renderUnderstanding(understanding);
+  const draftBlock = draft?.trim() ? `## Plan so far\n${draft.trim()}\n\n` : "";
+
+  return `You are writing the implementation plan for a ticket, before any code is written.
+You have read-only tools: read, grep, find, ls. You cannot change a file or run a command.
+
+## Ticket
+${renderTicketHeading(ticket)}
+${ticket.description ? `Description: ${ticket.description}\n` : ""}
+### Acceptance Criteria:
+${criteria}
+${renderVerificationBlock(project)}
+${understandingBlock}${draftBlock}## Your Task
+Inspect the repository with your tools, then write the plan as Markdown.
+Start with \`# Execution Plan for ${renderTicketHeading(ticket, { separator: ": " })}\`.
+Every task must name the repository-relative file it changes and the test file it adds or updates, each in \`backticks\`.
+Order the tasks so a failing test comes first, and keep the verification commands above as the last steps.
+
+Answer with the plan only: no preamble, no commentary, no code fences.
+
+Rules:
+- Name real files and real tests; never a path you have not read with your tools.
+- Keep the intent of the plan so far, and make every step concrete.
+- Name the test file each change is proven by; a step without a test file is incomplete.`;
 }

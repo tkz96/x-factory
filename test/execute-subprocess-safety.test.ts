@@ -18,6 +18,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 
 const PROJECT_ID = "proj-subproc-safety";
 
@@ -160,6 +161,7 @@ describe("Subprocess safety at Worker seam", () => {
     jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
 
     const executor = new ExecuteExecutor({
+      resolveRole: stubResolveRole,
       loadSettings: async () => ({}),
       reviewExecutor: {
         stage: "review",
@@ -224,6 +226,7 @@ describe("Subprocess safety at Worker seam", () => {
     jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
 
     const executor = new ExecuteExecutor({
+      resolveRole: stubResolveRole,
       loadSettings: async () => ({}),
     });
 

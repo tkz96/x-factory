@@ -47,7 +47,10 @@
 .async-region-hint {
   font-size: var(--text-footnote);
   color: var(--text-muted);
-  max-width: var(--space-8);
+  /* Readable measure; centred inside the flex column. */
+  max-width: 36ch;
+  text-align: center;
+  text-wrap: balance;
   line-height: 1.5;
 }
 

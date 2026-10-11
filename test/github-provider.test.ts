@@ -1563,7 +1563,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
   });
 
   describe("Verification & Scopes (verifyCredentials & verifyScopes)", () => {
-    it("returns status: 'ok' when classic PAT includes 'repo' scope", async () => {
+    it("returns status: 'ok' when classic PAT includes the 'repo' and 'workflow' scopes", async () => {
       const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
         const urlStr = String(url);
         if (urlStr.endsWith("/user")) {
@@ -1572,7 +1572,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
             {
               status: 200,
               headers: {
-                "x-oauth-scopes": "repo, read:org",
+                "x-oauth-scopes": "repo, workflow, read:org",
               },
             },
           );
@@ -1618,7 +1618,33 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         {
           kind: "CAPABILITY_UNCONFIRMED",
           capability: "createPullRequest",
-          missingScopes: ["repo"],
+          missingScopes: ["repo", "workflow"],
+        },
+      ]);
+    });
+
+    it("names the missing 'workflow' scope when a classic PAT has only 'repo' (#283)", async () => {
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        if (String(url).endsWith("/user")) {
+          return jsonResponse(
+            { login: "octocat" },
+            { status: 200, headers: { "x-oauth-scopes": "repo" } },
+          );
+        }
+        return jsonResponse({});
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const result = await provider.verifyCredentials({
+        token: "ghp_repo_only_token",
+      });
+
+      expect(result.status).toBe("degraded");
+      expect(result.warnings).toEqual([
+        {
+          kind: "CAPABILITY_UNCONFIRMED",
+          capability: "createPullRequest",
+          missingScopes: ["workflow"],
         },
       ]);
     });
@@ -1661,7 +1687,7 @@ describe("GitHub Provider Module (Ticket #138)", () => {
             {
               status: 200,
               headers: {
-                "x-oauth-scopes": "repo, delete_repo, admin:org",
+                "x-oauth-scopes": "repo, workflow, delete_repo, admin:org",
               },
             },
           );

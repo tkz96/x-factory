@@ -49,12 +49,12 @@
 }
 
 .badge-success-subtle {
-  background: var(--bg-success-subtle);
+  background: var(--green-dim);
   color: var(--green);
 }
 
 .badge-danger-subtle {
-  background: var(--bg-danger-subtle);
+  background: var(--red-dim);
   color: var(--red);
 }
 

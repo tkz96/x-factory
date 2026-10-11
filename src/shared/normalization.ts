@@ -40,3 +40,16 @@ export function normalizeGitHubRepository(repo: string): string {
     ? identity.slice("github:".length)
     : identity;
 }
+
+/**
+ * Normalizes one acceptance criterion: trims it and strips a leading list
+ * marker ("- ", "* ", "+ ", "1. ", "2) ") and/or checklist box ("[ ] ", "[x] ")
+ * so typed or pasted Markdown lists are stored as plain text (#284).
+ */
+export function normalizeCriterion(line: string): string {
+  return line
+    .trim()
+    .replace(/^(?:[-*+]|\d+[.)])(?:\s+|$)/, "")
+    .replace(/^\[[ xX]\]\s*/, "")
+    .trim();
+}

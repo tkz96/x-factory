@@ -29,6 +29,43 @@ This document serves as the persistent domain glossary and architectural context
 
 ---
 
+## UI wording
+
+On-screen words for internal terms. Code identifiers keep their internal names. The status mapping lives in `src/frontend/lib/run-status-ui.ts`, which takes its allowed actions only from the shared run-status policy.
+
+| Internal term | On screen |
+| --- | --- |
+| Run | Run |
+| Ticket | Ticket |
+| Project | Project |
+| Plan / diff | Plan / Changes |
+| Operator, factory, Ralph, pipeline | Not shown; say what the run is doing |
+| Raw `RunStatus` values | Plain labels from the table below, never the status string |
+| Awaiting-human statuses plus `recovery_required` | Needs you |
+| Active statuses / terminal statuses | Running / Done |
+| Start a run, add a project | Start Run, Add Project |
+| Start a new run for a failed or stopped ticket | Start New Run (a ticket command, not a run action) |
+
+| Status | Label | Step | Filter |
+| --- | --- | --- | --- |
+| queued | Waiting to start | Prepare | Running |
+| preparing | Preparing | Prepare | Running |
+| understanding | Reading the ticket | Understand | Running |
+| awaiting_understanding_approval | Check understanding | Understand | Needs you |
+| planning | Planning | Plan | Running |
+| awaiting_plan_approval | Review the plan | Plan | Needs you |
+| executing | Writing code | Code | Running |
+| awaiting_review | Review the changes | Review | Needs you |
+| ready_for_pr | Ready for a pull request | Deliver | Needs you |
+| pr_created | Pull request opened | Deliver | Done |
+| recovery_required | Needs recovery | last step | Needs you |
+| failed | Failed | last step | Done |
+| stopped | Stopped | last step | Done |
+
+Buttons are sentence-case and verb-first: Approve Understanding, Approve Plan, Approve Changes, Request Changes, Create Pull Request, Resume Run, Abandon Run, Stop Run.
+
+---
+
 ## 3. Subsystem Map
 
 ```text

@@ -3,10 +3,15 @@
 import type { Repositories } from "../composition-root.js";
 import { getLatestMigrationVersion } from "../db/migrator.js";
 import {
+  sandboxFacts,
+  sandboxReadinessCheck,
+} from "../diagnostics/sandbox-check.js";
+import {
   getActiveWorkers,
   isWorkerReady,
 } from "../diagnostics/worker-registry.js";
 import { LeaseManager } from "../lease.js";
+import { loadSettings } from "../settings.js";
 import type {
   DiagnosticsResponse,
   ReadinessResponse,
@@ -26,7 +31,10 @@ export function handleHealthRoute(): Response {
   });
 }
 
-function computeReadinessStatus(repos: Repositories) {
+function computeReadinessStatus(
+  repos: Repositories,
+  sandboxSettingAllows = false,
+) {
   let dbReady = false;
   let schemaVersion = 0;
   let journalMode = "unknown";
@@ -81,6 +89,9 @@ function computeReadinessStatus(repos: Repositories) {
           ? `${activeWorkers.length} active worker heartbeat(s)`
           : "No active background worker heartbeats detected",
       },
+      sandboxReadinessCheck(
+        sandboxFacts({ settingAllows: sandboxSettingAllows }),
+      ),
     ],
     timestamp: new Date().toISOString(),
   };
@@ -102,8 +113,14 @@ export function handleReadyRoute(repos: Repositories): Response {
  * GET /api/readiness (UI Readiness API)
  * Returns the full readiness assessment for the dashboard and UI banners.
  */
-export function handleReadinessRoute(repos: Repositories): Response {
-  const { result } = computeReadinessStatus(repos);
+export async function handleReadinessRoute(
+  repos: Repositories,
+): Promise<Response> {
+  const settings = await loadSettings();
+  const { result } = computeReadinessStatus(
+    repos,
+    settings.allowUnsandboxed === true,
+  );
   return jsonResponse(result, 200);
 }
 

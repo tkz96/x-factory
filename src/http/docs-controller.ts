@@ -39,6 +39,13 @@ export const DOC_CATALOG: DocCategory[] = [
         path: "docs/how-to/verify-worker-and-pi-session.md",
       },
       {
+        slug: "install-and-check-sbx",
+        title: "How to Check the Sandbox (sbx), or Run Without One",
+        description:
+          "Check whether the coding stage can run inside sbx, and how to explicitly allow running without a sandbox.",
+        path: "docs/how-to/install-and-check-sbx.md",
+      },
+      {
         slug: "backup-and-restore-database",
         title: "How to Back Up and Restore the Database",
         description:

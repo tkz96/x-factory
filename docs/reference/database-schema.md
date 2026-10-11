@@ -64,6 +64,7 @@ Large artifacts (logs, transcripts, diffs) live on disk under the data dir. SQLi
 - **v7** `007_run_commands.sql`
 - **v8** `008_worker_heartbeats.sql`
 - **v9** `009_run_commands_cascade.sql`
+- **v10** `010_stage_attempt_models.sql`
 
 ### Table: `jobs`
 
@@ -205,6 +206,14 @@ Indexes and constraints:
 | `error` | TEXT | NULL |  |  |  |
 | `created_at` | TEXT | NOT NULL |  |  |  |
 | `updated_at` | TEXT | NOT NULL |  |  |  |
+| `model_role` | TEXT | NULL |  |  |  |
+| `connection_id` | TEXT | NULL |  |  |  |
+| `connection_name` | TEXT | NULL |  |  |  |
+| `api_type` | TEXT | NULL |  |  |  |
+| `model_id` | TEXT | NULL |  |  |  |
+| `tokens_in` | INTEGER | NULL |  |  |  |
+| `tokens_out` | INTEGER | NULL |  |  |  |
+| `cost_usd` | REAL | NULL |  |  |  |
 
 Indexes and constraints:
 

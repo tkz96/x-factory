@@ -27,18 +27,18 @@
 }
 
 .tracker-test-result.success {
-  background: var(--bg-success-subtle);
-  border-color: var(--success);
+  background: var(--green-dim);
+  border-color: var(--green);
 }
 
 .tracker-test-result.danger {
-  background: var(--bg-danger-subtle);
-  border-color: var(--danger);
+  background: var(--red-dim);
+  border-color: var(--red);
 }
 
 .tracker-overprivileged-notice {
   margin-top: var(--space-2);
-  color: var(--warning);
+  color: var(--orange);
   font-weight: 600;
 }
 

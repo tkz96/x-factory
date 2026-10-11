@@ -33,8 +33,9 @@ import "./QueueView.css";
 const EMPTY_TICKETS: Ticket[] = [];
 
 export function QueueView() {
-  const { selectedProjectId, selectedProject } = useCurrentProject();
-  const { openNewRunModal } = useModal();
+  const { selectedProjectId, selectedProject, projects, isProjectsLoading } =
+    useCurrentProject();
+  const { openNewRunModal, openOnboardingModal } = useModal();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const { data: descriptors = [] } = useProviderDescriptors();
@@ -65,14 +66,23 @@ export function QueueView() {
   // The integrity failure is primary over every async condition: the queue
   // cannot be loaded at all, so it must never read as a successfully-empty
   // queue. Precedence still carries the asynchronous diagnostics.
-  const derived = applyConnectionIntegrity(
-    deriveAsyncState(ticketsQuery, {
-      isEmpty: (query) =>
-        Array.isArray(query.data) &&
-        (searching ? filteredTickets.length === 0 : tickets.length === 0),
-    }),
-    integrity,
-  );
+  // With no project at all the tickets query is disabled and stays pending
+  // forever; that is an empty workspace, not a load, so say how to add one.
+  const noProjects = !isProjectsLoading && projects.length === 0;
+
+  const derived = noProjects
+    ? deriveAsyncState(
+        { data: [], isPending: false, isError: false, error: null },
+        { isEmpty: () => true },
+      )
+    : applyConnectionIntegrity(
+        deriveAsyncState(ticketsQuery, {
+          isEmpty: (query) =>
+            Array.isArray(query.data) &&
+            (searching ? filteredTickets.length === 0 : tickets.length === 0),
+        }),
+        integrity,
+      );
 
   const manualRunAction = (
     <button
@@ -81,7 +91,10 @@ export function QueueView() {
       className="btn-secondary btn-sm"
       onClick={() => openNewRunModal()}
     >
-      {QUEUE_COPY.manualRun}
+      <svg className="icon icon-sm" aria-hidden="true">
+        <use href="/assets/icons/sprite.svg#icon-plus" />
+      </svg>
+      <span>{QUEUE_COPY.manualRun}</span>
     </button>
   );
 
@@ -110,10 +123,25 @@ export function QueueView() {
           }
           retryLabel={integrityFailure ? CONNECTIONS_COPY.reconnect : undefined}
           emptyCopy={
-            searching ? QUEUE_COPY.noMatches(searchQuery) : QUEUE_COPY.empty
+            noProjects
+              ? QUEUE_COPY.noProjects
+              : searching
+                ? QUEUE_COPY.noMatches(searchQuery)
+                : QUEUE_COPY.empty
           }
           emptyAction={
-            searching ? (
+            noProjects ? (
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                onClick={openOnboardingModal}
+              >
+                <svg className="icon icon-sm" aria-hidden="true">
+                  <use href="/assets/icons/sprite.svg#icon-plus" />
+                </svg>
+                <span>{QUEUE_COPY.addProject}</span>
+              </button>
+            ) : searching ? (
               <button
                 type="button"
                 className="btn-secondary btn-sm"
@@ -139,7 +167,7 @@ export function QueueView() {
           />
         )}
 
-        {showManualRun && (
+        {showManualRun && !noProjects && (
           <div className="queue-manual-actions">{manualRunAction}</div>
         )}
       </div>

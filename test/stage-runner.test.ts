@@ -457,7 +457,7 @@ describe("stage runner", () => {
     });
   });
 
-  it("gives executors only inputs, emit, ledger, signal and identity, never repositories", async () => {
+  it("gives executors only inputs, emit, ledger, signal, model reporting and identity, never repositories", async () => {
     const jobSetup = setup("understanding");
     jobSetup.repos.jobs.createJob({
       runId: jobSetup.run.id,
@@ -495,11 +495,16 @@ describe("stage runner", () => {
       deliverExecutor: deliverSpy,
     }).stepCommandOnce();
 
+    // recordModel and reportUsage write to the attempt without exposing the
+    // repositories or the attempt id (#279).
     const expected = [
+      "assertBudget",
       "attempt",
       "emit",
       "ledger",
       "project",
+      "recordModel",
+      "reportUsage",
       "run",
       "signal",
       "stage",

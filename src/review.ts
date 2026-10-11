@@ -3,10 +3,20 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  createReviewSession,
+  classifyModelError,
+  createReadOnlySession,
+  disposeQuietly,
   type PiAgentSession,
+  type PiUsage,
+  type ReadOnlySessionFactory,
   type SessionOptions,
 } from "./agents/pi.js";
+import {
+  type GatewayKey,
+  gatewayKeyFor,
+  modelGateway,
+} from "./model-gateway.js";
+import { ModelUnavailableError, type ResolvedModel } from "./model-roles.js";
 import { ensureDir } from "./paths.js";
 import { buildReviewPrompt } from "./prompts.js";
 import type {
@@ -36,16 +46,18 @@ export interface ReviewContext {
   /** What the understand stage learned; rendered into the review prompt. */
   understanding?: ImplementationContext | null | undefined;
   onEvent?: ((event: ReviewActivityEvent) => void) | undefined;
+  /** The Reviewer role's model (#278); the default Pi session requires it. */
   modelConfig?: SessionOptions | undefined;
+  /** Told about each rate-limit wait before it happens (#280). */
+  onWait?: ((ms: number, reason: string) => void) | undefined;
+  /** Receives the tokens and cost the review session reported (#279). */
+  onUsage?: ((usage: PiUsage) => void) | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
-  sessionFactory?: ReviewSessionFactory | undefined;
+  sessionFactory?: ReadOnlySessionFactory | undefined;
+  /** Asserts that calling the reviewer model does not exceed its daily budget (#281). */
+  assertBudget?: ((resolved: ResolvedModel) => void) | undefined;
 }
-
-export type ReviewSessionFactory = (
-  worktreePath: string,
-  options?: SessionOptions,
-) => Promise<PiAgentSession>;
 
 function attachReviewListeners(
   session: PiAgentSession,
@@ -122,10 +134,21 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
 
   let reviewSession: PiAgentSession;
   try {
-    const makeSession = context.sessionFactory ?? createReviewSession;
-    reviewSession = await makeSession(worktreePath, context.modelConfig);
+    if (!context.sessionFactory && !context.modelConfig) {
+      // No silent fallback to a runtime default model (#278).
+      throw new ModelUnavailableError(
+        "Reviewer has no model. Choose a model in Settings › Models.",
+      );
+    }
+    reviewSession = context.sessionFactory
+      ? await context.sessionFactory(worktreePath, context.modelConfig)
+      : await createReadOnlySession(
+          worktreePath,
+          context.modelConfig as SessionOptions,
+        );
   } catch (err: unknown) {
     if (signal?.aborted) throw abortError();
+    if (err instanceof ModelUnavailableError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     return createFallbackReview(
       ticket,
@@ -141,21 +164,23 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
       ticket,
       onEvent,
       signal,
+      (() => {
+        const modelConfig = context.modelConfig;
+        if (!modelConfig) return undefined;
+        const assertBudget = context.assertBudget;
+        return {
+          key: gatewayKeyFor(
+            modelConfig.resolved,
+            assertBudget ? () => assertBudget(modelConfig.resolved) : undefined,
+          ),
+          onWait: context.onWait,
+        };
+      })(),
     );
   } finally {
+    const usage = reviewSession.usage?.();
+    if (usage && context.onUsage) context.onUsage(usage);
     disposeQuietly(reviewSession);
-  }
-}
-
-/** Dispose must never replace the review outcome: Pi's dispose can throw. */
-function disposeQuietly(session: PiAgentSession): void {
-  try {
-    session.dispose();
-  } catch (err: unknown) {
-    console.warn(
-      "[X-Factory] Failed to dispose review session:",
-      err instanceof Error ? err.message : String(err),
-    );
   }
 }
 
@@ -165,6 +190,10 @@ async function promptForVerdict(
   ticket: Ticket,
   onEvent: ReviewContext["onEvent"],
   signal: AbortSignal | undefined,
+  gate?: {
+    key: GatewayKey;
+    onWait?: ((ms: number, reason: string) => void) | undefined;
+  },
 ): Promise<ReviewResult> {
   const getOutput = attachReviewListeners(reviewSession, onEvent);
 
@@ -179,10 +208,32 @@ async function promptForVerdict(
   try {
     // A real Pi session ignores an abort that arrives before a prompt.
     if (aborted) throw abortError();
-    await reviewSession.prompt(reviewPrompt);
+    if (gate) {
+      // Paced and queued per model; a 429 waits instead of failing (#280).
+      await modelGateway.run(
+        gate.key,
+        async () => {
+          try {
+            await reviewSession.prompt(reviewPrompt);
+          } catch (err: unknown) {
+            throw classifyModelError(
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        },
+        { onWait: gate.onWait, signal },
+      );
+    } else {
+      await reviewSession.prompt(reviewPrompt);
+    }
   } catch (err: unknown) {
     if (aborted) throw abortError();
     const errorMsg = err instanceof Error ? err.message : String(err);
+    // A model that can't be used — a rejected key, or a rate limit the
+    // gateway gave up on — fails the stage; it is not a review verdict.
+    if (err instanceof ModelUnavailableError) throw err;
+    const classified = classifyModelError(errorMsg);
+    if (classified instanceof ModelUnavailableError) throw classified;
     if (!getOutput()) {
       return createFallbackReview(
         ticket,

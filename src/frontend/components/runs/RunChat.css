@@ -113,6 +113,12 @@
   text-align: center;
 }
 
+.imsg-system-pill-warning {
+  background: var(--orange-dim);
+  border-color: color-mix(in srgb, var(--orange) 35%, transparent);
+  color: var(--orange);
+}
+
 .imsg-system-time {
   font-size: 0.68rem;
   color: var(--text-dim);
