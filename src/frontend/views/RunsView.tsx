@@ -109,7 +109,10 @@ export function RunsView() {
         emptyCopy={EMPTY_COPY[filter]}
         emptyAction={
           filter === "running" || filter === "all" ? (
-            <Link to="/tickets" className="btn-secondary btn-sm">
+            <Link
+              to="/tickets"
+              className="ui-button ui-button--secondary ui-button--sm"
+            >
               <svg className="icon icon-sm" aria-hidden="true">
                 <use href="/assets/icons/sprite.svg#icon-layers" />
               </svg>

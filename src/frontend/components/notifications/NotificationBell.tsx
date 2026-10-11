@@ -20,6 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../overlays/index.js";
+import { Button } from "../ui/Button.js";
 import { DesktopNotificationPrompt } from "./DesktopNotificationPrompt.js";
 
 export function NotificationBell() {
@@ -39,8 +40,10 @@ export function NotificationBell() {
 
   return (
     <PopoverTrigger isOpen={open} onOpenChange={setOpen}>
-      <OverlayTriggerButton
-        className="notification-bell btn-secondary btn-sm"
+      <Button
+        variant="secondary"
+        size="sm"
+        className="notification-bell"
         aria-label={label}
       >
         <svg className="icon icon-md" aria-hidden="true">
@@ -51,19 +54,20 @@ export function NotificationBell() {
             {unreadCount}
           </span>
         )}
-      </OverlayTriggerButton>
+      </Button>
       <Popover placement="bottom end" className="notification-popover">
         <PopoverContent aria-label="Notifications">
           <DesktopNotificationPrompt hasNeedsYou={needsYouCount > 0} />
           <div className="notification-popover-head">
             <h2 className="notification-popover-title">Notifications</h2>
-            <OverlayTriggerButton
-              className="btn-secondary btn-sm"
+            <Button
+              variant="secondary"
+              size="sm"
               isDisabled={unreadCount === 0}
               onPress={markAllRead}
             >
               Mark All as Read
-            </OverlayTriggerButton>
+            </Button>
           </div>
           {notifications.length === 0 ? (
             <p className="notification-empty">No notifications yet.</p>

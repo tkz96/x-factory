@@ -1,5 +1,6 @@
 // src/frontend/components/queue/TicketSearchToolbar.tsx — Filter & Search controls for Work Queue (XFM-47).
 
+import { Button } from "../ui/Button.js";
 import "./TicketSearchToolbar.css";
 
 interface TicketSearchToolbarProps {
@@ -37,23 +38,22 @@ export function TicketSearchToolbar({
         <span>agentic-workflow</span>
       </div>
 
-      <button
-        type="button"
+      <Button
         id="btn-queue-refresh"
-        className="btn-secondary btn-sm"
-        title="Refresh tickets"
+        variant="secondary"
+        size="sm"
         aria-label="Refresh tickets"
-        onClick={onRefresh}
-        disabled={isRefreshing}
+        isDisabled={isRefreshing}
+        onPress={onRefresh}
       >
         <svg
-          className={`icon icon-sm ${isRefreshing ? "spin" : ""}`}
+          className={`icon icon-sm ${isRefreshing ? "icon-spin" : ""}`}
           aria-hidden="true"
         >
           <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
         </svg>
         <span>{isRefreshing ? "Refreshing…" : "Refresh"}</span>
-      </button>
+      </Button>
     </div>
   );
 }

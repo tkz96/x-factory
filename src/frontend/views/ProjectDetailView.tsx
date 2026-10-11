@@ -27,6 +27,7 @@ import { projectFacts } from "../components/projects/project-facts.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { RepositorySettings } from "../components/projects/RepositorySettings.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
+import { Button } from "../components/ui/Button.js";
 import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
@@ -73,13 +74,9 @@ export function ProjectDetailView() {
           onRetry={() => void projectsQuery.refetch()}
           emptyCopy={PROJECT_DETAIL_COPY.notFound(id ?? "")}
           emptyAction={
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={backToProjects}
-            >
+            <Button variant="secondary" size="sm" onPress={backToProjects}>
               ← {PROJECT_DETAIL_COPY.backToProjects}
-            </button>
+            </Button>
           }
         />
       </ProjectsSplit>

@@ -3,6 +3,7 @@
 import "./ReadinessBanner.css";
 
 import { useReadiness } from "../../hooks/useQueries.js";
+import { Button } from "../ui/Button.js";
 
 export function ReadinessBanner() {
   const { data: readiness, isLoading, refetch, isRefetching } = useReadiness();
@@ -53,21 +54,21 @@ export function ReadinessBanner() {
         </div>
       </div>
 
-      <button
-        type="button"
+      <Button
         id="btn-recheck-readiness"
-        className="btn-secondary btn-sm"
-        onClick={() => refetch()}
-        disabled={isRefetching}
+        variant="secondary"
+        size="sm"
+        isDisabled={isRefetching}
+        onPress={() => refetch()}
       >
         <svg
-          className={`icon icon-sm ${isRefetching ? "spin" : ""}`}
+          className={`icon icon-sm ${isRefetching ? "icon-spin" : ""}`}
           aria-hidden="true"
         >
           <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
         </svg>
         <span>{isRefetching ? "Re-checking…" : "Re-check Readiness"}</span>
-      </button>
+      </Button>
     </div>
   );
 }

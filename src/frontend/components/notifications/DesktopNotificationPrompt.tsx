@@ -9,7 +9,7 @@ import {
   promptAnswered,
   shouldOfferDesktopPrompt,
 } from "../../lib/desktop-notifications.js";
-import { OverlayTriggerButton } from "../overlays/index.js";
+import { Button } from "../ui/Button.js";
 
 export function DesktopNotificationPrompt({
   hasNeedsYou,
@@ -40,18 +40,19 @@ export function DesktopNotificationPrompt({
         Get desktop notifications when a run needs you
       </p>
       <div className="notification-prompt-actions">
-        <OverlayTriggerButton
-          className="btn-primary btn-sm"
+        <Button
+          variant="primary"
+          size="sm"
           onPress={() => {
             answer();
             void enable();
           }}
         >
           Enable
-        </OverlayTriggerButton>
-        <OverlayTriggerButton className="btn-secondary btn-sm" onPress={answer}>
+        </Button>
+        <Button variant="secondary" size="sm" onPress={answer}>
           Not Now
-        </OverlayTriggerButton>
+        </Button>
       </div>
     </section>
   );

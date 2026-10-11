@@ -72,7 +72,10 @@ export function RunDetailView() {
           <p className="text-muted">
             No active or historical run matches ID: {runId}
           </p>
-          <Link to="/runs" className="btn-secondary btn-sm mt-4">
+          <Link
+            to="/runs"
+            className="ui-button ui-button--secondary ui-button--sm mt-4"
+          >
             ← Back to Runs
           </Link>
         </div>

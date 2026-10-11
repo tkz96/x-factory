@@ -7,6 +7,7 @@ import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { ActiveRunConflictError } from "../../lib/api-client.js";
 import { Dialog, DialogCloseButton, DialogTitle } from "../overlays/Dialog.js";
+import { Button } from "../ui/Button.js";
 import "./NewRunModal.css";
 
 /**
@@ -262,7 +263,7 @@ export function NewRunModal() {
                 <p className="m-0 mt-2">
                   <Link
                     id="link-settings-models"
-                    className="btn-secondary btn-sm"
+                    className="ui-button ui-button--secondary ui-button--sm"
                     to="/settings?tab=models"
                     onClick={closeNewRunModal}
                   >
@@ -274,23 +275,22 @@ export function NewRunModal() {
           )}
 
           <div className="modal-actions">
-            <button
-              type="button"
+            <Button
               id="btn-cancel-modal"
-              className="btn-secondary"
-              onClick={closeNewRunModal}
-              disabled={createRunMutation.isPending}
+              variant="secondary"
+              isDisabled={createRunMutation.isPending}
+              onPress={closeNewRunModal}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               id="btn-start"
-              className="btn-primary"
-              disabled={isSubmitDisabled}
+              variant="primary"
+              isDisabled={isSubmitDisabled}
             >
               {createRunMutation.isPending ? "Starting…" : "Start Run"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

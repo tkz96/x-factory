@@ -26,6 +26,7 @@ import {
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
 import { useRetryCountdown } from "../feedback/use-retry-countdown.js";
+import { Button } from "../ui/Button.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
   applyConnectionIntegrity,
@@ -162,16 +163,18 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
       {canVerifyScopes && (
         <div className="tracker-test-container">
-          <button
-            type="button"
-            className="btn-secondary btn-sm"
-            onClick={handleVerifyScopes}
-            disabled={testing || (remainingMs !== undefined && remainingMs > 0)}
+          <Button
+            variant="secondary"
+            size="sm"
+            isDisabled={
+              testing || (remainingMs !== undefined && remainingMs > 0)
+            }
+            onPress={handleVerifyScopes}
           >
             {testing
               ? CONNECTIONS_COPY.verifyScopesPending
               : CONNECTIONS_COPY.verifyScopes}
-          </button>
+          </Button>
 
           {testResult && (
             <div
