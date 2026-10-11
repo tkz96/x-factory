@@ -238,19 +238,28 @@ describe("notification bell (#264)", () => {
       runs: [run("r1", "awaiting_plan_approval")],
       needsYou: [envelope(131, "r1", "awaiting_plan_approval")],
     });
-    renderCenter(seed, liveStream(), { strict: true });
-    const storage = globalThis.localStorage;
-    const original = storage.setItem.bind(storage);
+    const original = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "localStorage",
+    );
+    const real = globalThis.localStorage;
     const writes: string[] = [];
-    storage.setItem = (key: string, value: string) => {
-      if (key === READ_STATE_STORAGE_KEY) writes.push(value);
-      original(key, value);
-    };
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => real.getItem(key),
+        setItem: (key: string, value: string) => {
+          if (key === READ_STATE_STORAGE_KEY) writes.push(value);
+          real.setItem(key, value);
+        },
+      },
+    });
     try {
+      renderCenter(seed, liveStream(), { strict: true });
       fireEvent.click(bell());
       fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
     } finally {
-      storage.setItem = original;
+      if (original) Object.defineProperty(globalThis, "localStorage", original);
     }
     expect(writes).toEqual(["[131]"]);
   });
