@@ -32,6 +32,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
@@ -133,6 +134,7 @@ function setup(
   });
   jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
   const executor = new ExecuteExecutor({
+    resolveRole: stubResolveRole,
     loadSettings: async () => settings,
     reviewExecutor,
   });
@@ -369,7 +371,7 @@ ${CHECK_OFF_FIRST_TASK}
     expect(job?.attempts).toBe(1);
   });
 
-  it("gives the loop the implementation session's credentials only", async () => {
+  it("gives the loop the Builder role's key only, through its own variable (#278)", async () => {
     await commitAndRecordBaseline();
     const envFile = path.join(tempDir, "sbx-env.txt");
     process.env.OPENAI_API_KEY = "sk-session-a-openai";
@@ -379,7 +381,7 @@ ${CHECK_OFF_FIRST_TASK}
     process.env.HTTP_PROXY = "http://proxy:8080";
     process.env.PI_API_KEY = "pi-key-passthrough";
     await installSbx(`
-{ echo "openai=\${OPENAI_API_KEY:-}"; echo "gemini=\${GEMINI_API_KEY:-}"; echo "anthropic=\${ANTHROPIC_API_KEY:-}"; echo "aws=\${AWS_SECRET_ACCESS_KEY:-}"; echo "proxy=\${HTTP_PROXY:-}"; echo "pi=\${PI_API_KEY:-}"; } > "${envFile}"
+{ echo "openai=\${OPENAI_API_KEY:-}"; echo "gemini=\${GEMINI_API_KEY:-}"; echo "anthropic=\${ANTHROPIC_API_KEY:-}"; echo "aws=\${AWS_SECRET_ACCESS_KEY:-}"; echo "proxy=\${HTTP_PROXY:-}"; echo "pi=\${PI_API_KEY:-}"; echo "xf=\${XF_MODEL_API_KEY:-}"; echo "agentdir=\${PI_CODING_AGENT_DIR:+set}"; } > "${envFile}"
 echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
@@ -395,13 +397,17 @@ ${CHECK_OFF_FIRST_TASK}
     if (!claimed) throw new Error("Expected a claimed job");
     await worker.processJob(claimed);
 
+    // Provider env keys never reach the agent: the Builder's key arrives only
+    // as XF_MODEL_API_KEY, referenced by the run's own agent config.
     expect(await lines(envFile)).toEqual([
-      "openai=sk-session-a-openai",
+      "openai=",
       "gemini=",
       "anthropic=",
       "aws=",
       "proxy=",
       "pi=pi-key-passthrough",
+      "xf=test-key",
+      "agentdir=set",
     ]);
   });
 
@@ -432,7 +438,7 @@ ${CHECK_OFF_FIRST_TASK}
     await configureProject("true");
     const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
     const review = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => session,
     });
     const { run, runRepo, jobRepo, eventRepo, worker } = setup({}, review);
@@ -698,9 +704,9 @@ ${CHECK_OFF_FIRST_TASK}
     expect(argList).toContain("pi");
     expect(argList).toContain("-p");
     expect(argList).toContain("--provider");
-    expect(argList).toContain("anthropic");
+    expect(argList).toContain("xfactory");
     expect(argList).toContain("--model");
-    expect(argList).toContain("claude-3-7-sonnet");
+    expect(argList).toContain("test/model");
     expect(await readFile(argsFile, "utf-8")).toContain(
       "Matt Pocock TDD Protocol",
     );
@@ -730,9 +736,9 @@ ${CHECK_OFF_FIRST_TASK}
     const argList = await lines(argsFile);
     expect(argList).toContain("-p");
     expect(argList).toContain("--provider");
-    expect(argList).toContain("openai");
+    expect(argList).toContain("xfactory");
     expect(argList).toContain("--model");
-    expect(argList).toContain("gpt-4o");
+    expect(argList).toContain("test/model");
     expect(await readFile(argsFile, "utf-8")).toContain(
       "Matt Pocock TDD Protocol",
     );

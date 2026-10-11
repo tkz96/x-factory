@@ -42,6 +42,15 @@ export function getDataDir(): string {
 }
 
 /**
+ * The agent runtime (Pi) config directory X-Factory owns (#278), used instead
+ * of the user's ~/.pi/agent so personal Pi settings never change how runs
+ * behave: ~/.x-factory/pi-agent
+ */
+export function getPiAgentDir(): string {
+  return path.join(getDataDir(), "pi-agent");
+}
+
+/**
  * Get the SQLite database file path.
  * Defaults to ~/.x-factory/x-factory.db or X_FACTORY_DB_PATH if set.
  */

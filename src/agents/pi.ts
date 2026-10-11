@@ -1,5 +1,7 @@
 // src/agents/pi.ts — Decoupled Pi coding agent SDK adapter for read-only review.
 
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   type AgentSession,
   type CreateAgentSessionOptions,
@@ -7,13 +9,137 @@ import {
   ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import { ModelUnavailableError, type ResolvedModel } from "../model-roles.js";
+import { getPiAgentDir } from "../paths.js";
+import type { ModelApiType } from "../shared/model-connection-types.js";
 
 type ThinkingLevel = NonNullable<CreateAgentSessionOptions["thinkingLevel"]>;
 
 export interface SessionOptions {
-  provider?: string | undefined;
-  model?: string | undefined;
+  /** The role's model, connection and key (#278). Required: there is no fallback model. */
+  resolved: ResolvedModel;
   thinkingLevel?: ThinkingLevel | undefined;
+}
+
+/** The one provider X-Factory registers with the agent runtime (#278). */
+export const XFACTORY_PROVIDER_ID = "xfactory";
+
+const PI_API_FOR_TYPE: Readonly<Record<ModelApiType, string>> = {
+  gemini: "google-generative-ai",
+  anthropic: "anthropic-messages",
+  "openai-compatible": "openai-completions",
+};
+
+/** Pi reads `$NAME` in a config value as an env reference; `$$` is a literal `$`. */
+function literalConfigValue(value: string): string {
+  return value.replaceAll("$", "$$$$");
+}
+
+/** The role's connection as one Pi provider holding exactly the role's model. */
+function providerConfig(resolved: ResolvedModel, apiKey: string) {
+  const { details } = resolved;
+  return {
+    name: `X-Factory: ${resolved.connectionName}`,
+    baseUrl: resolved.baseUrl,
+    api: PI_API_FOR_TYPE[resolved.apiType],
+    apiKey,
+    models: [
+      {
+        id: resolved.modelId,
+        name: resolved.modelId,
+        reasoning: details.reasoning ?? false,
+        input: ["text" as const],
+        cost: {
+          input: details.inputPricePerMTok ?? 0,
+          output: details.outputPricePerMTok ?? 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        contextWindow: details.contextWindow ?? 128_000,
+        maxTokens: details.maxOutputTokens ?? 16_384,
+      },
+    ],
+  };
+}
+
+/**
+ * A model runtime that knows only the role's model, reading nothing from the
+ * user's ~/.pi (no models.json; auth kept in X-Factory's own Pi dir).
+ */
+async function isolatedRuntime(resolved: ResolvedModel) {
+  const agentDir = getPiAgentDir();
+  await mkdir(agentDir, { recursive: true });
+  const modelRuntime = await ModelRuntime.create({
+    modelsPath: null,
+    authPath: path.join(agentDir, "auth.json"),
+    refreshOnCreate: false,
+    allowModelNetwork: false,
+  });
+  modelRuntime.registerProvider(
+    XFACTORY_PROVIDER_ID,
+    providerConfig(
+      resolved,
+      literalConfigValue(resolved.apiKey),
+    ) as unknown as Parameters<ModelRuntime["registerProvider"]>[1],
+  );
+  const model = modelRuntime.getModel(XFACTORY_PROVIDER_ID, resolved.modelId);
+  if (!model) {
+    throw new ModelUnavailableError(
+      `Model "${resolved.modelId}" on "${resolved.connectionName}" could not be set up.`,
+    );
+  }
+  return { modelRuntime, model, agentDir };
+}
+
+const KEY_REJECTED =
+  /\b(401|403)\b|unauthori[sz]ed|forbidden|invalid[ _-]?api[ _-]?key|api key not valid|permission denied|incorrect api key/i;
+
+/** A model error as X-Factory reports it: a rejected key is never retried as something else. */
+export function classifyModelError(message: string): Error {
+  return KEY_REJECTED.test(message)
+    ? new ModelUnavailableError(`Key rejected: ${message}`, "key rejected")
+    : new Error(message);
+}
+
+/**
+ * Writes the coding subprocess's own agent config for one run (#278): a
+ * models.json naming only the role's model, with the key as an env reference
+ * so no secret is written to disk. Returns the env and CLI args to use.
+ */
+export async function writeRunAgentConfig(
+  runDir: string,
+  resolved: ResolvedModel,
+): Promise<{
+  agentDir: string;
+  env: Record<string, string>;
+  provider: string;
+  model: string;
+}> {
+  const agentDir = path.join(runDir, "pi-agent");
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(
+    path.join(agentDir, "models.json"),
+    JSON.stringify(
+      {
+        providers: {
+          [XFACTORY_PROVIDER_ID]: providerConfig(resolved, "$XF_MODEL_API_KEY"),
+        },
+      },
+      null,
+      2,
+    ),
+    { encoding: "utf-8", mode: 0o600 },
+  );
+  return {
+    agentDir,
+    env: {
+      PI_CODING_AGENT_DIR: agentDir,
+      XF_MODEL_API_KEY: resolved.apiKey,
+      PI_OFFLINE: "1",
+    },
+    provider: XFACTORY_PROVIDER_ID,
+    model: resolved.modelId,
+  };
 }
 
 type PiEventListener = (event: {
@@ -147,38 +273,22 @@ function wrapSession(session: AgentSession): PiAgentSession {
   };
 }
 
-async function resolveSessionModel(options?: SessionOptions) {
-  if (!options?.provider || !options?.model) {
-    return {
-      model: undefined,
-      thinkingLevel: options?.thinkingLevel,
-      modelRuntime: undefined,
-    };
-  }
-  const modelRuntime = await ModelRuntime.create();
-  const model = modelRuntime.getModel(options.provider, options.model);
-  return {
-    model: model || undefined,
-    thinkingLevel: options.thinkingLevel,
-    modelRuntime,
-  };
-}
-
 async function createConfiguredSession(
   worktreePath: string,
   tools: string[],
-  options?: SessionOptions,
+  options: SessionOptions,
 ): Promise<PiAgentSession> {
-  const resolved = await resolveSessionModel(options);
+  const { modelRuntime, model, agentDir } = await isolatedRuntime(
+    options.resolved,
+  );
   const sessionConfig: CreateAgentSessionOptions = {
     cwd: worktreePath,
+    agentDir,
     sessionManager: SessionManager.inMemory(worktreePath),
     tools,
-    ...(resolved.model ? { model: resolved.model } : {}),
-    ...(resolved.thinkingLevel
-      ? { thinkingLevel: resolved.thinkingLevel }
-      : {}),
-    ...(resolved.modelRuntime ? { modelRuntime: resolved.modelRuntime } : {}),
+    model,
+    modelRuntime,
+    ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
   };
   const { session } = await createAgentSession(sessionConfig);
   return wrapSession(session);
@@ -191,7 +301,7 @@ async function createConfiguredSession(
  */
 export async function createReviewSession(
   worktreePath: string,
-  options?: SessionOptions,
+  options: SessionOptions,
 ): Promise<PiAgentSession> {
   return createConfiguredSession(
     worktreePath,
@@ -207,15 +317,10 @@ export interface ChatMessageInput {
 }
 
 export async function chatWithModel(
-  provider: string,
-  modelName: string,
+  resolved: ResolvedModel,
   messages: ChatMessageInput[],
 ): Promise<string> {
-  const modelRuntime = await ModelRuntime.create();
-  const model = modelRuntime.getModel(provider, modelName);
-  if (!model) {
-    throw new Error(`Model not found: ${provider} ${modelName}`);
-  }
+  const { modelRuntime, model } = await isolatedRuntime(resolved);
 
   let systemPrompt: string | undefined;
   const contextMessages: Record<string, unknown>[] = [];
@@ -277,7 +382,9 @@ export async function chatWithModel(
     options as unknown as Parameters<typeof modelRuntime.completeSimple>[2],
   );
   if (response.stopReason === "error") {
-    throw new Error(response.errorMessage || "Model request returned error");
+    throw classifyModelError(
+      response.errorMessage || "Model request returned error",
+    );
   }
 
   let text = "";

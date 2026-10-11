@@ -6,7 +6,20 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as pi from "../src/agents/pi.js";
-import { createReviewSession } from "../src/agents/pi.js";
+import { createReviewSession, XFACTORY_PROVIDER_ID } from "../src/agents/pi.js";
+import type { ResolvedModel } from "../src/model-roles.js";
+
+/** A role resolved to a local OpenAI-compatible endpoint; creating a session makes no request. */
+const RESOLVED: ResolvedModel = {
+  role: "reviewer",
+  connectionId: "c1",
+  connectionName: "Local",
+  apiType: "openai-compatible",
+  baseUrl: "http://127.0.0.1:9/v1",
+  modelId: "vendor/review-model",
+  apiKey: "test-key",
+  details: { contextWindow: 32000, maxOutputTokens: 4000 },
+};
 
 describe("Pi SDK Compatibility under Bun", () => {
   it("does not expose the removed steering-era API (#167)", async () => {
@@ -20,7 +33,7 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("creates review session with strictly read-only tools", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-rev-"));
     try {
-      const piAgent = await createReviewSession(tmp);
+      const piAgent = await createReviewSession(tmp, { resolved: RESOLVED });
       assert.ok(piAgent);
       assert.ok(piAgent.session);
       // The session surface every caller relies on (restored from the deleted
@@ -57,7 +70,7 @@ describe("Pi SDK Compatibility under Bun", () => {
   it("subscribes to session events cleanly", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-sub-"));
     try {
-      const piAgent = await createReviewSession(tmp);
+      const piAgent = await createReviewSession(tmp, { resolved: RESOLVED });
       const events: string[] = [];
       const unsub = piAgent.subscribe((e) => {
         events.push(e.type);
@@ -69,18 +82,18 @@ describe("Pi SDK Compatibility under Bun", () => {
     }
   });
 
-  it("applies provider and model options to sessions", async () => {
+  it("runs the session on the role's model through X-Factory's own provider (#278)", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "xf-pi-model-"));
     try {
       const revAgent = await createReviewSession(tmp, {
-        provider: "anthropic",
-        model: "claude-sonnet-4-5",
+        resolved: RESOLVED,
         thinkingLevel: "low",
       });
       assert.ok(revAgent);
       assert.ok(revAgent.session);
-      assert.equal(revAgent.session.model?.id, "claude-sonnet-4-5");
-      assert.equal(revAgent.session.model?.provider, "anthropic");
+      assert.equal(revAgent.session.model?.id, "vendor/review-model");
+      assert.equal(revAgent.session.model?.provider, XFACTORY_PROVIDER_ID);
+      assert.equal(revAgent.session.model?.baseUrl, "http://127.0.0.1:9/v1");
       // The session steer method was removed with steering (#167).
       assert.equal("steer" in revAgent, false);
     } finally {

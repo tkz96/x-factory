@@ -210,6 +210,8 @@ export interface AttemptLoopInput {
   provider: string;
   /** Model ID passed to the agent CLI; omitted means the agent's own default. */
   model?: string | undefined;
+  /** Extra env for the agent CLI: its per-run config dir and key (#278). */
+  agentEnv?: Record<string, string> | undefined;
   /** Whether running without a sandbox is explicitly allowed via setting or env var. */
   allowUnsandboxed?: boolean | undefined;
   signal?: AbortSignal | undefined;
@@ -289,7 +291,7 @@ export async function runAttemptLoop(
   const { signal, emit } = input;
   const scriptPath = await scaffold(input);
   const agentDir = path.join(input.worktreePath, ".agent");
-  const env = resolveSanitizedEnv(input.provider);
+  const env = { ...resolveSanitizedEnv(input.provider), ...input.agentEnv };
   const allowedBySetting = Boolean(input.allowUnsandboxed);
   const allowUnsandboxed =
     allowedBySetting || process.env.X_FACTORY_ALLOW_UNSANDBOXED === "1";

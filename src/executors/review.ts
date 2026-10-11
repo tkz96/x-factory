@@ -1,7 +1,7 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
+import { ModelUnavailableError, resolveRole } from "../model-roles.js";
 import { type ReviewSessionFactory, reviewRun } from "../review.js";
-import { loadSettings } from "../settings.js";
 import type {
   StageContext,
   StageExecutor,
@@ -10,13 +10,13 @@ import type {
 } from "./types.js";
 
 export interface ReviewDependencies {
-  loadSettings: typeof loadSettings;
+  resolveRole: typeof resolveRole;
   /** Test seam: replaces the Pi review session that reviewRun creates. */
   sessionFactory?: ReviewSessionFactory | undefined;
 }
 
 export const defaultReviewDeps: ReviewDependencies = {
-  loadSettings,
+  resolveRole,
 };
 
 export class ReviewExecutor implements StageExecutor {
@@ -41,20 +41,37 @@ export class ReviewExecutor implements StageExecutor {
       };
     }
 
-    const settings = await this.deps.loadSettings(false);
-    // reviewRun owns review.json; this executor only records the result.
-    const rResult = await reviewRun({
-      worktreePath,
-      artifactsDir: run.artifactsDir,
-      ticket: run.ticket,
-      plan: run.plan,
-      diff: run.diff || "",
-      verification: run.verification,
-      understanding: run.implementationContext,
-      modelConfig: settings.models?.sessionB,
-      signal: context.signal,
-      sessionFactory: this.deps.sessionFactory,
-    });
+    // The Reviewer role's model; a model that can't be used fails the stage
+    // with its reason instead of falling back (#278).
+    let rResult: Awaited<ReturnType<typeof reviewRun>>;
+    try {
+      const resolved = await this.deps.resolveRole("reviewer");
+      context.emit("info", {
+        text: `Reviewing with ${resolved.modelId} via ${resolved.connectionName}.`,
+      });
+      // reviewRun owns review.json; this executor only records the result.
+      rResult = await reviewRun({
+        worktreePath,
+        artifactsDir: run.artifactsDir,
+        ticket: run.ticket,
+        plan: run.plan,
+        diff: run.diff || "",
+        verification: run.verification,
+        understanding: run.implementationContext,
+        modelConfig: { resolved },
+        signal: context.signal,
+        sessionFactory: this.deps.sessionFactory,
+      });
+    } catch (err: unknown) {
+      if (err instanceof ModelUnavailableError) {
+        const label =
+          err.category === "key rejected"
+            ? "Key rejected"
+            : "Model unavailable";
+        return { outcome: "error", error: `${label}: ${err.message}` };
+      }
+      throw err;
+    }
 
     // The review record and its events are committed by the runner with the transition.
     const record: StageRecord = {

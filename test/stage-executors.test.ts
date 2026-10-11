@@ -13,6 +13,7 @@ import {
 import type { Project, PullRequest } from "../src/shared/types.js";
 import type { BaselineState } from "../src/worktree-state.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import {
   FAILING_REVIEW_OUTPUT,
   PASSING_REVIEW_OUTPUT,
@@ -176,7 +177,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
       const executor = new ReviewExecutor({
-        loadSettings: async () => ({}),
+        resolveRole: stubResolveRole,
         sessionFactory: async () => session,
       });
 
@@ -221,7 +222,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         onPrompt: () => queueMicrotask(() => controller.abort()),
       });
       const executor = new ReviewExecutor({
-        loadSettings: async () => ({}),
+        resolveRole: stubResolveRole,
         sessionFactory: async () => session,
       });
 
@@ -241,7 +242,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       }
 
       const executor = new ReviewExecutor({
-        loadSettings: async () => ({}),
+        resolveRole: stubResolveRole,
         sessionFactory: async () =>
           scriptedReviewSession(FAILING_REVIEW_OUTPUT),
       });
@@ -264,7 +265,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       let sessionsCreated = 0;
 
       const executor = new ReviewExecutor({
-        loadSettings: async () => ({}),
+        resolveRole: stubResolveRole,
         sessionFactory: async () => {
           sessionsCreated++;
           return scriptedReviewSession(PASSING_REVIEW_OUTPUT);
@@ -297,7 +298,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
 
       const executor = new ReviewExecutor({
-        loadSettings: async () => ({}),
+        resolveRole: stubResolveRole,
         sessionFactory: async () => session,
       });
 
@@ -318,7 +319,7 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
 
       let sessionsCreated = 0;
       const executor = new ReviewExecutor({
-        loadSettings: async () => ({}),
+        resolveRole: stubResolveRole,
         sessionFactory: async () => {
           sessionsCreated++;
           return scriptedReviewSession(PASSING_REVIEW_OUTPUT);

@@ -3,10 +3,12 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  classifyModelError,
   createReviewSession,
   type PiAgentSession,
   type SessionOptions,
 } from "./agents/pi.js";
+import { ModelUnavailableError } from "./model-roles.js";
 import { ensureDir } from "./paths.js";
 import { buildReviewPrompt } from "./prompts.js";
 import type {
@@ -33,6 +35,7 @@ export interface ReviewContext {
     tool?: string | undefined;
     error?: string | undefined;
   }) => void;
+  /** The Reviewer role's model (#278); the default Pi session requires it. */
   modelConfig?: SessionOptions | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
@@ -123,10 +126,21 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
 
   let reviewSession: PiAgentSession;
   try {
-    const makeSession = context.sessionFactory ?? createReviewSession;
-    reviewSession = await makeSession(worktreePath, context.modelConfig);
+    if (!context.sessionFactory && !context.modelConfig) {
+      // No silent fallback to a runtime default model (#278).
+      throw new ModelUnavailableError(
+        "Reviewer has no model. Choose a model in Settings › Models.",
+      );
+    }
+    reviewSession = context.sessionFactory
+      ? await context.sessionFactory(worktreePath, context.modelConfig)
+      : await createReviewSession(
+          worktreePath,
+          context.modelConfig as SessionOptions,
+        );
   } catch (err: unknown) {
     if (signal?.aborted) throw abortError();
+    if (err instanceof ModelUnavailableError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     return createFallbackReview(
       ticket,
@@ -184,6 +198,9 @@ async function promptForVerdict(
   } catch (err: unknown) {
     if (aborted) throw abortError();
     const errorMsg = err instanceof Error ? err.message : String(err);
+    // A rejected key fails the stage; it is not a review verdict (#278).
+    const classified = classifyModelError(errorMsg);
+    if (classified instanceof ModelUnavailableError) throw classified;
     if (!getOutput()) {
       return createFallbackReview(
         ticket,

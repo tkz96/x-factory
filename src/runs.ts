@@ -14,8 +14,8 @@ import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
+import { ModelUnavailableError, resolveRole } from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
-import { loadSettings } from "./settings.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
@@ -447,9 +447,8 @@ export async function chatWithRun(
   let agentResponse: string;
 
   try {
-    const settings = await loadSettings();
-    const providerId = settings.models?.sessionA?.provider || "anthropic";
-    const modelId = settings.models?.sessionA?.model || "claude-3-7-sonnet";
+    // Chat uses the Builder role's model (#278); there is no fallback model.
+    const resolved = await resolveRole("builder");
 
     const events = eventRepo.getEventsForRun(id);
     const messages: ChatMessageInput[] = [];
@@ -480,15 +479,18 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
       }
     }
 
-    agentResponse = await chatWithModel(providerId, modelId, messages);
+    agentResponse = await chatWithModel(resolved, messages);
     if (!agentResponse?.trim()) {
       agentResponse =
         "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
     }
   } catch (err) {
     console.error("LLM Chat Error:", err);
+    // A model that can't be used says why (#278), instead of a generic line.
     agentResponse =
-      "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+      err instanceof ModelUnavailableError
+        ? `I can't reply: ${err.message}`
+        : "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
   }
 
   // Record agent response as an event

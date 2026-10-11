@@ -25,6 +25,7 @@ import type {
   VerificationResult,
 } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 import {
   PASSING_REVIEW_OUTPUT,
@@ -297,7 +298,7 @@ describe("Shared run-event union (#171)", () => {
     runRepo.update(runId, { verification: mockVerification });
 
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => scriptedReviewSession(PASSING_REVIEW_OUTPUT),
     });
     await executeStage(repos, reviewExecutor, runId, "review");
