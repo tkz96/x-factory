@@ -43,8 +43,22 @@
     overflow: visible;
   }
 
+  /* The breadcrumb takes the full row and the Browse button gets its own row
+     beneath it, so the two never paint over each other (spec #241, #270). */
   .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
     padding: 0.75rem 1rem;
     gap: var(--space-3);
+  }
+
+  .toolbar-left {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .toolbar-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
   }
 }

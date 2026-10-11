@@ -148,9 +148,9 @@ describe("no third-party requests", () => {
       });
       const page = await context.newPage();
       const overflowing: string[] = [];
-      // The API Reference is Scalar's own viewer page, not the app's layout, so
-      // the app's screens are the ones held to this rule.
-      for (const screen of SCREENS.filter((s) => s.name !== "reference")) {
+      // Every screen, the API Reference included: the viewer is held to the
+      // same rule as the app (spec #241, ticket #270).
+      for (const screen of SCREENS) {
         const path = resolveScreenPath(screen, instance);
         await page.goto(`${origin}${path}`, { waitUntil: "load" });
         await page.waitForTimeout(SETTLE_MS);

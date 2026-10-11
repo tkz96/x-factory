@@ -1,8 +1,8 @@
 // test/frontend-docs-phone.test.tsx — Docs usable at phone width (#244, spec #241).
 // Behaviour: the docs navigation is reachable through a labelled disclosure
 // (the desktop sidebar is hidden at 390 px), choosing a document closes it, and
-// the layout rules keep the article clear of the tab bar and the breadcrumb
-// readable.
+// the layout itself (clear of the tab bar, breadcrumb readable) is proven in a
+// real browser by test/docs-phone-layout.test.ts.
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -10,7 +10,6 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import { readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import React from "react";
@@ -123,40 +122,5 @@ describe("Docs at phone width", () => {
     expect(
       view.queryByRole("button", { name: /browse documents/i }),
     ).toBeNull();
-  });
-});
-
-describe("Docs phone layout rules (390 px)", () => {
-  const css = readFileSync(
-    "src/frontend/components/AppShellDocsPhone.css",
-    "utf8",
-  );
-  const phone = css;
-
-  it("reserves the full tab bar height including the safe area under the content", () => {
-    expect(phone).toMatch(
-      /\.main-content\s*\{[^}]*padding-bottom:\s*calc\(\s*var\(--tab-bar-height\) \+\s*env\(safe-area-inset-bottom,\s*0(?:px)?\)\s*\+\s*var\(--space-4\)/,
-    );
-  });
-
-  it("shows the docs sheet above content but leaves the tab bar visible", () => {
-    expect(phone).toMatch(
-      /aside\.sidebar\.docs-nav-open\s*\{[^}]*display:\s*flex/,
-    );
-    expect(phone).toMatch(
-      /aside\.sidebar\.docs-nav-open\s*\{[^}]*bottom:\s*calc\(var\(--tab-bar-height\)/,
-    );
-  });
-
-  it("lets the breadcrumb wrap instead of truncating", () => {
-    expect(phone).toMatch(
-      /\.docs-header-crumb-trail\s*\{[^}]*flex-wrap:\s*wrap/,
-    );
-    expect(phone).toMatch(
-      /\.docs-header-crumb-current\s*\{[^}]*white-space:\s*normal/,
-    );
-    expect(phone).toMatch(
-      /\.docs-header-crumb-current\s*\{[^}]*max-width:\s*none/,
-    );
   });
 });
