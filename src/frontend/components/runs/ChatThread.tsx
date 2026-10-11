@@ -236,7 +236,7 @@ export function ChatThread({ events }: ChatThreadProps) {
     <div
       id="chat-thread"
       ref={containerRef}
-      className="chat-thread-container event-log"
+      className="chat-thread-container"
       aria-live="polite"
       role="log"
     >
