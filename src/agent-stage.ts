@@ -62,6 +62,8 @@ export interface ReadOnlyStageRun {
   gateway?: ModelGateway | undefined;
   /** Throws when the model's daily budget is spent, before each call (#281). */
   checkBudget?: (() => void) | undefined;
+  /** Counts one model call towards the model's daily budget (#281). */
+  recordCall?: (() => void) | undefined;
 }
 
 export function abortError(): Error {
@@ -134,7 +136,10 @@ export async function runReadOnlyStage(
     if (aborted) throw abortError();
     const gateway = run.gateway ?? modelGateway;
     await gateway.run(
-      gatewayKeyFor(run.resolved, run.checkBudget),
+      gatewayKeyFor(run.resolved, {
+        checkBudget: run.checkBudget,
+        recordCall: run.recordCall,
+      }),
       async () => {
         try {
           await session.prompt(prompt);

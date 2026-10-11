@@ -27,18 +27,23 @@ import {
   UpdateModelConnectionBodySchema,
 } from "./schemas.js";
 
+/**
+ * Today's usage per model: cost from the attempts that reported it, calls from
+ * the per-call log — the same two sources the budget check reads (#281).
+ */
 function attachTodayUsage(
   connections: ModelConnectionView[],
   repos?: Repositories,
 ): ModelConnectionView[] {
   if (!repos) return connections;
-  const usageMap = repos.stageAttempts.getDailyUsageByModel();
+  const costs = repos.stageAttempts.getDailyCostByModel();
+  const calls = repos.modelCalls.countsByModel();
   for (const connection of connections) {
     for (const model of connection.models) {
-      const usage = usageMap.get(`${connection.id}:${model.modelId}`);
+      const key = `${connection.id}:${model.modelId}`;
       model.todayUsage = {
-        usd: usage?.costUsd ?? usage?.spendUsd ?? 0,
-        requests: usage?.requests ?? 0,
+        usd: costs.get(key) ?? 0,
+        requests: calls.get(key) ?? 0,
       };
     }
   }

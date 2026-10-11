@@ -9,6 +9,7 @@ import type {
   StageModelUse,
 } from "../shared/types.js";
 import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
+import { startOfUtcDay } from "./utc-day.js";
 
 /** The model columns of a stage attempt row (#279). */
 interface AttemptModelRow {
@@ -344,22 +345,22 @@ export class StageAttemptRepository {
   }
 
   /**
-   * Daily spend and request count for a specific model, summed from recorded attempts (#281).
-   * By default, counts attempts started since the beginning of the current UTC day.
+   * Today's cost for a specific model, summed from the attempts that reported it (#281).
+   * By default, sums attempts started since the beginning of the current UTC day.
+   * Call counts are not here: the requests/day budget counts `model_calls` (#281).
    */
-  getDailyUsageForModel(
+  getDailyCostForModel(
     connectionId: string,
     modelId: string,
     options?: { since?: string | undefined; now?: Date | undefined },
-  ): DailyModelUsage {
+  ): number {
     const since = options?.since ?? startOfUtcDay(options?.now);
     const row = this.db
       .prepare<
-        { requests: number; spend_usd: number | null },
+        { spend_usd: number | null },
         { $connectionId: string; $modelId: string; $since: string }
       >(
-        `SELECT COUNT(*) AS requests,
-                SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
+        `SELECT SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
          FROM stage_attempts
          WHERE connection_id = $connectionId
            AND model_id = $modelId
@@ -370,35 +371,24 @@ export class StageAttemptRepository {
         $modelId: modelId,
         $since: since,
       });
-    const spend = row?.spend_usd ?? 0;
-    return {
-      requests: row?.requests ?? 0,
-      spendUsd: spend,
-      costUsd: spend,
-    };
+    return row?.spend_usd ?? 0;
   }
 
   /**
-   * Daily spend and request counts for all models, grouped by `${connection_id}:${model_id}` (#281).
+   * Today's cost for all models, keyed `${connection_id}:${model_id}` (#281).
    */
-  getDailyUsageByModel(options?: {
+  getDailyCostByModel(options?: {
     since?: string | undefined;
     now?: Date | undefined;
-  }): Map<string, DailyModelUsage> {
+  }): Map<string, number> {
     const since = options?.since ?? startOfUtcDay(options?.now);
     const rows = this.db
       .prepare<
-        {
-          connection_id: string;
-          model_id: string;
-          requests: number;
-          spend_usd: number | null;
-        },
+        { connection_id: string; model_id: string; spend_usd: number | null },
         { $since: string }
       >(
         `SELECT connection_id,
                 model_id,
-                COUNT(*) AS requests,
                 SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
          FROM stage_attempts
          WHERE connection_id IS NOT NULL
@@ -408,16 +398,11 @@ export class StageAttemptRepository {
       )
       .all({ $since: since });
 
-    const map = new Map<string, DailyModelUsage>();
+    const costs = new Map<string, number>();
     for (const row of rows) {
-      const spend = row.spend_usd ?? 0;
-      map.set(`${row.connection_id}:${row.model_id}`, {
-        requests: row.requests,
-        spendUsd: spend,
-        costUsd: spend,
-      });
+      costs.set(`${row.connection_id}:${row.model_id}`, row.spend_usd ?? 0);
     }
-    return map;
+    return costs;
   }
 
   private listModels(
@@ -440,16 +425,4 @@ export class StageAttemptRepository {
       )
       .all(params);
   }
-}
-
-export interface DailyModelUsage {
-  spendUsd: number;
-  costUsd: number;
-  requests: number;
-}
-
-export function startOfUtcDay(date = new Date()): string {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
 }

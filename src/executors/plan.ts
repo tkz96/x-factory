@@ -54,6 +54,7 @@ export class PlanExecutor implements StageExecutor {
         onUsage: (usage) => context.reportUsage(usageWithCost(resolved, usage)),
         signal: context.signal,
         checkBudget: () => context.assertBudget?.(resolved),
+        recordCall: () => context.recordModelCall?.(resolved),
       });
     } catch (err: unknown) {
       const reason = modelStageFailureReason(err);
