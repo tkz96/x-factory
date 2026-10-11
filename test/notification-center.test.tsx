@@ -23,6 +23,7 @@ import {
   render,
   within,
 } from "@testing-library/react";
+import { Fragment, StrictMode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { NotificationActivity } from "../src/frontend/components/notifications/NotificationActivity.js";
 import { NotificationBell } from "../src/frontend/components/notifications/NotificationBell.js";
@@ -106,23 +107,30 @@ function LocationProbe() {
   return <p data-testid="location">{location.pathname}</p>;
 }
 
-function renderCenter(seed: EventsSnapshot, stream = liveStream()) {
+function renderCenter(
+  seed: EventsSnapshot,
+  stream = liveStream(),
+  { strict = false }: { strict?: boolean } = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   client.setQueryData(queryKeys.eventsSnapshot(), seed);
+  const Wrap = strict ? StrictMode : Fragment;
   const utils = render(
-    <QueryClientProvider client={client}>
-      <NotificationProvider transport={stream.transport}>
-        <MemoryRouter initialEntries={["/tickets"]}>
-          <NotificationBell />
-          <NotificationActivity />
-          <Routes>
-            <Route path="*" element={<LocationProbe />} />
-          </Routes>
-        </MemoryRouter>
-      </NotificationProvider>
-    </QueryClientProvider>,
+    <Wrap>
+      <QueryClientProvider client={client}>
+        <NotificationProvider transport={stream.transport}>
+          <MemoryRouter initialEntries={["/tickets"]}>
+            <NotificationBell />
+            <NotificationActivity />
+            <Routes>
+              <Route path="*" element={<LocationProbe />} />
+            </Routes>
+          </MemoryRouter>
+        </NotificationProvider>
+      </QueryClientProvider>
+    </Wrap>,
   );
   return { ...utils, stream, push: stream.push };
 }
@@ -223,6 +231,28 @@ describe("notification bell (#264)", () => {
     );
     renderCenter(seed);
     expect(bellLabel()).toBe("Notifications");
+  });
+
+  it("saves read state once per change, even under StrictMode's double render", () => {
+    const seed = snapshot({
+      runs: [run("r1", "awaiting_plan_approval")],
+      needsYou: [envelope(131, "r1", "awaiting_plan_approval")],
+    });
+    renderCenter(seed, liveStream(), { strict: true });
+    const storage = globalThis.localStorage;
+    const original = storage.setItem.bind(storage);
+    const writes: string[] = [];
+    storage.setItem = (key: string, value: string) => {
+      if (key === READ_STATE_STORAGE_KEY) writes.push(value);
+      original(key, value);
+    };
+    try {
+      fireEvent.click(bell());
+      fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
+    } finally {
+      storage.setItem = original;
+    }
+    expect(writes).toEqual(["[131]"]);
   });
 
   it("works when browser storage throws on every call: read state holds for the session only", () => {

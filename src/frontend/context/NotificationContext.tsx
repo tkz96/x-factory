@@ -119,26 +119,27 @@ export function NotificationProvider({
     setState((current) => seedNotificationState(current, snapshot));
   }, [snapshot]);
 
-  const markRead = useCallback(
-    (id: number) => {
-      setReadIds((current) => {
-        if (current.has(id)) return current;
-        const next = new Set(current).add(id);
-        saveReadIds(storage, next);
-        return next;
-      });
-    },
-    [storage],
-  );
+  // Persisting is a side effect, so it runs here and never inside a state updater
+  // (which React may call twice). The set loaded from storage needs no write.
+  const loadedIds = useRef(readIds);
+  useEffect(() => {
+    if (readIds === loadedIds.current) return;
+    saveReadIds(storage, readIds);
+  }, [readIds, storage]);
+
+  const markRead = useCallback((id: number) => {
+    setReadIds((current) =>
+      current.has(id) ? current : new Set(current).add(id),
+    );
+  }, []);
 
   const markAllRead = useCallback(() => {
     setReadIds((current) => {
       const next = new Set(current);
       for (const n of visibleNotifications(state)) next.add(n.id);
-      saveReadIds(storage, next);
       return next;
     });
-  }, [state, storage]);
+  }, [state]);
 
   const value = useMemo<NotificationCenterValue>(() => {
     const notifications = visibleNotifications(state).map((n) => ({
