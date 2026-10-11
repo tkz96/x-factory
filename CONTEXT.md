@@ -25,6 +25,8 @@ This document serves as the persistent domain glossary and architectural context
 | **Worktree** | Isolated Git working tree located at `<data dir>/projects/<projectId>/worktrees/<runId>/` ensuring run changes do not dirty the primary repository tree. |
 | **Run Artifacts** | Disk-persisted artifacts located at `<data dir>/projects/<projectId>/runs/<runId>/` storing logs, transcripts, and diffs referenced by SQLite metadata. |
 | **SSE Stream** | Server-Sent Events stream (`/api/runs/:id/events`) pushing real-time state and log updates to the React UI TanStack Query cache. |
+| **App-wide Event Stream** | Server-Sent Events stream (`GET /api/events`) of the `status` and `pr_step` events of every run, resumed from a global event id cursor. One shared poller in the API process feeds all connections. See `docs/reference/events-api.md`. |
+| **Events Snapshot** | The consistent read (`GET /api/events/snapshot`) a client takes before it subscribes to the app-wide stream: current runs, Needs-you trigger events, recent finished events, and the cursor to resume from. |
 | **Reticle** | In-app verification layer executing real interactions against the running web application to produce evidence-backed verdicts. |
 
 ---

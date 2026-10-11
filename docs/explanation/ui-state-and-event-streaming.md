@@ -58,7 +58,9 @@ A client on initial page load or full reload fetches a fresh snapshot in one SQL
 - **No Gap**: Subscribing to `GET /api/events?last_event_id=<cursor>` guarantees that no event committed after the snapshot is missed.
 
 ### 3. Cursor & Reconnection Rules (`GET /api/events`)
-- **Precedence**: The server resumes after the query-parameter cursor (`?last_event_id=<id>`) when present, otherwise after the `Last-Event-ID` header.
+All connections share one poller in the API process, and a stale cursor is replayed in pages of 500 events, so many open tabs cost one query per tick.
+
+- **Precedence**: The server resumes after the query-parameter cursor (`?last_event_id=<id>`) when present, otherwise after the `Last-Event-ID` header. `last_event_id` is the only query name; the endpoint reference is [`events-api.md`](../reference/events-api.md).
 - **Lower Wins**: When both query cursor and `Last-Event-ID` header are present and valid, the server resumes after the lower value.
 - **Validation**: Only non-negative integers are valid cursors. Malformed or negative cursors count as absent.
 - **Snapshot Required**: If neither cursor is valid (or both absent), the request is rejected with HTTP 400 instructing the client to take a fresh snapshot.
