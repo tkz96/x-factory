@@ -113,8 +113,12 @@ interface ResolvedThemeTokens {
   text: RGB;
   textMuted: RGB;
   border: RGB;
+  /** Control borders (inputs, secondary buttons, segments): --border-control. */
+  controlBorder: RGB;
   borderFocus: RGB;
   accent: RGB;
+  /** The raw token values, for comparing one set with another. */
+  raw: { text: string; textMuted: string; border: string; borderFocus: string };
 }
 
 function buildResolved(values: Record<string, string>): ResolvedThemeTokens {
@@ -134,8 +138,18 @@ function buildResolved(values: Record<string, string>): ResolvedThemeTokens {
     text: composite(rawText, bg),
     textMuted: composite(rawMuted, bg),
     border: composite(rawBorder, bg),
+    controlBorder: composite(
+      parseColor(get("--border-control", get("--border", "#888888"))),
+      bg,
+    ),
     borderFocus: composite(rawFocus, bg),
     accent: composite(rawAccent, bg),
+    raw: {
+      text: get("--text", "#ffffff"),
+      textMuted: get("--text-muted", "#999999"),
+      border: get("--border", "#888888"),
+      borderFocus: get("--border-focus", "#0a84ff"),
+    },
   };
 }
 
@@ -169,7 +183,6 @@ describe("Theme Contrast Gates across theme × appearance × contrast (#248, #24
           "data-appearance": appearance.id,
           "data-contrast": contrast.id,
         },
-        isMore: contrast.id === "more",
       })),
     ),
   );
@@ -179,7 +192,7 @@ describe("Theme Contrast Gates across theme × appearance × contrast (#248, #24
     expect(new Set(sets.map((s) => s.name)).size).toBe(12);
   });
 
-  for (const { name, combo, isMore } of sets) {
+  for (const { name, combo } of sets) {
     describe(name, () => {
       const tokens = buildResolved(cascade(rules, combo));
 
@@ -212,12 +225,51 @@ describe("Theme Contrast Gates across theme × appearance × contrast (#248, #24
         expect(accentRatio).toBeGreaterThanOrEqual(3.0);
       });
 
-      if (isMore) {
-        it("increased contrast provides at least 3:1 for borders against background", () => {
-          const borderRatio = contrastRatio(tokens.border, tokens.bg);
-          expect(borderRatio).toBeGreaterThanOrEqual(3.0);
-        });
-      }
+      it("meets 3:1 for control borders against background and card", () => {
+        expect(
+          contrastRatio(tokens.controlBorder, tokens.bg),
+        ).toBeGreaterThanOrEqual(3.0);
+        expect(
+          contrastRatio(tokens.controlBorder, tokens.bgCard),
+        ).toBeGreaterThanOrEqual(3.0);
+      });
     });
   }
+
+  describe("increased contrast changes text, borders and focus rings (#248)", () => {
+    for (const theme of THEMES) {
+      for (const appearance of APPEARANCES) {
+        const standard = buildResolved(
+          cascade(rules, {
+            "data-theme": theme.id,
+            "data-appearance": appearance.id,
+            "data-contrast": "standard",
+          }),
+        );
+        const more = buildResolved(
+          cascade(rules, {
+            "data-theme": theme.id,
+            "data-appearance": appearance.id,
+            "data-contrast": "more",
+          }),
+        );
+        const label = `${theme.name} · ${appearance.name}`;
+
+        it(`${label}: text is at least as strong as standard`, () => {
+          expect(contrastRatio(more.text, more.bg)).toBeGreaterThanOrEqual(
+            contrastRatio(standard.text, standard.bg),
+          );
+        });
+        it(`${label}: muted text token differs from standard`, () => {
+          expect(more.raw.textMuted).not.toBe(standard.raw.textMuted);
+        });
+        it(`${label}: border token differs from standard`, () => {
+          expect(more.raw.border).not.toBe(standard.raw.border);
+        });
+        it(`${label}: focus ring token differs from standard`, () => {
+          expect(more.raw.borderFocus).not.toBe(standard.raw.borderFocus);
+        });
+      }
+    }
+  });
 });

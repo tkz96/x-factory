@@ -87,7 +87,7 @@
 .ui-button--secondary {
   background: var(--bg-card);
   color: var(--text);
-  border-color: var(--border);
+  border-color: var(--border-control);
 }
 
 .ui-button--secondary[data-hovered] {
@@ -191,7 +191,7 @@
   font-size: var(--text-body);
   color: var(--text);
   background: var(--bg-input);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-input);
   transition:
     border-color var(--transition),
@@ -236,7 +236,7 @@
   font-size: var(--text-body);
   color: var(--text);
   background: var(--bg-input);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-input);
   cursor: pointer;
   transition:
@@ -276,7 +276,7 @@
 .ui-select-popover {
   padding: var(--space-1);
   background: var(--bg-modal);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
 }
@@ -325,7 +325,7 @@
   gap: var(--space-micro);
   padding: var(--space-micro);
   background: var(--bg-tertiary);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-md);
 }
 
@@ -429,7 +429,7 @@
   height: var(--switch-height);
   padding: var(--switch-thumb-inset);
   background: var(--bg-secondary);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-full);
   flex-shrink: 0;
   transition:
@@ -533,7 +533,7 @@
   text-align: left;
   color: var(--text);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-card);
 }
 

@@ -22,7 +22,7 @@ textarea {
   font-size: 0.9rem;
   color: var(--text);
   background: var(--bg-input);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-input);
   padding: 0.65rem 0.85rem;
   outline: none;
@@ -63,7 +63,7 @@ select {
   width: 100%;
   padding: 0.6rem 0.8rem;
   background: var(--bg-input);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-input);
   color: var(--text);
   font-size: 0.82rem;
