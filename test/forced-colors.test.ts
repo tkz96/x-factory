@@ -115,6 +115,51 @@ describe("forced colours: static (#249)", () => {
   });
 });
 
+/** Every component-local stylesheet (overlays, diagrams, runs, docs ...), not the shared styles. */
+function componentLocalStylesheets(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return full === STYLES ? [] : componentLocalStylesheets(full);
+    }
+    return entry.name.endsWith(".css") ? [full] : [];
+  });
+}
+
+/** Class names that name a control, badge, pill, field or tooltip surface. */
+const CONTROL_CLASS =
+  /(btn|button|input|field|search|select|toggle|switch|tab|pill|segment|close|trigger|tool|option|menu-item|badge|link|chip|tooltip)/;
+
+describe("forced colours: component-local controls (#249)", () => {
+  test("every component-local control class with a custom colour has a forced-colors rule", () => {
+    const missing: string[] = [];
+    for (const file of componentLocalStylesheets(
+      path.join(ROOT, "src/frontend"),
+    )) {
+      const text = fs
+        .readFileSync(file, "utf-8")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const rule of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selector = (rule[1] ?? "").trim();
+        const body = rule[2] ?? "";
+        if (selector.startsWith("@")) continue;
+        const coloured =
+          /\b(background|background-color|border|border-color|outline-color)\s*:\s*[^;]*(var\(--|#|rgba?\()/.test(
+            body,
+          );
+        if (!coloured) continue;
+        for (const cls of selector.matchAll(/\.([a-zA-Z][\w-]*)/g)) {
+          const name = cls[1] ?? "";
+          if (CONTROL_CLASS.test(name) && !forcedColors.includes(`.${name}`)) {
+            missing.push(`${path.relative(ROOT, file)}: .${name}`);
+          }
+        }
+      }
+    }
+    expect([...new Set(missing)]).toEqual([]);
+  });
+});
+
 describe("forced colours: emulated in a browser (#249)", () => {
   let instance: Awaited<ReturnType<typeof startIsolatedInstance>>;
   let browser: Browser;

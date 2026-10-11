@@ -196,4 +196,79 @@
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
   }
+
+  /* Component-local controls (#249): buttons, links and menu items keep a system
+     button face and border; fields take the system field colours; badges, pills,
+     tooltips and table frames take canvas text colours. */
+  :root .xf-alert-dialog-btn,
+  :root .xf-alert-dialog-btn-cancel,
+  :root .xf-alert-dialog-btn-danger,
+  :root .xf-alert-dialog-btn-primary,
+  :root .xf-dialog-close-btn,
+  :root .xf-menu-item,
+  :root .xf-menu-item-danger,
+  :root .flow-btn-tool,
+  :root .flow-modal-close-btn,
+  :root .diff-modal-close-btn,
+  :root .react-flow__controls-button,
+  :root .md-copy-btn,
+  :root .docs-nav-btn,
+  :root .docs-back-link,
+  :root .docs-toc-link,
+  :root .toolbar-select,
+  :root .toolbar-gear,
+  :root .mobile-tab-bar,
+  :root .command-palette-option {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonBorder;
+  }
+
+  :root .docs-search-field,
+  :root .docs-search-group,
+  :root .docs-search-group-header,
+  :root .docs-search-section-item,
+  :root .docs-search-highlight,
+  :root .docs-search-spinner,
+  :root .repo-settings-input,
+  :root .repositories-filter-input,
+  :root .run-chat-input,
+  :root .search-box {
+    background: Field;
+    color: FieldText;
+    border-color: ButtonBorder;
+  }
+
+  :root .xf-tooltip,
+  :root .tooltip-badge,
+  :root .tooltip-popover,
+  :root .flow-node-badge,
+  :root .flow-diagram-badge,
+  :root .badge-accent,
+  :root .badge-success,
+  :root .badge-danger,
+  :root .badge-success-subtle,
+  :root .badge-danger-subtle,
+  :root .nav-badge,
+  :root .notification-badge,
+  :root .async-region-stale-badge,
+  :root .chat-bubble-badge,
+  :root .run-chat-badge,
+  :root .model-badge,
+  :root .model-badge--verified,
+  :root .dual-role-badge,
+  :root .connection-status-pill,
+  :root .role-badge-archived,
+  :root .filter-pill,
+  :root .repos-table-container,
+  :root .repos-table,
+  :root .docs-meta-table {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .pill-dot {
+    background: CanvasText;
+  }
 }
