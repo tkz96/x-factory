@@ -41,6 +41,20 @@ describe("bootstrapLLMEnv", () => {
     expect(process.env.OPENAI_API_KEY).toBeUndefined();
   });
 
+  it("detects Gemini from Google's newer AQ. prefix (#276)", () => {
+    process.env.LLM_API_KEY = "AQ.test-google-key-12345";
+    bootstrapLLMEnv();
+    expect(process.env.GEMINI_API_KEY).toBe("AQ.test-google-key-12345");
+    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+
+  it("treats LLM_PROVIDER=google as Gemini (#276)", () => {
+    process.env.LLM_API_KEY = "opaque-key-12345";
+    process.env.LLM_PROVIDER = "google";
+    bootstrapLLMEnv();
+    expect(process.env.GEMINI_API_KEY).toBe("opaque-key-12345");
+  });
+
   it("detects OpenAI from sk- prefix", () => {
     process.env.LLM_API_KEY = "sk-proj-test-openai-key";
     bootstrapLLMEnv();

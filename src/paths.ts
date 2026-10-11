@@ -60,6 +60,22 @@ export function getSettingsPath(): string {
 }
 
 /**
+ * Model connections (name, API type, base URL — never keys) (#276):
+ * ~/.x-factory/model-connections.json
+ */
+export function getModelConnectionsPath(): string {
+  return path.join(getDataDir(), "model-connections.json");
+}
+
+/**
+ * Model connection API keys, owner-only (0600) (#276):
+ * ~/.x-factory/model-secrets.json
+ */
+export function getModelSecretsPath(): string {
+  return path.join(getDataDir(), "model-secrets.json");
+}
+
+/**
  * Projects configuration file (the target project list):
  * ./config/projects.json, or X_FACTORY_CONFIG_PATH when set. The file is an
  * authored input in the repository, not runtime state, so it is not moved

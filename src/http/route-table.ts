@@ -22,6 +22,13 @@ import {
   handleReadyRoute,
 } from "./diagnostics-controller.js";
 import { handleDocsRoute } from "./docs-controller.js";
+import {
+  handleCreateModelConnection,
+  handleDeleteModelConnection,
+  handleGetModelConnection,
+  handleListModelConnections,
+  handleUpdateModelConnection,
+} from "./model-connections-controller.js";
 import { buildOpenApiDocument } from "./openapi.js";
 import {
   handleCheckPath,
@@ -216,6 +223,54 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     operationId: "updateSettings",
     responseDescription: "The updated workbench settings",
     handler: ({ req }) => handleUpdateSettings(req),
+  }),
+  // Model connections (#276) — keys are never returned.
+  route({
+    method: "GET",
+    path: "/api/model-connections",
+    tags: ["Settings"],
+    summary: "List Model Connections",
+    operationId: "listModelConnections",
+    responseDescription:
+      "Every model connection, keys masked to their last 4 characters",
+    handler: () => handleListModelConnections(),
+  }),
+  route({
+    method: "POST",
+    path: "/api/model-connections",
+    tags: ["Settings"],
+    summary: "Create Model Connection",
+    operationId: "createModelConnection",
+    responseDescription: "The created model connection (key masked)",
+    handler: ({ req }) => handleCreateModelConnection(req),
+  }),
+  route({
+    method: "GET",
+    path: "/api/model-connections/{id}",
+    tags: ["Settings"],
+    summary: "Get Model Connection",
+    operationId: "getModelConnection",
+    responseDescription: "One model connection (key masked)",
+    handler: ({ params }) => handleGetModelConnection(params.id),
+  }),
+  route({
+    method: "PATCH",
+    path: "/api/model-connections/{id}",
+    tags: ["Settings"],
+    summary: "Update Model Connection",
+    operationId: "updateModelConnection",
+    responseDescription: "The updated model connection (key masked)",
+    handler: ({ req, params }) => handleUpdateModelConnection(params.id, req),
+  }),
+  route({
+    method: "DELETE",
+    path: "/api/model-connections/{id}",
+    tags: ["Settings"],
+    summary: "Delete Model Connection",
+    operationId: "deleteModelConnection",
+    responseDescription:
+      "Confirmation that the connection and its key were removed",
+    handler: ({ params }) => handleDeleteModelConnection(params.id),
   }),
   // Projects — static patterns first, then member patterns.
   route({

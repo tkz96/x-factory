@@ -134,3 +134,34 @@ export const ConfigureGitIdentityBodySchema = z.looseObject({
   email: z.email(),
   scope: z.enum(["local", "global"]).optional(),
 });
+
+// ─── Model connections (#276) ────────────────────────────────────────────────
+
+const ModelApiTypeSchema = z.enum(
+  ["openai-compatible", "gemini", "anthropic"],
+  {
+    error: "API type must be openai-compatible, gemini or anthropic.",
+  },
+);
+
+export const CreateModelConnectionBodySchema = z.object({
+  name: z
+    .string({ error: "A connection needs a name." })
+    .trim()
+    .min(1, "A connection needs a name."),
+  apiType: ModelApiTypeSchema,
+  baseUrl: z.string().trim().optional(),
+  apiKey: z.string().optional(),
+});
+export type CreateModelConnectionBody = z.infer<
+  typeof CreateModelConnectionBodySchema
+>;
+
+export const UpdateModelConnectionBodySchema = z.object({
+  name: z.string().trim().min(1, "A connection needs a name.").optional(),
+  baseUrl: z.string().trim().optional(),
+  apiKey: z.string().optional(),
+});
+export type UpdateModelConnectionBody = z.infer<
+  typeof UpdateModelConnectionBodySchema
+>;
