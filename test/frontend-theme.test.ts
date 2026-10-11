@@ -7,7 +7,14 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import { act, cleanup, render } from "@testing-library/react";
 import React from "react";
 import {
@@ -25,6 +32,15 @@ function Probe({ id }: { id: string }) {
     `${appearance}/${resolvedAppearance}`,
   );
 }
+
+// The theme and appearance live in module stores shared across test files:
+// start every test from Default/Automatic whatever ran before it.
+beforeEach(() => {
+  act(() => {
+    setTheme("default");
+    setAppearance("automatic");
+  });
+});
 
 afterEach(() => {
   cleanup();
