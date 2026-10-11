@@ -1,0 +1,10 @@
+/* src/frontend/components/welcome/HomeRoute.css — The landing's wait (#269).
+   The one spinner, centred in the height a screen would occupy, so the redirect
+   neither flashes a wrong screen nor moves the toolbar. */
+
+.home-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--space-8) * 4);
+}
