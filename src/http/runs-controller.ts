@@ -2,6 +2,7 @@
 
 import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
+import { assertRolesReady, ModelUnavailableError } from "../model-roles.js";
 import * as runs from "../runs.js";
 import { normalizeCriterion } from "../shared/normalization.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
@@ -56,6 +57,17 @@ export async function handleCreateRun(
           `Project "${projectId}" not found or inaccessible.`,
           404,
         );
+      }
+
+      // A run needs working Builder and Reviewer models before it starts;
+      // the reason names each role to fix in Settings › Models (#278).
+      try {
+        await assertRolesReady();
+      } catch (err: unknown) {
+        if (err instanceof ModelUnavailableError) {
+          return errorResponse(err.message, 409);
+        }
+        throw err;
       }
 
       const ticketId = body.ticketId || "";

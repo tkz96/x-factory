@@ -14,6 +14,7 @@ import * as runs from "../src/runs.js";
 import type { Ticket } from "../src/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { dispatchHttp } from "./helpers/http-dispatch.js";
+import { withReadyModelRoles } from "./helpers/resolved-model.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 
 let repos: Repositories;
@@ -257,7 +258,8 @@ describe("HTTP Routing & Controllers (src/http)", () => {
           }),
         });
 
-        const res = await dispatchHttp(req, repos);
+        // A run starts only with working Builder and Reviewer models (#278).
+        const res = await withReadyModelRoles(() => dispatchHttp(req, repos));
         assert.ok(res);
         assert.equal(res.status, 201);
         const data = await res.json();
@@ -266,6 +268,53 @@ describe("HTTP Routing & Controllers (src/http)", () => {
         assert.equal(data.ticket.acceptanceCriteria.length, 2);
       } finally {
         await deleteProject(validProject.id);
+        await rm(gitDir, { recursive: true, force: true });
+      }
+    });
+
+    it("POST /api/runs is refused with 409 naming each role to fix when no models are set (#278)", async () => {
+      const gitDir = await mkdtemp(
+        path.join(os.tmpdir(), "xf-repo-no-models-"),
+      );
+      await execStrict("git", ["init", "-b", "main"], {
+        envPolicy: "inherit",
+        cwd: gitDir,
+      });
+      const validProject = validateProject({
+        id: "proj-http-no-models",
+        name: "No Models Project",
+        repositoryPath: gitDir,
+        defaultBranch: "main",
+        testCommand: "bun test",
+      });
+      const savedDataDir = process.env.X_FACTORY_DATA_DIR;
+      const emptyDataDir = await mkdtemp(
+        path.join(os.tmpdir(), "xf-no-roles-"),
+      );
+      process.env.X_FACTORY_DATA_DIR = emptyDataDir;
+      try {
+        await saveProject(validProject);
+        const req = new Request("http://localhost:3777/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: validProject.id,
+            ticketId: "RUN-2",
+            ticketTitle: "Needs models",
+          }),
+        });
+        const res = await dispatchHttp(req, repos);
+        assert.ok(res);
+        assert.equal(res.status, 409);
+        const data = (await res.json()) as { error: string };
+        assert.match(data.error, /Builder has no model/);
+        assert.match(data.error, /Reviewer has no model/);
+        assert.match(data.error, /Settings › Models/);
+      } finally {
+        await deleteProject(validProject.id);
+        if (savedDataDir === undefined) delete process.env.X_FACTORY_DATA_DIR;
+        else process.env.X_FACTORY_DATA_DIR = savedDataDir;
+        await rm(emptyDataDir, { recursive: true, force: true });
         await rm(gitDir, { recursive: true, force: true });
       }
     });

@@ -26,3 +26,42 @@ export async function stubResolveRole(
 ): Promise<ResolvedModel> {
   return testResolvedModel(role);
 }
+
+/**
+ * Runs `fn` against a fresh data dir holding a verified Gemini connection and
+ * both roles assigned to it, so a run can start (#278). Restores the previous
+ * data dir afterwards.
+ */
+export async function withReadyModelRoles<T>(fn: () => Promise<T>): Promise<T> {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const { createModelConnection, updateModelConnection } = await import(
+    "../../src/model-connections.js"
+  );
+  const { saveSettings } = await import("../../src/settings.js");
+
+  const saved = process.env.X_FACTORY_DATA_DIR;
+  const dir = await mkdtemp(path.join(tmpdir(), "xf-ready-roles-"));
+  process.env.X_FACTORY_DATA_DIR = dir;
+  try {
+    const connection = await createModelConnection({
+      name: "Test Gemini",
+      apiType: "gemini",
+      apiKey: "AQ.test-key",
+    });
+    await updateModelConnection(connection.id, {
+      verifiedAt: new Date().toISOString(),
+    });
+    const role = {
+      connectionId: connection.id,
+      modelId: "gemini-flash-lite-latest",
+    };
+    await saveSettings({ roles: { builder: role, reviewer: role } });
+    return await fn();
+  } finally {
+    if (saved === undefined) delete process.env.X_FACTORY_DATA_DIR;
+    else process.env.X_FACTORY_DATA_DIR = saved;
+    await rm(dir, { recursive: true, force: true });
+  }
+}
