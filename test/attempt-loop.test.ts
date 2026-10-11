@@ -432,6 +432,7 @@ ${CHECK_OFF_FIRST_TASK}
     await commitAndRecordBaseline();
     await installSbx(`
 echo "Iteration 1: Working on Task 1"
+echo "Iteration 2 of 25"
 echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
@@ -465,11 +466,25 @@ ${CHECK_OFF_FIRST_TASK}
     ).toContain("Matt Pocock TDD Protocol");
 
     const events = eventRepo.getEventsForRun(run.id);
-    const progress = events
-      .filter((e) => e.type === "ralph_progress")
-      .map((e) => (e.payload as { text: string }).text);
+    const progressEvents = events.filter((e) => e.type === "ralph_progress");
+    const progress = progressEvents.map(
+      (e) => (e.payload as { text: string }).text,
+    );
     expect(progress).toContain("Ralph Loop started with 25 iterations");
     expect(progress).toContain("Iteration 1: Working on Task 1");
+
+    // Every progress event carries the loop iteration it belongs to (#256).
+    for (const event of progressEvents) {
+      const { iteration } = event.payload as { iteration?: unknown };
+      expect(typeof iteration).toBe("number");
+      expect(iteration as number).toBeGreaterThanOrEqual(1);
+    }
+    const secondIteration = progressEvents.find((e) =>
+      (e.payload as { text: string }).text.includes("Iteration 2 of 25"),
+    );
+    expect(
+      (secondIteration?.payload as { iteration?: number })?.iteration,
+    ).toBe(2);
     expect(events.filter((e) => e.type === "verification")).toHaveLength(1);
     expect(
       events.some(

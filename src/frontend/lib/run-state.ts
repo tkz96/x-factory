@@ -106,6 +106,10 @@ export function reduceRun(run: Run, event: RunEvent): Run {
     case "user_feedback":
     case "pi_output_chunk":
     case "ralph_progress":
+    // #256 events carry their own surfaces; the chat timeline (a later ticket) renders them.
+    case "plan_ready":
+    case "diff_summary":
+    case "review_activity":
     case "info":
     case "error":
       return run;

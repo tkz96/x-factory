@@ -1,5 +1,8 @@
 // src/shared/types.ts — Shared domain types consumed by both backend and frontend.
 
+import type { DiffSummary } from "./diff-summary.js";
+import type { FailureReason } from "./failure-reason.js";
+
 /**
  * The 6 canonical workflow stages displayed in the UI and executed by the runtime.
  */
@@ -335,6 +338,8 @@ export interface StatusEventPayload {
   text?: string | undefined;
   reason?: string | undefined;
   category?: string | undefined;
+  /** Present on a `failed` status: why it failed and what to do about it (#256). */
+  failure?: FailureReason | undefined;
   pullRequest?: PullRequest | undefined;
 }
 
@@ -418,7 +423,8 @@ export interface ReviewEventPayload {
 
 export interface RalphProgressPayload {
   text: string;
-  iteration?: number | undefined;
+  /** 1-based loop iteration this line belongs to; every progress event carries one (#256). */
+  iteration: number;
 }
 
 export type InfoEventPayload = {
@@ -429,6 +435,21 @@ export type InfoEventPayload = {
 
 export interface ErrorEventPayload {
   message: string;
+}
+
+/** The plan a stage produced, streamed as it lands rather than only at the gate (#256). */
+export interface PlanReadyPayload {
+  plan: string;
+}
+
+/** What changed in one run's diff (#256), parsed by the module the run page also reads. */
+export type DiffSummaryPayload = DiffSummary;
+
+/** Activity from the read-only review session, forwarded instead of dropped (#256). */
+export interface ReviewActivityPayload {
+  /** The tool the reviewer ran, when the activity is a tool call. */
+  tool?: string | undefined;
+  text?: string | undefined;
 }
 
 export type RunEventPayloadMap = {
@@ -442,6 +463,9 @@ export type RunEventPayloadMap = {
   verification: VerificationEventPayload;
   review: ReviewEventPayload;
   ralph_progress: RalphProgressPayload;
+  plan_ready: PlanReadyPayload;
+  diff_summary: DiffSummaryPayload;
+  review_activity: ReviewActivityPayload;
   info: InfoEventPayload;
   error: ErrorEventPayload;
   stage_started: StageStartedPayload;

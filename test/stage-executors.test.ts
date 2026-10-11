@@ -10,10 +10,14 @@ import {
   ReviewExecutor,
   UnderstandExecutor,
 } from "../src/executors/index.js";
+import { PlanExecutor } from "../src/executors/plan.js";
 import type { Project, PullRequest } from "../src/shared/types.js";
 import type { BaselineState } from "../src/worktree-state.js";
 import { createTestRepositories } from "./helpers/composition.js";
-import { stubResolveRole } from "./helpers/resolved-model.js";
+import {
+  stubResolveRole,
+  testResolvedModel,
+} from "./helpers/resolved-model.js";
 import {
   FAILING_REVIEW_OUTPUT,
   PASSING_REVIEW_OUTPUT,
@@ -212,6 +216,46 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       expect(session.disposeCalls).toBe(1);
     });
 
+    it("forwards the reviewer's tool activity as run events instead of dropping it (#256)", async () => {
+      const { context, runRepo, repos } = setupTestContext("review", {
+        status: "executing",
+        artifactsDir: artifactDirs.make(),
+      });
+      runRepo.update(context.run.id, { verification: mockVerification });
+      const persisted = runRepo.get(context.run.id);
+      if (persisted) context.run = persisted;
+
+      const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT, {
+        tools: ["read", "grep"],
+      });
+      const executor = new ReviewExecutor({
+        resolveRole: async () => testResolvedModel("reviewer"),
+        sessionFactory: async () => session,
+      });
+
+      const result = await executeStage(
+        repos,
+        executor,
+        context.run.id,
+        "review",
+      );
+      expect(result.outcome).toBe("passed");
+
+      const activity = repos.events
+        .getEventsForRun(context.run.id)
+        .filter((e) => e.type === "review_activity")
+        .map((e) => e.payload as { tool?: string; text?: string });
+      // The reviewer's answer is streamed as activity text, and each tool call is named.
+      expect(activity.some((a) => a.text && !a.tool)).toBe(true);
+      expect(activity.flatMap((a) => (a.tool ? [a.tool] : []))).toEqual([
+        "read",
+        "grep",
+      ]);
+      for (const line of activity) {
+        if (line.tool) expect(line.text).toContain(line.tool);
+      }
+    });
+
     it("aborts an in-flight review when the stage signal aborts", async () => {
       const { context, runRepo } = setupTestContext("review", {
         artifactsDir: artifactDirs.make(),
@@ -390,6 +434,36 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
         "https://github.com/org/repo/pull/42",
       );
       expect(updatedRun?.status).toBe("pr_created");
+    });
+  });
+
+  describe("PlanExecutor (#256)", () => {
+    // The plan is the Builder's own answer (#282); plan_ready carries exactly
+    // the plan the run stores, so the timeline needn't re-read the run.
+    it("streams the plan text as a plan_ready event", async () => {
+      const { context, repos } = setupTestContext("plan", {
+        plan: "",
+        status: "planning",
+      });
+      const answer =
+        "# Execution Plan for #T-100\n\n1. Add `test/a.test.ts`.\n2. Change `src/a.ts`.\n";
+      const outcome = await executeStage(
+        repos,
+        new PlanExecutor({
+          resolveRole: async () => testResolvedModel("builder"),
+          sessionFactory: async () => scriptedReviewSession(answer),
+        }),
+        context.run.id,
+        "plan",
+      );
+
+      expect(outcome.outcome).toBe("passed");
+      const planReady = repos.events
+        .getEventsForRun(context.run.id)
+        .find((e) => e.type === "plan_ready");
+      const storedPlan = repos.runs.get(context.run.id)?.plan;
+      expect(storedPlan).toContain("Execution Plan for #T-100");
+      expect(planReady?.payload).toEqual({ plan: storedPlan ?? "" });
     });
   });
 

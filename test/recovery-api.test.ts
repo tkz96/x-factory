@@ -167,6 +167,22 @@ describe("Recovery-Required HTTP API (XFM-37)", () => {
       expect(statusTexts).toContain(
         "Run abandoned by operator: Superseded by manual fix",
       );
+
+      // An abandoned run's failed status carries a structured reason like any other (#256).
+      const failedStatus = repos.events
+        .getEventsForRun(run.id)
+        .find(
+          (event) =>
+            event.type === "status" &&
+            (event.payload as { status?: string }).status === "failed",
+        );
+      expect(failedStatus?.payload).toMatchObject({
+        failure: {
+          category: "operator",
+          message: expect.any(String),
+          recovery: expect.any(String),
+        },
+      });
     });
 
     it("rejects a reason longer than 500 characters with a field error (#163 follow-up)", async () => {

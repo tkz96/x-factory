@@ -297,6 +297,7 @@ async function runLoopWithGateway(
   gate: AttemptLoopInput["gate"],
   signal: AbortSignal | undefined,
   emit: AttemptLoopInput["emit"],
+  currentIteration: () => number,
 ) {
   if (!gate) return await runLoop();
   return await gate.gateway.run(
@@ -322,6 +323,7 @@ async function runLoopWithGateway(
       onWait: (ms) =>
         emit("ralph_progress", {
           text: `The provider is rate limiting the model; waiting ${Math.ceil(ms / 1000)} s, then retrying. This does not count as a repair attempt.`,
+          iteration: currentIteration(),
         }),
     },
   );
@@ -403,9 +405,14 @@ export async function runAttemptLoop(
       iteration: 1,
     });
 
-    const forward = progressLineForwarder((line) =>
-      emit("ralph_progress", { text: line }),
-    );
+    // Every progress line belongs to a loop iteration; the script prints "Iteration N of M", so
+    // the number is read from the line and carried on the event (#256).
+    let iteration = 1;
+    const forward = progressLineForwarder((line) => {
+      const parsed = line.match(/Iteration (\d+)/i);
+      if (parsed?.[1]) iteration = Number.parseInt(parsed[1], 10);
+      emit("ralph_progress", { text: line, iteration });
+    });
     const runLoop = () =>
       execCommand(
         "bash",
@@ -426,7 +433,13 @@ export async function runAttemptLoop(
 
     let loop: Awaited<ReturnType<typeof runLoop>>;
     try {
-      loop = await runLoopWithGateway(runLoop, input.gate, signal, emit);
+      loop = await runLoopWithGateway(
+        runLoop,
+        input.gate,
+        signal,
+        emit,
+        () => iteration,
+      );
     } catch (err: unknown) {
       return handleAttemptError(err, signal, emit);
     }

@@ -56,6 +56,7 @@ export class ReviewExecutor implements StageExecutor {
       context.assertBudget?.(resolved);
       context.recordModel(modelUse(resolved));
       // reviewRun owns review.json; this executor only records the result.
+      let answer = "";
       rResult = await reviewRun({
         worktreePath,
         artifactsDir: run.artifactsDir,
@@ -66,6 +67,25 @@ export class ReviewExecutor implements StageExecutor {
         understanding: run.implementationContext,
         modelConfig: { resolved },
         assertBudget: context.assertBudget,
+        // Session activity is forwarded as run events so the review is not a black box (#256).
+        onEvent: (event) => {
+          if (event.type === "error") {
+            context.emit("error", {
+              message: event.error ?? "The review session reported an error.",
+            });
+            return;
+          }
+          // Tool calls are forwarded as they happen; the streamed answer is
+          // collected and recorded once, not one event per fragment.
+          if (event.tool) {
+            context.emit("review_activity", {
+              tool: event.tool,
+              ...(event.text ? { text: event.text } : {}),
+            });
+          } else if (event.text) {
+            answer += event.text;
+          }
+        },
         onWait: (ms) =>
           context.emit("info", {
             text: `The provider is rate limiting ${resolved.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
@@ -74,6 +94,8 @@ export class ReviewExecutor implements StageExecutor {
         signal: context.signal,
         sessionFactory: this.deps.sessionFactory,
       });
+      if (answer.trim())
+        context.emit("review_activity", { text: answer.trim() });
     } catch (err: unknown) {
       if (
         err instanceof ModelUnavailableError &&

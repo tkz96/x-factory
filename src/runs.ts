@@ -32,6 +32,7 @@ import {
   usageWithCost,
 } from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
+import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 import { initializeRunArtifacts, removeRunArtifacts } from "./store.js";
@@ -476,6 +477,8 @@ export async function abandonRun(
           payload: {
             status: "failed",
             text: statusText,
+            // An abandoned run is a decision, not a crash: its structured reason says so (#256).
+            failure: OPERATOR_ABANDON_REASON,
           },
         },
       },

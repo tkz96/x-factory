@@ -61,6 +61,10 @@ export class PlanExecutor implements StageExecutor {
       throw err;
     }
 
+    // The plan text is streamed as its own event, so the timeline can show what was planned
+    // without re-reading the run (#256).
+    context.emit("plan_ready", { plan });
+
     return {
       outcome: "passed",
       output: {

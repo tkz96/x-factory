@@ -381,6 +381,13 @@ describe("client run-state module (#191)", () => {
       verification: { result: sampleVerification },
       review: { result: sampleReview },
       ralph_progress: { text: "iteration 2", iteration: 2 },
+      plan_ready: { plan: "1. Do the thing" },
+      diff_summary: {
+        files: [{ path: "src/app.ts", added: 2, removed: 1 }],
+        totalAdded: 2,
+        totalRemoved: 1,
+      },
+      review_activity: { tool: "read", text: "Running tool read" },
       info: { text: "info" },
       error: { message: "boom" },
       stage_started: {

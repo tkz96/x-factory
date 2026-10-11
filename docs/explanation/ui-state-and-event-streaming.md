@@ -120,6 +120,29 @@ provider journeys (GitHub-only, Azure dual-role, Jira tracker-only) drive the
 real wizard against a real server, so the contract is proved against the
 shipped stack rather than a fixture-shaped stand-in.
 
+## Event vocabulary
+
+Every event type in `RunEventPayloadMap` is the one shared description of the run's events.
+The worker produces the lifecycle and stage-detail events (`status`, `stage_evidence`,
+`verification`, `review`, `pr_step`), while `chat_user`, `chat_agent` and `user_feedback` are
+written by the API process on the user's behalf. Alongside the lifecycle events, a run emits
+events that describe what the stages did (#256):
+
+- **`plan_ready`** carries the plan text the `plan` stage produced, streamed before the
+  approval gate.
+- **`diff_summary`** carries the changed files with their added and removed line counts,
+  parsed once by `src/shared/diff-summary.ts` — the same parse the run page renders hunks
+  from.
+- **`review_activity`** carries the read-only review session's tool calls and answer text,
+  which used to be dropped. A review error is emitted as an `error` event instead.
+- **`ralph_progress`** always carries the loop `iteration` its line belongs to.
+
+Detail events never move the run: the reducer in `run-state.ts` ignores them, and only
+`status`, `verification` and `review` change run fields. A `failed` status additionally
+carries the structured `failure` reason described in
+[`state-machine-matrix.md`](../reference/state-machine-matrix.md) §8.
+
+
 ## Optimistic Concurrency Control
 
 Multiple browser tabs or background processes can attempt to modify a run simultaneously.
