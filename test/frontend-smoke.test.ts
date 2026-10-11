@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
+import { checkVendored } from "../scripts/vendor-api-reference.js";
 import { App } from "../src/frontend/App.js";
 import { AppShell } from "../src/frontend/components/AppShell.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
@@ -30,6 +31,13 @@ import { QueueView } from "../src/frontend/views/QueueView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
 import { SettingsView } from "../src/frontend/views/SettingsView.js";
+import {
+  defaultSources,
+  type OffOriginReference,
+  type SourceKind,
+  scanSource,
+  scanSources,
+} from "./helpers/off-origin-scan.js";
 
 const ROOT_DIR = path.resolve(import.meta.dir, "..");
 
@@ -610,5 +618,128 @@ describe("Frontend Smoke — CSS variable resolution", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+// ─── No third-party requests (spec #241, ticket #247) ──────────────────────
+
+describe("Frontend Smoke — No third-party requests", () => {
+  function synthetic(kind: SourceKind, text: string) {
+    return { file: `synthetic.${kind}`, kind, text };
+  }
+
+  function described(findings: readonly OffOriginReference[]): string[] {
+    return findings.map((f) => `${f.reason} ${f.url}`);
+  }
+
+  it("flags a script, stylesheet, image, font or sprite that names another host", () => {
+    const findings = scanSource(
+      synthetic(
+        "html",
+        [
+          '<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>',
+          '<link rel="stylesheet" href="//fonts.example.com/inter.css">',
+          '<img src="https://images.example.com/a.png">',
+          '<img srcset="/a.png 1x, https://images.example.com/a2x.png 2x">',
+          '<video poster="https://images.example.com/p.jpg"></video>',
+          '<use href="https://icons.example.com/sprite.svg#play"></use>',
+        ].join("\n"),
+      ),
+    );
+
+    expect(described(findings)).toEqual([
+      "<script src> https://cdn.jsdelivr.net/npm/@scalar/api-reference",
+      "<link href> //fonts.example.com/inter.css",
+      "<img src> https://images.example.com/a.png",
+      "<img srcset> https://images.example.com/a2x.png",
+      "<video poster> https://images.example.com/p.jpg",
+      "<use href> https://icons.example.com/sprite.svg#play",
+    ]);
+    expect(findings[1]?.line).toBe(2);
+  });
+
+  it("flags @import, url() and a JavaScript request that names another host", () => {
+    const css = scanSource(
+      synthetic(
+        "css",
+        [
+          '@import "https://fonts.example.com/inter.css";',
+          '@import url("https://fonts.example.com/other.css");',
+          ".a { background: url(//images.example.com/bg.png); }",
+          '.b { background: url("/a.png"); }',
+          '.c { background: url("/fonts/Inter-Regular.woff2") format("woff2"); }',
+        ].join("\n"),
+      ),
+    );
+    expect(described(css)).toEqual([
+      "@import https://fonts.example.com/inter.css",
+      "url() https://fonts.example.com/other.css",
+      "url() //images.example.com/bg.png",
+    ]);
+
+    const script = scanSource(
+      synthetic(
+        "script",
+        'fetch("https://api.example.com/v1");\nnew EventSource("/api/runs/1/events");',
+      ),
+    );
+    expect(described(script)).toEqual(["fetch() https://api.example.com/v1"]);
+  });
+
+  it("allows plain navigation links, inline data and this origin's own paths", () => {
+    const html = scanSource(
+      synthetic(
+        "html",
+        [
+          '<a href="https://github.com/tkz96/x-factory/pull/12">Pull request 12</a>',
+          '<a href="https://dev.azure.com/org/project">Tracker</a>',
+          '<a href="/reference">API Reference</a>',
+          '<link rel="icon" href="/favicon.svg">',
+          '<script src="/assets/api-reference/scalar-api-reference.min.js"></script>',
+          "<img src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E\">",
+          '<use href="/assets/icons/sprite.svg#icon-play"></use>',
+        ].join("\n"),
+      ),
+    );
+    expect(html).toEqual([]);
+
+    const tsx = scanSource(
+      synthetic(
+        "script",
+        '<a href="https://example.invalid/run/1" rel="noreferrer">the pull request</a>',
+      ),
+    );
+    expect(tsx).toEqual([]);
+  });
+
+  it("finds no such reference in any page, stylesheet or frontend module", () => {
+    const sources = defaultSources(ROOT_DIR);
+    expect(sources.map((s) => s.file)).toContain("index.html");
+    expect(sources.map((s) => s.file)).toContain("public/reference.html");
+    expect(sources.map((s) => s.file)).toContain("public/styles.css");
+    expect(sources.length).toBeGreaterThan(50);
+
+    const findings = scanSources(sources);
+    expect(
+      findings.map((f) => `${f.file}:${f.line} ${f.reason} ${f.url}`),
+    ).toEqual([]);
+  });
+
+  it("serves the API Reference from a pinned viewer in this repository", async () => {
+    const reference = await Bun.file(
+      path.join(ROOT_DIR, "public/reference.html"),
+    ).text();
+
+    expect(reference).toContain(
+      'src="/assets/api-reference/scalar-api-reference.min.js"',
+    );
+    expect(reference).not.toMatch(/https?:\/\//);
+    // The pinned Scalar build would otherwise fetch its web fonts from
+    // fonts.scalar.com, which is a third-party host.
+    expect(reference).toContain('"withDefaultFonts": false');
+    // The file we serve is the bytes the pin describes.
+    expect(checkVendored()).toMatch(
+      /^@scalar\/api-reference@\d+\.\d+\.\d+ [0-9a-f]{64}$/,
+    );
   });
 });
