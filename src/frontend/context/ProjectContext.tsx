@@ -38,11 +38,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const scope = resolveProjectScope(storedScope, projects, data !== undefined);
   const isAllProjects = scope === ALL_PROJECTS;
 
+  const firstActive = projects.find((p) => !p.archived) ?? projects[0];
   const scopedProject = isAllProjects
     ? undefined
     : projects.find((p) => p.id === scope);
-  const selectedProject =
-    scopedProject ?? projects.find((p) => !p.archived) ?? projects[0];
+  const selectedProject = scopedProject ?? firstActive;
+  // A scoped project is acted on by its id even before the project list has
+  // loaded, so a remembered choice is never lost to a slow first request.
+  const selectedProjectId = isAllProjects ? (firstActive?.id ?? "") : scope;
 
   const setSelectedProjectId = (id: string) => {
     setStoredScope(id);
@@ -56,7 +59,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         isProjectsLoading,
         scope,
         isAllProjects,
-        selectedProjectId: selectedProject?.id ?? "",
+        selectedProjectId,
         selectedProject,
         setSelectedProjectId,
       }}

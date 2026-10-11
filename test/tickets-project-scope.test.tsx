@@ -8,7 +8,11 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import {
   act,
   cleanup,
@@ -44,6 +48,8 @@ afterAll(async () => {
 beforeEach(() => {
   cleanup();
   window.localStorage.clear();
+  // Other suites can leave the browser "offline"; queries would then never fire.
+  onlineManager.setOnline(true);
 });
 
 const ACME: Project = {

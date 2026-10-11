@@ -44,8 +44,9 @@ export function writeStoredProjectScope(scope: string): void {
 
 /**
  * Turns the remembered scope into one that exists. A project that was removed,
- * or an unknown value, falls back to All Projects. Before the projects load,
- * the remembered value is kept so a refresh does not flicker to All Projects.
+ * or an unknown value, falls back to All Projects. Until the projects load (or
+ * when there are none to check against) the remembered value is kept, so a
+ * refresh does not flicker to All Projects.
  */
 export function resolveProjectScope(
   scope: string,
@@ -53,7 +54,8 @@ export function resolveProjectScope(
   projectsLoaded: boolean,
 ): string {
   if (scope === ALL_PROJECTS) return ALL_PROJECTS;
-  if (!projectsLoaded) return scope;
+  // Nothing to check the choice against yet, or no projects at all.
+  if (!projectsLoaded || projects.length === 0) return scope;
   return projects.some((p) => p.id === scope) ? scope : ALL_PROJECTS;
 }
 
