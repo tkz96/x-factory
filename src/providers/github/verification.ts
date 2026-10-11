@@ -37,6 +37,13 @@ const OVER_PRIVILEGED_SCOPES = [
   "admin:repo_hook",
 ] as const;
 
+/**
+ * Classic-PAT scopes X-Factory needs to push a run branch and open its pull
+ * request: `repo` for code and pull requests, `workflow` so a run may change
+ * files under .github/workflows (#283). Matches the token field's help text.
+ */
+const REQUIRED_PULL_REQUEST_SCOPES = ["repo", "workflow"] as const;
+
 function hasAnyScope(scopes: string[], targets: readonly string[]): boolean {
   return targets.some((target) => scopes.includes(target));
 }
@@ -100,12 +107,15 @@ function checkScopeWarnings(headers: Headers): VerificationWarning[] {
   const hasScopesHeader = headers.has("x-oauth-scopes");
 
   if (hasScopesHeader) {
-    if (!scopes.includes("repo")) {
+    const missingScopes = REQUIRED_PULL_REQUEST_SCOPES.filter(
+      (scope) => !scopes.includes(scope),
+    );
+    if (missingScopes.length > 0) {
       return [
         {
           kind: "CAPABILITY_UNCONFIRMED",
           capability: "createPullRequest",
-          missingScopes: ["repo"],
+          missingScopes,
         },
       ];
     }
