@@ -8,8 +8,15 @@ import "./Sheet.css";
 import type { ReactNode } from "react";
 import { Dialog, type DialogProps } from "./Dialog.js";
 
+/**
+ * Where a sheet is docked. `center` is the sheet that is not docked to an edge:
+ * it sits in the middle of the window and takes the height of what it holds
+ * (the assistant shape, #268).
+ */
+export type SheetPosition = "bottom" | "right" | "left" | "center";
+
 export interface SheetProps extends Omit<DialogProps, "className"> {
-  position?: "bottom" | "right" | "left";
+  position?: SheetPosition;
   className?: string;
   children: ReactNode;
 }
