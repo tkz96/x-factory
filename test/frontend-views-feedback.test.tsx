@@ -22,6 +22,7 @@ import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { PROJECTS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
+import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
@@ -55,6 +56,18 @@ function renderView(ui: React.ReactElement, client: QueryClient, path = "/") {
         React.createElement(MemoryRouter, { initialEntries: [path] }, ui),
       ),
     ),
+  );
+}
+
+/** Runs sits under the shared project scope (#260); an empty list keeps it idle. */
+function renderRuns(client: QueryClient, path = "/") {
+  if (client.getQueryData(queryKeys.projects()) === undefined) {
+    client.setQueryData(queryKeys.projects(), []);
+  }
+  return renderView(
+    React.createElement(ProjectProvider, null, React.createElement(RunsView)),
+    client,
+    path,
   );
 }
 
@@ -198,7 +211,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
     client.setQueryDefaults(queryKeys.runs(), {
       queryFn: () => new Promise(() => {}),
     });
-    const view = renderView(React.createElement(RunsView), client, DONE);
+    const view = renderRuns(client, DONE);
     const s = within(view.container);
 
     expect(s.getByRole("status").textContent).toContain("Loading…");
@@ -212,7 +225,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
         throw new Error("raw provider body");
       },
     });
-    const view = renderView(React.createElement(RunsView), client, DONE);
+    const view = renderRuns(client, DONE);
     const s = within(view.container);
 
     await waitFor(
@@ -234,7 +247,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
   it("says a running list is empty and offers the way to start one from Tickets", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), []);
-    const view = renderView(React.createElement(RunsView), client, "/runs");
+    const view = renderRuns(client, "/runs");
     const s = within(view.container);
 
     expect(s.getByRole("status").textContent).toContain(
@@ -248,7 +261,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
   it("says a filter that matches nothing, with no action to take", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("executing")]);
-    const view = renderView(React.createElement(RunsView), client, DONE);
+    const view = renderRuns(client, DONE);
     const s = within(view.container);
 
     expect(s.getByRole("status").textContent).toContain(
@@ -260,7 +273,7 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
   it("renders ready content with no loading or empty message", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("pr_created")]);
-    const view = renderView(React.createElement(RunsView), client, DONE);
+    const view = renderRuns(client, DONE);
     const s = within(view.container);
 
     expect(s.getByText(/TICK-42/)).toBeTruthy();

@@ -1,19 +1,33 @@
-// src/frontend/components/queue/TicketCard.tsx — Ticket card component with prefill action (XFM-47).
+// src/frontend/components/queue/TicketCard.tsx — A ticket in the Tickets list
+// (XFM-47, #260). Its action follows the ticket's run: Open Run when a run is
+// active, Start New Run when every run has finished, Start Run otherwise.
 
 import "./TicketCard.css";
 
+import { Link, useNavigate } from "react-router-dom";
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
+import type { TicketRunLink } from "../../lib/ticket-runs.js";
 
 interface TicketCardProps {
   ticket: Ticket;
+  /** The project the ticket belongs to: its run starts there (#260). */
+  projectId: string;
+  runLink: TicketRunLink;
 }
 
-export function TicketCard({ ticket }: TicketCardProps) {
+export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
   const { openNewRunModal } = useModal();
+  const navigate = useNavigate();
+  const activeRunId = runLink.kind === "active" ? runLink.runId : null;
 
   const handleSelect = () => {
+    if (activeRunId) {
+      navigate(`/runs/${activeRunId}`);
+      return;
+    }
     openNewRunModal({
+      projectId,
       ticketId: ticket.id,
       ticketTitle: ticket.title,
       criteria: ticket.acceptanceCriteria,
@@ -46,17 +60,28 @@ export function TicketCard({ ticket }: TicketCardProps) {
             <span className="ticket-provider">{ticket.provider}</span>
           )}
         </div>
-        <button
-          type="button"
-          className="btn-primary btn-sm btn-start-ticket"
-          data-id={ticket.id}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSelect();
-          }}
-        >
-          Start Run
-        </button>
+        {activeRunId ? (
+          <Link
+            to={`/runs/${activeRunId}`}
+            className="btn-secondary btn-sm btn-start-ticket"
+            data-id={ticket.id}
+            onClick={(e) => e.stopPropagation()}
+          >
+            Open Run
+          </Link>
+        ) : (
+          <button
+            type="button"
+            className="btn-primary btn-sm btn-start-ticket"
+            data-id={ticket.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSelect();
+            }}
+          >
+            {runLink.kind === "finished" ? "Start New Run" : "Start Run"}
+          </button>
+        )}
       </div>
 
       <h3 className="ticket-title">{ticket.title}</h3>
