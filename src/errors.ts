@@ -1,5 +1,7 @@
 // src/errors.ts — Neutral, presentation-agnostic domain and application errors.
 
+import { ACTIVE_RUN_CONFLICT_CODE } from "./shared/run-creation.js";
+
 /**
  * Base class for all domain and application errors.
  * Completely decoupled from HTTP presentation and status codes.
@@ -81,6 +83,21 @@ export class ConflictError extends DomainError {
   constructor(message = "Conflict") {
     super(message);
     this.name = "ConflictError";
+  }
+}
+
+/**
+ * Thrown when a run creation targets a ticket that already has an active run in
+ * the same project (#255). It carries the active run's id, so the caller opens
+ * that run instead of starting a second one.
+ */
+export class ActiveRunExistsError extends ConflictError {
+  readonly code = ACTIVE_RUN_CONFLICT_CODE;
+  readonly runId: string;
+  constructor(runId: string, ticketId: string) {
+    super(`Ticket "${ticketId}" already has an active run (${runId}).`);
+    this.name = "ActiveRunExistsError";
+    this.runId = runId;
   }
 }
 

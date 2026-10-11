@@ -3,6 +3,7 @@
 import type { Database } from "bun:sqlite";
 import { ConflictError, NotFoundError } from "../errors.js";
 import {
+  ACTIVE_RUN_STATUSES,
   canTransition,
   NON_LIVE_RUN_STATUSES,
   TERMINAL_RUN_STATUSES,
@@ -488,6 +489,43 @@ export class RunRepository {
 
     const tx = this.db.transaction(() => execute());
     return tx();
+  }
+
+  /**
+   * The ticket's active run in a project (#255): the guard behind "one active
+   * run per ticket". Active is read from the shared policy's set — this method
+   * declares no statuses of its own — and the statuses are bound as parameters.
+   * The oldest active run wins when legacy data holds more than one.
+   *
+   * The caller must hold the write lock (`db.transaction(...).immediate()`), so
+   * no run can become active between this read and the insert it guards.
+   */
+  findActiveRunForTicket(
+    projectId: string,
+    ticketId: string,
+  ): RunRecord | null {
+    const statuses = [...ACTIVE_RUN_STATUSES];
+    const placeholders = statuses.map((_, index) => `$status${index}`);
+    const params: Record<string, string> = {
+      $projectId: projectId,
+      $ticketId: ticketId,
+    };
+    statuses.forEach((status, index) => {
+      params[`$status${index}`] = status;
+    });
+
+    const row = this.db
+      .prepare(
+        `SELECT * FROM runs
+         WHERE project_id = $projectId
+           AND ticket_id = $ticketId
+           AND status IN (${placeholders.join(", ")})
+         ORDER BY created_at ASC, id ASC
+         LIMIT 1;`,
+      )
+      .get(params) as RunRow | null;
+
+    return row ? rowToRunRecord(row) : null;
   }
 
   delete(id: string): boolean {
