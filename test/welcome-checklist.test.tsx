@@ -379,16 +379,21 @@ describe("the welcome's read region (#269)", () => {
   });
 
   it("shows the canonical error, then brings every part of the setup back through its retry", async () => {
-    // The setup cannot be read until the retry: every part fails first, and
-    // every part answers afterwards. The checklist can only appear if the
-    // retry asked all four again — one lazy part would leave the region down.
+    // Nothing is readable until the retry: every part fails first, and every
+    // part answers with real setup state afterwards. All three ticks can only
+    // appear if the retry asked every part again and the answer was read.
     let readable = false;
-    const asked: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      asked.push(url);
       if (!readable) return new Response("not json", { status: 500 });
-      return new Response(url.includes("/api/settings") ? "{}" : "[]", {
+      const body = url.includes("/api/projects")
+        ? [makeProject()]
+        : url.includes("/api/runs")
+          ? [makeRun()]
+          : url.includes("/api/model-connections")
+            ? [makeConnection()]
+            : { roles: ROLES };
+      return new Response(JSON.stringify(body), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -411,11 +416,9 @@ describe("the welcome's read region (#269)", () => {
     readable = true;
     fireEvent.click(view.getByRole("button", { name: STATE_COPY.retry }));
 
-    await waitFor(() => expect(stepRows(view)).toHaveLength(3));
+    await waitFor(() => expect(ticked(view)).toEqual([true, true, true]));
     expect(view.queryByRole("alert")).toBeNull();
-    expect(ticked(view)).toEqual([false, false, false]);
-    expect(asked).toContain("/api/projects");
-    expect(asked).toContain("/api/model-connections");
+    expect(view.getByText(WELCOME_COPY.progress(3, 3))).toBeTruthy();
   });
 });
 
