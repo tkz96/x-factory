@@ -33,6 +33,8 @@ class FakeEventSource {
 }
 
 afterEach(() => {
+  // Blur before unmounting, so no focus is left on a removed button for the next file.
+  (document.activeElement as HTMLElement | null)?.blur?.();
   cleanup();
   globalThis.fetch = realFetch;
 });

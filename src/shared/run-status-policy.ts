@@ -97,19 +97,6 @@ export const ACTIVE_RUN_STATUSES = new Set<RunStatus>(
   ),
 );
 
-/** Statuses at or past delivery: the run is ready for, or has, a pull request. */
-export const DELIVERY_RUN_STATUSES = new Set<RunStatus>([
-  "ready_for_pr",
-  "pr_created",
-]);
-
-/** Statuses that show the human checkpoint / delivery section of a run. */
-export const CHECKPOINT_RUN_STATUSES = new Set<RunStatus>([
-  "awaiting_review",
-  "ready_for_pr",
-  "pr_created",
-]);
-
 /** Statuses where the run waits on a human and holds no worker-driven work. */
 export const AWAITING_HUMAN_RUN_STATUSES = new Set<RunStatus>([
   "awaiting_understanding_approval",

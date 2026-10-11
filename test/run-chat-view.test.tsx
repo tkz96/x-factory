@@ -26,7 +26,11 @@ import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
-afterEach(cleanup);
+afterEach(() => {
+  // Blur before unmounting, so no focus is left on a removed button for the next file.
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  cleanup();
+});
 afterAll(async () => {
   await unregisterHappyDom();
 });
