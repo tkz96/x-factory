@@ -63,11 +63,17 @@
   background: transparent;
   color: inherit;
   text-align: start;
+  /* The global button rule is nowrap; a notification's text must wrap. */
+  white-space: normal;
   cursor: pointer;
 }
 
 .notification-item:hover {
   background: var(--bg-hover);
+}
+
+.notification-row {
+  min-width: 0;
 }
 
 .notification-item-main {
