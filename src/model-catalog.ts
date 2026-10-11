@@ -12,7 +12,13 @@ import { ANTHROPIC_MODELS } from "@earendil-works/pi-ai/providers/anthropic.mode
 import { GOOGLE_MODELS } from "@earendil-works/pi-ai/providers/google.models";
 import { OPENAI_MODELS } from "@earendil-works/pi-ai/providers/openai.models";
 import { OPENROUTER_MODELS } from "@earendil-works/pi-ai/providers/openrouter.models";
-import type { ModelApiType } from "./model-connections.js";
+
+export const MODEL_API_TYPES = [
+  "openai-compatible",
+  "gemini",
+  "anthropic",
+] as const;
+export type ModelApiType = (typeof MODEL_API_TYPES)[number];
 
 /** Details X-Factory keeps per model; every field is optional and editable. */
 export interface ModelDetails {

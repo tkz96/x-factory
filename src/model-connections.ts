@@ -14,14 +14,17 @@ import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { detectLegacyKeyProvider } from "./env-bootstrap.js";
 import { NotFoundError, ValidationError } from "./errors.js";
+import {
+  type DiscoveredModel,
+  listProviderModels,
+  type ModelApiType,
+  type ModelDetails,
+  type ModelListResult,
+  runtimeCatalogDetails,
+} from "./model-catalog.js";
 import { getModelConnectionsPath, getModelSecretsPath } from "./paths.js";
 
-export const MODEL_API_TYPES = [
-  "openai-compatible",
-  "gemini",
-  "anthropic",
-] as const;
-export type ModelApiType = (typeof MODEL_API_TYPES)[number];
+export { MODEL_API_TYPES, type ModelApiType } from "./model-catalog.js";
 
 /** Base URLs pre-filled for API types with one well-known endpoint. */
 export const DEFAULT_BASE_URLS: Readonly<
@@ -38,6 +41,35 @@ export const KEY_ENV_VARS: Readonly<Record<ModelApiType, string>> = {
   anthropic: "ANTHROPIC_API_KEY",
 };
 
+export interface ModelLimits {
+  rpm?: number | undefined;
+  tpm?: number | undefined;
+  rpd?: number | undefined;
+  tpd?: number | undefined;
+}
+
+export interface ModelBudget {
+  perDay: { usd?: number | undefined; requests?: number | undefined };
+}
+
+/** A model chosen from a connection, with its (editable) details (#277). */
+export interface ModelRecord extends ModelDetails {
+  modelId: string;
+  name?: string | undefined;
+  limits: ModelLimits;
+  budget: ModelBudget;
+}
+
+/** Edits to a model record; `null` clears a detail. */
+export interface ModelRecordPatch {
+  contextWindow?: number | null | undefined;
+  maxOutputTokens?: number | null | undefined;
+  inputPricePerMTok?: number | null | undefined;
+  outputPricePerMTok?: number | null | undefined;
+  limits?: ModelLimits | undefined;
+  budget?: ModelBudget | undefined;
+}
+
 /** A connection as stored (no key). */
 interface StoredConnection {
   id: string;
@@ -47,6 +79,10 @@ interface StoredConnection {
   verifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Models chosen for use, with their details. */
+  models: ModelRecord[];
+  /** The model list from the last passing check. */
+  availableModels: DiscoveredModel[];
 }
 
 interface ConnectionsFile {
@@ -100,8 +136,18 @@ async function writeJsonPrivate(file: string, value: unknown): Promise<void> {
   await rename(temp, file);
 }
 
-const readConnections = () =>
-  readJson<ConnectionsFile>(getModelConnectionsPath(), { connections: [] });
+async function readConnections(): Promise<ConnectionsFile> {
+  const file = await readJson<ConnectionsFile>(getModelConnectionsPath(), {
+    connections: [],
+  });
+  // Connections saved before model records existed (#276) have neither list.
+  file.connections = file.connections.map((c) => ({
+    ...c,
+    models: c.models ?? [],
+    availableModels: c.availableModels ?? [],
+  }));
+  return file;
+}
 const readSecrets = () => readJson<SecretsFile>(getModelSecretsPath(), {});
 
 function envKey(apiType: ModelApiType): string | undefined {
@@ -160,6 +206,8 @@ export async function createModelConnection(
     verifiedAt: null,
     createdAt: now,
     updatedAt: now,
+    models: [],
+    availableModels: [],
   };
   const [file, secrets] = await Promise.all([readConnections(), readSecrets()]);
   const apiKey = input.apiKey?.trim();
@@ -280,4 +328,138 @@ export async function importLegacyModelKey(): Promise<
     await writeJsonPrivate(getModelConnectionsPath(), latest);
   }
   return imported;
+}
+
+/** Reads, edits and writes one connection; throws NotFoundError for an unknown id. */
+async function mutateConnection<T>(
+  id: string,
+  edit: (connection: StoredConnection) => T,
+): Promise<T> {
+  const file = await readConnections();
+  const connection = file.connections.find((c) => c.id === id);
+  if (!connection)
+    throw new NotFoundError(`Model connection "${id}" not found.`);
+  const result = edit(connection);
+  connection.updatedAt = new Date().toISOString();
+  await writeJsonPrivate(getModelConnectionsPath(), file);
+  return result;
+}
+
+/**
+ * Check Connection (#277): one real request to the provider's model list. A
+ * passing check marks the connection Verified and remembers the list; a
+ * failing one clears Verified and returns the categorised error.
+ */
+export async function checkModelConnection(
+  id: string,
+  fetchFn?: typeof fetch,
+): Promise<ModelListResult> {
+  const connection = await getModelConnection(id);
+  if (!connection)
+    throw new NotFoundError(`Model connection "${id}" not found.`);
+  const result = await listProviderModels({
+    apiType: connection.apiType,
+    baseUrl: connection.baseUrl,
+    apiKey: await resolveModelConnectionKey(id),
+    ...(fetchFn ? { fetchFn } : {}),
+  });
+  await mutateConnection(id, (c) => {
+    if (result.ok) {
+      c.verifiedAt = new Date().toISOString();
+      c.availableModels = result.models;
+    } else {
+      c.verifiedAt = null;
+    }
+  });
+  return result;
+}
+
+/** Details for a newly chosen model: the provider's list, then the runtime catalogue. */
+function autoFilledDetails(
+  connection: StoredConnection,
+  modelId: string,
+): ModelDetails & { name?: string | undefined } {
+  const listed = connection.availableModels.find((m) => m.id === modelId);
+  const catalog = runtimeCatalogDetails(
+    connection.apiType,
+    connection.baseUrl,
+    modelId,
+  );
+  const pick = <K extends keyof ModelDetails>(key: K) =>
+    listed?.[key] ?? catalog?.[key];
+  const details = {
+    name: listed?.name,
+    contextWindow: pick("contextWindow"),
+    maxOutputTokens: pick("maxOutputTokens"),
+    inputPricePerMTok: pick("inputPricePerMTok"),
+    outputPricePerMTok: pick("outputPricePerMTok"),
+  };
+  return Object.fromEntries(
+    Object.entries(details).filter(([, v]) => v !== undefined),
+  );
+}
+
+/** Adds a model to a connection (idempotent), with auto-filled details. */
+export async function addConnectionModel(
+  id: string,
+  modelId: string,
+): Promise<ModelRecord> {
+  const trimmed = modelId.trim();
+  if (!trimmed) throw new ValidationError("A model needs an ID.");
+  return mutateConnection(id, (c) => {
+    const existing = c.models.find((m) => m.modelId === trimmed);
+    if (existing) return existing;
+    const record: ModelRecord = {
+      modelId: trimmed,
+      ...autoFilledDetails(c, trimmed),
+      limits: {},
+      budget: { perDay: {} },
+    };
+    c.models.push(record);
+    return record;
+  });
+}
+
+function findModel(c: StoredConnection, modelId: string): ModelRecord {
+  const record = c.models.find((m) => m.modelId === modelId);
+  if (!record) {
+    throw new NotFoundError(`Model "${modelId}" not found on this connection.`);
+  }
+  return record;
+}
+
+const DETAIL_KEYS = [
+  "contextWindow",
+  "maxOutputTokens",
+  "inputPricePerMTok",
+  "outputPricePerMTok",
+] as const;
+
+/** Edits a model's details, limits and budget. */
+export async function updateConnectionModel(
+  id: string,
+  modelId: string,
+  patch: ModelRecordPatch,
+): Promise<ModelRecord> {
+  return mutateConnection(id, (c) => {
+    const record = findModel(c, modelId);
+    for (const key of DETAIL_KEYS) {
+      const value = patch[key];
+      if (value === null) delete record[key];
+      else if (value !== undefined) record[key] = value;
+    }
+    if (patch.limits) record.limits = { ...patch.limits };
+    if (patch.budget) record.budget = { perDay: { ...patch.budget.perDay } };
+    return record;
+  });
+}
+
+export async function removeConnectionModel(
+  id: string,
+  modelId: string,
+): Promise<void> {
+  await mutateConnection(id, (c) => {
+    findModel(c, modelId);
+    c.models = c.models.filter((m) => m.modelId !== modelId);
+  });
 }
