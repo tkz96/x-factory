@@ -10,6 +10,7 @@ import "./Dialog.css";
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useId,
   useRef,
@@ -71,13 +72,24 @@ export function Dialog({
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const resolvedOverlayId = overlayId ?? `${dialogId}-overlay`;
   // React Aria's ModalOverlay takes no id prop, so the id lands on the element here.
-  const setOverlay = (el: HTMLDivElement | null) => {
-    overlayRef.current = el;
-    if (el) el.id = resolvedOverlayId;
-  };
+  //
+  // Both refs this component hands to React Aria are STABLE. React Aria wraps a
+  // callback ref in `useObjectRef`, which rebuilds its ref object whenever the
+  // callback's identity changes — and `useDialog`'s "focus the dialog on mount"
+  // effect depends on that ref. A fresh callback ref on every render therefore
+  // re-runs the effect on every render, and it steals focus from whatever the
+  // user is typing in mid-keystroke. A stable ref keeps the effect to the mount.
+  const setOverlay = useCallback(
+    (el: HTMLDivElement | null) => {
+      overlayRef.current = el;
+      if (el) el.id = resolvedOverlayId;
+    },
+    [resolvedOverlayId],
+  );
   // React Aria's Dialog does not render aria-modal, so the dialog marks itself.
-  const markModal = (el: HTMLElement | null) =>
+  const markModal = useCallback((el: HTMLElement | null) => {
     el?.setAttribute("aria-modal", "true");
+  }, []);
   // Exactly one accessible name: the title when there is one, otherwise the label.
   const labelProps = titleId
     ? { "aria-labelledby": titleId }

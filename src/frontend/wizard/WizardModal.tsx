@@ -1,32 +1,43 @@
-// src/frontend/wizard/WizardModal.tsx — Thin orchestrator modal for onboarding (spec #126, #142, #159).
+// src/frontend/wizard/WizardModal.tsx — The add-project assistant (#268, spec
+// #241).
 //
-// The wizard composes the reusable <Modal> rather than re-implementing dialog
-// behaviour. <Modal> owns the backdrop, dialog semantics, dismissal and background
-// scroll lock; this component only fills its slots: the title, the step navigation
-// (subheader) and the active step (body). Each step puts its actions in the fixed
-// footer with <ModalFooter> (#159).
+// This module is the mount point and nothing else: it decides whether the
+// assistant is open, gives it the wizard's state (through `WizardProvider`) and
+// hands the sheet the step the state is on. The chrome lives in `WizardSheet`,
+// each step's body in `steps/`. The created project is the sheet's terminal
+// state: the Review step reports it, and the sheet shows success instead of the
+// step it came from.
 
-import "./WizardModal.css";
-
-import { Modal } from "../components/Modal.js";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import type { Project } from "../../shared/types.js";
 import { useModal } from "../context/ModalContext.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
-import { StepNav } from "./shared/StepNav.js";
 import { useWizard, WizardProvider } from "./state/wizardContext.js";
-import { BasicsStep } from "./steps/BasicsStep.js";
 import { ConnectStep } from "./steps/ConnectStep.js";
 import { InspectionStep } from "./steps/InspectionStep.js";
 import { RepositoriesStep } from "./steps/RepositoriesStep.js";
+import { RepositoryStep } from "./steps/RepositoryStep.js";
 import { ReviewStep } from "./steps/ReviewStep.js";
+import { SuccessStep } from "./steps/SuccessStep.js";
+import { WizardSheet } from "./WizardSheet.js";
 
 function WizardContent() {
   const { closeOnboardingModal } = useModal();
   const { state } = useWizard();
+  const navigate = useNavigate();
+  const [createdProject, setCreatedProject] = useState<Project | null>(null);
+
+  const openCreatedProject = () => {
+    if (createdProject === null) return;
+    navigate(`/projects/${createdProject.id}`);
+    closeOnboardingModal();
+  };
 
   const renderActiveStep = () => {
     switch (state.step) {
       case 1:
-        return <BasicsStep onCancel={closeOnboardingModal} />;
+        return <RepositoryStep />;
       case 2:
         return <ConnectStep />;
       case 3:
@@ -34,23 +45,27 @@ function WizardContent() {
       case 4:
         return <InspectionStep />;
       case 5:
-        return <ReviewStep onSubmit={closeOnboardingModal} />;
+        return <ReviewStep onSubmit={setCreatedProject} />;
       default:
-        return <BasicsStep onCancel={closeOnboardingModal} />;
+        return <RepositoryStep />;
     }
   };
 
   return (
-    <Modal
-      id="onboarding-wizard-modal"
-      title="New Project Setup"
+    <WizardSheet
       onClose={closeOnboardingModal}
-      className="wizard-modal-dialog"
-      closeButtonId="btn-wizard-close"
-      subheader={<StepNav />}
+      success={
+        createdProject === null
+          ? undefined
+          : { project: createdProject, onOpenProject: openCreatedProject }
+      }
     >
-      {renderActiveStep()}
-    </Modal>
+      {createdProject === null ? (
+        renderActiveStep()
+      ) : (
+        <SuccessStep project={createdProject} />
+      )}
+    </WizardSheet>
   );
 }
 

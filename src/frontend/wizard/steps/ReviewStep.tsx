@@ -12,6 +12,7 @@
 // exactly once, in this request body.
 
 import { useQuery } from "@tanstack/react-query";
+import type { Project } from "../../../shared/types.js";
 import { ConnectionComboLine } from "../../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../../components/connections/connection-state.js";
 import {
@@ -28,6 +29,7 @@ import type { ProviderDescriptor } from "../../connection/types.js";
 import { useConnectionLine } from "../../hooks/useConnectionIdentity.js";
 import { ApiError, api } from "../../lib/api-client.js";
 import { QUERY_POLICIES, queryKeys } from "../../lib/query-policies.js";
+import { WizardFooter } from "../shared/WizardFooter.js";
 import { draftConnectionIdentityTargets } from "../state/connectConfig.js";
 import {
   isReviewReady,
@@ -42,14 +44,14 @@ import {
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import { isSemanticConflict, useReviewSubmit } from "./useReviewSubmit.js";
 import "./ReviewStep.css";
-import { ModalFooter } from "../../components/Modal.js";
 
 interface ReviewStepProps {
   /**
-   * Called once the project was created: the wizard is done. Never called on a
-   * failed attempt, so a failure can not navigate the user anywhere.
+   * Called with the created project: the assistant shows its success state
+   * (#268). Never called on a failed attempt, so a failure can not navigate
+   * the user anywhere.
    */
-  onSubmit?: (() => void) | undefined;
+  onSubmit?: ((project: Project) => void) | undefined;
 }
 
 /**
@@ -128,7 +130,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   const blockedReasons = reviewBlockedReasons(state, manifest);
   const ready = isReviewReady(state, manifest);
   const identity = state.inspection.gitIdentity;
-  const submitState = useReviewSubmit(() => onSubmit?.());
+  const submitState = useReviewSubmit((project) => onSubmit?.(project));
   const errorView = submitErrorView(submitState.error, manifest);
 
   const { name, id: projectId, description, workspacePath } = state.basics;
@@ -307,28 +309,17 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
         </div>
       )}
 
-      <ModalFooter>
-        <button
-          type="button"
-          id="btn-step-5-back"
-          className="btn-secondary"
-          onClick={prevStep}
-          disabled={submitState.isSubmitting}
-        >
-          ← {REVIEW_COPY.previous}
-        </button>
-        <button
-          type="button"
-          id="btn-step-5-submit"
-          className="btn-primary"
-          onClick={handleSubmit}
-          disabled={!ready || submitState.isSubmitting}
-        >
-          {submitState.isSubmitting
-            ? REVIEW_COPY.submitting
-            : REVIEW_COPY.submit}
-        </button>
-      </ModalFooter>
+      <WizardFooter
+        step={5}
+        onBack={prevStep}
+        onNext={handleSubmit}
+        nextId="btn-step-5-submit"
+        nextLabel={
+          submitState.isSubmitting ? REVIEW_COPY.submitting : REVIEW_COPY.submit
+        }
+        isNextDisabled={!ready}
+        isBusy={submitState.isSubmitting}
+      />
     </div>
   );
 }

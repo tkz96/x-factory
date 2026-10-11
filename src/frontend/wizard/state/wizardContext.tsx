@@ -25,6 +25,7 @@ import type {
   WizardStepNumber,
 } from "../types.js";
 import { canAdvanceFromRepositories } from "./repositoryRules.js";
+import { repositoryUrlError } from "./repositoryUrl.js";
 import { createInitialWizardState, wizardReducer } from "./wizardReducer.js";
 
 interface WizardContextValue {
@@ -32,11 +33,8 @@ interface WizardContextValue {
   dispatch: React.Dispatch<WizardAction>;
   isBasicsValid: boolean;
   canAdvance: boolean;
-  canGoBack: boolean;
-  isStepAccessible: (step: WizardStepNumber) => boolean;
   nextStep: () => void;
   prevStep: () => void;
-  goToStep: (step: WizardStepNumber) => void;
   resetWizard: () => void;
   updateBasics: (patch: Partial<WizardBasicsState>) => void;
   descriptors?: readonly ProviderDescriptor[] | undefined;
@@ -115,7 +113,13 @@ export function WizardProvider({
   const canAdvance = useMemo(() => {
     switch (state.step) {
       case 1:
-        return isBasicsValid;
+        // Step 1 is the repository URL plus the project's identity (#268):
+        // a well-formed URL, a name and an identifier. Which provider claims
+        // the URL is never a condition — the Connect step is where that is
+        // settled, by hand if the URL is one no provider recognises.
+        return (
+          isBasicsValid && repositoryUrlError(state.connect.quickUrl) === null
+        );
       case 2:
         return true; // Connect gates itself on verification; #143 owns the rule
       case 3:
@@ -131,15 +135,6 @@ export function WizardProvider({
         return false;
     }
   }, [state, isBasicsValid, descriptors]);
-
-  const canGoBack = state.step > 1;
-
-  const isStepAccessible = useCallback(
-    (step: WizardStepNumber) => {
-      return step <= state.maxStepVisited;
-    },
-    [state.maxStepVisited],
-  );
 
   const nextStep = useCallback(() => {
     if (!canAdvance) return;
@@ -166,24 +161,6 @@ export function WizardProvider({
     dispatch({ type: "PREV_STEP" });
   }, [state.step]);
 
-  const goToStep = useCallback(
-    (targetStep: WizardStepNumber) => {
-      // Prevent forward navigation to bypass step validation
-      if (!isStepAccessible(targetStep) || targetStep > state.step) return;
-      dispatch({ type: "SET_STEP", step: targetStep });
-      if (hasRequiredDescriptors(state.connect.providerConfigs)) {
-        saveWizardDraft(
-          {
-            ...state,
-            step: targetStep,
-          },
-          descriptors,
-        );
-      }
-    },
-    [isStepAccessible, state, descriptors, hasRequiredDescriptors],
-  );
-
   const resetWizard = useCallback(() => {
     dispatch({ type: "RESET_STATE" });
     clearWizardDraft();
@@ -199,11 +176,8 @@ export function WizardProvider({
       dispatch,
       isBasicsValid,
       canAdvance,
-      canGoBack,
-      isStepAccessible,
       nextStep,
       prevStep,
-      goToStep,
       resetWizard,
       updateBasics,
       descriptors,
@@ -212,11 +186,8 @@ export function WizardProvider({
       state,
       isBasicsValid,
       canAdvance,
-      canGoBack,
-      isStepAccessible,
       nextStep,
       prevStep,
-      goToStep,
       resetWizard,
       updateBasics,
       descriptors,

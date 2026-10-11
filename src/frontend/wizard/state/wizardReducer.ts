@@ -115,6 +115,19 @@ export function wizardReducer(
       };
     }
 
+    // The repository URL the first step collects (#268). It is the ONE field
+    // that survives a step change before any provider has claimed it, so a user
+    // who pastes a URL their providers do not recognise does not lose it.
+    case "SET_REPOSITORY_URL": {
+      return {
+        ...state,
+        connect: {
+          ...state.connect,
+          quickUrl: action.url,
+        },
+      };
+    }
+
     case "RECORD_VERIFICATION": {
       const { connect } = state;
       // THE staleness guard for a verification that came back late (correction
