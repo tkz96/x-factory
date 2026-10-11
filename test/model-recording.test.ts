@@ -114,6 +114,29 @@ describe("review attempts record their model", () => {
     ]);
   });
 
+  it("adds the review session's reported tokens to the attempt, priced from the model when the provider gives no cost", async () => {
+    seedRun("run-usage", "executing");
+    repos.runs.update("run-usage", { verification: VERIFICATION });
+
+    const executor = new ReviewExecutor({
+      resolveRole: async () => ({
+        ...testResolvedModel("reviewer"),
+        details: { inputPricePerMTok: 1, outputPricePerMTok: 2 },
+      }),
+      sessionFactory: async () => ({
+        ...scriptedReviewSession(PASSING_REVIEW_OUTPUT),
+        usage: () => ({ tokensIn: 1000, tokensOut: 200 }),
+      }),
+    });
+    await executeStage(repos, executor, "run-usage", "review");
+
+    const [use] = getRun(repos, "run-usage")?.stageModels ?? [];
+    expect(use?.tokensIn).toBe(1000);
+    expect(use?.tokensOut).toBe(200);
+    // (1000 × $1 + 200 × $2) per million tokens.
+    expect(use?.costUsd).toBeCloseTo(0.0014, 10);
+  });
+
   it("keeps the model it ran on after Settings change", async () => {
     seedRun("run-history", "executing");
     const attempt = repos.stageAttempts.recordStart("run-history", "review", 1);
