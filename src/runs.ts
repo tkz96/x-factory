@@ -404,6 +404,22 @@ export async function createPR(
   return tx();
 }
 
+/**
+ * Where a resume goes: the route out of recovery_required, the stage it
+ * re-enters and the model role that stage calls (null when it calls none).
+ * Resolved once before the model lookup and again inside the transaction,
+ * because the attempts can change between the two.
+ */
+function resolveResumeTarget(attempts: ReadonlyArray<{ stage: string }>) {
+  const stages = attempts.map((attempt) => attempt.stage);
+  const route = resumeRouteFor(stages);
+  const targetStage = resumeStageName(stages);
+  const targetRole =
+    modelRoleForStage(targetStage) ??
+    (route.jobStage ? modelRoleForStage(route.jobStage) : null);
+  return { route, targetStage, targetRole };
+}
+
 export async function resumeRun(
   repos: Repositories,
   id: string,
@@ -420,16 +436,9 @@ export async function resumeRun(
 
   verifyRecoveryRequired(runRepo, id, "resume");
 
-  const preliminaryAttempts = stageAttemptRepo.listForRun(id);
-  const preliminaryStages = preliminaryAttempts.map((attempt) => attempt.stage);
-  const preliminaryRoute = resumeRouteFor(preliminaryStages);
-
-  const preliminaryTargetStage = resumeStageName(preliminaryStages);
-  const preliminaryTargetRole =
-    modelRoleForStage(preliminaryTargetStage) ??
-    (preliminaryRoute.jobStage
-      ? modelRoleForStage(preliminaryRoute.jobStage)
-      : null);
+  const preliminaryTargetRole = resolveResumeTarget(
+    stageAttemptRepo.listForRun(id),
+  ).targetRole;
   let resolved: ResolvedModel | undefined;
   if (preliminaryTargetRole) {
     const resolver = options?.resolveRole ?? resolveRole;
@@ -446,13 +455,9 @@ export async function resumeRun(
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, "resume");
 
-    const attempts = stageAttemptRepo.listForRun(id);
-    const attemptStages = attempts.map((attempt) => attempt.stage);
-    const route = resumeRouteFor(attemptStages);
-    const targetStage = resumeStageName(attemptStages);
-    const targetRole =
-      modelRoleForStage(targetStage) ??
-      (route.jobStage ? modelRoleForStage(route.jobStage) : null);
+    const { route, targetStage, targetRole } = resolveResumeTarget(
+      stageAttemptRepo.listForRun(id),
+    );
 
     if (targetRole && resolved) {
       try {

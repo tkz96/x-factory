@@ -51,6 +51,46 @@ export function rowToEventRecord(row: EventRow): EventRecord {
   } as EventRecord;
 }
 
+/** The notification-relevant event types the app-wide stream carries. */
+const APP_EVENT_TYPES = ["status", "pr_step"] as const;
+
+/**
+ * The 12 columns of an event joined to its run, shared by every app-wide read
+ * so the three queries and `joinedRowToEnvelope` cannot drift apart.
+ */
+const JOINED_EVENT_SELECT = `SELECT
+        e.id,
+        e.run_id,
+        e.sequence,
+        e.type,
+        e.payload,
+        e.created_at,
+        r.project_id,
+        r.project_name,
+        r.ticket_id,
+        r.ticket_title,
+        r.ticket_description,
+        r.ticket_acceptance_criteria
+      FROM run_events e
+      JOIN runs r ON e.run_id = r.id`;
+
+/** Placeholder names (`$status0`, `$status1`, …) for an IN list. */
+function placeholders(values: Iterable<string>, prefix: string): string[] {
+  return Array.from(values, (_, index) => `$${prefix}${index}`);
+}
+
+/** The parameter bindings that match `placeholders` for the same list. */
+function bindList(
+  values: Iterable<string>,
+  prefix: string,
+): Record<string, string> {
+  const bound: Record<string, string> = {};
+  Array.from(values).forEach((value, index) => {
+    bound[`$${prefix}${index}`] = value;
+  });
+  return bound;
+}
+
 export class EventRepository {
   constructor(private db: Database) {}
 
@@ -169,29 +209,21 @@ export class EventRepository {
    * than sinceId (#257). Selects status and pr_step types from existing payload map.
    */
   getAppEventsSince(sinceId: number, limit?: number): AppEventEnvelope[] {
-    const limitClause = typeof limit === "number" ? `LIMIT ${limit}` : "";
+    const limitClause = typeof limit === "number" ? "LIMIT $limit" : "";
     const query = `
-      SELECT
-        e.id,
-        e.run_id,
-        e.sequence,
-        e.type,
-        e.payload,
-        e.created_at,
-        r.project_id,
-        r.project_name,
-        r.ticket_id,
-        r.ticket_title,
-        r.ticket_description,
-        r.ticket_acceptance_criteria
-      FROM run_events e
-      JOIN runs r ON e.run_id = r.id
-      WHERE e.id > $sinceId AND e.type IN ('status', 'pr_step')
+      ${JOINED_EVENT_SELECT}
+      WHERE e.id > $sinceId AND e.type IN (${placeholders(APP_EVENT_TYPES, "type").join(", ")})
       ORDER BY e.id ASC
       ${limitClause};
     `;
-    const stmt = this.db.prepare<JoinedEventRow, { $sinceId: number }>(query);
-    const rows = stmt.all({ $sinceId: sinceId });
+    const params: Record<string, string | number> = {
+      $sinceId: sinceId,
+      ...bindList(APP_EVENT_TYPES, "type"),
+    };
+    if (typeof limit === "number") params.$limit = limit;
+    const rows = this.db
+      .prepare<JoinedEventRow, typeof params>(query)
+      .all(params);
     return rows.map(joinedRowToEnvelope);
   }
 
@@ -201,24 +233,8 @@ export class EventRepository {
    */
   getNeedsYouTriggerEvents(cursor: number): AppEventEnvelope[] {
     const query = `
-      SELECT
-        e.id,
-        e.run_id,
-        e.sequence,
-        e.type,
-        e.payload,
-        e.created_at,
-        r.project_id,
-        r.project_name,
-        r.ticket_id,
-        r.ticket_title,
-        r.ticket_description,
-        r.ticket_acceptance_criteria
-      FROM run_events e
-      JOIN runs r ON e.run_id = r.id
-      WHERE r.status IN (${Array.from(NEEDS_YOU_RUN_STATUSES)
-        .map((s) => `'${s}'`)
-        .join(", ")})
+      ${JOINED_EVENT_SELECT}
+      WHERE r.status IN (${placeholders(NEEDS_YOU_RUN_STATUSES, "status").join(", ")})
         AND e.type = 'status'
         AND e.id <= $cursor
         AND e.id = (
@@ -228,8 +244,13 @@ export class EventRepository {
         )
       ORDER BY e.id ASC;
     `;
-    const stmt = this.db.prepare<JoinedEventRow, { $cursor: number }>(query);
-    const rows = stmt.all({ $cursor: cursor });
+    const params: Record<string, string | number> = {
+      $cursor: cursor,
+      ...bindList(NEEDS_YOU_RUN_STATUSES, "status"),
+    };
+    const rows = this.db
+      .prepare<JoinedEventRow, typeof params>(query)
+      .all(params);
     return rows.map(joinedRowToEnvelope);
   }
 
@@ -243,41 +264,23 @@ export class EventRepository {
     limit = 100,
   ): AppEventEnvelope[] {
     const query = `
-      SELECT
-        e.id,
-        e.run_id,
-        e.sequence,
-        e.type,
-        e.payload,
-        e.created_at,
-        r.project_id,
-        r.project_name,
-        r.ticket_id,
-        r.ticket_title,
-        r.ticket_description,
-        r.ticket_acceptance_criteria
-      FROM run_events e
-      JOIN runs r ON e.run_id = r.id
+      ${JOINED_EVENT_SELECT}
       WHERE e.id <= $cursor
         AND e.type = 'status'
-        AND json_extract(e.payload, '$.status') IN (${Array.from(
-          TERMINAL_RUN_STATUSES,
-        )
-          .map((s) => `'${s}'`)
-          .join(", ")})
+        AND json_extract(e.payload, '$.status') IN (${placeholders(TERMINAL_RUN_STATUSES, "status").join(", ")})
         AND e.created_at >= $sevenDaysAgo
       ORDER BY e.id DESC
       LIMIT $limit;
     `;
-    const stmt = this.db.prepare<
-      JoinedEventRow,
-      { $cursor: number; $sevenDaysAgo: string; $limit: number }
-    >(query);
-    const rows = stmt.all({
+    const params: Record<string, string | number> = {
       $cursor: cursor,
       $sevenDaysAgo: sevenDaysAgo,
       $limit: limit,
-    });
+      ...bindList(TERMINAL_RUN_STATUSES, "status"),
+    };
+    const rows = this.db
+      .prepare<JoinedEventRow, typeof params>(query)
+      .all(params);
     return rows.reverse().map(joinedRowToEnvelope);
   }
 }
