@@ -371,6 +371,24 @@
   cursor: not-allowed;
 }
 
+/* The count after a segment's label (#259): a quiet pill, not a second action. */
+.ui-segment-count {
+  min-width: var(--space-5);
+  padding: 0 var(--space-1-5);
+  font-size: var(--text-caption-1);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--space-5);
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+}
+
+.ui-segment[data-selected] .ui-segment-count {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
 /* ── Switch ─────────────────────────────────────────────────────────────── */
 
 .ui-switch-group {

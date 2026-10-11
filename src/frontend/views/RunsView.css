@@ -32,3 +32,21 @@
 .run-card-subtitle {
   font-size: var(--text-footnote);
 }
+
+.run-card-key {
+  display: block;
+  margin-bottom: var(--space-0-5);
+}
+
+.run-card-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.run-card-time {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}

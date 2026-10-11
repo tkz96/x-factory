@@ -16,14 +16,17 @@ import {
   ProjectProvider,
   useCurrentProject,
 } from "../context/ProjectContext.js";
+import { useAppEvents } from "../hooks/useAppEvents.js";
 import {
   useReadiness,
   useRun,
+  useRuns,
   useSaveSettings,
   useSettings,
   useStopRun,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import { countRunsByFilter } from "../lib/runs-list.js";
 import {
   formatShortcut,
   getShortcut,
@@ -263,6 +266,8 @@ interface AppShellHeaderProps {
     | undefined;
   section: SectionId | "";
   onSelectSection: (id: string) => void;
+  /** Runs in a Needs-you status: the Runs segment's count (#259). */
+  needsYouCount: number;
   onToggleTheme: () => void;
   readyLabel: string;
   activeRunId: string | undefined;
@@ -288,6 +293,7 @@ function AppShellHeader({
   docBreadcrumb,
   section,
   onSelectSection,
+  needsYouCount,
   onToggleTheme,
   readyLabel,
   activeRunId,
@@ -371,7 +377,12 @@ function AppShellHeader({
           label={SECTIONS_LABEL}
           value={section}
           onChange={onSelectSection}
-          options={SECTIONS.map((s) => ({ id: s.id, label: s.label }))}
+          options={SECTIONS.map((s) => ({
+            id: s.id,
+            label: s.label,
+            count:
+              s.id === "runs" && needsYouCount > 0 ? needsYouCount : undefined,
+          }))}
           className="toolbar-sections desktop-only"
         />
       )}
@@ -445,7 +456,7 @@ function AppShellHeader({
   );
 }
 
-function AppShellMobileTabBar() {
+function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
   return (
     <nav
       id="mobile-tab-bar"
@@ -462,6 +473,9 @@ function AppShellMobileTabBar() {
             <use href={`/assets/icons/sprite.svg#${section.icon}`} />
           </svg>
           <span>{section.label}</span>
+          {section.id === "runs" && needsYouCount > 0 && (
+            <span className="tab-count">{needsYouCount}</span>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -498,6 +512,15 @@ function AppShellContent() {
     saveSettings.mutate({ appearance: toggleTheme() });
   };
   const stopRunMutation = useStopRun();
+  // The app-wide stream keeps the runs cache live on every screen (#257), so the
+  // Runs badge and the tab title follow a run from any section (#259).
+  useAppEvents();
+  const { data: runsList } = useRuns();
+  const needsYouCount = countRunsByFilter(runsList ?? [])["needs-you"];
+  useEffect(() => {
+    document.title =
+      needsYouCount > 0 ? `(${needsYouCount}) X-Factory` : "X-Factory";
+  }, [needsYouCount]);
 
   const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
   const runId = runIdMatch ? runIdMatch[1] : undefined;
@@ -606,6 +629,7 @@ function AppShellContent() {
           docBreadcrumb={docBreadcrumb}
           section={section}
           onSelectSection={(id) => navigate(`/${id}`)}
+          needsYouCount={needsYouCount}
           onToggleTheme={handleToggleTheme}
           readyLabel={readyLabel}
           activeRunId={activeRunId}
@@ -637,7 +661,7 @@ function AppShellContent() {
         </div>
       </main>
 
-      <AppShellMobileTabBar />
+      <AppShellMobileTabBar needsYouCount={needsYouCount} />
       <ModalContainer />
       <CommandPalette
         isOpen={paletteOpen}
