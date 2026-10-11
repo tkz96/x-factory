@@ -17,7 +17,14 @@ import {
   mock,
 } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
+import { MODEL_CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ModelConnectionsPanel } from "../src/frontend/components/settings/ModelConnectionsPanel.js";
 import { api } from "../src/frontend/lib/api-client.js";
 import type {
@@ -230,7 +237,16 @@ describe("ModelConnectionsPanel (#277)", () => {
 
     await click(el("btn-delete-model-connection-c1"));
     expect(remove).not.toHaveBeenCalled();
-    await click(el("btn-confirm-delete-model-connection-c1"));
+    // The alert dialog's own confirm action carries the words, not an id.
+    const alert = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement | null;
+    if (!alert) throw new Error("alertdialog missing");
+    await click(
+      within(alert).getByRole("button", {
+        name: MODEL_CONNECTIONS_COPY.confirmDelete,
+      }),
+    );
     expect(remove).toHaveBeenCalledWith("c1");
   });
 

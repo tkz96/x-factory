@@ -6,7 +6,7 @@
 
 import "./ModelConnectionsPanel.css";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   MODEL_API_TYPES,
   type ModelApiType,
@@ -16,7 +16,6 @@ import {
   type ModelRecord,
   type ModelRecordPatch,
 } from "../../../shared/model-connection-types.js";
-import { useDialogFocus } from "../../hooks/useDialogFocus.js";
 import {
   useModelConnectionMutations,
   useModelConnections,
@@ -25,6 +24,8 @@ import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { MODEL_CONNECTIONS_COPY as COPY } from "../feedback/copy-map.js";
 import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
+import { AlertDialog } from "../overlays/index.js";
+import { Button } from "../ui/Button.js";
 
 type Mutations = ReturnType<typeof useModelConnectionMutations>;
 
@@ -138,17 +139,18 @@ function ConnectionForm({
         <FeedbackBanner tone="error" message={errorText(saving.error)} />
       )}
       <div className="model-actions">
-        <button type="button" className="btn-secondary btn-sm" onClick={onDone}>
+        <Button variant="secondary" size="sm" onPress={onDone}>
           {COPY.cancel}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
           id="btn-save-model-connection"
-          className="btn-primary btn-sm"
-          disabled={saving.isPending}
+          variant="primary"
+          size="sm"
+          isDisabled={saving.isPending}
         >
           {COPY.save}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -288,10 +290,10 @@ function ModelDetailsForm({
         ))}
       </div>
       <div className="model-actions">
-        <button
-          type="button"
-          className="btn-secondary btn-sm"
-          onClick={() =>
+        <Button
+          variant="secondary"
+          size="sm"
+          onPress={() =>
             mutations.removeModel.mutate({
               id: connectionId,
               modelId: model.modelId,
@@ -299,89 +301,22 @@ function ModelDetailsForm({
           }
         >
           {COPY.removeModel}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
           id={`btn-save-${prefix}`}
-          className="btn-primary btn-sm"
-          disabled={mutations.updateModel.isPending}
+          variant="primary"
+          size="sm"
+          isDisabled={mutations.updateModel.isPending}
         >
           {COPY.saveModel}
-        </button>
+        </Button>
       </div>
     </form>
   );
 }
 
 // ─── One connection ────────────────────────────────────────────────────────
-
-// ─── Delete confirmation ───────────────────────────────────────────────────
-
-/**
- * The inline "delete this connection?" confirmation (#245). It is an
- * alertdialog: focus moves in, Escape cancels, focus returns to the Delete
- * button, and the question and its title are both announced. It stays inline —
- * the surrounding card is still visible, so `useDialogFocus` has nothing
- * outside the dialog to make inert here.
- */
-function ConfirmDelete({
-  id,
-  name,
-  onCancel,
-  onConfirm,
-}: {
-  id: string;
-  name: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDialogFocus(ref);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCancel]);
-
-  return (
-    <div
-      ref={ref}
-      tabIndex={-1}
-      className="model-confirm"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby={`model-confirm-title-${id}`}
-      aria-describedby={`model-confirm-question-${id}`}
-    >
-      <h4 id={`model-confirm-title-${id}`} className="model-confirm-title">
-        {COPY.confirmDelete}
-      </h4>
-      <p id={`model-confirm-question-${id}`}>
-        {COPY.confirmDeleteQuestion(name)}
-      </p>
-      <div className="model-actions">
-        <button
-          type="button"
-          className="btn-secondary btn-sm"
-          onClick={onCancel}
-        >
-          {COPY.cancel}
-        </button>
-        <button
-          type="button"
-          id={`btn-confirm-delete-model-connection-${id}`}
-          className="btn-danger btn-sm"
-          onClick={onConfirm}
-        >
-          {COPY.confirmDelete}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function ConnectionCard({
   connection,
@@ -448,40 +383,42 @@ function ConnectionCard({
       </div>
 
       <div className="model-actions model-actions--start">
-        <button
-          type="button"
+        <Button
           id={`btn-check-model-connection-${id}`}
-          className="btn-primary btn-sm"
-          disabled={checking}
-          onClick={check}
+          variant="primary"
+          size="sm"
+          isDisabled={checking}
+          onPress={check}
         >
           {checking ? COPY.checking : COPY.check}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary btn-sm"
-          onClick={() => setEditing(true)}
-        >
+        </Button>
+        <Button variant="secondary" size="sm" onPress={() => setEditing(true)}>
           {COPY.edit}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           id={`btn-delete-model-connection-${id}`}
-          className="btn-secondary btn-sm"
-          onClick={() => setConfirmingDelete(true)}
+          variant="secondary"
+          size="sm"
+          onPress={() => setConfirmingDelete(true)}
         >
           {COPY.delete}
-        </button>
+        </Button>
       </div>
 
-      {confirmingDelete && (
-        <ConfirmDelete
-          id={id}
-          name={connection.name}
-          onCancel={() => setConfirmingDelete(false)}
-          onConfirm={() => mutations.remove.mutate(id)}
-        />
-      )}
+      {/* Destructive confirmation (#250): the alert dialog owns the focus trap,
+          the overlay stack's Escape and the closing motion, so the card keeps
+          no hand-built dialog of its own. */}
+      <AlertDialog
+        id={`model-confirm-${id}`}
+        isOpen={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title={COPY.confirmDelete}
+        description={COPY.confirmDeleteQuestion(connection.name)}
+        confirmText={COPY.confirmDelete}
+        cancelText={COPY.cancel}
+        variant="danger"
+        onConfirm={() => mutations.remove.mutate(id)}
+      />
 
       {checkResult && !checkResult.ok && (
         <FeedbackBanner tone="error" message={checkResult.error.message} />
@@ -500,17 +437,17 @@ function ConnectionCard({
                     <code className="model-found-id">{model.id}</code>
                   )}
                 </span>
-                <button
-                  type="button"
+                <Button
                   id={`btn-add-model-${id}-${model.id}`}
-                  className="btn-secondary btn-sm"
-                  disabled={chosen.has(model.id)}
-                  onClick={() =>
+                  variant="secondary"
+                  size="sm"
+                  isDisabled={chosen.has(model.id)}
+                  onPress={() =>
                     mutations.addModel.mutate({ id, modelId: model.id })
                   }
                 >
                   {chosen.has(model.id) ? COPY.added : COPY.addModel}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -554,14 +491,14 @@ export function ModelConnectionsPanel() {
           <p className="text-muted">{COPY.subtitle}</p>
         </div>
         {!adding && (
-          <button
-            type="button"
+          <Button
             id="btn-add-model-connection"
-            className="btn-primary btn-sm"
-            onClick={() => setAdding(true)}
+            variant="primary"
+            size="sm"
+            onPress={() => setAdding(true)}
           >
             {COPY.add}
-          </button>
+          </Button>
         )}
       </div>
 
