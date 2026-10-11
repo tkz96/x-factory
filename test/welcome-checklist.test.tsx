@@ -201,14 +201,6 @@ const COMPLETE: WelcomeState = {
   roles: ROLES,
 };
 
-/** The four endpoints the checklist's read region asks, once each. */
-const SETUP_PATHS = [
-  "/api/projects",
-  "/api/runs",
-  "/api/settings",
-  "/api/model-connections",
-];
-
 describe("the first-run checklist (#269)", () => {
   it("lists the three steps, none of them ticked, and names what each still needs", () => {
     const view = renderWelcome();
@@ -386,11 +378,20 @@ describe("the welcome's read region (#269)", () => {
     expect(view.queryAllByRole("listitem")).toHaveLength(0);
   });
 
-  it("shows the canonical error with a retry, which asks every part again", async () => {
-    const requested: string[] = [];
+  it("shows the canonical error, then brings every part of the setup back through its retry", async () => {
+    // The setup cannot be read until the retry: every part fails first, and
+    // every part answers afterwards. The checklist can only appear if the
+    // retry asked all four again — one lazy part would leave the region down.
+    let readable = false;
+    const asked: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
-      requested.push(String(input));
-      return new Response("not json", { status: 500 });
+      const url = String(input);
+      asked.push(url);
+      if (!readable) return new Response("not json", { status: 500 });
+      return new Response(url.includes("/api/settings") ? "{}" : "[]", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     }) as unknown as typeof fetch;
 
     const client = new QueryClient({
@@ -404,17 +405,17 @@ describe("the welcome's read region (#269)", () => {
     expect(alert.textContent).not.toContain("not json");
     expect(view.queryAllByRole("listitem")).toHaveLength(0);
 
-    // The retry asks every part of the setup again, never just one of them.
-    const asked = (path: string) =>
-      requested.filter((url) => url.startsWith(path)).length;
-    await waitFor(() => expect(SETUP_PATHS.map(asked)).toEqual([1, 1, 1, 1]));
-
-    // Let the first burst settle: a refetch of a request still in flight is
+    // Let the first burst settle: retrying a request still in flight would be
     // the in-flight one, not a new ask.
     await waitFor(() => expect(client.isFetching()).toBe(0));
+    readable = true;
     fireEvent.click(view.getByRole("button", { name: STATE_COPY.retry }));
 
-    await waitFor(() => expect(SETUP_PATHS.map(asked)).toEqual([2, 2, 2, 2]));
+    await waitFor(() => expect(stepRows(view)).toHaveLength(3));
+    expect(view.queryByRole("alert")).toBeNull();
+    expect(ticked(view)).toEqual([false, false, false]);
+    expect(asked).toContain("/api/projects");
+    expect(asked).toContain("/api/model-connections");
   });
 });
 
