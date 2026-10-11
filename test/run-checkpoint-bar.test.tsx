@@ -6,7 +6,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunNowHeader } from "../src/frontend/components/runs/RunNowHeader.js";
@@ -15,11 +15,7 @@ import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
 import { allowedActionsFor } from "../src/shared/run-status-policy.js";
 import type { Run, RunStatus } from "../src/shared/types.js";
 
-afterEach(() => {
-  // Blur before unmounting, so no focus is left on a removed button for the next file.
-  (document.activeElement as HTMLElement | null)?.blur?.();
-  cleanup();
-});
+afterEach(cleanup);
 afterAll(async () => {
   await unregisterHappyDom();
 });
@@ -151,7 +147,8 @@ describe("the checkpoint bar offers exactly the actions the status allows", () =
 
 describe("pressing a checkpoint action", () => {
   it("reports the action it was pressed for", () => {
-    const onAction = mock(() => {});
+    const actions: string[] = [];
+    const onAction = (action: string) => actions.push(action);
     const { container } = render(
       <RunCheckpointBar
         status="awaiting_plan_approval"
@@ -163,11 +160,11 @@ describe("pressing a checkpoint action", () => {
     fireEvent.click(
       within(container).getByRole("button", { name: "Approve Plan" }),
     );
-    expect(onAction).toHaveBeenCalledWith("approve");
+    expect(actions).toContain("approve");
     fireEvent.click(
       within(container).getByRole("button", { name: "Request Changes" }),
     );
-    expect(onAction).toHaveBeenLastCalledWith("restart");
+    expect(actions.at(-1)).toBe("restart");
   });
 
   it("shows the pending label on the pressed action and disables its siblings", () => {
@@ -206,7 +203,8 @@ describe("pressing a checkpoint action", () => {
   });
 
   it("opens a new run for a terminal ticket through the start-new-run command", () => {
-    const onAction = mock(() => {});
+    const actions: string[] = [];
+    const onAction = (action: string) => actions.push(action);
     const { container } = render(
       <RunCheckpointBar
         status="failed"
@@ -218,7 +216,7 @@ describe("pressing a checkpoint action", () => {
     fireEvent.click(
       within(container).getByRole("button", { name: "Start New Run" }),
     );
-    expect(onAction).toHaveBeenCalledWith("start-new-run");
+    expect(actions).toContain("start-new-run");
   });
 });
 

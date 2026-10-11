@@ -15,8 +15,6 @@ import {
 import type { Run, RunStatus } from "../src/shared/types.js";
 
 afterEach(() => {
-  // Blur before unmounting, so no focus is left on a removed button for the next file.
-  (document.activeElement as HTMLElement | null)?.blur?.();
   cleanup();
 });
 afterAll(async () => {

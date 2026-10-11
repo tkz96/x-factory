@@ -13,7 +13,6 @@ import {
   describe,
   expect,
   it,
-  mock,
 } from "bun:test";
 import {
   act,
@@ -27,8 +26,6 @@ import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 afterEach(() => {
-  // Blur before unmounting, so no focus is left on a removed button for the next file.
-  (document.activeElement as HTMLElement | null)?.blur?.();
   cleanup();
 });
 afterAll(async () => {
@@ -258,7 +255,8 @@ describe("scroll position and Jump to latest", () => {
 
 describe("approval actions follow the status map and the policy", () => {
   it("offers the map's labels on each gate, and Approved on click", () => {
-    const onAction = mock(() => {});
+    const actions: string[] = [];
+    const onAction = (action: string) => actions.push(action);
     const { container } = render(
       <RunChat
         run={makeRun("awaiting_plan_approval")}
@@ -273,7 +271,7 @@ describe("approval actions follow the status map and the policy", () => {
       within(container).getByRole("button", { name: "Request Changes" }),
     ).toBeTruthy();
     fireEvent.click(approve);
-    expect(onAction).toHaveBeenCalledWith("approve");
+    expect(actions).toContain("approve");
     expect(container.textContent).toContain("Approved");
   });
 
