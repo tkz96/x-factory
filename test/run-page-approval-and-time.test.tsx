@@ -109,8 +109,7 @@ describe("run chat words come from the one status map (#253)", () => {
       const { container } = render(
         <RunChat run={makeRun(status)} events={[]} />,
       );
-      const header = container.querySelector(".run-chat-meta");
-      expect(within(header as HTMLElement).getByText(ui.header)).toBeTruthy();
+      expect(within(container).getByText(ui.header)).toBeTruthy();
       expect(container.textContent).toContain(ui.now);
       const input = within(container).getByRole("textbox") as HTMLInputElement;
       expect(input.placeholder).toBe(ui.placeholder);

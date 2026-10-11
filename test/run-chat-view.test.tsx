@@ -6,7 +6,15 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import {
   act,
   cleanup,
@@ -389,5 +397,199 @@ describe("every kind of run event reads as its own line", () => {
     expect(
       within(log(container)).getByText("Running without a sandbox."),
     ).toBeTruthy();
+  });
+});
+
+describe("the composer: multi-line, keyboard-first, honest about failures (#263)", () => {
+  const realFetch = globalThis.fetch;
+  let calls: Array<{ url: string; body: string }>;
+  let respond: () => Promise<Response>;
+
+  beforeEach(() => {
+    calls = [];
+    respond = async () =>
+      new Response(JSON.stringify({ ok: true, message: "Because." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), body: String(init?.body ?? "") });
+      return respond();
+    }) as unknown as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  function typeInto(el: HTMLElement, value: string) {
+    act(() => {
+      el.focus();
+      fireEvent.change(el, { target: { value } });
+      fireEvent.keyUp(el);
+    });
+  }
+
+  function composer(container: HTMLElement) {
+    return within(container).getByRole("textbox", {
+      name: "Message",
+    }) as HTMLTextAreaElement;
+  }
+
+  it("offers no Start Chat gate on any status", () => {
+    for (const status of [
+      "planning",
+      "executing",
+      "awaiting_plan_approval",
+    ] as RunStatus[]) {
+      const { container, unmount } = render(
+        <RunChat run={makeRun(status)} events={[]} />,
+      );
+      expect(
+        within(container).queryByRole("button", { name: /start chat/i }),
+      ).toBeNull();
+      unmount();
+    }
+  });
+
+  it("sends on Return, adds a line on Shift-Return, and sends on Mod-Enter", async () => {
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    const field = composer(container);
+
+    typeInto(field, "First line");
+    let shiftNotPrevented = true;
+    act(() => {
+      shiftNotPrevented = fireEvent.keyDown(field, {
+        key: "Enter",
+        shiftKey: true,
+      });
+    });
+    expect(shiftNotPrevented).toBe(true);
+    expect(calls).toHaveLength(0);
+
+    typeInto(field, "Why this plan?");
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter" });
+    });
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({
+      message: "Why this plan?",
+    });
+
+    typeInto(field, "Second question");
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+    });
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(calls[1]?.body ?? "{}")).toEqual({
+      message: "Second question",
+    });
+  });
+
+  it("shows a typing indicator while the reply is pending, and removes it when the reply lands", async () => {
+    let finish: () => void = () => {};
+    respond = () =>
+      new Promise<Response>((resolve) => {
+        finish = () =>
+          resolve(
+            new Response(JSON.stringify({ ok: true, message: "Because." }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+      });
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    typeInto(composer(container), "Why?");
+    await act(async () => {
+      fireEvent.submit(composer(container).closest("form") as HTMLFormElement);
+    });
+    expect(
+      within(container).getByRole("status", { name: "The agent is replying" }),
+    ).toBeTruthy();
+
+    await act(async () => {
+      finish();
+    });
+    expect(
+      within(container).queryByRole("status", {
+        name: "The agent is replying",
+      }),
+    ).toBeNull();
+  });
+
+  it("shows a refused reply as a system line with Retry, and Retry only re-sends the message", async () => {
+    respond = async () =>
+      new Response(
+        JSON.stringify({
+          ok: false,
+          message:
+            "Couldn't reach the model: Builder has no model. Choose a model in Settings › Models.",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    typeInto(composer(container), "Why this plan?");
+    await act(async () => {
+      fireEvent.submit(composer(container).closest("form") as HTMLFormElement);
+    });
+
+    const alert = within(container).getByRole("alert");
+    expect(alert.textContent).toContain("Builder has no model");
+    expect(alert.textContent).not.toContain("trouble connecting");
+    expect(within(log(container)).queryByText("Why this plan?")).not.toBeNull();
+
+    respond = async () =>
+      new Response(JSON.stringify({ ok: true, message: "Because." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    await act(async () => {
+      fireEvent.click(within(container).getByRole("button", { name: "Retry" }));
+    });
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(calls[1]?.body ?? "{}")).toEqual({
+      message: "Why this plan?",
+    });
+    expect(within(log(container)).getAllByText("Why this plan?")).toHaveLength(
+      1,
+    );
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("offers Retry on a recorded failure, re-sending the message before it", async () => {
+    const events = [
+      ev(1, "chat_user", { text: "Why this plan?" }),
+      ev(2, "error", {
+        message: "The model is rate limited. Wait a moment, then Retry.",
+      }),
+    ];
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
+    );
+    const chat = within(log(container));
+    expect(
+      chat.getByText("The model is rate limited. Wait a moment, then Retry."),
+    ).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(chat.getByRole("button", { name: "Retry" }));
+    });
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({
+      message: "Why this plan?",
+    });
+  });
+
+  it("keeps the checkpoint bar directly above the message box", () => {
+    const { container } = render(
+      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+    );
+    const bar = within(container).getByRole("region", { name: "Next step" });
+    expect(bar.nextElementSibling?.tagName).toBe("FORM");
+    expect(bar.nextElementSibling?.contains(composer(container))).toBe(true);
   });
 });

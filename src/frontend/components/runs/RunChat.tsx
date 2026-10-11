@@ -2,7 +2,14 @@
 
 import "./RunChat.css";
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import {
   canRunAction,
@@ -155,6 +162,30 @@ function useScrollFollow(itemCount: number) {
   return { scrollRef, onScroll, unseen, jumpToLatest };
 }
 
+/** The line the reader sees when the model could not be reached at all (no event was recorded). */
+const UNREACHABLE_LINE = "Couldn't reach the model. Check Settings › Models.";
+
+/** A failed send, kept until it is retried or the server records its own failure event (#263). */
+interface SendFailure {
+  /** The message to re-send on Retry. */
+  text: string;
+  message: string;
+  /** How many error events the run had when the send started. */
+  errorsBefore: number;
+}
+
+/** The text of the nearest message the reader sent before `index`, or null. */
+function messageBefore(
+  items: readonly ChatItem[],
+  index: number,
+): string | null {
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (item?.kind === "message" && item.role === "user") return item.text;
+  }
+  return null;
+}
+
 export function RunChat({
   run,
   events,
@@ -166,19 +197,23 @@ export function RunChat({
 }: RunChatProps) {
   const now = useNow();
   const realItems = useMemo(() => mapEventsToChatItems(events), [events]);
+  const errorCount = realItems.filter((i) => i.kind === "error").length;
+  const errorCountRef = useRef(errorCount);
+  errorCountRef.current = errorCount;
 
   // Lines the reader made in this view, before the worker's own events arrive.
   const [localItems, setLocalItems] = useState<ChatItem[]>([]);
   const localCount = useRef(0);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [failure, setFailure] = useState<SendFailure | null>(null);
   const [reworkPrompt, setReworkPrompt] = useState(false);
   const [pendingRework, setPendingRework] = useState<string | null>(null);
   const [resolved, setResolved] = useState<string | null>(null);
   const [activeDiffFile, setActiveDiffFile] = useState<ParsedDiffFile | null>(
     null,
   );
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const parsedDiffFiles = useMemo(() => parseDiffToFiles(run.diff), [run.diff]);
 
@@ -218,6 +253,25 @@ export function RunChat({
 
   const scroll = useScrollFollow(items.length);
 
+  // Sends a message to the Builder. A refused or unreachable reply stays a system line with Retry.
+  const send = async (text: string, echo: boolean) => {
+    if (echo)
+      addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
+    setFailure(null);
+    const errorsBefore = errorCountRef.current;
+    setSending(true);
+    try {
+      const reply = await api.chatWithRun(run.id, text);
+      if (!reply.ok) {
+        setFailure({ text, message: reply.message, errorsBefore });
+      }
+    } catch {
+      setFailure({ text, message: UNREACHABLE_LINE, errorsBefore });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleAction = (action: ChatActionKind) => {
     if (action === "requeue") {
       setReworkPrompt(true);
@@ -241,32 +295,33 @@ export function RunChat({
     setResolved(resolvedTextFor(action, run.status));
   };
 
-  const handleSend = async (e: FormEvent) => {
-    e.preventDefault();
+  // Return and Mod-Enter send; Shift-Return is a new line.
+  const submitInput = () => {
     const text = input.trim();
-    if (!text || sending || !isApprovalGate) return;
+    if (!text || sending || !isApprovalGate || isTransitioning) return;
     setInput("");
-    addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
 
     if (reworkPrompt) {
+      addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
       setReworkPrompt(false);
       setPendingRework(text);
       return;
     }
 
-    setSending(true);
-    try {
-      await api.chatWithRun(run.id, text);
-    } catch {
-      addLocal((id, at) => ({
-        id,
-        at,
-        kind: "error",
-        text: "Couldn't reach the model. Check Settings › Models.",
-      }));
-    } finally {
-      setSending(false);
-    }
+    void send(text, true);
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    submitInput();
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    const withMod = e.metaKey || e.ctrlKey;
+    if (e.shiftKey && !withMod) return;
+    e.preventDefault();
+    submitInput();
   };
 
   const ui = runStatusUi(run.status);
@@ -280,6 +335,11 @@ export function RunChat({
   const gateActions = gateActionsFor(run.status).filter(
     (a) => a.action !== "approve" || canApprove,
   );
+  const showGate = !resolved && (pendingRework || gateActions.length > 0);
+
+  // The failure line shows until the run records its own error for it, which then takes its place.
+  const showFailure = failure !== null && errorCount <= failure.errorsBefore;
+  const canRetry = isApprovalGate && !sending && !isTransitioning;
 
   const openDiffFile = (file: DiffFileSummary) => {
     const found = parsedDiffFiles.find((f) => f.file === file.path);
@@ -292,6 +352,13 @@ export function RunChat({
       },
     );
   };
+
+  // A trailing error can be retried: the message sent before it goes again.
+  const lastIndex = items.length - 1;
+  const retryTextFor = (item: ChatItem): string | null =>
+    canRetry && item.kind === "error" && item.id === items[lastIndex]?.id
+      ? messageBefore(items, lastIndex)
+      : null;
 
   return (
     <div className="run-chat" id="understanding-chat">
@@ -314,15 +381,24 @@ export function RunChat({
           {rows.length === 0 && (
             <p className="run-chat-empty">Waiting for the first update…</p>
           )}
-          {rows.map((row) =>
-            row.kind === "item" ? (
-              <RunChatRow
-                key={row.item.id}
-                item={row.item}
-                now={now}
-                onOpenFile={openDiffFile}
-              />
-            ) : (
+          {rows.map((row) => {
+            if (row.kind === "item") {
+              const retryText = retryTextFor(row.item);
+              return (
+                <RunChatRow
+                  key={row.item.id}
+                  item={row.item}
+                  now={now}
+                  onOpenFile={openDiffFile}
+                  onRetry={
+                    retryText === null
+                      ? undefined
+                      : () => void send(retryText, false)
+                  }
+                />
+              );
+            }
+            return (
               <details key={row.id} className="run-chat-group">
                 <summary>{`${row.items.length} progress updates`}</summary>
                 {row.items.map((item) => (
@@ -334,38 +410,26 @@ export function RunChat({
                   />
                 ))}
               </details>
-            ),
+            );
+          })}
+          {showFailure && failure && (
+            <div className="run-chat-system run-chat-system-error" role="alert">
+              <span>{failure.message}</span>
+              {canRetry && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => void send(failure.text, false)}
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
           )}
           {resolved && (
             <div className="run-chat-system" data-kind="resolved">
               <span>{resolved}</span>
             </div>
-          )}
-          {!resolved && (pendingRework || gateActions.length > 0) && (
-            <section className="run-chat-gate" aria-label="Next step">
-              {pendingRework ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  isDisabled={Boolean(isTransitioning)}
-                  onPress={() => handleAction("confirm_rework")}
-                >
-                  Confirm Rework
-                </Button>
-              ) : (
-                gateActions.map((act) => (
-                  <Button
-                    key={act.action}
-                    variant={act.variant}
-                    size="sm"
-                    isDisabled={Boolean(isTransitioning)}
-                    onPress={() => handleAction(act.action)}
-                  >
-                    {act.label}
-                  </Button>
-                ))
-              )}
-            </section>
           )}
           {sending && (
             <div
@@ -388,15 +452,44 @@ export function RunChat({
         )}
       </div>
 
-      <form className="run-chat-input" onSubmit={handleSend}>
-        <input
+      {showGate && (
+        <section className="run-chat-gate" aria-label="Next step">
+          {pendingRework ? (
+            <Button
+              variant="primary"
+              size="sm"
+              isDisabled={Boolean(isTransitioning)}
+              onPress={() => handleAction("confirm_rework")}
+            >
+              Confirm Rework
+            </Button>
+          ) : (
+            gateActions.map((act) => (
+              <Button
+                key={act.action}
+                variant={act.variant}
+                size="sm"
+                isDisabled={Boolean(isTransitioning)}
+                onPress={() => handleAction(act.action)}
+              >
+                {act.label}
+              </Button>
+            ))
+          )}
+        </section>
+      )}
+
+      <form className="run-chat-input" onSubmit={handleSubmit}>
+        <textarea
           ref={inputRef}
           id="input-understanding-chat"
-          type="text"
+          aria-label="Message"
+          rows={1}
           placeholder={placeholderText}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={!isApprovalGate || sending || isTransitioning}
+          onKeyDown={handleKeyDown}
+          disabled={!isApprovalGate || isTransitioning}
         />
         <button
           type="submit"

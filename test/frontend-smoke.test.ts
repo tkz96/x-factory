@@ -16,7 +16,6 @@ import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBa
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
 import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
-import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
@@ -191,8 +190,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof ChatThread).toBe("function");
     });
 
-    it("RunChat and DiffModal export functional components and render cleanly", () => {
-      expect(typeof RunChat).toBe("function");
+    it("DiffModal renders its file and line counts (the run chat's behaviour is in run-chat-view)", () => {
       expect(typeof DiffModal).toBe("function");
 
       const diffModalHtml = renderToString(

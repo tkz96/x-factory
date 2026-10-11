@@ -253,11 +253,14 @@
 
 /* ── Gate actions, above the message box ───────────────────────────── */
 
+/* The checkpoint bar sits directly above the message box (#263). */
 .run-chat-gate {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0;
+  border-top: var(--border-width) solid var(--border-subtle);
 }
 
 .run-chat-jump {
@@ -327,17 +330,19 @@
 
 .run-chat-input {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-top: var(--border-width) solid var(--border-subtle);
   flex-shrink: 0;
 }
 
-.run-chat-input input {
+.run-chat-input textarea {
   flex: 1;
   min-width: 0;
   min-height: var(--tap-min);
+  max-height: 40vh;
+  resize: none;
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-input);
@@ -347,16 +352,16 @@
   font-size: var(--text-body);
 }
 
-.run-chat-input input:focus-visible {
+.run-chat-input textarea:focus-visible {
   outline: var(--border-width-indicator) solid var(--border-focus);
   outline-offset: 0;
 }
 
-.run-chat-input input:disabled {
+.run-chat-input textarea:disabled {
   opacity: 0.5;
 }
 
-.run-chat-input input::placeholder {
+.run-chat-input textarea::placeholder {
   color: var(--text-dim);
 }
 
