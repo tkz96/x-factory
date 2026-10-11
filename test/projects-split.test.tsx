@@ -448,6 +448,37 @@ describe("The project detail pane (#267)", () => {
   });
 });
 
+describe('Wording on the Projects screens (#267, CONTEXT.md "UI wording")', () => {
+  /** The words that must never reach a screen. */
+  const INTERNAL_VOCABULARY = /\b(operator|factory|ralph|pipeline)\b/i;
+
+  for (const path of ["/projects", "/projects/demo-app"]) {
+    it(`${path} never names the operator, the factory, Ralph or the pipeline`, () => {
+      const view = renderProjects(path, [
+        makeProject(),
+        makeProject({ id: "old", name: "Old App", archived: true }),
+      ]);
+
+      expect(view.container.textContent ?? "").not.toMatch(INTERNAL_VOCABULARY);
+    });
+  }
+
+  it("the action is Add Project, and the detail pane's three facts are its plain words", () => {
+    const shell = renderShell("/projects");
+    expect(
+      shell.getByRole("button", { name: PROJECTS_COPY.addProject }),
+    ).toBeTruthy();
+    cleanup();
+
+    const detail = renderProjects("/projects/demo-app", [makeProject()]);
+    expect([...factsOf(detail.container).keys()]).toEqual([
+      PROJECTS_COPY.repositoryFact,
+      PROJECTS_COPY.trackerFact,
+      PROJECTS_COPY.branchFact,
+    ]);
+  });
+});
+
 describe("Add Project is reachable from the Projects screens (#267)", () => {
   it("offers Add Project on the first run, and it opens the assistant", () => {
     const view = renderProjects("/projects", []);
