@@ -46,9 +46,9 @@ The finite state machine governs each run through discrete, sequential execution
 |---|---|---|
 | `queued` | Pending | Run is queued and waiting for a worker. |
 | `preparing` | Active | The worker creates the branch and initial Git worktree. |
-| `understanding` | Active | The worker (via Pi) inspects the codebase and extracts context. |
+| `understanding` | Active | The worker asks the Builder model, with the runtime's read-only repository tools, to summarise the ticket and name the files it concerns. A model failure fails the stage with its reason; no template understanding is written (#282). |
 | `awaiting_understanding_approval` | Checkpoint | Execution pauses for human review and chat regarding the extracted context. |
-| `planning` | Active | The worker generates the implementation plan and task list. |
+| `planning` | Active | The worker asks the Builder model for a concrete plan that names the files and tests it changes. A model failure fails the stage with its reason; no fallback plan is written (#282). |
 | `awaiting_plan_approval` | Checkpoint | Execution pauses for human review and chat regarding the plan. |
 | `executing` | Active | The Ralph Loop autonomously implements and verifies code, followed by an automated adversarial code review. |
 | `awaiting_review` | Checkpoint | Execution pauses for human code review of the execution results. |
