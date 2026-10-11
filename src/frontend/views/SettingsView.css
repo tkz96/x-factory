@@ -53,6 +53,8 @@
   animation: fadeIn var(--duration-fast) var(--ease-out);
 }
 
+/* The pane fade is opacity-only, so it is already the reduced-motion path: the
+   smoke gate only requires a reduced variant for keyframes that move (#252). */
 @keyframes fadeIn {
   from {
     opacity: 0;
