@@ -7,6 +7,7 @@
 import "./AlertDialog.css";
 
 import type { ReactNode } from "react";
+import { Button } from "../ui/Button.js";
 import { Dialog } from "./Dialog.js";
 
 export interface AlertDialogProps {
@@ -38,10 +39,6 @@ export function AlertDialog({
 }: AlertDialogProps) {
   const alertId = id ?? "alert-dialog";
   const descId = description ? `${alertId}-desc` : undefined;
-  const confirmClass =
-    variant === "danger"
-      ? "xf-alert-dialog-btn-danger btn-danger"
-      : "xf-alert-dialog-btn-primary btn-primary";
 
   return (
     <Dialog
@@ -66,25 +63,22 @@ export function AlertDialog({
 
       {children}
 
+      {/* The actions are the control vocabulary's (#251): the alert adds the
+          row, the block owns the surface, the press and the focus ring. */}
       <div className="xf-alert-dialog-actions">
-        <button
-          type="button"
-          className="xf-alert-dialog-btn xf-alert-dialog-btn-cancel btn-secondary"
-          onClick={onClose}
-        >
+        <Button variant="secondary" onPress={onClose}>
           {cancelText}
-        </button>
+        </Button>
         {onConfirm && (
-          <button
-            type="button"
-            className={`xf-alert-dialog-btn ${confirmClass}`}
-            onClick={() => {
+          <Button
+            variant={variant === "danger" ? "danger" : "primary"}
+            onPress={() => {
               onConfirm();
               onClose();
             }}
           >
             {confirmText}
-          </button>
+          </Button>
         )}
       </div>
     </Dialog>

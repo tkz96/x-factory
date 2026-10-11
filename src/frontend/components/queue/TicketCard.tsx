@@ -8,6 +8,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import type { TicketRunLink } from "../../lib/ticket-runs.js";
+import { Button } from "../ui/Button.js";
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -63,24 +64,25 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
         {activeRunId ? (
           <Link
             to={`/runs/${activeRunId}`}
-            className="btn-secondary btn-sm btn-start-ticket"
+            className="ui-button ui-button--secondary ui-button--sm btn-start-ticket"
             data-id={ticket.id}
             onClick={(e) => e.stopPropagation()}
           >
             Open Run
           </Link>
         ) : (
-          <button
-            type="button"
-            className="btn-primary btn-sm btn-start-ticket"
+          <Button
+            variant="primary"
+            size="sm"
+            className="btn-start-ticket"
             data-id={ticket.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSelect();
-            }}
+            onPress={handleSelect}
+            // The card around it is a press target too (#260): the button's own
+            // click must not reach it, or the run would open twice.
+            onClick={(event) => event.stopPropagation()}
           >
             {runLink.kind === "finished" ? "Start New Run" : "Start Run"}
-          </button>
+          </Button>
         )}
       </div>
 

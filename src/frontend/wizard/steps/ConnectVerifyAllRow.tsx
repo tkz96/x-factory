@@ -1,5 +1,6 @@
 // src/frontend/wizard/steps/ConnectVerifyAllRow.tsx — Verify All button row.
 
+import { Button } from "../../components/ui/Button.js";
 import "./ConnectStep.css";
 
 export interface ConnectVerifyAllRowProps {
@@ -17,12 +18,12 @@ export function ConnectVerifyAllRow({
 
   return (
     <div className="connect-verify-all-row">
-      <button
-        type="button"
+      <Button
         id="btn-verify-all"
-        className="btn-secondary btn-sm"
-        onClick={onVerifyAll}
-        disabled={isVerifying}
+        variant="secondary"
+        size="sm"
+        isDisabled={isVerifying}
+        onPress={onVerifyAll}
       >
         {isVerifying ? (
           <>
@@ -34,7 +35,7 @@ export function ConnectVerifyAllRow({
         ) : (
           "Verify All Connections"
         )}
-      </button>
+      </Button>
     </div>
   );
 }

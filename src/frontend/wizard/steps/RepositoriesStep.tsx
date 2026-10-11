@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
+import { Button } from "../../components/ui/Button.js";
 import { WizardFooter } from "../shared/WizardFooter.js";
 import { filterAndOrderRepositories } from "./repository-filter.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
@@ -199,14 +200,14 @@ export function RepositoriesStep() {
                 message={REPOSITORIES_COPY.staleSelection}
               />
               <div className="repositories-stale-actions">
-                <button
-                  type="button"
+                <Button
                   id="btn-repositories-restart-selection"
-                  className="btn-secondary btn-sm"
-                  onClick={restartSelection}
+                  variant="secondary"
+                  size="sm"
+                  onPress={restartSelection}
                 >
                   {REPOSITORIES_COPY.staleSelectionAction}
-                </button>
+                </Button>
               </div>
             </div>
           )}

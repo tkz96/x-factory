@@ -22,6 +22,7 @@ import {
   ModalOverlay as RACModalOverlay,
 } from "react-aria-components";
 import { useScrollLock } from "../../hooks/useScrollLock.js";
+import { IconButton } from "../ui/IconButton.js";
 import {
   useFocusTrap,
   useInertBackground,
@@ -248,17 +249,15 @@ export function DialogCloseButton({
   className?: string;
 }) {
   const context = useContext(DialogContext);
+  // The close control is the icon-button block (#251): it carries the
+  // accessible name, and `--tap-min` size it had lost.
   return (
-    <button
-      type="button"
+    <IconButton
       id={id}
-      className={`xf-dialog-close-btn btn-close ${className ?? ""}`.trim()}
-      aria-label={ariaLabel}
-      onClick={onClose ?? context.onClose}
-    >
-      <svg className="icon icon-xs" aria-hidden="true">
-        <use href="/assets/icons/sprite.svg#icon-x" />
-      </svg>
-    </button>
+      label={ariaLabel}
+      icon="icon-x"
+      className={className}
+      onPress={onClose ?? context.onClose}
+    />
   );
 }

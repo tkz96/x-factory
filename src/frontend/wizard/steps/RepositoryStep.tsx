@@ -27,13 +27,26 @@ import { repositoryUrlError } from "../state/repositoryUrl.js";
 import { useWizardUrlIntake } from "../state/urlIntake.js";
 import { useWizard } from "../state/wizardContext.js";
 
-interface Touched {
-  url: boolean;
-  name: boolean;
-  id: boolean;
+interface FieldErrors {
+  url: string | null;
+  name: string | null;
+  id: string | null;
 }
 
-const UNTOUCHED: Touched = { url: false, name: false, id: false };
+const NO_ERRORS: FieldErrors = { url: null, name: null, id: null };
+
+/** The three fields' problems as of this check point. */
+function fieldErrors(url: string, name: string, id: string): FieldErrors {
+  return {
+    url: repositoryUrlError(url),
+    name: name.trim() === "" ? REPOSITORY_STEP_COPY.nameRequired : null,
+    id: id.trim() === "" ? REPOSITORY_STEP_COPY.identifierRequired : null,
+  };
+}
+
+function hasProblem(errors: FieldErrors): boolean {
+  return errors.url !== null || errors.name !== null || errors.id !== null;
+}
 
 /**
  * The URL field's feedback: what the USER's text is wrong about first (the
@@ -73,21 +86,28 @@ export function RepositoryStep() {
   const [idManuallyEdited, setIdManuallyEdited] = useState(() =>
     Boolean(id && id !== normalizeProjectId(name)),
   );
-  const [touched, setTouched] = useState<Touched>(UNTOUCHED);
-  // True once Continue was pressed: from then on every field reports its state,
-  // whether or not the user has left it yet.
-  const [attempted, setAttempted] = useState(false);
+  // The fields' problems as of the last check point — leaving a field, or
+  // pressing Continue. Typing is not a check point: it clears the field being
+  // edited, so an error never interrupts a half-written URL or name.
+  const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
   const parsedUrlRef = useRef<string | null>(null);
 
   // The URL lives in wizard state, so it survives a step change even when no
   // provider claims it.
   const url = state.connect.quickUrl;
 
+  const clearProblem = useCallback((field: keyof FieldErrors) => {
+    setErrors((current) =>
+      current[field] === null ? current : { ...current, [field]: null },
+    );
+  }, []);
+
   const handleUrlChange = useCallback(
     (next: string) => {
       dispatch({ type: "SET_REPOSITORY_URL", url: next });
+      clearProblem("url");
     },
-    [dispatch],
+    [dispatch, clearProblem],
   );
 
   const handleNameChange = useCallback(
@@ -97,6 +117,13 @@ export function RepositoryStep() {
         patch.id = normalizeProjectId(next);
       }
       updateBasics(patch);
+      // The identifier follows the name while it has not been edited by hand,
+      // so clearing the name's problem clears the identifier's with it.
+      setErrors((current) => ({
+        ...current,
+        name: null,
+        ...(patch.id !== undefined ? { id: null } : {}),
+      }));
     },
     [idManuallyEdited, updateBasics],
   );
@@ -105,8 +132,9 @@ export function RepositoryStep() {
     (next: string) => {
       setIdManuallyEdited(true);
       updateBasics({ id: next });
+      clearProblem("id");
     },
-    [updateBasics],
+    [updateBasics, clearProblem],
   );
 
   /**
@@ -127,35 +155,25 @@ export function RepositoryStep() {
   );
 
   const handleUrlBlur = useCallback(() => {
-    setTouched((current) => ({ ...current, url: true }));
+    setErrors((current) => ({ ...current, url: repositoryUrlError(url) }));
     if (repositoryUrlError(url) === null) {
       askAboutUrl(url);
     }
   }, [url, askAboutUrl]);
 
   const handleContinue = useCallback(() => {
-    setAttempted(true);
-    const urlProblem = repositoryUrlError(url);
-    const nameProblem =
-      name.trim() === "" ? REPOSITORY_STEP_COPY.nameRequired : null;
-    const idProblem =
-      id.trim() === "" ? REPOSITORY_STEP_COPY.identifierRequired : null;
-    if (urlProblem !== null || nameProblem !== null || idProblem !== null) {
+    const problems = fieldErrors(url, name, id);
+    setErrors(problems);
+    if (hasProblem(problems)) {
       return;
     }
     askAboutUrl(url);
     nextStep();
   }, [url, name, id, askAboutUrl, nextStep]);
 
-  const urlError = touched.url || attempted ? repositoryUrlError(url) : null;
-  const nameError =
-    (touched.name || attempted) && name.trim() === ""
-      ? REPOSITORY_STEP_COPY.nameRequired
-      : null;
-  const idError =
-    (touched.id || attempted) && id.trim() === ""
-      ? REPOSITORY_STEP_COPY.identifierRequired
-      : null;
+  const urlError = errors.url;
+  const nameError = errors.name;
+  const idError = errors.id;
 
   return (
     <div id="onboard-step-1" className="wizard-step-pane repository-step-pane">
@@ -187,7 +205,12 @@ export function RepositoryStep() {
         inputId="onboard-proj-name"
         value={name}
         onChange={handleNameChange}
-        onBlur={() => setTouched((current) => ({ ...current, name: true }))}
+        onBlur={() =>
+          setErrors((current) => ({
+            ...current,
+            name: name.trim() === "" ? REPOSITORY_STEP_COPY.nameRequired : null,
+          }))
+        }
         isInvalid={nameError !== null}
         isRequired
         feedback={
@@ -204,7 +227,13 @@ export function RepositoryStep() {
         className="repository-step-identifier"
         value={id}
         onChange={handleIdChange}
-        onBlur={() => setTouched((current) => ({ ...current, id: true }))}
+        onBlur={() =>
+          setErrors((current) => ({
+            ...current,
+            id:
+              id.trim() === "" ? REPOSITORY_STEP_COPY.identifierRequired : null,
+          }))
+        }
         isInvalid={idError !== null}
         isRequired
         feedback={

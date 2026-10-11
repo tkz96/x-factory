@@ -20,6 +20,8 @@ import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { INSPECTION_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { FieldFeedback } from "../../components/feedback/FieldFeedback.js";
+import { Button } from "../../components/ui/Button.js";
+import { SegmentedControl } from "../../components/ui/SegmentedControl.js";
 import { ApiError } from "../../lib/api-client.js";
 import { WizardFooter } from "../shared/WizardFooter.js";
 import { useWizard } from "../state/wizardContext.js";
@@ -54,6 +56,22 @@ function resolveConfigureErrorMessage(err: unknown): string {
     default:
       return INSPECTION_COPY.configureServerError;
   }
+}
+
+/** What the author name is wrong about, or null while it is fine. */
+function nameProblem(value: string): string | null {
+  if (value !== "" && hasControlCharacters(value)) {
+    return INSPECTION_COPY.nameInvalidError;
+  }
+  return value.trim() === "" ? INSPECTION_COPY.nameRequiredError : null;
+}
+
+/** What the author email is wrong about, or null while it is fine. */
+function emailProblem(value: string): string | null {
+  if (value !== "" && !isValidEmail(value)) {
+    return INSPECTION_COPY.emailInvalidError;
+  }
+  return value.trim() === "" ? INSPECTION_COPY.emailRequiredError : null;
 }
 
 export function InspectionStep() {
@@ -92,7 +110,14 @@ export function InspectionStep() {
   const [formScope, setFormScope] = useState<GitIdentityScope>(() =>
     canUseLocalScope ? "local" : "global",
   );
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  // The problems as of the last check point — the field was left, or Configure
+  // was pressed (#268). Typing never re-checks: it clears the field's own
+  // problem, so an error cannot interrupt a half-written name or address, and
+  // it comes back when the user leaves the field again.
+  const [errors, setErrors] = useState<{
+    name: string | null;
+    email: string | null;
+  }>({ name: null, email: null });
 
   useEffect(() => {
     if (!canUseLocalScope) {
@@ -103,19 +128,8 @@ export function InspectionStep() {
   const identity = status.record?.gitIdentity;
   const hasUnresolved = (status.record?.unresolvedRepoIds?.length ?? 0) > 0;
 
-  const nameError =
-    formName && hasControlCharacters(formName)
-      ? INSPECTION_COPY.nameInvalidError
-      : hasSubmitted && !formName.trim()
-        ? INSPECTION_COPY.nameRequiredError
-        : undefined;
-
-  const emailError =
-    formEmail && !isValidEmail(formEmail)
-      ? INSPECTION_COPY.emailInvalidError
-      : hasSubmitted && !formEmail.trim()
-        ? INSPECTION_COPY.emailRequiredError
-        : undefined;
+  const nameError = errors.name;
+  const emailError = errors.email;
 
   const isFormValid =
     formName.trim().length > 0 &&
@@ -125,13 +139,16 @@ export function InspectionStep() {
 
   const handleConfigureSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setHasSubmitted(true);
+    const problems = {
+      name: nameProblem(formName),
+      email: emailProblem(formEmail),
+    };
+    setErrors(problems);
     if (
-      !formName.trim() ||
-      !formEmail.trim() ||
+      !isFormValid ||
       isConfiguring ||
-      nameError ||
-      emailError
+      problems.name !== null ||
+      problems.email !== null
     ) {
       return;
     }
@@ -168,7 +185,18 @@ export function InspectionStep() {
             className="form-input"
             placeholder={INSPECTION_COPY.authorNamePlaceholder}
             value={formName}
-            onChange={(e) => setFormName(e.target.value)}
+            onChange={(e) => {
+              setFormName(e.target.value);
+              setErrors((current) =>
+                current.name === null ? current : { ...current, name: null },
+              );
+            }}
+            onBlur={() =>
+              setErrors((current) => ({
+                ...current,
+                name: nameProblem(formName),
+              }))
+            }
             disabled={isConfiguring}
             aria-invalid={nameError ? "true" : undefined}
             aria-describedby={nameError ? "git-identity-name-error" : undefined}
@@ -193,7 +221,18 @@ export function InspectionStep() {
             className="form-input code-font"
             placeholder={INSPECTION_COPY.authorEmailPlaceholder}
             value={formEmail}
-            onChange={(e) => setFormEmail(e.target.value)}
+            onChange={(e) => {
+              setFormEmail(e.target.value);
+              setErrors((current) =>
+                current.email === null ? current : { ...current, email: null },
+              );
+            }}
+            onBlur={() =>
+              setErrors((current) => ({
+                ...current,
+                email: emailProblem(formEmail),
+              }))
+            }
             disabled={isConfiguring}
             aria-invalid={emailError ? "true" : undefined}
             aria-describedby={
@@ -215,46 +254,36 @@ export function InspectionStep() {
         <span className="git-identity-scope-label">
           {INSPECTION_COPY.scopeLabel}
         </span>
-        <div
+        {/* The scope choice is one control with two mutually exclusive options,
+            so it is the shared segmented control (#251): one tab stop, arrow
+            keys between the segments, the chosen one announced as checked. */}
+        <SegmentedControl
+          label={INSPECTION_COPY.scopeLabel}
+          value={formScope}
+          onChange={(id) => setFormScope(id as GitIdentityScope)}
           className="git-identity-scope-options"
-          role="radiogroup"
-          aria-label={INSPECTION_COPY.scopeLabel}
-        >
-          <label className="git-identity-scope-radio">
-            <input
-              type="radio"
-              name="git-scope"
-              id="git-identity-scope-local"
-              value="local"
-              checked={formScope === "local"}
-              onChange={() => setFormScope("local")}
-              disabled={isConfiguring || !canUseLocalScope}
-            />
-            <span>
-              {targetPaths.length > 1
-                ? INSPECTION_COPY.scopeRepositoriesOption(targetPaths)
-                : isWorkspace
-                  ? INSPECTION_COPY.scopeWorkspaceOption(
-                      targetPaths[0] ?? workspacePath,
-                    )
-                  : INSPECTION_COPY.scopeLocalOption(
-                      targetPaths[0] ?? primaryPath,
-                    )}
-            </span>
-          </label>
-          <label className="git-identity-scope-radio">
-            <input
-              type="radio"
-              name="git-scope"
-              id="git-identity-scope-global"
-              value="global"
-              checked={formScope === "global"}
-              onChange={() => setFormScope("global")}
-              disabled={isConfiguring}
-            />
-            <span>{INSPECTION_COPY.scopeGlobalOption}</span>
-          </label>
-        </div>
+          options={[
+            {
+              id: "local",
+              label:
+                targetPaths.length > 1
+                  ? INSPECTION_COPY.scopeRepositoriesOption(targetPaths)
+                  : isWorkspace
+                    ? INSPECTION_COPY.scopeWorkspaceOption(
+                        targetPaths[0] ?? workspacePath,
+                      )
+                    : INSPECTION_COPY.scopeLocalOption(
+                        targetPaths[0] ?? primaryPath,
+                      ),
+              isDisabled: isConfiguring || !canUseLocalScope,
+            },
+            {
+              id: "global",
+              label: INSPECTION_COPY.scopeGlobalOption,
+              isDisabled: isConfiguring,
+            },
+          ]}
+        />
         {!canUseLocalScope && (
           <p
             className="git-identity-scope-warning"
@@ -280,16 +309,16 @@ export function InspectionStep() {
       )}
 
       <div className="git-identity-form-actions">
-        <button
+        <Button
           type="submit"
           id="btn-configure-git-identity"
-          className="btn-primary"
-          disabled={!isFormValid || isConfiguring}
+          variant="primary"
+          isDisabled={!isFormValid || isConfiguring}
         >
           {isConfiguring
             ? INSPECTION_COPY.configuringButton
             : INSPECTION_COPY.configureButton}
-        </button>
+        </Button>
       </div>
     </form>
   );

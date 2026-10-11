@@ -41,6 +41,15 @@ function classesOf(element: Element | null): string {
 }
 
 describe("Button — the button block", () => {
+  it("shows its title as the hover tooltip (shortcut hints, #254)", () => {
+    const { getByRole } = render(
+      createElement(Button, { title: "Start Run (N)" }, "Start Run"),
+    );
+    expect(
+      getByRole("button", { name: "Start Run" }).getAttribute("title"),
+    ).toBe("Start Run (N)");
+  });
+
   it("presses with the pointer and with the keyboard", () => {
     let presses = 0;
     const { getByRole } = render(

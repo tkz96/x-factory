@@ -23,13 +23,7 @@ import {
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
 import { countRunsByFilter } from "../lib/runs-list.js";
-import {
-  formatShortcut,
-  getShortcut,
-  isMacPlatform,
-  type ShortcutId,
-  shortcutLabel,
-} from "../shortcuts/registry.js";
+import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { WELCOME_COPY } from "./feedback/copy-map.js";
@@ -42,12 +36,13 @@ import {
   Menu,
   MenuItem,
   MenuTrigger,
-  OverlayTriggerButton,
   Popover,
 } from "./overlays/index.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
+import { Button } from "./ui/Button.js";
+import { IconButton } from "./ui/IconButton.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
@@ -126,26 +121,19 @@ export function ThemeToggleButton({
   className,
   onToggle,
 }: ThemeToggleButtonProps) {
+  // One accessible name, and it says what pressing the control does: the mode it
+  // switches to, which is also the mode that is not showing now. The icon draws
+  // the mode in force. There is no second name (a `title`) to disagree with it.
+  const { resolvedAppearance } = useTheme();
+  const next = resolvedAppearance === "dark" ? "Light" : "Dark";
   return (
-    <button
+    <IconButton
       id={id}
       className={className}
-      aria-label="Toggle Dark and Light Mode"
-      title="Toggle theme"
-      type="button"
-      onClick={onToggle}
-    >
-      <span className="theme-icon sun-icon">
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-sun" />
-        </svg>
-      </span>
-      <span className="theme-icon moon-icon">
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-moon" />
-        </svg>
-      </span>
-    </button>
+      label={`Switch to ${next} Appearance`}
+      icon={resolvedAppearance === "dark" ? "icon-moon" : "icon-sun"}
+      onPress={onToggle}
+    />
   );
 }
 
@@ -168,13 +156,14 @@ function DocsSidebar({
       id="app-sidebar"
       className={`sidebar${docsNavOpen ? " docs-nav-open" : ""}`}
     >
-      <button
-        type="button"
-        className="docs-nav-close btn-secondary btn-sm mobile-only"
-        onClick={onCloseDocsNav}
+      <Button
+        variant="secondary"
+        size="sm"
+        className="docs-nav-close mobile-only"
+        onPress={onCloseDocsNav}
       >
         Close document list
-      </button>
+      </Button>
       <DocsSidebarNav
         onToggleTheme={onToggleTheme}
         ThemeToggleButton={ThemeToggleButton}
@@ -236,14 +225,15 @@ function ContextAction({
     // Stop Run lives in the "…" menu, not on the toolbar (#262). It asks first, in an alert.
     return (
       <MenuTrigger>
-        <OverlayTriggerButton
+        <Button
           id="btn-run-menu"
-          className="btn-secondary btn-sm"
+          variant="secondary"
+          size="sm"
           aria-label="Run actions"
           isDisabled={stopPending}
         >
           <span aria-hidden="true">…</span>
-        </OverlayTriggerButton>
+        </Button>
         <Popover placement="bottom end">
           <Menu>
             <MenuItem id="menu-stop-run" isDanger onAction={onStopRun}>
@@ -257,33 +247,29 @@ function ContextAction({
   }
   if (section === "tickets") {
     return (
-      <button
+      <Button
         id="btn-start-run"
-        className="btn-primary btn-sm"
-        type="button"
+        variant="primary"
+        size="sm"
+        icon="icon-plus"
         title={withShortcut("Start Run", "newRun")}
-        onClick={onStartRun}
+        onPress={onStartRun}
       >
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-plus" />
-        </svg>
-        <span>Start Run</span>
-      </button>
+        Start Run
+      </Button>
     );
   }
   if (section === "projects") {
     return (
-      <button
+      <Button
         id="btn-add-project"
-        className="btn-primary btn-sm"
-        type="button"
-        onClick={onAddProject}
+        variant="primary"
+        size="sm"
+        icon="icon-plus"
+        onPress={onAddProject}
       >
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-plus" />
-        </svg>
-        <span>Add Project</span>
-      </button>
+        Add Project
+      </Button>
     );
   }
   return null;
@@ -338,8 +324,6 @@ function AppShellHeader({
   onAddProject,
   onOpenPalette,
 }: AppShellHeaderProps) {
-  const paletteKeys =
-    formatShortcut(getShortcut("palette"), isMacPlatform()) ?? "";
   return (
     <header id="content-toolbar" className="toolbar">
       <div className="toolbar-left">
@@ -411,15 +395,16 @@ function AppShellHeader({
 
       <div className="toolbar-actions">
         {isDocs && (
-          <button
-            type="button"
-            className="btn-secondary btn-sm mobile-only"
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mobile-only"
             aria-expanded={docsNavOpen}
             aria-controls="app-sidebar"
-            onClick={onToggleDocsNav}
+            onPress={onToggleDocsNav}
           >
             Browse documents
-          </button>
+          </Button>
         )}
         {!isDocs && (
           <ContextAction
@@ -433,20 +418,18 @@ function AppShellHeader({
           />
         )}
         {!isDocs && <NotificationBell />}
-        <button
-          type="button"
+        <Button
           id="btn-search"
-          className="btn-secondary btn-sm"
+          variant="secondary"
+          size="sm"
+          icon="icon-search"
           aria-label="Search"
+          title={withShortcut("Search", "palette")}
           aria-keyshortcuts="Control+K Meta+K"
-          title={`Search (${paletteKeys})`}
-          onClick={onOpenPalette}
+          onPress={onOpenPalette}
         >
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-search" />
-          </svg>
           <span className="search-label">Search</span>
-        </button>
+        </Button>
         <span
           className="system-status desktop-only"
           title={`X-Factory is ${readyLabel.toLowerCase()}`}
@@ -571,6 +554,11 @@ function AppShellContent() {
 
   const isDocs = location.pathname.startsWith("/docs");
   const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
+  // The welcome is a full-window screen (#269): it keeps the shell's providers
+  // and its own title, and loses the toolbar and the tab bar, which would
+  // otherwise frame a first-run screen with navigation for work that is not set
+  // up yet. Its checklist links are how the user moves on.
+  const isWelcome = location.pathname.startsWith("/welcome");
   const section = sectionFor(location.pathname);
   const { title: genericTitle, subtitle: genericSubtitle } = getActiveTitle(
     location.pathname,
@@ -625,7 +613,10 @@ function AppShellContent() {
   }, []);
 
   return (
-    <div id="app-shell" className="app-shell">
+    <div
+      id="app-shell"
+      className={`app-shell${isWelcome ? " app-shell--welcome" : ""}`}
+    >
       {isDocs && (
         <DocsSidebar
           docsNavOpen={docsNavOpen}
@@ -639,27 +630,29 @@ function AppShellContent() {
         className={`main-content ${isRunDetail ? "main-content-locked" : ""}`}
         onScroll={onMainScroll}
       >
-        <AppShellHeader
-          isDocs={isDocs}
-          isRunDetail={isRunDetail}
-          docsNavOpen={docsNavOpen}
-          onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
-          title={title}
-          subtitle={subtitle}
-          compact={compact}
-          docBreadcrumb={docBreadcrumb}
-          section={section}
-          onSelectSection={(id) => navigate(`/${id}`)}
-          needsYouCount={needsYouCount}
-          onToggleTheme={handleToggleTheme}
-          readyLabel={readyLabel}
-          activeRunId={activeRunId}
-          onStopRun={handleStopRun}
-          stopPending={stopRunMutation.isPending}
-          onStartRun={() => openNewRunModal()}
-          onAddProject={() => openOnboardingModal()}
-          onOpenPalette={() => setPaletteOpen(true)}
-        />
+        {!isWelcome && (
+          <AppShellHeader
+            isDocs={isDocs}
+            isRunDetail={isRunDetail}
+            docsNavOpen={docsNavOpen}
+            onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
+            title={title}
+            subtitle={subtitle}
+            compact={compact}
+            docBreadcrumb={docBreadcrumb}
+            section={section}
+            onSelectSection={(id) => navigate(`/${id}`)}
+            needsYouCount={needsYouCount}
+            onToggleTheme={handleToggleTheme}
+            readyLabel={readyLabel}
+            activeRunId={activeRunId}
+            onStopRun={handleStopRun}
+            stopPending={stopRunMutation.isPending}
+            onStartRun={() => openNewRunModal()}
+            onAddProject={() => openOnboardingModal()}
+            onOpenPalette={() => setPaletteOpen(true)}
+          />
+        )}
 
         <div
           id="viewport-container"
@@ -678,7 +671,7 @@ function AppShellContent() {
         </div>
       </main>
 
-      <AppShellMobileTabBar needsYouCount={needsYouCount} />
+      {!isWelcome && <AppShellMobileTabBar needsYouCount={needsYouCount} />}
       <ModalContainer />
       {/* Desktop banners for live run events (#265). Renders nothing. */}
       <DesktopBanners />

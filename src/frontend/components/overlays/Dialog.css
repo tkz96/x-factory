@@ -73,30 +73,9 @@
   gap: var(--space-2);
 }
 
-.xf-dialog-close-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  transition:
-    color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
-}
-
-.xf-dialog-close-btn:hover {
-  color: var(--text);
-  background: var(--bg-hover);
-}
-
-.xf-dialog-close-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
-}
+/* The dialog's close control is the icon-button block (#251): its surface, its
+   tap size and its focus ring come from controls.css, so nothing is redefined
+   here. */
 
 @keyframes xfDialogFadeIn {
   0% {

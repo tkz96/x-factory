@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MarkdownViewer } from "../components/MarkdownViewer.js";
+import { Button } from "../components/ui/Button.js";
 import { api } from "../lib/api-client.js";
 
 interface AzureDocScope {
@@ -228,6 +229,11 @@ export function DocsView() {
     }
   };
 
+  // The screen's one h1 (#258). A security pane's own title is that heading, so
+  // the pane's name, its id and the table of contents stay exactly as they were,
+  // and no pane can add a second level-1 heading of its own.
+  const paneHeading = isSecurity ? headings[0] : undefined;
+
   return (
     <section id="area-docs" className="area-view active">
       <div className="docs-page-layout">
@@ -248,13 +254,9 @@ export function DocsView() {
                       ? docError.message
                       : String(docError)}
                   </p>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => void refetchDoc()}
-                  >
+                  <Button variant="secondary" onPress={() => void refetchDoc()}>
                     Retry
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -296,11 +298,13 @@ export function DocsView() {
           {/* Case 2: Security & Credentials Panes */}
           {isSecurity && (
             <article className="docs-reading-pane">
+              {paneHeading && (
+                <h1 id={paneHeading.id} className="docs-pane-title">
+                  {paneHeading.text}
+                </h1>
+              )}
               {securitySection === "least-privilege" && (
                 <div id="least-privilege">
-                  <h1 id="least-privilege-overview" className="docs-pane-title">
-                    Principle of Least Privilege
-                  </h1>
                   <p className="text-muted docs-pane-p">
                     X-Factory runs autonomous coding agents locally in isolated
                     git worktrees. To ensure safety, tokens only require the
@@ -335,9 +339,6 @@ export function DocsView() {
 
               {securitySection === "azure" && (
                 <div id="azure-pat">
-                  <h1 id="azure-pat-scopes" className="docs-pane-subtitle">
-                    Azure DevOps Token Scopes
-                  </h1>
                   <p className="text-muted docs-pane-p">
                     Configure a Personal Access Token (PAT) in Azure DevOps
                     under <em>User Settings → Personal Access Tokens</em>.
@@ -371,9 +372,6 @@ export function DocsView() {
 
               {securitySection === "github" && (
                 <div id="github">
-                  <h1 id="github-pat" className="docs-pane-subtitle">
-                    GitHub Personal Access Token
-                  </h1>
                   <p className="text-muted docs-pane-p">
                     Use a fine-grained or classic token with access to target
                     repositories.
@@ -397,9 +395,6 @@ export function DocsView() {
 
               {securitySection === "gitlab" && (
                 <div id="gitlab">
-                  <h1 id="gitlab-pat" className="docs-pane-subtitle">
-                    GitLab Access Token
-                  </h1>
                   <p className="text-muted docs-pane-p">
                     Create a Project Access Token or Personal Access Token in
                     GitLab.
@@ -419,9 +414,6 @@ export function DocsView() {
 
               {securitySection === "jira" && (
                 <div id="jira">
-                  <h1 id="jira-token" className="docs-pane-subtitle">
-                    Atlassian Jira API Token
-                  </h1>
                   <p className="text-muted docs-pane-p">
                     Generate an API Token from your Atlassian account security
                     settings.

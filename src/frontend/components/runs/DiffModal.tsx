@@ -4,6 +4,7 @@ import "./DiffModal.css";
 
 import { useMemo } from "react";
 import { Dialog } from "../overlays/Dialog.js";
+import { Button } from "../ui/Button.js";
 
 export interface DiffModalProps {
   isOpen: boolean;
@@ -105,13 +106,9 @@ export function DiffModal({
           </div>
 
           <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={onClose}
-            >
+            <Button variant="secondary" size="sm" onPress={onClose}>
               Close
-            </button>
+            </Button>
           </div>
         </>
       )}

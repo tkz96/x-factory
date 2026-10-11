@@ -13,6 +13,7 @@ import type {
 import { useUpdateProjectRepositories } from "../../hooks/useQueries.js";
 import { REPOSITORY_SETTINGS_COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
+import { Button } from "../ui/Button.js";
 
 interface RepositorySettingsProps {
   projectId: string;
@@ -147,16 +148,17 @@ function RepositoryForm({
             {REPOSITORY_SETTINGS_COPY.saved}
           </span>
         )}
-        <button
+        <Button
           type="submit"
           id={`${prefix}-save`}
-          className="btn-primary btn-sm"
-          disabled={mutation.isPending}
+          variant="primary"
+          size="sm"
+          isDisabled={mutation.isPending}
         >
           {mutation.isPending
             ? REPOSITORY_SETTINGS_COPY.saving
             : REPOSITORY_SETTINGS_COPY.save}
-        </button>
+        </Button>
       </div>
     </form>
   );

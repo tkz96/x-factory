@@ -23,6 +23,7 @@ import {
 import { DesktopNotificationsSetting } from "../components/settings/DesktopNotificationsSetting.js";
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
+import { Button } from "../components/ui/Button.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
@@ -325,25 +326,23 @@ function GeneralTabContent({
             </p>
           </div>
           <ModalFooter>
-            <button
-              type="button"
-              className="btn btn-secondary"
+            <Button
               id="btn-cancel-unsandboxed"
-              onClick={handleCancel}
+              variant="secondary"
+              onPress={handleCancel}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-warning"
+            </Button>
+            <Button
               id="btn-confirm-unsandboxed"
-              onClick={handleConfirm}
-              disabled={isSavingUnsandboxed}
+              variant="danger"
+              isDisabled={isSavingUnsandboxed}
+              onPress={handleConfirm}
             >
               {isSavingUnsandboxed
                 ? "Enabling…"
                 : "Enable Unsandboxed Execution"}
-            </button>
+            </Button>
           </ModalFooter>
         </Modal>
       )}
@@ -390,16 +389,14 @@ function ConnectionsTabContent({
           <h3>{CONNECTIONS_COPY.registryTitle}</h3>
           <p className="text-muted">{CONNECTIONS_COPY.registrySubtitle}</p>
         </div>
-        <button
-          type="button"
-          className="btn-primary btn-sm"
-          onClick={onOnboardProject}
+        <Button
+          variant="primary"
+          size="sm"
+          icon="icon-plus"
+          onPress={onOnboardProject}
         >
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-plus" />
-          </svg>
-          <span>{CONNECTIONS_COPY.onboardProject}</span>
-        </button>
+          {CONNECTIONS_COPY.onboardProject}
+        </Button>
       </div>
 
       <div className="connections-registry-container">
