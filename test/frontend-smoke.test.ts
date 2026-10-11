@@ -69,7 +69,9 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain('src="/src/frontend/main.tsx"');
       expect(html).toContain('type="module"');
       expect(html).toContain("<title>X-Factory</title>");
-      expect(html).toContain('href="/styles.css"');
+      // The pre-redesign public/styles.css is retired (#248): the bundled
+      // design system is the only stylesheet the shell loads.
+      expect(html).not.toContain('href="/styles.css"');
       expect(html).toContain('href="/favicon.svg"');
     });
 
@@ -996,7 +998,9 @@ describe("Frontend Smoke — No third-party requests", () => {
     const sources = defaultSources(ROOT_DIR);
     expect(sources.map((s) => s.file)).toContain("index.html");
     expect(sources.map((s) => s.file)).toContain("public/reference.html");
-    expect(sources.map((s) => s.file)).toContain("public/styles.css");
+    expect(sources.map((s) => s.file)).toContain(
+      "src/frontend/styles/base.css",
+    );
     expect(sources.length).toBeGreaterThan(50);
 
     const findings = scanSources(sources);

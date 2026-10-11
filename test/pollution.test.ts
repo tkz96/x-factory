@@ -27,6 +27,6 @@ describe("Pollution Patterns & Guardrails", () => {
     assert.equal(isPollutionPath("src/index.ts"), false);
     assert.equal(isPollutionPath("package.json"), false);
     assert.equal(isPollutionPath("README.md"), false);
-    assert.equal(isPollutionPath("public/styles.css"), false);
+    assert.equal(isPollutionPath("public/reference.html"), false);
   });
 });

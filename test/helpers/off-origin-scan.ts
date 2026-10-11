@@ -199,7 +199,7 @@ export function defaultSources(root: string): ScannedSource[] {
   const files = [
     path.join(root, "index.html"),
     ...collect(path.join(root, "public"), [".html", ".css"]),
-    ...collect(path.join(root, "src", "frontend"), [".tsx", ".ts"]),
+    ...collect(path.join(root, "src", "frontend"), [".tsx", ".ts", ".css"]),
     ...collect(path.join(root, "dist", "public"), [".html", ".css"]),
   ];
   return files
