@@ -7,8 +7,8 @@
 // not exist. `~` is expanded so a typed home-relative path is usable by git.
 
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
+import { expandUserPath } from "../paths.js";
 
 interface ResolveRepositoryPathInput {
   workspacePath?: string | undefined;
@@ -19,10 +19,9 @@ interface ResolveRepositoryPathInput {
   exists?: (p: string) => boolean;
 }
 
+/** Expands a leading `~`; any other path is left for the caller to resolve. */
 function expandHome(p: string): string {
-  if (p === "~") return homedir();
-  if (p.startsWith("~/")) return path.join(homedir(), p.slice(2));
-  return p;
+  return p.startsWith("~") ? expandUserPath(p) : p;
 }
 
 export function resolveRepositoryPath({

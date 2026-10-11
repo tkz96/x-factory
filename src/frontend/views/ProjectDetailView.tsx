@@ -21,6 +21,7 @@ import {
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
+import { RepositorySettings } from "../components/projects/RepositorySettings.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
 import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -192,6 +193,12 @@ export function ProjectDetailView() {
             )}
           </div>
         </div>
+
+        {repos.length > 0 && (
+          <div className="mt-6">
+            <RepositorySettings projectId={project.id} repositories={repos} />
+          </div>
+        )}
       </div>
     </section>
   );

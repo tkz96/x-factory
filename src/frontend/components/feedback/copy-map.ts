@@ -289,6 +289,23 @@ export const PROJECT_DETAIL_COPY = {
   repositoryBranchColumn: "Default Branch",
 } as const;
 
+/** Copy for editing a repository's checkout and commands (#283). */
+export const REPOSITORY_SETTINGS_COPY = {
+  title: "Repository settings",
+  path: "Checkout folder",
+  pathHelp: "The local folder where this repository is checked out.",
+  test: "Test command",
+  testHelp:
+    "Run to verify a run's changes. Without one, verification checks nothing.",
+  typecheck: "Typecheck command",
+  lint: "Lint command",
+  optional: "Optional",
+  save: "Save",
+  saving: "Saving…",
+  saved: "Saved.",
+  pathRequired: "Enter the folder where this repository is checked out.",
+} as const;
+
 /** Copy for the project cards (#147). */
 export const PROJECT_CARD_COPY = {
   viewDetailsLabel: (projectName: string) =>

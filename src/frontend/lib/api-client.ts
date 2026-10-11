@@ -14,6 +14,7 @@ import type {
   GitIdentityScope,
   Project,
   ProjectConnectionRole,
+  ProjectRepository,
   PrRunResponse,
   ReadinessResponse,
   ResumeRunResponse,
@@ -245,6 +246,22 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+    });
+    return handleResponse<Project>(res);
+  },
+
+  /**
+   * Replaces a project's repositories (checkout path and commands) through the
+   * partial project update (#283).
+   */
+  async updateProjectRepositories(
+    id: string,
+    repositories: ProjectRepository[],
+  ): Promise<Project> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repositories }),
     });
     return handleResponse<Project>(res);
   },
