@@ -26,7 +26,7 @@ import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
-import type { Project } from "../src/shared/types.js";
+import type { Project, Run } from "../src/shared/types.js";
 
 afterEach(() => {
   // Each test starts from an empty document: the renders here are queries by
@@ -112,9 +112,7 @@ function makeRun(status: string) {
     repairAttempts: 0,
     artifactsDir: "/tmp/artifacts",
     worktreePath: "/tmp/worktree",
-  } as Parameters<
-    typeof import("../src/frontend/components/history/RunHistoryCard.js").RunHistoryCard
-  >[0]["run"];
+  } as Run;
 }
 
 describe("ProjectsView — feedback-family read region", () => {

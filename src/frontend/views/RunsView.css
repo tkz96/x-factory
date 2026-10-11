@@ -14,6 +14,7 @@
 
 .run-card-link {
   display: block;
+  min-height: var(--list-row-height);
   text-decoration: none;
   color: inherit;
   cursor: pointer;
