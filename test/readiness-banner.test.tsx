@@ -64,7 +64,8 @@ describe("ReadinessBanner (#283)", () => {
       {
         name: "Sandbox",
         status: "fail" as const,
-        message: "sbx is not installed, so the coding stage will refuse to run.",
+        message:
+          "sbx is not installed, so the coding stage will refuse to run.",
       },
     ];
     const { container } = renderBanner(readiness(failing));

@@ -6,7 +6,15 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { RepositorySettings } from "../src/frontend/components/projects/RepositorySettings.js";
@@ -71,11 +79,15 @@ describe("RepositorySettings (#283)", () => {
   let update: ReturnType<typeof mock>;
 
   beforeEach(() => {
-    update = mock(async (_id: string, repositories: ProjectRepository[]) => ({
-      id: "rocket",
-      repositories,
-    }) as unknown as Project);
-    api.updateProjectRepositories = update as typeof api.updateProjectRepositories;
+    update = mock(
+      async (_id: string, repositories: ProjectRepository[]) =>
+        ({
+          id: "rocket",
+          repositories,
+        }) as unknown as Project,
+    );
+    api.updateProjectRepositories =
+      update as typeof api.updateProjectRepositories;
   });
 
   afterEach(() => cleanup());
