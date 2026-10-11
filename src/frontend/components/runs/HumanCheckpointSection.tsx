@@ -3,6 +3,7 @@
 import "./HumanCheckpointSection.css";
 
 import { useState } from "react";
+import { DELIVERY_RUN_STATUSES } from "../../../shared/run-status-policy.js";
 import type {
   ReviewResult,
   Run,
@@ -200,6 +201,8 @@ function DeliveryCheckpointSection({
   onCreatePr,
 }: DeliveryCheckpointSectionProps) {
   const isAwaitingReview = run.status === "awaiting_review";
+  // The policy's own set: a run at or past delivery can open a pull request.
+  const atDelivery = DELIVERY_RUN_STATUSES.has(run.status);
   // The labels come from the one status map (#253), never from local copy.
   const approveLabel =
     runStatusUi(run.status).actions.find((a) => a.action === "approve")
@@ -245,7 +248,7 @@ function DeliveryCheckpointSection({
         </div>
       )}
 
-      {!isAwaitingReview && !isPrCreated ? (
+      {!isPrCreated && atDelivery ? (
         <div className="mt-4">
           <button
             type="button"
