@@ -201,6 +201,14 @@ const COMPLETE: WelcomeState = {
   roles: ROLES,
 };
 
+/** The four endpoints the checklist's read region asks, once each. */
+const SETUP_PATHS = [
+  "/api/projects",
+  "/api/runs",
+  "/api/settings",
+  "/api/model-connections",
+];
+
 describe("the first-run checklist (#269)", () => {
   it("lists the three steps, none of them ticked, and names what each still needs", () => {
     const view = renderWelcome();
@@ -378,18 +386,17 @@ describe("the welcome's read region (#269)", () => {
     expect(view.queryAllByRole("listitem")).toHaveLength(0);
   });
 
-  it("shows the canonical error with a retry when the setup cannot be read", async () => {
-    let calls = 0;
-    globalThis.fetch = (async () => {
-      calls += 1;
+  it("shows the canonical error with a retry, which asks every part again", async () => {
+    const requested: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requested.push(String(input));
       return new Response("not json", { status: 500 });
     }) as unknown as typeof fetch;
 
-    const view = renderWelcomeView(
-      new QueryClient({
-        defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-      }),
-    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    const view = renderWelcomeView(client);
 
     await waitFor(() => expect(view.getByRole("alert")).toBeTruthy());
     const alert = view.getByRole("alert");
@@ -398,9 +405,17 @@ describe("the welcome's read region (#269)", () => {
     expect(view.queryAllByRole("listitem")).toHaveLength(0);
 
     // The retry asks every part of the setup again, never just one of them.
-    const before = calls;
+    const asked = (path: string) =>
+      requested.filter((url) => url.startsWith(path)).length;
+    const askedOnce = SETUP_PATHS.map(asked);
+    await waitFor(() => expect(askedOnce).toEqual([1, 1, 1, 1]));
+
+    // Let the first burst settle: a refetch of a request still in flight is
+    // the in-flight one, not a new ask.
+    await waitFor(() => expect(client.isFetching()).toBe(0));
     fireEvent.click(view.getByRole("button", { name: STATE_COPY.retry }));
-    await waitFor(() => expect(calls).toBeGreaterThan(before + 3));
+
+    await waitFor(() => expect(SETUP_PATHS.map(asked)).toEqual([2, 2, 2, 2]));
   });
 });
 
