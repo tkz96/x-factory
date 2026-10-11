@@ -6,7 +6,7 @@
   background: var(--bg-card);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow-y: auto;
   min-height: 0;
   height: 100%;
 }
@@ -122,4 +122,10 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-footnote);
+}
+
+/* The raw log scrolls inside the inspector, so the inspector never pushes the stepper off screen. */
+.run-inspector-scroll {
+  max-height: 18rem;
+  overflow-y: auto;
 }
