@@ -394,6 +394,39 @@ describe("Add Project assistant (#268)", () => {
     expect(getEl("wizard-progress-counter").textContent).toBe("Step 1 of 5");
   });
 
+  it("starts empty: X-Factory invents none of the project's details", () => {
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    // The workspace folder in particular has NO default: a path X-Factory made
+    // up would be a path the user never chose (the old Basics step's safeguard,
+    // kept as behaviour).
+    expect(getEl<HTMLInputElement>("onboard-workspace-path").value).toBe("");
+    expect(getEl<HTMLInputElement>("onboard-repo-url").value).toBe("");
+    expect(getEl<HTMLInputElement>("onboard-proj-name").value).toBe("");
+    expect(getEl<HTMLInputElement>("onboard-proj-id").value).toBe("");
+    expect(getEl<HTMLTextAreaElement>("onboard-proj-description").value).toBe(
+      "",
+    );
+  });
+
+  it("derives the identifier from the project's name, until the user edits it", () => {
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    typeInput(getEl("onboard-proj-name"), "Apollo Engine");
+    expect(getEl<HTMLInputElement>("onboard-proj-id").value).toBe(
+      "apollo-engine",
+    );
+
+    // Once the identifier is the user's own, the name no longer overwrites it.
+    typeInput(getEl("onboard-proj-id"), "apollo-custom");
+    typeInput(getEl("onboard-proj-name"), "Apollo Engine II");
+    expect(getEl<HTMLInputElement>("onboard-proj-id").value).toBe(
+      "apollo-custom",
+    );
+  });
+
   it("closes without ceremony while there is nothing to lose", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
