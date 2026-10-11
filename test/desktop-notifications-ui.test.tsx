@@ -358,11 +358,15 @@ describe("desktop notifications: the Settings switch (#265)", () => {
   it("switching off saves the preference off and never asks the browser", async () => {
     FakeNotification.permission = "granted";
     renderSwitch({ desktopNotifications: true });
-    const toggle = view().getByRole("switch", { name: "Desktop notifications" });
+    const toggle = view().getByRole("switch", {
+      name: "Desktop notifications",
+    });
     expect((toggle as HTMLInputElement).checked).toBe(true);
 
     fireEvent.click(toggle);
-    await waitFor(() => expect(settingsBodies).toEqual([{ desktopNotifications: false }]));
+    await waitFor(() =>
+      expect(settingsBodies).toEqual([{ desktopNotifications: false }]),
+    );
     expect(FakeNotification.requests).toBe(0);
   });
 
