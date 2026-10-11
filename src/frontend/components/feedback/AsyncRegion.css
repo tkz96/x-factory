@@ -25,6 +25,13 @@
   text-align: center;
 }
 
+/* Lists reserve static placeholder rows instead of the spinner(#251): the region
+   holds the height the loaded rows will have, and the rows are never animated. */
+.async-region--rows {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
 .async-region--error .icon {
   color: var(--red);
 }

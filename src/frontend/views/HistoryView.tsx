@@ -90,6 +90,7 @@ export function HistoryView() {
           <AsyncRegion
             derived={derived}
             onRetry={() => void runsQuery.refetch()}
+            placeholderRows={5}
             emptyCopy={
               noRunsAtAll
                 ? "No runs found. Launch your first run to populate history."

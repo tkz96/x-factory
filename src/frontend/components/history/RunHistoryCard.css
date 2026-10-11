@@ -5,6 +5,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.95rem 1.25rem;
+  /* The same reserved height as a loading list's placeholder rows (#251). */
+  min-height: var(--list-row-height);
   background: var(--bg-card);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-card);

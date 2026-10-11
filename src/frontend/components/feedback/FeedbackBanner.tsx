@@ -36,8 +36,11 @@ export function FeedbackBanner({
   onRetry,
 }: FeedbackBannerProps) {
   const remainingMs = useRetryCountdown(retryAfterMs);
+  // An error is announced as an alert (#251); partial and informational states
+  // stay polite, so they never interrupt what is being read.
+  const role = tone === "error" ? "alert" : "status";
   return (
-    <div className={`feedback-banner feedback-banner--${tone}`} role="status">
+    <div className={`feedback-banner feedback-banner--${tone}`} role={role}>
       <svg className="icon icon-md" aria-hidden="true">
         <use href={`/assets/icons/sprite.svg#${BANNER_ICONS[tone]}`} />
       </svg>
