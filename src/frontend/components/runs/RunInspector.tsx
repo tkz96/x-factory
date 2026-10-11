@@ -72,8 +72,14 @@ function InspectorBody({ run, events, connected }: RunInspectorProps) {
               title="Live stream connected"
             />
           )}
+          <span
+            className="run-inspector-count"
+            role="note"
+            aria-label={`${events.length} ${plural(events.length, "event", "events")}`}
+          >
+            {events.length}
+          </span>
         </h3>
-        <span className="run-inspector-count">{events.length}</span>
         <div className="run-inspector-scroll">
           <ChatThread events={events} />
         </div>

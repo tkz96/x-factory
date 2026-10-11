@@ -29,10 +29,12 @@
   letter-spacing: 0.04em;
 }
 
-.run-inspector-header .run-inspector-count {
+.run-inspector-count {
+  margin-left: var(--space-1-5);
   font-size: var(--text-caption-2);
-  color: var(--text-dim);
-  background: var(--bg-tertiary);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
   padding: var(--space-px) var(--space-1-5);
   border-radius: var(--radius-pill);
 }

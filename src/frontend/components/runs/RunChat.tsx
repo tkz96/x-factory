@@ -436,19 +436,10 @@ export function RunChat({
           disabled={
             !isApprovalGate || !input.trim() || sending || pending !== null
           }
-          aria-label="Send message"
+          aria-label="Send"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M22 2 11 13" />
-            <path d="M22 2 15 22 11 13 2 9l20-7Z" />
+          <svg className="icon icon-md" aria-hidden="true">
+            <use href="/assets/icons/sprite.svg#icon-send" />
           </svg>
         </button>
       </form>

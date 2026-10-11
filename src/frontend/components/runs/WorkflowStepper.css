@@ -230,7 +230,7 @@
    line waits for the desktop, where there is room for it. */
 @media (max-width: 600px) {
   .workflow-stepper .step {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-width: 0;
     flex-direction: column;
     gap: var(--space-half);
@@ -252,7 +252,7 @@
   }
 
   .workflow-stepper .step-label {
-    font-size: var(--text-micro);
+    font-size: var(--text-caption-2);
     letter-spacing: 0;
     text-align: center;
     white-space: nowrap;

@@ -22,14 +22,13 @@
 }
 
 .run-now-plan {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--bg-surface-2);
   font-size: var(--text-footnote);
   max-height: 14rem;
   overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 
 .run-now-diff {
@@ -62,4 +61,12 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-footnote);
+}
+
+/* The plan's Markdown headings sit at the panel's text size, not the page's display sizes (#262). */
+.run-now-plan .md-viewer h1,
+.run-now-plan .md-viewer h2,
+.run-now-plan .md-viewer h3 {
+  font-size: var(--text-footnote);
+  margin: var(--space-2) 0 var(--space-1);
 }

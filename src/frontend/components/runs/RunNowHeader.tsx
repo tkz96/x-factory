@@ -7,6 +7,7 @@ import "./RunNowHeader.css";
 
 import type { Run } from "../../../shared/types.js";
 import type { RunNow } from "../../lib/run-now.js";
+import { MarkdownViewer } from "../MarkdownViewer.js";
 
 export interface RunNowHeaderProps {
   run: Run;
@@ -26,7 +27,11 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
       </h2>
       <p className="run-now-sentence">{now.sentence}</p>
 
-      {now.plan && <div className="run-now-plan">{now.plan}</div>}
+      {now.plan && (
+        <div className="run-now-plan">
+          <MarkdownViewer content={now.plan} />
+        </div>
+      )}
 
       {now.diff && (
         <p className="run-now-diff">
