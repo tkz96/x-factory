@@ -5,6 +5,7 @@ import type {
   ModelRecord,
   ModelRecordPatch,
 } from "../../shared/model-connection-types.js";
+import { isCreateRunConflict } from "../../shared/run-creation.js";
 import type {
   AbandonRunRequest,
   AbandonRunResponse,
@@ -125,6 +126,34 @@ export class ApiError extends Error {
         this.code = d.code;
       }
     }
+  }
+}
+
+/**
+ * A creation refused because the ticket already has an active run (#255). It
+ * carries the id of that run, so the caller opens it instead of showing the
+ * refusal as an error.
+ */
+export class ActiveRunConflictError extends ApiError {
+  readonly runId: string;
+  constructor(message: string, runId: string, data?: unknown) {
+    super(message, 409, data);
+    this.name = "ActiveRunConflictError";
+    this.runId = runId;
+  }
+}
+
+/** The refusal envelope, read from a response body without consuming it. */
+async function activeRunConflictOf(
+  res: Response,
+): Promise<{ message: string; runId: string } | null> {
+  try {
+    const body: unknown = await res.clone().json();
+    if (!isCreateRunConflict(body)) return null;
+    return { message: body.error, runId: body.runId };
+  } catch {
+    // Not the refusal envelope.
+    return null;
   }
 }
 
@@ -325,6 +354,16 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (res.status === 409) {
+      const conflict = await activeRunConflictOf(res);
+      if (conflict) {
+        throw new ActiveRunConflictError(
+          conflict.message,
+          conflict.runId,
+          conflict,
+        );
+      }
+    }
     return handleResponse<CreateRunResponse>(res);
   },
 

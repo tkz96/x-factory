@@ -6,6 +6,7 @@ import { useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useDialogFocus } from "../../hooks/useDialogFocus.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
+import { ActiveRunConflictError } from "../../lib/api-client.js";
 import { DialogPortal } from "../DialogPortal.js";
 
 export function NewRunModal() {
@@ -92,6 +93,13 @@ export function NewRunModal() {
       closeNewRunModal();
       navigate(`/runs/${run.id}`);
     } catch (err: unknown) {
+      // The ticket already has an active run (#255): open it instead of showing
+      // the refusal as an error. The server named the run to open.
+      if (err instanceof ActiveRunConflictError) {
+        closeNewRunModal();
+        navigate(`/runs/${err.runId}`);
+        return;
+      }
       setError(err instanceof Error ? err.message : String(err));
     }
   };
