@@ -437,19 +437,22 @@ export async function runAttemptLoop(
     const forward = progressLineForwarder((line) => {
       const parsed = line.match(/Iteration (\d+)/i);
       if (parsed?.[1]) {
-        iteration = Number.parseInt(parsed[1], 10);
+        if (budgetStop) return;
         // Pi runs in a subprocess here, so its own calls are invisible: the
         // iteration the script announces is the one model call it makes (#281).
-        input.recordModelCall?.();
-        if (!budgetStop) {
-          try {
-            input.checkBudget?.();
-          } catch (err: unknown) {
-            if (!isBudgetReached(err)) throw err;
-            budgetStop = err;
-            loopAbort.abort();
-          }
+        // The budget is checked before the iteration counts, as for in-process
+        // calls: a budget of N lets exactly N iterations run in full, and the
+        // loop stops as the next one would begin.
+        try {
+          input.checkBudget?.();
+        } catch (err: unknown) {
+          if (!isBudgetReached(err)) throw err;
+          budgetStop = err;
+          loopAbort.abort();
+          return;
         }
+        iteration = Number.parseInt(parsed[1], 10);
+        input.recordModelCall?.();
       }
       emit("ralph_progress", { text: line, iteration });
     });

@@ -233,7 +233,7 @@ afterEach(async () => {
 });
 
 describe("Attempt loop at the Worker seam", () => {
-  it("stops the loop at the iteration that spends the day's calls and pauses the run (#281)", async () => {
+  it("runs exactly N iterations, stops as the next would begin, and pauses the run (#281)", async () => {
     await commitAndRecordBaseline();
     // A scripted loop that would print five iterations if left alone.
     await installSbx(`
@@ -256,7 +256,8 @@ done
     if (!claimed) throw new Error("Expected a claimed job");
     await worker.processJob(claimed);
 
-    // N allows exactly N: the second counted call spends the budget and ends the loop.
+    // N allows exactly N: iterations 1 and 2 run and count; iteration 3 is refused
+    // before it counts, the loop stops there and the run pauses.
     expect(
       repos.modelCalls.countForModel("test-connection", "test/model"),
     ).toBe(2);
