@@ -22,8 +22,8 @@ export function DesktopNotificationsSetting() {
       isSelected={isOn}
       isDisabled={!ready || reason !== null}
       onChange={(next) => {
-        const change = next ? enable() : disable();
-        change.catch(() => undefined);
+        if (next) void enable();
+        else disable();
       }}
     />
   );

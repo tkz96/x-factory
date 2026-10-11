@@ -44,7 +44,7 @@ export function DesktopNotificationPrompt({
           className="btn-primary btn-sm"
           onPress={() => {
             answer();
-            enable().catch(() => undefined);
+            void enable();
           }}
         >
           Enable

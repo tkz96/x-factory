@@ -355,6 +355,17 @@ describe("desktop notifications: the Settings switch (#265)", () => {
     expect(FakeNotification.requests).toBe(1);
   });
 
+  it("switching off saves the preference off and never asks the browser", async () => {
+    FakeNotification.permission = "granted";
+    renderSwitch({ desktopNotifications: true });
+    const toggle = view().getByRole("switch", { name: "Desktop notifications" });
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(settingsBodies).toEqual([{ desktopNotifications: false }]));
+    expect(FakeNotification.requests).toBe(0);
+  });
+
   it("is disabled with a one-line reason when the API is missing", () => {
     (globalThis as { Notification?: unknown }).Notification = undefined;
     renderSwitch({ desktopNotifications: false });

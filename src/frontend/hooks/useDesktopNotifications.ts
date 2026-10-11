@@ -20,7 +20,7 @@ export interface DesktopNotifications {
   /** Asks the browser for permission (from a click) and, if granted, turns the preference on. */
   enable: () => Promise<DesktopSupport>;
   /** Turns the preference off. Permission stays as the browser has it. */
-  disable: () => Promise<unknown>;
+  disable: () => void;
 }
 
 export function useDesktopNotifications(): DesktopNotifications {
@@ -34,12 +34,13 @@ export function useDesktopNotifications(): DesktopNotifications {
     const next = await requestDesktopPermission();
     setSupport(next);
     if (next === "granted") {
-      await save.mutateAsync({ desktopNotifications: true });
+      save.mutate({ desktopNotifications: true });
     }
     return next;
   };
 
-  const disable = () => save.mutateAsync({ desktopNotifications: false });
+  // mutate, not mutateAsync: a failed save is reported by the mutation state, not thrown into a click.
+  const disable = () => save.mutate({ desktopNotifications: false });
 
   return {
     ready: settings !== undefined,
