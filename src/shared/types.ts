@@ -738,7 +738,10 @@ export interface ChatWithRunRequest {
   message: string;
 }
 
-/** Response body of `POST /api/runs/:id/chat`: the agent's reply, also stored as a chat_agent event. */
+/**
+ * Response body of `POST /api/runs/:id/chat`. `ok: true` carries the agent's reply (stored as a chat_agent event).
+ * `ok: false` carries the plain reason the model could not reply (stored as an error event, never an agent message, #263).
+ */
 export interface ChatWithRunResponse {
   ok: boolean;
   message: string;
