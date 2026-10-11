@@ -52,6 +52,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 - **No Hardcoded Hex/RGB**: Never write `#ffffff`, `#0071e3`, `rgb(...)` outside of `tokens.css`. Always use `var(--accent)`, `var(--text)`, `var(--bg-card)`, etc.
 - **No Arbitrary Spacing**: Spacing must use `--space-*` tokens or utility classes (`.mt-4`, `.mb-2`, etc.).
 - **No Arbitrary Font Sizes**: Font sizes must follow HIG typography tokens (`--text-caption-1`, `--text-footnote`, `--text-headline`, etc.).
+- **The Theme and Appearance are applied before first paint.** The server puts the saved values from `settings.json` on `<html>` (`data-saved-theme`, `data-saved-appearance`) when it serves `index.html` (`src/http/static.ts`, `injectSavedTheme`), so a fresh browser profile paints the saved choice. The pre-paint script in `index.html` prefers those attributes and falls back to localStorage. Vite dev serves no injected attributes, so there the localStorage values apply.
 
 ---
 
