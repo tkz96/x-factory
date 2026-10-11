@@ -27,7 +27,13 @@ import {
   useSaveSettings,
   useSettings,
 } from "../hooks/useQueries.js";
-import { type AppearanceSetting, useTheme } from "../hooks/useTheme.js";
+import {
+  type AppearanceSetting,
+  resolveInitialTheme,
+  setTheme,
+  type ThemeName,
+  useTheme,
+} from "../hooks/useTheme.js";
 
 type SettingsTab = "general" | "trackers" | "models" | "git" | "diagnostics";
 
@@ -149,6 +155,8 @@ function DiagnosticsTabContent({
 }
 
 interface GeneralTabContentProps {
+  currentTheme?: ThemeName | undefined;
+  onApplyTheme: (theme: ThemeName) => void;
   currentAppearance?: AppearanceSetting | undefined;
   onApplyAppearance: (appearance: AppearanceSetting) => void;
   allowUnsandboxed: boolean;
@@ -156,7 +164,15 @@ interface GeneralTabContentProps {
   isSavingUnsandboxed?: boolean;
 }
 
+const THEME_CHOICES: { id: ThemeName; label: string }[] = [
+  { id: "default", label: "Default" },
+  { id: "graphite", label: "Graphite" },
+  { id: "sandstone", label: "Sandstone" },
+];
+
 function GeneralTabContent({
+  currentTheme = "default",
+  onApplyTheme,
   currentAppearance = "automatic",
   onApplyAppearance,
   allowUnsandboxed,
@@ -186,6 +202,26 @@ function GeneralTabContent({
     <div id="tab-general" className="settings-pane active">
       <h3>General Settings</h3>
       <p className="text-muted">Workbench behavior and system defaults.</p>
+
+      <div className="setting-item mt-4">
+        <span className="setting-label">Theme</span>
+        <div className="theme-segmented-control">
+          {THEME_CHOICES.map((choice) => (
+            <button
+              key={choice.id}
+              type="button"
+              aria-pressed={currentTheme === choice.id}
+              className={`theme-segment-btn ${currentTheme === choice.id ? "active" : ""}`}
+              id={`btn-theme-${choice.id}`}
+              data-theme-val={choice.id}
+              aria-label={`${choice.label} Theme`}
+              onClick={() => onApplyTheme(choice.id)}
+            >
+              <span>{choice.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
@@ -487,11 +523,22 @@ export function SettingsView() {
   const activeTab = settingsTabFromParam(searchParams.get("tab"));
   const setActiveTab = (tab: SettingsTab) =>
     setSearchParams({ tab }, { replace: true });
-  const { appearance: currentAppearance, setAppearance } = useTheme();
+  const {
+    theme: currentTheme,
+    appearance: currentAppearance,
+    setAppearance,
+  } = useTheme();
 
   const handleUpdateAppearance = async (appearance: AppearanceSetting) => {
     setAppearance(appearance);
     await saveSettingsMutation.mutateAsync({ appearance });
+  };
+
+  // The Theme choice is separate from Appearance (#249): it changes colour and
+  // font tokens only, and only the theme is saved.
+  const handleUpdateTheme = async (theme: ThemeName) => {
+    setTheme(resolveInitialTheme(theme));
+    await saveSettingsMutation.mutateAsync({ theme });
   };
 
   const handleUpdateUnsandboxed = async (enabled: boolean) => {
@@ -549,6 +596,8 @@ export function SettingsView() {
         <div className="settings-content">
           {activeTab === "general" && (
             <GeneralTabContent
+              currentTheme={currentTheme}
+              onApplyTheme={handleUpdateTheme}
               currentAppearance={currentAppearance}
               onApplyAppearance={handleUpdateAppearance}
               allowUnsandboxed={Boolean(settings?.allowUnsandboxed)}

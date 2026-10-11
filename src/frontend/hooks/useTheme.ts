@@ -11,11 +11,27 @@ import type {
   AppearanceSetting,
   ContrastSetting,
   ResolvedAppearance,
+  ThemeName,
 } from "../../shared/types.js";
 
-export type { AppearanceSetting, ContrastSetting, ResolvedAppearance };
+export type {
+  AppearanceSetting,
+  ContrastSetting,
+  ResolvedAppearance,
+  ThemeName,
+};
 
 const STORAGE_KEY = "xf_appearance";
+// The Theme choice (#249) mirrors the settings object like Appearance does, under
+// its own key: the old xf_theme key held what was showing, not a choice.
+const THEME_STORAGE_KEY = "xf_theme_choice";
+const THEME_NAMES: readonly ThemeName[] = ["default", "graphite", "sandstone"];
+
+export function resolveInitialTheme(
+  stored?: string | null | undefined,
+): ThemeName {
+  return THEME_NAMES.find((name) => name === stored) ?? "default";
+}
 
 export function resolveInitialAppearance(
   stored?: string | null | undefined,
@@ -55,6 +71,24 @@ function writeStoredAppearance(appearance: AppearanceSetting): void {
   }
 }
 
+function readStoredTheme(): ThemeName {
+  try {
+    return resolveInitialTheme(
+      globalThis.localStorage?.getItem(THEME_STORAGE_KEY),
+    );
+  } catch {
+    return "default";
+  }
+}
+
+function writeStoredTheme(theme: ThemeName): void {
+  try {
+    globalThis.localStorage?.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Storage unavailable: the choice still applies for this session.
+  }
+}
+
 export interface ApplyThemeOptions {
   theme?: string | undefined;
   resolvedAppearance: ResolvedAppearance;
@@ -71,11 +105,21 @@ export function applyThemeToDocument(options: ApplyThemeOptions): void {
 }
 
 let currentAppearance: AppearanceSetting = readStoredAppearance();
+let currentTheme: ThemeName = readStoredTheme();
 const listeners = new Set<() => void>();
 
 function subscribeAppearance(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Changes the visual theme everywhere at once and mirrors it to storage (#249). */
+export function setTheme(next: ThemeName): void {
+  const theme = resolveInitialTheme(next);
+  writeStoredTheme(theme);
+  if (theme === currentTheme) return;
+  currentTheme = theme;
+  for (const listener of listeners) listener();
 }
 
 /** Changes the app's appearance everywhere at once and mirrors it to storage. */
@@ -109,6 +153,11 @@ export function useTheme() {
     () => currentAppearance,
     () => currentAppearance,
   );
+  const theme = useSyncExternalStore(
+    subscribeAppearance,
+    () => currentTheme,
+    () => currentTheme,
+  );
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const prefersContrast = useMediaQuery("(prefers-contrast: more)");
 
@@ -116,8 +165,8 @@ export function useTheme() {
   const contrast = resolveContrast(prefersContrast);
 
   useEffect(() => {
-    applyThemeToDocument({ resolvedAppearance, contrast });
-  }, [resolvedAppearance, contrast]);
+    applyThemeToDocument({ theme, resolvedAppearance, contrast });
+  }, [theme, resolvedAppearance, contrast]);
 
   /** Flips between Light and Dark from whatever is showing now. */
   const toggleTheme = (): AppearanceSetting => {
@@ -127,6 +176,7 @@ export function useTheme() {
   };
 
   return {
+    theme,
     appearance,
     resolvedAppearance,
     contrast,

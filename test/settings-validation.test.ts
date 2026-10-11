@@ -77,3 +77,17 @@ describe("POST /api/settings validation (#163 B4)", () => {
     expect(Array.isArray(body.details)).toBe(true);
   });
 });
+
+describe("POST /api/settings theme choice (#249)", () => {
+  test("accepts Graphite and Sandstone", async () => {
+    for (const theme of ["graphite", "sandstone", "default"]) {
+      const res = await postSettings({ theme });
+      expect(res.status).toBe(200);
+    }
+  });
+
+  test("rejects a theme that is not one of the three", async () => {
+    const res = await postSettings({ theme: "neon" });
+    expect(res.status).toBe(400);
+  });
+});

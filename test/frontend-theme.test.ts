@@ -10,7 +10,12 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { act, cleanup, render } from "@testing-library/react";
 import React from "react";
-import { setAppearance, useTheme } from "../src/frontend/hooks/useTheme.js";
+import {
+  resolveInitialTheme,
+  setAppearance,
+  setTheme,
+  useTheme,
+} from "../src/frontend/hooks/useTheme.js";
 
 function Probe({ id }: { id: string }) {
   const { appearance, resolvedAppearance } = useTheme();
@@ -25,6 +30,11 @@ afterEach(() => {
   cleanup();
   act(() => setAppearance("automatic"));
 });
+
+function ThemeProbe({ id }: { id: string }) {
+  const { theme } = useTheme();
+  return React.createElement("span", { "data-testid": id }, theme);
+}
 afterAll(async () => {
   await unregisterHappyDom();
 });
@@ -84,6 +94,63 @@ describe("shared appearance (#248)", () => {
       const { getByTestId } = render(React.createElement(Probe, { id: "p" }));
       act(() => setAppearance("light"));
       expect(getByTestId("p").textContent).toBe("light/light");
+    } finally {
+      Storage.prototype.setItem = realSet;
+    }
+  });
+});
+
+describe("visual theme choice (#249)", () => {
+  afterEach(() => {
+    act(() => setTheme("default"));
+  });
+
+  it("a theme chosen in one component reaches every other one and the document", () => {
+    const { getByTestId } = render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(ThemeProbe, { id: "shell" }),
+        React.createElement(ThemeProbe, { id: "settings" }),
+      ),
+    );
+
+    act(() => setTheme("sandstone"));
+
+    expect(getByTestId("shell").textContent).toBe("sandstone");
+    expect(getByTestId("settings").textContent).toBe("sandstone");
+    expect(document.documentElement.getAttribute("data-theme")).toBe(
+      "sandstone",
+    );
+    expect(localStorage.getItem("xf_theme_choice")).toBe("sandstone");
+    // Theme and Appearance are separate choices.
+    expect(
+      document.documentElement.getAttribute("data-appearance"),
+    ).toBeTruthy();
+  });
+
+  it("an unknown stored theme falls back to Default", () => {
+    localStorage.setItem("xf_theme_choice", "neon");
+    expect(resolveInitialTheme(localStorage.getItem("xf_theme_choice"))).toBe(
+      "default",
+    );
+    localStorage.removeItem("xf_theme_choice");
+  });
+
+  it("storage that throws on every call never breaks applying the theme", () => {
+    const realSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error("storage blocked");
+    };
+    try {
+      const { getByTestId } = render(
+        React.createElement(ThemeProbe, { id: "p" }),
+      );
+      act(() => setTheme("graphite"));
+      expect(getByTestId("p").textContent).toBe("graphite");
+      expect(document.documentElement.getAttribute("data-theme")).toBe(
+        "graphite",
+      );
     } finally {
       Storage.prototype.setItem = realSet;
     }
