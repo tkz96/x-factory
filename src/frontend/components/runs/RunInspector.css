@@ -1,0 +1,125 @@
+/* src/frontend/components/runs/RunInspector.css — The run inspector: evidence, files and the raw log (#262). */
+
+.run-inspector {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+}
+
+.run-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.run-inspector-header h4 {
+  margin: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.run-inspector-header .run-inspector-count {
+  font-size: var(--text-caption-2);
+  color: var(--text-dim);
+  background: var(--bg-tertiary);
+  padding: var(--space-px) var(--space-1-5);
+  border-radius: var(--radius-pill);
+}
+
+.run-inspector-dot {
+  margin-left: var(--space-1-5);
+  display: inline-block;
+}
+
+.run-inspector-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Override ChatThread styles when inside the inspector */
+.run-inspector .chat-thread-container {
+  max-height: none;
+  margin-bottom: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.run-inspector .chat-bubble {
+  font-size: var(--text-caption-2);
+  padding: var(--space-1) var(--space-2);
+}
+
+.run-inspector .chat-bubble-badge {
+  font-size: var(--text-micro);
+  padding: 0 var(--space-1);
+}
+
+.run-inspector .chat-bubble-header {
+  margin-bottom: var(--space-half);
+}
+
+.run-inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.run-inspector-section h3 {
+  margin: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.run-inspector-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-footnote);
+}
+
+.run-inspector-file {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.run-inspector-file-path {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+}
+
+.run-inspector-file-counts {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.run-inspector-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-footnote);
+}

@@ -15,8 +15,9 @@ import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js"
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
-import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
+import { RunEvidence } from "../src/frontend/components/runs/RunEvidence.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
@@ -301,14 +302,14 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toBeDefined();
     });
 
-    it("HumanCheckpointSection renders checkpoint heading and evidence sections cleanly", () => {
+    it("RunEvidence renders the verification and review evidence the inspector shows", () => {
       const mockRun = {
         id: "run-smoke-1",
         project: { id: "p1", name: "Smoke Proj" },
         ticket: { id: "T-1", title: "Smoke Ticket", acceptanceCriteria: [] },
         plan: "plan",
         branch: "factory/smoke",
-        status: "ready_for_pr" as const,
+        status: "awaiting_review" as const,
         startedAt: new Date().toISOString(),
         finishedAt: null,
         updatedAt: new Date().toISOString(),
@@ -323,31 +324,30 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
         worktreePath: "/tmp",
       };
       const html = renderWithProviders(
-        React.createElement(HumanCheckpointSection, { run: mockRun }),
+        React.createElement(RunEvidence, { run: mockRun }),
       );
-      expect(html).toContain("Human Checkpoint &amp; Evidence");
-      expect(html).toContain("Deterministic Verification");
-      // The redesign names the roles, not Session A / Session B (#278).
-      expect(html).toContain("Independent review (Reviewer)");
-      // Delivery comes from the policy's own delivery set, not a local list.
-      const withStatus = (
-        status: "ready_for_pr" | "awaiting_review" | "pr_created",
-      ) => ({ ...mockRun, status });
-      expect(html).toContain("Create Pull Request");
-      expect(
+      // The sections name what they check; the reviewer is named, not "Session B" (#278).
+      expect(html).toContain("Verification");
+      expect(html).toContain("Review");
+      expect(html).toContain("AWAITING VERIFICATION");
+    });
+
+    it("the checkpoint bar offers the policy's actions by name, and Create Pull Request only at delivery", () => {
+      const bar = (status: "awaiting_review" | "ready_for_pr" | "pr_created") =>
         renderWithProviders(
-          React.createElement(HumanCheckpointSection, {
-            run: withStatus("awaiting_review"),
+          React.createElement(RunCheckpointBar, {
+            status,
+            pending: null,
+            conflict: false,
+            onAction: () => {},
           }),
-        ),
-      ).not.toContain('id="btn-pr"');
-      expect(
-        renderWithProviders(
-          React.createElement(HumanCheckpointSection, {
-            run: withStatus("pr_created"),
-          }),
-        ),
-      ).toContain("Pull Request Created");
+        );
+      expect(bar("awaiting_review")).toContain("Approve Changes");
+      expect(bar("awaiting_review")).toContain("Request Changes");
+      expect(bar("awaiting_review")).not.toContain("Create Pull Request");
+      expect(bar("ready_for_pr")).toContain("Create Pull Request");
+      expect(bar("pr_created")).not.toContain("Create Pull Request");
+      expect(bar("pr_created")).toContain("Start New Run");
     });
   });
 

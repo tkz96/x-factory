@@ -256,3 +256,9 @@
   color: var(--red);
   font-weight: 500;
 }
+
+/* The phone-width toolbar above the chat: the inspector opens from here (#262). */
+.run-detail-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}

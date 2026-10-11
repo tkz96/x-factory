@@ -15,8 +15,8 @@ import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "../src/frontend/components/AppShell.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
-import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
 import { TRANSITIONS } from "../src/shared/run-status-policy.js";
@@ -169,8 +169,8 @@ describe("ChatThread wording", () => {
   });
 });
 
-describe("Human checkpoint wording", () => {
-  it("labels delivery with the map's words and none of the old wording", () => {
+describe("Checkpoint bar wording", () => {
+  it("labels the checkpoint with the map's words and none of the old wording", () => {
     const { container } = render(
       React.createElement(
         QueryClientProvider,
@@ -185,10 +185,11 @@ describe("Human checkpoint wording", () => {
           React.createElement(
             MemoryRouter,
             null,
-            React.createElement(HumanCheckpointSection, {
-              run: makeRun("awaiting_review"),
-              onApprove: () => {},
-              onReject: () => {},
+            React.createElement(RunCheckpointBar, {
+              status: "awaiting_review",
+              pending: null,
+              conflict: false,
+              onAction: () => {},
             }),
           ),
         ),
@@ -208,7 +209,7 @@ describe("screens that show no internal vocabulary at all", () => {
   for (const file of [
     "src/frontend/views/RunDetailView.tsx",
     "src/frontend/views/RunsView.tsx",
-    "src/frontend/components/runs/HumanCheckpointSection.tsx",
+    "src/frontend/components/runs/RunEvidence.tsx",
   ]) {
     it(`${file}`, () => {
       expect(readFileSync(file, "utf8")).not.toMatch(INTERNAL_VOCABULARY);

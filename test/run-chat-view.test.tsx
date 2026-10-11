@@ -246,12 +246,12 @@ describe("scroll position and Jump to latest", () => {
 
 describe("approval actions follow the status map and the policy", () => {
   it("offers the map's labels on each gate, and Approved on click", () => {
-    const onApprove = mock(() => {});
+    const onAction = mock(() => {});
     const { container } = render(
       <RunChat
         run={makeRun("awaiting_plan_approval")}
         events={[]}
-        onApprove={onApprove}
+        onAction={onAction}
       />,
     );
     const approve = within(container).getByRole("button", {
@@ -261,7 +261,7 @@ describe("approval actions follow the status map and the policy", () => {
       within(container).getByRole("button", { name: "Request Changes" }),
     ).toBeTruthy();
     fireEvent.click(approve);
-    expect(onApprove).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith("approve");
     expect(container.textContent).toContain("Approved");
   });
 

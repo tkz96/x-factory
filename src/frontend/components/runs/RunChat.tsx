@@ -4,10 +4,7 @@ import "./RunChat.css";
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { DiffFileSummary } from "../../../shared/diff-summary.js";
-import {
-  canRunAction,
-  type RunAction,
-} from "../../../shared/run-status-policy.js";
+import { canRunAction } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
 import { api } from "../../lib/api-client.js";
 import {
@@ -18,19 +15,23 @@ import {
   type ChatItem,
   mapEventsToChatItems,
 } from "../../lib/run-chat-items.js";
+import { runNow } from "../../lib/run-now.js";
 import { runStatusUi } from "../../lib/run-status-ui.js";
 import { Button } from "../ui/Button.js";
 import { DiffModal } from "./DiffModal.js";
 import { RunChatRow, useNow } from "./RunChatItem.js";
+import { type CheckpointAction, RunCheckpointBar } from "./RunCheckpointBar.js";
+import { RunNowHeader } from "./RunNowHeader.js";
 
 export interface RunChatProps {
   run: Run;
   events: RunEvent[];
-  onApprove?: () => void;
-  onRestart?: () => void;
-  onAbort?: () => void;
-  onRequeue?: (notes?: string) => void;
-  isTransitioning?: boolean;
+  /** Called with the checkpoint action; a rework carries the reader's notes. */
+  onAction?: (action: CheckpointAction, notes?: string) => void;
+  /** The checkpoint action in flight, if any (optimistic pending label). */
+  pending?: CheckpointAction | null;
+  /** True when the last checkpoint action raced with the run and lost. */
+  conflict?: boolean;
 }
 
 /** Runs of progress lines this long fold into one group the reader can open (#261). */
@@ -66,40 +67,9 @@ export function groupRows(items: readonly ChatItem[]): Row[] {
   return rows;
 }
 
-type ChatActionKind =
-  | "approve"
-  | "requeue"
-  | "restart"
-  | "abort"
-  | "confirm_rework";
-
-/** The chat's buttons for a status: labels from the one status map, actions the policy allows. */
-const CHAT_ACTION_KINDS: Partial<
-  Record<
-    RunAction,
-    { action: ChatActionKind; variant: "primary" | "secondary" | "danger" }
-  >
-> = {
-  approve: { action: "approve", variant: "primary" },
-  requeue: { action: "requeue", variant: "secondary" },
-  restart: { action: "restart", variant: "secondary" },
-  stop: { action: "abort", variant: "danger" },
-};
-
-function gateActionsFor(status: RunStatus): Array<{
-  label: string;
-  action: ChatActionKind;
-  variant: "primary" | "secondary" | "danger";
-}> {
-  return runStatusUi(status).actions.flatMap(({ action, label }) => {
-    const kind = CHAT_ACTION_KINDS[action];
-    return kind && label ? [{ label, ...kind }] : [];
-  });
-}
-
 /** The line the chat shows once a button has been pressed, before the run moves on. */
 function resolvedTextFor(
-  action: ChatActionKind,
+  action: CheckpointAction,
   status: RunStatus,
 ): string | null {
   switch (action) {
@@ -109,11 +79,15 @@ function resolvedTextFor(
         : "Approved";
     case "restart":
       return "Changes requested";
-    case "abort":
-      return "Stopped";
-    case "confirm_rework":
-      return "Rework confirmed";
+    case "deliver":
+      return "Opening a pull request";
+    case "resume":
+      return "Resuming the run";
+    case "abandon":
+      return "Abandoned";
+    case "start-new-run":
     case "requeue":
+    case "confirm-rework":
       return null;
   }
 }
@@ -158,11 +132,9 @@ function useScrollFollow(itemCount: number) {
 export function RunChat({
   run,
   events,
-  onApprove,
-  onRestart,
-  onAbort,
-  onRequeue,
-  isTransitioning,
+  onAction,
+  pending = null,
+  conflict = false,
 }: RunChatProps) {
   const now = useNow();
   const realItems = useMemo(() => mapEventsToChatItems(events), [events]);
@@ -194,7 +166,6 @@ export function RunChat({
   }, [run.status]);
 
   const isApprovalGate = canRunAction(run.status, "chat");
-  const canApprove = canRunAction(run.status, "approve");
 
   const addLocal = (make: (id: string, at: string) => ChatItem) => {
     localCount.current += 1;
@@ -218,7 +189,7 @@ export function RunChat({
 
   const scroll = useScrollFollow(items.length);
 
-  const handleAction = (action: ChatActionKind) => {
+  const handleAction = (action: CheckpointAction) => {
     if (action === "requeue") {
       setReworkPrompt(true);
       addLocal((id, at) => ({
@@ -231,13 +202,13 @@ export function RunChat({
       setTimeout(() => inputRef.current?.focus(), 50);
       return;
     }
-    if (action === "approve") onApprove?.();
-    else if (action === "restart") onRestart?.();
-    else if (action === "abort") onAbort?.();
-    else if (action === "confirm_rework") {
-      onRequeue?.(pendingRework ?? undefined);
+    if (action === "confirm-rework") {
+      onAction?.("requeue", pendingRework ?? undefined);
       setPendingRework(null);
+      setResolved(resolvedTextFor("requeue", run.status));
+      return;
     }
+    onAction?.(action);
     setResolved(resolvedTextFor(action, run.status));
   };
 
@@ -273,13 +244,7 @@ export function RunChat({
   const placeholderText = reworkPrompt
     ? "Describe the changes needed before replanning…"
     : ui.placeholder;
-  const headerSubtitle = isApprovalGate
-    ? `${ui.now} · you can reply below`
-    : ui.now;
-
-  const gateActions = gateActionsFor(run.status).filter(
-    (a) => a.action !== "approve" || canApprove,
-  );
+  const nowFacts = runNow(run, events);
 
   const openDiffFile = (file: DiffFileSummary) => {
     const found = parsedDiffFiles.find((f) => f.file === file.path);
@@ -295,12 +260,7 @@ export function RunChat({
 
   return (
     <div className="run-chat" id="understanding-chat">
-      <div className="run-chat-header">
-        <div className="run-chat-meta">
-          <strong>{ui.header}</strong>
-          <span>{headerSubtitle}</span>
-        </div>
-      </div>
+      <RunNowHeader run={run} now={nowFacts} />
 
       <div className="run-chat-timeline">
         <div
@@ -341,32 +301,6 @@ export function RunChat({
               <span>{resolved}</span>
             </div>
           )}
-          {!resolved && (pendingRework || gateActions.length > 0) && (
-            <section className="run-chat-gate" aria-label="Next step">
-              {pendingRework ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  isDisabled={Boolean(isTransitioning)}
-                  onPress={() => handleAction("confirm_rework")}
-                >
-                  Confirm Rework
-                </Button>
-              ) : (
-                gateActions.map((act) => (
-                  <Button
-                    key={act.action}
-                    variant={act.variant}
-                    size="sm"
-                    isDisabled={Boolean(isTransitioning)}
-                    onPress={() => handleAction(act.action)}
-                  >
-                    {act.label}
-                  </Button>
-                ))
-              )}
-            </section>
-          )}
           {sending && (
             <div
               className="run-chat-typing"
@@ -388,6 +322,14 @@ export function RunChat({
         )}
       </div>
 
+      <RunCheckpointBar
+        status={run.status}
+        pending={pending}
+        conflict={conflict}
+        reworkReady={pendingRework !== null}
+        onAction={handleAction}
+      />
+
       <form className="run-chat-input" onSubmit={handleSend}>
         <input
           ref={inputRef}
@@ -396,13 +338,13 @@ export function RunChat({
           placeholder={placeholderText}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={!isApprovalGate || sending || isTransitioning}
+          disabled={!isApprovalGate || sending || pending !== null}
         />
         <button
           type="submit"
           className="run-chat-send"
           disabled={
-            !isApprovalGate || !input.trim() || sending || isTransitioning
+            !isApprovalGate || !input.trim() || sending || pending !== null
           }
           aria-label="Send message"
         >

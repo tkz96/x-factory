@@ -8,8 +8,8 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render, within } from "@testing-library/react";
-import { ActivitySidebar } from "../src/frontend/components/runs/ActivitySidebar.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
 import { canRunAction, TRANSITIONS } from "../src/shared/run-status-policy.js";
@@ -109,7 +109,7 @@ describe("run chat words come from the one status map (#253)", () => {
       const { container } = render(
         <RunChat run={makeRun(status)} events={[]} />,
       );
-      const header = container.querySelector(".run-chat-meta");
+      const header = container.querySelector(".run-now");
       expect(within(header as HTMLElement).getByText(ui.header)).toBeTruthy();
       expect(container.textContent).toContain(ui.now);
       const input = within(container).getByRole("textbox") as HTMLInputElement;
@@ -132,12 +132,12 @@ describe("run chat words come from the one status map (#253)", () => {
       );
       const expected = runStatusUi(status)
         .actions.filter((a) =>
-          ["approve", "requeue", "restart", "stop"].includes(a.action),
+          ["approve", "requeue", "restart"].includes(a.action),
         )
         .map((a) => a.label)
         .filter((label): label is string => label !== null);
       const group = within(container).getByRole("region", {
-        name: "Next step",
+        name: "Checkpoint",
       });
       expect(
         Array.from(group.querySelectorAll("button")).map((b) => b.textContent),
@@ -156,14 +156,14 @@ describe("run chat words come from the one status map (#253)", () => {
     }
   });
 
-  it("offers the CONTEXT.md words on review", () => {
+  it("offers the CONTEXT.md words on review, and Stop Run is not in the chat (#262)", () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_review")} events={[]} />,
     );
     const buttons = buttonNames(container);
     expect(buttons).toContain("Approve Changes");
     expect(buttons).toContain("Request Changes");
-    expect(buttons).toContain("Stop Run");
+    expect(buttons).not.toContain("Stop Run");
   });
 });
 
@@ -209,7 +209,9 @@ describe("one event shows one time across the run page", () => {
       } as RunEvent,
     ];
     const chat = render(<RunChat run={makeRun("planning")} events={events} />);
-    const log = render(<ActivitySidebar events={events} connected />);
+    const log = render(
+      <RunInspector run={makeRun("planning")} events={events} connected />,
+    );
     const expected = formatTimestamp(INSTANT);
     const chatTime = chat.container.querySelector(
       `time[datetime="${INSTANT}"]`,
