@@ -208,6 +208,14 @@ export function formatShortcut(
   return def.steps.map((step) => labelForStep(step, isMac)).join(" then ");
 }
 
+/** The on-screen label for one registered shortcut, or null when it has no chord. */
+export function shortcutLabel(
+  id: ShortcutId,
+  isMac: boolean = isMacPlatform(),
+): string | null {
+  return formatShortcut(getShortcut(id), isMac);
+}
+
 export interface PlatformSource {
   platform?: string;
   userAgent?: string;

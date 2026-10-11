@@ -28,6 +28,7 @@ import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { routeDefinitions } from "../src/frontend/routes.js";
+import { shortcutLabel } from "../src/frontend/shortcuts/registry.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
 import { SettingsView } from "../src/frontend/views/SettingsView.js";
 import type { Project, Run } from "../src/shared/types.js";
@@ -122,6 +123,16 @@ describe("App shell toolbar (#258)", () => {
     expect(view.queryByRole("complementary")).toBeNull();
     expect(view.queryByRole("button", { name: "New Run" })).toBeNull();
     expect(view.queryByRole("link", { name: "New Run" })).toBeNull();
+  });
+
+  it("shows the registry shortcut in the Start Run tooltip", () => {
+    const view = renderShell("/tickets");
+    const button = within(view.getByRole("banner")).getByRole("button", {
+      name: "Start Run",
+    });
+    expect(button.getAttribute("title")).toBe(
+      `Start Run (${shortcutLabel("newRun")})`,
+    );
   });
 
   it("offers Start Run in the toolbar on Tickets and Add Project on Projects", () => {

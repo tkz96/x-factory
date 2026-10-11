@@ -27,6 +27,8 @@ import {
   formatShortcut,
   getShortcut,
   isMacPlatform,
+  type ShortcutId,
+  shortcutLabel,
 } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
@@ -197,6 +199,22 @@ const CATEGORY_TITLES: Record<string, string> = {
   security: "Credentials & Scopes",
 };
 
+/** "Start Run (N)": a label with its registry shortcut, or the bare label when it has none. */
+function withShortcut(label: string, id: ShortcutId): string {
+  const keys = shortcutLabel(id);
+  return keys ? `${label} (${keys})` : label;
+}
+
+/** The registry keys on the right of a menu row; nothing when the action has no chord. */
+function MenuShortcut({ id }: { id: ShortcutId }) {
+  const keys = shortcutLabel(id);
+  return keys ? (
+    <kbd className="xf-menu-keys" aria-hidden="true">
+      {keys}
+    </kbd>
+  ) : null;
+}
+
 interface ContextActionProps {
   section: SectionId | "";
   isRunDetail: boolean;
@@ -233,7 +251,8 @@ function ContextAction({
         <Popover placement="bottom end">
           <Menu>
             <MenuItem id="menu-stop-run" isDanger onAction={onStopRun}>
-              Stop Run
+              <span>Stop Run</span>
+              <MenuShortcut id="stopRun" />
             </MenuItem>
           </Menu>
         </Popover>
@@ -246,6 +265,7 @@ function ContextAction({
         id="btn-start-run"
         className="btn-primary btn-sm"
         type="button"
+        title={withShortcut("Start Run", "newRun")}
         onClick={onStartRun}
       >
         <svg className="icon icon-sm" aria-hidden="true">
