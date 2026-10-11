@@ -43,7 +43,6 @@ coveragePathIgnorePatterns = [
   "src/frontend/components/runs/DiffModal.tsx",
   "src/frontend/components/runs/WorkflowStepper.tsx",
   "src/frontend/views/DocsView.tsx",
-  "src/frontend/views/HistoryView.tsx",
   "src/frontend/views/ProjectDetailView.tsx",
   "src/frontend/views/ProjectsView.tsx",
   "src/frontend/views/QueueView.tsx",
