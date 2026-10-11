@@ -19,7 +19,11 @@ import type {
 } from "./shared/model-connection-types.js";
 import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 
-export type ModelFailureCategory = "model unavailable" | "key rejected";
+export type ModelFailureCategory =
+  | "model unavailable"
+  | "key rejected"
+  | "rate limited"
+  | "context too large";
 
 /** A model call that can't happen: the role or its model/key isn't usable. */
 export class ModelUnavailableError extends DomainError {

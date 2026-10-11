@@ -1,0 +1,186 @@
+// src/model-gateway.ts — The one gate every model call passes through (#280).
+//
+// - Rate limits: a 429 makes the call wait as long as the provider asked
+//   (Retry-After, or Gemini's "retry in 49.58s"), else back off exponentially
+//   with jitter, capped. Waiting is reported, not failed. Past a ceiling the
+//   call fails with "rate limited".
+// - Concurrency: at most `limit` calls per model run at once, across runs, in
+//   arrival order; other models are never held up.
+
+import { ModelUnavailableError } from "./model-roles.js";
+
+export interface Clock {
+  now(): number;
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
+}
+
+const realClock: Clock = {
+  now: () => Date.now(),
+  sleep: (ms, signal) =>
+    new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) return reject(signal.reason ?? new Error("aborted"));
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(signal.reason ?? new Error("aborted"));
+        },
+        { once: true },
+      );
+    }),
+};
+
+/** A provider said "too many requests"; `retryAfterMs` is its requested wait, when given. */
+export class RateLimitedError extends Error {
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, retryAfterMs?: number) {
+    super(message);
+    this.name = "RateLimitedError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+const RATE_LIMIT =
+  /\b429\b|rate[ _-]?limit|too many requests|resource[ _-]?exhausted|exceeded your current quota/i;
+
+export function isRateLimitMessage(message: string): boolean {
+  return RATE_LIMIT.test(message);
+}
+
+/** The wait a provider asked for in an error text, in ms, rounded up to whole seconds. */
+export function parseRetryDelayMs(text: string): number | undefined {
+  const patterns = [
+    /retry in ([\d.]+)\s*s/i,
+    /"retryDelay"\s*:\s*"([\d.]+)s"/i,
+    /retry-after:\s*([\d.]+)/i,
+    /retry after ([\d.]+)\s*(?:s|sec|seconds)\b/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const seconds = match?.[1] ? Number(match[1]) : Number.NaN;
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return Math.ceil(seconds) * 1000;
+    }
+  }
+  return undefined;
+}
+
+/** Calls in flight per model: from requests per minute (one per 10 rpm, 1–8), else 2. */
+export function concurrencyLimitFor(limits: {
+  rpm?: number | undefined;
+}): number {
+  if (!limits.rpm) return 2;
+  return Math.min(8, Math.max(1, Math.floor(limits.rpm / 10)));
+}
+
+export interface GatewayOptions {
+  clock?: Clock;
+  /** Longest total wait before giving up, ms. */
+  maxWaitMs?: number;
+  baseBackoffMs?: number;
+  maxBackoffMs?: number;
+  /** 0–1; jitter multiplies a backoff by 0.5–1.5. */
+  random?: () => number;
+}
+
+export interface GatewayKey {
+  /** One queue per model: connection ID and model ID. */
+  key: string;
+  limit: number;
+}
+
+export interface RunHooks {
+  /** Called before each wait, with its length and why. */
+  onWait?: (ms: number, reason: string) => void;
+  signal?: AbortSignal | undefined;
+}
+
+interface Lane {
+  active: number;
+  waiting: Array<() => void>;
+}
+
+export class ModelGateway {
+  private readonly clock: Clock;
+  private readonly maxWaitMs: number;
+  private readonly baseBackoffMs: number;
+  private readonly maxBackoffMs: number;
+  private readonly random: () => number;
+  private readonly lanes = new Map<string, Lane>();
+
+  constructor(options: GatewayOptions = {}) {
+    this.clock = options.clock ?? realClock;
+    this.maxWaitMs = options.maxWaitMs ?? 10 * 60_000;
+    this.baseBackoffMs = options.baseBackoffMs ?? 2_000;
+    this.maxBackoffMs = options.maxBackoffMs ?? 60_000;
+    this.random = options.random ?? Math.random;
+  }
+
+  private async acquire({ key, limit }: GatewayKey): Promise<() => void> {
+    const lane = this.lanes.get(key) ?? { active: 0, waiting: [] };
+    this.lanes.set(key, lane);
+    if (lane.active >= Math.max(1, limit)) {
+      await new Promise<void>((resolve) => lane.waiting.push(resolve));
+    } else {
+      lane.active++;
+    }
+    return () => {
+      const next = lane.waiting.shift();
+      // The slot passes straight to the next caller in line.
+      if (next) next();
+      else lane.active--;
+    };
+  }
+
+  private backoffMs(retry: number): number {
+    const exponential = Math.min(
+      this.maxBackoffMs,
+      this.baseBackoffMs * 2 ** retry,
+    );
+    return Math.round(exponential * (0.5 + this.random()));
+  }
+
+  /** The wait before the next try, or undefined when the ceiling is reached. */
+  nextWaitMs(
+    err: RateLimitedError,
+    retry: number,
+    waitedMs: number,
+  ): number | undefined {
+    const wait = err.retryAfterMs ?? this.backoffMs(retry);
+    return waitedMs + wait > this.maxWaitMs ? undefined : wait;
+  }
+
+  async run<T>(
+    key: GatewayKey,
+    fn: () => Promise<T>,
+    hooks: RunHooks = {},
+  ): Promise<T> {
+    const release = await this.acquire(key);
+    try {
+      let waited = 0;
+      for (let retry = 0; ; retry++) {
+        try {
+          return await fn();
+        } catch (err: unknown) {
+          if (!(err instanceof RateLimitedError)) throw err;
+          const wait = this.nextWaitMs(err, retry, waited);
+          if (wait === undefined) {
+            throw new ModelUnavailableError(
+              `Rate limited: the provider kept refusing requests for over ${Math.round(this.maxWaitMs / 60_000)} min. ${err.message}`,
+              "rate limited",
+            );
+          }
+          hooks.onWait?.(wait, err.message);
+          await this.clock.sleep(wait, hooks.signal);
+          waited += wait;
+        }
+      }
+    } finally {
+      release();
+    }
+  }
+}
+
+/** The worker's one gateway, shared by every run it executes. */
+export const modelGateway = new ModelGateway();
