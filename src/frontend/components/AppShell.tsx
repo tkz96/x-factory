@@ -347,6 +347,23 @@ function AppShellHeader({
             {compact ? title : ""}
           </span>
         )}
+
+        {!isDocs && section === "tickets" && projects.length > 0 && (
+          <select
+            id="select-project"
+            className="toolbar-select"
+            aria-label="Project"
+            value={selectedProjectId}
+            onChange={(e) => onSelectProject(e.target.value)}
+            disabled={isProjectsLoading}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {!isDocs && (
@@ -371,22 +388,6 @@ function AppShellHeader({
             Browse documents
           </button>
         )}
-        {!isDocs && section === "tickets" && projects.length > 0 && (
-          <select
-            id="select-project"
-            className="toolbar-select"
-            aria-label="Project"
-            value={selectedProjectId}
-            onChange={(e) => onSelectProject(e.target.value)}
-            disabled={isProjectsLoading}
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        )}
         {!isDocs && (
           <ContextAction
             section={section}
@@ -402,6 +403,7 @@ function AppShellHeader({
           type="button"
           id="btn-search"
           className="btn-secondary btn-sm"
+          aria-label="Search"
           aria-keyshortcuts="Control+K Meta+K"
           title={`Search (${paletteKeys})`}
           onClick={onOpenPalette}
@@ -409,7 +411,7 @@ function AppShellHeader({
           <svg className="icon icon-sm" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-search" />
           </svg>
-          <span>Search</span>
+          <span className="search-label">Search</span>
         </button>
         <span
           className="system-status desktop-only"
@@ -618,19 +620,19 @@ function AppShellContent() {
           onSelectProject={setSelectedProjectId}
         />
 
-        {!isDocs && !isRunDetail && (
-          <div className="page-heading">
-            <h1 id="page-title" className="large-title">
-              {genericTitle}
-            </h1>
-            <p className="page-subtitle">{genericSubtitle}</p>
-          </div>
-        )}
-
         <div
           id="viewport-container"
           className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
         >
+          {!isDocs && !isRunDetail && (
+            <div className="page-heading">
+              <h1 id="page-title" className="large-title">
+                {genericTitle}
+              </h1>
+              <p className="page-subtitle">{genericSubtitle}</p>
+            </div>
+          )}
+
           <Outlet />
         </div>
       </main>

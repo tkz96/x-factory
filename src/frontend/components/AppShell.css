@@ -198,9 +198,13 @@
 }
 
 .toolbar {
-  display: flex;
+  /* One row: title and project on the start, the section switch centred,
+     the actions at the end. The columns are equal, so the switch stays
+     centred whatever the title width (#258). */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 1rem;
   padding: 0.9rem 2rem;
   background: var(--bg-glass);
   backdrop-filter: blur(var(--blur-glass));
@@ -301,17 +305,29 @@
   display: block;
 }
 
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  grid-column: 1;
+}
+
 .toolbar-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 0.75rem;
+  min-width: 0;
+  grid-column: 3;
+  justify-self: end;
 }
 
 /* The toolbar's section switch (#258): Tickets | Runs | Projects. */
 .toolbar-sections {
   flex-shrink: 0;
+  grid-column: 2;
 }
 
 .toolbar-select {
@@ -455,12 +471,36 @@
     display: none;
   }
 
+  /* Phone: the bar is project + actions on one row. Search drops its label
+     and keeps its accessible name (#258). */
   .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
     padding: 0.6rem 1rem;
   }
 
   .toolbar-actions {
+    grid-column: 2;
+    gap: 0.25rem;
+  }
+
+  .toolbar-left {
     gap: 0.5rem;
+  }
+
+  .toolbar-select {
+    max-width: 6.5rem;
+    min-width: 0;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .search-label {
+    display: none;
+  }
+
+  #btn-search {
+    width: var(--tap-min);
+    padding: 0;
+    justify-content: center;
   }
 
   button.mobile-only {
