@@ -10,13 +10,9 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
-import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
 import { NotificationProvider } from "../context/NotificationContext.js";
-import {
-  ProjectProvider,
-  useCurrentProject,
-} from "../context/ProjectContext.js";
+import { ProjectProvider } from "../context/ProjectContext.js";
 import {
   useReadiness,
   useRun,
@@ -35,6 +31,7 @@ import {
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
+import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
 import { NotificationBell } from "./notifications/NotificationBell.js";
 import {
@@ -47,6 +44,7 @@ import {
 } from "./overlays/index.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
+import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
@@ -292,10 +290,6 @@ interface AppShellHeaderProps {
   onStartRun: () => void;
   onAddProject: () => void;
   onOpenPalette: () => void;
-  projects: Project[];
-  isProjectsLoading: boolean;
-  selectedProjectId: string;
-  onSelectProject: (id: string) => void;
 }
 
 function AppShellHeader({
@@ -318,10 +312,6 @@ function AppShellHeader({
   onStartRun,
   onAddProject,
   onOpenPalette,
-  projects,
-  isProjectsLoading,
-  selectedProjectId,
-  onSelectProject,
 }: AppShellHeaderProps) {
   const paletteKeys =
     formatShortcut(getShortcut("palette"), isMacPlatform()) ?? "";
@@ -370,22 +360,11 @@ function AppShellHeader({
           </span>
         )}
 
-        {!isDocs && section === "tickets" && projects.length > 0 && (
-          <select
-            id="select-project"
-            className="toolbar-select"
-            aria-label="Project"
-            value={selectedProjectId}
-            onChange={(e) => onSelectProject(e.target.value)}
-            disabled={isProjectsLoading}
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        )}
+        {!isDocs &&
+          !isRunDetail &&
+          (section === "tickets" || section === "runs") && (
+            <ProjectScopePicker />
+          )}
 
         {!isDocs && <NotificationActivity />}
       </div>
@@ -504,12 +483,6 @@ function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
 function AppShellContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const {
-    projects,
-    isProjectsLoading,
-    selectedProjectId,
-    setSelectedProjectId,
-  } = useCurrentProject();
   const { openNewRunModal, openOnboardingModal } = useModal();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -661,10 +634,6 @@ function AppShellContent() {
           onStartRun={() => openNewRunModal()}
           onAddProject={() => openOnboardingModal()}
           onOpenPalette={() => setPaletteOpen(true)}
-          projects={projects}
-          isProjectsLoading={isProjectsLoading}
-          selectedProjectId={selectedProjectId}
-          onSelectProject={setSelectedProjectId}
         />
 
         <div
@@ -686,6 +655,8 @@ function AppShellContent() {
 
       <AppShellMobileTabBar needsYouCount={needsYouCount} />
       <ModalContainer />
+      {/* Desktop banners for live run events (#265). Renders nothing. */}
+      <DesktopBanners />
       <CommandPalette
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}

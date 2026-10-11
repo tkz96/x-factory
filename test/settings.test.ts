@@ -121,6 +121,24 @@ describe("Settings Storage & Persistence", () => {
     const reverted = await loadSettings();
     expect(reverted.allowUnsandboxed).toBe(false);
   });
+
+  test("loadSettings defaults desktopNotifications to off (#265)", async () => {
+    const defaults = await loadSettings();
+    expect(defaults.desktopNotifications).toBe(false);
+  });
+
+  test("saveSettings persists the desktop notifications preference (#265)", async () => {
+    await saveSettings({ desktopNotifications: true });
+    const updated = await loadSettings();
+    expect(updated.desktopNotifications).toBe(true);
+
+    // A later save of another setting keeps the preference.
+    await saveSettings({ appearance: "dark" });
+    expect((await loadSettings()).desktopNotifications).toBe(true);
+
+    await saveSettings({ desktopNotifications: false });
+    expect((await loadSettings()).desktopNotifications).toBe(false);
+  });
 });
 
 describe("Settings legacy model entries (#182)", () => {

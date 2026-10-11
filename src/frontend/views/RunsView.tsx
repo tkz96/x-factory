@@ -4,7 +4,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
+import { useCurrentProject } from "../context/ProjectContext.js";
 import { useRuns } from "../hooks/useQueries.js";
+import { runsInScope } from "../lib/project-scope.js";
 import { runStatusText } from "../lib/run-status-ui.js";
 import {
   countRunsByFilter,
@@ -63,7 +65,9 @@ const EMPTY_COPY: Record<RunsFilterId, string> = {
  */
 export function RunsView() {
   const runsQuery = useRuns();
-  const runs = runsQuery.data ?? [];
+  // The shared project scope narrows the list and its counts (#260).
+  const { scope } = useCurrentProject();
+  const runs = runsInScope(runsQuery.data ?? [], scope);
   const { refetch } = runsQuery;
   const [params, setParams] = useSearchParams();
   const [lastChosen] = useState(readLastChosenFilter);

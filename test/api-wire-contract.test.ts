@@ -155,6 +155,8 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
         appearance: "automatic",
         models: payload.models,
         allowUnsandboxed: false,
+        // The desktop notifications preference (#265) is part of the saved object.
+        desktopNotifications: false,
       });
 
       // The on-disk file parses as JSON and holds exactly {provider, model}
