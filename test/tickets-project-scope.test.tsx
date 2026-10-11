@@ -7,7 +7,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
   onlineManager,
   QueryClient,
@@ -29,6 +29,7 @@ import {
   useModal,
 } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
+import { api } from "../src/frontend/lib/api-client.js";
 import {
   ALL_PROJECTS,
   PROJECT_SCOPE_STORAGE_KEY,
@@ -153,26 +154,20 @@ function seedProjects(client: QueryClient, projects: Project[] = [ACME, DEMO]) {
 }
 
 /**
- * Stubs the tickets endpoint per project: each project's tracker answers on its
+ * Replaces the tickets read per project: each project's tracker answers on its
  * own, so one failing project cannot touch another's list.
  */
-function stubTrackers(
-  answer: (projectId: string) => Response | Promise<Response>,
-) {
-  const realFetch = globalThis.fetch;
+function stubTrackers(answer: (projectId: string) => Promise<Ticket[]>) {
   const calls: string[] = [];
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = String(input);
-    const match = /\/api\/projects\/([^/]+)\/tickets$/.exec(url);
-    if (!match) throw new Error(`unexpected request ${url}`);
-    calls.push(match[1] as string);
-    return answer(decodeURIComponent(match[1] as string));
-  }) as typeof fetch;
+  const spy = spyOn(api, "getTickets").mockImplementation(
+    (projectId: string) => {
+      calls.push(projectId);
+      return answer(projectId);
+    },
+  );
   return {
     calls,
-    restore: () => {
-      globalThis.fetch = realFetch;
-    },
+    restore: () => spy.mockRestore(),
   };
 }
 
@@ -268,9 +263,7 @@ describe("Tickets in All Projects mode", () => {
     let demoAnswers = 0;
     const tracker = stubTrackers(() => {
       demoAnswers += 1;
-      return new Response(JSON.stringify({ error: "tracker unreachable" }), {
-        status: 500,
-      });
+      return Promise.reject(new Error("tracker unreachable"));
     });
     try {
       renderWithScope(React.createElement(QueueView), client);
@@ -303,7 +296,7 @@ describe("Tickets in All Projects mode", () => {
     client.setQueryData(queryKeys.tickets(DEMO.id), [
       ticket("DEMO-7", "Login banner"),
     ]);
-    const tracker = stubTrackers(() => new Promise<Response>(() => {}));
+    const tracker = stubTrackers(() => new Promise<Ticket[]>(() => {}));
     try {
       renderWithScope(React.createElement(QueueView), client);
 
@@ -498,13 +491,7 @@ describe("the Tickets toolbar", () => {
     client.setQueryData(queryKeys.tickets(DEMO.id), [
       ticket("DEMO-7", "Login banner"),
     ]);
-    const tracker = stubTrackers(
-      () =>
-        new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-    );
+    const tracker = stubTrackers(() => Promise.resolve([]));
     try {
       renderWithScope(React.createElement(QueueView), client);
       act(() => {
