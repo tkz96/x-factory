@@ -1,0 +1,112 @@
+/* src/frontend/components/overlays/Dialog.css — Dialog and Sheet modal overlay styles (#250) */
+
+.xf-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal-backdrop);
+  padding: var(--space-4);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  transition: opacity var(--duration-fast) var(--ease-out);
+  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
+}
+
+.xf-dialog-modal {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: var(--z-modal);
+  outline: none;
+}
+
+/* The primitive is structure only: each dialog brings its own surface
+   (modal-dialog, xf-alert-dialog-modal, xf-sheet-modal), so one surface
+   never stacks on another. */
+.xf-dialog-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  outline: none;
+  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
+}
+
+.xf-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-width) solid var(--border);
+  flex-shrink: 0;
+}
+
+.xf-dialog-title {
+  font-family: var(--font-display);
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.022em;
+  margin: 0;
+}
+
+.xf-dialog-body {
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.xf-dialog-footer {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: var(--border-width) solid var(--border-subtle);
+  background: var(--bg-modal);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.xf-dialog-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.xf-dialog-close-btn:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.xf-dialog-close-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+@keyframes xfDialogFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Opening is opacity-only, so the reduced-motion ladder in tokens.css (every
+   --duration-* collapses to one short beat) is the whole reduced path: the
+   overlay crossfades and never moves. */

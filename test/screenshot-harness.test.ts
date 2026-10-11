@@ -138,7 +138,7 @@ describe("isolated instance", () => {
     const port = Number(new URL(instance.url).port);
     expect([3777, 5173]).not.toContain(port);
     expect(
-      instance.dataDir.startsWith(homedir() + path.sep + ".x-factory"),
+      instance.dataDir.startsWith(`${homedir() + path.sep}.x-factory`),
     ).toBe(false);
     expect(process.env.X_FACTORY_DATA_DIR).toBe(instance.dataDir);
     expect(existsSync(path.join(instance.dataDir, "x-factory.db"))).toBe(true);

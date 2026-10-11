@@ -110,7 +110,7 @@
   border: var(--border-width-thick) solid var(--border-subtle);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: docsSpin 600ms linear infinite;
+  animation: docsSpin var(--duration-loader-slow) var(--ease-linear) infinite;
 }
 
 @keyframes docsSpin {
@@ -119,6 +119,20 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Reduced motion (#252): the search spinner becomes a static ring. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes docsSpin {
+    from,
+    to {
+      transform: none;
+    }
+  }
+
+  .docs-search-spinner {
+    animation-iteration-count: 1;
   }
 }
 
@@ -400,8 +414,8 @@
   width: 100%;
   max-width: 100%;
   transition:
-    opacity 180ms var(--spring),
-    transform 180ms var(--spring);
+    opacity var(--duration-fast) var(--ease-spring),
+    transform var(--duration-fast) var(--ease-spring);
 }
 
 .docs-category-title {

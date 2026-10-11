@@ -21,7 +21,7 @@ It prints one line per gate. If a gate fails, it also prints the last lines of t
 | Cycles | `bun run check:cycles` | No circular imports from the server, worker or frontend entry points |
 | Build | `bun run build` | Frontend and asset build into `dist/`. Runs before the test gates, as in CI |
 | Tests | `bun run test:coverage` | Full test suite with line and function coverage of at least 80% (`bunfig.toml`) |
-| Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, no inline styles, no reference to a third-party host in any page, stylesheet or frontend module, and no request to another host when a real browser loads every screen |
+| Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, no inline styles, no reference to a third-party host in any page, stylesheet or frontend module, no motion duration or easing written outside the token file, a reduced-motion path beside every moving keyframe and every infinite animation, the motion library loaded lazily with only the features in use, and no request to another host when a real browser loads every screen |
 | Integration | `bun run test:integration`, `bun run test:integration:production` | End-to-end runs in development and production mode |
 
 Fallow also reports a maintainability score. The target is 90 or higher. No gate enforces it yet, so check the score in the `check:fallow` output.

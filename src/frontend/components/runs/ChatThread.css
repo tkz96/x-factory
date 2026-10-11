@@ -30,7 +30,7 @@
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-footnote);
   line-height: 1.45;
-  animation: chatBubbleIn 180ms ease-out;
+  animation: chatBubbleIn var(--duration-fast) var(--ease-out);
 }
 
 .chat-bubble.bubble-system {
@@ -137,5 +137,17 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Reduced motion (#252): a bubble fades in where it lands instead of rising. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes chatBubbleIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 }

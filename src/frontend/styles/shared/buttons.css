@@ -29,7 +29,7 @@ button:active,
 .btn-sm:active,
 .btn-circle:active {
   transform: scale(0.95);
-  transition-duration: 90ms;
+  transition-duration: var(--duration-instant);
 }
 
 .btn-primary {

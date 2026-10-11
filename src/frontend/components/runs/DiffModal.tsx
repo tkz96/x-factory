@@ -2,9 +2,8 @@
 
 import "./DiffModal.css";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useDialogFocus } from "../../hooks/useDialogFocus.js";
-import { DialogPortal } from "../DialogPortal.js";
+import { useMemo } from "react";
+import { Dialog } from "../overlays/Dialog.js";
 
 export interface DiffModalProps {
   isOpen: boolean;
@@ -23,22 +22,6 @@ export function DiffModal({
   hunks,
   onClose,
 }: DiffModalProps) {
-  const backdropRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(backdropRef, isOpen && file !== null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
   const diffRows = useMemo(() => {
     if (!isOpen || !file) return [];
     return hunks.split("\n").map((line, index) => ({
@@ -47,26 +30,18 @@ export function DiffModal({
     }));
   }, [isOpen, hunks, file]);
 
-  if (!isOpen || !file) return null;
-
   return (
-    <DialogPortal>
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop click handles outside modal dismissal */}
-      <div
-        ref={backdropRef}
-        tabIndex={-1}
-        className="modal-backdrop"
-        id="diff-modal-backdrop"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            onClose();
-          }
-        }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Diff for ${file}`}
-      >
-        <div className="modal-dialog diff-modal-dialog">
+    <Dialog
+      isOpen={isOpen && file !== null}
+      onClose={onClose}
+      id="diff-modal"
+      overlayId="diff-modal-backdrop"
+      overlayClassName="modal-backdrop"
+      ariaLabel={file ? `Diff for ${file}` : undefined}
+      className="modal-dialog diff-modal-dialog"
+    >
+      {file !== null && (
+        <>
           <header className="diff-modal-header">
             <div className="diff-modal-title-wrap">
               <span className="diff-modal-filename" id="diff-modal-filename">
@@ -138,8 +113,8 @@ export function DiffModal({
               Close
             </button>
           </div>
-        </div>
-      </div>
-    </DialogPortal>
+        </>
+      )}
+    </Dialog>
   );
 }

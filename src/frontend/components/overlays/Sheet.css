@@ -1,0 +1,111 @@
+/* src/frontend/components/overlays/Sheet.css — Sheet overlay styles (#250) */
+
+.xf-sheet-modal {
+  background: var(--bg-modal);
+  border: var(--border-width) solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  z-index: var(--z-modal);
+  outline: none;
+}
+
+.xf-sheet-bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: min(85vh, var(--modal-max-height));
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+  border-bottom: none;
+  border-left: none;
+  border-right: none;
+  animation: xfSheetSlideUp var(--duration-fast) var(--spring);
+}
+
+.xf-sheet-right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--content-max-md);
+  max-width: 100%;
+  border-top-left-radius: var(--radius-card);
+  border-bottom-left-radius: var(--radius-card);
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  animation: xfSheetSlideInRight var(--duration-fast) var(--spring);
+}
+
+.xf-sheet-left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--content-max-md);
+  max-width: 100%;
+  border-top-right-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+  border-left: none;
+  border-top: none;
+  border-bottom: none;
+  animation: xfSheetSlideInLeft var(--duration-fast) var(--spring);
+}
+
+@keyframes xfSheetSlideUp {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes xfSheetSlideInRight {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes xfSheetSlideInLeft {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+/* Reduced motion: each sheet keyframe is declared again as a fade, so the same
+   animation names crossfade in place instead of sliding. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfSheetSlideUp {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes xfSheetSlideInRight {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes xfSheetSlideInLeft {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}

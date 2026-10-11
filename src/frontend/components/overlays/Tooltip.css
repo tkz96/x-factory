@@ -1,0 +1,24 @@
+/* src/frontend/components/overlays/Tooltip.css — Tooltip overlay styles (#250) */
+
+.xf-tooltip {
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-1);
+  color: var(--text);
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+  animation: xfTooltipFadeIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes xfTooltipFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
