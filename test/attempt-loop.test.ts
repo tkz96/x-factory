@@ -495,6 +495,55 @@ ${CHECK_OFF_FIRST_TASK}
     ).toBe(true);
   });
 
+  it("counts one model call per coding-loop iteration for the daily budget (#281)", async () => {
+    await commitAndRecordBaseline();
+    // Two loop iterations: the first invocation adds one more unchecked task for
+    // the second to complete, so the loop runs exactly twice before it finds no
+    // unchecked task left.
+    const marker = path.join(tempDir, "loop-marker");
+    await installSbx(`
+echo "export const updated = true;" > src/app.ts
+if [ ! -f "${marker}" ]; then
+  touch "${marker}"
+  echo "- [ ] follow-up" >> .agent/tasks.md
+fi
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, repos, jobRepo, worker } = setup();
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    const iterations = repos.events
+      .getEventsForRun(run.id)
+      .filter(
+        (e) =>
+          e.type === "ralph_progress" &&
+          (e.payload as { text: string }).text.includes("Iteration"),
+      );
+    expect(iterations).toHaveLength(2);
+
+    // Pi's own calls in the subprocess cannot be seen, so each iteration the
+    // loop announced is one counted call, attributed to the execute attempt.
+    const attempt = repos.stageAttempts.listForRun(run.id)[0];
+    const counted = repos.modelCalls.countForModel(
+      "test-connection",
+      "test/model",
+    );
+    expect(counted).toBe(2);
+    const rows = repos.db
+      .prepare<{ stage_attempt_id: string | null }, []>(
+        "SELECT stage_attempt_id FROM model_calls ORDER BY id ASC",
+      )
+      .all();
+    expect(rows.map((row) => row.stage_attempt_id)).toEqual([
+      attempt?.id ?? null,
+      attempt?.id ?? null,
+    ]);
+  });
+
   it("emits one verification event per attempt while repairing", async () => {
     await commitAndRecordBaseline();
     const log = path.join(tempDir, "sbx.log");

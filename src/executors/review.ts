@@ -68,6 +68,7 @@ export class ReviewExecutor implements StageExecutor {
         understanding: run.implementationContext,
         modelConfig: { resolved },
         assertBudget: context.assertBudget,
+        recordCall: () => context.recordModelCall?.(resolved),
         // Session activity is forwarded as run events so the review is not a black box (#256).
         onEvent: (event) => {
           if (event.type === "error") {

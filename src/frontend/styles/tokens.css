@@ -64,16 +64,110 @@
   src: url("/fonts/IBMPlexMono-Bold.woff2") format("woff2");
 }
 
+/* ── Graphite and Sandstone theme fonts (#249): loaded only when that theme is active ── */
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/IBMPlexSans-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/IBMPlexSans-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/IBMPlexSans-Semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/IBMPlexSans-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleNext-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleNext-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleNext-Semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleNext-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleMono-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleMono-Semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegibleMono-Bold.woff2") format("woff2");
+}
+
 /* ── Base Design Tokens (Independent of Appearance/Theme) ──────────── */
 
 :root {
   /* Fonts */
-  --font-display:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui,
-    sans-serif;
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter",
-    system-ui, sans-serif;
+  --font-display: system-ui, "Inter", sans-serif;
+  --font-sans: system-ui, "Inter", sans-serif;
   --font-serif:
     "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
   --font-mono:
@@ -409,6 +503,334 @@
   --accent-dim: rgba(64, 156, 255, 0.25);
   --accent-subtle: var(--accent-dim);
   --border-width: 2px;
+}
+
+/* ── Graphite Theme (#249): colour tokens for each appearance × contrast ── */
+
+[data-theme="graphite"][data-appearance="light"][data-contrast="standard"] {
+  --bg: #ffffff;
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-input: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --border: rgba(15, 23, 42, 0.16);
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-hover: rgba(15, 23, 42, 0.28);
+  --border-focus: #4338ca;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+  --text-main: #0f172a;
+  --bg-code: rgba(15, 23, 42, 0.05);
+  --bg-surface-2: #f1f5f9;
+  --bg-modal: #ffffff;
+  --modal-backdrop: rgba(15, 23, 42, 0.45);
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-pressed: #3730a3;
+  --accent-dim: rgba(79, 70, 229, 0.12);
+  --bg-circle-btn: #e2e8f0;
+  --bg-circle-btn-hover: #cbd5e1;
+  --bg-circle-btn-active: #94a3b8;
+  --text-on-accent: #ffffff;
+  --text-on-dot: #ffffff;
+  --bg-hover: rgba(15, 23, 42, 0.03);
+  --bg-tertiary: rgba(15, 23, 42, 0.04);
+  --bg-secondary: rgba(15, 23, 42, 0.06);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="graphite"][data-appearance="light"][data-contrast="more"] {
+  --bg: #ffffff;
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-input: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --border: #64748b;
+  --border-subtle: #94a3b8;
+  --border-hover: #0f172a;
+  --border-focus: #3730a3;
+  --text: #0f172a;
+  --text-muted: #334155;
+  --text-dim: #475569;
+  --text-main: #0f172a;
+  --bg-code: rgba(15, 23, 42, 0.05);
+  --bg-surface-2: #f1f5f9;
+  --bg-modal: #ffffff;
+  --modal-backdrop: rgba(15, 23, 42, 0.45);
+  --accent: #4338ca;
+  --accent-hover: #3730a3;
+  --accent-pressed: #312e81;
+  --accent-dim: rgba(67, 56, 202, 0.2);
+  --bg-circle-btn: #e2e8f0;
+  --bg-circle-btn-hover: #cbd5e1;
+  --bg-circle-btn-active: #94a3b8;
+  --text-on-accent: #ffffff;
+  --text-on-dot: #ffffff;
+  --bg-hover: rgba(15, 23, 42, 0.03);
+  --bg-tertiary: rgba(15, 23, 42, 0.04);
+  --bg-secondary: rgba(15, 23, 42, 0.06);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="graphite"][data-appearance="dark"][data-contrast="standard"] {
+  --bg: #0f172a;
+  --bg-app: #0f172a;
+  --bg-sidebar: #0b1222;
+  --bg-card: #1e293b;
+  --bg-card-hover: #273449;
+  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-glass: rgba(15, 23, 42, 0.8);
+  --border: rgba(226, 232, 240, 0.16);
+  --border-subtle: rgba(226, 232, 240, 0.08);
+  --border-hover: rgba(226, 232, 240, 0.28);
+  --border-focus: #818cf8;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #7d8ba1;
+  --text-main: #f1f5f9;
+  --bg-code: rgba(0, 0, 0, 0.35);
+  --bg-surface-2: #1e293b;
+  --bg-modal: #1e293b;
+  --modal-backdrop: rgba(2, 6, 23, 0.7);
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-pressed: #6366f1;
+  --accent-dim: rgba(129, 140, 248, 0.16);
+  --bg-circle-btn: rgba(255, 255, 255, 0.08);
+  --bg-circle-btn-hover: rgba(255, 255, 255, 0.16);
+  --bg-circle-btn-active: rgba(255, 255, 255, 0.24);
+  --text-on-accent: #0f172a;
+  --text-on-dot: #0f172a;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-tertiary: rgba(255, 255, 255, 0.06);
+  --bg-secondary: rgba(255, 255, 255, 0.08);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="graphite"][data-appearance="dark"][data-contrast="more"] {
+  --bg: #0f172a;
+  --bg-app: #0f172a;
+  --bg-sidebar: #0b1222;
+  --bg-card: #1e293b;
+  --bg-card-hover: #273449;
+  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-glass: rgba(15, 23, 42, 0.8);
+  --border: #94a3b8;
+  --border-subtle: #64748b;
+  --border-hover: #ffffff;
+  --border-focus: #a5b4fc;
+  --text: #ffffff;
+  --text-muted: #e2e8f0;
+  --text-dim: #cbd5e1;
+  --text-main: #ffffff;
+  --bg-code: rgba(0, 0, 0, 0.35);
+  --bg-surface-2: #1e293b;
+  --bg-modal: #1e293b;
+  --modal-backdrop: rgba(2, 6, 23, 0.7);
+  --accent: #a5b4fc;
+  --accent-hover: #c7d2fe;
+  --accent-pressed: #818cf8;
+  --accent-dim: rgba(165, 180, 252, 0.25);
+  --bg-circle-btn: rgba(255, 255, 255, 0.08);
+  --bg-circle-btn-hover: rgba(255, 255, 255, 0.16);
+  --bg-circle-btn-active: rgba(255, 255, 255, 0.24);
+  --text-on-accent: #0f172a;
+  --text-on-dot: #0f172a;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-tertiary: rgba(255, 255, 255, 0.06);
+  --bg-secondary: rgba(255, 255, 255, 0.08);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="graphite"] {
+  --font-display: "IBM Plex Sans", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-serif:
+    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+}
+
+/* ── Sandstone Theme (#249): colour tokens for each appearance × contrast ── */
+
+[data-theme="sandstone"][data-appearance="light"][data-contrast="standard"] {
+  --bg: #fffdf8;
+  --bg-app: #f6f1e7;
+  --bg-sidebar: #ece4d4;
+  --bg-card: #fffdf8;
+  --bg-card-hover: #faf6ee;
+  --bg-input: #fffdf8;
+  --bg-glass: rgba(255, 253, 248, 0.85);
+  --border: rgba(74, 52, 30, 0.18);
+  --border-subtle: rgba(74, 52, 30, 0.09);
+  --border-hover: rgba(74, 52, 30, 0.3);
+  --border-focus: #9a3f1c;
+  --text: #2b2118;
+  --text-muted: #5c4d3d;
+  --text-dim: #7a6a57;
+  --text-main: #2b2118;
+  --bg-code: rgba(74, 52, 30, 0.07);
+  --bg-surface-2: #f6f1e7;
+  --bg-modal: #fffdf8;
+  --modal-backdrop: rgba(43, 33, 24, 0.45);
+  --accent: #a8461f;
+  --accent-hover: #8f3a19;
+  --accent-pressed: #74300f;
+  --accent-dim: rgba(168, 70, 31, 0.12);
+  --bg-circle-btn: #ece4d4;
+  --bg-circle-btn-hover: #e0d6c2;
+  --bg-circle-btn-active: #cfc3ac;
+  --text-on-accent: #fffdf8;
+  --text-on-dot: #fffdf8;
+  --bg-hover: rgba(74, 52, 30, 0.03);
+  --bg-tertiary: rgba(74, 52, 30, 0.04);
+  --bg-secondary: rgba(74, 52, 30, 0.06);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="sandstone"][data-appearance="light"][data-contrast="more"] {
+  --bg: #fffdf8;
+  --bg-app: #f6f1e7;
+  --bg-sidebar: #ece4d4;
+  --bg-card: #fffdf8;
+  --bg-card-hover: #faf6ee;
+  --bg-input: #fffdf8;
+  --bg-glass: rgba(255, 253, 248, 0.85);
+  --border: #6b5a47;
+  --border-subtle: #8a7a66;
+  --border-hover: #2b2118;
+  --border-focus: #7d3416;
+  --text: #2b2118;
+  --text-muted: #43372b;
+  --text-dim: #54463a;
+  --text-main: #2b2118;
+  --bg-code: rgba(74, 52, 30, 0.07);
+  --bg-surface-2: #f6f1e7;
+  --bg-modal: #fffdf8;
+  --modal-backdrop: rgba(43, 33, 24, 0.45);
+  --accent: #8f3a19;
+  --accent-hover: #74300f;
+  --accent-pressed: #5c2510;
+  --accent-dim: rgba(143, 58, 25, 0.2);
+  --bg-circle-btn: #ece4d4;
+  --bg-circle-btn-hover: #e0d6c2;
+  --bg-circle-btn-active: #cfc3ac;
+  --text-on-accent: #fffdf8;
+  --text-on-dot: #fffdf8;
+  --bg-hover: rgba(74, 52, 30, 0.03);
+  --bg-tertiary: rgba(74, 52, 30, 0.04);
+  --bg-secondary: rgba(74, 52, 30, 0.06);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="sandstone"][data-appearance="dark"][data-contrast="standard"] {
+  --bg: #1d1812;
+  --bg-app: #1d1812;
+  --bg-sidebar: #16120d;
+  --bg-card: #2a231b;
+  --bg-card-hover: #342b21;
+  --bg-input: rgba(255, 240, 215, 0.07);
+  --bg-glass: rgba(29, 24, 18, 0.8);
+  --border: rgba(245, 230, 205, 0.16);
+  --border-subtle: rgba(245, 230, 205, 0.08);
+  --border-hover: rgba(245, 230, 205, 0.28);
+  --border-focus: #e0875c;
+  --text: #f3ebdd;
+  --text-muted: #bfb2a0;
+  --text-dim: #8f8273;
+  --text-main: #f3ebdd;
+  --bg-code: rgba(0, 0, 0, 0.3);
+  --bg-surface-2: #2a231b;
+  --bg-modal: #2a231b;
+  --modal-backdrop: rgba(10, 8, 5, 0.7);
+  --accent: #e0875c;
+  --accent-hover: #ec9d75;
+  --accent-pressed: #c96f45;
+  --accent-dim: rgba(224, 135, 92, 0.18);
+  --bg-circle-btn: rgba(245, 230, 205, 0.08);
+  --bg-circle-btn-hover: rgba(245, 230, 205, 0.16);
+  --bg-circle-btn-active: rgba(245, 230, 205, 0.24);
+  --text-on-accent: #1d1812;
+  --text-on-dot: #1d1812;
+  --bg-hover: rgba(245, 230, 205, 0.04);
+  --bg-tertiary: rgba(245, 230, 205, 0.06);
+  --bg-secondary: rgba(245, 230, 205, 0.08);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="sandstone"][data-appearance="dark"][data-contrast="more"] {
+  --bg: #1d1812;
+  --bg-app: #1d1812;
+  --bg-sidebar: #16120d;
+  --bg-card: #2a231b;
+  --bg-card-hover: #342b21;
+  --bg-input: rgba(255, 240, 215, 0.07);
+  --bg-glass: rgba(29, 24, 18, 0.8);
+  --border: #a89a86;
+  --border-subtle: #7d705e;
+  --border-hover: #fff7ea;
+  --border-focus: #f0a180;
+  --text: #fff7ea;
+  --text-muted: #e6dac8;
+  --text-dim: #cfc3b0;
+  --text-main: #fff7ea;
+  --bg-code: rgba(0, 0, 0, 0.3);
+  --bg-surface-2: #2a231b;
+  --bg-modal: #2a231b;
+  --modal-backdrop: rgba(10, 8, 5, 0.7);
+  --accent: #f0a180;
+  --accent-hover: #f7b99c;
+  --accent-pressed: #e0875c;
+  --accent-dim: rgba(240, 161, 128, 0.25);
+  --bg-circle-btn: rgba(245, 230, 205, 0.08);
+  --bg-circle-btn-hover: rgba(245, 230, 205, 0.16);
+  --bg-circle-btn-active: rgba(245, 230, 205, 0.24);
+  --text-on-accent: #1d1812;
+  --text-on-dot: #1d1812;
+  --bg-hover: rgba(245, 230, 205, 0.04);
+  --bg-tertiary: rgba(245, 230, 205, 0.06);
+  --bg-secondary: rgba(245, 230, 205, 0.08);
+  --border-color: var(--border);
+  --accent-subtle: var(--accent-dim);
+  --color-primary: var(--accent);
+  --text-secondary: var(--text-muted);
+}
+
+[data-theme="sandstone"] {
+  --font-display: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-serif:
+    "Atkinson Hyperlegible Mono", ui-monospace, Menlo, Monaco, Consolas,
+    monospace;
+  --font-mono:
+    "Atkinson Hyperlegible Mono", ui-monospace, Menlo, Monaco, Consolas,
+    monospace;
 }
 
 /* ── Media Query Fallbacks (OS settings without explicit data attributes) ─ */

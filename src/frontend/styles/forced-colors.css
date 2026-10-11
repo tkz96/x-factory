@@ -1,0 +1,94 @@
+/* X-Factory forced colours (#249): under Windows High Contrast and other forced-colors
+ * modes the browser replaces custom colours, so controls, borders, selection, status
+ * and focus rings are drawn with system colour keywords here. Widths come from tokens.
+ * Selectors are prefixed with :root so they outrank component stylesheets, which the
+ * bundle loads after this layer. */
+
+@media (forced-colors: active) {
+  /* Components drop their outline and draw a box-shadow ring instead; box-shadow is
+   * lost in forced colours, so the focus ring is an outline here, on every control. */
+  :root :is(button, a, input, textarea, select, [tabindex]):focus-visible {
+    outline: var(--border-width-thick) solid Highlight;
+    outline-offset: var(--space-0-5);
+  }
+
+  :root ::selection {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root a {
+    color: LinkText;
+  }
+
+  :root button,
+  :root .btn-primary,
+  :root .btn-secondary,
+  :root .btn-danger,
+  :root .btn-circle,
+  :root .btn-close,
+  :root .btn-sm,
+  :root .btn-danger-hover,
+  :root .btn-warning,
+  :root .settings-tab-btn,
+  :root .theme-toggle,
+  :root .theme-segment-btn {
+    background: ButtonFace;
+    color: ButtonText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root button:disabled,
+  :root .btn-primary:disabled,
+  :root .btn-secondary:disabled,
+  :root .btn-danger:disabled {
+    color: GrayText;
+    border-color: GrayText;
+  }
+
+  :root .theme-segment-btn[aria-pressed="true"],
+  :root .theme-segment-btn.active {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root input,
+  :root textarea,
+  :root select,
+  :root .form-select,
+  :root .form-input,
+  :root .code-input,
+  :root .setting-checkbox {
+    background: Field;
+    color: FieldText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root .badge,
+  :root .badge-info,
+  :root .badge-warning,
+  :root .badge-error,
+  :root .badge-neutral,
+  :root .badge-status-active,
+  :root .badge-status-archived,
+  :root .status-pill.ready,
+  :root .status-pill.pending,
+  :root .status-pill.error,
+  :root .role-badge,
+  :root .primary-badge,
+  :root .knowledge-badge {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .card,
+  :root .metric-card,
+  :root .telemetry-card,
+  :root .integration-row,
+  :root .theme-segmented-control {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+}

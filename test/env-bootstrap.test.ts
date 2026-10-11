@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import {
-  bootstrapLLMEnv,
-  detectLegacyKeyProvider,
-} from "../src/env-bootstrap.js";
+// test/env-bootstrap.test.ts — Which provider a legacy LLM_API_KEY belongs to (#276).
+
+import { describe, expect, it } from "bun:test";
+import { detectLegacyKeyProvider } from "../src/env-bootstrap.js";
 
 describe("detectLegacyKeyProvider", () => {
   it("detects Anthropic from sk-ant- prefix", () => {
@@ -37,36 +36,5 @@ describe("detectLegacyKeyProvider", () => {
 
   it("returns undefined for unrecognized keys without explicit provider", () => {
     expect(detectLegacyKeyProvider("unrecognized-key-format")).toBeUndefined();
-  });
-});
-
-describe("bootstrapLLMEnv", () => {
-  const originalEnv = { ...process.env };
-
-  beforeEach(() => {
-    delete process.env.LLM_API_KEY;
-    delete process.env.LLM_PROVIDER;
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.GEMINI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
-  });
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
-  });
-
-  it("does not copy LLM_API_KEY into provider env vars (#276)", () => {
-    process.env.LLM_API_KEY = "sk-ant-test-key-12345";
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(process.env.GEMINI_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
-  });
-
-  it("does not overwrite already set provider keys", () => {
-    process.env.ANTHROPIC_API_KEY = "existing-anthropic-key";
-    process.env.LLM_API_KEY = "sk-ant-new-key";
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBe("existing-anthropic-key");
   });
 });

@@ -1,4 +1,6 @@
-// src/env-bootstrap.ts — Resolve LLM_API_KEY into provider-specific environment variables.
+// src/env-bootstrap.ts — Which provider a legacy LLM_API_KEY belongs to (#276).
+// It is imported as a model connection (importLegacyModelKey), never copied into
+// provider environment variables, so there is nothing to bootstrap at startup.
 
 export type LegacyKeyProvider = "anthropic" | "gemini" | "openai";
 
@@ -20,9 +22,4 @@ export function detectLegacyKeyProvider(
   if (key.startsWith("AIzaSy") || key.startsWith("AQ.")) return "gemini";
   if (key.startsWith("sk-")) return "openai";
   return undefined;
-}
-
-export function bootstrapLLMEnv(): void {
-  // Deprecated: LLM_API_KEY is now imported as a model connection by
-  // importLegacyModelKey (#276), so we no longer copy it into provider vars.
 }

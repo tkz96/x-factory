@@ -12,6 +12,7 @@ import { DiagnosticsRepository } from "./db/diagnostics-repository.js";
 import { EventRepository } from "./db/event-repository.js";
 import { JobRepository } from "./db/job-repository.js";
 import { runMigrations } from "./db/migrator.js";
+import { ModelCallRepository } from "./db/model-call-repository.js";
 import { OperationLedgerRepository } from "./db/operation-ledger-repository.js";
 import { RunRepository } from "./db/run-repository.js";
 import { StageAttemptRepository } from "./db/stage-attempt-repository.js";
@@ -26,6 +27,8 @@ export interface Repositories {
   events: EventRepository;
   commands: CommandRepository;
   stageAttempts: StageAttemptRepository;
+  /** One row per model call; the requests/day budget counts these (#281). */
+  modelCalls: ModelCallRepository;
   operationLedger: OperationLedgerRepository;
   diagnostics: DiagnosticsRepository;
   heartbeats: WorkerHeartbeatRepository;
@@ -74,6 +77,7 @@ export function createRepositories(db: Database): Repositories {
     events: new EventRepository(db),
     commands: new CommandRepository(db),
     stageAttempts: new StageAttemptRepository(db),
+    modelCalls: new ModelCallRepository(db),
     operationLedger: new OperationLedgerRepository(db),
     diagnostics: new DiagnosticsRepository(db),
     heartbeats: new WorkerHeartbeatRepository(db),

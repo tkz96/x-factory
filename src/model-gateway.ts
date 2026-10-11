@@ -90,6 +90,11 @@ export interface GatewayKey {
   limit: number;
   /** Optional budget check hook called before acquiring a concurrency slot (#281). */
   checkBudget?: (() => void | Promise<void>) | undefined;
+  /**
+   * Called once per attempt, a retry after a 429 included: every attempt is one
+   * model call, and the requests/day budget counts calls (#281).
+   */
+  recordCall?: (() => void) | undefined;
 }
 
 export interface RunHooks {
@@ -183,11 +188,17 @@ export class ModelGateway {
     fn: () => Promise<T>,
     hooks: RunHooks = {},
   ): Promise<T> {
+    // A spent budget is refused before a concurrency slot is taken, so it never
+    // holds up another run's call.
     await key.checkBudget?.();
     const release = await this.acquire(key, hooks.signal);
     try {
       let waited = 0;
       for (let retry = 0; ; retry++) {
+        // Every retry is another request: it is checked against the budget and
+        // counted again (#281).
+        if (retry > 0) await key.checkBudget?.();
+        key.recordCall?.();
         try {
           return await fn();
         } catch (err: unknown) {
@@ -210,15 +221,22 @@ export class ModelGateway {
   }
 }
 
+/** The budget-check and call-counting hooks a caller hands the gateway (#281). */
+export interface GatewayCallHooks {
+  checkBudget?: (() => void | Promise<void>) | undefined;
+  recordCall?: (() => void) | undefined;
+}
+
 /** The gateway queue a role's model uses: one per connection and model. */
 export function gatewayKeyFor(
   resolved: ResolvedModel,
-  checkBudget?: (() => void | Promise<void>) | undefined,
+  hooks: GatewayCallHooks = {},
 ): GatewayKey {
   return {
     key: `${resolved.connectionId}:${resolved.modelId}`,
     limit: concurrencyLimitFor(resolved.limits),
-    checkBudget,
+    checkBudget: hooks.checkBudget,
+    recordCall: hooks.recordCall,
   };
 }
 

@@ -1,4 +1,6 @@
 // test/model-budget-resume.test.ts — resumeRun re-checks model budget (#281).
+// The check reads the per-call count: a budget of N requests allows exactly N
+// model calls per UTC day, and a run whose budget is spent stays paused.
 
 import { describe, expect, it } from "bun:test";
 import { mkdtempSync } from "node:fs";
@@ -12,6 +14,37 @@ import type { ResolvedModel } from "../src/model-roles.js";
 import { resumeRun } from "../src/runs.js";
 import { ensureProject } from "./helpers/project-fixture.js";
 import { testResolvedModel } from "./helpers/resolved-model.js";
+
+/** Records the execute attempt resumeRoute reads, and the model it ran on. */
+function recordExecuteAttempt(
+  repos: ReturnType<typeof createRepositories>,
+  runId: string,
+  attempt: number,
+): string {
+  const record = repos.stageAttempts.recordStart(runId, "execute", attempt);
+  repos.stageAttempts.recordModel(record.id, {
+    role: "builder",
+    connectionId: "c-resume",
+    connectionName: "Resume Conn",
+    apiType: "openai-compatible",
+    modelId: "model-builder",
+  });
+  return record.id;
+}
+
+/** One model call on the Builder's model, at `at` (defaults to now). */
+function recordCall(
+  repos: ReturnType<typeof createRepositories>,
+  stageAttemptId: string,
+  at?: Date,
+): void {
+  repos.modelCalls.record({
+    connectionId: "c-resume",
+    modelId: "model-builder",
+    stageAttemptId,
+    at,
+  });
+}
 
 function setup() {
   const db = createDatabase({ path: ":memory:" });
@@ -37,39 +70,27 @@ function setup() {
 }
 
 describe("resumeRun budget re-check", () => {
-  it("stays paused (throws ConflictError, status remains recovery_required) if budget is still exceeded", async () => {
+  it("stays paused (throws ConflictError, status remains recovery_required) when the budget is spent", async () => {
     const { repos, run } = setup();
 
-    // Record attempts in execute stage so resumeRoute targets execute (builder) and usage exceeds budget
-    const attempt1 = repos.stageAttempts.recordStart(run.id, "execute", 1);
-    repos.stageAttempts.recordModel(attempt1.id, {
-      role: "builder",
-      connectionId: "c-resume",
-      connectionName: "Resume Conn",
-      apiType: "openai-compatible",
-      modelId: "model-builder",
-    });
-    const attempt2 = repos.stageAttempts.recordStart(run.id, "execute", 2);
-    repos.stageAttempts.recordModel(attempt2.id, {
-      role: "builder",
-      connectionId: "c-resume",
-      connectionName: "Resume Conn",
-      apiType: "openai-compatible",
-      modelId: "model-builder",
-    });
+    // Two attempts ran today, and between them they made the one call the
+    // model's budget allows.
+    const attempt1 = recordExecuteAttempt(repos, run.id, 1);
+    recordCall(repos, attempt1);
+    const attempt2 = recordExecuteAttempt(repos, run.id, 2);
     repos.stageAttempts.recordFailure(
-      attempt2.id,
-      "Daily budget reached: 2/1 requests",
+      attempt2,
+      "Daily budget reached: 1/1 model calls today (UTC).",
     );
 
     const builderModel: ResolvedModel = {
       ...testResolvedModel("builder"),
       connectionId: "c-resume",
       modelId: "model-builder",
-      budget: { perDay: { requests: 1 } }, // 1 request limit, 2 attempts exist today
+      budget: { perDay: { requests: 1 } }, // 1 call allowed, 1 call made today
     };
 
-    // Attempt to resume
+    // Resume is refused: the same rule the worker checks before a call (#281).
     await expect(
       resumeRun(repos, run.id, {
         resolveRole: async () => builderModel,
@@ -85,29 +106,22 @@ describe("resumeRun budget re-check", () => {
     expect(jobs).toHaveLength(0);
   });
 
-  it("resumes successfully when budget allows it", async () => {
+  it("resumes when one call is left in the budget", async () => {
     const { repos, run } = setup();
 
-    // Record an attempt in execute stage
-    const attempt = repos.stageAttempts.recordStart(run.id, "execute", 1);
-    repos.stageAttempts.recordModel(attempt.id, {
-      role: "builder",
-      connectionId: "c-resume",
-      connectionName: "Resume Conn",
-      apiType: "openai-compatible",
-      modelId: "model-builder",
-    });
+    const attempt = recordExecuteAttempt(repos, run.id, 1);
+    recordCall(repos, attempt);
     repos.stageAttempts.recordFailure(
-      attempt.id,
-      "Daily budget reached: 1/1 requests",
+      attempt,
+      "Daily budget reached: 1/1 model calls today (UTC).",
     );
 
-    // Budget increased to 10 requests
+    // The budget was raised to 2 calls: one is left today.
     const builderModel: ResolvedModel = {
       ...testResolvedModel("builder"),
       connectionId: "c-resume",
       modelId: "model-builder",
-      budget: { perDay: { requests: 10 } },
+      budget: { perDay: { requests: 2 } },
     };
 
     const resumed = await resumeRun(repos, run.id, {
@@ -129,14 +143,8 @@ describe("resumeRun budget re-check", () => {
   it("resumes successfully on a new UTC day when yesterday's budget was exhausted", async () => {
     const { repos, run } = setup();
 
-    const attempt = repos.stageAttempts.recordStart(run.id, "execute", 1);
-    repos.stageAttempts.recordModel(attempt.id, {
-      role: "builder",
-      connectionId: "c-resume",
-      connectionName: "Resume Conn",
-      apiType: "openai-compatible",
-      modelId: "model-builder",
-    });
+    const attempt = recordExecuteAttempt(repos, run.id, 1);
+    recordCall(repos, attempt);
 
     const builderModel: ResolvedModel = {
       ...testResolvedModel("builder"),

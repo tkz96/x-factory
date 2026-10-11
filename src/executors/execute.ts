@@ -8,6 +8,7 @@ import {
   ModelUnavailableError,
   modelFailureReason,
   modelUse,
+  type ResolvedModel,
   resolveRole,
 } from "../model-roles.js";
 import { loadSettings } from "../settings.js";
@@ -72,15 +73,19 @@ export class ExecuteExecutor implements StageExecutor {
     // config that never touches ~/.pi; no fallback model (#278).
     let agent: Awaited<ReturnType<typeof writeRunAgentConfig>>;
     let gateKey: ReturnType<typeof gatewayKeyFor>;
+    let builderModel: ResolvedModel;
     try {
       const resolved = await this.deps.resolveRole("builder");
+      builderModel = resolved;
       context.assertBudget?.(resolved);
       agent = await writeRunAgentConfig(run.artifactsDir, resolved);
       const assertBudget = context.assertBudget;
-      gateKey = gatewayKeyFor(
-        resolved,
-        assertBudget ? () => assertBudget(resolved) : undefined,
-      );
+      // The loop is counted per iteration, not per gateway run: one `pi` call per
+      // iteration is what the daily budget counts here (#281), so this key only
+      // checks the budget.
+      gateKey = gatewayKeyFor(resolved, {
+        checkBudget: assertBudget ? () => assertBudget(resolved) : undefined,
+      });
       context.recordModel(modelUse(resolved));
     } catch (err: unknown) {
       if (isBudgetReached(err)) {
@@ -116,6 +121,7 @@ export class ExecuteExecutor implements StageExecutor {
         gate: { gateway: modelGateway, key: gateKey },
         allowUnsandboxed,
         signal,
+        recordModelCall: () => context.recordModelCall?.(builderModel),
         emit: context.emit,
         onVerification: (verification) => {
           latest = verification;

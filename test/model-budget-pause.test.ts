@@ -167,13 +167,10 @@ describe("budget pause in StageRunner", () => {
       budget: { perDay: { requests: 1 } },
     };
 
-    // Record an attempt today so the daily budget of 1 request is reached
-    const priorAttempt = repos.stageAttempts.recordStart(run.id, "execute", 1);
-    repos.stageAttempts.recordModel(priorAttempt.id, {
-      role: "builder",
+    // The Builder's model has made its one call today: the daily budget of 1
+    // model call is spent, so the stage pauses before calling again (#281).
+    repos.modelCalls.record({
       connectionId: "conn-test",
-      connectionName: "Test Conn",
-      apiType: "openai-compatible",
       modelId: "test-builder",
     });
 

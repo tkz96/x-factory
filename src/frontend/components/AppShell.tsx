@@ -27,7 +27,7 @@ import {
   useStopRun,
   useTickets,
 } from "../hooks/useQueries.js";
-import { useTheme } from "../hooks/useTheme.js";
+import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
 
@@ -515,12 +515,17 @@ function AppShellContent() {
   const { toggleTheme, setAppearance } = useTheme();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
-  // The settings object is the source of truth for Appearance (#248); browser
-  // storage only lets the pre-paint script apply it before React loads.
+  // The settings object is the source of truth for Appearance (#248) and the
+  // Theme choice (#249); browser storage only lets the pre-paint script apply
+  // them before React loads.
   const savedAppearance = settings?.appearance;
   useEffect(() => {
     if (savedAppearance) setAppearance(savedAppearance);
   }, [savedAppearance, setAppearance]);
+  const savedTheme = settings?.theme;
+  useEffect(() => {
+    if (savedTheme) setTheme(resolveInitialTheme(savedTheme));
+  }, [savedTheme]);
   const handleToggleTheme = () => {
     saveSettings.mutate({ appearance: toggleTheme() });
   };
