@@ -64,6 +64,8 @@ function reviewContext(): StageContext {
       implementationContext: null,
     },
     emit: () => {},
+    recordModel: () => {},
+    reportUsage: () => {},
     signal: undefined,
   } as unknown as StageContext;
 }

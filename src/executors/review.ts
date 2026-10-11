@@ -1,6 +1,11 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
-import { ModelUnavailableError, resolveRole } from "../model-roles.js";
+import {
+  ModelUnavailableError,
+  modelUse,
+  resolveRole,
+  usageWithCost,
+} from "../model-roles.js";
 import { type ReviewSessionFactory, reviewRun } from "../review.js";
 import type {
   StageContext,
@@ -46,9 +51,7 @@ export class ReviewExecutor implements StageExecutor {
     let rResult: Awaited<ReturnType<typeof reviewRun>>;
     try {
       const resolved = await this.deps.resolveRole("reviewer");
-      context.emit("info", {
-        text: `Reviewing with ${resolved.modelId} via ${resolved.connectionName}.`,
-      });
+      context.recordModel(modelUse(resolved));
       // reviewRun owns review.json; this executor only records the result.
       rResult = await reviewRun({
         worktreePath,
@@ -59,6 +62,7 @@ export class ReviewExecutor implements StageExecutor {
         verification: run.verification,
         understanding: run.implementationContext,
         modelConfig: { resolved },
+        onUsage: (usage) => context.reportUsage(usageWithCost(resolved, usage)),
         signal: context.signal,
         sessionFactory: this.deps.sessionFactory,
       });

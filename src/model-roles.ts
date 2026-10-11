@@ -17,7 +17,7 @@ import type {
   ModelApiType,
   ModelDetails,
 } from "./shared/model-connection-types.js";
-import type { ModelRoleName } from "./shared/types.js";
+import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 
 export type ModelFailureCategory = "model unavailable" | "key rejected";
 
@@ -120,4 +120,42 @@ export async function assertRolesReady(): Promise<void> {
   if (problems.length > 0) {
     throw new ModelUnavailableError(problems.join(" "));
   }
+}
+
+/** The record of which model did some work, as it is now (#279). */
+export function modelUse(resolved: ResolvedModel): ModelUse {
+  return {
+    role: resolved.role,
+    connectionId: resolved.connectionId,
+    connectionName: resolved.connectionName,
+    apiType: resolved.apiType,
+    modelId: resolved.modelId,
+  };
+}
+
+/**
+ * Usage with a cost: the provider's own cost when it reported one, otherwise
+ * computed from the model's prices per million tokens (#279).
+ */
+export function usageWithCost(
+  resolved: ResolvedModel,
+  usage: {
+    tokensIn?: number | undefined;
+    tokensOut?: number | undefined;
+    costUsd?: number | undefined;
+  },
+): ModelUsage {
+  const { inputPricePerMTok, outputPricePerMTok } = resolved.details;
+  const priced =
+    usage.costUsd === undefined &&
+    (inputPricePerMTok !== undefined || outputPricePerMTok !== undefined)
+      ? ((usage.tokensIn ?? 0) * (inputPricePerMTok ?? 0) +
+          (usage.tokensOut ?? 0) * (outputPricePerMTok ?? 0)) /
+        1_000_000
+      : usage.costUsd;
+  const result: ModelUsage = {};
+  if (usage.tokensIn !== undefined) result.tokensIn = usage.tokensIn;
+  if (usage.tokensOut !== undefined) result.tokensOut = usage.tokensOut;
+  if (priced !== undefined) result.costUsd = priced;
+  return result;
 }

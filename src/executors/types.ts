@@ -6,6 +6,8 @@
 import type { RunRecord } from "../db/run-repository.js";
 import type {
   ImplementationContext,
+  ModelUsage,
+  ModelUse,
   Project,
   PullRequest,
   ReviewResult,
@@ -48,6 +50,10 @@ export interface StageContext {
   emit: EmitEvent;
   ledger: StageLedger;
   signal: AbortSignal;
+  /** Records the model this attempt runs on and emits `stage_started` (#279). */
+  recordModel(model: ModelUse): void;
+  /** Adds tokens and cost a provider reported for this attempt (#279). */
+  reportUsage(usage: ModelUsage): void;
 }
 
 /** The run fields a stage may write. */

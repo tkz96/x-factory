@@ -6,6 +6,7 @@ import {
   classifyModelError,
   createReviewSession,
   type PiAgentSession,
+  type PiUsage,
   type SessionOptions,
 } from "./agents/pi.js";
 import { ModelUnavailableError } from "./model-roles.js";
@@ -37,6 +38,8 @@ export interface ReviewContext {
   }) => void;
   /** The Reviewer role's model (#278); the default Pi session requires it. */
   modelConfig?: SessionOptions | undefined;
+  /** Receives the tokens and cost the review session reported (#279). */
+  onUsage?: ((usage: PiUsage) => void) | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
   sessionFactory?: ReviewSessionFactory | undefined;
@@ -158,6 +161,8 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
       signal,
     );
   } finally {
+    const usage = reviewSession.usage?.();
+    if (usage && context.onUsage) context.onUsage(usage);
     disposeQuietly(reviewSession);
   }
 }

@@ -360,6 +360,40 @@ export interface ChatUserPayload {
 
 export interface ChatAgentPayload {
   text: string;
+  /** The model that wrote the reply, when one did (#279). */
+  model?: ModelUse | undefined;
+  usage?: ModelUsage | undefined;
+}
+
+/** Which model did some work: a role's model on a connection, as it was then (#279). */
+export interface ModelUse {
+  role: ModelRoleName;
+  connectionId: string;
+  connectionName: string;
+  apiType: string;
+  modelId: string;
+}
+
+/** Tokens and cost a provider reported for some work (#279). */
+export interface ModelUsage {
+  tokensIn?: number | undefined;
+  tokensOut?: number | undefined;
+  /** USD, from the provider's report or the model's prices. */
+  costUsd?: number | undefined;
+}
+
+/** One stage attempt's model and usage, as recorded when it ran (#279). */
+export interface StageModelUse extends ModelUse, ModelUsage {
+  stage: string;
+  attempt: number;
+  startedAt: string;
+}
+
+/** A stage attempt started on a model (#279). */
+export interface StageStartedPayload {
+  stage: string;
+  attempt: number;
+  model: ModelUse;
 }
 
 export interface UserFeedbackPayload {
@@ -409,6 +443,7 @@ export type RunEventPayloadMap = {
   ralph_progress: RalphProgressPayload;
   info: InfoEventPayload;
   error: ErrorEventPayload;
+  stage_started: StageStartedPayload;
 };
 
 export type RunEventType = keyof RunEventPayloadMap;
@@ -459,6 +494,8 @@ export interface Run {
   repairAttempts: number;
   artifactsDir: string;
   worktreePath: string;
+  /** Which model each stage attempt used, oldest first (#279). */
+  stageModels?: StageModelUse[] | undefined;
 }
 
 /**

@@ -77,7 +77,7 @@ describe("chatWithModel through the role's connection", () => {
     const reply = await chatWithModel(resolved("good-key"), [
       { role: "user", content: "ping" },
     ]);
-    expect(reply).toBe("PONG from vendor/test-model");
+    expect(reply.text).toBe("PONG from vendor/test-model");
     expect(seenKeys.at(-1)).toBe("Bearer good-key");
   });
 

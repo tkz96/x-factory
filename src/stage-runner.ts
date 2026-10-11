@@ -182,14 +182,29 @@ export function buildStageContext(
   repos: Repositories,
   run: RunRecord,
   project: Project,
-  identity: Pick<StageContext, "stage" | "attempt" | "workerId" | "signal">,
+  identity: Pick<StageContext, "stage" | "attempt" | "workerId" | "signal"> & {
+    /** The recorded attempt this context belongs to, when there is one. */
+    attemptId?: string | undefined;
+  },
 ): StageContext {
+  const { attemptId, ...ids } = identity;
   return {
-    ...identity,
+    ...ids,
     run,
     project,
     emit: (type, payload) => {
       repos.events.appendEvent(run.id, type, payload);
+    },
+    recordModel: (model) => {
+      if (attemptId) repos.stageAttempts.recordModel(attemptId, model);
+      repos.events.appendEvent(run.id, "stage_started", {
+        stage: ids.stage,
+        attempt: ids.attempt,
+        model,
+      });
+    },
+    reportUsage: (usage) => {
+      if (attemptId) repos.stageAttempts.addUsage(attemptId, usage);
     },
     ledger: {
       execute: (operation, fn, reconcile, prepareContext) =>
@@ -284,6 +299,7 @@ export class StageRunner {
         attempt: work.attempt,
         workerId: this.host.workerId,
         signal,
+        attemptId: attempt.id,
       });
 
       let outcome: StageOutcome;

@@ -688,7 +688,7 @@ echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
     await configureProject("true");
-    const { run, runRepo, jobRepo, worker } = setup({
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup({
       models: {
         sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
       },
@@ -710,6 +710,19 @@ ${CHECK_OFF_FIRST_TASK}
     expect(await readFile(argsFile, "utf-8")).toContain(
       "Matt Pocock TDD Protocol",
     );
+    // The attempt records the Builder model it ran on (#279).
+    const started = eventRepo
+      .getEventsForRun(run.id)
+      .filter((e) => e.type === "stage_started");
+    expect(started.map((e) => e.payload)).toEqual([
+      expect.objectContaining({
+        stage: "execute",
+        model: expect.objectContaining({
+          role: "builder",
+          modelId: "test/model",
+        }),
+      }),
+    ]);
   });
 
   it("passes the scaffolded prompt, --provider and --model to the agent CLI in non-interactive mode outside sbx", async () => {

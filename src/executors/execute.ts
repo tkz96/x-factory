@@ -2,7 +2,11 @@
 
 import { writeRunAgentConfig } from "../agents/pi.js";
 import { runAttemptLoop } from "../attempt-loop.js";
-import { ModelUnavailableError, resolveRole } from "../model-roles.js";
+import {
+  ModelUnavailableError,
+  modelUse,
+  resolveRole,
+} from "../model-roles.js";
 import { loadSettings } from "../settings.js";
 import type { VerificationResult } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
@@ -66,9 +70,7 @@ export class ExecuteExecutor implements StageExecutor {
     try {
       const resolved = await this.deps.resolveRole("builder");
       agent = await writeRunAgentConfig(run.artifactsDir, resolved);
-      context.emit("info", {
-        text: `Coding with ${resolved.modelId} via ${resolved.connectionName}.`,
-      });
+      context.recordModel(modelUse(resolved));
     } catch (err: unknown) {
       if (err instanceof ModelUnavailableError) {
         return { outcome: "error", error: `Model unavailable: ${err.message}` };

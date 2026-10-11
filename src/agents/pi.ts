@@ -150,8 +150,45 @@ type PiEventListener = (event: {
   error?: string | undefined;
 }) => void;
 
+/** Tokens and cost a provider reported (#279). */
+export interface PiUsage {
+  tokensIn?: number | undefined;
+  tokensOut?: number | undefined;
+  costUsd?: number | undefined;
+}
+
+/** Usage from a Pi assistant message's `usage`, if it has one. */
+function usageOf(message: unknown): PiUsage | undefined {
+  const usage = (
+    message as {
+      usage?: { input?: number; output?: number; cost?: { total?: number } };
+    }
+  )?.usage;
+  if (!usage) return undefined;
+  const result: PiUsage = {};
+  if (typeof usage.input === "number") result.tokensIn = usage.input;
+  if (typeof usage.output === "number") result.tokensOut = usage.output;
+  if (typeof usage.cost?.total === "number" && usage.cost.total > 0) {
+    result.costUsd = usage.cost.total;
+  }
+  return result;
+}
+
+function addUsage(total: PiUsage, more: PiUsage | undefined): PiUsage {
+  if (!more) return total;
+  const sum = (a?: number, b?: number) =>
+    a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
+  return {
+    tokensIn: sum(total.tokensIn, more.tokensIn),
+    tokensOut: sum(total.tokensOut, more.tokensOut),
+    costUsd: sum(total.costUsd, more.costUsd),
+  };
+}
+
 export interface PiAgentSession {
   readonly session: AgentSession;
+  /** Tokens and cost reported so far in this session (#279). */
+  usage?(): PiUsage;
   prompt(text: string): Promise<void>;
   abort(): Promise<void>;
   /** Release the underlying session. Safe to call once the session is no longer needed. */
@@ -229,9 +266,18 @@ function translateSessionEvent(event: {
 function wrapSession(session: AgentSession): PiAgentSession {
   const listeners = new Set<PiEventListener>();
   let lastSessionError: string | null = null;
+  let usage: PiUsage = {};
 
   session.subscribe((event) => {
     try {
+      if ((event as { type?: string }).type === "agent_end") {
+        const messages =
+          (event as { messages?: Array<{ role?: string }> }).messages ?? [];
+        for (const message of messages) {
+          if (message.role === "assistant")
+            usage = addUsage(usage, usageOf(message));
+        }
+      }
       const payload = translateSessionEvent(event as { type?: string });
       if (payload) {
         if (payload.type === "error" && payload.error) {
@@ -246,6 +292,7 @@ function wrapSession(session: AgentSession): PiAgentSession {
 
   return {
     session,
+    usage: () => usage,
     async prompt(text: string): Promise<void> {
       lastSessionError = null;
       try {
@@ -319,7 +366,7 @@ export interface ChatMessageInput {
 export async function chatWithModel(
   resolved: ResolvedModel,
   messages: ChatMessageInput[],
-): Promise<string> {
+): Promise<{ text: string; usage: PiUsage }> {
   const { modelRuntime, model } = await isolatedRuntime(resolved);
 
   let systemPrompt: string | undefined;
@@ -409,5 +456,5 @@ export async function chatWithModel(
     );
   }
 
-  return text.trim();
+  return { text: text.trim(), usage: usageOf(response) ?? {} };
 }

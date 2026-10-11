@@ -14,9 +14,15 @@ import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
-import { ModelUnavailableError, resolveRole } from "./model-roles.js";
+import {
+  ModelUnavailableError,
+  modelUse,
+  resolveRole,
+  usageWithCost,
+} from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
+import type { ModelUsage, ModelUse } from "./shared/types.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
 import {
@@ -51,11 +57,17 @@ export function getOperationLedger(
 }
 
 export function getRun(repos: Repositories, id: string): Run | null {
-  return repos.runs.get(id);
+  const run = repos.runs.get(id);
+  return run
+    ? { ...run, stageModels: repos.stageAttempts.listModelsForRun(id) }
+    : null;
 }
 
 export function listRuns(repos: Repositories): Run[] {
-  return repos.runs.list();
+  const models = repos.stageAttempts.listModelsByRun();
+  return repos.runs
+    .list()
+    .map((run) => ({ ...run, stageModels: models.get(run.id) ?? [] }));
 }
 
 export function generateBranchName(
@@ -445,6 +457,8 @@ export async function chatWithRun(
   const ctx = run.implementationContext;
 
   let agentResponse: string;
+  // Which model wrote the reply, and what it cost (#279); unset when none did.
+  let replyModel: { model: ModelUse; usage: ModelUsage } | undefined;
 
   try {
     // Chat uses the Builder role's model (#278); there is no fallback model.
@@ -479,7 +493,12 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
       }
     }
 
-    agentResponse = await chatWithModel(resolved, messages);
+    const reply = await chatWithModel(resolved, messages);
+    agentResponse = reply.text;
+    replyModel = {
+      model: modelUse(resolved),
+      usage: usageWithCost(resolved, reply.usage),
+    };
     if (!agentResponse?.trim()) {
       agentResponse =
         "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
@@ -494,7 +513,10 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
   }
 
   // Record agent response as an event
-  eventRepo.appendEvent(id, "chat_agent", { text: agentResponse });
+  eventRepo.appendEvent(id, "chat_agent", {
+    text: agentResponse,
+    ...(replyModel ?? {}),
+  });
 
   return { ok: true, message: agentResponse };
 }
