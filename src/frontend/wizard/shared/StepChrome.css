@@ -1,0 +1,52 @@
+/* src/frontend/wizard/shared/StepChrome.css — The frame every step of the
+   assistant shares (#268, moved out of the deleted Basics step): the step's
+   title and subtitle, and the labelled-field layout the connection field
+   components render into. Tokens only (docs/agents/frontend-styling.md). */
+
+.wizard-step-header {
+  margin-bottom: var(--space-5);
+}
+
+.wizard-step-title {
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.wizard-step-subtitle {
+  font-size: var(--text-subhead);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.wizard-form-group {
+  margin-bottom: var(--space-5);
+}
+
+.wizard-form-label {
+  display: block;
+  font-size: var(--text-subhead);
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: var(--space-2);
+}
+
+.wizard-form-label .required {
+  color: var(--red);
+  margin-left: var(--space-1);
+}
+
+.wizard-form-hint {
+  display: block;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+.wizard-form-error {
+  display: block;
+  font-size: var(--text-footnote);
+  color: var(--red);
+  margin-top: var(--space-1);
+}

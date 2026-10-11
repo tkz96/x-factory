@@ -144,7 +144,9 @@ function setupStepFourDraft(options: StepFourDraftOptions = {}) {
         workspacePath: options.workspacePath ?? WORKSPACE,
       },
       connect: {
-        quickUrl: "",
+        // Step 1's repository URL (#268): present, so returning to step 1 and
+        // continuing still validates.
+        quickUrl: "https://git.example.com/acme/rocket",
         providerConfigs: {
           "generic-tracker": {},
           "generic-githost": GIT_HOST_CONFIG,
@@ -1249,8 +1251,10 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
     await flush();
     expect(getEl("inspection-identity-name").textContent).toBe("Repo Owner");
 
-    // Back to Basics and move the workspace root.
-    fireEvent.click(getEl("step-nav-basics"));
+    // Back to Basics and move the workspace root. (Step 4 → 1, three Backs.)
+    fireEvent.click(getEl("btn-step-4-back"));
+    fireEvent.click(getEl("btn-step-3-back"));
+    fireEvent.click(getEl("btn-step-2-back"));
     expect(document.getElementById("onboard-step-1")).not.toBeNull();
     await typeInput(getEl("onboard-workspace-path"), "/work/other");
     fireEvent.click(getEl("btn-step-1-next"));
@@ -1314,7 +1318,9 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
 
     /** Moves the workspace root, which makes the recorded identity stale. */
     async function moveWorkspaceRoot(to: string) {
-      fireEvent.click(getEl("step-nav-basics"));
+      fireEvent.click(getEl("btn-step-4-back"));
+      fireEvent.click(getEl("btn-step-3-back"));
+      fireEvent.click(getEl("btn-step-2-back"));
       await typeInput(getEl("onboard-workspace-path"), to);
       fireEvent.click(getEl("btn-step-1-next"));
       await act(async () => {
@@ -1406,7 +1412,7 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       // resolved for exactly the current inputs, so nothing is fetched again.
       fireEvent.click(getEl("btn-step-4-next"));
       expect(document.getElementById("onboard-step-5")).not.toBeNull();
-      fireEvent.click(getEl("step-nav-inspection"));
+      fireEvent.click(getEl("btn-step-5-back"));
       expect(document.getElementById("onboard-step-4")).not.toBeNull();
       await flush();
       expect(inspectRepository).toHaveBeenCalledTimes(1);

@@ -1,0 +1,36 @@
+/* src/frontend/wizard/steps/SuccessStep.css — the terminal state's summary
+   (#268). Tokens only. */
+
+.success-step-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.success-step-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.success-step-label {
+  min-width: 6rem;
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.success-step-value {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.success-step-value--code {
+  font-family: var(--font-mono);
+}

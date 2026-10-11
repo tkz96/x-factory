@@ -1,0 +1,26 @@
+/* src/frontend/wizard/steps/RepositoryStep.css — the first step's own spacing
+   (#268). The fields are the #251 blocks and keep their shared styles; this
+   file only sets the gaps between them. Tokens only. */
+
+.repository-step-pane .ui-field {
+  margin-bottom: var(--space-4);
+}
+
+.repository-step-section {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.repository-step-pane .ui-field-description {
+  font-size: var(--text-footnote);
+}
+
+/* An identifier is code: read the block's own class from `controls.css` and
+   add only the monospaced face here. */
+.repository-step-identifier .ui-field-input {
+  font-family: var(--font-mono);
+}

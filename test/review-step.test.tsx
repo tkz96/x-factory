@@ -26,7 +26,13 @@ import {
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ConnectionsProjectInputSchema } from "../src/config-schema.js";
 import {
@@ -34,6 +40,7 @@ import {
   REVIEW_COPY,
   resolveFieldValidationError,
   resolveFormValidationError,
+  WIZARD_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -242,6 +249,7 @@ async function runToConnect(choice: ConnectChoice = {}) {
   renderWizard();
   fireEvent.click(getEl("btn-open-wizard"));
 
+  await typeInput(getEl("onboard-repo-url"), `${GIT_URL}/acme/rocket`);
   await typeInput(getEl("onboard-proj-name"), "Rocket");
   await typeInput(getEl("onboard-proj-description"), "Rocket app");
   await typeInput(getEl("onboard-workspace-path"), "/work/rocket");
@@ -315,6 +323,18 @@ async function runToReview(
 }
 
 /**
+ * Leaves the assistant the way a user does once the project exists (#268): the
+ * success step says what was created, and Open Project is how they move on. The
+ * assistant no longer vanishes the moment the request succeeds.
+ */
+async function openCreatedProject(): Promise<void> {
+  await flush();
+  expect(document.getElementById("onboard-success")).not.toBeNull();
+  fireEvent.click(getEl("btn-open-project"));
+  await flush();
+}
+
+/**
  * A draft as an interrupted step-5 session leaves it: connections verified in
  * that session, the selection recorded, and the git identity inspected. The
  * secret and the identity never reach storage (asserted by the test itself).
@@ -334,7 +354,9 @@ function setupStepFiveDraft(
         workspacePath: "/work/rocket",
       },
       connect: {
-        quickUrl: "",
+        // The URL step 1 collects (#268): a draft that has passed step 1 holds
+        // one, so walking back to step 1 and continuing still works.
+        quickUrl: `${GIT_URL}/acme/rocket`,
         // Configuration is keyed by PROVIDER (correction 2, #133): one entry per
         // selected provider, never one per role.
         providerConfigs: {
@@ -551,12 +573,20 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     // The identity is gone, so nothing stale is presented as current.
     expect(document.getElementById("review-identity-name")).toBeNull();
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(true);
-    // There is no dismissal or skip affordance: back, or submit (disabled).
-    // Step actions render in the modal's fixed footer (#159).
+    // There is no dismissal or skip affordance: the sheet's Cancel, the step's
+    // Back, and the disabled submit are the only actions on offer (#268) —
+    // nothing that would clear the block instead of resolving it.
+    const screen = within(getEl("onboarding-wizard-modal"));
     expect(
-      document.querySelectorAll("#onboarding-wizard-modal .modal-footer button")
-        .length,
-    ).toBe(2);
+      screen.getByRole("button", { name: WIZARD_COPY.cancel }),
+    ).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: WIZARD_COPY.back }),
+    ).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: REVIEW_COPY.submit }),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: /skip|dismiss/i })).toBeNull();
   });
 
   it("UNBLOCK: re-verifying the connections and re-inspecting the identity clears the block, and the submit travels the #145 payload once", async () => {
@@ -568,7 +598,10 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(true);
 
     // Back to Connect: the provider selections survive, the secret does not.
-    fireEvent.click(getEl("step-nav-connect"));
+    // (Step 5 → 2 is three presses of the assistant's own Back.)
+    fireEvent.click(getEl("btn-step-5-back"));
+    fireEvent.click(getEl("btn-step-4-back"));
+    fireEvent.click(getEl("btn-step-3-back"));
     expect(document.getElementById("onboard-step-2")).not.toBeNull();
     expect(getEl<HTMLInputElement>("gitHost-gitUrl").value).toBe(GIT_URL);
     expect(getEl<HTMLInputElement>("gitHost-token").value).toBe("");
@@ -645,8 +678,10 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       true,
     );
 
-    // Success completes the wizard: closed, no re-entry, and the project is
-    // visible through the query cache rather than by reloading the page.
+    // Success ends the assistant: it shows what it made, and Open Project is
+    // how the user leaves it (#268). The project is visible through the query
+    // cache rather than by reloading the page.
+    await openCreatedProject();
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
     expect(getEl("probe-projects").textContent).toBe("rocket");
     expect(window.localStorage.getItem("xf_wizard_draft_v1")).toBeNull();
@@ -745,7 +780,11 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
 
     // Move the workspace root, then walk forward again: Connect re-verifies
     // (returning to it resets the in-memory results) and step 4 re-reads.
-    fireEvent.click(getEl("step-nav-basics"));
+    // Step 5 → 1 is four presses of the assistant's own Back.
+    fireEvent.click(getEl("btn-step-5-back"));
+    fireEvent.click(getEl("btn-step-4-back"));
+    fireEvent.click(getEl("btn-step-3-back"));
+    fireEvent.click(getEl("btn-step-2-back"));
     await typeInput(getEl("onboard-workspace-path"), "/work/moved");
     fireEvent.click(getEl("btn-step-1-next"));
     await act(async () => {
@@ -864,6 +903,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
         config: { gitUrl: GIT_URL, token: GIT_HOST_SECRET },
       },
     ]);
+    await openCreatedProject();
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
     expect(created?.id).toBe("rocket");
   });
@@ -902,6 +942,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       resolveCreate({ id: "rocket", name: "Rocket" });
     });
     await flush();
+    await openCreatedProject();
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
   });
 
@@ -954,6 +995,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     });
     await flush();
     expect(createProject).toHaveBeenCalledTimes(2);
+    await openCreatedProject();
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
     expect(getEl("probe-projects").textContent).toBe("rocket");
   });
@@ -992,6 +1034,7 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       fireEvent.click(getEl("btn-step-5-submit"));
     });
     await flush();
+    await openCreatedProject();
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
   });
 
@@ -1026,17 +1069,20 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     });
     await flush();
     expect(createProject).toHaveBeenCalledTimes(2);
+    await openCreatedProject();
     expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
   });
 
   // ── Smoothness #5 and #6 (#148): completion, and back-navigation ──────────
   describe("Smoothness — completion closes the flow, and back-navigation never re-requests (#148)", () => {
-    it("SMOOTHNESS #5: success closes the flow — nothing asks the user to re-enter it", async () => {
+    it("SMOOTHNESS #5: success ends the flow — nothing asks the user to re-enter it", async () => {
       await runToReview();
       await act(async () => {
         fireEvent.click(getEl("btn-step-5-submit"));
       });
-      await flush();
+      // The end of the flow is the assistant's own success step (#268): what was
+      // made, and the one way out. Nothing invites the user back into it.
+      await openCreatedProject();
 
       // The flow completed: closed, draft cleared, project present.
       expect(document.getElementById("onboarding-wizard-modal")).toBeNull();
@@ -1071,8 +1117,9 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       expect(inspectRepository).toHaveBeenCalledTimes(1);
 
       // Back to Repositories and forward again: the discovered list is already
-      // in the cache for this very connection.
-      fireEvent.click(getEl("step-nav-repositories"));
+      // in the cache for this very connection. (Step 5 → 3, two Backs.)
+      fireEvent.click(getEl("btn-step-5-back"));
+      fireEvent.click(getEl("btn-step-4-back"));
       expect(document.getElementById("onboard-step-3")).not.toBeNull();
       await flush();
       expect(listRepositories).toHaveBeenCalledTimes(1);
@@ -1084,8 +1131,8 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
       expect(listRepositories).toHaveBeenCalledTimes(1);
 
       // Back to Inspection and forward again: the identity on screen was
-      // resolved for exactly these inputs.
-      fireEvent.click(getEl("step-nav-inspection"));
+      // resolved for exactly these inputs. (Step 5 → 4, one Back.)
+      fireEvent.click(getEl("btn-step-5-back"));
       expect(document.getElementById("onboard-step-4")).not.toBeNull();
       await flush();
       expect(inspectRepository).toHaveBeenCalledTimes(1);
