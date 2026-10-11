@@ -4,8 +4,10 @@ import {
   assertCreateOnlyInvariant,
   type CreatePullRequestInput,
   type FindPullRequestInput,
+  type GetPullRequestStateInput,
   type ProviderConfig,
   type ProviderPullRequest,
+  type PullRequestState,
 } from "../contract.js";
 import type { HttpTransport } from "../http.js";
 import { resolveGitHubConfig } from "./config.js";
@@ -32,6 +34,10 @@ interface RawBranchInfo {
 interface RawPullRequest {
   html_url?: string;
   state?: string;
+  merged_at?: string | null;
+  closed_at?: string | null;
+  updated_at?: string | null;
+  merged_by?: { login?: string } | null;
   head?: RawBranchInfo;
   base?: RawBranchInfo;
 }
@@ -193,4 +199,78 @@ export async function findExistingGitHubPullRequest(
   }
 
   return null;
+}
+
+/**
+ * Retrieves the current state (open, merged, closed) of a GitHub pull request using the REST API.
+ * Read-only: never merges, closes, or updates the pull request.
+ */
+export async function getGitHubPullRequestState(
+  config: ProviderConfig,
+  input: GetPullRequestStateInput,
+  fetchFn?: typeof fetch | HttpTransport | undefined,
+  signal?: AbortSignal | undefined,
+): Promise<PullRequestState | null> {
+  const { token, owner, repo, root } = prepareGitHubPrContext(
+    config,
+    input.repository,
+  );
+  const endpoint = `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?head=${encodeURIComponent(`${owner}:${input.sourceBranch}`)}&state=all`;
+
+  const res = await githubFetch(endpoint, {
+    headers: resolveGitHubHeaders(token),
+    fetchFn,
+    signal,
+  });
+
+  if (!Array.isArray(res.data)) {
+    throw new Error(
+      "GitHub pull request state lookup failed: expected an array of pull requests from the API response.",
+    );
+  }
+
+  const pulls = res.data as RawPullRequest[];
+  const match =
+    (input.pullRequestUrl
+      ? pulls.find((p) => p.html_url === input.pullRequestUrl)
+      : undefined) ?? pulls.find((p) => p.head?.ref === input.sourceBranch);
+
+  if (!match) {
+    return null;
+  }
+
+  const prUrl = typeof match.html_url === "string" ? match.html_url.trim() : "";
+  if (!prUrl) {
+    throw new Error(
+      "GitHub pull request lookup matched a pull request but the response did not include a valid PR URL (html_url missing or empty).",
+    );
+  }
+
+  if (typeof match.merged_at === "string" && match.merged_at.length > 0) {
+    return {
+      status: "merged",
+      url: prUrl,
+      mergedAt: match.merged_at,
+      ...(match.merged_by?.login ? { mergedBy: match.merged_by.login } : {}),
+    };
+  }
+
+  if (match.state === "closed") {
+    const closedAt =
+      typeof match.closed_at === "string" && match.closed_at.length > 0
+        ? match.closed_at
+        : typeof match.updated_at === "string" && match.updated_at.length > 0
+          ? match.updated_at
+          : new Date().toISOString();
+    return {
+      status: "closed",
+      url: prUrl,
+      closedAt,
+    };
+  }
+
+  return {
+    status: "open",
+    url: prUrl,
+  };
 }

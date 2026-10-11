@@ -7,6 +7,7 @@ import "./RunNowHeader.css";
 
 import type { Run } from "../../../shared/types.js";
 import type { RunNow } from "../../lib/run-now.js";
+import { formatRelativeTime } from "../../lib/runs-list.js";
 import { MarkdownViewer } from "../MarkdownViewer.js";
 
 export interface RunNowHeaderProps {
@@ -40,14 +41,34 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
       )}
 
       {now.pullRequestUrl && (
-        <a
-          className="run-now-link"
-          href={now.pullRequestUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Open Pull Request ↗
-        </a>
+        <div className="run-now-pr">
+          <a
+            className="run-now-link"
+            href={now.pullRequestUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open Pull Request ↗
+          </a>
+          {now.pullRequestOutcome?.status === "merged" &&
+            now.pullRequestOutcome.mergedAt && (
+              <time
+                className="run-now-pr-time code-sub"
+                dateTime={now.pullRequestOutcome.mergedAt}
+              >
+                {`Merged ${formatRelativeTime(now.pullRequestOutcome.mergedAt, Date.now())}`}
+              </time>
+            )}
+          {now.pullRequestOutcome?.status === "closed" &&
+            now.pullRequestOutcome.closedAt && (
+              <time
+                className="run-now-pr-time code-sub"
+                dateTime={now.pullRequestOutcome.closedAt}
+              >
+                {`Closed ${formatRelativeTime(now.pullRequestOutcome.closedAt, Date.now())}`}
+              </time>
+            )}
+        </div>
       )}
 
       {now.failure && (

@@ -145,6 +145,17 @@ describe("banner wording never names an OS (#265)", () => {
     expect(bannerCopy(FINISHED).body).toContain("Tests failed");
   });
 
+  it("formats title as 'Merged: <ticketId>' for a merged pull request", () => {
+    const merged: AppNotification = {
+      ...FINISHED,
+      id: 44,
+      status: "pr_created",
+      text: "Merged",
+      detail: null,
+    };
+    expect(bannerCopy(merged).title).toBe("Merged: ACME-7");
+  });
+
   it("never names macOS, Windows, Linux or an OS settings app", () => {
     for (const n of [NEEDS_YOU, FINISHED]) {
       const text =

@@ -5,7 +5,6 @@ import type {
   AppEventEnvelope,
   EventsSnapshot,
   RunEvent,
-  RunEventPayloadMap,
 } from "../../shared/types.js";
 import { patchRunCache } from "./query-client.js";
 import { reduceRun } from "./run-state.js";
@@ -109,14 +108,18 @@ export function subscribeAppEvents({
   ) => {
     if (seenEventIds.has(envelope.id)) return;
 
-    // Direct cache update: patch run cache for status events (#257)
-    if (envelope.type === "status") {
-      const runEvent: RunEvent<"status"> = {
+    // Direct cache update: patch run cache for status and PR outcome events (#257, #271)
+    if (
+      envelope.type === "status" ||
+      envelope.type === "pr_merged" ||
+      envelope.type === "pr_closed"
+    ) {
+      const runEvent = {
         id: envelope.sequence,
-        type: "status",
-        payload: envelope.payload as RunEventPayloadMap["status"],
+        type: envelope.type,
+        payload: envelope.payload,
         timestamp: envelope.time,
-      };
+      } as RunEvent;
       patchRunCache(
         envelope.runId,
         (previous) => (previous ? reduceRun(previous, runEvent) : previous),

@@ -1347,6 +1347,125 @@ describe("Azure DevOps Provider Module (Ticket #139)", () => {
 
       expect(found).toBeNull();
     });
+
+    describe("getPullRequestState", () => {
+      it("returns merged when status is completed", async () => {
+        const fakeFetch = (async (url: string | URL | Request) => {
+          expect(String(url)).toContain("searchCriteria.status=all");
+          return jsonResponse(
+            {
+              value: [
+                {
+                  pullRequestId: 123,
+                  status: "completed",
+                  closedDate: "2026-10-12T10:30:00Z",
+                  closedBy: { displayName: "Azure Reviewer" },
+                  _links: {
+                    web: {
+                      href: "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/123",
+                    },
+                  },
+                },
+              ],
+            },
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createAzureProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { orgUrl: "https://dev.azure.com/org", project: "proj", pat: "pat" },
+          { repository: "my-repo", sourceBranch: "feat/branch" },
+        );
+
+        expect(state).toEqual({
+          status: "merged",
+          url: "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/123",
+          mergedAt: "2026-10-12T10:30:00Z",
+          mergedBy: "Azure Reviewer",
+        });
+      });
+
+      it("returns closed when status is abandoned", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse(
+            {
+              value: [
+                {
+                  pullRequestId: 124,
+                  status: "abandoned",
+                  closedDate: "2026-10-12T11:30:00Z",
+                  _links: {
+                    web: {
+                      href: "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/124",
+                    },
+                  },
+                },
+              ],
+            },
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createAzureProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { orgUrl: "https://dev.azure.com/org", project: "proj", pat: "pat" },
+          { repository: "my-repo", sourceBranch: "feat/branch" },
+        );
+
+        expect(state).toEqual({
+          status: "closed",
+          url: "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/124",
+          closedAt: "2026-10-12T11:30:00Z",
+        });
+      });
+
+      it("returns open when status is active", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse(
+            {
+              value: [
+                {
+                  pullRequestId: 125,
+                  status: "active",
+                  _links: {
+                    web: {
+                      href: "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/125",
+                    },
+                  },
+                },
+              ],
+            },
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createAzureProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { orgUrl: "https://dev.azure.com/org", project: "proj", pat: "pat" },
+          { repository: "my-repo", sourceBranch: "feat/branch" },
+        );
+
+        expect(state).toEqual({
+          status: "open",
+          url: "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/125",
+        });
+      });
+
+      it("returns null when no pull request is returned", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse({ value: [] }, { status: 200 });
+        }) as unknown as typeof fetch;
+
+        const provider = createAzureProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { orgUrl: "https://dev.azure.com/org", project: "proj", pat: "pat" },
+          { repository: "my-repo", sourceBranch: "unknown" },
+        );
+
+        expect(state).toBeNull();
+      });
+    });
   });
 
   describe("verifyScopes Capability", () => {

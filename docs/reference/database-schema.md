@@ -67,6 +67,7 @@ Large artifacts (logs, transcripts, diffs) live on disk under the data dir. SQLi
 - **v9** `009_run_commands_cascade.sql`
 - **v10** `010_stage_attempt_models.sql`
 - **v11** `011_model_calls.sql`
+- **v12** `012_pr_outcome_events_unique.sql`
 
 ### Table: `jobs`
 
@@ -162,6 +163,7 @@ Indexes and constraints:
 
 Indexes and constraints:
 
+- UNIQUE `idx_run_events_pr_outcome` on (run_id)
 - INDEX `idx_run_events_run_sequence` on (run_id, sequence)
 - UNIQUE (inline) on (run_id, sequence)
 

@@ -20,12 +20,14 @@ import {
 import {
   type CreatePullRequestInput,
   type FindPullRequestInput,
+  type GetPullRequestStateInput,
   type Provider,
   type ProviderConfig,
   type ProviderErrorContext,
   type ProviderErrorEnvelope,
   type ProviderPullRequest,
   type ProviderRepository,
+  type PullRequestState,
   REQUIRED_WORKFLOW_LABEL,
   type ScopeFinding,
   type ScopeVerificationReport,
@@ -1014,6 +1016,96 @@ export function createAzureProvider(
         ...(lastCommit?.commitId
           ? { lastMergeSourceCommit: lastCommit.commitId }
           : {}),
+      };
+    },
+
+    async getPullRequestState(
+      config: ProviderConfig,
+      input: GetPullRequestStateInput,
+      signal?: AbortSignal,
+    ): Promise<PullRequestState | null> {
+      const { cleanOrgUrl, encodedProject, authHeader } =
+        await prepareAzureContext(
+          config,
+          executor,
+          "Authentication required to inspect pull request state.",
+        );
+
+      const sourceRef = normalizeGitRef(input.sourceBranch);
+      const endpoint = `${cleanOrgUrl}/${encodedProject}/_apis/git/repositories/${encodeURIComponent(input.repository)}/pullrequests?searchCriteria.status=all&searchCriteria.sourceRefName=${encodeURIComponent(sourceRef)}&api-version=7.1`;
+
+      const res = await azureFetch(endpoint, {
+        headers: {
+          Authorization: authHeader,
+          Accept: "application/json",
+        },
+        fetchFn: getFetcher(),
+        ...(signal ? { signal } : {}),
+      });
+
+      const prsPayload = res.data as { value?: unknown[] } | null | undefined;
+      const prs = Array.isArray(prsPayload?.value) ? prsPayload.value : [];
+      if (prs.length === 0) {
+        return null;
+      }
+
+      const match =
+        (input.pullRequestUrl
+          ? prs.find((item) => {
+              const p = (
+                item && typeof item === "object" ? item : {}
+              ) as Record<string, unknown>;
+              const links = p._links as { web?: { href?: string } } | undefined;
+              const web = links?.web?.href || "";
+              const id = p.pullRequestId ? String(p.pullRequestId) : "";
+              return (
+                web === input.pullRequestUrl ||
+                (id.length > 0 && input.pullRequestUrl?.endsWith(`/${id}`))
+              );
+            })
+          : undefined) ?? prs[0];
+
+      if (!match || typeof match !== "object") {
+        return null;
+      }
+
+      const pr = match as Record<string, unknown>;
+      const prLinks = pr._links as { web?: { href?: string } } | undefined;
+      let webUrl = prLinks?.web?.href || "";
+      const prId = pr.pullRequestId ? String(pr.pullRequestId) : "";
+      if (!webUrl && prId) {
+        webUrl = `${cleanOrgUrl}/${encodedProject}/_git/${encodeURIComponent(input.repository)}/pullrequest/${prId}`;
+      }
+
+      const status = typeof pr.status === "string" ? pr.status : "active";
+      const closedDate =
+        typeof pr.closedDate === "string" ? pr.closedDate : undefined;
+      const closedByObj = pr.closedBy as
+        | { displayName?: string; uniqueName?: string }
+        | undefined;
+      const closedByName =
+        closedByObj?.displayName || closedByObj?.uniqueName || undefined;
+
+      if (status === "completed") {
+        return {
+          status: "merged",
+          url: webUrl || (typeof pr.url === "string" ? pr.url : ""),
+          mergedAt: closedDate || new Date().toISOString(),
+          ...(closedByName ? { mergedBy: closedByName } : {}),
+        };
+      }
+
+      if (status === "abandoned") {
+        return {
+          status: "closed",
+          url: webUrl || (typeof pr.url === "string" ? pr.url : ""),
+          closedAt: closedDate || new Date().toISOString(),
+        };
+      }
+
+      return {
+        status: "open",
+        url: webUrl || (typeof pr.url === "string" ? pr.url : ""),
       };
     },
   };

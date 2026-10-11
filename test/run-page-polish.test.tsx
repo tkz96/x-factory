@@ -60,6 +60,46 @@ describe("the plan reads as Markdown", () => {
   });
 });
 
+describe("the run now header displays pull request outcomes", () => {
+  it("renders 'Merged' with link and relative time when merged", () => {
+    const run = makeRun("pr_created", {
+      pullRequest: {
+        url: "https://github.com/o/r/pull/10",
+        number: 10,
+        title: "T-1",
+        branch: "factory/t-1",
+        baseBranch: "main",
+      } as Run["pullRequest"],
+      pullRequestOutcome: {
+        status: "merged",
+        url: "https://github.com/o/r/pull/10",
+        mergedAt: "2026-09-20T12:05:00.000Z",
+      },
+    });
+    const { container } = render(
+      <RunNowHeader run={run} now={runNow(run, [])} />,
+    );
+    expect(container.textContent).toContain("Merged");
+    const link = container.querySelector(".run-now-link") as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.href).toBe("https://github.com/o/r/pull/10");
+  });
+
+  it("renders 'Closed without merging' with time when closed", () => {
+    const run = makeRun("pr_created", {
+      pullRequestOutcome: {
+        status: "closed",
+        url: "https://github.com/o/r/pull/10",
+        closedAt: "2026-09-20T12:10:00.000Z",
+      },
+    });
+    const { container } = render(
+      <RunNowHeader run={run} now={runNow(run, [])} />,
+    );
+    expect(container.textContent).toContain("Closed without merging");
+  });
+});
+
 describe("the log count is a labelled badge beside the heading", () => {
   it("names the count in words and keeps it out of the heading's text", () => {
     const events = [

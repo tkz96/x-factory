@@ -142,14 +142,38 @@ export function RunsView() {
                         </span>
                       </div>
                       <div className="run-card-status">
-                        <span className="badge" data-status={r.status}>
-                          {runStatusText(r.status)}
+                        <span
+                          className="badge"
+                          data-status={
+                            r.pullRequestOutcome
+                              ? r.pullRequestOutcome.status
+                              : r.status
+                          }
+                        >
+                          {r.pullRequestOutcome
+                            ? r.pullRequestOutcome.status === "merged"
+                              ? "Merged"
+                              : "Closed without merging"
+                            : runStatusText(r.status)}
                         </span>
                         <time
                           className="run-card-time code-sub"
-                          dateTime={r.updatedAt}
+                          dateTime={
+                            (r.pullRequestOutcome?.status === "merged"
+                              ? r.pullRequestOutcome.mergedAt
+                              : r.pullRequestOutcome?.status === "closed"
+                                ? r.pullRequestOutcome.closedAt
+                                : null) || r.updatedAt
+                          }
                         >
-                          {formatRelativeTime(r.updatedAt, Date.now())}
+                          {formatRelativeTime(
+                            (r.pullRequestOutcome?.status === "merged"
+                              ? r.pullRequestOutcome.mergedAt
+                              : r.pullRequestOutcome?.status === "closed"
+                                ? r.pullRequestOutcome.closedAt
+                                : null) || r.updatedAt,
+                            Date.now(),
+                          )}
                         </time>
                       </div>
                     </div>

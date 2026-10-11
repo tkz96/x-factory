@@ -1266,6 +1266,149 @@ describe("GitHub Provider Module (Ticket #138)", () => {
       const userErr = provider.toUserError(caught, "PR");
       expect(userErr.code).toBe("NOT_FOUND");
     });
+
+    describe("getPullRequestState", () => {
+      it("returns merged with mergedAt and mergedBy when PR is merged", async () => {
+        const fakeFetch = (async (url: string | URL | Request) => {
+          expect(String(url)).toContain("state=all");
+          return jsonResponse(
+            [
+              {
+                html_url: "https://github.com/octocat/hello-world/pull/42",
+                state: "closed",
+                merged_at: "2026-10-12T10:00:00Z",
+                merged_by: { login: "octo-reviewer" },
+                head: { ref: "feature-branch" },
+                base: { ref: "main" },
+              },
+            ],
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createGithubProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "feature-branch" },
+        );
+
+        expect(state).toEqual({
+          status: "merged",
+          url: "https://github.com/octocat/hello-world/pull/42",
+          mergedAt: "2026-10-12T10:00:00Z",
+          mergedBy: "octo-reviewer",
+        });
+      });
+
+      it("returns closed with closedAt when PR is closed without merging", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse(
+            [
+              {
+                html_url: "https://github.com/octocat/hello-world/pull/43",
+                state: "closed",
+                merged_at: null,
+                closed_at: "2026-10-12T11:00:00Z",
+                head: { ref: "feature-branch" },
+                base: { ref: "main" },
+              },
+            ],
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createGithubProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "feature-branch" },
+        );
+
+        expect(state).toEqual({
+          status: "closed",
+          url: "https://github.com/octocat/hello-world/pull/43",
+          closedAt: "2026-10-12T11:00:00Z",
+        });
+      });
+
+      it("returns open when PR is still open", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse(
+            [
+              {
+                html_url: "https://github.com/octocat/hello-world/pull/44",
+                state: "open",
+                merged_at: null,
+                head: { ref: "feature-branch" },
+                base: { ref: "main" },
+              },
+            ],
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createGithubProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "feature-branch" },
+        );
+
+        expect(state).toEqual({
+          status: "open",
+          url: "https://github.com/octocat/hello-world/pull/44",
+        });
+      });
+
+      it("returns null when no PR matches the source branch", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse([], { status: 200 });
+        }) as unknown as typeof fetch;
+
+        const provider = createGithubProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          { repository: "hello-world", sourceBranch: "unknown-branch" },
+        );
+
+        expect(state).toBeNull();
+      });
+
+      it("matches PR by pullRequestUrl when specified", async () => {
+        const fakeFetch = (async () => {
+          return jsonResponse(
+            [
+              {
+                html_url: "https://github.com/octocat/hello-world/pull/1",
+                state: "closed",
+                closed_at: "2026-10-01T00:00:00Z",
+                head: { ref: "feature-branch" },
+              },
+              {
+                html_url: "https://github.com/octocat/hello-world/pull/2",
+                state: "closed",
+                merged_at: "2026-10-12T12:00:00Z",
+                head: { ref: "feature-branch" },
+              },
+            ],
+            { status: 200 },
+          );
+        }) as unknown as typeof fetch;
+
+        const provider = createGithubProvider({ fetchFn: fakeFetch });
+        const state = await provider.getPullRequestState?.(
+          { token: "ghp_token", repoOwner: "octocat" },
+          {
+            repository: "hello-world",
+            sourceBranch: "feature-branch",
+            pullRequestUrl: "https://github.com/octocat/hello-world/pull/2",
+          },
+        );
+
+        expect(state?.status).toBe("merged");
+        expect(state?.url).toBe(
+          "https://github.com/octocat/hello-world/pull/2",
+        );
+      });
+    });
   });
 
   describe("Ticket Listing (listTickets)", () => {

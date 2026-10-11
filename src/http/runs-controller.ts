@@ -102,6 +102,9 @@ export function handleGetRuns(repos: Repositories): Response {
 export function handleGetRun(repos: Repositories, runId: string): Response {
   const run = runs.getRun(repos, runId);
   if (!run) return errorResponse("Run not found.", 404);
+  if (run.status === "pr_created") {
+    runs.requestPullRequestCheck(repos, run.id);
+  }
   return jsonResponse(run);
 }
 

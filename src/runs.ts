@@ -125,15 +125,70 @@ const chatGateway = new ModelGateway({ maxWaitMs: 60_000 });
 export function getRun(repos: Repositories, id: string): Run | null {
   const run = repos.runs.get(id);
   return run
-    ? { ...run, stageModels: repos.stageAttempts.listModelsForRun(id) }
+    ? {
+        ...run,
+        stageModels: repos.stageAttempts.listModelsForRun(id),
+        pullRequestOutcome: repos.events.getPullRequestOutcome(id) ?? undefined,
+      }
     : null;
 }
 
 export function listRuns(repos: Repositories): Run[] {
   const models = repos.stageAttempts.listModelsByRun();
-  return repos.runs
-    .list()
-    .map((run) => ({ ...run, stageModels: models.get(run.id) ?? [] }));
+  const outcomes = repos.events.listPullRequestOutcomes();
+  return repos.runs.list().map((run) => ({
+    ...run,
+    stageModels: models.get(run.id) ?? [],
+    pullRequestOutcome: outcomes.get(run.id) ?? undefined,
+  }));
+}
+
+/**
+ * Asynchronously requests a pull request status check for a run in `pr_created`
+ * by enqueueing a `check_pr` command into SQLite (#271).
+ *
+ * Returns true if a check was queued, or false if the run is not eligible:
+ * - Run not found or not in `pr_created`
+ * - Outcome already recorded (`pr_merged` or `pr_closed`)
+ * - Run created more than 30 days ago
+ * - An active (`pending` or `claimed`) `check_pr` command is already queued
+ */
+export function requestPullRequestCheck(
+  repos: Repositories,
+  runId: string,
+  options?: { now?: Date | undefined },
+): boolean {
+  const { db, runs: runRepo, events: eventRepo, commands: commandRepo } = repos;
+
+  return db.transaction((): boolean => {
+    const run = runRepo.get(runId);
+    if (run?.status !== "pr_created") {
+      return false;
+    }
+
+    const outcome = eventRepo.getPullRequestOutcome(runId);
+    if (outcome) {
+      return false;
+    }
+
+    const now = options?.now ?? new Date();
+    const createdTime = new Date(run.createdAt).getTime();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    if (now.getTime() - createdTime > THIRTY_DAYS_MS) {
+      return false;
+    }
+
+    if (commandRepo.hasActiveCommand(runId, "check_pr")) {
+      return false;
+    }
+
+    commandRepo.insertOrRetryCommand({
+      runId,
+      command: "check_pr",
+    });
+
+    return true;
+  })();
 }
 
 export function generateBranchName(
