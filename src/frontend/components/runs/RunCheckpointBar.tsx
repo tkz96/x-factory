@@ -122,6 +122,9 @@ export function RunCheckpointBar({
                 key={action}
                 variant={VARIANT[action]}
                 size="sm"
+                data-primary-action={
+                  VARIANT[action] === "primary" ? "" : undefined
+                }
                 isDisabled={pending !== null}
                 onPress={() => onAction(action)}
               >
