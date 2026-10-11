@@ -1,5 +1,7 @@
 import "./AppShell.css";
+import "./AppShellDocsPhone.css";
 
+import { useEffect, useState } from "react";
 import {
   NavLink,
   Outlet,
@@ -110,6 +112,8 @@ export function ThemeToggleButton({
 
 interface AppShellSidebarProps {
   isDocs: boolean;
+  docsNavOpen: boolean;
+  onCloseDocsNav: () => void;
   projects: Project[];
   isProjectsLoading: boolean;
   selectedProjectId: string;
@@ -122,6 +126,8 @@ interface AppShellSidebarProps {
 
 function AppShellSidebar({
   isDocs,
+  docsNavOpen,
+  onCloseDocsNav,
   projects,
   isProjectsLoading,
   selectedProjectId,
@@ -133,7 +139,17 @@ function AppShellSidebar({
 }: AppShellSidebarProps) {
   if (isDocs) {
     return (
-      <aside id="app-sidebar" className="sidebar">
+      <aside
+        id="app-sidebar"
+        className={`sidebar${docsNavOpen ? " docs-nav-open" : ""}`}
+      >
+        <button
+          type="button"
+          className="docs-nav-close btn-secondary btn-sm mobile-only"
+          onClick={onCloseDocsNav}
+        >
+          Close document list
+        </button>
         <DocsSidebarNav
           onToggleTheme={onToggleTheme}
           ThemeToggleButton={ThemeToggleButton}
@@ -313,6 +329,8 @@ const CATEGORY_TITLES: Record<string, string> = {
 
 interface AppShellHeaderProps {
   isDocs: boolean;
+  docsNavOpen: boolean;
+  onToggleDocsNav: () => void;
   title: string;
   subtitle: string;
   docBreadcrumb?:
@@ -330,6 +348,8 @@ interface AppShellHeaderProps {
 
 function AppShellHeader({
   isDocs,
+  docsNavOpen,
+  onToggleDocsNav,
   title,
   subtitle,
   docBreadcrumb,
@@ -372,6 +392,17 @@ function AppShellHeader({
         )}
       </div>
       <div className="toolbar-actions">
+        {isDocs && (
+          <button
+            type="button"
+            className="btn-secondary btn-sm mobile-only"
+            aria-expanded={docsNavOpen}
+            aria-controls="app-sidebar"
+            onClick={onToggleDocsNav}
+          >
+            Browse documents
+          </button>
+        )}
         <ThemeToggleButton
           id="theme-toggle-mobile"
           className="theme-toggle mobile-only"
@@ -539,12 +570,21 @@ function AppShellContent() {
       }
     : undefined;
 
+  const [docsNavOpen, setDocsNavOpen] = useState(false);
+  // Choosing a document (the URL changes) dismisses the phone-width sheet.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the dependencies are the trigger, not read in the body
+  useEffect(() => {
+    setDocsNavOpen(false);
+  }, [docCategory, docSlug, isDocs]);
+
   const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
 
   return (
     <div id="app-shell" className="app-shell">
       <AppShellSidebar
         isDocs={isDocs}
+        docsNavOpen={docsNavOpen}
+        onCloseDocsNav={() => setDocsNavOpen(false)}
         projects={projects}
         isProjectsLoading={isProjectsLoading}
         selectedProjectId={selectedProjectId}
@@ -561,6 +601,8 @@ function AppShellContent() {
       >
         <AppShellHeader
           isDocs={isDocs}
+          docsNavOpen={docsNavOpen}
+          onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
           title={title}
           subtitle={subtitle}
           docBreadcrumb={docBreadcrumb}
