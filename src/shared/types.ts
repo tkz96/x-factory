@@ -526,7 +526,12 @@ export interface ModelRoles {
 export type ModelRoleName = keyof ModelRoles;
 
 /** Request body of `POST /api/settings`: a patch merged into stored settings. */
-export type SettingsUpdateRequest = Partial<WorkbenchSettings>;
+/** Request body of `POST /api/settings`: a patch merged into stored settings; a role set to `null` is cleared (#278). */
+export type SettingsUpdateRequest = Partial<
+  Omit<WorkbenchSettings, "roles">
+> & {
+  roles?: { [K in keyof ModelRoles]?: ModelRoles[K] | null } | undefined;
+};
 
 /** One named check inside a readiness response. */
 export interface ReadinessCheck {

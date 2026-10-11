@@ -624,3 +624,24 @@ export const MODEL_CONNECTIONS_COPY = {
   saveModel: "Save Model",
   removeModel: "Remove",
 } as const;
+
+/** Copy for Settings › Models › Roles (#278). */
+export const MODEL_ROLES_COPY = {
+  title: "Roles",
+  subtitle:
+    "Which model does each job. Choose from models on checked connections.",
+  builder: "Builder",
+  builderHelp:
+    "Understands the ticket, plans, writes the code and chats with you.",
+  reviewer: "Reviewer",
+  reviewerHelp:
+    "Reviews the changes. A different model gives a stronger second opinion.",
+  notSet: "Not set",
+  option: (modelId: string, connectionName: string) =>
+    `${modelId} — ${connectionName}`,
+  unavailable: (modelId: string) => `${modelId} (unavailable)`,
+  noModels:
+    "No models to choose yet. Check a connection above and add a model to it.",
+  sameModel:
+    "Builder and Reviewer use the same model. A different Reviewer model gives a stronger second opinion.",
+} as const;
