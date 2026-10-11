@@ -1,12 +1,20 @@
-// src/frontend/components/modals/NewRunModal.tsx — New Factory Run modal dialog (XFM-46, XFM-47).
+// src/frontend/components/modals/NewRunModal.tsx — New Run modal dialog (XFM-46, XFM-47).
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useDialogFocus } from "../../hooks/useDialogFocus.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { DialogPortal } from "../DialogPortal.js";
+
+/**
+ * The server refuses a run whose Builder or Reviewer role can't resolve, and its
+ * reason points at Settings › Models (#278). That pointer becomes a real link.
+ */
+function needsModelSetup(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("Settings › Models");
+}
 
 export function NewRunModal() {
   const { isNewRunOpen, closeNewRunModal, newRunPrefill } = useModal();
@@ -20,6 +28,7 @@ export function NewRunModal() {
   const [criteria, setCriteria] = useState("");
   const [plan, setPlan] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [needsRoles, setNeedsRoles] = useState(false);
 
   const backdropRef = useRef<HTMLDivElement>(null);
   useDialogFocus(backdropRef, isNewRunOpen);
@@ -37,6 +46,7 @@ export function NewRunModal() {
   useEffect(() => {
     if (isNewRunOpen) {
       setError(null);
+      setNeedsRoles(false);
       if (newRunPrefill) {
         setTicketId(newRunPrefill.ticketId || "");
         setTicketTitle(newRunPrefill.ticketTitle || "");
@@ -92,6 +102,7 @@ export function NewRunModal() {
       closeNewRunModal();
       navigate(`/runs/${run.id}`);
     } catch (err: unknown) {
+      setNeedsRoles(needsModelSetup(err));
       setError(err instanceof Error ? err.message : String(err));
     }
   };
@@ -112,7 +123,7 @@ export function NewRunModal() {
       >
         <div className="modal-dialog">
           <div className="modal-header">
-            <h2 id="modal-new-run-title">New Factory Run</h2>
+            <h2 id="modal-new-run-title">New Run</h2>
             <button
               type="button"
               id="btn-close-modal"
@@ -206,7 +217,7 @@ export function NewRunModal() {
                 <input
                   id="input-branch"
                   type="text"
-                  placeholder="factory/ticket-slug (auto-generated)"
+                  placeholder="auto-generated from the ticket ID"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
                 />
@@ -226,8 +237,7 @@ export function NewRunModal() {
                     <span className="tooltip-popover">
                       <strong>Acceptance Criteria</strong>
                       List each testable condition or requirement on its own
-                      line. Pi checks these criteria during the Test &amp;
-                      Verify stage.
+                      line. The coding agent checks these criteria as it works.
                     </span>
                   </span>
                 </div>
@@ -268,6 +278,18 @@ export function NewRunModal() {
               {error && (
                 <div id="setup-error" className="error-message">
                   {error}
+                  {needsRoles && (
+                    <p className="m-0 mt-2">
+                      <Link
+                        id="link-settings-models"
+                        className="btn-secondary btn-sm"
+                        to="/settings?tab=models"
+                        onClick={closeNewRunModal}
+                      >
+                        Open Settings › Models
+                      </Link>
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -287,9 +309,7 @@ export function NewRunModal() {
                   className="btn-primary"
                   disabled={isSubmitDisabled}
                 >
-                  {createRunMutation.isPending
-                    ? "Starting…"
-                    : "Start Factory Run"}
+                  {createRunMutation.isPending ? "Starting…" : "Start Run"}
                 </button>
               </div>
             </form>
