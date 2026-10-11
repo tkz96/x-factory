@@ -57,7 +57,7 @@ describe("Shared run-event union (#171)", () => {
       worktreePath: `/tmp/worktrees-${runId}`,
     });
 
-    // 1. chatWithRun producer via handleApi (emits chat_user and chat_agent)
+    // 1. chatWithRun producer via handleApi (emits chat_user, then an error event when no model replies)
     const errSpy = spyOn(console, "error").mockImplementation(() => {});
     try {
       const chatReq = new Request(
@@ -79,9 +79,11 @@ describe("Shared run-event union (#171)", () => {
     expect(chatUserEvt).toBeDefined();
     expect(chatUserEvt?.payload).toEqual({ text: "Can we verify edge cases?" });
 
-    const chatAgentEvt = eventsAfterChat.find((e) => e.type === "chat_agent");
-    expect(chatAgentEvt).toBeDefined();
-    expect(typeof chatAgentEvt?.payload.text).toBe("string");
+    // No model is configured in this run, so the failed reply is an error event (#263).
+    const chatErrorEvt = eventsAfterChat.find((e) => e.type === "error");
+    expect(chatErrorEvt).toBeDefined();
+    expect(typeof chatErrorEvt?.payload.message).toBe("string");
+    expect(eventsAfterChat.some((e) => e.type === "chat_agent")).toBe(false);
 
     // 2. handleTransition requeue producer via handleApi (emits user_feedback and status)
     forceRunStatus(db, runId, "awaiting_review");
