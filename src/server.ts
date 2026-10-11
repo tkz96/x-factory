@@ -1,9 +1,5 @@
 // src/server.ts — Native Bun HTTP server entry point and lifecycle management (XFM-71).
 
-import { bootstrapLLMEnv } from "./env-bootstrap.js";
-
-bootstrapLLMEnv();
-
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import path from "node:path";
