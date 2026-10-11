@@ -4,9 +4,11 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   classifyModelError,
-  createReviewSession,
+  createReadOnlySession,
+  disposeQuietly,
   type PiAgentSession,
   type PiUsage,
+  type ReadOnlySessionFactory,
   type SessionOptions,
 } from "./agents/pi.js";
 import {
@@ -49,13 +51,8 @@ export interface ReviewContext {
   onUsage?: ((usage: PiUsage) => void) | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
-  sessionFactory?: ReviewSessionFactory | undefined;
+  sessionFactory?: ReadOnlySessionFactory | undefined;
 }
-
-export type ReviewSessionFactory = (
-  worktreePath: string,
-  options?: SessionOptions,
-) => Promise<PiAgentSession>;
 
 function attachReviewListeners(
   session: PiAgentSession,
@@ -144,7 +141,7 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
     }
     reviewSession = context.sessionFactory
       ? await context.sessionFactory(worktreePath, context.modelConfig)
-      : await createReviewSession(
+      : await createReadOnlySession(
           worktreePath,
           context.modelConfig as SessionOptions,
         );
@@ -177,18 +174,6 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
     const usage = reviewSession.usage?.();
     if (usage && context.onUsage) context.onUsage(usage);
     disposeQuietly(reviewSession);
-  }
-}
-
-/** Dispose must never replace the review outcome: Pi's dispose can throw. */
-function disposeQuietly(session: PiAgentSession): void {
-  try {
-    session.dispose();
-  } catch (err: unknown) {
-    console.warn(
-      "[X-Factory] Failed to dispose review session:",
-      err instanceof Error ? err.message : String(err),
-    );
   }
 }
 

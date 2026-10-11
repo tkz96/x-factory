@@ -5,6 +5,7 @@ import { runAttemptLoop } from "../attempt-loop.js";
 import { gatewayKeyFor, modelGateway } from "../model-gateway.js";
 import {
   ModelUnavailableError,
+  modelFailureReason,
   modelUse,
   resolveRole,
 } from "../model-roles.js";
@@ -76,7 +77,7 @@ export class ExecuteExecutor implements StageExecutor {
       context.recordModel(modelUse(resolved));
     } catch (err: unknown) {
       if (err instanceof ModelUnavailableError) {
-        return { outcome: "error", error: `Model unavailable: ${err.message}` };
+        return { outcome: "error", error: modelFailureReason(err) };
       }
       throw err;
     }

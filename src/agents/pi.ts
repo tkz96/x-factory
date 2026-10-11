@@ -354,11 +354,11 @@ async function createConfiguredSession(
 }
 
 /**
- * Create Pi Review Session B.
- * Genuinely read-only tools enabled: read, grep, find, ls.
- * Review session cannot modify code or run arbitrary bash.
+ * A fresh session with read-only repository tools: read, grep, find, ls. Review,
+ * Understand and Plan all run on one, so none of them can modify code or run
+ * arbitrary bash (#282).
  */
-export async function createReviewSession(
+export async function createReadOnlySession(
   worktreePath: string,
   options: SessionOptions,
 ): Promise<PiAgentSession> {
@@ -367,6 +367,24 @@ export async function createReviewSession(
     ["read", "grep", "find", "ls"],
     options,
   );
+}
+
+/** How a stage opens the read-only session for its model call; a test seam. */
+export type ReadOnlySessionFactory = (
+  worktreePath: string,
+  options?: SessionOptions,
+) => Promise<PiAgentSession>;
+
+/** Dispose must never replace a stage's outcome: Pi's dispose can throw. */
+export function disposeQuietly(session: PiAgentSession): void {
+  try {
+    session.dispose();
+  } catch (err: unknown) {
+    console.warn(
+      "[X-Factory] Failed to dispose the agent session:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }
 
 export interface ChatMessageInput {
