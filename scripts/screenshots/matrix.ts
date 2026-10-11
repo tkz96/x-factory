@@ -16,6 +16,11 @@ export interface ScreenDef {
 
 /** Every screen of the evidence matrix. Add a row when a screen is added. */
 export const SCREENS: readonly ScreenDef[] = [
+  {
+    name: "welcome",
+    path: "/welcome",
+    description: "The first-run welcome and its checklist",
+  },
   { name: "shell", path: "/runs", description: "The app chrome around Runs" },
   { name: "tickets", path: "/tickets", description: "Tickets" },
   { name: "runs", path: "/runs", description: "The Runs list" },

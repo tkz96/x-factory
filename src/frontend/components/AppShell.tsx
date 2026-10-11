@@ -30,6 +30,7 @@ import {
 } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
+import { WELCOME_COPY } from "./feedback/copy-map.js";
 import { ModalContainer } from "./ModalContainer.js";
 import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
@@ -78,6 +79,14 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
     return {
       title: "Project",
       subtitle: "Repository and issue tracker for this project",
+    };
+  }
+  // The landing is the welcome gate (#269): while setup is incomplete the
+  // welcome is what the user is looking at, so the screen's words are its own.
+  if (pathname === "/" || pathname.startsWith("/welcome")) {
+    return {
+      title: WELCOME_COPY.title,
+      subtitle: WELCOME_COPY.subtitle,
     };
   }
   switch (pathname) {

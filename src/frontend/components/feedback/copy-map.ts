@@ -723,3 +723,53 @@ export const REPOSITORY_STEP_COPY = {
   workspaceHint:
     "Folder where X-Factory keeps this project's checkouts. Leave empty for the default.",
 } as const;
+
+/**
+ * Copy for the first-run welcome and its checklist (#269, spec #241 stories
+ * 109–111). The step titles use the same words as the actions the rest of the
+ * app offers (CONTEXT.md "UI wording"): Add Project, Connect a Model, Start
+ * Run. Every tick the screen shows comes from real state, so the copy can name
+ * a step as finished only when `deriveSetupChecklist` says it is.
+ */
+export const WELCOME_COPY = {
+  title: "Welcome",
+  subtitle: "Three steps to your first run",
+  /** One line above the steps, counted from the ticks that are really there. */
+  progress: (done: number, total: number) => `${done} of ${total} steps done`,
+  /** A step's state word, on its badge. */
+  done: "Done",
+  todo: "To do",
+  stepTitle: {
+    project: "Add Project",
+    model: "Connect a Model",
+    run: "Start Run",
+  },
+  stepBody: {
+    project: "Add a repository so there are tickets to work on.",
+    model:
+      "A connection must pass Check Connection, and Builder and Reviewer each need a model before a run can start.",
+    run: "Pick a ticket and start your first run.",
+  },
+  /** What a step still needs, one plain sentence per gap. */
+  gap: {
+    "no-project": "No projects yet.",
+    "no-verified-connection": "No connection has passed Check Connection yet.",
+    "roles-not-set": "Builder and Reviewer each need a model.",
+    "no-run": "No runs yet.",
+  },
+  /** The one action that takes the user to where the step is finished. */
+  stepAction: {
+    /** Opens the add-project assistant (#268) through the modal context. */
+    project: "Add Project",
+    /** The same action once a project exists: a quieter way to add another. */
+    projectAgain: "Add Another Project",
+    /** The pane that owns Check Connection, the models and the roles (#274). */
+    model: "Open Settings › Models",
+    run: "Open Tickets",
+  },
+  /** Where the steps that navigate are finished. */
+  stepPath: {
+    model: "/settings?tab=models",
+    run: "/tickets",
+  },
+} as const;

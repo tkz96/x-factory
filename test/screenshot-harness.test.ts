@@ -35,6 +35,7 @@ describe("evidence matrix", () => {
     const names = SCREENS.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
     for (const wanted of [
+      "welcome",
       "shell",
       "runs",
       "run",

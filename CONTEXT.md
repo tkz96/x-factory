@@ -50,6 +50,8 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Runs in progress, shown quietly in the toolbar | Activity (never stored, never announced as a popup) |
 | A run that needs you, kind by kind | Understanding ready, Plan ready, Changes ready, Ready for a pull request, Needs recovery |
 | A run that finished, kind by kind | Pull request opened, Run failed (with its reason), Run stopped |
+| The first-run welcome and its checklist (#269) | Welcome — steps: Add Project, Connect a Model, Start Run |
+| A checklist step's own state | Done / To do |
 
 | Status | Label | Step | Filter |
 | --- | --- | --- | --- |

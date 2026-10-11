@@ -210,6 +210,10 @@ describe("screens that show no internal vocabulary at all", () => {
     "src/frontend/views/RunDetailView.tsx",
     "src/frontend/views/RunsView.tsx",
     "src/frontend/components/runs/RunEvidence.tsx",
+    // The first-run welcome (#269) speaks the same plain words.
+    "src/frontend/views/WelcomeView.tsx",
+    "src/frontend/components/welcome/SetupChecklist.tsx",
+    "src/frontend/lib/setup-checklist.ts",
   ]) {
     it(`${file}`, () => {
       expect(readFileSync(file, "utf8")).not.toMatch(INTERNAL_VOCABULARY);

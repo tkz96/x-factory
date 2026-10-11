@@ -7,6 +7,7 @@ import {
   type RouteObject,
 } from "react-router-dom";
 import { AppShell } from "./components/AppShell.js";
+import { HomeRoute } from "./components/welcome/HomeRoute.js";
 import { DocsView } from "./views/DocsView.js";
 import { ProjectDetailView } from "./views/ProjectDetailView.js";
 import { ProjectsView } from "./views/ProjectsView.js";
@@ -14,6 +15,7 @@ import { QueueView } from "./views/QueueView.js";
 import { RunDetailView } from "./views/RunDetailView.js";
 import { RunsView } from "./views/RunsView.js";
 import { SettingsView } from "./views/SettingsView.js";
+import { WelcomeView } from "./views/WelcomeView.js";
 
 export const routeDefinitions: RouteObject[] = [
   {
@@ -21,8 +23,14 @@ export const routeDefinitions: RouteObject[] = [
     element: <AppShell />,
     children: [
       {
+        // The landing: the welcome while setup is incomplete, Tickets after
+        // every step is done (#269).
         index: true,
-        element: <Navigate to="/tickets" replace />,
+        element: <HomeRoute />,
+      },
+      {
+        path: "welcome",
+        element: <WelcomeView />,
       },
       {
         path: "tickets",

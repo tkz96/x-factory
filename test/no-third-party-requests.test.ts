@@ -82,6 +82,7 @@ describe("no third-party requests", () => {
 
       // The list is the evidence matrix, so a screen added there is covered here.
       expect(visited).toEqual([
+        "/welcome",
         "/runs",
         "/tickets",
         "/runs",
