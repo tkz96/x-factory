@@ -52,7 +52,7 @@
   font-weight: 600;
   padding: 0.1rem 0.45rem;
   border-radius: var(--radius-pill);
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   color: var(--text-dim);
   border: 1px solid var(--border-subtle);
 }
@@ -129,7 +129,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-muted);
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   padding: 0.15rem 0.4rem;
   border-radius: 3px;
   margin-top: 0.35rem;

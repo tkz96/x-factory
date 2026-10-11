@@ -47,7 +47,7 @@
 
 .repositories-list-checkbox {
   flex: none;
-  accent-color: var(--accent, #0a84ff);
+  accent-color: var(--accent);
 }
 
 .repositories-list-name {
@@ -132,7 +132,7 @@
 }
 
 .repositories-select-all input {
-  accent-color: var(--accent, #0a84ff);
+  accent-color: var(--accent);
 }
 
 .repositories-list-header .repositories-select-all input:disabled {

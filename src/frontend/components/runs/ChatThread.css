@@ -38,7 +38,7 @@
   border: 1px solid var(--border);
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  font-size: var(--text-caption-1);
 }
 
 .chat-bubble.bubble-evidence {
@@ -48,15 +48,15 @@
 }
 
 .chat-bubble.bubble-agent {
-  background: var(--bg-primary);
+  background: var(--bg);
   border: 1px solid var(--border);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .chat-bubble.bubble-ralph {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .chat-bubble.bubble-error {
@@ -68,7 +68,7 @@
 .chat-bubble.bubble-chat-user {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .chat-bubble.bubble-chat-agent {
@@ -105,7 +105,7 @@
 
 .bubble-ralph .chat-bubble-badge {
   background: var(--accent);
-  color: var(--color-white, #ffffff);
+  color: var(--text-on-accent);
 }
 
 .chat-bubble-body {
