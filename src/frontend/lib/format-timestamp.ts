@@ -33,3 +33,23 @@ export function formatTimestamp(iso: string, timeZone?: string): string {
     parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
+
+/**
+ * A short relative time for recent instants ("Just now", "5 min ago", "3 h ago"),
+ * and the full timestamp for anything a day or more old. The notification list uses
+ * it; the exact time belongs in a hover title.
+ */
+export function formatRelativeTime(
+  iso: string,
+  now: number = Date.now(),
+): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return iso;
+  const seconds = Math.max(0, Math.round((now - then) / 1000));
+  if (seconds < 60) return "Just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return formatTimestamp(iso);
+}

@@ -2,6 +2,7 @@
 // dedupe and read state (#264, spec #241). Pure functions and a storage seam only.
 
 import { describe, expect, it } from "bun:test";
+import { formatRelativeTime } from "../src/frontend/lib/format-timestamp.js";
 import {
   applyNotificationEnvelope,
   browserStorage,
@@ -287,5 +288,22 @@ describe("read state storage (#264)", () => {
       if (original) Object.defineProperty(globalThis, "localStorage", original);
       else delete (globalThis as { localStorage?: unknown }).localStorage;
     }
+  });
+});
+
+describe("relative time (#264)", () => {
+  it("reads recent instants as relative and older ones as the full timestamp", () => {
+    const now = Date.parse("2026-10-11T12:00:00.000Z");
+    expect(formatRelativeTime("2026-10-11T11:59:30.000Z", now)).toBe(
+      "Just now",
+    );
+    expect(formatRelativeTime("2026-10-11T11:55:00.000Z", now)).toBe(
+      "5 min ago",
+    );
+    expect(formatRelativeTime("2026-10-11T09:00:00.000Z", now)).toBe("3 h ago");
+    expect(formatRelativeTime("not a date", now)).toBe("not a date");
+    expect(formatRelativeTime("2026-10-01T09:00:00.000Z", now)).toContain(
+      "2026-10-01",
+    );
   });
 });

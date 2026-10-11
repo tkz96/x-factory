@@ -440,10 +440,14 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
    * docs/reference/state-coverage.md: this scan DETECTS known anti-patterns,
    * it does not PROVE coverage — behavioral tests are the real enforcement.
    */
+  const TOAST_PATTERN_NAME = "toast system";
+  /** The one exception to the toast ban: the notification center (#264). */
+  const NOTIFICATION_CENTER_DIR_RELATIVE =
+    "src/frontend/components/notifications/";
   const ANTI_PATTERNS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
     { name: "ad-hoc spinner markup", pattern: /className="[^"]*spinner/i },
     { name: "ad-hoc generic error copy", pattern: /something went wrong/i },
-    { name: "toast system", pattern: /\btoast\b/i },
+    { name: TOAST_PATTERN_NAME, pattern: /\btoast\b/i },
     // Static placeholder rows are the approved loading shape (#251); an
     // animated shimmer is not, in markup or in CSS.
     { name: "shimmer animation", pattern: /\bshimmer\b/i },
@@ -480,9 +484,15 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
       }
       const content = fs.readFileSync(filePath, "utf-8");
       const lines = content.split("\n");
+      const inNotificationCenter = relative.startsWith(
+        NOTIFICATION_CENTER_DIR_RELATIVE,
+      );
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? "";
         for (const { name, pattern } of ANTI_PATTERNS) {
+          // The notification center is the one named exception to the toast ban
+          // (#264, spec #241): it is a list the user opens, not a floating message.
+          if (inNotificationCenter && name === TOAST_PATTERN_NAME) continue;
           if (pattern.test(line)) {
             violations.push({
               file: relative,
