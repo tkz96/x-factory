@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: FactorySettings = {
   appearance: "automatic",
   models: { sessionA: {}, sessionB: {} },
   allowUnsandboxed: false,
+  desktopNotifications: false,
 };
 
 /** One session's model pair, as stored once normalized (#182). */
@@ -172,6 +173,10 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
         typeof parsed.allowUnsandboxed === "boolean"
           ? parsed.allowUnsandboxed
           : false,
+      desktopNotifications:
+        typeof parsed.desktopNotifications === "boolean"
+          ? parsed.desktopNotifications
+          : false,
       // Settings saved before roles existed migrate from Session A / B (#278).
       roles: parsed.roles ?? (await migrateLegacyRoles(models)),
     };
@@ -211,6 +216,10 @@ export async function saveSettings(
       typeof patch.allowUnsandboxed === "boolean"
         ? patch.allowUnsandboxed
         : Boolean(existing.allowUnsandboxed),
+    desktopNotifications:
+      typeof patch.desktopNotifications === "boolean"
+        ? patch.desktopNotifications
+        : Boolean(existing.desktopNotifications),
     // Roles are written only once they exist in the file or are set now, so
     // a save before any role is chosen never blocks the Session A/B migration.
     ...(await rolesToSave(existing.roles, patch.roles)),

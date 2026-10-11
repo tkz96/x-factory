@@ -606,6 +606,8 @@ export interface WorkbenchSettings {
       }
     | undefined;
   allowUnsandboxed?: boolean | undefined;
+  /** Desktop notifications for runs that need you (#265). Off by default. */
+  desktopNotifications?: boolean | undefined;
   /** Which model each role uses (#278); replaces models.sessionA/sessionB. */
   roles?: ModelRoles | undefined;
 }
