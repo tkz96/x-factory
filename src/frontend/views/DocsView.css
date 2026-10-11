@@ -151,20 +151,14 @@
   display: inline-block;
 }
 
+/* The pane title is the screen's one h1 (#258): every security pane uses it,
+   so the heading level and its look always agree. */
 .docs-pane-title {
   font-family: var(--font-display);
   font-size: var(--text-title-1);
   font-weight: 700;
   letter-spacing: -0.024em;
   margin: 0 0 var(--space-4);
-}
-
-.docs-pane-subtitle {
-  font-family: var(--font-display);
-  font-size: var(--text-title-2);
-  font-weight: 700;
-  letter-spacing: -0.024em;
-  margin: 0 0 var(--space-2);
 }
 
 .docs-subheading {
