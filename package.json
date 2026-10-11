@@ -33,6 +33,7 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
     "@earendil-works/pi-coding-agent": "^0.85.1",
     "@tanstack/react-query": "^5.103.1",
     "@xyflow/react": "^12.11.6",

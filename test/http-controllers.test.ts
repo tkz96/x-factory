@@ -29,6 +29,34 @@ describe("HTTP Routing & Controllers (src/http)", () => {
       assert.deepEqual(parseAcceptanceCriteria(arr), arr);
     });
 
+    it("strips list and checklist markers from each criterion (#284)", () => {
+      const text =
+        "- First\n* Second\n+ Third\n1. Fourth\n2) Fifth\n- [ ] Sixth\n- [x] Seventh";
+      assert.deepEqual(parseAcceptanceCriteria(text), [
+        "First",
+        "Second",
+        "Third",
+        "Fourth",
+        "Fifth",
+        "Sixth",
+        "Seventh",
+      ]);
+      assert.deepEqual(
+        parseAcceptanceCriteria(["- A", "  [ ] B ", "C", "", "- "]),
+        ["A", "B", "C"],
+      );
+    });
+
+    it("keeps text that only looks like a marker mid-line (#284)", () => {
+      assert.deepEqual(
+        parseAcceptanceCriteria([
+          "Supports A - B ranges",
+          "-5 degrees is valid",
+        ]),
+        ["Supports A - B ranges", "-5 degrees is valid"],
+      );
+    });
+
     it("splits multiline string and filters empty lines", () => {
       const text = "  Criterion 1  \n\n  Criterion 2\n   ";
       assert.deepEqual(parseAcceptanceCriteria(text), [

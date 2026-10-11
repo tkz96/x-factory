@@ -1655,6 +1655,75 @@ describe("Repositories Step — bulk selection: Select all / Deselect all (#160)
   });
 });
 
+describe("Repositories Step — filter and entered repository first (#284)", () => {
+  beforeEach(() => {
+    clearWizardDraft();
+    api.providers.getManifest = mock(async () => manifestFixture);
+    api.providers.verify = mock(async () => ({
+      status: "ok" as const,
+      warnings: [],
+    }));
+    api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
+      matched: false as const,
+      url: "",
+    }));
+    api.providers.listRepositories = mock(async () => discoveryEnvelope());
+  });
+
+  afterEach(() => {
+    cleanup();
+    clearWizardDraft();
+  });
+
+  function listedNames(): string[] {
+    return Array.from(
+      document.querySelectorAll("#repositories-list .repositories-list-name"),
+    ).map((el) => el.textContent ?? "");
+  }
+
+  it("FILTER: typing narrows the list by name, and clearing restores it", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    const filter = getEl<HTMLInputElement>("repositories-filter");
+    expect(listedNames()).toEqual(["rocket-app", "rocket-api"]);
+
+    typeInput(filter, "API");
+    expect(listedNames()).toEqual(["rocket-api"]);
+
+    typeInput(filter, "");
+    expect(listedNames()).toEqual(["rocket-app", "rocket-api"]);
+  });
+
+  it("FILTER (no match): says nothing matches instead of showing an empty list", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    typeInput(getEl<HTMLInputElement>("repositories-filter"), "zzz");
+    expect(listedNames()).toEqual([]);
+    expect(discoveryRegion().textContent).toContain(
+      REPOSITORIES_COPY.noFilterMatches("zzz"),
+    );
+  });
+
+  it("ENTERED FIRST: the repository named in the git-host connection is listed first", async () => {
+    setupStep3Draft({
+      gitHost: { config: { ...GIT_HOST_CONFIG, repository: "rocket-api" } },
+    });
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    expect(listedNames()).toEqual(["rocket-api", "rocket-app"]);
+  });
+});
+
 afterAll(async () => {
   await unregisterHappyDom();
 });

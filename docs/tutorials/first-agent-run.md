@@ -37,7 +37,7 @@ Open `.env` in your editor and paste your API key:
 LLM_API_KEY=your-api-key-here
 ```
 
-> **Tip**: X-Factory automatically detects the model provider based on key prefix (`sk-ant-*` for Anthropic Claude, `AIzaSy*` for Google Gemini, `sk-*` for OpenAI).
+> **Tip**: X-Factory automatically detects the model provider based on key prefix (`sk-ant-*` for Anthropic Claude, `AIzaSy*` or `AQ.*` for Google Gemini, `sk-*` for OpenAI). Set `LLM_PROVIDER` (`gemini`, `anthropic` or `openai`) when your key has another format. On first launch the key is also saved as a model connection; see `docs/reference/security.md`.
 
 ---
 

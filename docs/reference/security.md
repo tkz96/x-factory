@@ -42,6 +42,21 @@ The selected LLM API credentials are not stored in configuration files (like `se
 
 Credentials are provided strictly via environment variables. They are never injected as command-line arguments to the agent process, ensuring they do not leak into process listings (`ps`).
 
+### 4. Model Connections (#276)
+Users can also store model API keys in X-Factory itself, as **model connections** (name, API type, base URL, key), managed through `/api/model-connections`.
+
+- **Where keys live**: non-secret fields go in `<data dir>/model-connections.json`. Keys go in `<data dir>/model-secrets.json`, written with owner-only permissions (`0600`) through a temp file and rename. Both paths come from `src/paths.ts`.
+- **Never returned**: API responses carry only `hasKey`, the key's last four characters and `keySource` (`stored`, `environment` or `none`). The key itself never crosses the API boundary.
+- **Environment override**: for headless setups, a provider key env var wins over a stored key for every connection of that API type:
+
+  | API type | Env var |
+  |---|---|
+  | `gemini` | `GEMINI_API_KEY` |
+  | `anthropic` | `ANTHROPIC_API_KEY` |
+  | `openai-compatible` | `OPENAI_API_KEY` |
+- **First-launch import**: when the API process starts with `LLM_API_KEY` set, it imports that key as a connection, once. The provider comes from `LLM_PROVIDER` (`gemini`, `google`, `anthropic` or `openai`) or else from the key's prefix: `AIzaSy` or `AQ.` means Gemini, `sk-ant-` means Anthropic, `sk-` means OpenAI. A key that matches none of these is skipped rather than guessed.
+- **The runtime's own config is never touched**: X-Factory does not read or write the agent runtime's `~/.pi` directory.
+
 ## Local-Only API Boundary
 
 The API is a local control surface. It can rewrite the user's git identity and start agent work, so it must not be reachable from other machines or driven by web pages in the user's browser.

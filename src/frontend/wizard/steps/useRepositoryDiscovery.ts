@@ -306,6 +306,8 @@ export function useRepositoryDiscovery() {
 
   return {
     rows,
+    /** The git-host connection's config values, used to list the entered repository first (#284). */
+    connectionValues: Object.values(config),
     derived,
     selectedRepoIds: state.repositories.selectedRepoIds,
     selectionIsStale,

@@ -5,6 +5,7 @@ import type {
   AbandonRunRequest,
   DiagnosticsResponse,
   Project,
+  ProjectRepository,
   ReadinessResponse,
   Run,
   RunTransitionAction,
@@ -12,7 +13,7 @@ import type {
   WorkbenchSettings,
 } from "../../shared/types.js";
 import { api } from "../lib/api-client.js";
-import { invalidateSettings } from "../lib/query-client.js";
+import { invalidateProject, invalidateSettings } from "../lib/query-client.js";
 import { QUERY_POLICIES, queryKeys } from "../lib/query-policies.js";
 import {
   cacheRunAfterMutation,
@@ -157,6 +158,19 @@ export function usePrRun() {
     mutationFn: ({ runId }: { runId: string }) => api.prRun(runId),
     onSuccess: (_, variables) =>
       refreshRunAfterMutation(queryClient, variables.runId),
+  });
+}
+
+/** Saves a project's repositories and refreshes the project and readiness (#283). */
+export function useUpdateProjectRepositories(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (repositories: ProjectRepository[]) =>
+      api.updateProjectRepositories(projectId, repositories),
+    onSuccess: () => {
+      void invalidateProject(projectId, queryClient);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness() });
+    },
   });
 }
 

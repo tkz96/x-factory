@@ -91,6 +91,9 @@ export const REPOSITORIES_COPY = {
     count === 1 ? "1 repository selected" : `${count} repositories selected`,
   /** Header control for bulk selection (#160). */
   selectAllLabel: "Select all",
+  filterLabel: "Filter repositories",
+  filterPlaceholder: "Filter by name",
+  noFilterMatches: (query: string) => `No repositories match “${query}”.`,
   /** Live "N of M selected" count shown in the list header (#160). */
   selectedOfTotal: (selected: number, total: number) =>
     `${selected} of ${total} selected`,
@@ -284,6 +287,23 @@ export const PROJECT_DETAIL_COPY = {
   repositoryNameColumn: "Repository Name",
   repositoryPathColumn: "Path",
   repositoryBranchColumn: "Default Branch",
+} as const;
+
+/** Copy for editing a repository's checkout and commands (#283). */
+export const REPOSITORY_SETTINGS_COPY = {
+  title: "Repository settings",
+  path: "Checkout folder",
+  pathHelp: "The local folder where this repository is checked out.",
+  test: "Test command",
+  testHelp:
+    "Run to verify a run's changes. Without one, verification checks nothing.",
+  typecheck: "Typecheck command",
+  lint: "Lint command",
+  optional: "Optional",
+  save: "Save",
+  saving: "Saving…",
+  saved: "Saved.",
+  pathRequired: "Enter the folder where this repository is checked out.",
 } as const;
 
 /** Copy for the project cards (#147). */
@@ -554,3 +574,53 @@ export function formatRetryCountdown(retryAfterMs: number): string {
   const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
   return `Retry available in ${seconds}s`;
 }
+
+/** Copy for Settings › Models › Model connections (#277). */
+export const MODEL_CONNECTIONS_COPY = {
+  title: "Model connections",
+  subtitle:
+    "Where models come from. Add an endpoint and API key, check it, then choose models.",
+  empty: "No model connections yet. Add one to choose models for runs.",
+  add: "Add Connection",
+  edit: "Edit",
+  name: "Name",
+  apiType: "API type",
+  apiTypes: {
+    "openai-compatible": "OpenAI-compatible (OpenRouter, gateways)",
+    gemini: "Gemini",
+    anthropic: "Anthropic",
+  },
+  baseUrl: "Base URL",
+  apiKey: "API key",
+  apiKeyKeep: "Leave blank to keep the current key",
+  save: "Save",
+  cancel: "Cancel",
+  check: "Check Connection",
+  checking: "Checking…",
+  delete: "Delete",
+  confirmDelete: "Delete Connection",
+  confirmDeleteQuestion: (name: string) =>
+    `Delete “${name}” and its key? Runs using its models will stop working.`,
+  keyMasked: (last4: string) => `•••• ${last4}`,
+  noKey: "No key",
+  fromEnvironment: "from environment",
+  verified: "Verified",
+  notChecked: "Not checked",
+  modelsFound: (count: number) =>
+    count === 1 ? "1 model found" : `${count} models found`,
+  addModel: "Add",
+  added: "Added",
+  chosenModels: "Chosen models",
+  contextWindow: "Context window (tokens)",
+  maxOutputTokens: "Max output (tokens)",
+  inputPricePerMTok: "Input price ($ / 1M tokens)",
+  outputPricePerMTok: "Output price ($ / 1M tokens)",
+  rpm: "Requests / min",
+  tpm: "Tokens / min",
+  rpd: "Requests / day",
+  tpd: "Tokens / day",
+  budgetUsd: "Budget ($ / day)",
+  budgetRequests: "Budget (requests / day)",
+  saveModel: "Save Model",
+  removeModel: "Remove",
+} as const;

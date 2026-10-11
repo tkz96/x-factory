@@ -8,10 +8,11 @@
 // with `deriveAsyncState` and hands the result to `AsyncRegion`; it never
 // builds loading or error markup by hand.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
+import { filterAndOrderRepositories } from "./repository-filter.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import "./RepositoriesStep.css";
 import { ModalFooter } from "../../components/Modal.js";
@@ -26,6 +27,7 @@ const CONTINUE_REASON_COPY = {
 export function RepositoriesStep() {
   const {
     rows,
+    connectionValues,
     derived,
     selectedRepoIds,
     selectionIsStale,
@@ -43,6 +45,12 @@ export function RepositoriesStep() {
     nextStep,
     prevStep,
   } = useRepositoryDiscovery();
+
+  const [filterQuery, setFilterQuery] = useState("");
+  const visibleRows = useMemo(
+    () => filterAndOrderRepositories(rows, filterQuery, connectionValues),
+    [rows, filterQuery, connectionValues],
+  );
 
   const selectedRepoIdSet = useMemo(
     () => new Set(selectedRepoIds),
@@ -123,8 +131,31 @@ export function RepositoriesStep() {
             </span>
           </div>
 
+          <div className="repositories-filter">
+            <label
+              className="repositories-filter-label"
+              htmlFor="repositories-filter"
+            >
+              {REPOSITORIES_COPY.filterLabel}
+            </label>
+            <input
+              id="repositories-filter"
+              className="repositories-filter-input"
+              type="search"
+              placeholder={REPOSITORIES_COPY.filterPlaceholder}
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+            />
+          </div>
+
+          {visibleRows.length === 0 && filterQuery.trim() !== "" && (
+            <p className="repositories-filter-empty" role="status">
+              {REPOSITORIES_COPY.noFilterMatches(filterQuery.trim())}
+            </p>
+          )}
+
           <ul className="repositories-list" id="repositories-list">
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <li key={row.id} className="repositories-list-item">
                 <label
                   className={

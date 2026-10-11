@@ -3,6 +3,7 @@
 import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
 import * as runs from "../runs.js";
+import { normalizeCriterion } from "../shared/normalization.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type {
   AbandonRunResponse,
@@ -32,16 +33,12 @@ import {
 import { defaultSSERegistry } from "./sse-registry.js";
 
 export function parseAcceptanceCriteria(raw: unknown): string[] {
-  if (Array.isArray(raw)) {
-    return raw as string[];
-  }
-  if (typeof raw === "string") {
-    return raw
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return [];
+  const lines = Array.isArray(raw)
+    ? raw.filter((c): c is string => typeof c === "string")
+    : typeof raw === "string"
+      ? raw.split("\n")
+      : [];
+  return lines.map(normalizeCriterion).filter(Boolean);
 }
 
 export async function handleCreateRun(

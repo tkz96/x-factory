@@ -2,6 +2,7 @@
 
 import type { Repositories } from "../composition-root.js";
 import { getLatestMigrationVersion } from "../db/migrator.js";
+import { sandboxReadinessCheck } from "../diagnostics/sandbox-check.js";
 import {
   getActiveWorkers,
   isWorkerReady,
@@ -81,6 +82,7 @@ function computeReadinessStatus(repos: Repositories) {
           ? `${activeWorkers.length} active worker heartbeat(s)`
           : "No active background worker heartbeats detected",
       },
+      sandboxReadinessCheck(),
     ],
     timestamp: new Date().toISOString(),
   };

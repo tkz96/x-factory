@@ -383,6 +383,11 @@ export async function checkProjectReadiness(
     } else if (readiness.message) {
       issues.push(`Repository "${repo.name}": ${readiness.message}`);
     }
+    if (readiness.existsLocally && !readiness.commandsDetected) {
+      issues.push(
+        `Repository "${repo.name}": no test command is set, so verification would check nothing.`,
+      );
+    }
   }
 
   let knowledgeReady = true;
