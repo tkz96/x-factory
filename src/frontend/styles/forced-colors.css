@@ -102,6 +102,12 @@
     color: HighlightText;
   }
 
+  :root .ui-segment-count,
+  :root .tab-count {
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
   :root .ui-button[data-disabled],
   :root .ui-icon-button[data-disabled],
   :root .ui-segment[data-disabled],

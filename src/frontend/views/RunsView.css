@@ -32,3 +32,46 @@
 .run-card-subtitle {
   font-size: var(--text-footnote);
 }
+
+.run-card-key {
+  display: block;
+  margin-bottom: var(--space-0-5);
+}
+
+.run-card-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.run-card-time {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}
+
+/* The filter fits the phone width: four segments share the row, each label
+   on one line, so the list never scrolls sideways (#259). */
+.runs-header .ui-segmented {
+  max-width: 100%;
+}
+
+.runs-header .ui-segment {
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .runs-header .ui-segmented {
+    display: flex;
+    width: 100%;
+  }
+
+  .runs-header .ui-segment {
+    flex: 1 1 auto;
+    gap: var(--space-half);
+    padding-inline: var(--space-1);
+    font-size: var(--text-footnote);
+  }
+}

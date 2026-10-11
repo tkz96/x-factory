@@ -11,7 +11,13 @@ registerHappyDom();
 
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
@@ -186,19 +192,16 @@ describe("ProjectsView — feedback-family read region", () => {
 describe("Runs — feedback-family read region (#258, formerly History)", () => {
   const DONE = "/runs?filter=done";
 
-  it("renders loading as the reserved spinner region while the query is pending", () => {
+  it("announces loading while the query is pending and shows no rows yet", () => {
     const client = makeClient();
     client.setQueryDefaults(queryKeys.runs(), {
       queryFn: () => new Promise(() => {}),
     });
-    const { container } = renderView(
-      React.createElement(RunsView),
-      client,
-      DONE,
-    );
+    const view = renderView(React.createElement(RunsView), client, DONE);
+    const s = within(view.container);
 
-    expect(container.querySelector(".async-region--loading")).not.toBeNull();
-    expect(container.textContent).toContain("Loading…");
+    expect(s.getByRole("status").textContent).toContain("Loading…");
+    expect(s.queryAllByRole("link")).toHaveLength(0);
   });
 
   it("renders a primary error with canonical copy, a retry, and never the raw payload", async () => {
@@ -208,72 +211,59 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
         throw new Error("raw provider body");
       },
     });
-    const { container } = renderView(
-      React.createElement(RunsView),
-      client,
-      DONE,
-    );
+    const view = renderView(React.createElement(RunsView), client, DONE);
+    const s = within(view.container);
 
     await waitFor(
       () => {
         if (
-          !container.textContent?.includes("The request failed. Try again.")
+          !s
+            .queryByRole("alert")
+            ?.textContent?.includes("The request failed. Try again.")
         ) {
           throw new Error("canonical error copy missing");
         }
       },
       { timeout: 4000, interval: 100 },
     );
-    expect(container.textContent).not.toContain("raw provider body");
-    expect(container.querySelector("button.retry-action")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("raw provider body");
+    expect(within(s.getByRole("alert")).getByRole("button")).toBeTruthy();
   });
 
-  it("renders true empty for the running list with guidance to start one from Tickets", () => {
+  it("says a running list is empty and offers the way to start one from Tickets", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), []);
-    const { container } = renderView(
-      React.createElement(RunsView),
-      client,
-      "/runs",
-    );
+    const view = renderView(React.createElement(RunsView), client, "/runs");
+    const s = within(view.container);
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain(
+    expect(s.getByRole("status").textContent).toContain(
       "No runs are working right now. Start one from Tickets.",
     );
-    const cta = container.querySelector(
-      ".async-region--empty .async-region-actions a",
-    );
-    expect(cta?.textContent).toContain("Go to Tickets");
+    expect(
+      s.getByRole("link", { name: /Go to Tickets/ }).getAttribute("href"),
+    ).toBe("/tickets");
   });
 
-  it("renders a filter that matches nothing with filter guidance and no CTA", () => {
+  it("says a filter that matches nothing, with no action to take", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("executing")]);
-    const { container } = renderView(
-      React.createElement(RunsView),
-      client,
-      DONE,
-    );
+    const view = renderView(React.createElement(RunsView), client, DONE);
+    const s = within(view.container);
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain("No finished runs yet.");
-    expect(
-      container.querySelector(".async-region--empty .async-region-actions"),
-    ).toBeNull();
+    expect(s.getByRole("status").textContent).toContain(
+      "No finished runs yet.",
+    );
+    expect(s.queryByRole("link", { name: /Go to Tickets/ })).toBeNull();
   });
 
-  it("renders ready content with no feedback chrome", () => {
+  it("renders ready content with no loading or empty message", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("pr_created")]);
-    const { container } = renderView(
-      React.createElement(RunsView),
-      client,
-      DONE,
-    );
+    const view = renderView(React.createElement(RunsView), client, DONE);
+    const s = within(view.container);
 
-    expect(container.textContent).toContain("TICK-42");
-    expect(container.querySelector(".async-region--empty")).toBeNull();
-    expect(container.querySelector(".async-region--loading")).toBeNull();
+    expect(s.getByText(/TICK-42/)).toBeTruthy();
+    expect(s.queryByRole("status")).toBeNull();
+    expect(s.queryByRole("alert")).toBeNull();
   });
 });

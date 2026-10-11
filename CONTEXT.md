@@ -43,6 +43,7 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Raw `RunStatus` values | Plain labels from the table below, never the status string |
 | Awaiting-human statuses plus `recovery_required` | Needs you |
 | Active statuses / terminal statuses | Running / Done |
+| Runs list filters | Needs you / Running / Done / All, each with its count. The Runs badge and the tab title show the Needs-you count, not notifications |
 | Start a run, add a project | Start Run, Add Project |
 | Start a new run for a terminal ticket (pull request opened, failed or stopped) | Start New Run (a ticket command, not a run action) |
 
