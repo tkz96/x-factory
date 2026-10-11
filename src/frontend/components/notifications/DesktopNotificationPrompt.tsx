@@ -1,6 +1,6 @@
 // src/frontend/components/notifications/DesktopNotificationPrompt.tsx — The bell's one-time
-// row offering desktop notifications (#265, spec #241). It appears the first time a run needs
-// the user, and never asks for permission on its own: Enable is the user action.
+// row offering desktop notifications (#265, spec #241). It appears once while permission is
+// undecided, and never asks for permission on its own: Enable is the user action.
 
 import { useState } from "react";
 import { useDesktopNotifications } from "../../hooks/useDesktopNotifications.js";
@@ -11,11 +11,7 @@ import {
 } from "../../lib/desktop-notifications.js";
 import { OverlayTriggerButton } from "../overlays/index.js";
 
-export function DesktopNotificationPrompt({
-  hasNeedsYou,
-}: {
-  hasNeedsYou: boolean;
-}) {
+export function DesktopNotificationPrompt() {
   const { ready, enabled, support, enable } = useDesktopNotifications();
   const [answered, setAnswered] = useState(() => promptAnswered());
 
@@ -25,7 +21,6 @@ export function DesktopNotificationPrompt({
       enabled,
       support,
       alreadyOffered: answered,
-      hasNeedsYou,
     });
   if (!visible) return null;
 

@@ -126,19 +126,14 @@ export interface DesktopPromptContext {
   support: DesktopSupport;
   /** The one-time row was already answered (enabled, or dismissed) in this browser. */
   alreadyOffered: boolean;
-  /** A run is waiting for the user, so the offer is useful now. */
-  hasNeedsYou: boolean;
 }
 
-/** The bell's one-time "Get desktop notifications" row. */
+/** The bell's one-time "Get desktop notifications" row: shown while permission is undecided. */
 export function shouldOfferDesktopPrompt(
   context: DesktopPromptContext,
 ): boolean {
   return (
-    !context.enabled &&
-    context.support === "prompt" &&
-    !context.alreadyOffered &&
-    context.hasNeedsYou
+    !context.enabled && context.support === "prompt" && !context.alreadyOffered
   );
 }
 

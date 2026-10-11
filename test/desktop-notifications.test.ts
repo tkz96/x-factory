@@ -163,17 +163,10 @@ describe("one-time bell prompt (#265)", () => {
     enabled: false,
     support: "prompt" as const,
     alreadyOffered: false,
-    hasNeedsYou: true,
   };
 
-  it("is offered once a run needs you, with permission undecided and the switch off", () => {
+  it("is offered while permission is undecided and the switch is off, with no run waiting", () => {
     expect(shouldOfferDesktopPrompt(base)).toBe(true);
-  });
-
-  it("is never offered on load, without a run that needs you", () => {
-    expect(shouldOfferDesktopPrompt({ ...base, hasNeedsYou: false })).toBe(
-      false,
-    );
   });
 
   it("is not offered again once answered, or when already on, or when blocked or unsupported", () => {

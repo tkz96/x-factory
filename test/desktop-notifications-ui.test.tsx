@@ -202,11 +202,13 @@ const bell = () => view().getByRole("button", { name: /^Notifications/ });
 const location = () => view().getByTestId("location").textContent;
 
 describe("desktop notifications: the bell's one-time row (#265)", () => {
-  it("asks for nothing on load, and offers the row only once a run needs you", async () => {
+  it("offers the row while permission is undecided, even with no run waiting, and asks for nothing on load", async () => {
     renderApp(snapshot());
     fireEvent.click(bell());
     expect(await view().findByText("No notifications yet.")).toBeTruthy();
-    expect(view().queryByText(/Get desktop notifications/)).toBeNull();
+    expect(
+      view().getByText("Get desktop notifications when a run needs you"),
+    ).toBeTruthy();
     expect(FakeNotification.requests).toBe(0);
   });
 
@@ -262,6 +264,33 @@ describe("desktop notifications: banners (#265, spec #241)", () => {
     expect(FakeNotification.shown.length).toBe(1);
     expect(FakeNotification.shown[0]?.title).toContain("Plan ready");
     expect(FakeNotification.shown[0]?.title).toContain("T-r1");
+  });
+
+  it("fires once when a run newly needs you, not when it moves between Needs-you statuses", () => {
+    FakeNotification.permission = "granted";
+    const { push } = renderApp(snapshot({ runs: [run("r1", "planning")] }), {
+      settings: preferenceOn,
+    });
+    push(envelope(101, "r1", "awaiting_plan_approval"));
+    expect(FakeNotification.shown.length).toBe(1);
+    push(envelope(102, "r1", "awaiting_review"));
+    expect(FakeNotification.shown.length).toBe(1);
+    push(envelope(103, "r1", "executing"));
+    push(envelope(104, "r1", "awaiting_review"));
+    expect(FakeNotification.shown.length).toBe(2);
+  });
+
+  it("fires when a run already waiting in the snapshot finishes", () => {
+    FakeNotification.permission = "granted";
+    const { push } = renderApp(
+      snapshot({
+        runs: [run("r1", "awaiting_review")],
+        needsYou: [envelope(90, "r1", "awaiting_review")],
+      }),
+      { settings: preferenceOn },
+    );
+    push(envelope(101, "r1", "pr_created"));
+    expect(FakeNotification.shown.length).toBe(1);
   });
 
   it("never fires for events seeded from the snapshot", () => {
