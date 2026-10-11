@@ -26,6 +26,7 @@ import {
   useFocusTrap,
   useInertBackground,
   useOverlayDismiss,
+  useOverlayPresence,
   useRestoreFocus,
 } from "./overlay-stack.js";
 
@@ -99,14 +100,20 @@ export function Dialog({
   useScrollLock(isOpen);
   useOverlayDismiss(isOpen, onClose);
   useInertBackground(overlayRef, isOpen);
-  useRestoreFocus(isOpen);
   useFocusTrap(overlayRef, isOpen);
-
-  if (!isOpen) return null;
+  // Closing animates: React Aria keeps the overlay mounted, marked `data-exiting`, and
+  // Dialog.css and Sheet.css play the exit from that state. Returning null on
+  // `isOpen === false` would unmount straight away and skip the animation.
+  const isPresent = useOverlayPresence(overlayRef, isOpen);
+  // Focus returns to the trigger once the overlay is gone, not while it is still on
+  // screen: React Aria moves focus back into the dialog as it exits, so a restore at
+  // close time would be undone a moment later.
+  useRestoreFocus(isPresent);
 
   // Server render has no document to portal into, so the markup is written in
   // place, as the old DialogPortal did. Focus and dismissal are client effects.
   if (typeof document === "undefined") {
+    if (!isOpen) return null;
     return (
       <div
         id={resolvedOverlayId}
@@ -123,6 +130,8 @@ export function Dialog({
       </div>
     );
   }
+
+  if (!isPresent) return null;
 
   return (
     <DialogContext.Provider value={{ titleId, onClose }}>

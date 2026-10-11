@@ -17,3 +17,33 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+
+/* Closing (#250): React Aria holds the popover while its exit animation runs, marked
+   `data-exiting`, and unmounts it when the animation ends. Leaving takes the quicker
+   rung of the ladder (#252) than arriving. */
+.xf-popover[data-exiting] {
+  animation: xfPopoverOut var(--duration-instant) var(--ease-in);
+}
+
+@keyframes xfPopoverOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* Reduced motion (#252): the settle drops, the crossfade stays. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfPopoverOut {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}

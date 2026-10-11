@@ -6,7 +6,7 @@
 
 import "./Popover.css";
 
-import { type ReactNode, useContext } from "react";
+import { type ReactNode, useContext, useRef } from "react";
 import {
   OverlayTriggerStateContext,
   Dialog as RACDialog,
@@ -14,7 +14,11 @@ import {
   Popover as RACPopover,
   type PopoverProps as RACPopoverProps,
 } from "react-aria-components";
-import { useOverlayDismiss, useRestoreFocus } from "./overlay-stack.js";
+import {
+  useOverlayDismiss,
+  useOverlayPresence,
+  useRestoreFocus,
+} from "./overlay-stack.js";
 
 export const PopoverTrigger = RACDialogTrigger;
 
@@ -25,14 +29,23 @@ export interface PopoverProps extends Omit<RACPopoverProps, "children"> {
 
 export function Popover({ className, children, ...props }: PopoverProps) {
   const state = useContext(OverlayTriggerStateContext);
-  useOverlayDismiss(state?.isOpen ?? true, () => state?.close());
-  useRestoreFocus(state?.isOpen ?? true);
+  const isOpen = state?.isOpen ?? true;
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  useOverlayDismiss(isOpen, () => state?.close());
+  // Closing animates (#250): React Aria marks the popover `data-exiting` and Popover.css
+  // plays the exit from that state, so the popover stays mounted until it has ended.
+  // `shouldSkipAnimation` stays off, or React Aria would report no entering or exiting
+  // state at all.
+  const isPresent = useOverlayPresence(popoverRef, isOpen);
+  // Focus returns to the trigger once the popover has left the screen, not while its
+  // exit animation still plays.
+  useRestoreFocus(isPresent);
 
-  if (state && !state.isOpen) return null;
+  if (!isPresent) return null;
 
   return (
     <RACPopover
-      shouldSkipAnimation
+      ref={popoverRef}
       className={`xf-popover ${className ?? ""}`.trim()}
       {...props}
     >
