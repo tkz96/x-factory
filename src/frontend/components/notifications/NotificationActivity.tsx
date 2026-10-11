@@ -33,7 +33,11 @@ export function NotificationActivity() {
 
   const count = activeRuns.length;
   return (
-    <Link to="/runs" className="toolbar-activity" aria-label={`${count} runs in progress`}>
+    <Link
+      to="/runs"
+      className="toolbar-activity"
+      aria-label={`${count} runs in progress`}
+    >
       <svg className="icon icon-sm icon-spin" aria-hidden="true">
         <use href="/assets/icons/sprite.svg#icon-loader-2" />
       </svg>

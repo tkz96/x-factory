@@ -10,7 +10,10 @@ import {
   type NotificationListItem,
   useNotificationCenter,
 } from "../../context/NotificationContext.js";
-import { formatRelativeTime, formatTimestamp } from "../../lib/format-timestamp.js";
+import {
+  formatRelativeTime,
+  formatTimestamp,
+} from "../../lib/format-timestamp.js";
 import {
   OverlayTriggerButton,
   Popover,
@@ -25,9 +28,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
 
   const label =
-    unreadCount > 0
-      ? `Notifications, ${unreadCount} unread`
-      : "Notifications";
+    unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications";
 
   const choose = (item: NotificationListItem) => {
     markRead(item.id);
@@ -95,7 +96,10 @@ export function NotificationBell() {
                       </span>
                     </span>
                     {item.unread && (
-                      <span className="notification-unread" aria-hidden="true" />
+                      <span
+                        className="notification-unread"
+                        aria-hidden="true"
+                      />
                     )}
                     {item.unread && <span className="sr-only">Unread</span>}
                   </OverlayTriggerButton>

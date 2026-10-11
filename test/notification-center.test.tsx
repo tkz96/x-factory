@@ -7,9 +7,22 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { NotificationActivity } from "../src/frontend/components/notifications/NotificationActivity.js";
 import { NotificationBell } from "../src/frontend/components/notifications/NotificationBell.js";
@@ -45,7 +58,12 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-function envelope(id: number, runId: string, status: RunStatus, payload = {}): AppEventEnvelope {
+function envelope(
+  id: number,
+  runId: string,
+  status: RunStatus,
+  payload = {},
+): AppEventEnvelope {
   return {
     id,
     runId,
@@ -89,7 +107,9 @@ function LocationProbe() {
 }
 
 function renderCenter(seed: EventsSnapshot, stream = liveStream()) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   client.setQueryData(queryKeys.eventsSnapshot(), seed);
   const utils = render(
     <QueryClientProvider client={client}>
@@ -181,7 +201,9 @@ describe("notification bell (#264)", () => {
     );
     expect(bellLabel()).toBe("Notifications, 2 unread");
     fireEvent.click(bell());
-    fireEvent.click(await view().findByRole("button", { name: "Mark All as Read" }));
+    fireEvent.click(
+      await view().findByRole("button", { name: "Mark All as Read" }),
+    );
     expect(bellLabel()).toBe("Notifications");
   });
 
@@ -196,13 +218,18 @@ describe("notification bell (#264)", () => {
     fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
     first.unmount();
 
-    expect(globalThis.localStorage?.getItem(READ_STATE_STORAGE_KEY)).toContain("130");
+    expect(globalThis.localStorage?.getItem(READ_STATE_STORAGE_KEY)).toContain(
+      "130",
+    );
     renderCenter(seed);
     expect(bellLabel()).toBe("Notifications");
   });
 
   it("works when browser storage throws on every call: read state holds for the session only", () => {
-    const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    const original = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "localStorage",
+    );
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       get() {
@@ -230,7 +257,9 @@ describe("notification bell (#264)", () => {
 
   it("the activity area shows runs in progress and hides when none are", () => {
     const { push } = renderCenter(snapshot({ runs: [run("r1", "executing")] }));
-    expect(view().getByRole("link", { name: /T-r1/ }).textContent).toContain("Writing code");
+    expect(view().getByRole("link", { name: /T-r1/ }).textContent).toContain(
+      "Writing code",
+    );
 
     push(envelope(150, "r1", "pr_created"));
     expect(view().queryByRole("link", { name: /T-r1/ })).toBeNull();

@@ -32,9 +32,9 @@ import {
 } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
+import { ModalContainer } from "./ModalContainer.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
 import { NotificationBell } from "./notifications/NotificationBell.js";
-import { ModalContainer } from "./ModalContainer.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";

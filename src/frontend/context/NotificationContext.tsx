@@ -14,14 +14,14 @@ import {
 import { useAppEvents } from "../hooks/useAppEvents.js";
 import type { AppEventTransport } from "../lib/app-events.js";
 import {
-  activeRunsOf,
   type AppNotification,
+  activeRunsOf,
   applyNotificationEnvelope,
   browserStorage,
   emptyNotificationState,
   loadReadIds,
-  needsYouCount,
   type NotificationState,
+  needsYouCount,
   saveReadIds,
   seedNotificationState,
   type TrackedRun,
@@ -69,9 +69,7 @@ export function NotificationProvider({
   transport,
 }: NotificationProviderProps) {
   const [storage] = useState(browserStorage);
-  const [state, setState] = useState<NotificationState>(
-    emptyNotificationState,
-  );
+  const [state, setState] = useState<NotificationState>(emptyNotificationState);
   const [readIds, setReadIds] = useState<Set<number>>(() =>
     loadReadIds(storage),
   );
