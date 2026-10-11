@@ -6,7 +6,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, afterEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, describe, expect, spyOn, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -69,7 +69,13 @@ const RUNS = [
 ];
 
 /** Mirrors the wiring in AppShell: one global handler, palette and ? sheet. */
-function Shell({ stopRunAvailable = false }: { stopRunAvailable?: boolean }) {
+function Shell({
+  stopRunAvailable = false,
+  onStopRun = () => {},
+}: {
+  stopRunAvailable?: boolean;
+  onStopRun?: () => void;
+}) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
@@ -94,7 +100,7 @@ function Shell({ stopRunAvailable = false }: { stopRunAvailable?: boolean }) {
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         stopRunAvailable={stopRunAvailable}
-        onStopRun={() => {}}
+        onStopRun={onStopRun}
         onOpenShortcuts={() => setSheetOpen(true)}
       />
       <ShortcutSheet isOpen={sheetOpen} onClose={() => setSheetOpen(false)} />
@@ -102,7 +108,9 @@ function Shell({ stopRunAvailable = false }: { stopRunAvailable?: boolean }) {
   );
 }
 
-function renderShell(options: { stopRunAvailable?: boolean } = {}) {
+function renderShell(
+  options: { stopRunAvailable?: boolean; onStopRun?: () => void } = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -245,6 +253,83 @@ describe("command palette (#254)", () => {
     renderShell({ stopRunAvailable: true });
     press("k", modKey);
     expect(dom().getByText("Stop Run")).toBeTruthy();
+  });
+
+  /** Opens the palette, narrows it to one item and picks it by clicking. */
+  function pick(query: string) {
+    press("k", modKey);
+    typeInto(dom().getByRole("combobox"), query);
+    const [option] = dom().getAllByRole("option");
+    if (!option) throw new Error(`no palette item for "${query}"`);
+    fireEvent.click(option);
+  }
+
+  test("picking Stop Run stops the run and closes the palette", () => {
+    let stopped = 0;
+    renderShell({ stopRunAvailable: true, onStopRun: () => stopped++ });
+    pick("Stop Run");
+    expect(stopped).toBe(1);
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+  });
+
+  test("picking Keyboard Shortcuts opens the ? sheet", () => {
+    renderShell();
+    pick("Keyboard Shortcuts");
+    expect(
+      dom().getByRole("dialog", { name: /keyboard shortcuts/i }),
+    ).toBeTruthy();
+  });
+
+  test("Help items open in a new tab", () => {
+    const open = spyOn(window, "open").mockImplementation(() => null);
+    try {
+      renderShell();
+      pick("API Reference");
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(String(open.mock.calls[0]?.[1])).toBe("_blank");
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  test("picking Start Run or Add Project closes the palette and stays on the page", () => {
+    renderShell();
+    pick("Start Run");
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+    pick("Add Project");
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+    expect(currentPath()).toBe("/queue");
+  });
+
+  test("ArrowUp from the first item wraps to the last, and hovering highlights an item", () => {
+    renderShell();
+    press("k", modKey);
+    const input = dom().getByRole("combobox");
+    const options = dom().getAllByRole("option");
+    act(() => {
+      input.focus();
+      fireEvent.keyDown(input, { key: "ArrowUp" });
+    });
+    expect(input.getAttribute("aria-activedescendant")).toBe(
+      options[options.length - 1]?.id ?? "",
+    );
+    const second = options[1];
+    if (!second) throw new Error("expected at least two items");
+    fireEvent.mouseMove(second);
+    expect(input.getAttribute("aria-activedescendant")).toBe(second.id);
+  });
+
+  test("says when nothing matches, and Return does nothing", () => {
+    renderShell();
+    press("k", modKey);
+    const input = dom().getByRole("combobox");
+    typeInto(input, "zzz-no-such-thing");
+    expect(dom().getByRole("status").textContent).toContain("No matches");
+    act(() => {
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+    expect(currentPath()).toBe("/queue");
+    expect(dom().getByRole("dialog", { name: "Command palette" })).toBeTruthy();
   });
 
   test("Escape closes the palette", () => {

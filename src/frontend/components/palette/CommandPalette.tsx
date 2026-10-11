@@ -120,7 +120,6 @@ function PaletteBody({
     <div className="command-palette">
       <div className="command-palette-search">
         <input
-          // biome-ignore lint/a11y/noAutofocus: the palette exists to be typed into
           ref={inputRef}
           type="text"
           role="combobox"
