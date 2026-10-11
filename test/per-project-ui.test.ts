@@ -87,41 +87,29 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     expect(content).toContain("encodeURIComponent(p.id)");
   });
 
-  it("Projects view includes dedicated tracker section and collapsible archived projects section", async () => {
-    const projectsViewPath = path.join(
-      import.meta.dir,
-      "../src/frontend/views/ProjectsView.tsx",
-    );
-    const projectsContent = await Bun.file(projectsViewPath).text();
-
-    expect(projectsContent).toContain('id="archived-projects-section"');
-    expect(projectsContent).toContain('id="btn-toggle-archived"');
-    expect(projectsContent).toContain('id="archived-projects-container"');
-
-    const trackerSectionPath = path.join(
-      import.meta.dir,
-      "../src/frontend/components/projects/TrackerSection.tsx",
-    );
-    const trackerContent = await Bun.file(trackerSectionPath).text();
-
-    expect(trackerContent).toContain('id="project-tracker-section"');
-    expect(trackerContent).toContain('className="project-tracker-card card"');
-  });
-
-  // Rewritten for ticket #147. The previous assertions pinned the
-  // provider-conditional rendering this ticket deletes: TrackerSection read
-  // `tracker.provider` and reached into `tracker.azure` / `tracker.jira` /
-  // `tracker.github`, and its copy was inline. The card is now driven by the
-  // project's normalized connections; the strings live in the copy map and the
-  // scope action is gated on the provider's declared capabilities. Behavioural
-  // coverage of all of it lives in test/post-creation-surfacing.test.tsx.
+  // Ticket #267 replaced the project cards and the Active/Archived tab bar: the
+  // Projects screen is now a list with a detail pane, its rows linking to each
+  // project's own route. The ids this test used to pin
+  // (`#archived-projects-container`, `#btn-toggle-archived`,
+  // `#archived-projects-section`) are gone with the tab bar, and asserting them
+  // proved nothing about what a user gets. The screen is now asserted by
+  // behaviour — its rows, its filter, its empty state and its toolbar action —
+  // in test/projects-split.test.tsx.
   it("TrackerSection renders the tracker card from connections, with no provider conditionals", async () => {
+    // Rewritten for ticket #147. The previous assertions pinned the
+    // provider-conditional rendering this ticket deletes: TrackerSection read
+    // `tracker.provider` and reached into `tracker.azure` / `tracker.jira` /
+    // `tracker.github`, and its copy was inline. The card is now driven by the
+    // project's normalized connections; the strings live in the copy map and the
+    // scope action is gated on the provider's declared capabilities. Behavioural
+    // coverage of all of it lives in test/post-creation-surfacing.test.tsx.
     const trackerSectionPath = path.join(
       import.meta.dir,
       "../src/frontend/components/projects/TrackerSection.tsx",
     );
     const content = await Bun.file(trackerSectionPath).text();
 
+    expect(content).toContain('id="project-tracker-section"');
     // Generic derivation + capability-driven action.
     expect(content).toContain("deriveConnectionIntegrity");
     expect(content).toContain('capabilities.includes("verifyScopes")');

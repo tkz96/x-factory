@@ -240,7 +240,7 @@ it names the connection role the repositories are listed under.
 The connection's identity as its provider describes it (spec #133 story 34). This
 is the ONLY way a surface learns an identity: the provider composes it from its
 own configuration (`"owner/repo"`, `"acme.atlassian.net/ROCK"`), and the wizard,
-the project card, the project detail view and the settings registry all render
+the project detail pane and the settings registry all render
 the answer the same way, as `displayName (identity)`.
 
 The route exists so a surface can render that string **without knowing what a

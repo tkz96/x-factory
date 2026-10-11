@@ -22,8 +22,8 @@ import {
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
-import { projectFacts } from "../components/projects/project-facts.js";
 import { ProjectsSplit } from "../components/projects/ProjectsSplit.js";
+import { projectFacts } from "../components/projects/project-facts.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { RepositorySettings } from "../components/projects/RepositorySettings.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";

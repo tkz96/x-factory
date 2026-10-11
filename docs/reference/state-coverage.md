@@ -45,7 +45,8 @@ Required test coverage for every read region: loading, empty, partial, error, st
 | Inspection — git identity (`#146`) | `wizard/steps/useInspection.ts` | loading = the identity read is in flight in the reserved region; empty = there is no directory to read a configuration in (nothing selected, or no local path at all — guidance names which); partial = the identity resolved for some selected repositories and not for others (the banner names each repository whose directory resolved none); error = the read failed (canonical copy + retry); stale = the record was resolved for a selection or workspace root that has since changed (badge + re-inspect). A record that resolved NO identity is not a failure of the region: the region renders normally and a banner states, with the directory named, that no `user.name`/`user.email` is configured and that none will be invented. |
 | Project detail (`#147`) | `views/ProjectDetailView.tsx`, `components/projects/TrackerSection.tsx` | loading = the projects catalog is in flight; error = the catalog failed (normalized copy + retry); empty = the catalog loaded without this id (not-found guidance + back action); ready = the project plus its combo line and tracker card. |
 | Settings — connections registry (`#147`) | `views/SettingsView.tsx` | The registry lists every project with its combo line. Its loading and empty rows are table rows, not regions: they carry copy only. |
-| Project cards (`#147`) | `components/projects/ProjectCard.tsx` | Not a region: each card renders its project's combo line and, on an integrity failure, the repair path. |
+| Projects list (`#267`) | `components/projects/ProjectList.tsx`, `components/projects/ProjectsSplit.tsx` | The list is one read region: loading = the catalog in flight, as static placeholder rows; error = the catalog failed (normalized copy + retry); empty = the filter the user is looking at has no projects (guidance, and Add Project only on the true first run); ready = one row per project, the current one marked. At phone width the detail pane pushes over the list. |
+| Project detail pane (`#267`) | `views/ProjectDetailView.tsx` | Not a region of its own: it shares the list's read region and renders the project's plain-word facts (repository, tracker, branch) with its combo line and tracker card. |
 | Work Queue (`#147`) | `views/QueueView.tsx` | loading = tickets in flight; error = the tickets call failed (normalized copy + retry, and the manual path stays open); empty = the tracker reports no tickets (guidance + the manual path) or the search matches none (guidance + clear filter); ready = the ticket cards. |
 
 **Repositories staleness (`#144`).** The step records the fingerprint of the
@@ -224,7 +225,8 @@ the wizard from the draft (`draftConnectionIdentityTargets`), and both project t
 configuration through the manifest's `secret` declarations first.
 
 **Repair path wiring.** The repair affordance is the copy-map `reconnect`
-label. On the project detail surface, the project cards, and the Work Queue it
+label. On the project detail pane, the settings connections registry and the Work
+Queue it
 navigates to the settings connections surface; on that surface it opens the
 connection flow (`openOnboardingModal`). Wizard re-entry / edit mode for an
 existing project is out of scope for this spec (#133 §Further notes), so the

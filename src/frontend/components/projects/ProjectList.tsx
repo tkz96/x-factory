@@ -115,7 +115,9 @@ export function ProjectList({ selectedId }: ProjectListProps) {
         <SegmentedControl
           label={PROJECTS_COPY.filterLabel}
           value={filter}
-          onChange={(id) => setFilter(id === "archived" ? "archived" : "active")}
+          onChange={(id) =>
+            setFilter(id === "archived" ? "archived" : "active")
+          }
           options={[
             { id: "active", label: PROJECTS_COPY.filterActive },
             { id: "archived", label: PROJECTS_COPY.filterArchived },
