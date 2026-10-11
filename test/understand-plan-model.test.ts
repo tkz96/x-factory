@@ -208,14 +208,17 @@ describe("the Understand stage runs on the Builder model", () => {
         ),
       }),
     ]);
-    expect(repos.events.getEventsForRun("run-understand-ok")).toContainEqual(
-      expect.objectContaining({
-        type: "info",
-        payload: expect.objectContaining({
-          text: expect.stringContaining("EXISTING_BEHAVIOR:"),
-        }),
-      }),
-    );
+    // The finished summary is recorded as evidence (above); the raw streamed
+    // answer is not copied into the run's events fragment by fragment.
+    expect(
+      repos.events
+        .getEventsForRun("run-understand-ok")
+        .filter(
+          (e) =>
+            e.type === "info" &&
+            (e.payload as { text: string }).text.includes("EXISTING_BEHAVIOR:"),
+        ),
+    ).toEqual([]);
 
     // The Builder was asked for the sections this stage parses.
     expect(session.prompts[0]).toContain("RELEVANT_FILES:");

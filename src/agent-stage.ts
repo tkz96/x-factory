@@ -49,7 +49,7 @@ export interface ReadOnlyStageRun {
   worktreePath: string;
   /** Test seam: replaces the Pi session this module opens. */
   sessionFactory?: ReadOnlySessionFactory | undefined;
-  /** Streams the session's text, tools and errors to the run page. */
+  /** Shows the session's tool use and errors on the run page. */
   emit?: EmitEvent | undefined;
   /** Told about each rate-limit wait before it happens. */
   onWait?: ((ms: number, reason: string) => void) | undefined;
@@ -64,7 +64,11 @@ export function abortError(): Error {
   return new Error("Stage aborted");
 }
 
-/** Streams the session's output to the run page; returns its collected text. */
+/**
+ * Collects the session's text and shows its tool use on the run page. Text is
+ * not emitted fragment by fragment: a streamed answer would become hundreds of
+ * event rows and chat lines; the stage records the finished answer instead.
+ */
 function attachStageListeners(
   session: PiAgentSession,
   emit: EmitEvent | undefined,
@@ -73,7 +77,6 @@ function attachStageListeners(
   session.subscribe((event) => {
     if (event.type === "text" && event.text) {
       output += event.text;
-      emit?.("info", { text: event.text });
     } else if (event.type === "tool") {
       emit?.("info", { text: `Running tool ${event.tool}` });
     } else if (event.type === "error" && event.error) {
