@@ -407,8 +407,7 @@ describe("the welcome's read region (#269)", () => {
     // The retry asks every part of the setup again, never just one of them.
     const asked = (path: string) =>
       requested.filter((url) => url.startsWith(path)).length;
-    const askedOnce = SETUP_PATHS.map(asked);
-    await waitFor(() => expect(askedOnce).toEqual([1, 1, 1, 1]));
+    await waitFor(() => expect(SETUP_PATHS.map(asked)).toEqual([1, 1, 1, 1]));
 
     // Let the first burst settle: a refetch of a request still in flight is
     // the in-flight one, not a new ask.
