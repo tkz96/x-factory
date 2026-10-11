@@ -362,7 +362,13 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   await act(async () => {
     fireEvent.click(getEl("btn-verify-all"));
   });
-  await flush();
+  // Verification is a real HTTP round trip per card. A single tick is not
+  // enough when the machine is busy: wait until no card still says
+  // "Verifying…" before reading the verdict the cards and the Next button show.
+  await flushUntil(
+    "every connection card to finish verifying",
+    () => !getEl("onboard-step-2").textContent?.includes("Verifying"),
+  );
 
   // ── Connect: degraded evidence is shown, and NEVER blocks progression ────
   if (fixture.degraded !== null) {
