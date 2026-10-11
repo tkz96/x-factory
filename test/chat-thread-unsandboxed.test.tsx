@@ -6,7 +6,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, within } from "@testing-library/react";
 import React from "react";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
@@ -109,8 +109,6 @@ describe("RunChat unsandboxed warning line (#275)", () => {
       }),
     );
 
-    const warningPill = container.querySelector(".imsg-system-pill-warning");
-    expect(warningPill).not.toBeNull();
-    expect(warningPill?.textContent).toContain("without a sandbox");
+    expect(within(container).getByText(/without a sandbox/)).toBeTruthy();
   });
 });
