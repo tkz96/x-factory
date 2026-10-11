@@ -208,11 +208,7 @@ function withShortcut(label: string, id: ShortcutId): string {
 /** The registry keys on the right of a menu row; nothing when the action has no chord. */
 function MenuShortcut({ id }: { id: ShortcutId }) {
   const keys = shortcutLabel(id);
-  return keys ? (
-    <kbd className="xf-menu-keys" aria-hidden="true">
-      {keys}
-    </kbd>
-  ) : null;
+  return keys ? <kbd className="xf-menu-keys">{keys}</kbd> : null;
 }
 
 interface ContextActionProps {
