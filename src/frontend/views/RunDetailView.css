@@ -253,6 +253,6 @@
 }
 
 .recovery-error {
-  color: var(--danger);
+  color: var(--red);
   font-weight: 500;
 }

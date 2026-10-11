@@ -148,7 +148,7 @@ function renderInfoBubble(item: RunEvent<"info">) {
         </div>
         <div className="chat-bubble-body">{text}</div>
         <time className="chat-bubble-time" dateTime={item.timestamp}>
-          {formatFullTimestamp(item.timestamp)}
+          {formatTimestamp(item.timestamp)}
         </time>
       </div>
     );
