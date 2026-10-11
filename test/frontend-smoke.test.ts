@@ -693,6 +693,213 @@ describe("Frontend Smoke — CSS variable resolution", () => {
   });
 });
 
+// ─── Motion system (spec #241, ticket #252) ────────────────────────────────
+
+describe("Frontend Smoke — Motion (#252)", () => {
+  function listFiles(dir: string, ext: string[]): string[] {
+    const out: string[] = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...listFiles(full, ext));
+      else if (ext.some((e) => entry.name.endsWith(e))) out.push(full);
+    }
+    return out;
+  }
+
+  const frontendDir = path.join(ROOT_DIR, "src/frontend");
+  const sources = listFiles(frontendDir, [".css", ".ts", ".tsx"]).map(
+    (file) => ({
+      file: path.relative(ROOT_DIR, file),
+      css: file.endsWith(".css"),
+      text: fs.readFileSync(file, "utf-8").replace(/\/\*[\s\S]*?\*\//g, ""),
+    }),
+  );
+
+  /** The index of the `}` that closes the block whose `{` is at `openBrace`. */
+  function blockEnd(text: string, openBrace: number): number {
+    let depth = 1;
+    for (let i = openBrace + 1; i < text.length; i++) {
+      if (text[i] === "{") depth++;
+      else if (text[i] === "}") {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return text.length;
+  }
+
+  /** Character ranges of every `@media (prefers-reduced-motion: reduce)` block. */
+  function reducedMotionBlocks(text: string): { start: number; end: number }[] {
+    const blocks: { start: number; end: number }[] = [];
+    const media = /@media[^{]*prefers-reduced-motion\s*:\s*reduce[^{]*\{/gi;
+    for (const match of text.matchAll(media)) {
+      const openBrace = (match.index ?? 0) + match[0].length - 1;
+      blocks.push({ start: openBrace, end: blockEnd(text, openBrace) });
+    }
+    return blocks;
+  }
+
+  function insideAny(
+    blocks: { start: number; end: number }[],
+    index: number,
+  ): boolean {
+    return blocks.some((block) => index > block.start && index < block.end);
+  }
+
+  function keyframes(text: string) {
+    const blocks = reducedMotionBlocks(text);
+    return text
+      .matchAll(/@keyframes\s+([\w-]+)\s*\{/g)
+      .map((match) => {
+        const openBrace = (match.index ?? 0) + match[0].length - 1;
+        return {
+          name: match[1] ?? "",
+          body: text.slice(openBrace + 1, blockEnd(text, openBrace)),
+          reduced: insideAny(blocks, match.index ?? 0),
+        };
+      })
+      .toArray();
+  }
+
+  function styleRules(text: string) {
+    const blocks = reducedMotionBlocks(text);
+    return text
+      .matchAll(/([^{}]*)\{/g)
+      .map((match) => {
+        const prelude = (match[1] ?? "").trim().replace(/\s+/g, " ");
+        const openBrace = (match.index ?? 0) + match[0].length - 1;
+        return {
+          selector: prelude,
+          body: text.slice(openBrace + 1, blockEnd(text, openBrace)),
+          reduced: insideAny(blocks, match.index ?? 0),
+        };
+      })
+      .filter((rule) => rule.selector !== "" && !rule.selector.startsWith("@"))
+      .toArray();
+  }
+
+  /**
+   * Properties that make something travel, resize or shift. `transform: none`
+   * is the identity, so a reduced path may state it; anything else moves.
+   */
+  const MOVEMENT_DECLARATION =
+    /(?:^|[;{}])\s*(?:transform|translate|rotate|scale|top|right|bottom|left|inset|width|height|margin|padding)(?:-[\w-]+)?\s*:\s*([^;}]*)/g;
+
+  function animatesMovement(body: string): boolean {
+    for (const match of body.matchAll(MOVEMENT_DECLARATION)) {
+      const value = (match[1] ?? "").trim();
+      if (value === "none" || value === "0") continue;
+      return true;
+    }
+    return false;
+  }
+
+  it("every keyframe that moves has a reduced-motion path that does not", () => {
+    const problems: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const frames = keyframes(text);
+      const reducedFrames = frames.filter((frame) => frame.reduced);
+      for (const frame of frames) {
+        if (frame.reduced) {
+          if (animatesMovement(frame.body)) {
+            problems.push(
+              `${file}: @keyframes ${frame.name} still moves in its reduced path`,
+            );
+          }
+          continue;
+        }
+        if (!animatesMovement(frame.body)) continue;
+        if (!reducedFrames.some((reduced) => reduced.name === frame.name)) {
+          problems.push(
+            `${file}: @keyframes ${frame.name} moves and has no reduced-motion path`,
+          );
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("every infinite animation stops under reduced motion (#252)", () => {
+    const problems: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const rules = styleRules(text);
+      const stopped = new Set(
+        rules
+          .filter(
+            (rule) =>
+              rule.reduced &&
+              /animation-iteration-count\s*:\s*1\b|animation\s*:\s*none\b/.test(
+                rule.body,
+              ),
+          )
+          .map((rule) => rule.selector),
+      );
+      for (const rule of rules) {
+        if (rule.reduced) continue;
+        if (!/animation[^;}]*\binfinite\b/.test(rule.body)) continue;
+        if (!stopped.has(rule.selector)) {
+          problems.push(
+            `${file}: ${rule.selector} loops forever with no reduced-motion path`,
+          );
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("no raw duration or easing literal outside token files (#252)", () => {
+    const MOTION_DECLARATION =
+      /(?:^|[;{}])\s*(transition|animation)(-duration|-timing-function|-delay)?\s*:\s*([^;{}]*)/g;
+    const TIME_LITERAL = /\b\d*\.?\d+(?:ms|s)\b/;
+    const EASING_LITERAL =
+      /(?:^|[\s,(])(?:ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end|steps|cubic-bezier)\b(?!-)/;
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      if (file.endsWith("tokens.css") || file.includes("tokens/")) continue;
+      for (const match of text.matchAll(MOTION_DECLARATION)) {
+        const value = (match[3] ?? "").trim();
+        if (!TIME_LITERAL.test(value) && !EASING_LITERAL.test(value)) continue;
+        violations.push(`${file}: ${match[0].trim().replace(/\s+/g, " ")}`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("loads the motion library lazily, and only the features in use (#252)", () => {
+    const motionDir = path.join(frontendDir, "motion");
+    const motionSources = listFiles(motionDir, [".ts", ".tsx"]).map((file) => ({
+      file: path.relative(ROOT_DIR, file),
+      text: fs.readFileSync(file, "utf-8"),
+    }));
+
+    // The feature pack must reach the browser through a dynamic import: a
+    // static one would put it in the entry chunk on every page load.
+    const features = motionSources.find((source) =>
+      source.file.endsWith("motion-features.ts"),
+    );
+    expect(features).toBeDefined();
+    expect(features?.text).toMatch(
+      /import\(\s*["']\.\/motion-feature-pack\.js["']\s*\)/,
+    );
+
+    // One file, and only that file, may name a feature pack. Everything else
+    // uses `m` components, which is what keeps the pack out of the entry chunk.
+    const namingPacks = motionSources
+      .filter((source) => /\bdom(?:Max|Animation|Min)\b/.test(source.text))
+      .map((source) => source.file);
+    expect(namingPacks).toEqual(["src/frontend/motion/motion-feature-pack.ts"]);
+
+    // The library is a local dependency, resolved from the repository, so the
+    // app never asks another host for it.
+    const resolved = import.meta.resolve("motion/react");
+    expect(resolved.startsWith("file://")).toBe(true);
+    expect(resolved).toContain("/node_modules/motion/");
+  });
+});
+
 // ─── No third-party requests (spec #241, ticket #247) ──────────────────────
 
 describe("Frontend Smoke — No third-party requests", () => {
