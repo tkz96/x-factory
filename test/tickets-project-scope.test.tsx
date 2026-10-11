@@ -37,6 +37,7 @@ import {
   resolveProjectScope,
 } from "../src/frontend/lib/project-scope.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import { ticketRunLinkOf } from "../src/frontend/lib/ticket-runs.js";
 import { QueueView } from "../src/frontend/views/QueueView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
 import type { Project, Run, RunStatus, Ticket } from "../src/shared/types.js";
@@ -339,6 +340,29 @@ describe("a ticket's run", () => {
     const link = screen().getByRole("link", { name: "Open Run" });
     expect(link.getAttribute("href")).toBe("/runs/run-9");
     expect(screen().queryByRole("button", { name: "Start Run" })).toBeNull();
+  });
+
+  it("links to the most recently updated active run when a ticket has several", () => {
+    const t = ticket("DEMO-7", "Login banner");
+    const older = {
+      ...run("run-old", DEMO, t, "planning"),
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    };
+    const newer = {
+      ...run("run-new", DEMO, t, "awaiting_plan_approval"),
+      updatedAt: "2026-10-02T00:00:00.000Z",
+    };
+    const finished = run("run-done", DEMO, t, "pr_created");
+    expect(ticketRunLinkOf([older, newer, finished], DEMO.id, t.id)).toEqual({
+      kind: "active",
+      runId: "run-new",
+    });
+    expect(ticketRunLinkOf([finished], DEMO.id, t.id)).toEqual({
+      kind: "finished",
+    });
+    expect(ticketRunLinkOf([older], "other-project", t.id)).toEqual({
+      kind: "none",
+    });
   });
 
   it("offers Start Run for a ticket without a run", () => {
