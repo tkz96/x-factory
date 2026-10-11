@@ -165,6 +165,10 @@
 /* ── Base Design Tokens (Independent of Appearance/Theme) ──────────── */
 
 :root {
+  /* Control borders (inputs, secondary buttons, segments) need 3:1 against the
+     background (WCAG 1.4.11). Standard sets pin a solid value; the More sets
+     reuse their solid --border. */
+  --border-control: var(--border);
   /* Fonts */
   --font-display: system-ui, "Inter", sans-serif;
   --font-sans: system-ui, "Inter", sans-serif;
@@ -374,6 +378,7 @@
   --bg-input: #ffffff;
   --bg-glass: rgba(255, 255, 255, 0.85);
   --border: rgba(60, 60, 67, 0.16);
+  --border-control: #8e8e93;
   --border-color: var(--border);
   --border-subtle: rgba(60, 60, 67, 0.08);
   --border-hover: rgba(60, 60, 67, 0.28);
@@ -454,6 +459,7 @@
   --bg-input: rgba(255, 255, 255, 0.08);
   --bg-glass: rgba(14, 14, 16, 0.78);
   --border: rgba(255, 255, 255, 0.15);
+  --border-control: #8e8e93;
   --border-color: var(--border);
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.25);
@@ -531,6 +537,7 @@
   --bg-input: #ffffff;
   --bg-glass: rgba(255, 255, 255, 0.85);
   --border: rgba(15, 23, 42, 0.16);
+  --border-control: #6b7280;
   --border-subtle: rgba(15, 23, 42, 0.08);
   --border-hover: rgba(15, 23, 42, 0.28);
   --border-focus: #4338ca;
@@ -607,6 +614,7 @@
   --bg-input: rgba(255, 255, 255, 0.06);
   --bg-glass: rgba(15, 23, 42, 0.8);
   --border: rgba(226, 232, 240, 0.16);
+  --border-control: #7d8ba1;
   --border-subtle: rgba(226, 232, 240, 0.08);
   --border-hover: rgba(226, 232, 240, 0.28);
   --border-focus: #818cf8;
@@ -694,6 +702,7 @@
   --bg-input: #fffdf8;
   --bg-glass: rgba(255, 253, 248, 0.85);
   --border: rgba(74, 52, 30, 0.18);
+  --border-control: #7a6a57;
   --border-subtle: rgba(74, 52, 30, 0.09);
   --border-hover: rgba(74, 52, 30, 0.3);
   --border-focus: #9a3f1c;
@@ -770,6 +779,7 @@
   --bg-input: rgba(255, 240, 215, 0.07);
   --bg-glass: rgba(29, 24, 18, 0.8);
   --border: rgba(245, 230, 205, 0.16);
+  --border-control: #8f8273;
   --border-subtle: rgba(245, 230, 205, 0.08);
   --border-hover: rgba(245, 230, 205, 0.28);
   --border-focus: #e0875c;

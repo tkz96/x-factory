@@ -9,7 +9,6 @@ import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/frontend/App.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
-import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
@@ -190,42 +189,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(diffModalHtml).toContain("−2");
       expect(diffModalHtml).toContain("diff-row-add");
       expect(diffModalHtml).toContain("diff-row-del");
-    });
-
-    it("RunHistoryCard renders run ticket details, status, and duration", () => {
-      const html = renderWithProviders(
-        React.createElement(RunHistoryCard, {
-          run: {
-            id: "run-123",
-            project: { id: "proj-1", name: "X-Factory Core" },
-            ticket: {
-              id: "TICK-42",
-              title: "Fix frontend smoke test",
-              url: "https://ticket.url",
-              acceptanceCriteria: ["All tests pass"],
-            },
-            branch: "xf-tick-42",
-            status: "ready_for_pr",
-            plan: "Implementation plan",
-            startedAt: "2026-09-20T12:00:00.000Z",
-            finishedAt: "2026-09-20T12:05:00.000Z",
-            updatedAt: "2026-09-20T12:05:00.000Z",
-            implementationContext: null,
-            verification: null,
-            review: null,
-            artifacts: [],
-            diff: null,
-            pullRequest: null,
-            repairAttempts: 0,
-            artifactsDir: "/tmp/artifacts",
-            worktreePath: "/tmp/worktree",
-          },
-        }),
-      );
-
-      expect(html).toContain("TICK-42");
-      expect(html).toContain("Fix frontend smoke test");
-      expect(html).toContain("ready_for_pr");
     });
 
     it("WorkflowStepper renders workflow stages and active progression", () => {

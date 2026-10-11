@@ -52,6 +52,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 - **No Hardcoded Hex/RGB**: Never write `#ffffff`, `#0071e3`, `rgb(...)` outside of `tokens.css`. Always use `var(--accent)`, `var(--text)`, `var(--bg-card)`, etc.
 - **No Arbitrary Spacing**: Spacing must use `--space-*` tokens or utility classes (`.mt-4`, `.mb-2`, etc.).
 - **No Arbitrary Font Sizes**: Font sizes must follow HIG typography tokens (`--text-caption-1`, `--text-footnote`, `--text-headline`, etc.).
+- **The Theme and Appearance are applied before first paint.** The server puts the saved values from `settings.json` on `<html>` (`data-saved-theme`, `data-saved-appearance`) when it serves `index.html` (`src/http/static.ts`, `injectSavedTheme`), so a fresh browser profile paints the saved choice. The pre-paint script in `index.html` prefers those attributes and falls back to localStorage. Vite dev serves no injected attributes, so there the localStorage values apply.
 
 ---
 
@@ -62,7 +63,7 @@ Motion explains a state change; it never decorates one. [`DESIGN.md`](../../DESI
 - **Every duration and easing is a token.** `transition`, `animation`, `animation-delay` and `transition-duration` take their timing from `src/frontend/styles/tokens.css` (`--duration-*`, `--ease-*`, `--transition*`, `--duration-stagger`). A raw `180ms`, `1.4s` or `cubic-bezier()` anywhere but the token file fails `bun run test:frontend-smoke`.
 - **Never `transition: all`.** Name the properties, and animate `transform` and `opacity` rather than anything that re-lays-out.
 - **Every keyframe has a reduced-motion path beside it.** Declare the same `@keyframes` again inside a `@media (prefers-reduced-motion: reduce)` block in the same file, with the movement dropped and the fade kept; an infinite animation stops there (`animation-iteration-count: 1`) and becomes a static indicator. The smoke gate fails when a moving keyframe has no reduced path, when a reduced path still moves, or when a loop never stops.
-- **Use the motion library's vocabulary** instead of new keyframes. `src/frontend/motion/MotionProvider.tsx` mounts `LazyMotion` once, with `MotionConfig reducedMotion="user"`; `MotionEntry`, `MotionList` / `MotionListItem`, `MotionSheet` and `MotionDrag` cover entry, list reordering, sheets and drag. Use the `m` components, never `motion`, so the lazily loaded feature pack stays out of the entry chunk — exactly one file, `src/frontend/motion/motion-feature-pack.ts`, may name a feature pack.
+- **Use the motion library's vocabulary** instead of new keyframes. `src/frontend/motion/MotionProvider.tsx` mounts `LazyMotion` once, with `MotionConfig reducedMotion="user"`; `MotionEntry` and `MotionList` / `MotionListItem` cover entry and list reordering. Sheets animate with the CSS motion tokens, and no surface is dragged, so there is no drag component. Use the `m` components, never `motion`, so the lazily loaded feature pack stays out of the entry chunk — exactly one file, `src/frontend/motion/motion-feature-pack.ts`, may name a feature pack.
 - **Springs, not durations, for interruptible motion.** Keep bounce subtle (0.1–0.3) and parameterise springs in `src/frontend/motion/motion-springs.ts`.
 
 ---

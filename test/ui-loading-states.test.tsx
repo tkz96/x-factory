@@ -26,8 +26,8 @@ const TOKENS = await Bun.file(`${ROOT}/src/frontend/styles/tokens.css`).text();
 const CONTROLS = await Bun.file(
   `${ROOT}/src/frontend/styles/shared/controls.css`,
 ).text();
-const HISTORY_ROW = await Bun.file(
-  `${ROOT}/src/frontend/components/history/RunHistoryCard.css`,
+const RUNS_VIEW = await Bun.file(
+  `${ROOT}/src/frontend/views/RunsView.css`,
 ).text();
 
 /** The declarations of one rule, by its exact selector text. */
@@ -87,7 +87,7 @@ describe("touch targets and the row height come from tokens", () => {
     );
     // The Runs list's own row reserves the same height, so the placeholder rows
     // a loading Runs list shows have the height the loaded rows will have.
-    expect(declarationsFor(HISTORY_ROW, ".history-item")).toContain(
+    expect(declarationsFor(RUNS_VIEW, ".run-card-link")).toContain(
       "min-height: var(--list-row-height)",
     );
   });

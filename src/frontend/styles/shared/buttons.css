@@ -61,7 +61,7 @@ button:active,
   justify-content: center;
   background: var(--bg-card);
   color: var(--text);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-pill);
 }
 

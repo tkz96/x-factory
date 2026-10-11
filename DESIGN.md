@@ -118,7 +118,7 @@ How that translates into this codebase (ticket #252):
 - **GPU properties only.** Animate `transform` and `opacity`. Resizing (`width`, `height`), offsets (`top`, `left`) and shadows that re-layout are findings; a progress bar scales with `transform: scaleX()`, it does not animate `width`.
 - **Never `transition: all`**, and never `scale(0)`: content arrives from `scale(0.9–0.97)` plus `opacity: 0`, so nothing appears from nothing.
 - **The `motion` library is mounted once and loaded on demand.** `MotionProvider` (`src/frontend/motion/MotionProvider.tsx`) wraps the app in `LazyMotion` with `MotionConfig reducedMotion="user"`, and reaches the feature pack through the dynamic import in `motion-features.ts`. Components use the `m` components, never `motion`, so the pack stays out of the entry chunk; only `motion-feature-pack.ts` may name one. Springs have no fixed duration, so they are parameterised in `src/frontend/motion/motion-springs.ts`.
-- **The vocabulary lives in `src/frontend/motion/`.** `MotionEntry` (a chat row arriving), `MotionList` / `MotionListItem` (reordering), `MotionSheet` (a sheet rising) and `MotionDrag` (a swipe) are what screens build their motion from, rather than each screen hand-rolling keyframes.
+- **The vocabulary lives in `src/frontend/motion/`.** `MotionEntry` (a chat row arriving) and `MotionList` / `MotionListItem` (reordering) are what screens build their motion from, rather than each screen hand-rolling keyframes. Sheets rise with the CSS motion tokens, not a component, and no surface follows a drag: the motion library has no drag feature in use.
 
 ### Icons & Anti-Drift Architecture
 HIG: `/design/human-interface-guidelines/icons` + SF Symbols site

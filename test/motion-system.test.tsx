@@ -3,8 +3,7 @@
 // The CSS half — motion tokens, and the reduced-motion path beside every
 // keyframe — is gated in test/frontend-smoke.test.ts. This file covers the
 // library: one LazyMotion host, a feature pack that loads on demand with only
-// the features in use, and the components the chat, the lists and the sheets are
-// built from.
+// the features in use, and the components the chat and the lists are built from.
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -15,14 +14,12 @@ import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { act, cleanup, render } from "@testing-library/react";
 import { MotionConfigContext } from "motion/react";
 import { type ReactNode, useContext } from "react";
-import { MotionDrag } from "../src/frontend/motion/MotionDrag.js";
 import { MotionEntry } from "../src/frontend/motion/MotionEntry.js";
 import {
   MotionList,
   MotionListItem,
 } from "../src/frontend/motion/MotionList.js";
 import { MotionProvider } from "../src/frontend/motion/MotionProvider.js";
-import { MotionSheet } from "../src/frontend/motion/MotionSheet.js";
 import { loadMotionFeatures } from "../src/frontend/motion/motion-features.js";
 
 /** Reads what the provider hands every motion component below it. */
@@ -73,10 +70,9 @@ describe("motion system (#252)", () => {
 
     expect(pending).toBeInstanceOf(Promise);
     const pack = await pending;
-    // Layout animates a reordered row, drag swipes a sheet away, and exit is
-    // what a row leaving the chat animates through.
+    // Layout animates a reordered row, and exit is what a row leaving the chat
+    // animates through.
     expect(Object.keys(pack)).toContain("layout");
-    expect(Object.keys(pack)).toContain("drag");
     expect(Object.keys(pack)).toContain("exit");
   });
 
@@ -93,18 +89,6 @@ describe("motion system (#252)", () => {
     expect(inlineStyle(row)).not.toMatch(/scale\(0\)/);
   });
 
-  it("renders a sheet that grows from 0.98 rather than from nothing", async () => {
-    const view = await renderInProvider(
-      <MotionSheet className="sheet">Sheet body</MotionSheet>,
-    );
-    const sheet = view.getByText("Sheet body");
-
-    expect(sheet.className).toBe("sheet");
-    expect(inlineStyle(sheet)).toContain("opacity: 0");
-    expect(inlineStyle(sheet)).toContain("scale(0.98)");
-    expect(inlineStyle(sheet)).not.toMatch(/scale\(0\)/);
-  });
-
   it("renders a list whose rows keep their place when the order changes", async () => {
     const view = await renderInProvider(
       <MotionList className="run-list">
@@ -114,17 +98,5 @@ describe("motion system (#252)", () => {
 
     expect(view.getByText("First run").className).toBe("run-row");
     expect(inlineStyle(view.getByText("First run"))).toContain("opacity: 0");
-  });
-
-  it("renders a drag surface that claims vertical gestures only", async () => {
-    const view = await renderInProvider(
-      <MotionDrag className="sheet-handle">Handle</MotionDrag>,
-    );
-    const handle = view.getByText("Handle");
-
-    expect(handle.className).toBe("sheet-handle");
-    // Motion keeps the vertical gesture for the sheet and leaves horizontal
-    // panning to the browser, so a sideways swipe still scrolls the page.
-    expect(inlineStyle(handle)).toContain("touch-action: pan-x");
   });
 });
