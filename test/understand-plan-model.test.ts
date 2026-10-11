@@ -300,6 +300,56 @@ describe("the Understand stage runs on the Builder model", () => {
     ).toBeNull();
   });
 
+  it("fails with context too large and never prompts the Builder when the prompt exceeds its window", async () => {
+    await seedRun("run-understand-window", "understanding");
+    const session = scriptedReviewSession(UNDERSTANDING_OUTPUT);
+    const executor = new UnderstandExecutor({
+      resolveRole: async () => ({
+        ...testResolvedModel("builder"),
+        details: { contextWindow: 10, maxOutputTokens: 4000 },
+      }),
+      sessionFactory: async () => session,
+    });
+
+    const outcome = await executeStage(
+      repos,
+      executor,
+      "run-understand-window",
+      "understand",
+    );
+
+    expect(outcome.outcome).toBe("error");
+    expect(outcome.outcome === "error" && outcome.error).toMatch(
+      /^Model unavailable: Context too large: about \d+ tokens for test\/model, whose window is 10\./,
+    );
+    expect(session.prompts).toEqual([]);
+    expect(
+      getRun(repos, "run-understand-window")?.implementationContext,
+    ).toBeNull();
+  });
+
+  it("does not block an Understand prompt when the model's context window is unknown", async () => {
+    await seedRun("run-understand-nowindow", "understanding");
+    const session = scriptedReviewSession(UNDERSTANDING_OUTPUT);
+    const executor = new UnderstandExecutor({
+      resolveRole: async () => ({
+        ...testResolvedModel("builder"),
+        details: { maxOutputTokens: 4000 },
+      }),
+      sessionFactory: async () => session,
+    });
+
+    const outcome = await executeStage(
+      repos,
+      executor,
+      "run-understand-nowindow",
+      "understand",
+    );
+
+    expect(outcome.outcome).toBe("passed");
+    expect(session.prompts).toHaveLength(1);
+  });
+
   it("fails when the answer names no file that exists in the worktree", async () => {
     await seedRun("run-understand-invented", "understanding");
     const executor = understandingExecutor(
@@ -459,6 +509,32 @@ describe("the Plan stage runs on the Builder model", () => {
     expect(plan).toBe("1. Draft step");
     // The old template plan is gone for good.
     expect(plan).not.toContain("Task 1: Setup & Tests");
+  });
+
+  it("fails with context too large and never prompts the Builder when the prompt exceeds its window", async () => {
+    await seedRun("run-plan-window", "planning", "1. Draft step");
+    const session = scriptedReviewSession(PLAN_OUTPUT);
+    const executor = new PlanExecutor({
+      resolveRole: async () => ({
+        ...testResolvedModel("builder"),
+        details: { contextWindow: 10, maxOutputTokens: 4000 },
+      }),
+      sessionFactory: async () => session,
+    });
+
+    const outcome = await executeStage(
+      repos,
+      executor,
+      "run-plan-window",
+      "plan",
+    );
+
+    expect(outcome.outcome).toBe("error");
+    expect(outcome.outcome === "error" && outcome.error).toMatch(
+      /^Model unavailable: Context too large: about \d+ tokens for test\/model, whose window is 10\./,
+    );
+    expect(session.prompts).toEqual([]);
+    expect(getRun(repos, "run-plan-window")?.plan).toBe("1. Draft step");
   });
 
   it("fails when the plan names no files, and never falls back to a template", async () => {

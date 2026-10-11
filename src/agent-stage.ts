@@ -11,6 +11,7 @@
 // ceiling or is aborted raises a typed error the stage reports as its reason.
 
 import {
+  assertFitsContextWindow,
   classifyModelError,
   createReadOnlySession,
   disposeQuietly,
@@ -114,6 +115,8 @@ export async function runReadOnlyStage(
   prompt: string,
 ): Promise<string> {
   if (run.signal?.aborted) throw abortError();
+  // Refused before a session opens: a prompt that cannot fit is never sent (#280).
+  assertFitsContextWindow(run.resolved, prompt);
   const session = await openSession(run);
   const readOutput = attachStageListeners(session, run.emit);
 

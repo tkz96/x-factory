@@ -137,6 +137,55 @@ describe("review attempts record their model", () => {
     expect(use?.costUsd).toBeCloseTo(0.0014, 10);
   });
 
+  it("fails with context too large and never prompts the Reviewer when the prompt exceeds its window", async () => {
+    seedRun("run-review-window", "executing");
+    repos.runs.update("run-review-window", { verification: VERIFICATION });
+    const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
+
+    const executor = new ReviewExecutor({
+      resolveRole: async () => ({
+        ...testResolvedModel("reviewer"),
+        details: { contextWindow: 10, maxOutputTokens: 4000 },
+      }),
+      sessionFactory: async () => session,
+    });
+    const outcome = await executeStage(
+      repos,
+      executor,
+      "run-review-window",
+      "review",
+    );
+
+    expect(outcome.outcome).toBe("error");
+    expect(outcome.outcome === "error" && outcome.error).toMatch(
+      /^Model unavailable: Context too large: about \d+ tokens for test\/model, whose window is 10\./,
+    );
+    expect(session.prompts).toEqual([]);
+  });
+
+  it("does not block a Review prompt when the model's context window is unknown", async () => {
+    seedRun("run-review-nowindow", "executing");
+    repos.runs.update("run-review-nowindow", { verification: VERIFICATION });
+    const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
+
+    const executor = new ReviewExecutor({
+      resolveRole: async () => ({
+        ...testResolvedModel("reviewer"),
+        details: { maxOutputTokens: 4000 },
+      }),
+      sessionFactory: async () => session,
+    });
+    const outcome = await executeStage(
+      repos,
+      executor,
+      "run-review-nowindow",
+      "review",
+    );
+
+    expect(outcome.outcome).toBe("passed");
+    expect(session.prompts).toHaveLength(1);
+  });
+
   it("keeps the model it ran on after Settings change", async () => {
     seedRun("run-history", "executing");
     const attempt = repos.stageAttempts.recordStart("run-history", "review", 1);
