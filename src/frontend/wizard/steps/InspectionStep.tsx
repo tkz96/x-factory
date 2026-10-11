@@ -20,8 +20,8 @@ import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { INSPECTION_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
 import { FieldFeedback } from "../../components/feedback/FieldFeedback.js";
-import { ModalFooter } from "../../components/Modal.js";
 import { ApiError } from "../../lib/api-client.js";
+import { WizardFooter } from "../shared/WizardFooter.js";
 import { useWizard } from "../state/wizardContext.js";
 import { PartialConfigureError, useInspection } from "./useInspection.js";
 import "./InspectionStep.css";
@@ -384,24 +384,7 @@ export function InspectionStep() {
         </AsyncRegion>
       </div>
 
-      <ModalFooter>
-        <button
-          type="button"
-          id="btn-step-4-back"
-          className="btn-secondary"
-          onClick={prevStep}
-        >
-          ← {INSPECTION_COPY.previous}
-        </button>
-        <button
-          type="button"
-          id="btn-step-4-next"
-          className="btn-primary"
-          onClick={nextStep}
-        >
-          {INSPECTION_COPY.next} →
-        </button>
-      </ModalFooter>
+      <WizardFooter step={4} onBack={prevStep} onNext={nextStep} />
     </div>
   );
 }

@@ -1,0 +1,58 @@
+/* src/frontend/wizard/shared/StepProgress.css — "Step N of 5" and its bar
+   (#268). Tokens only (docs/agents/frontend-styling.md). */
+
+.wizard-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
+  background: var(--bg-modal);
+  /* Persistent chrome: never squeezed by a tall scrolling body. */
+  flex-shrink: 0;
+}
+
+.wizard-progress-counter {
+  margin: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.wizard-progress-track {
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.wizard-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  /* The fill scales rather than resizes, so progress stays on the compositor
+     (DESIGN.md, Foundations → Motion). */
+  transform-origin: left center;
+  transition: transform var(--transition);
+}
+
+.wizard-progress-fill--step-1 {
+  transform: scaleX(0.2);
+}
+
+.wizard-progress-fill--step-2 {
+  transform: scaleX(0.4);
+}
+
+.wizard-progress-fill--step-3 {
+  transform: scaleX(0.6);
+}
+
+.wizard-progress-fill--step-4 {
+  transform: scaleX(0.8);
+}
+
+.wizard-progress-fill--step-5 {
+  transform: scaleX(1);
+}
