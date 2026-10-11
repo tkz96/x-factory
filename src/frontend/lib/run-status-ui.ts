@@ -38,6 +38,10 @@ export interface RunStatusUi {
   step: RunStep | null;
   filter: RunFilter;
   now: string;
+  /** The run chat header title: what the run is doing, in plain words. */
+  header: string;
+  /** The run chat input placeholder while the run is in this status. */
+  placeholder: string;
   actions: readonly RunActionUi[];
   /** Offered on terminal runs only; not a policy action. */
   ticketCommand: "Start New Run" | null;
@@ -65,6 +69,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Prepare",
     filter: "Running",
     now: "Queued behind other work",
+    header: "Waiting to start",
+    placeholder: "This run is queued behind other work.",
     notification: null,
   },
   preparing: {
@@ -72,6 +78,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Prepare",
     filter: "Running",
     now: "Setting up the branch and workspace",
+    header: "Preparing the workspace",
+    placeholder: "Setting up the branch and workspace…",
     notification: null,
   },
   understanding: {
@@ -79,6 +87,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Understand",
     filter: "Running",
     now: "What it's reading now",
+    header: "Reading the ticket",
+    placeholder: "Reading the ticket…",
     notification: null,
   },
   awaiting_understanding_approval: {
@@ -86,6 +96,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Understand",
     filter: "Needs you",
     now: "The understanding summary",
+    header: "Check the understanding",
+    placeholder: "Ask about what it found, or challenge an assumption…",
     approveLabel: "Approve Understanding",
     notification: { group: "Needs you", text: "Understanding ready" },
   },
@@ -94,6 +106,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Plan",
     filter: "Running",
     now: "Drafting the plan",
+    header: "Planning",
+    placeholder: "Drafting the plan…",
     notification: null,
   },
   awaiting_plan_approval: {
@@ -101,6 +115,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Plan",
     filter: "Needs you",
     now: "The plan",
+    header: "Review the plan",
+    placeholder: "Ask about the plan, or request changes…",
     approveLabel: "Approve Plan",
     notification: { group: "Needs you", text: "Plan ready" },
   },
@@ -109,6 +125,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Code",
     filter: "Running",
     now: "Current iteration and activity",
+    header: "Writing code",
+    placeholder: "Writing the code changes…",
     notification: null,
   },
   awaiting_review: {
@@ -116,6 +134,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Review",
     filter: "Needs you",
     now: "Diff summary and review findings",
+    header: "Review the changes",
+    placeholder: "Ask about the changes, or request changes…",
     approveLabel: "Approve Changes",
     notification: { group: "Needs you", text: "Changes ready" },
   },
@@ -124,6 +144,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Deliver",
     filter: "Needs you",
     now: "Branch and change summary",
+    header: "Ready for a pull request",
+    placeholder: "Open the pull request when you're ready.",
     notification: { group: "Needs you", text: "Ready for a pull request" },
   },
   pr_created: {
@@ -131,6 +153,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: "Deliver",
     filter: "Done",
     now: "Pull request link",
+    header: "Pull request opened",
+    placeholder: "The pull request is open.",
     notification: { group: "Finished", text: "Pull request opened" },
   },
   recovery_required: {
@@ -138,6 +162,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: null,
     filter: "Needs you",
     now: "What went wrong and what Resume will redo",
+    header: "Needs recovery",
+    placeholder: "Resume the run to carry on.",
     notification: { group: "Needs you", text: "Needs recovery" },
   },
   failed: {
@@ -145,6 +171,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: null,
     filter: "Done",
     now: "Why it failed and how to recover",
+    header: "Failed",
+    placeholder: "This run failed and can't continue.",
     notification: { group: "Finished", text: "Run failed" },
   },
   stopped: {
@@ -152,6 +180,8 @@ const ROWS: Record<RunStatus, StatusRow> = {
     step: null,
     filter: "Done",
     now: "Who stopped it and when",
+    header: "Stopped",
+    placeholder: "This run was stopped and can't continue.",
     notification: { group: "Finished", text: "Run stopped" },
   },
 };
@@ -188,6 +218,8 @@ export function runStatusUi(status: RunStatus): RunStatusUi {
       step: null,
       filter: "Running",
       now: "",
+      header: "Unknown status",
+      placeholder: "",
       actions: [],
       ticketCommand: null,
       notification: null,

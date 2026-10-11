@@ -353,7 +353,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       );
       expect(html).toContain("Human Checkpoint &amp; Evidence");
       expect(html).toContain("Deterministic Verification");
-      expect(html).toContain("Independent Review");
+      // The redesign names the roles, not Session A / Session B (#278).
+      expect(html).toContain("Independent review (Reviewer)");
     });
   });
 

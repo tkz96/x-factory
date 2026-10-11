@@ -47,9 +47,9 @@ export function HistoryView() {
       <div className="view-panel">
         <div className="section-header-flex">
           <div>
-            <h2>Factory Run History</h2>
+            <h2>Run History</h2>
             <p className="text-muted">
-              All previous, active, and completed factory runs.
+              All previous, active, and completed runs.
             </p>
           </div>
           <button
@@ -92,7 +92,7 @@ export function HistoryView() {
             onRetry={() => void runsQuery.refetch()}
             emptyCopy={
               noRunsAtAll
-                ? "No factory runs found. Launch your first run to populate history."
+                ? "No runs found. Launch your first run to populate history."
                 : `No runs matching the “${filter}” filter.`
             }
             emptyAction={

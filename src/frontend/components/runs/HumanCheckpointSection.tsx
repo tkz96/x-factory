@@ -10,7 +10,7 @@ import type {
 } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { usePrRun } from "../../hooks/useQueries.js";
-import { runStatusText } from "../../lib/run-status-ui.js";
+import { runStatusText, runStatusUi } from "../../lib/run-status-ui.js";
 
 interface HumanCheckpointSectionProps {
   run: Run;
@@ -89,7 +89,7 @@ function VerificationEvidenceSection({
 function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
   return (
     <div className="result-section mt-4" id="review-section">
-      <h3>2. Independent Review (Read-Only Session B)</h3>
+      <h3>2. Independent review (Reviewer)</h3>
       {review ? (
         <>
           <div className="evidence-row flex-center gap-2 m-0 my-2">
@@ -200,6 +200,13 @@ function DeliveryCheckpointSection({
   onCreatePr,
 }: DeliveryCheckpointSectionProps) {
   const isAwaitingReview = run.status === "awaiting_review";
+  // The labels come from the one status map (#253), never from local copy.
+  const approveLabel =
+    runStatusUi(run.status).actions.find((a) => a.action === "approve")
+      ?.label ?? "Approve Changes";
+  const rejectLabel =
+    runStatusUi(run.status).actions.find((a) => a.action === "requeue")
+      ?.label ?? "Request Changes";
 
   return (
     <div className="delivery-checkpoint mt-6" id="delivery-checkpoint">
@@ -222,7 +229,7 @@ function DeliveryCheckpointSection({
               className="btn-primary"
               onClick={onApprove}
             >
-              Approve Review &amp; Proceed to Delivery
+              {approveLabel}
             </button>
           )}
           {onReject && (
@@ -232,7 +239,7 @@ function DeliveryCheckpointSection({
               className="btn-secondary btn-danger-text"
               onClick={onReject}
             >
-              Request Rework
+              {rejectLabel}
             </button>
           )}
         </div>

@@ -225,7 +225,7 @@ describe("HistoryView — feedback-family read region", () => {
 
     expect(container.querySelector(".async-region--empty")).not.toBeNull();
     expect(container.textContent).toContain(
-      "No factory runs found. Launch your first run to populate history.",
+      "No runs found. Launch your first run to populate history.",
     );
     const cta = container.querySelector(
       ".async-region--empty .async-region-actions button",
