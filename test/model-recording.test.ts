@@ -158,7 +158,7 @@ describe("review attempts record their model", () => {
 
     expect(outcome.outcome).toBe("error");
     expect(outcome.outcome === "error" && outcome.error).toMatch(
-      /^Model unavailable: Context too large: about \d+ tokens for test\/model, whose window is 10\./,
+      /^Context too large: about \d+ tokens for test\/model, whose window is 10\./,
     );
     expect(session.prompts).toEqual([]);
   });

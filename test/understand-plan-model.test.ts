@@ -320,7 +320,7 @@ describe("the Understand stage runs on the Builder model", () => {
 
     expect(outcome.outcome).toBe("error");
     expect(outcome.outcome === "error" && outcome.error).toMatch(
-      /^Model unavailable: Context too large: about \d+ tokens for test\/model, whose window is 10\./,
+      /^Context too large: about \d+ tokens for test\/model, whose window is 10\./,
     );
     expect(session.prompts).toEqual([]);
     expect(
@@ -531,7 +531,7 @@ describe("the Plan stage runs on the Builder model", () => {
 
     expect(outcome.outcome).toBe("error");
     expect(outcome.outcome === "error" && outcome.error).toMatch(
-      /^Model unavailable: Context too large: about \d+ tokens for test\/model, whose window is 10\./,
+      /^Context too large: about \d+ tokens for test\/model, whose window is 10\./,
     );
     expect(session.prompts).toEqual([]);
     expect(getRun(repos, "run-plan-window")?.plan).toBe("1. Draft step");
