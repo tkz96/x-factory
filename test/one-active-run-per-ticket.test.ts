@@ -7,7 +7,7 @@
 // every status asks ACTIVE_RUN_STATUSES which answer is correct, so a guard with
 // a list of its own cannot agree with it by luck.
 
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import {
   mkdir,
@@ -291,6 +291,46 @@ describe("one active run per ticket (#255)", () => {
     });
   });
 
+  it("a create that passes the early check but loses inside the transaction removes the files it wrote", async () => {
+    await withReadyModelRoles(async () => {
+      const repos = createTestRepositories();
+      const ticketId = "T-255-lost-in-tx";
+      const marker = "LOST-IN-TX-MARKER";
+
+      const first = await dispatchHttp(createRunRequest(ticketId), repos);
+      expect(first.status).toBe(201);
+      const existing = (await first.json()) as { id: string };
+      const runsDir = getProjectRunsDir(PROJECT_ID);
+      const before = (await readdir(runsDir)).sort();
+
+      // The winner commits between the early check and the transaction: the
+      // early check sees no active run, the transaction's check does.
+      const realFind = repos.runs.findActiveRunForTicket.bind(repos.runs);
+      const find = spyOn(repos.runs, "findActiveRunForTicket");
+      find.mockImplementationOnce(() => null);
+      find.mockImplementation(realFind);
+      try {
+        const second = await dispatchHttp(
+          createRunRequest(ticketId, {
+            plan: `${marker} written then removed`,
+          }),
+          repos,
+        );
+        expect(second.status).toBe(409);
+        expect(((await second.json()) as { runId: string }).runId).toBe(
+          existing.id,
+        );
+        expect(find).toHaveBeenCalledTimes(2);
+      } finally {
+        find.mockRestore();
+      }
+
+      expect(repos.runs.list()).toHaveLength(1);
+      expect((await readdir(runsDir)).sort()).toEqual(before);
+      expect(await filesMentioning(runsDir, marker)).toEqual([]);
+    });
+  });
+
   it("a new run after a failed or stopped one succeeds and leaves the old run untouched", async () => {
     await withReadyModelRoles(async () => {
       for (const terminal of ["failed", "stopped"] as const) {
@@ -328,7 +368,7 @@ describe("one active run per ticket (#255)", () => {
     });
   });
 
-  it("a creation whose files cannot be written removes the run it inserted", async () => {
+  it("a creation whose files cannot be written leaves no run behind", async () => {
     ensureProject(DEAD_DISK_PROJECT_ID, { repositoryPath: repoDir });
     await withReadyModelRoles(async () => {
       // A FILE where the project's runs directory must be: the insert can win,
