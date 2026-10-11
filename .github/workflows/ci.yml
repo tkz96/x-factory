@@ -138,7 +138,12 @@ jobs:
           name: dist
           path: dist/
 
+      - name: Install Playwright browsers for the keyboard and forced-colours tests
+        run: bunx playwright-core install --with-deps chromium firefox webkit
+
       - name: Run Test Suite with Coverage Ratchet
+        env:
+          X_FACTORY_E2E_FIREFOX: "1"
         run: bun run test:coverage
 
       - name: Upload Coverage Report
