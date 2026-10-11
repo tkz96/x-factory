@@ -136,10 +136,11 @@ describe("run chat words come from the one status map (#253)", () => {
         .actions.filter((a) =>
           ["approve", "requeue", "restart", "stop"].includes(a.action),
         )
-        .map((a) => a.label);
+        .map((a) => a.label)
+        .filter((label): label is string => label !== null);
       const buttons = Array.from(
         container.querySelectorAll(".imsg-action-btn"),
-      ).map((b) => b.textContent);
+      ).map((b) => b.textContent ?? "");
       expect({ status, buttons }).toEqual({ status, buttons: expected });
       const text = container.textContent ?? "";
       for (const old of [
