@@ -124,6 +124,23 @@ describe("Docs at phone width", () => {
       view.queryByRole("button", { name: /browse documents/i }),
     ).toBeNull();
   });
+
+  it("keeps the tab bar on every view, so the reserved space is not docs-only", () => {
+    stubFetch();
+    const client = new QueryClient();
+    render(
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ["/runs"] },
+          React.createElement(AppShell),
+        ),
+      ),
+    );
+    expect(document.getElementById("mobile-tab-bar")).not.toBeNull();
+  });
 });
 
 describe("Docs phone layout rules (390 px)", () => {
@@ -132,10 +149,33 @@ describe("Docs phone layout rules (390 px)", () => {
     "utf8",
   );
   const phone = css;
+  const tokens = readFileSync("src/frontend/styles/tokens.css", "utf8");
 
-  it("reserves the full tab bar height including the safe area under the content", () => {
+  it("keeps the tab bar height in one token, never in a layout", () => {
+    for (const file of [
+      "src/frontend/components/AppShell.css",
+      "src/frontend/components/AppShellDocsPhone.css",
+    ]) {
+      expect(readFileSync(file, "utf8")).not.toContain("54px");
+    }
+  });
+
+  it("spaces with --space-* tokens and never a raw length", () => {
+    const literals = Array.from(
+      phone.matchAll(
+        /(?:^|[;{\s])(?:padding|margin|gap)(?:-[\w-]+)?\s*:\s*([^;}]+)/g,
+      ),
+    ).filter((match) => {
+      const value = (match[1] ?? "").replace(/env\([^)]*\)/g, "");
+      return /\d*\.?\d+(px|rem)/.test(value);
+    });
+    expect(literals.map((m) => m[0].trim())).toEqual([]);
+  });
+
+  it("reserves the tab bar height from the one token, including the safe area", () => {
+    expect(tokens).toMatch(/--tab-bar-height:\s*54px;/);
     expect(phone).toMatch(
-      /\.main-content\s*\{[^}]*padding-bottom:\s*calc\(\s*54px \+\s*env\(safe-area-inset-bottom, 0px\) \+\s*var\(--space-4\)/,
+      /\.main-content\s*\{[^}]*padding-bottom:\s*calc\(\s*var\(--tab-bar-height\) \+\s*env\(safe-area-inset-bottom, 0px\) \+\s*var\(--space-4\)/,
     );
   });
 
@@ -144,7 +184,7 @@ describe("Docs phone layout rules (390 px)", () => {
       /aside\.sidebar\.docs-nav-open\s*\{[^}]*display:\s*flex/,
     );
     expect(phone).toMatch(
-      /aside\.sidebar\.docs-nav-open\s*\{[^}]*bottom:\s*calc\(54px/,
+      /aside\.sidebar\.docs-nav-open\s*\{[^}]*bottom:\s*calc\(var\(--tab-bar-height\)/,
     );
   });
 

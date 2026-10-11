@@ -320,7 +320,7 @@
 }
 
 .setting-checkbox {
-  margin-top: 3px;
+  margin-top: var(--space-1);
   cursor: pointer;
   accent-color: var(--accent);
 }
