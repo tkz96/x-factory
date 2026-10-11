@@ -11,15 +11,25 @@ interface SandboxFacts {
   allowUnsandboxed: boolean;
 }
 
-function currentSandboxFacts(): SandboxFacts {
+/**
+ * The current facts: whether `sbx` is on PATH, and whether running without a
+ * sandbox is allowed by the Settings switch or X_FACTORY_ALLOW_UNSANDBOXED=1
+ * (#275).
+ */
+export function sandboxFacts({
+  settingAllows,
+}: {
+  settingAllows: boolean;
+}): SandboxFacts {
   return {
     sbxFound: Bun.which("sbx") !== null,
-    allowUnsandboxed: process.env.X_FACTORY_ALLOW_UNSANDBOXED === "1",
+    allowUnsandboxed:
+      settingAllows || process.env.X_FACTORY_ALLOW_UNSANDBOXED === "1",
   };
 }
 
 export function sandboxReadinessCheck(
-  facts: SandboxFacts = currentSandboxFacts(),
+  facts: SandboxFacts = sandboxFacts({ settingAllows: false }),
 ): ReadinessCheck {
   if (facts.sbxFound) {
     return {
@@ -33,7 +43,7 @@ export function sandboxReadinessCheck(
       name: "Sandbox",
       status: "warn",
       message:
-        "sbx is not installed; the coding agent runs without a sandbox (X_FACTORY_ALLOW_UNSANDBOXED=1).",
+        "sbx is not installed; the coding agent runs without a sandbox because running without one is allowed.",
     };
   }
   return {

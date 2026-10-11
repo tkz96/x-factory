@@ -1,94 +1,57 @@
-# How to Install and Check the Sandbox Environment (sbx)
+# How to Check the Sandbox (sbx), or Run Without One
 
-This guide shows you how to install, verify, and configure the `sbx` sandbox CLI for autonomous agent execution in X-Factory. It also explains how to enable explicit unsandboxed execution when working in local development without a sandbox.
+This guide shows how to check whether the coding stage can run inside the `sbx` sandbox, and how to explicitly allow running without one on your own machine. The rules themselves are in [the security reference](../reference/security.md#execution-boundary).
 
-## What is sbx?
+## What X-Factory expects from sbx
 
-The `sbx` CLI provides the sandbox execution environment required by X-Factory. When running the autonomous coding loop, X-Factory invokes the agent process through `sbx run`:
-
-```bash
-sbx run --name "ralph-${AGENT}-${RANDOM}" "${AGENT}" -p "${PROMPT}"
-```
-
-This boundary prevents untrusted or autonomous agent processes from executing bare-metal on the host system.
-
-## Step 1: Check for sbx on PATH
-
-1. Open your terminal.
-2. Check whether the `sbx` binary is available on your system `PATH`:
+The coding stage runs the agent through a CLI named `sbx`, found on the worker's `PATH`. For every loop iteration it runs:
 
 ```bash
-command -v sbx
+sbx run --name "ralph-<agent>-<random>" <agent> -p [--provider <provider>] [--model <model>] "<prompt>"
 ```
 
-3. If `sbx` is present, verify its installation:
+X-Factory does not ship, install or configure `sbx`. Use the sandbox tool your team provides under that name, and make sure it accepts the command above.
 
-```bash
-sbx --version
-```
+## Check whether sbx is available
 
-If the command prints a path and version string, your host environment meets the sandbox requirement.
+1. Open a terminal with the same `PATH` the worker uses.
+2. Run:
 
-## Step 2: Install sbx
+   ```bash
+   command -v sbx
+   ```
 
-If `command -v sbx` returns nothing, install the `sbx` CLI binary into your system `PATH` (such as `/usr/local/bin` or `~/.local/bin`):
+3. If it prints a path, the coding stage will run inside the sandbox.
+4. Open X-Factory and look at the readiness banner. Its **Sandbox** check says `pass` when `sbx` is found.
 
-1. Download or compile the `sbx` binary for your platform.
-2. Move the executable to a directory included in your `PATH`:
-
-```bash
-sudo mv sbx /usr/local/bin/sbx
-sudo chmod 755 /usr/local/bin/sbx
-```
-
-3. Confirm that `command -v sbx` resolves correctly.
-
-## Step 3: Verify Sandbox Execution
-
-Verify that `sbx` can spawn isolated commands:
-
-```bash
-sbx run --name test-verification echo "Sandbox verified"
-```
-
-Confirm that the output prints:
-
-```text
-Sandbox verified
-```
-
-## Running Without a Sandbox (Development Opt-In)
-
-If `sbx` is not available on the host, X-Factory fails closed: the coding loop exits with code 1 and logs an error:
+If `command -v sbx` prints nothing and running without a sandbox isn't allowed, the coding stage fails closed with:
 
 ```text
 Error: Sandbox execution environment (sbx) is required but not found.
 ```
 
-To run agents without a sandbox on your local machine, you must explicitly opt in using one of two methods:
+## Allow running without a sandbox (local development only)
 
-### Option A: Workbench Settings UI
+Running without a sandbox means the agent runs directly on your machine, inside the run's git worktree, with your user's permissions. Allow it only on a machine where that is acceptable. Choose one way.
 
-1. Open the X-Factory web workbench at `http://localhost:3777` (or your configured port).
-2. Navigate to **Settings** $\rightarrow$ **General**.
-3. Under **Run agents without a sandbox**, toggle the checkbox to enabled.
-4. Review the confirmation dialog warning about host execution risks, then confirm your choice.
-5. The preference persists to `settings.json` under `~/.x-factory`.
+### In Settings
 
-### Option B: Worker Environment Variable
+1. Open **Settings › General**.
+2. Turn on **Run agents without a sandbox**.
+3. Read the confirmation and confirm.
 
-For headless setups or automated scripts, set the `X_FACTORY_ALLOW_UNSANDBOXED` environment variable when starting the worker:
+The choice is saved in the data dir's `settings.json` and applies to the next attempt.
+
+### With an environment variable (headless setups)
+
+Start the worker with:
 
 ```bash
 X_FACTORY_ALLOW_UNSANDBOXED=1 bun run worker
 ```
 
-### Auditing Unsandboxed Attempts
+## How unsandboxed attempts show up
 
-Every attempt that executes without a sandbox emits an `info` event:
+When `sbx` is missing and running without it is allowed, every coding attempt records an `info` event marked `warning: "unsandboxed"`. The run page shows it as a warning line that says why it was allowed: the Settings switch or the environment variable.
 
-```text
-Running the coding agent without a sandbox (X_FACTORY_ALLOW_UNSANDBOXED=1).
-```
-
-The run detail page displays this message as a visible warning line in the activity log, ensuring host execution is never hidden.
+If `sbx` is installed, the attempt runs inside it and no warning is recorded, even when running without a sandbox is allowed.

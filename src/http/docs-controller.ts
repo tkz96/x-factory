@@ -40,9 +40,9 @@ export const DOC_CATALOG: DocCategory[] = [
       },
       {
         slug: "install-and-check-sbx",
-        title: "How to Install and Check the Sandbox Environment (sbx)",
+        title: "How to Check the Sandbox (sbx), or Run Without One",
         description:
-          "Procedures to install, check, and configure the sbx sandbox CLI for safe agent execution.",
+          "Check whether the coding stage can run inside sbx, and how to explicitly allow running without a sandbox.",
         path: "docs/how-to/install-and-check-sbx.md",
       },
       {
