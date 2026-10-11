@@ -404,7 +404,10 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
     const region = discoveryRegion();
     const loading = region.querySelector(".async-region--loading");
     expect(loading).not.toBeNull();
-    expect(loading?.getAttribute("role")).toBe("status");
+    // The wait is announced by the standard spinner block (#251).
+    expect(loading?.querySelector('[role="status"]')?.textContent).toContain(
+      "Loading…",
+    );
     expect(loading?.querySelector("use")?.getAttribute("href")).toContain(
       "icon-loader-2",
     );

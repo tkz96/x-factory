@@ -35,6 +35,8 @@ const CUSTOM_COLOURED_SOURCES = [
   "shared/badges.css",
   "shared/forms.css",
   "shared/cards.css",
+  // The control vocabulary (#251): every block the screens are built from.
+  "shared/controls.css",
   "../views/SettingsView.css",
 ];
 
@@ -69,6 +71,13 @@ describe("forced colours: static (#249)", () => {
       ".btn-secondary",
       ".btn-danger",
       ".theme-segment-btn",
+      ".ui-button",
+      ".ui-segment",
+      ".ui-switch",
+      ".ui-field-input",
+      ".ui-badge",
+      ".ui-list-row",
+      ".ui-placeholder-line",
       "input,",
       "textarea,",
       "select,",

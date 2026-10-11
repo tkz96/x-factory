@@ -18,6 +18,7 @@ import {
 } from "../components/projects/connection-integrity.js";
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
+import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -170,6 +171,17 @@ const THEME_CHOICES: { id: ThemeName; label: string }[] = [
   { id: "sandstone", label: "Sandstone" },
 ];
 
+/** The Appearance choices, in the order the segmented control shows them. */
+const APPEARANCE_CHOICES: {
+  id: AppearanceSetting;
+  label: string;
+  icon: string;
+}[] = [
+  { id: "automatic", label: "Automatic", icon: "icon-refresh-cw" },
+  { id: "light", label: "Light", icon: "icon-sun" },
+  { id: "dark", label: "Dark", icon: "icon-moon" },
+];
+
 function GeneralTabContent({
   currentTheme = "default",
   onApplyTheme,
@@ -225,50 +237,24 @@ function GeneralTabContent({
 
       <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
-        <div className="theme-segmented-control">
-          <button
-            type="button"
-            aria-pressed={currentAppearance === "automatic"}
-            className={`theme-segment-btn ${currentAppearance === "automatic" ? "active" : ""}`}
-            id="btn-appearance-auto"
-            data-theme-val="automatic"
-            aria-label="Automatic Appearance"
-            onClick={() => onApplyAppearance("automatic")}
-          >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
-            </svg>
-            <span>Automatic</span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={currentAppearance === "light"}
-            className={`theme-segment-btn ${currentAppearance === "light" ? "active" : ""}`}
-            id="btn-theme-light"
-            data-theme-val="light"
-            aria-label="Light Appearance"
-            onClick={() => onApplyAppearance("light")}
-          >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-sun" />
-            </svg>
-            <span>Light</span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={currentAppearance === "dark"}
-            className={`theme-segment-btn ${currentAppearance === "dark" ? "active" : ""}`}
-            id="btn-theme-dark"
-            data-theme-val="dark"
-            aria-label="Dark Appearance"
-            onClick={() => onApplyAppearance("dark")}
-          >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-moon" />
-            </svg>
-            <span>Dark</span>
-          </button>
-        </div>
+        {/* The appearance choice is the segmented control block (#251): one
+            control, arrow keys between options, the choice announced as
+            checked. The Theme control above stays hand-rolled until its own
+            ticket moves it. */}
+        <SegmentedControl
+          label="Appearance"
+          value={currentAppearance}
+          onChange={(id) => {
+            const choice = APPEARANCE_CHOICES.find((item) => item.id === id);
+            if (choice !== undefined) onApplyAppearance(choice.id);
+          }}
+          options={APPEARANCE_CHOICES.map((choice) => ({
+            id: choice.id,
+            label: choice.label,
+            icon: choice.icon,
+            accessibleLabel: `${choice.label} Appearance`,
+          }))}
+        />
       </div>
 
       <div className="setting-item mt-4">

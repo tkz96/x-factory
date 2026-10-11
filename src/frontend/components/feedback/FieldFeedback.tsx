@@ -26,11 +26,13 @@ export function FieldFeedback({ state, message, id }: FieldFeedbackProps) {
   if (state === "default") {
     return null;
   }
+  // An invalid field is announced as an alert (#251): the reader hears the
+  // error the moment it appears. Every other state stays polite.
   return (
     <div
       id={id}
       className={`field-feedback field-feedback--${state}`}
-      role="status"
+      role={state === "invalid" ? "alert" : "status"}
     >
       <svg className="icon icon-sm" aria-hidden="true">
         <use href={`/assets/icons/sprite.svg#${FIELD_FEEDBACK_ICONS[state]}`} />
