@@ -90,9 +90,9 @@ describe("Settings › General: Theme choice (#249)", () => {
     const { getByRole, getByText } = renderSettings();
 
     expect(getByText("Theme")).toBeTruthy();
-    expect(getByRole("button", { name: "Default Theme" })).toBeTruthy();
-    expect(getByRole("button", { name: "Graphite Theme" })).toBeTruthy();
-    expect(getByRole("button", { name: "Sandstone Theme" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Default Theme" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Graphite Theme" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Sandstone Theme" })).toBeTruthy();
     // The Appearance choice moved to the segmented-control block in #251: one
     // control, mutually exclusive options, so the segments are radios in a
     // named radiogroup rather than aria-pressed buttons.
@@ -100,27 +100,25 @@ describe("Settings › General: Theme choice (#249)", () => {
     expect(getByRole("radio", { name: "Automatic Appearance" })).toBeTruthy();
   });
 
-  it("marks the chosen theme as pressed", () => {
+  it("marks the chosen theme as checked", () => {
     // The app shell hydrates the shared theme from the saved settings (#249).
     act(() => setTheme("sandstone"));
     const { getByRole } = renderSettings();
 
     expect(
-      getByRole("button", { name: "Sandstone Theme" }).getAttribute(
-        "aria-pressed",
-      ),
-    ).toBe("true");
+      (getByRole("radio", { name: "Sandstone Theme" }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
     expect(
-      getByRole("button", { name: "Default Theme" }).getAttribute(
-        "aria-pressed",
-      ),
-    ).toBe("false");
+      (getByRole("radio", { name: "Default Theme" }) as HTMLInputElement)
+        .checked,
+    ).toBe(false);
   });
 
   it("choosing Graphite saves the theme, applies it to the document and leaves Appearance alone", async () => {
     const { getByRole } = renderSettings();
 
-    fireEvent.click(getByRole("button", { name: "Graphite Theme" }));
+    fireEvent.click(getByRole("radio", { name: "Graphite Theme" }));
 
     await waitFor(() => {
       expect(postedBodies).toContainEqual({ theme: "graphite" });

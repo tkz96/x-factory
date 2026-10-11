@@ -212,15 +212,19 @@ describe("Settings opens the pane named in the URL", () => {
   }
 
   it("?tab=models opens the Models pane the refusal links to", () => {
-    const { container } = renderSettings("/settings?tab=models");
-    const pane = container.querySelector("#tab-models");
-    expect(pane).not.toBeNull();
-    expect(pane?.textContent).toContain("Model connections");
+    const { getByRole, getByText } = renderSettings("/settings?tab=models");
+    expect(
+      getByRole("link", { name: "Models" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(getByText("Model connections")).toBeTruthy();
   });
 
   it("defaults to General without the query string", () => {
-    const { container } = renderSettings("/settings");
-    expect(container.querySelector("#tab-models")).toBeNull();
+    const { getByRole, queryByText } = renderSettings("/settings");
+    expect(
+      getByRole("link", { name: "General" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(queryByText("Model connections")).toBeNull();
   });
 });
 

@@ -70,7 +70,6 @@ describe("forced colours: static (#249)", () => {
       ".btn-primary",
       ".btn-secondary",
       ".btn-danger",
-      ".theme-segment-btn",
       ".ui-button",
       ".ui-segment",
       ".ui-switch",
@@ -142,13 +141,17 @@ describe("forced colours: emulated in a browser (#249)", () => {
       waitUntil: "load",
     });
 
-    const control = page.getByRole("button", { name: "Graphite Theme" });
-    await control.waitFor();
+    // The Theme choice is a segmented control (#266): the focusable radio sits
+    // inside its segment, and the segment is what shows the focus ring. Only the
+    // chosen segment is a tab stop, so the test focuses the chosen one (Default).
+    const radio = page.getByRole("radio", { name: "Default Theme" });
+    await radio.waitFor();
+    const control = page.locator(".ui-segment", { has: radio });
     // Keyboard focus, so :focus-visible applies as it does for a keyboard user.
-    await control.focus();
+    await radio.focus();
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Tab");
-    expect(await control.evaluate((el) => el === document.activeElement)).toBe(
+    expect(await radio.evaluate((el) => el === document.activeElement)).toBe(
       true,
     );
 

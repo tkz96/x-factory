@@ -13,17 +13,20 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
+import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { SettingsView } from "../src/frontend/views/SettingsView.js";
 
-function renderSettings() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+function renderSettings(client?: QueryClient) {
+  const queryClient =
+    client ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
   return render(
     createElement(
       QueryClientProvider,
@@ -46,45 +49,33 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     await unregisterHappyDom();
   });
 
-  it("Settings view renders the read-only Connections Registry with the copy map's title, and no global tracker inputs", async () => {
-    const settingsViewPath = path.join(
-      import.meta.dir,
-      "../src/frontend/views/SettingsView.tsx",
-    );
-    const content = await Bun.file(settingsViewPath).text();
+  it("Settings › Connections shows the read-only registry under the copy map's title", () => {
+    const { getByRole, getByText } = renderSettings();
+    fireEvent.click(getByRole("link", { name: "Connections" }));
 
-    // The source keeps the legacy global tracker inputs deleted.
-    expect(content).not.toContain("setting-tracker-azure-pat");
-    expect(content).not.toContain("setting-tracker-jira-token");
-    expect(content).not.toContain("setting-tracker-github-token");
-
-    const { container } = renderSettings();
-    fireEvent.click(
-      container.querySelector('[data-tab="trackers"]') as Element,
-    );
-
-    // Rendered output: the registry is the Connections tab, its title and
-    // subtitle are the copy map's strings, and its table is present.
-    const registry = container.querySelector("#tab-trackers");
-    expect(registry).not.toBeNull();
-    expect(registry?.textContent).toContain(CONNECTIONS_COPY.registryTitle);
-    expect(registry?.textContent).toContain(CONNECTIONS_COPY.registrySubtitle);
-    expect(
-      container.querySelector("#connections-registry-tbody"),
-    ).not.toBeNull();
+    // Rendered output: the registry's title and subtitle are the copy map's
+    // strings, and it is a table. No global tracker inputs exist in the source.
+    expect(getByText(CONNECTIONS_COPY.registryTitle)).toBeTruthy();
+    expect(getByText(CONNECTIONS_COPY.registrySubtitle)).toBeTruthy();
+    expect(getByRole("table")).toBeTruthy();
   });
 
-  it("Settings logic populates connections registry with project tracker links", async () => {
-    const settingsViewPath = path.join(
-      import.meta.dir,
-      "../src/frontend/views/SettingsView.tsx",
-    );
-    const content = await Bun.file(settingsViewPath).text();
+  it("Settings › Connections links each project row to its own page", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(queryKeys.projects(), [
+      { id: "alpha-id", name: "Alpha", archived: false, connections: [] },
+    ]);
+    const { getByRole } = renderSettings(client);
+    fireEvent.click(getByRole("link", { name: "Connections" }));
 
-    expect(content).toContain("useProjects");
-    expect(content).toContain("connections-registry-tbody");
-    expect(content).toContain("projects.map");
-    expect(content).toContain("encodeURIComponent(p.id)");
+    const row = within(getByRole("table")).getAllByRole("row")[1];
+    expect(row?.textContent).toContain("Alpha");
+    const link = within(row as HTMLElement).getByRole("link", {
+      name: CONNECTIONS_COPY.registryAction,
+    });
+    expect(link.getAttribute("href")).toBe("/projects/alpha-id");
   });
 
   // Ticket #267 replaced the project cards and the Active/Archived tab bar: the

@@ -18,7 +18,13 @@ import {
   it,
 } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
 import { createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
@@ -104,7 +110,7 @@ async function flush() {
 
 async function openModelsTab(container: HTMLElement) {
   await act(async () => {
-    fireEvent.click(container.querySelector('[data-tab="models"]') as Element);
+    fireEvent.click(within(container).getByRole("link", { name: "Models" }));
   });
   await flush();
 }

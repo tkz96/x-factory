@@ -1,4 +1,8 @@
-// src/frontend/views/SettingsView.tsx — Workbench Settings view (XFM-38, XFM-40, XFM-51).
+// src/frontend/views/SettingsView.tsx — Settings in the System Settings layout (#266, spec #241).
+//
+// A category list beside a detail pane. The open category is the URL's `?tab=`
+// so a link can open one directly. At phone width the list and the pane take
+// turns: a category pushes its pane, and the pane's "Settings" link goes back.
 
 import "./SettingsView.css";
 
@@ -20,6 +24,7 @@ import { DesktopNotificationsSetting } from "../components/settings/DesktopNotif
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
+import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -37,16 +42,32 @@ import {
   useTheme,
 } from "../hooks/useTheme.js";
 
-type SettingsTab = "general" | "trackers" | "models" | "git" | "diagnostics";
+type SettingsTab =
+  | "general"
+  | "trackers"
+  | "models"
+  | "git"
+  | "diagnostics"
+  | "help";
+
+/** The categories, in the order the list shows them (#266). */
+const SETTINGS_CATEGORIES: readonly {
+  id: SettingsTab;
+  label: string;
+  icon: string;
+}[] = [
+  { id: "general", label: "General", icon: "icon-settings" },
+  { id: "trackers", label: "Connections", icon: "icon-layers" },
+  { id: "models", label: "Models", icon: "icon-code" },
+  { id: "git", label: "Git", icon: "icon-git-branch" },
+  { id: "diagnostics", label: "Diagnostics", icon: "icon-check-circle-2" },
+  { id: "help", label: "Help", icon: "icon-book-open" },
+];
 
 /** The panes the `?tab=` query string may open (#278 links straight to Models). */
-const SETTINGS_TABS: readonly SettingsTab[] = [
-  "general",
-  "trackers",
-  "models",
-  "git",
-  "diagnostics",
-];
+const SETTINGS_TABS: readonly SettingsTab[] = SETTINGS_CATEGORIES.map(
+  (category) => category.id,
+);
 
 function settingsTabFromParam(value: string | null): SettingsTab {
   return SETTINGS_TABS.find((tab) => tab === value) ?? "general";
@@ -194,8 +215,9 @@ function GeneralTabContent({
 }: GeneralTabContentProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
+  // Turning the opt-in on asks first; turning it off saves at once (#266).
+  const handleUnsandboxedChange = (next: boolean) => {
+    if (next) {
       setShowConfirmModal(true);
     } else {
       void onUpdateUnsandboxed(false);
@@ -212,36 +234,33 @@ function GeneralTabContent({
   };
 
   return (
-    <div id="tab-general" className="settings-pane active">
-      <h3>General Settings</h3>
-      <p className="text-muted">Workbench behavior and system defaults.</p>
+    <div className="settings-pane">
+      <h2>General</h2>
+      <p className="text-muted">
+        Appearance, notifications and the data folder.
+      </p>
 
       <div className="setting-item mt-4">
         <span className="setting-label">Theme</span>
-        <div className="theme-segmented-control">
-          {THEME_CHOICES.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              aria-pressed={currentTheme === choice.id}
-              className={`theme-segment-btn ${currentTheme === choice.id ? "active" : ""}`}
-              id={`btn-theme-${choice.id}`}
-              data-theme-val={choice.id}
-              aria-label={`${choice.label} Theme`}
-              onClick={() => onApplyTheme(choice.id)}
-            >
-              <span>{choice.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Theme and Appearance are the same control (#266): one segmented
+            block, so both render at one height, type size and icon gap. */}
+        <SegmentedControl
+          label="Theme"
+          value={currentTheme}
+          onChange={(id) => {
+            const choice = THEME_CHOICES.find((item) => item.id === id);
+            if (choice !== undefined) onApplyTheme(choice.id);
+          }}
+          options={THEME_CHOICES.map((choice) => ({
+            id: choice.id,
+            label: choice.label,
+            accessibleLabel: `${choice.label} Theme`,
+          }))}
+        />
       </div>
 
       <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
-        {/* The appearance choice is the segmented control block (#251): one
-            control, arrow keys between options, the choice announced as
-            checked. The Theme control above stays hand-rolled until its own
-            ticket moves it. */}
         <SegmentedControl
           label="Appearance"
           value={currentAppearance}
@@ -275,45 +294,15 @@ function GeneralTabContent({
 
       <div className="setting-item mt-4">
         <span className="setting-label">Security &amp; Sandboxing</span>
-        <div className="setting-checkbox-row">
-          <input
-            id="setting-allow-unsandboxed"
-            type="checkbox"
-            className="setting-checkbox"
-            checked={allowUnsandboxed}
-            disabled={isSavingUnsandboxed}
-            onChange={handleCheckboxChange}
+        <div className="setting-switch">
+          <SwitchControl
+            label="Run agents without a sandbox"
+            description="Allows the coding loop to run directly on the host machine when sbx is unavailable."
+            isSelected={allowUnsandboxed}
+            isDisabled={isSavingUnsandboxed === true}
+            onChange={handleUnsandboxedChange}
           />
-          <div className="setting-checkbox-text">
-            <label
-              htmlFor="setting-allow-unsandboxed"
-              className="setting-checkbox-title"
-            >
-              Run agents without a sandbox
-            </label>
-            <p className="text-muted text-footnote m-0">
-              Allows the coding loop to run directly on the host machine when{" "}
-              <code>sbx</code> is unavailable.
-            </p>
-          </div>
         </div>
-      </div>
-
-      {/* Help lives here and in the command palette, at every width (#258). */}
-      <div className="setting-item mt-4">
-        <span className="setting-label">Help</span>
-        <ul className="settings-help-links">
-          <li>
-            <a href="/docs" target="_blank" rel="noopener noreferrer">
-              Documentation
-            </a>
-          </li>
-          <li>
-            <a href="/reference" target="_blank" rel="noopener noreferrer">
-              API Reference
-            </a>
-          </li>
-        </ul>
       </div>
 
       {showConfirmModal && (
@@ -395,7 +384,7 @@ function ConnectionsTabContent({
   );
 
   return (
-    <div id="tab-trackers" className="settings-pane active">
+    <div className="settings-pane">
       <div className="connections-header">
         <div>
           <h3>{CONNECTIONS_COPY.registryTitle}</h3>
@@ -403,7 +392,6 @@ function ConnectionsTabContent({
         </div>
         <button
           type="button"
-          id="btn-settings-onboard-project"
           className="btn-primary btn-sm"
           onClick={onOnboardProject}
         >
@@ -491,20 +479,40 @@ function ConnectionsTabContent({
 /** Settings › Models (#277, #278): model connections, then the roles that use them. */
 function ModelsTabContent() {
   return (
-    <div id="tab-models" className="settings-pane active">
+    <div className="settings-pane">
       <ModelConnectionsPanel />
       <RolesPanel />
     </div>
   );
 }
 
+/** Settings › Help (#266): the documentation and the API reference, at every width. */
+function HelpTabContent() {
+  return (
+    <div className="settings-pane">
+      <h2>Help</h2>
+      <p className="text-muted">Guides for X-Factory and its API.</p>
+      <ul className="settings-help-links">
+        <li>
+          <a href="/docs" target="_blank" rel="noopener noreferrer">
+            Documentation
+          </a>
+        </li>
+        <li>
+          <a href="/reference" target="_blank" rel="noopener noreferrer">
+            API Reference
+          </a>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 function GitTabContent() {
   return (
-    <div id="tab-git" className="settings-pane active">
-      <h3>Git &amp; Worktree Isolation</h3>
-      <p className="text-muted">
-        Worktree storage and baseline pollution rules.
-      </p>
+    <div className="settings-pane">
+      <h2>Git</h2>
+      <p className="text-muted">Where run worktrees are stored.</p>
       <div className="setting-item mt-4">
         <label htmlFor="setting-worktree-path">Worktree Path</label>
         <input
@@ -527,10 +535,8 @@ export function SettingsView() {
   const saveSettingsMutation = useSaveSettings();
 
   // The open pane is the URL's `?tab=`, so a link can open one directly.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const activeTab = settingsTabFromParam(searchParams.get("tab"));
-  const setActiveTab = (tab: SettingsTab) =>
-    setSearchParams({ tab }, { replace: true });
   const {
     theme: currentTheme,
     appearance: currentAppearance,
@@ -553,55 +559,41 @@ export function SettingsView() {
     await saveSettingsMutation.mutateAsync({ allowUnsandboxed: enabled });
   };
 
+  const hasPushedPane = searchParams.has("tab");
+
   return (
     <section id="area-settings" className="area-view active">
-      <div className="settings-layout card">
-        {/* Settings Navigation Sidebar */}
-        <div className="settings-sidebar">
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "general" ? "active" : ""}`}
-            data-tab="general"
-            onClick={() => setActiveTab("general")}
-          >
-            General
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "trackers" ? "active" : ""}`}
-            data-tab="trackers"
-            onClick={() => setActiveTab("trackers")}
-          >
-            Connections
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "models" ? "active" : ""}`}
-            data-tab="models"
-            onClick={() => setActiveTab("models")}
-          >
-            Pi &amp; Models
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "git" ? "active" : ""}`}
-            data-tab="git"
-            onClick={() => setActiveTab("git")}
-          >
-            Git &amp; Worktrees
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "diagnostics" ? "active" : ""}`}
-            data-tab="diagnostics"
-            onClick={() => setActiveTab("diagnostics")}
-          >
-            Diagnostics
-          </button>
-        </div>
+      <div className="settings-layout" data-pushed={String(hasPushedPane)}>
+        <nav aria-label="Settings categories" className="settings-categories">
+          <ul className="settings-category-list">
+            {SETTINGS_CATEGORIES.map((category) => {
+              const isCurrent = activeTab === category.id;
+              return (
+                <li key={category.id}>
+                  <Link
+                    to={`/settings?tab=${category.id}`}
+                    className="settings-category"
+                    aria-current={isCurrent ? "page" : undefined}
+                  >
+                    <svg className="icon icon-md" aria-hidden="true">
+                      <use href={`/assets/icons/sprite.svg#${category.icon}`} />
+                    </svg>
+                    <span>{category.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-        {/* Settings Content Area */}
-        <div className="settings-content">
+        <div className="settings-detail">
+          <Link to="/settings" className="settings-back">
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-arrow-left" />
+            </svg>
+            <span>Settings</span>
+          </Link>
+
           {activeTab === "general" && (
             <GeneralTabContent
               currentTheme={currentTheme}
@@ -627,8 +619,8 @@ export function SettingsView() {
           {activeTab === "git" && <GitTabContent />}
 
           {activeTab === "diagnostics" && (
-            <div id="tab-diagnostics" className="settings-pane active">
-              <h3>System &amp; Worker Diagnostics</h3>
+            <div className="settings-pane">
+              <h2>Diagnostics</h2>
               <p className="text-muted">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.
@@ -640,6 +632,8 @@ export function SettingsView() {
               />
             </div>
           )}
+
+          {activeTab === "help" && <HelpTabContent />}
         </div>
       </div>
     </section>
