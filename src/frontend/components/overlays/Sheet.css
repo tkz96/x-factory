@@ -12,16 +12,21 @@
   outline: none;
 }
 
-/* The assistant sheet: undocked, centred by its overlay, and exactly as tall
-   as the step it shows — a short step never leaves empty space behind it
-   (#268, "the sheet fits its content"). */
+/* The assistant sheet: undocked, centred by its overlay, and as tall as the
+   step it shows — a short step never leaves empty space behind it, and a tall
+   one scrolls its own body rather than running past the window (#268, "the
+   sheet fits its content"). The overlay's gutter is its own padding, so the cap
+   is the window minus that gutter, and never more than a modal may be. */
 .xf-sheet-center {
   position: relative;
   inset: auto;
   width: 100%;
   max-width: var(--content-max-md);
-  max-height: 100%;
   height: auto;
+  /* The overlay centres the wrapper, and the wrapper is as wide as the window:
+     the sheet centres itself inside it. */
+  margin-inline: auto;
+  max-height: min(calc(100dvh - 2 * var(--space-4)), var(--modal-max-height));
   border-radius: var(--radius-card);
   animation: xfSheetAppear var(--duration-fast) var(--spring);
 }
