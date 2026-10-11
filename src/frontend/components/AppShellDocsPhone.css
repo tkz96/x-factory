@@ -1,0 +1,50 @@
+/* ── Docs at phone width (#244) ──────────────────────────────────────────
+   Loaded after AppShell.css so these rules refine its 768px block. */
+
+@media (max-width: 768px) {
+  /* Reserve the full tab bar height (bar + safe area) under the content. */
+  .main-content {
+    padding-bottom: calc(
+      54px +
+      env(safe-area-inset-bottom, 0px) +
+      var(--space-4)
+    );
+  }
+
+  /* Docs navigation: a sheet above the article, clear of the tab bar. */
+  aside.sidebar.docs-nav-open {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    height: auto;
+    z-index: 999;
+    overflow-y: auto;
+  }
+
+  .docs-nav-close {
+    margin: var(--space-3) var(--space-4) 0;
+    align-self: flex-start;
+  }
+
+  /* Breadcrumb wraps instead of truncating into nonsense. */
+  .docs-header-crumb-trail {
+    flex-wrap: wrap;
+    font-size: var(--text-headline);
+    gap: 0.25rem 0.4rem;
+  }
+
+  .docs-header-crumb-current {
+    white-space: normal;
+    max-width: none;
+    overflow: visible;
+  }
+
+  .toolbar {
+    padding: 0.75rem 1rem;
+    gap: var(--space-3);
+  }
+}
