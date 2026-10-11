@@ -30,7 +30,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 0.95rem;
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
   gap: 0.75rem;
   flex-wrap: wrap;
@@ -234,7 +234,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -273,7 +273,7 @@
 /* ── Fallback Container (SSR or Missing Definition) ─────────────────── */
 .flow-fallback-card {
   padding: var(--space-4);
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   margin: var(--space-3) 0;

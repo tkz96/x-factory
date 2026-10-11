@@ -30,7 +30,7 @@
 }
 
 .wizard-form-label .required {
-  color: var(--color-danger, #ff3b30);
+  color: var(--red);
   margin-left: 0.25rem;
 }
 
@@ -44,6 +44,6 @@
 .wizard-form-error {
   display: block;
   font-size: 0.75rem;
-  color: var(--color-danger, #ff3b30);
+  color: var(--red);
   margin-top: 0.25rem;
 }

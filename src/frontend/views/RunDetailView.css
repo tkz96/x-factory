@@ -234,8 +234,8 @@
   margin-top: 1rem;
   padding: 0.8rem 1rem;
   border-radius: var(--radius-sm);
-  background: var(--bg-danger-subtle);
-  border: 1px solid var(--danger);
+  background: var(--red-dim);
+  border: 1px solid var(--red);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -244,7 +244,7 @@
 }
 
 .btn-danger-text {
-  color: var(--danger);
+  color: var(--red);
 }
 
 .status-dot-sm {

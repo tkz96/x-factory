@@ -70,7 +70,7 @@
   margin: 1rem 0;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg-terminal);
+  background: var(--bg-code);
   overflow: hidden;
 }
 

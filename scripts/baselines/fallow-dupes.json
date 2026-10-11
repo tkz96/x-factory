@@ -2,7 +2,6 @@
   "kind": "dupes",
   "clone_groups": [
     "public/styles.css:269-512|src/frontend/components/AppShell.css:3-246",
-    "public/styles.css:3-154|src/frontend/styles/tokens.css:3-154",
     "public/styles.css:1580-1744|src/frontend/components/projects/ProjectCard.css:3-165",
     "public/styles.css:1356-1496|src/frontend/components/queue/TicketCard.css:3-141",
     "public/styles.css:1033-1158|src/frontend/views/RunDetailView.css:110-233",
@@ -39,7 +38,6 @@
   ],
   "clone_fingerprints": [
     "dup:c00bd129:2",
-    "dup:17873ff2:2",
     "dup:ed0b68b8:2",
     "dup:8dadb91b:2",
     "dup:5a042b69:2",
@@ -76,7 +74,6 @@
   ],
   "normalized_clone_fingerprints": [
     "dup:6e8bbe47:2",
-    "dup:faa157af:2",
     "dup:4563f9f6:2",
     "dup:8567acf8:2",
     "dup:091a22d5:2",
