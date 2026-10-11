@@ -9,6 +9,8 @@ import {
 } from "react";
 
 export interface NewRunPrefill {
+  /** The project the run starts in; defaults to the scoped project (#260). */
+  projectId?: string;
   ticketId?: string;
   ticketTitle?: string;
   criteria?: string[];

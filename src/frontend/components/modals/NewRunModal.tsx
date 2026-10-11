@@ -19,6 +19,9 @@ function needsModelSetup(error: unknown): boolean {
 export function NewRunModal() {
   const { isNewRunOpen, closeNewRunModal, newRunPrefill } = useModal();
   const { selectedProjectId } = useCurrentProject();
+  // A ticket's own project wins over the shared scope (#260): in All Projects
+  // mode the card that opened the modal names the project it belongs to.
+  const targetProjectId = newRunPrefill?.projectId || selectedProjectId;
   const navigate = useNavigate();
   const createRunMutation = useCreateRun();
 
@@ -60,7 +63,7 @@ export function NewRunModal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId) {
+    if (!targetProjectId) {
       setError("Please select a target project before starting a run.");
       return;
     }
@@ -78,7 +81,7 @@ export function NewRunModal() {
 
     try {
       const run = await createRunMutation.mutateAsync({
-        projectId: selectedProjectId,
+        projectId: targetProjectId,
         ticketId: ticketId.trim(),
         ticketTitle: ticketTitle.trim(),
         branch: branch.trim() || undefined,

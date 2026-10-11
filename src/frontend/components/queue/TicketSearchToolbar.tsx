@@ -25,6 +25,7 @@ export function TicketSearchToolbar({
           type="text"
           id="queue-search"
           data-search-input
+          aria-label="Filter tickets"
           placeholder="Filter tickets (label: agentic-workflow)…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
