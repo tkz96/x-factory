@@ -6,6 +6,7 @@ import { createRepositories } from "../src/composition-root.js";
 import { EventRepository } from "../src/db/event-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
+import { appEventHubFor } from "../src/http/app-event-hub.js";
 import { handleApi } from "../src/http/routes.js";
 import { defaultSSERegistry } from "../src/http/sse-registry.js";
 import type {
@@ -533,6 +534,59 @@ describe("App-wide event stream and consistent snapshot (#257)", () => {
     // e2 is replayed with the exact same ID!
     expect(text).toContain(`id: ${e2.id}\n`);
     expect(text).not.toContain(`id: ${e1.id}\n`);
+  });
+
+  it("does not accept an undocumented cursor query alias", async () => {
+    const { repos } = setupTestDb();
+    const req = new Request("http://localhost:3777/api/events?cursor=0");
+    const res = await handleApi(req, new URL(req.url), { repos });
+    expect(res.status).toBe(400);
+  });
+
+  it("serves connections from one shared poller and stops it with the last one", async () => {
+    const { repos, createTestRun } = setupTestDb();
+    createTestRun("run-1", "executing");
+    const hub = appEventHubFor(repos);
+
+    const open = async () => {
+      const req = new Request(
+        "http://localhost:3777/api/events?last_event_id=0",
+      );
+      const res = await handleApi(req, new URL(req.url), { repos });
+      return res.body?.getReader();
+    };
+    const a = await open();
+    const b = await open();
+    expect(hub.subscriberCount).toBe(2);
+    expect(hub.isPolling).toBe(true);
+
+    await a?.cancel();
+    expect(hub.isPolling).toBe(true);
+    await b?.cancel();
+    expect(hub.subscriberCount).toBe(0);
+    expect(hub.isPolling).toBe(false);
+  });
+
+  it("replays every event above a stale cursor in order across pages", async () => {
+    const { repos, eventRepo, createTestRun } = setupTestDb();
+    createTestRun("run-1", "executing");
+    const total = 1203;
+    for (let i = 0; i < total; i++) {
+      eventRepo.appendEvent("run-1", "status", {
+        status: "executing",
+        text: String(i),
+      });
+    }
+    const req = new Request("http://localhost:3777/api/events?last_event_id=0");
+    const res = await handleApi(req, new URL(req.url), { repos });
+    const reader = res.body?.getReader();
+    const text = await readSseText(reader, total, 5000);
+    await reader?.cancel();
+
+    const ids = [...text.matchAll(/^id: (\d+)$/gm)].map((m) => Number(m[1]));
+    expect(ids.length).toBe(total);
+    expect(ids).toEqual([...ids].sort((x, y) => x - y));
+    expect(new Set(ids).size).toBe(total);
   });
 
   it("handles SSE stream registry closeAll and reader cancel gracefully", async () => {

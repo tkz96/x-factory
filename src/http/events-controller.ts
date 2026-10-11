@@ -3,6 +3,7 @@
 import type { Repositories } from "../composition-root.js";
 import * as runs from "../runs.js";
 import type { AppEventEnvelope, EventsSnapshot } from "../shared/types.js";
+import { APP_EVENTS_KEEPALIVE_MS, appEventHubFor } from "./app-event-hub.js";
 import { errorResponse, jsonResponse } from "./responses.js";
 import { defaultSSERegistry } from "./sse-registry.js";
 
@@ -13,7 +14,7 @@ export function formatAppEventSSE(envelope: AppEventEnvelope): string {
 
 /**
  * Parses and reconciles effective event cursor per the spec recovery contract (#241, #257):
- * - query cursor (last_event_id or cursor), else Last-Event-ID header;
+ * - query cursor (last_event_id), else Last-Event-ID header;
  * - lower wins when both valid;
  * - invalid cursors (non-numeric, negative, floating) count as absent;
  * - no valid cursor → returns error telling client to snapshot.
@@ -39,9 +40,9 @@ export function parseEffectiveCursor(
     return Number.isSafeInteger(num) && num >= 0 ? num : null;
   };
 
-  const queryVal =
-    url.searchParams.get("last_event_id") ?? url.searchParams.get("cursor");
-  const queryCursor = parseNonNegativeInteger(queryVal);
+  const queryCursor = parseNonNegativeInteger(
+    url.searchParams.get("last_event_id"),
+  );
 
   const headerVal = req.headers.get("last-event-id");
   const headerCursor = parseNonNegativeInteger(headerVal);
@@ -87,97 +88,66 @@ export function handleAppEvents(
     return errorResponse(cursorResult.error, 400);
   }
 
-  let lastSequence = cursorResult.cursor;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const hub = appEventHubFor(repos);
   let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   let isClosed = false;
+  let unsubscribe: (() => void) | null = null;
   let unregisterRegistry: (() => void) | null = null;
+  let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
 
-  const stream = new ReadableStream({
+  /** Stops timers and subscriptions once; optionally closes the stream. */
+  const shutdown = (closeStream: boolean) => {
+    if (isClosed) return;
+    isClosed = true;
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
+    keepaliveTimer = null;
+    unsubscribe?.();
+    unsubscribe = null;
+    unregisterRegistry?.();
+    unregisterRegistry = null;
+    if (!closeStream) return;
+    try {
+      controllerRef?.close();
+    } catch {
+      // already closed by the client
+    }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      controllerRef = controller;
       const encoder = new TextEncoder();
+      const send = (text: string) => controller.enqueue(encoder.encode(text));
 
-      const cleanup = () => {
-        if (isClosed) return;
-        isClosed = true;
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-        }
-        if (keepaliveTimer) {
-          clearInterval(keepaliveTimer);
-          keepaliveTimer = null;
-        }
-        if (unregisterRegistry) {
-          unregisterRegistry();
-          unregisterRegistry = null;
-        }
-      };
+      unregisterRegistry = defaultSSERegistry.register(() => shutdown(true));
 
-      unregisterRegistry = defaultSSERegistry.register(() => {
-        cleanup();
-        try {
-          controller.close();
-        } catch {
-          // ignore already closed
-        }
+      // Replays every event above the cursor in pages, then joins the shared poll.
+      const unsub = hub.subscribe(cursorResult.cursor, {
+        onEvents: (events) => {
+          for (const event of events) send(formatAppEventSSE(event));
+        },
+        onError: (error) => {
+          console.error("[X-Factory] App event stream closed on error", error);
+          shutdown(true);
+        },
       });
-
-      const pollEvents = () => {
-        if (isClosed) return;
-        try {
-          const events = runs.getAppEvents(repos, lastSequence);
-          for (const event of events) {
-            controller.enqueue(encoder.encode(formatAppEventSSE(event)));
-            lastSequence = event.id;
-          }
-        } catch {
-          cleanup();
-          try {
-            controller.close();
-          } catch {
-            // ignore
-          }
-        }
-      };
-
-      // Initial catch-up replay of events above the cursor
-      pollEvents();
-
-      if (!isClosed) {
-        // Poll SQLite every 300ms
-        pollTimer = setInterval(pollEvents, 300);
-
-        // Keepalive every 15s
-        keepaliveTimer = setInterval(() => {
-          if (isClosed) return;
-          try {
-            controller.enqueue(encoder.encode(": keep-alive\n\n"));
-          } catch {
-            cleanup();
-            try {
-              controller.close();
-            } catch {
-              // ignore
-            }
-          }
-        }, 15000);
+      if (isClosed) {
+        unsub();
+        return;
       }
+      unsubscribe = unsub;
+
+      keepaliveTimer = setInterval(() => {
+        try {
+          send(": keep-alive\n\n");
+        } catch (error) {
+          console.error("[X-Factory] App event keep-alive failed", error);
+          shutdown(true);
+        }
+      }, APP_EVENTS_KEEPALIVE_MS);
     },
     cancel() {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-      if (keepaliveTimer) {
-        clearInterval(keepaliveTimer);
-        keepaliveTimer = null;
-      }
-      if (unregisterRegistry) {
-        unregisterRegistry();
-        unregisterRegistry = null;
-      }
-      isClosed = true;
+      shutdown(false);
     },
   });
 
