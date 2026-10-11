@@ -379,6 +379,28 @@ describe("Add Project assistant (#268)", () => {
     await flush();
   });
 
+  it("stays quiet while the user types after an error, and reports again on the next blur (#268)", async () => {
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    const urlField = getEl<HTMLInputElement>("onboard-repo-url");
+    const alerts = () => within(sheet()).queryAllByRole("alert");
+    await flush();
+
+    typeInput(urlField, "not a repository");
+    leaveInput(urlField);
+    expect(alerts()[0]?.textContent).toContain(REPOSITORY_STEP_COPY.urlInvalid);
+
+    // Typing is not a check point: the message clears and does NOT come back
+    // while the user is still writing.
+    typeInput(urlField, "still not a repository");
+    expect(alerts().map((alert) => alert.textContent)).toEqual([]);
+
+    // The next blur checks the field again — this is the state it is in now.
+    leaveInput(urlField);
+    expect(alerts()[0]?.textContent).toContain(REPOSITORY_STEP_COPY.urlInvalid);
+    await flush();
+  });
+
   it("reports every missing field on Continue and stays on the step", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));

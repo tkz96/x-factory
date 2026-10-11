@@ -191,6 +191,39 @@ function typeInput(input: HTMLElement, value: string) {
   });
 }
 
+/**
+ * Leaves a field the way the browser does. Not `fireEvent.blur`: happy-dom's
+ * synthetic blur leaves React's change bookkeeping for that node broken, so the
+ * next keystroke never reaches `onChange`.
+ */
+function leaveInput(input: HTMLElement) {
+  act(() => {
+    input.blur();
+  });
+}
+
+/**
+ * The scope control is the shared segmented control (#251), so its options are
+ * segments whose radio input carries the platform's checked/disabled state.
+ */
+function scopeSegment(value: "local" | "global"): HTMLInputElement {
+  const segment = document.querySelector(`[data-segment-value="${value}"]`);
+  const input = segment?.querySelector("input");
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error(`Scope segment ${value} not found`);
+  }
+  return input;
+}
+
+/** The visible text of a scope segment, radio input and hidden label aside. */
+function scopeSegmentText(value: "local" | "global"): string {
+  return (
+    document
+      .querySelector(`[data-segment-value="${value}"]`)
+      ?.textContent?.trim() ?? ""
+  );
+}
+
 function inspectionResponse(
   path: string,
   identity?: { name: string; email: string },
@@ -511,8 +544,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       expect(emailInput).not.toBeNull();
 
       // Clearly indicates directory/scope and provides scope options
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
       expect(localRadio).not.toBeNull();
       expect(globalRadio).not.toBeNull();
       expect(localRadio.checked).toBe(true);
@@ -641,8 +674,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
 
       const nameInput = getEl<HTMLInputElement>("git-identity-name-input");
       const emailInput = getEl<HTMLInputElement>("git-identity-email-input");
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
       const configureBtn = getEl<HTMLButtonElement>(
         "btn-configure-git-identity",
       );
@@ -877,14 +910,14 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       openInspectionStep();
       await flush();
 
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
 
       expect(globalRadio.checked).toBe(true);
       expect(localRadio.checked).toBe(false);
       expect(localRadio.disabled).toBe(true);
 
-      expect(localRadio.parentElement?.textContent).toContain(
+      expect(scopeSegmentText("local")).toContain(
         INSPECTION_COPY.scopeWorkspaceOption(WORKSPACE),
       );
 
@@ -912,8 +945,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       });
       await flush();
 
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
 
       expect(globalRadio.checked).toBe(true);
       expect(localRadio.checked).toBe(false);
@@ -1191,7 +1224,7 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       expect(errorBanner?.textContent).not.toContain("git config --local");
     });
 
-    it("validates fields inline: rejects control characters in name and invalid email format", async () => {
+    it("reports a problem when a field is left, and on Configure, never while typing (#268)", async () => {
       inspectRepository = mock(async () => ({
         path: WORKSPACE,
         exists: true,
@@ -1216,7 +1249,13 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       await typeInput(nameInput, "Ada Lovelace");
       await typeInput(emailInput, "invalid-email");
 
+      // The button already refuses the form, but nothing interrupts the typing:
+      // a half-written address is not an error yet.
       expect(configureBtn.disabled).toBe(true);
+      expect(document.getElementById("git-identity-email-error")).toBeNull();
+
+      // Leaving the field is a check point: now the address is reported.
+      leaveInput(emailInput);
       const emailError = getEl("git-identity-email-error");
       expect(emailError.textContent).toContain(
         INSPECTION_COPY.emailInvalidError,
@@ -1226,9 +1265,44 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       await typeInput(emailInput, "ada@example.com");
       await typeInput(nameInput, "Ada\x07Lovelace");
 
+      // Fixing the address cleared its problem; the name's arrives on leaving it.
+      expect(document.getElementById("git-identity-email-error")).toBeNull();
+      expect(document.getElementById("git-identity-name-error")).toBeNull();
       expect(configureBtn.disabled).toBe(true);
+
+      leaveInput(nameInput);
       const nameError = getEl("git-identity-name-error");
       expect(nameError.textContent).toContain(INSPECTION_COPY.nameInvalidError);
+    });
+
+    it("reports every problem on Configure, without waiting for a blur", async () => {
+      inspectRepository = mock(async () => ({
+        path: WORKSPACE,
+        exists: true,
+        isGitRepo: true,
+        isRepositoryRoot: true,
+        detectedCommands: {},
+        detectedTooling: [],
+        readiness: { status: "ready", message: "ready" },
+      }));
+      api.inspectRepository = inspectRepository as never;
+
+      openInspectionStep();
+      await flush();
+
+      const form = document.querySelector(".git-identity-form");
+      if (!(form instanceof HTMLFormElement)) throw new Error("form missing");
+      await act(async () => {
+        fireEvent.submit(form);
+      });
+
+      // Configure is the other check point: both fields report at once.
+      expect(getEl("git-identity-name-error").textContent).toContain(
+        INSPECTION_COPY.nameRequiredError,
+      );
+      expect(getEl("git-identity-email-error").textContent).toContain(
+        INSPECTION_COPY.emailRequiredError,
+      );
     });
   });
 
