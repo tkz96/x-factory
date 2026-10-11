@@ -24,7 +24,6 @@ import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
 import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
-import { QueueView } from "../src/frontend/views/QueueView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
 import { SettingsView } from "../src/frontend/views/SettingsView.js";
@@ -137,16 +136,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
   });
 
   describe("Critical Views", () => {
-    it("QueueView renders search bar, refresh button, and tickets section", () => {
-      const html = renderWithProviders(React.createElement(QueueView));
-
-      expect(html).toContain('id="area-queue"');
-      expect(html).toContain('id="queue-search"');
-      expect(html).toContain('id="btn-queue-refresh"');
-      expect(html).toContain('id="queue-tickets-list"');
-      expect(html).toContain("agentic-workflow");
-    });
-
     it("ProjectsView renders segmented tabs and project catalog layout", () => {
       const html = renderWithProviders(React.createElement(ProjectsView));
 

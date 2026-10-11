@@ -15,3 +15,17 @@
 .tickets-grid .feedback-banner {
   grid-column: 1 / -1;
 }
+
+/* All Projects: one group per project, each with its own heading and states (#260). */
+.ticket-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.ticket-group-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-headline);
+  font-weight: 600;
+  color: var(--text-main);
+}
