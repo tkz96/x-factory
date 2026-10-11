@@ -33,3 +33,25 @@ export function formatTimestamp(iso: string, timeZone?: string): string {
     parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * The app's one relative clock (#261, #264): "Just now", "2 min ago" or "3 h ago" for
+ * the last day, and the exact `formatTimestamp` form once it is older. Callers put the
+ * exact time in a hover title, so the relative label never hides the precise one.
+ */
+export function formatRelativeTime(
+  iso: string,
+  now: number = Date.now(),
+): string {
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return iso;
+  const elapsed = Math.max(0, now - time);
+  if (elapsed < MINUTE_MS) return "Just now";
+  if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)} min ago`;
+  if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)} h ago`;
+  return formatTimestamp(iso);
+}

@@ -427,11 +427,7 @@ export function DocsSidebarNav({
       </nav>
 
       <div className="sidebar-footer">
-        <NavLink
-          to="/tickets"
-          className="docs-back-link"
-          title="Return to the workbench"
-        >
+        <NavLink to="/tickets" className="docs-back-link" title="Go to Tickets">
           <svg className="icon icon-sm" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-arrow-left" />
           </svg>

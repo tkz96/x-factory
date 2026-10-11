@@ -89,7 +89,7 @@ describe("RunChat wording", () => {
     );
     const text = container.textContent ?? "";
     expect(text).not.toContain("Ralph");
-    expect(text).toContain("Writing the code");
+    expect(text).toContain("Writing code");
   });
 
   it("says the run stopped without naming who stopped it", () => {

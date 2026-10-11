@@ -22,6 +22,8 @@ export interface SegmentedControlOption {
   /** An explicit accessible name when the visible label is not enough. */
   accessibleLabel?: string | undefined;
   isDisabled?: boolean | undefined;
+  /** A count shown after the label, read as part of the segment's name (#259). */
+  count?: number | undefined;
 }
 
 export interface SegmentedControlProps {
@@ -70,6 +72,9 @@ export function SegmentedControl({
             </svg>
           )}
           <span>{option.label}</span>
+          {option.count !== undefined && (
+            <span className="ui-segment-count">{option.count}</span>
+          )}
         </AriaRadio>
       ))}
     </AriaRadioGroup>

@@ -12,6 +12,7 @@ import {
 import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
+import { NotificationProvider } from "../context/NotificationContext.js";
 import {
   ProjectProvider,
   useCurrentProject,
@@ -19,11 +20,13 @@ import {
 import {
   useReadiness,
   useRun,
+  useRuns,
   useSaveSettings,
   useSettings,
   useStopRun,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import { countRunsByFilter } from "../lib/runs-list.js";
 import {
   formatShortcut,
   getShortcut,
@@ -32,6 +35,8 @@ import {
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
+import { NotificationActivity } from "./notifications/NotificationActivity.js";
+import { NotificationBell } from "./notifications/NotificationBell.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
@@ -263,6 +268,8 @@ interface AppShellHeaderProps {
     | undefined;
   section: SectionId | "";
   onSelectSection: (id: string) => void;
+  /** Runs in a Needs-you status: the Runs segment's count (#259). */
+  needsYouCount: number;
   onToggleTheme: () => void;
   readyLabel: string;
   activeRunId: string | undefined;
@@ -288,6 +295,7 @@ function AppShellHeader({
   docBreadcrumb,
   section,
   onSelectSection,
+  needsYouCount,
   onToggleTheme,
   readyLabel,
   activeRunId,
@@ -364,6 +372,8 @@ function AppShellHeader({
             ))}
           </select>
         )}
+
+        {!isDocs && <NotificationActivity />}
       </div>
 
       {!isDocs && (
@@ -371,7 +381,12 @@ function AppShellHeader({
           label={SECTIONS_LABEL}
           value={section}
           onChange={onSelectSection}
-          options={SECTIONS.map((s) => ({ id: s.id, label: s.label }))}
+          options={SECTIONS.map((s) => ({
+            id: s.id,
+            label: s.label,
+            count:
+              s.id === "runs" && needsYouCount > 0 ? needsYouCount : undefined,
+          }))}
           className="toolbar-sections desktop-only"
         />
       )}
@@ -399,6 +414,7 @@ function AppShellHeader({
             onAddProject={onAddProject}
           />
         )}
+        {!isDocs && <NotificationBell />}
         <button
           type="button"
           id="btn-search"
@@ -445,7 +461,7 @@ function AppShellHeader({
   );
 }
 
-function AppShellMobileTabBar() {
+function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
   return (
     <nav
       id="mobile-tab-bar"
@@ -462,6 +478,9 @@ function AppShellMobileTabBar() {
             <use href={`/assets/icons/sprite.svg#${section.icon}`} />
           </svg>
           <span>{section.label}</span>
+          {section.id === "runs" && needsYouCount > 0 && (
+            <span className="tab-count">{needsYouCount}</span>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -498,6 +517,15 @@ function AppShellContent() {
     saveSettings.mutate({ appearance: toggleTheme() });
   };
   const stopRunMutation = useStopRun();
+  // The app-wide stream (#257) keeps the runs cache live on every screen, so the
+  // Runs badge and the tab title follow a run from any section (#259). It is
+  // opened once, by the NotificationProvider that wraps this shell (#264).
+  const { data: runsList } = useRuns();
+  const needsYouCount = countRunsByFilter(runsList ?? [])["needs-you"];
+  useEffect(() => {
+    document.title =
+      needsYouCount > 0 ? `(${needsYouCount}) X-Factory` : "X-Factory";
+  }, [needsYouCount]);
 
   const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
   const runId = runIdMatch ? runIdMatch[1] : undefined;
@@ -606,6 +634,7 @@ function AppShellContent() {
           docBreadcrumb={docBreadcrumb}
           section={section}
           onSelectSection={(id) => navigate(`/${id}`)}
+          needsYouCount={needsYouCount}
           onToggleTheme={handleToggleTheme}
           readyLabel={readyLabel}
           activeRunId={activeRunId}
@@ -637,7 +666,7 @@ function AppShellContent() {
         </div>
       </main>
 
-      <AppShellMobileTabBar />
+      <AppShellMobileTabBar needsYouCount={needsYouCount} />
       <ModalContainer />
       <CommandPalette
         isOpen={paletteOpen}
@@ -658,7 +687,9 @@ export function AppShell() {
   return (
     <ProjectProvider>
       <ModalProvider>
-        <AppShellContent />
+        <NotificationProvider>
+          <AppShellContent />
+        </NotificationProvider>
       </ModalProvider>
     </ProjectProvider>
   );

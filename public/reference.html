@@ -3,157 +3,219 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="X-Factory Interactive API Reference — Powered by Scalar">
+  <meta name="description" content="X-Factory API Reference, bundled with X-Factory and served offline">
   <title>API Reference — X-Factory</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="/styles.css">
+  <!-- The app's own tokens (src/frontend/styles/tokens.css, linked here as a
+       symlink), so this page follows the app's theme, appearance and contrast. -->
+  <link rel="stylesheet" href="/assets/tokens.css">
   <script>
+    // Mirrors index.html: the same storage keys and attributes, applied before
+    // first paint so the page never flashes the wrong appearance (spec #241).
     (() => {
       let a = "automatic";
+      let t = "default";
       try {
         a = localStorage.getItem("xf_appearance") || "automatic";
+        const s = localStorage.getItem("xf_theme_choice");
+        if (s === "graphite" || s === "sandstone") t = s;
       } catch {
-        // Storage unavailable: follow the system appearance.
+        // Storage unavailable: the system appearance and the default theme.
       }
-      const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const theme = a === "light" ? "light" : (a === "dark" ? "dark" : (dark ? "dark" : "light"));
-      const more = window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches;
-      document.documentElement.setAttribute("data-theme", "default");
-      document.documentElement.setAttribute("data-appearance", theme);
-      document.documentElement.setAttribute("data-contrast", more ? "more" : "standard");
-      if (theme === "dark") {
-        document.documentElement.classList.add("dark-mode");
-      } else {
-        document.documentElement.classList.add("light-mode");
-      }
+      const mm = (q) => !!window.matchMedia?.(q).matches;
+      const resolved = a === "light" ? "light" : a === "dark" ? "dark" : mm("(prefers-color-scheme: dark)") ? "dark" : "light";
+      const root = document.documentElement;
+      root.setAttribute("data-theme", t);
+      root.setAttribute("data-appearance", resolved);
+      root.setAttribute("data-contrast", mm("(prefers-contrast: more)") ? "more" : "standard");
+      root.classList.add(resolved === "dark" ? "dark-mode" : "light-mode");
     })();
   </script>
   <style>
     /* Scalar ships its own fonts from fonts.scalar.com. This page turns those
-       off (withDefaultFonts: false) and hands the viewer the fonts X-Factory
-       already serves, so no third-party host is asked for anything. */
+       off (withDefaultFonts: false) and uses the fonts X-Factory already
+       serves, so no third-party host is asked for anything. */
     :root {
       --scalar-font: var(--font-sans);
       --scalar-font-code: var(--font-mono);
     }
-    body {
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+
+    /* Scalar's colours follow the app's tokens. The attribute selector outranks
+       Scalar's own .light-mode / .dark-mode classes, so the app's theme wins. */
+    html[data-appearance] {
+      --scalar-background-1: var(--bg);
+      --scalar-background-2: var(--bg-card);
+      --scalar-background-3: var(--bg-card-hover);
+      --scalar-sidebar-background-1: var(--bg-sidebar);
+      --scalar-color-1: var(--text);
+      --scalar-color-2: var(--text-muted);
+      --scalar-color-3: var(--text-dim);
+      --scalar-color-accent: var(--accent);
+      --scalar-border-color: var(--border);
+    }
+
+    html, body {
+      min-width: 0;
       background: var(--bg);
       color: var(--text);
     }
-    .scalar-navbar {
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      font-family: var(--font-sans);
+    }
+
+    .xf-navbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 56px;
-      padding: 0 1.5rem;
-      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      min-height: var(--header-height);
+      padding: var(--space-2) var(--space-4);
+      box-sizing: border-box;
+      border-bottom: var(--border-width) solid var(--border);
       background: var(--bg-glass);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
       position: sticky;
       top: 0;
       z-index: 1000;
     }
-    .nav-left, .nav-right {
+    .xf-nav-group {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      min-width: 0;
     }
-    .nav-btn {
+    .xf-nav-link {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: var(--space-1);
+      min-height: var(--tap-min);
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-sm);
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.88rem;
+      font-size: var(--text-footnote);
       font-weight: 500;
-      padding: 0.4rem 0.65rem;
-      border-radius: var(--radius-sm);
-      transition: all 0.15s ease;
     }
-    .nav-btn:hover {
+    .xf-nav-link:hover {
       color: var(--text);
       background: var(--bg-hover);
     }
-    .nav-divider {
-      color: var(--border);
+    .xf-nav-link:focus-visible,
+    .xf-theme-toggle:focus-visible {
+      outline: var(--border-width-indicator) solid var(--border-focus);
+      outline-offset: 2px;
     }
-    .badge-scalar {
-      background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(191, 90, 242, 0.15));
-      color: var(--accent);
-      border: 1px solid rgba(10, 132, 255, 0.3);
-      font-size: 0.72rem;
-      padding: 0.15rem 0.5rem;
+    .xf-title {
+      font-size: var(--text-subhead);
+      font-weight: 600;
+      color: var(--text);
+    }
+    .xf-theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
+      border: 0;
       border-radius: var(--radius-pill);
-      font-weight: 700;
-      letter-spacing: 0.04em;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
     }
+    .xf-theme-toggle:hover {
+      color: var(--text);
+      background: var(--bg-hover);
+    }
+    .xf-icon {
+      width: var(--icon-sm);
+      height: var(--icon-sm);
+      flex: none;
+    }
+    .xf-sun,
+    .xf-moon { display: none; }
+    html[data-appearance="light"] .xf-moon { display: inline-flex; }
+    html[data-appearance="dark"] .xf-sun { display: inline-flex; }
+
     #scalar-target {
       flex: 1;
       width: 100%;
-      min-height: calc(100vh - 56px);
+      min-width: 0;
+      min-height: calc(100vh - var(--header-height));
     }
     .offline-fallback {
       display: none;
-      max-width: 720px;
-      margin: 4rem auto;
-      padding: 2.5rem;
+      box-sizing: border-box;
+      max-width: var(--content-max-md);
+      margin: var(--space-12) auto;
+      padding: var(--space-8);
       background: var(--bg-card);
-      border: 1px solid var(--border);
+      border: var(--border-width) solid var(--border);
       border-radius: var(--radius-card);
       text-align: center;
     }
     .offline-fallback h2 {
       margin-top: 0;
-      font-size: 1.5rem;
+      font-size: var(--text-title-2);
     }
     .offline-fallback p {
       color: var(--text-muted);
       line-height: 1.6;
     }
     .offline-actions {
-      margin-top: 1.5rem;
+      margin-top: var(--space-6);
       display: flex;
+      flex-wrap: wrap;
       justify-content: center;
-      gap: 1rem;
+      gap: var(--space-4);
+    }
+    .offline-actions a {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--tap-min);
+      padding: 0 var(--space-4);
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: var(--text-on-accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    @media (max-width: 560px) {
+      /* At phone width the link labels drop out, so the bar holds two short
+         groups and never pushes the page sideways. */
+      .xf-nav-link-text { display: none; }
+      .xf-navbar { padding: var(--space-2); }
     }
   </style>
 </head>
 <body>
-  <header class="scalar-navbar">
-    <div class="nav-left">
-      <a href="/" class="nav-btn" title="Return to workbench">
-        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-arrow-left"></use></svg>
-        <span>Workbench</span>
+  <header class="xf-navbar">
+    <div class="xf-nav-group">
+      <a href="/" class="xf-nav-link" title="Back to X-Factory">
+        <svg class="xf-icon" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-arrow-left"></use></svg>
+        <span class="xf-nav-link-text">X-Factory</span>
       </a>
-      <a href="/docs" class="nav-btn" title="View documentation">
-        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-book-open"></use></svg>
-        <span>Docs</span>
+      <a href="/docs" class="xf-nav-link" title="Read the documentation">
+        <svg class="xf-icon" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-book-open"></use></svg>
+        <span class="xf-nav-link-text">Docs</span>
       </a>
-      <span class="nav-divider">|</span>
-      <div class="brand" style="display: flex; align-items: center; gap: 0.6rem;">
-        <span class="brand-title" style="font-weight: 700; font-size: 1.05rem;">X-Factory</span>
-        <span class="badge-scalar">SCALAR API REFERENCE</span>
-      </div>
+      <span class="xf-title">API Reference</span>
     </div>
 
-    <div class="nav-right">
-      <a href="/api/openapi.json" target="_blank" class="nav-btn" title="Open raw OpenAPI 3.1 specification">
-        <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-external-link"></use></svg>
-        <span>OpenAPI JSON</span>
+    <div class="xf-nav-group">
+      <a href="/api/openapi.json" target="_blank" rel="noopener" class="xf-nav-link" title="Open the raw OpenAPI 3.1 specification">
+        <svg class="xf-icon" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-external-link"></use></svg>
+        <span class="xf-nav-link-text">OpenAPI JSON</span>
       </a>
-      <button id="scalar-theme-toggle" type="button" class="theme-toggle" aria-label="Toggle Theme" title="Toggle dark/light mode">
-        <span class="theme-icon sun-icon">
-          <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-sun"></use></svg>
-        </span>
-        <span class="theme-icon moon-icon">
-          <svg class="icon icon-sm" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-moon"></use></svg>
-        </span>
+      <button id="scalar-theme-toggle" type="button" class="xf-theme-toggle" aria-label="Switch between light and dark appearance">
+        <span class="xf-sun"><svg class="xf-icon" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-sun"></use></svg></span>
+        <span class="xf-moon"><svg class="xf-icon" aria-hidden="true"><use href="/assets/icons/sprite.svg#icon-moon"></use></svg></span>
       </button>
     </div>
   </header>
@@ -172,38 +234,36 @@
         "withDefaultFonts": false,
         "metaData": {
           "title": "X-Factory API Reference",
-          "description": "Interactive OpenAPI 3.1 Reference for X-Factory developer workbench"
+          "description": "Interactive OpenAPI 3.1 Reference for X-Factory"
         }
       }'></script>
   </div>
 
   <div id="scalar-fallback" class="offline-fallback">
-    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📡</div>
-    <h2>Interactive Scalar Reference</h2>
+    <h2>The API Reference could not load</h2>
     <p>
-      The interactive Scalar reference library is served by X-Factory itself
+      The interactive reference is bundled with X-Factory
       (<code>@scalar/api-reference</code>, pinned in
       <code>public/assets/api-reference/provenance.json</code>). If this copy
-      could not be loaded, you can inspect the full raw OpenAPI 3.1
-      specification directly.
+      could not be loaded, the full OpenAPI 3.1 specification is still available.
     </p>
     <div class="offline-actions">
-      <a href="/api/openapi.json" class="btn btn-primary" target="_blank">View OpenAPI Specification (JSON)</a>
-      <a href="/docs" class="btn btn-secondary">Open Workbench Documentation</a>
+      <a href="/api/openapi.json" target="_blank" rel="noopener">View the OpenAPI specification (JSON)</a>
+      <a href="/docs">Open the documentation</a>
     </div>
   </div>
 
   <script src="/assets/api-reference/scalar-api-reference.min.js" onerror="document.getElementById('scalar-fallback').style.display='block';"></script>
 
   <script>
-    // Theme toggle handling
-    const themeBtn = document.getElementById("scalar-theme-toggle");
-    themeBtn?.addEventListener("click", () => {
-      const current = document.documentElement.getAttribute("data-appearance") || "dark";
-      const next = current === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-appearance", next);
-      document.documentElement.classList.toggle("dark-mode", next === "dark");
-      document.documentElement.classList.toggle("light-mode", next === "light");
+    // Appearance toggle: writes the same key the app's Settings writes, so the
+    // choice carries over to the rest of X-Factory.
+    const root = document.documentElement;
+    document.getElementById("scalar-theme-toggle")?.addEventListener("click", () => {
+      const next = root.getAttribute("data-appearance") === "dark" ? "light" : "dark";
+      root.setAttribute("data-appearance", next);
+      root.classList.toggle("dark-mode", next === "dark");
+      root.classList.toggle("light-mode", next === "light");
       try {
         localStorage.setItem("xf_appearance", next);
       } catch {

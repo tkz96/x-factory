@@ -1,13 +1,21 @@
+import { AnimatePresence } from "motion/react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import {
-  ACTIVE_RUN_STATUSES,
-  TERMINAL_RUN_STATUSES,
-} from "../../shared/run-status-policy.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useRuns } from "../hooks/useQueries.js";
 import { runStatusText } from "../lib/run-status-ui.js";
+import {
+  countRunsByFilter,
+  defaultRunsFilter,
+  filterRunsList,
+  formatRelativeTime,
+  parseRunsFilter,
+  RUNS_FILTERS,
+  type RunsFilterId,
+} from "../lib/runs-list.js";
+import { MotionList, MotionListItem } from "../motion/MotionList.js";
 import "./RunsView.css";
 import type { StageModelUse } from "../../shared/types.js";
 import { latestModelFor } from "../lib/run-models.js";
@@ -18,28 +26,63 @@ function builderModelLabel(stageModels?: readonly StageModelUse[]): string {
   return builder ? ` · ${builder.modelId}` : "";
 }
 
-type RunsFilter = "running" | "done";
+/** The filter the user chose last, kept per viewer (#259). */
+const LAST_FILTER_KEY = "runs-list-filter";
+
+function readLastChosenFilter(): RunsFilterId | null {
+  try {
+    return (
+      parseRunsFilter(window.localStorage.getItem(LAST_FILTER_KEY)) ?? null
+    );
+  } catch {
+    // Storage can be blocked: the default filter applies instead.
+    return null;
+  }
+}
+
+function rememberFilter(id: RunsFilterId): void {
+  try {
+    window.localStorage.setItem(LAST_FILTER_KEY, id);
+  } catch {
+    // Storage can be blocked: the choice simply is not remembered.
+  }
+}
+
+const EMPTY_COPY: Record<RunsFilterId, string> = {
+  "needs-you": "Nothing needs you right now.",
+  running: "No runs are working right now. Start one from Tickets.",
+  done: "No finished runs yet.",
+  all: "No runs yet. Start one from Tickets.",
+};
 
 /**
- * The Runs section (#258). `?filter=done` lists finished runs, which is where
- * History's contents now live; anything else lists the runs still working.
+ * The Runs section (#258, #259). One list with a Needs you / Running / Done /
+ * All filter. The URL's `?filter=` wins; without one, Needs you is chosen while
+ * a run waits for the user and otherwise the last choice is kept. Counts and
+ * rows come from the runs cache, which the app-wide stream patches live.
  */
 export function RunsView() {
   const runsQuery = useRuns();
   const runs = runsQuery.data ?? [];
   const { refetch } = runsQuery;
   const [params, setParams] = useSearchParams();
-  const filter: RunsFilter =
-    params.get("filter") === "done" ? "done" : "running";
+  const [lastChosen] = useState(readLastChosenFilter);
 
-  const shown = runs.filter((r) =>
-    filter === "done"
-      ? TERMINAL_RUN_STATUSES.has(r.status)
-      : ACTIVE_RUN_STATUSES.has(r.status),
-  );
+  const counts = countRunsByFilter(runs);
+  const filter: RunsFilterId =
+    parseRunsFilter(params.get("filter")) ??
+    defaultRunsFilter({ needsYouCount: counts["needs-you"], lastChosen });
+
+  const shown = filterRunsList(runs, filter);
   const derived = deriveAsyncState(runsQuery, {
     isEmpty: (query) => Array.isArray(query.data) && shown.length === 0,
   });
+
+  const choose = (id: string) => {
+    const next = parseRunsFilter(id) ?? "running";
+    rememberFilter(next);
+    setParams({ filter: next }, { replace: true });
+  };
 
   return (
     <section id="area-runs" className="area-view active">
@@ -47,28 +90,21 @@ export function RunsView() {
         <SegmentedControl
           label="Show"
           value={filter}
-          onChange={(id) =>
-            setParams(id === "done" ? { filter: "done" } : {}, {
-              replace: true,
-            })
-          }
-          options={[
-            { id: "running", label: "Running" },
-            { id: "done", label: "Done" },
-          ]}
+          onChange={choose}
+          options={RUNS_FILTERS.map((f) => ({
+            id: f.id,
+            label: f.label,
+            count: counts[f.id],
+          }))}
         />
       </div>
       <AsyncRegion
         derived={derived}
         onRetry={() => refetch()}
         placeholderRows={5}
-        emptyCopy={
-          filter === "done"
-            ? "No finished runs yet."
-            : "No runs are working right now. Start one from Tickets."
-        }
+        emptyCopy={EMPTY_COPY[filter]}
         emptyAction={
-          filter === "running" ? (
+          filter === "running" || filter === "all" ? (
             <Link to="/tickets" className="btn-secondary btn-sm">
               <svg className="icon icon-sm" aria-hidden="true">
                 <use href="/assets/icons/sprite.svg#icon-layers" />
@@ -78,31 +114,46 @@ export function RunsView() {
           ) : undefined
         }
       >
-        <div className="runs-grid" data-list>
-          {shown.map((r) => (
-            <Link
-              key={r.id}
-              to={`/runs/${r.id}`}
-              className="card run-card run-card-link"
-              data-list-row
-              aria-label={`Open run ${r.id}`}
-            >
-              <div className="run-card-header">
-                <div>
-                  <h3 className="run-card-title">
-                    #{r.ticket?.id || r.id} — {r.ticket?.title || "Task"}
-                  </h3>
-                  <span className="code-sub run-card-subtitle">
-                    {r.project?.name || r.project?.id || ""} · {r.branch}
-                    {builderModelLabel(r.stageModels)}
-                  </span>
-                </div>
-                <span className="badge" data-status={r.status}>
-                  {runStatusText(r.status)}
-                </span>
-              </div>
-            </Link>
-          ))}
+        <div data-list>
+          <MotionList className="runs-grid">
+            <AnimatePresence initial={false}>
+              {shown.map((r) => (
+                <MotionListItem key={r.id}>
+                  <Link
+                    to={`/runs/${r.id}`}
+                    className="card run-card run-card-link"
+                    data-list-row
+                  >
+                    <div className="run-card-header">
+                      <div>
+                        <span className="code-sub run-card-key">
+                          {r.ticket?.id || r.id}
+                        </span>
+                        <h3 className="run-card-title">
+                          {r.ticket?.title || "Task"}
+                        </h3>
+                        <span className="code-sub run-card-subtitle">
+                          {r.project?.name || r.project?.id || ""}
+                          {builderModelLabel(r.stageModels)}
+                        </span>
+                      </div>
+                      <div className="run-card-status">
+                        <span className="badge" data-status={r.status}>
+                          {runStatusText(r.status)}
+                        </span>
+                        <time
+                          className="run-card-time code-sub"
+                          dateTime={r.updatedAt}
+                        >
+                          {formatRelativeTime(r.updatedAt, Date.now())}
+                        </time>
+                      </div>
+                    </div>
+                  </Link>
+                </MotionListItem>
+              ))}
+            </AnimatePresence>
+          </MotionList>
         </div>
       </AsyncRegion>
     </section>
