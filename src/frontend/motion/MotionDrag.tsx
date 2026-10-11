@@ -28,6 +28,9 @@ export function MotionDrag({
   className,
   onDragEnd,
 }: MotionDragProps) {
+  // `exactOptionalPropertyTypes` rejects handing motion an explicit `undefined`,
+  // so the handler is only spread in when the caller gave one.
+  const dragEnd = onDragEnd ? { onDragEnd } : {};
   return (
     <m.div
       className={className}
@@ -36,7 +39,7 @@ export function MotionDrag({
       dragElastic={DRAG_RESISTANCE}
       dragMomentum={false}
       transition={SPRING_SNAPPY}
-      onDragEnd={onDragEnd}
+      {...dragEnd}
     >
       {children}
     </m.div>
