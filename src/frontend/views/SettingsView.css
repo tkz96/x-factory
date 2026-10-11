@@ -127,56 +127,6 @@
   margin-bottom: 0.35rem;
 }
 
-/* ── Theme Segmented Control ─────────────────────────────────────────── */
-
-.theme-segmented-control {
-  display: inline-flex;
-  max-width: 100%;
-  flex-wrap: wrap;
-  background: var(--bg-tertiary);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-micro);
-  gap: var(--space-micro);
-}
-
-.theme-segment-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  min-width: 0;
-  min-height: var(--tap-min);
-  font-size: var(--text-callout);
-  font-weight: 500;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--transition),
-    color var(--transition),
-    box-shadow var(--transition);
-}
-
-.theme-segment-btn:hover {
-  color: var(--text);
-  background: var(--bg-hover);
-}
-
-.theme-segment-btn.active {
-  background: var(--bg-card);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
-  font-weight: 600;
-}
-
-.theme-segment-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 var(--border-width-thick) var(--accent);
-}
-
 /* ── Diagnostics & Telemetry (new classes for migrated inline styles) ── */
 
 .diagnostics-grid {
@@ -371,32 +321,10 @@
   gap: var(--space-2);
 }
 
-/* ── Unsandboxed Execution Opt-In & Confirmation Modal (#275) ──────── */
+/* ── Unsandboxed Execution Opt-In & Confirmation Modal (#275, #266) ─── */
 
-.setting-checkbox-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+.setting-switch {
   margin-top: var(--space-2);
-}
-
-.setting-checkbox {
-  margin-top: var(--space-micro);
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-
-.setting-checkbox-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.setting-item .setting-checkbox-title {
-  cursor: pointer;
-  font-weight: 500;
-  color: var(--text);
-  margin-bottom: 0;
 }
 
 .unsandboxed-modal-content {

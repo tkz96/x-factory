@@ -24,6 +24,7 @@ import { DesktopNotificationsSetting } from "../components/settings/DesktopNotif
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
+import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -214,8 +215,9 @@ function GeneralTabContent({
 }: GeneralTabContentProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
+  // Turning the opt-in on asks first; turning it off saves at once (#266).
+  const handleUnsandboxedChange = (next: boolean) => {
+    if (next) {
       setShowConfirmModal(true);
     } else {
       void onUpdateUnsandboxed(false);
@@ -240,30 +242,25 @@ function GeneralTabContent({
 
       <div className="setting-item mt-4">
         <span className="setting-label">Theme</span>
-        <div className="theme-segmented-control">
-          {THEME_CHOICES.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              aria-pressed={currentTheme === choice.id}
-              className={`theme-segment-btn ${currentTheme === choice.id ? "active" : ""}`}
-              id={`btn-theme-${choice.id}`}
-              data-theme-val={choice.id}
-              aria-label={`${choice.label} Theme`}
-              onClick={() => onApplyTheme(choice.id)}
-            >
-              <span>{choice.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Theme and Appearance are the same control (#266): one segmented
+            block, so both render at one height, type size and icon gap. */}
+        <SegmentedControl
+          label="Theme"
+          value={currentTheme}
+          onChange={(id) => {
+            const choice = THEME_CHOICES.find((item) => item.id === id);
+            if (choice !== undefined) onApplyTheme(choice.id);
+          }}
+          options={THEME_CHOICES.map((choice) => ({
+            id: choice.id,
+            label: choice.label,
+            accessibleLabel: `${choice.label} Theme`,
+          }))}
+        />
       </div>
 
       <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
-        {/* The appearance choice is the segmented control block (#251): one
-            control, arrow keys between options, the choice announced as
-            checked. The Theme control above stays hand-rolled until its own
-            ticket moves it. */}
         <SegmentedControl
           label="Appearance"
           value={currentAppearance}
@@ -297,27 +294,14 @@ function GeneralTabContent({
 
       <div className="setting-item mt-4">
         <span className="setting-label">Security &amp; Sandboxing</span>
-        <div className="setting-checkbox-row">
-          <input
-            id="setting-allow-unsandboxed"
-            type="checkbox"
-            className="setting-checkbox"
-            checked={allowUnsandboxed}
-            disabled={isSavingUnsandboxed}
-            onChange={handleCheckboxChange}
+        <div className="setting-switch">
+          <SwitchControl
+            label="Run agents without a sandbox"
+            description="Allows the coding loop to run directly on the host machine when sbx is unavailable."
+            isSelected={allowUnsandboxed}
+            isDisabled={isSavingUnsandboxed === true}
+            onChange={handleUnsandboxedChange}
           />
-          <div className="setting-checkbox-text">
-            <label
-              htmlFor="setting-allow-unsandboxed"
-              className="setting-checkbox-title"
-            >
-              Run agents without a sandbox
-            </label>
-            <p className="text-muted text-footnote m-0">
-              Allows the coding loop to run directly on the host machine when{" "}
-              <code>sbx</code> is unavailable.
-            </p>
-          </div>
         </div>
       </div>
 

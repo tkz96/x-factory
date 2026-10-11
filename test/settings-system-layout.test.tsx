@@ -142,9 +142,9 @@ describe("Settings in the System Settings layout (#266)", () => {
     const { getByRole } = renderSettings();
 
     expect(getByRole("radiogroup", { name: "Appearance" })).toBeTruthy();
-    expect(getByRole("button", { name: "Default Theme" })).toBeTruthy();
-    expect(getByRole("button", { name: "Graphite Theme" })).toBeTruthy();
-    expect(getByRole("button", { name: "Sandstone Theme" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Default Theme" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Graphite Theme" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Sandstone Theme" })).toBeTruthy();
     expect(getByRole("switch", { name: "Desktop notifications" })).toBeTruthy();
   });
 

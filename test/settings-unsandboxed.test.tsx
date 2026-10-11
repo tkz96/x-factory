@@ -32,9 +32,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
-/** The opt-in checkbox, found the way a user finds it: by its name. */
+/** The opt-in switch, found the way a user finds it: by its name (#266). */
 function unsandboxedBox(container: HTMLElement): HTMLInputElement {
-  return within(container).getByRole("checkbox", {
+  return within(container).getByRole("switch", {
     name: "Run agents without a sandbox",
   }) as HTMLInputElement;
 }

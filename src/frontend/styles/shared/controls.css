@@ -333,9 +333,10 @@
   opacity: 0.4;
 }
 
+.ui-segmented .ui-segment,
 .ui-segment {
   display: inline-flex;
-  margin: 0; /* a segment is a <label>: the global label margins do not apply (#266) */
+  margin: 0; /* a segment is a <label>: the label margins do not apply (#266) */
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
@@ -396,6 +397,9 @@
   display: block;
 }
 
+/* A switch and a segment are <label>s. The class selectors are doubled so they
+   beat the legacy `.setting-item label` rule in public/styles.css (#266). */
+.ui-switch-group .ui-switch,
 .ui-switch {
   display: inline-flex;
   margin: 0;
