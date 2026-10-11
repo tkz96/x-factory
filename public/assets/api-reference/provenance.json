@@ -1,0 +1,10 @@
+{
+  "package": "@scalar/api-reference",
+  "version": "1.73.1",
+  "tarball": "https://registry.npmjs.org/@scalar/api-reference/-/api-reference-1.73.1.tgz",
+  "integrity": "sha512-YatOueurjdSAbE3K51L0NkyzdQEpksnjvzCpJTSMPaYd6VWpXMrycDfTBY0myuhszgxk+PcOehExyIXc20yXhw==",
+  "sourcePath": "package/dist/browser/standalone.js",
+  "upstreamSha256": "62c34a0dda38945864011ebaf6e7fa7812a332429120d18922b34d01c4f7ccc8",
+  "vendoredSha256": "82fed6ad4f870eb91f639c1f1b18a5fb444d28ce94d99ceaa152ecd26411255b",
+  "note": "Pinned by `bun run vendor:api-reference`. X-Factory serves scalar-api-reference.min.js from its own origin, so the API Reference works with no CDN (spec #241, ticket #247). The tarball's browser field is Scalar's self-contained standalone build: it inlines its chunks and its CSS. Its default web fonts are switched off in public/reference.html (withDefaultFonts: false), which is what keeps fonts.scalar.com off the wire."
+}

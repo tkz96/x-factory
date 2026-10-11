@@ -21,10 +21,21 @@ It prints one line per gate. If a gate fails, it also prints the last lines of t
 | Cycles | `bun run check:cycles` | No circular imports from the server, worker or frontend entry points |
 | Build | `bun run build` | Frontend and asset build into `dist/`. Runs before the test gates, as in CI |
 | Tests | `bun run test:coverage` | Full test suite with line and function coverage of at least 80% (`bunfig.toml`) |
-| Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, and no inline styles |
+| Frontend smoke | `bun run test:frontend-smoke` | App shell and views render, no inline styles, no reference to a third-party host in any page, stylesheet or frontend module, and no request to another host when a real browser loads every screen |
 | Integration | `bun run test:integration`, `bun run test:integration:production` | End-to-end runs in development and production mode |
 
 Fallow also reports a maintainability score. The target is 90 or higher. No gate enforces it yet, so check the score in the `check:fallow` output.
+
+## No third-party requests
+
+X-Factory never relies on a CDN. The frontend smoke gate enforces that in two ways:
+
+- `test/frontend-smoke.test.ts` scans `index.html`, `public/**` (HTML and CSS), `src/frontend/**` (TSX and TS) and a built `dist/public/**` for `src`, `srcset`, `poster`, `href` (except a plain navigation link on `<a>` or `<area>`), `@import`, `url()` and a `fetch`-style call that names another host. The rules live in `test/helpers/off-origin-scan.ts`.
+- `test/no-third-party-requests.test.ts` drives Chromium through every screen of the evidence matrix, and the API Reference, and fails on any request to a host other than the instance's own origin. This catches requests made from JavaScript, which no scan can see.
+
+The test launches the Chromium Playwright manages, and falls back to the system's Google Chrome when that download is absent (`bunx playwright-core install chromium` provides the first). CI installs it before the gate.
+
+The API Reference viewer (`@scalar/api-reference`) is vendored rather than fetched: `bun run vendor:api-reference` downloads the pinned tarball, checks the npm integrity string and both SHA-256 hashes recorded in `public/assets/api-reference/provenance.json`, and writes `public/assets/api-reference/scalar-api-reference.min.js`. The page sets `withDefaultFonts: false`, so the viewer uses the fonts X-Factory already serves instead of fonts.scalar.com. Run `bun run vendor:api-reference --check` to verify the committed file against the pin; only that command needs the network.
 
 ## Lint baselines
 
