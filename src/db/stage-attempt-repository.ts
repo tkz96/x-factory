@@ -2,6 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { modelKey } from "../shared/model-key.js";
 import type {
   ModelRoleName,
   ModelUsage,
@@ -400,7 +401,7 @@ export class StageAttemptRepository {
 
     const costs = new Map<string, number>();
     for (const row of rows) {
-      costs.set(`${row.connection_id}:${row.model_id}`, row.spend_usd ?? 0);
+      costs.set(modelKey(row.connection_id, row.model_id), row.spend_usd ?? 0);
     }
     return costs;
   }

@@ -7,6 +7,7 @@
 // iteration. Cost is not here — the USD budget keeps summing `stage_attempts`.
 
 import type { Database } from "bun:sqlite";
+import { modelKey } from "../shared/model-key.js";
 import { startOfUtcDay } from "./utc-day.js";
 
 export interface ModelCallRecord {
@@ -85,7 +86,7 @@ export class ModelCallRepository {
 
     const counts = new Map<string, number>();
     for (const row of rows) {
-      counts.set(`${row.connection_id}:${row.model_id}`, row.calls);
+      counts.set(modelKey(row.connection_id, row.model_id), row.calls);
     }
     return counts;
   }

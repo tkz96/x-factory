@@ -8,6 +8,7 @@
 //   arrival order; other models are never held up.
 
 import { ModelUnavailableError, type ResolvedModel } from "./model-roles.js";
+import { modelKey } from "./shared/model-key.js";
 
 export interface Clock {
   now(): number;
@@ -233,7 +234,7 @@ export function gatewayKeyFor(
   hooks: GatewayCallHooks = {},
 ): GatewayKey {
   return {
-    key: `${resolved.connectionId}:${resolved.modelId}`,
+    key: modelKey(resolved.connectionId, resolved.modelId),
     limit: concurrencyLimitFor(resolved.limits),
     checkBudget: hooks.checkBudget,
     recordCall: hooks.recordCall,

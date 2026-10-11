@@ -15,6 +15,7 @@ import {
   updateConnectionModel,
   updateModelConnection,
 } from "../model-connections.js";
+import { modelKey } from "../shared/model-key.js";
 import { errorResponse, jsonResponse, withValidatedBody } from "./responses.js";
 import {
   type AddConnectionModelBody,
@@ -40,7 +41,7 @@ function attachTodayUsage(
   const calls = repos.modelCalls.countsByModel();
   for (const connection of connections) {
     for (const model of connection.models) {
-      const key = `${connection.id}:${model.modelId}`;
+      const key = modelKey(connection.id, model.modelId);
       model.todayUsage = {
         usd: costs.get(key) ?? 0,
         requests: calls.get(key) ?? 0,
