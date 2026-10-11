@@ -8,14 +8,10 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
-import React from "react";
 import { ActivitySidebar } from "../src/frontend/components/runs/ActivitySidebar.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
-import {
-  canRunAction,
-  TRANSITIONS,
-} from "../src/shared/run-status-policy.js";
+import { canRunAction, TRANSITIONS } from "../src/shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 afterEach(cleanup);
@@ -81,7 +77,9 @@ describe("run chat approval prompts follow the shared policy", () => {
 describe("formatTimestamp", () => {
   it("formats a fixed instant in the given zone", () => {
     expect(formatTimestamp(INSTANT, "UTC")).toBe("2026-09-20 12:34:56");
-    expect(formatTimestamp(INSTANT, "Asia/Karachi")).toBe("2026-09-20 17:34:56");
+    expect(formatTimestamp(INSTANT, "Asia/Karachi")).toBe(
+      "2026-09-20 17:34:56",
+    );
     expect(formatTimestamp(INSTANT, "America/New_York")).toBe(
       "2026-09-20 08:34:56",
     );

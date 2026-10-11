@@ -239,7 +239,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     return messages;
   }
 
-  if (run.status === "failed" || run.status === "stopped") {
+  if (UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(run.status)) {
     messages.push({
       id: "agent-run-ended",
       role: "agent",
