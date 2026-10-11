@@ -12,7 +12,11 @@ import type { JobRecord, JobRepository } from "./db/job-repository.js";
 import type { OperationLedgerRecord } from "./db/operation-ledger-repository.js";
 import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
-import { ConflictError, NotFoundError } from "./errors.js";
+import {
+  ActiveRunExistsError,
+  ConflictError,
+  NotFoundError,
+} from "./errors.js";
 import * as git from "./git.js";
 import {
   assertBudgetNotExceeded,
@@ -30,7 +34,7 @@ import {
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
-import { initializeRunArtifacts } from "./store.js";
+import { initializeRunArtifacts, removeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
 import {
   APPROVE_ROUTES,
@@ -134,18 +138,23 @@ export async function createRun(
     acceptanceCriteria: acceptanceCriteria.map((c) => c.trim()).filter(Boolean),
   };
 
-  // Create run artifacts before exposing pending job in database (Phase 1, Section 19)
-  await initializeRunArtifacts(artifactsDir, ticket, plan);
-
   const { db } = repos;
   const runRepo = repos.runs;
   const jobRepo = repos.jobs;
   const eventRepo = repos.events;
 
-  let createdRun: RunRecord | null = null;
+  // One active run per ticket (#255). The guard and the insert share ONE
+  // immediate transaction: it takes the write lock before reading the active
+  // run, so a second concurrent create — in this process or another — waits,
+  // then sees the winner and is refused with the winner's id. "Active" is the
+  // shared policy's set; the repository declares no statuses of its own.
+  const insertActiveRun = db.transaction((): RunRecord => {
+    const active = runRepo.findActiveRunForTicket(project.id, ticket.id);
+    if (active) {
+      throw new ActiveRunExistsError(active.id, ticket.id);
+    }
 
-  const atomicInit = db.transaction(() => {
-    createdRun = runRepo.create({
+    const created = runRepo.create({
       id,
       projectId: project.id,
       projectName: project.name,
@@ -167,11 +176,22 @@ export async function createRun(
       status: "preparing",
       text: "Preparing run workspace…",
     });
-  });
-  atomicInit();
 
-  if (!createdRun) {
-    throw new Error("Failed to initialize run record");
+    return created;
+  });
+
+  const createdRun = insertActiveRun.immediate();
+
+  // The artifacts are written only once the insert has won, so a refused or
+  // failed attempt leaves no run files on disk (#255). If writing them fails
+  // anyway, the run it created is removed again: no half-created run is left
+  // for a worker to claim.
+  try {
+    await initializeRunArtifacts(artifactsDir, ticket, plan);
+  } catch (err) {
+    runRepo.delete(id);
+    await removeRunArtifacts(artifactsDir);
+    throw err;
   }
 
   return createdRun;
