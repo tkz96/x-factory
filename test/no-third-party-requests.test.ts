@@ -83,9 +83,9 @@ describe("no third-party requests", () => {
       // The list is the evidence matrix, so a screen added there is covered here.
       expect(visited).toEqual([
         "/runs",
-        "/queue",
+        "/tickets",
         "/runs",
-        "/history",
+        "/runs?filter=done",
         `/runs/${instance.runId}`,
         "/projects",
         `/projects/${instance.projectId}`,
