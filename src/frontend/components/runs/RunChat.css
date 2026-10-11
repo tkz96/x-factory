@@ -12,28 +12,6 @@
   flex: 1;
 }
 
-.run-chat-header {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.run-chat-meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.run-chat-meta strong {
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.run-chat-meta span {
-  font-size: var(--text-caption-2);
-  color: var(--text-dim);
-}
-
 /* ── Timeline ───────────────────────────────────────────────────────── */
 
 .run-chat-timeline {
@@ -254,14 +232,6 @@
 /* ── Gate actions, above the message box ───────────────────────────── */
 
 /* The checkpoint bar sits directly above the message box (#263). */
-.run-chat-gate {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4) 0;
-  border-top: var(--border-width) solid var(--border-subtle);
-}
 
 .run-chat-jump {
   position: absolute;
@@ -385,18 +355,27 @@
 }
 
 .run-chat-send:disabled {
-  opacity: 0.4;
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
   cursor: default;
 }
 
-.run-chat-send svg {
+.run-chat-send .icon {
   width: var(--icon-md);
   height: var(--icon-md);
 }
 
-/* Forced colours drop the opacity that dims a disabled send, so its icon keeps the system's GrayText (#263). */
+/* Forced colours: an enabled send is a system-coloured button, a disabled one is GrayText on a border (#262). */
 @media (forced-colors: active) {
+  .run-chat-send {
+    background: ButtonFace;
+    color: ButtonText;
+    border: var(--border-width) solid ButtonText;
+  }
+
   .run-chat-send:disabled {
-    opacity: 1;
+    background: Canvas;
+    color: GrayText;
+    border-color: GrayText;
   }
 }

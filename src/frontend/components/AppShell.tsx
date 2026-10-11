@@ -35,6 +35,14 @@ import { ModalContainer } from "./ModalContainer.js";
 import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
 import { NotificationBell } from "./notifications/NotificationBell.js";
+import {
+  AlertDialog,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+  OverlayTriggerButton,
+  Popover,
+} from "./overlays/index.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
@@ -211,19 +219,25 @@ function ContextAction({
 }: ContextActionProps) {
   if (isRunDetail) {
     if (!activeRunId) return null;
+    // Stop Run lives in the "…" menu, not on the toolbar (#262). It asks first, in an alert.
     return (
-      <button
-        id="btn-stop"
-        className="btn-danger btn-sm"
-        type="button"
-        onClick={onStopRun}
-        disabled={stopPending}
-      >
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-square" />
-        </svg>
-        <span>{stopPending ? "Stopping…" : "Stop Run"}</span>
-      </button>
+      <MenuTrigger>
+        <OverlayTriggerButton
+          id="btn-run-menu"
+          className="btn-secondary btn-sm"
+          aria-label="Run actions"
+          isDisabled={stopPending}
+        >
+          <span aria-hidden="true">…</span>
+        </OverlayTriggerButton>
+        <Popover placement="bottom end">
+          <Menu>
+            <MenuItem id="menu-stop-run" isDanger onAction={onStopRun}>
+              Stop Run
+            </MenuItem>
+          </Menu>
+        </Popover>
+      </MenuTrigger>
     );
   }
   if (section === "tickets") {
@@ -519,10 +533,14 @@ function AppShellContent() {
     runData != null && STOPPABLE_RUN_STATUSES.has(runData.status);
   const activeRunId = isActiveRun ? runData.id : undefined;
 
+  // Stop Run asks first, naming the branch; the palette and the toolbar menu share this (#262).
+  const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const handleStopRun = () => {
     if (!activeRunId) return;
-    if (!confirm("Are you sure you want to stop this run?")) return;
-    stopRunMutation.mutate(activeRunId);
+    setStopConfirmOpen(true);
+  };
+  const confirmStopRun = () => {
+    if (activeRunId) stopRunMutation.mutate(activeRunId);
   };
 
   useGlobalShortcuts({
@@ -658,6 +676,17 @@ function AppShellContent() {
       <ShortcutSheet
         isOpen={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+      />
+      <AlertDialog
+        id="alert-stop-run"
+        isOpen={stopConfirmOpen}
+        onClose={() => setStopConfirmOpen(false)}
+        title={`Stop run on ${runData?.branch ?? "this branch"}?`}
+        description="Stopping ends this run. It can't be undone."
+        confirmText="Stop Run"
+        cancelText="Keep Running"
+        variant="danger"
+        onConfirm={confirmStopRun}
       />
     </div>
   );

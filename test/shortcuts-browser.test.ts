@@ -157,7 +157,7 @@ for (const { name, engine } of ENGINES) {
           return route.abort();
         },
       );
-      await page.locator("#btn-approve").waitFor();
+      await page.locator("[data-primary-action]").waitFor();
       const approved = page.waitForRequest(
         (req) =>
           req.method() === "POST" && req.url().includes(`/api/runs/${run.id}`),

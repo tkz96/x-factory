@@ -15,7 +15,13 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -70,7 +76,7 @@ describe("Overlay building blocks on React Aria (#250)", () => {
   });
 
   describe("Dialog & Sheet", () => {
-    it("renders dialog semantics, moves focus in, traps Tab, and restores focus to trigger on Esc", () => {
+    it("renders dialog semantics, moves focus in, traps Tab, and restores focus to trigger on Esc", async () => {
       const onClose = mock(() => {});
 
       function Harness() {
@@ -133,8 +139,10 @@ describe("Overlay building blocks on React Aria (#250)", () => {
       // 2. Background is inert while open
       expect(getEl("app-root").closest("[inert]")).not.toBeNull();
 
-      // 3. Focus moves into the dialog
-      expect(dialog.contains(document.activeElement)).toBe(true);
+      // 3. Focus moves into the dialog (it lands on the dialog's own effect)
+      await waitFor(() =>
+        expect(dialog.contains(document.activeElement)).toBe(true),
+      );
 
       // 4. Focus is trapped inside
       const first = getEl("dlg-close-btn");
@@ -200,7 +208,7 @@ describe("Overlay building blocks on React Aria (#250)", () => {
   });
 
   describe("AlertDialog", () => {
-    it("renders alertdialog role, traps focus, announces title and description, and restores focus", () => {
+    it("renders alertdialog role, traps focus, announces title and description, and restores focus", async () => {
       const onConfirm = mock(() => {});
       const onCancel = mock(() => {});
 
@@ -258,7 +266,9 @@ describe("Overlay building blocks on React Aria (#250)", () => {
       expect(descEl?.textContent).toContain("cannot be undone");
 
       // Focus moved into the dialog, and Tab cannot leave it
-      expect(alert.contains(document.activeElement)).toBe(true);
+      await waitFor(() =>
+        expect(alert.contains(document.activeElement)).toBe(true),
+      );
       const buttons = alert.querySelectorAll("button");
       act(() => (buttons[buttons.length - 1] as HTMLElement).focus());
       tab();

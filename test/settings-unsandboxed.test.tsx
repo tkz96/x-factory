@@ -14,7 +14,13 @@ import {
   it,
 } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
@@ -24,6 +30,20 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
+
+/** The opt-in switch, found the way a user finds it: by its name (#266). */
+function unsandboxedBox(container: HTMLElement): HTMLInputElement {
+  return within(container).getByRole("switch", {
+    name: "Run agents without a sandbox",
+  }) as HTMLInputElement;
+}
+
+/** A button in the open confirmation dialog, found by its visible name. */
+function modalButton(name: string): HTMLElement | null {
+  const dialog = document.getElementById("modal-confirm-unsandboxed");
+  if (!dialog) return null;
+  return within(dialog).queryByRole("button", { name });
 }
 
 function renderSettings(queryClient?: QueryClient) {
@@ -86,9 +106,7 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
   it("renders the unsandboxed checkbox unchecked by default", async () => {
     const { container } = renderSettings();
     await waitFor(() => {
-      const checkbox = container.querySelector(
-        "#setting-allow-unsandboxed",
-      ) as HTMLInputElement;
+      const checkbox = unsandboxedBox(container);
       expect(checkbox).not.toBeNull();
       expect(checkbox.checked).toBe(false);
     });
@@ -97,14 +115,10 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
   it("shows confirmation modal when clicking to enable unsandboxed execution", async () => {
     const { container } = renderSettings();
     await waitFor(() => {
-      expect(
-        container.querySelector("#setting-allow-unsandboxed"),
-      ).not.toBeNull();
+      expect(unsandboxedBox(container)).not.toBeNull();
     });
 
-    const checkbox = container.querySelector(
-      "#setting-allow-unsandboxed",
-    ) as HTMLInputElement;
+    const checkbox = unsandboxedBox(container);
     fireEvent.click(checkbox);
 
     // Modal should be open
@@ -121,14 +135,10 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
   it("dismisses confirmation modal on Cancel without saving", async () => {
     const { container } = renderSettings();
     await waitFor(() => {
-      expect(
-        container.querySelector("#setting-allow-unsandboxed"),
-      ).not.toBeNull();
+      expect(unsandboxedBox(container)).not.toBeNull();
     });
 
-    const checkbox = container.querySelector(
-      "#setting-allow-unsandboxed",
-    ) as HTMLInputElement;
+    const checkbox = unsandboxedBox(container);
     fireEvent.click(checkbox);
 
     await waitFor(() => {
@@ -137,7 +147,7 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
       ).not.toBeNull();
     });
 
-    const cancelBtn = document.getElementById("btn-cancel-unsandboxed");
+    const cancelBtn = modalButton("Cancel");
     expect(cancelBtn).not.toBeNull();
     if (cancelBtn) {
       fireEvent.click(cancelBtn);
@@ -154,14 +164,10 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
   it("posts allowUnsandboxed: true when confirmed in modal", async () => {
     const { container } = renderSettings();
     await waitFor(() => {
-      expect(
-        container.querySelector("#setting-allow-unsandboxed"),
-      ).not.toBeNull();
+      expect(unsandboxedBox(container)).not.toBeNull();
     });
 
-    const checkbox = container.querySelector(
-      "#setting-allow-unsandboxed",
-    ) as HTMLInputElement;
+    const checkbox = unsandboxedBox(container);
     fireEvent.click(checkbox);
 
     await waitFor(() => {
@@ -170,7 +176,7 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
       ).not.toBeNull();
     });
 
-    const confirmBtn = document.getElementById("btn-confirm-unsandboxed");
+    const confirmBtn = modalButton("Enable Unsandboxed Execution");
     expect(confirmBtn).not.toBeNull();
     if (confirmBtn) {
       fireEvent.click(confirmBtn);
@@ -191,16 +197,12 @@ describe("SettingsView unsandboxed execution opt-in (#275)", () => {
 
     const { container } = renderSettings();
     await waitFor(() => {
-      const checkbox = container.querySelector(
-        "#setting-allow-unsandboxed",
-      ) as HTMLInputElement;
+      const checkbox = unsandboxedBox(container);
       expect(checkbox).not.toBeNull();
       expect(checkbox.checked).toBe(true);
     });
 
-    const checkbox = container.querySelector(
-      "#setting-allow-unsandboxed",
-    ) as HTMLInputElement;
+    const checkbox = unsandboxedBox(container);
     fireEvent.click(checkbox);
 
     // Modal should NOT open

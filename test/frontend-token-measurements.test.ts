@@ -19,12 +19,13 @@ describe("hard-coded values are tokens", () => {
     expect(tokens).toMatch(/--scrim:\s*rgba\(0, 0, 0, 0\.4\);/);
   });
 
-  it("the settings checkbox offset uses a spacing token", () => {
+  it("the settings sandbox switch offset uses a spacing token", () => {
+    // The opt-in is a switch block now (#266): its offset is the wrapper's.
     const css = readFileSync("src/frontend/views/SettingsView.css", "utf8");
     expect(css).toMatch(
-      /\.setting-checkbox\s*\{[^}]*margin-top:\s*var\(--space-/,
+      /\.setting-switch\s*\{[^}]*margin-top:\s*var\(--space-/,
     );
-    expect(css).not.toMatch(/\.setting-checkbox\s*\{[^}]*margin-top:\s*\d/);
+    expect(css).not.toMatch(/\.setting-switch\s*\{[^}]*margin-top:\s*\d/);
   });
 
   it("the repository settings inputs reuse the shared form-input focus ring", () => {

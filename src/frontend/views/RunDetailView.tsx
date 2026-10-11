@@ -1,31 +1,52 @@
-// src/frontend/views/RunDetailView.tsx — Canonical Run Detail view with live SSE streaming (XFM-39, XFM-42, XFM-44, XFM-50, #191).
+// src/frontend/views/RunDetailView.tsx — The run page (#262, spec #241): the now header, one chat of
+// real events, the checkpoint bar above the message box, and the inspector. Every action goes
+// through the server's guards; the bar only offers what the status map allows.
 
 import "./RunDetailView.css";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { CHECKPOINT_RUN_STATUSES } from "../../shared/run-status-policy.js";
-import { ActivitySidebar } from "../components/runs/ActivitySidebar.js";
-import { HumanCheckpointSection } from "../components/runs/HumanCheckpointSection.js";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { RunChat } from "../components/runs/RunChat.js";
+import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
+import {
+  RunInspector,
+  RunInspectorSheet,
+} from "../components/runs/RunInspector.js";
 import { RunModelsCard } from "../components/runs/RunModelsCard.js";
 import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
+import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import {
   useAbandonRun,
+  useCreateRun,
+  usePrRun,
   useResumeRun,
   useTransitionRun,
 } from "../hooks/useQueries.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
+import { ActiveRunConflictError, ApiError } from "../lib/api-client.js";
+import { refreshRunAfterMutation } from "../lib/run-state.js";
+
+/** The refusal of a checkpoint action whose run moved on first (a stale or illegal transition). */
+function movedOn(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409;
+}
 
 export function RunDetailView() {
   const { runId } = useParams<{ runId: string }>();
   const { run, isLoading, error, events, connected } = useRunDetail(runId);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
+  const transitionMutation = useTransitionRun();
   const resumeMutation = useResumeRun();
   const abandonMutation = useAbandonRun();
-  const transitionMutation = useTransitionRun();
+  const deliverMutation = usePrRun();
+  const createRunMutation = useCreateRun();
 
-  const [actionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const isPhone = useMediaQuery("(max-width: 768px)");
 
   if (isLoading) {
     return (
@@ -59,105 +80,115 @@ export function RunDetailView() {
     );
   }
 
-  const isRecoveryRequired = run.status === "recovery_required";
-
-  const handleApprove = () => {
-    transitionMutation.mutate({ runId: run.id, action: "approve" });
+  const runAction = async (perform: () => Promise<unknown>) => {
+    setActionError(null);
+    setConflict(false);
+    try {
+      await perform();
+    } catch (err: unknown) {
+      if (movedOn(err)) {
+        // The run moved on before this action landed: show the latest, say so.
+        setConflict(true);
+        refreshRunAfterMutation(queryClient, run.id);
+        return;
+      }
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
   };
 
-  const handleRestart = () => {
-    transitionMutation.mutate({ runId: run.id, action: "restart" });
+  const startNewRun = async () => {
+    setActionError(null);
+    setConflict(false);
+    try {
+      const next = await createRunMutation.mutateAsync({
+        projectId: run.project.id,
+        ticketId: run.ticket.id,
+        ticketTitle: run.ticket.title,
+        acceptanceCriteria: run.ticket.acceptanceCriteria,
+      });
+      navigate(`/runs/${next.id}`);
+    } catch (err: unknown) {
+      // The ticket already has an active run (#255): open that one. This run is untouched.
+      if (err instanceof ActiveRunConflictError) {
+        navigate(`/runs/${err.runId}`);
+        return;
+      }
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
   };
 
-  const handleAbort = () => {
-    transitionMutation.mutate({ runId: run.id, action: "abort" });
+  const onAction = (action: CheckpointAction, notes?: string) => {
+    switch (action) {
+      case "approve":
+        void runAction(() =>
+          transitionMutation.mutateAsync({ runId: run.id, action: "approve" }),
+        );
+        return;
+      case "restart":
+        void runAction(() =>
+          transitionMutation.mutateAsync({ runId: run.id, action: "restart" }),
+        );
+        return;
+      case "requeue":
+        void runAction(() =>
+          transitionMutation.mutateAsync({
+            runId: run.id,
+            action: "requeue",
+            payload: notes ? { chatNotes: notes } : undefined,
+          }),
+        );
+        return;
+      case "deliver":
+        void runAction(() => deliverMutation.mutateAsync({ runId: run.id }));
+        return;
+      case "resume":
+        void runAction(() => resumeMutation.mutateAsync(run.id));
+        return;
+      case "abandon":
+        void runAction(() =>
+          abandonMutation.mutateAsync({
+            runId: run.id,
+            reason: "Abandoned from the run page",
+          }),
+        );
+        return;
+      case "start-new-run":
+        void startNewRun();
+        return;
+      case "confirm-rework":
+        return;
+    }
   };
 
-  const handleRequeue = (notes?: string) => {
-    transitionMutation.mutate({
-      runId: run.id,
-      action: "requeue",
-      payload: notes ? { chatNotes: notes } : undefined,
-    });
-  };
+  // The one action in flight, so the bar can label it and disable its siblings.
+  const pending: CheckpointAction | null = transitionMutation.isPending
+    ? transitionMutation.variables?.action === "restart"
+      ? "restart"
+      : transitionMutation.variables?.action === "approve"
+        ? "approve"
+        : "requeue"
+    : resumeMutation.isPending
+      ? "resume"
+      : abandonMutation.isPending
+        ? "abandon"
+        : deliverMutation.isPending
+          ? "deliver"
+          : createRunMutation.isPending
+            ? "start-new-run"
+            : null;
+
+  const inspectorProps = { run, events, connected };
 
   return (
     <section id="area-runs" className="area-view active run-detail-container">
-      {/* 2/3 Main + 1/3 Activity Sidebar Layout */}
       <div className="run-detail-layout">
-        {/* ── Main Content (2/3) ──────────────────────────────────────── */}
         <div className="run-detail-main">
           <RunModelsCard stageModels={run.stageModels ?? []} />
-
-          {/* Recovery Required Alert */}
-          {isRecoveryRequired &&
-            (() => {
-              const recoveryStatusEvent = [...events]
-                .reverse()
-                .find(
-                  (e) =>
-                    e.type === "status" &&
-                    (e.payload as { status?: string }).status ===
-                      "recovery_required",
-                );
-              const recoveryPayload = recoveryStatusEvent?.payload as
-                | { category?: string; reason?: string; text?: string }
-                | undefined;
-              const isBudgetPaused =
-                recoveryPayload?.category === "budget reached";
-              const budgetReason = recoveryPayload?.reason;
-
-              return (
-                <div id="view-run" className="card">
-                  <div className="recovery-box m-0">
-                    <div>
-                      <strong>
-                        {isBudgetPaused
-                          ? "Budget reached: run paused"
-                          : "This run needs recovery"}
-                      </strong>
-                      <p className="text-muted text-footnote m-0 mt-1">
-                        {isBudgetPaused
-                          ? (budgetReason ??
-                            recoveryPayload?.text ??
-                            "A model call exceeded its daily budget.")
-                          : "The run stopped unexpectedly before it finished. Resume it to carry on."}
-                      </p>
-                      {resumeMutation.error && (
-                        <p className="recovery-error text-footnote m-0 mt-1">
-                          {resumeMutation.error.message}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex-center gap-2">
-                      <button
-                        type="button"
-                        className="btn-primary btn-sm"
-                        disabled={resumeMutation.isPending}
-                        onClick={() => resumeMutation.mutate(run.id)}
-                      >
-                        {resumeMutation.isPending ? "Resuming…" : "Resume Run"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary btn-sm btn-danger-text"
-                        disabled={abandonMutation.isPending}
-                        onClick={() =>
-                          abandonMutation.mutate({
-                            runId: run.id,
-                            reason: "Abandoned from the run page",
-                          })
-                        }
-                      >
-                        {abandonMutation.isPending
-                          ? "Abandoning…"
-                          : "Abandon Run"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+          {isPhone && (
+            <div className="run-detail-toolbar">
+              <RunInspectorSheet {...inspectorProps} />
+            </div>
+          )}
 
           {actionError && (
             <div id="run-error" className="error-message">
@@ -165,34 +196,18 @@ export function RunDetailView() {
             </div>
           )}
 
-          {/* Universal Run Chat */}
           <RunChat
             run={run}
             events={events}
-            onApprove={handleApprove}
-            onRestart={handleRestart}
-            onAbort={handleAbort}
-            onRequeue={handleRequeue}
-            isTransitioning={transitionMutation.isPending}
+            onAction={onAction}
+            pending={pending}
+            conflict={conflict}
           />
-
-          {/* Human Checkpoint & Delivery */}
-          {CHECKPOINT_RUN_STATUSES.has(run.status) && (
-            <div className="checkpoint-container">
-              <HumanCheckpointSection
-                run={run}
-                onApprove={handleApprove}
-                onReject={() => handleRequeue("Rejected from human checkpoint")}
-              />
-            </div>
-          )}
         </div>
 
-        {/* ── Activity Sidebar (1/3) ─────────────────────────────────── */}
-        <ActivitySidebar events={events} connected={connected} />
+        {!isPhone && <RunInspector {...inspectorProps} />}
       </div>
 
-      {/* 6-Stage Workflow Stepper as Pinned Footer */}
       <footer className="workflow-stepper-footer">
         <WorkflowStepper
           status={run.status}

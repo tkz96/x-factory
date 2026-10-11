@@ -13,7 +13,6 @@ import {
   describe,
   expect,
   it,
-  mock,
 } from "bun:test";
 import {
   act,
@@ -26,7 +25,9 @@ import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+});
 afterAll(async () => {
   await unregisterHappyDom();
 });
@@ -254,12 +255,13 @@ describe("scroll position and Jump to latest", () => {
 
 describe("approval actions follow the status map and the policy", () => {
   it("offers the map's labels on each gate, and Approved on click", () => {
-    const onApprove = mock(() => {});
+    const actions: string[] = [];
+    const onAction = (action: string) => actions.push(action);
     const { container } = render(
       <RunChat
         run={makeRun("awaiting_plan_approval")}
         events={[]}
-        onApprove={onApprove}
+        onAction={onAction}
       />,
     );
     const approve = within(container).getByRole("button", {
@@ -269,7 +271,7 @@ describe("approval actions follow the status map and the policy", () => {
       within(container).getByRole("button", { name: "Request Changes" }),
     ).toBeTruthy();
     fireEvent.click(approve);
-    expect(onApprove).toHaveBeenCalledTimes(1);
+    expect(actions).toContain("approve");
     expect(container.textContent).toContain("Approved");
   });
 
@@ -588,7 +590,7 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
     );
-    const bar = within(container).getByRole("region", { name: "Next step" });
+    const bar = within(container).getByRole("region", { name: "Checkpoint" });
     expect(bar.nextElementSibling?.tagName).toBe("FORM");
     expect(bar.nextElementSibling?.contains(composer(container))).toBe(true);
   });

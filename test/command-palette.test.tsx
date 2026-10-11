@@ -264,7 +264,7 @@ describe("command palette (#254)", () => {
     fireEvent.click(option);
   }
 
-  test("picking Stop Run stops the run and closes the palette", () => {
+  test("picking Stop Run asks the run's confirmation and closes the palette", () => {
     let stopped = 0;
     renderShell({ stopRunAvailable: true, onStopRun: () => stopped++ });
     pick("Stop Run");

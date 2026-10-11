@@ -335,6 +335,7 @@
 
 .ui-segment {
   display: inline-flex;
+  margin: 0; /* a segment is a <label>: the label margins do not apply (#266) */
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
@@ -397,10 +398,23 @@
 
 .ui-switch {
   display: inline-flex;
+  margin: 0;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--tap-min);
   cursor: pointer;
+}
+
+/* A switch and a segment are <label>s. These doubled selectors beat the legacy
+   `.setting-item label` rule in public/styles.css (#266). */
+.ui-switch-group .ui-switch {
+  display: inline-flex;
+  margin: 0;
+}
+
+.ui-segmented .ui-segment {
+  display: inline-flex;
+  margin: 0;
 }
 
 .ui-switch[data-disabled] {

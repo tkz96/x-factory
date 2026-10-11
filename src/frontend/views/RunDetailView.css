@@ -1,6 +1,7 @@
 /* ── Run Detail Layout (Apple HIG 2/3 main + 1/3 sidebar) ─────────────── */
 
-.run-detail-container {
+/* .area-view.active sets display: block; this keeps the run page a column (#262). */
+.area-view.run-detail-container.active {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -12,6 +13,8 @@
 .run-detail-layout {
   display: grid;
   grid-template-columns: 2fr 1fr;
+  /* One row that fills the space left above the stepper, never taller (#262). */
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-4);
   flex: 1;
   min-height: 0;
@@ -255,4 +258,16 @@
 .recovery-error {
   color: var(--red);
   font-weight: 500;
+}
+
+/* The phone-width toolbar above the chat: the inspector opens from here (#262). */
+.run-detail-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .workflow-stepper-footer {
+    padding: 0.5rem var(--space-3);
+  }
 }

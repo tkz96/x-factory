@@ -33,6 +33,7 @@ import {
   fireEvent,
   render,
   waitFor,
+  within,
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -809,16 +810,19 @@ async function renderConnectionsRegistry(
     client,
   );
 
-  const tab = Array.from(container.querySelectorAll("button")).find(
-    (button) => button.dataset.tab === "trackers",
-  );
-  if (!(tab instanceof HTMLElement)) {
-    throw new Error("connections tab missing");
-  }
+  const tab = within(container).getByRole("link", { name: "Connections" });
   await act(async () => {
     fireEvent.click(tab);
   });
   return container;
+}
+
+/** The first project row of the Settings connections registry (#266). */
+function registryRow(container: HTMLElement): HTMLElement {
+  const table = within(container).getByRole("table");
+  const row = within(table).getAllByRole("row")[1];
+  if (!(row instanceof HTMLElement)) throw new Error("registry row missing");
+  return row;
 }
 
 describe("Settings connections registry — combo line per project", () => {
@@ -828,7 +832,7 @@ describe("Settings connections registry — combo line per project", () => {
       makeClient(),
     );
 
-    const row = container.querySelector("#connections-registry-tbody tr");
+    const row = registryRow(container);
     expect(row?.textContent).toContain("Tracker One");
     expect(row?.textContent).toContain("Git Host One");
     expect(row?.textContent).not.toContain("tracker-one");
@@ -843,7 +847,7 @@ describe("Settings connections registry — combo line per project", () => {
       makeClient(),
     );
 
-    const row = container.querySelector("#connections-registry-tbody tr");
+    const row = registryRow(container);
     expect(
       row?.querySelector(".connection-combo-line--warning"),
     ).not.toBeNull();
@@ -857,7 +861,7 @@ describe("Settings connections registry — combo line per project", () => {
       makeClient(),
     );
 
-    const row = container.querySelector("#connections-registry-tbody tr");
+    const row = registryRow(container);
     expect(row?.querySelector(".connection-combo-line--error")).not.toBeNull();
     const repair = row?.querySelector("button.retry-action");
     expect(repair?.textContent).toContain(CONNECTIONS_COPY.reconnect);

@@ -1,0 +1,26 @@
+/* src/frontend/components/runs/RunCheckpointBar.css — The sticky checkpoint bar above the message box (#262). */
+
+.run-checkpoint-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.run-checkpoint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.run-checkpoint-conflict {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-footnote);
+}

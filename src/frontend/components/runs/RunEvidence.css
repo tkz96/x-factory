@@ -1,0 +1,27 @@
+/* src/frontend/components/runs/RunEvidence.css — Verification and review evidence in the inspector (#262). */
+
+.badge-success-subtle {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.badge-danger-subtle {
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+.mr-2 {
+  margin-right: var(--space-2);
+}
+
+.my-1 {
+  margin: var(--space-1) 0;
+}
+
+.my-2 {
+  margin: var(--space-2) 0;
+}
+
+.m-0 {
+  margin: 0;
+}

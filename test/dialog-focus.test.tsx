@@ -11,7 +11,13 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react";
 import { type ReactNode, useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { DiagramModal } from "../src/frontend/components/diagrams/DiagramModal.js";
@@ -148,10 +154,13 @@ describe("dialog focus management (#245)", () => {
 
   for (const { name, ui, dialogSelector } of dialogs) {
     describe(name, () => {
-      it("moves focus into the dialog on open", () => {
+      it("moves focus into the dialog on open", async () => {
         const { dialog } = open(ui(), dialogSelector);
         expect(dialog).not.toBeNull();
-        expect(dialog.contains(document.activeElement)).toBe(true);
+        // Focus lands on the dialog's own effect: wait for it rather than sample once.
+        await waitFor(() =>
+          expect(dialog.contains(document.activeElement)).toBe(true),
+        );
       });
 
       it("makes the background inert while open and not after", () => {

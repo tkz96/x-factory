@@ -30,9 +30,8 @@
   :root .btn-sm,
   :root .btn-danger-hover,
   :root .btn-warning,
-  :root .settings-tab-btn,
-  :root .theme-toggle,
-  :root .theme-segment-btn {
+  :root .settings-category,
+  :root .theme-toggle {
     background: ButtonFace;
     color: ButtonText;
     border: var(--border-width) solid ButtonBorder;
@@ -46,8 +45,7 @@
     border-color: GrayText;
   }
 
-  :root .theme-segment-btn[aria-pressed="true"],
-  :root .theme-segment-btn.active {
+  :root .settings-category[aria-current="page"] {
     background: Highlight;
     color: HighlightText;
   }
@@ -57,8 +55,7 @@
   :root select,
   :root .form-select,
   :root .form-input,
-  :root .code-input,
-  :root .setting-checkbox {
+  :root .code-input {
     background: Field;
     color: FieldText;
     border: var(--border-width) solid ButtonBorder;
@@ -194,8 +191,7 @@
   :root .card,
   :root .metric-card,
   :root .telemetry-card,
-  :root .integration-row,
-  :root .theme-segmented-control {
+  :root .integration-row {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
