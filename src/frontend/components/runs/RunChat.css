@@ -342,6 +342,7 @@
   min-width: 0;
   min-height: var(--tap-min);
   max-height: 40vh;
+  field-sizing: content;
   resize: none;
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--border);
@@ -391,4 +392,11 @@
 .run-chat-send svg {
   width: var(--icon-md);
   height: var(--icon-md);
+}
+
+/* Forced colours drop the opacity that dims a disabled send, so its icon keeps the system's GrayText (#263). */
+@media (forced-colors: active) {
+  .run-chat-send:disabled {
+    opacity: 1;
+  }
 }
