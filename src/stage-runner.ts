@@ -215,7 +215,14 @@ export function buildStageContext(
       if (attemptId) repos.stageAttempts.addUsage(attemptId, usage);
     },
     assertBudget: (resolved) => {
-      assertBudgetNotExceeded(repos.stageAttempts, resolved);
+      assertBudgetNotExceeded(repos, resolved);
+    },
+    recordModelCall: (resolved) => {
+      repos.modelCalls.record({
+        connectionId: resolved.connectionId,
+        modelId: resolved.modelId,
+        stageAttemptId: attemptId,
+      });
     },
     ledger: {
       execute: (operation, fn, reconcile, prepareContext) =>

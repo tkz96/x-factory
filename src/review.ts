@@ -58,6 +58,8 @@ export interface ReviewContext {
   sessionFactory?: ReadOnlySessionFactory | undefined;
   /** Asserts that calling the reviewer model does not exceed its daily budget (#281). */
   assertBudget?: ((resolved: ResolvedModel) => void) | undefined;
+  /** Counts the review prompt as one model call towards the daily budget (#281). */
+  recordCall?: (() => void) | undefined;
 }
 
 function attachReviewListeners(
@@ -174,11 +176,14 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
         const modelConfig = context.modelConfig;
         if (!modelConfig) return undefined;
         const assertBudget = context.assertBudget;
+        const recordCall = context.recordCall;
         return {
-          key: gatewayKeyFor(
-            modelConfig.resolved,
-            assertBudget ? () => assertBudget(modelConfig.resolved) : undefined,
-          ),
+          key: gatewayKeyFor(modelConfig.resolved, {
+            checkBudget: assertBudget
+              ? () => assertBudget(modelConfig.resolved)
+              : undefined,
+            recordCall,
+          }),
           onWait: context.onWait,
         };
       })(),

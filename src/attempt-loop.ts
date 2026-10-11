@@ -222,6 +222,12 @@ export interface AttemptLoopInput {
   agentEnv?: Record<string, string> | undefined;
   /** Paces and queues the agent per model; a 429 is waited out (#280). */
   gate?: { gateway: ModelGateway; key: GatewayKey } | undefined;
+  /**
+   * Counts one model call per loop iteration (#281). The coding loop runs Pi in a
+   * subprocess, whose individual calls cannot be seen (`pi -p` reports no usage),
+   * so each iteration the script announces is one call.
+   */
+  recordModelCall?: (() => void) | undefined;
   /** Whether running without a sandbox is explicitly allowed via setting or env var. */
   allowUnsandboxed?: boolean | undefined;
   signal?: AbortSignal | undefined;
@@ -410,7 +416,12 @@ export async function runAttemptLoop(
     let iteration = 1;
     const forward = progressLineForwarder((line) => {
       const parsed = line.match(/Iteration (\d+)/i);
-      if (parsed?.[1]) iteration = Number.parseInt(parsed[1], 10);
+      if (parsed?.[1]) {
+        iteration = Number.parseInt(parsed[1], 10);
+        // Pi runs in a subprocess here, so its own calls are invisible: the
+        // iteration the script announces is the one model call it makes (#281).
+        input.recordModelCall?.();
+      }
       emit("ralph_progress", { text: line, iteration });
     });
     const runLoop = () =>

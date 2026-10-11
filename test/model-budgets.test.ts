@@ -5,6 +5,7 @@ import {
   assertBudgetNotExceeded,
   BudgetExceededError,
   checkModelBudget,
+  type DailyUsageSource,
   modelRoleForStage,
 } from "../src/model-budgets.js";
 import type { ResolvedModel } from "../src/model-roles.js";
@@ -12,12 +13,11 @@ import type { ModelBudget } from "../src/shared/model-connection-types.js";
 
 describe("model budgets", () => {
   it("BudgetExceededError has category 'budget reached'", () => {
-    const err = new BudgetExceededError("Exceeded budget");
+    const err = new BudgetExceededError("Budget reached");
     expect(err.name).toBe("BudgetExceededError");
     expect(err.category).toBe("budget reached");
-    expect(err.message).toBe("Exceeded budget");
+    expect(err.message).toBe("Budget reached");
   });
-
   describe("checkModelBudget", () => {
     it("does not throw when no budget is configured", () => {
       const budget: ModelBudget = { perDay: {} };
@@ -41,22 +41,22 @@ describe("model budgets", () => {
       ).not.toThrow();
     });
 
-    it("allows requests up to the limit and throws when exceeding limit", () => {
+    it("allows requests up to the limit and throws when the limit is spent", () => {
       const budget: ModelBudget = { perDay: { requests: 10 } };
-      // Attempt 10 includes the current stamped attempt: allowed
+      // 9 calls made: the 10th is still allowed
       expect(() =>
         checkModelBudget(
           budget,
-          { requests: 10, costUsd: 0, spendUsd: 0 },
+          { requests: 9, costUsd: 0, spendUsd: 0 },
           "claude-3",
         ),
       ).not.toThrow();
 
-      // Attempt 11 exceeds the limit of 10: throws
+      // 10 of 10 calls spent: the next call is refused (#281)
       expect(() =>
         checkModelBudget(
           budget,
-          { requests: 11, costUsd: 0, spendUsd: 0 },
+          { requests: 10, costUsd: 0, spendUsd: 0 },
           "claude-3",
         ),
       ).toThrow(BudgetExceededError);
@@ -64,7 +64,7 @@ describe("model budgets", () => {
       try {
         checkModelBudget(
           budget,
-          { requests: 12, costUsd: 0, spendUsd: 0 },
+          { requests: 11, costUsd: 0, spendUsd: 0 },
           "claude-3",
         );
         expect.unreachable("should have thrown");
@@ -72,30 +72,37 @@ describe("model budgets", () => {
         expect(err).toBeInstanceOf(BudgetExceededError);
         expect((err as BudgetExceededError).category).toBe("budget reached");
         expect((err as Error).message).toContain("claude-3");
-        expect((err as Error).message).toContain("12/10 requests");
+        expect((err as Error).message).toContain("11/10 model calls");
       }
     });
 
-    it("allows exactly N attempts for a requests/day budget of N (N=1 and N=2)", () => {
-      // N = 1: allows exactly 1 attempt
+    it("allows exactly N model calls for a requests/day budget of N (N=1 and N=2)", () => {
+      // N = 1: one call is allowed, the second is refused
       const budget1: ModelBudget = { perDay: { requests: 1 } };
       expect(() =>
         checkModelBudget(
           budget1,
-          { requests: 1, costUsd: 0, spendUsd: 0 },
+          { requests: 0, costUsd: 0, spendUsd: 0 },
           "model-1",
         ),
       ).not.toThrow();
       expect(() =>
         checkModelBudget(
           budget1,
-          { requests: 2, costUsd: 0, spendUsd: 0 },
+          { requests: 1, costUsd: 0, spendUsd: 0 },
           "model-1",
         ),
       ).toThrow(BudgetExceededError);
 
-      // N = 2: allows exactly 2 attempts
+      // N = 2: two calls are allowed, the third is refused
       const budget2: ModelBudget = { perDay: { requests: 2 } };
+      expect(() =>
+        checkModelBudget(
+          budget2,
+          { requests: 0, costUsd: 0, spendUsd: 0 },
+          "model-2",
+        ),
+      ).not.toThrow();
       expect(() =>
         checkModelBudget(
           budget2,
@@ -109,7 +116,7 @@ describe("model budgets", () => {
           { requests: 2, costUsd: 0, spendUsd: 0 },
           "model-2",
         ),
-      ).not.toThrow();
+      ).toThrow(BudgetExceededError);
       expect(() =>
         checkModelBudget(
           budget2,
@@ -146,54 +153,68 @@ describe("model budgets", () => {
   });
 
   describe("assertBudgetNotExceeded", () => {
-    it("delegates to repo and passes when within budget", () => {
-      const fakeRepo = {
-        getDailyUsageForModel: () => ({
-          requests: 2,
-          costUsd: 0.5,
-          spendUsd: 0.5,
-        }),
+    /** Daily usage a budget check reads: calls counted one by one, cost summed (#281). */
+    function usageSource(requests: number, costUsd: number): DailyUsageSource {
+      return {
+        modelCalls: { countForModel: () => requests },
+        stageAttempts: { getDailyCostForModel: () => costUsd },
       };
-      const resolved: ResolvedModel = {
-        role: "builder",
-        connectionId: "conn-1",
-        connectionName: "Connection 1",
-        apiType: "openai-compatible",
-        baseUrl: "https://api.openai.com/v1",
-        modelId: "gpt-4",
-        apiKey: "test-key",
-        details: {},
-        limits: {},
-        budget: { perDay: { requests: 5, usd: 1.0 } },
-      };
+    }
 
-      expect(() => assertBudgetNotExceeded(fakeRepo, resolved)).not.toThrow();
+    const builder: ResolvedModel = {
+      role: "builder",
+      connectionId: "conn-1",
+      connectionName: "Connection 1",
+      apiType: "openai-compatible",
+      baseUrl: "https://api.openai.com/v1",
+      modelId: "gpt-4",
+      apiKey: "test-key",
+      details: {},
+      limits: {},
+      budget: { perDay: { requests: 5, usd: 1.0 } },
+    };
+
+    it("reads today's calls and cost from their two sources, and passes within budget", () => {
+      expect(() =>
+        assertBudgetNotExceeded(usageSource(4, 0.5), builder),
+      ).not.toThrow();
     });
 
-    it("throws BudgetExceededError when repo reports usage exceeding budget", () => {
-      const fakeRepo = {
-        getDailyUsageForModel: () => ({
-          requests: 6,
-          costUsd: 0.5,
-          spendUsd: 0.5,
-        }),
-      };
-      const resolved: ResolvedModel = {
-        role: "builder",
-        connectionId: "conn-1",
-        connectionName: "Connection 1",
-        apiType: "openai-compatible",
-        baseUrl: "https://api.openai.com/v1",
-        modelId: "gpt-4",
-        apiKey: "test-key",
-        details: {},
-        limits: {},
-        budget: { perDay: { requests: 5 } },
+    it("throws BudgetExceededError when the model's calls are spent", () => {
+      expect(() =>
+        assertBudgetNotExceeded(usageSource(5, 0.5), builder),
+      ).toThrow(BudgetExceededError);
+    });
+
+    it("throws BudgetExceededError when the model's cost is spent", () => {
+      expect(() =>
+        assertBudgetNotExceeded(usageSource(1, 1.0), builder),
+      ).toThrow(BudgetExceededError);
+    });
+
+    it("hands the check time to both usage reads", () => {
+      const asked: Array<{ source: string; now: Date | undefined }> = [];
+      const when = new Date("2026-10-11T09:00:00.000Z");
+      const source: DailyUsageSource = {
+        modelCalls: {
+          countForModel: (_connectionId, _modelId, options) => {
+            asked.push({ source: "calls", now: options?.now });
+            return 0;
+          },
+        },
+        stageAttempts: {
+          getDailyCostForModel: (_connectionId, _modelId, options) => {
+            asked.push({ source: "cost", now: options?.now });
+            return 0;
+          },
+        },
       };
 
-      expect(() => assertBudgetNotExceeded(fakeRepo, resolved)).toThrow(
-        BudgetExceededError,
-      );
+      assertBudgetNotExceeded(source, builder, when);
+      expect(asked).toEqual([
+        { source: "calls", now: when },
+        { source: "cost", now: when },
+      ]);
     });
   });
 

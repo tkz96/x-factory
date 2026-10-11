@@ -195,6 +195,61 @@ describe("ModelGateway.run", () => {
     ).toBe("unblocked");
   });
 
+  it("counts each attempt, a retry after a 429 included, before it is made (#281)", async () => {
+    const { clock } = fakeClock();
+    const gateway = new ModelGateway({ clock });
+    const counted: number[] = [];
+    const attempts: number[] = [];
+    const result = await gateway.run(
+      {
+        key: "c1:m",
+        limit: 1,
+        recordCall: () => counted.push(attempts.length + 1),
+      },
+      async () => {
+        attempts.push(attempts.length + 1);
+        if (attempts.length === 1) throw new RateLimitedError("429", 1_000);
+        return "ok";
+      },
+    );
+
+    expect(result).toBe("ok");
+    expect(attempts).toEqual([1, 2]);
+    // Each request was counted as it was sent, the retry included.
+    expect(counted).toEqual([1, 2]);
+  });
+
+  it("re-checks the budget before a retry, since the retry is another request (#281)", async () => {
+    const { clock } = fakeClock();
+    const gateway = new ModelGateway({ clock });
+    const counted: number[] = [];
+    const checkBudget = () => {
+      if (counted.length >= 1) {
+        throw new ModelUnavailableError(
+          "Model reached its daily budget: 1/1 model calls today (UTC).",
+          "budget reached",
+        );
+      }
+    };
+    const err = await gateway
+      .run(
+        {
+          key: "c1:m",
+          limit: 1,
+          checkBudget,
+          recordCall: () => counted.push(counted.length + 1),
+        },
+        async () => {
+          throw new RateLimitedError("429", 1_000);
+        },
+      )
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ModelUnavailableError);
+    expect((err as ModelUnavailableError).category).toBe("budget reached");
+    expect(counted).toEqual([1]);
+  });
+
   it("rejects immediately when acquire signal is already aborted", async () => {
     const gateway = new ModelGateway({ clock: fakeClock().clock });
     const controller = new AbortController();

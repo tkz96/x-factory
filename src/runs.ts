@@ -451,7 +451,9 @@ export async function resumeRun(
 
     if (targetRole && resolved) {
       try {
-        assertBudgetNotExceeded(stageAttemptRepo, resolved, options?.now);
+        // The same rule the worker checks before a call: a spent budget (N of N
+        // calls today) refuses the resume, one call left allows it (#281).
+        assertBudgetNotExceeded(repos, resolved, options?.now);
       } catch (err: unknown) {
         if (err instanceof ModelUnavailableError) {
           throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);

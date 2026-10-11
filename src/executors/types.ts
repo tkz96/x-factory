@@ -57,6 +57,12 @@ export interface StageContext {
   reportUsage(usage: ModelUsage): void;
   /** Asserts that calling the model does not exceed its daily budget (#281). */
   assertBudget?(resolved: ResolvedModel): void;
+  /**
+   * Counts one model call. The requests/day budget counts calls, not attempts:
+   * one per prompt sent through the gateway, a 429 retry included, and one per
+   * coding-loop iteration (#281).
+   */
+  recordModelCall?(resolved: ResolvedModel): void;
 }
 
 /** The run fields a stage may write. */

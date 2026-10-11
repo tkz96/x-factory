@@ -495,8 +495,8 @@ describe("stage runner", () => {
       deliverExecutor: deliverSpy,
     }).stepCommandOnce();
 
-    // recordModel and reportUsage write to the attempt without exposing the
-    // repositories or the attempt id (#279).
+    // recordModel, reportUsage and recordModelCall write to the attempt without
+    // exposing the repositories or the attempt id (#279, #281).
     const expected = [
       "assertBudget",
       "attempt",
@@ -504,6 +504,7 @@ describe("stage runner", () => {
       "ledger",
       "project",
       "recordModel",
+      "recordModelCall",
       "reportUsage",
       "run",
       "signal",
