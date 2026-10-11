@@ -54,7 +54,13 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 
 ---
 
-## 5. Verification Gate
+## 5. Never load from a third party
+
+- Do not point `src`, `href` (except a plain navigation link on `<a>`), `srcset`, `poster`, `@import` or `url()` at another host, and do not `fetch` one. `bun run test:frontend-smoke` scans the pages, the stylesheets and the frontend sources for this, and drives a browser through every screen to catch requests made from JavaScript.
+- Vendored assets are served by X-Factory: the API Reference viewer is a pinned copy under `public/assets/api-reference/` (see [ci-checks.md](./ci-checks.md)).
+- Everything from a CDN is a bug, however convenient: an offline laptop is a supported way to run X-Factory.
+
+## 6. Verification Gate
 
 Before submitting or completing any UI/frontend task, run:
 ```bash
