@@ -2,19 +2,22 @@
 
 import "./SettingsView.css";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { Project, WorkbenchSettings } from "../../shared/types.js";
+import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
+import { Modal, ModalFooter } from "../components/Modal.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
+import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -135,12 +138,37 @@ function DiagnosticsTabContent({
 interface GeneralTabContentProps {
   currentTheme: "light" | "dark";
   onApplyTheme: (theme: "light" | "dark") => void;
+  allowUnsandboxed: boolean;
+  onUpdateUnsandboxed: (enabled: boolean) => Promise<void>;
+  isSavingUnsandboxed?: boolean;
 }
 
 function GeneralTabContent({
   currentTheme,
   onApplyTheme,
+  allowUnsandboxed,
+  onUpdateUnsandboxed,
+  isSavingUnsandboxed,
 }: GeneralTabContentProps) {
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setShowConfirmModal(true);
+    } else {
+      void onUpdateUnsandboxed(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    await onUpdateUnsandboxed(true);
+    setShowConfirmModal(false);
+  };
+
+  const handleCancel = () => {
+    setShowConfirmModal(false);
+  };
+
   return (
     <div id="tab-general" className="settings-pane active">
       <h3>General Settings</h3>
@@ -192,6 +220,75 @@ function GeneralTabContent({
           className="code-input"
         />
       </div>
+
+      <div className="setting-item mt-4">
+        <span className="setting-label">Security &amp; Sandboxing</span>
+        <div className="setting-checkbox-row">
+          <input
+            id="setting-allow-unsandboxed"
+            type="checkbox"
+            className="setting-checkbox"
+            checked={allowUnsandboxed}
+            disabled={isSavingUnsandboxed}
+            onChange={handleCheckboxChange}
+          />
+          <div className="setting-checkbox-text">
+            <label
+              htmlFor="setting-allow-unsandboxed"
+              className="setting-checkbox-title"
+            >
+              Run agents without a sandbox
+            </label>
+            <p className="text-muted text-footnote m-0">
+              Allows the coding loop to run directly on the host machine when{" "}
+              <code>sbx</code> is unavailable.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {showConfirmModal && (
+        <Modal
+          id="modal-confirm-unsandboxed"
+          title="Run agents without a sandbox?"
+          onClose={handleCancel}
+          closeButtonId="btn-close-unsandboxed-modal"
+        >
+          <div className="unsandboxed-modal-content">
+            <p className="unsandboxed-modal-warning">
+              Coding agents will execute directly on this machine without
+              container isolation. The agent will have access to your local
+              filesystem, network, and environment.
+            </p>
+            <p className="text-muted text-footnote mt-2">
+              Only enable this if you trust the repository and model, or if you
+              do not have <code>sbx</code> installed. You can also enable this
+              per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
+            </p>
+          </div>
+          <ModalFooter>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              id="btn-cancel-unsandboxed"
+              onClick={handleCancel}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-warning"
+              id="btn-confirm-unsandboxed"
+              onClick={handleConfirm}
+              disabled={isSavingUnsandboxed}
+            >
+              {isSavingUnsandboxed
+                ? "Enabling…"
+                : "Enable Unsandboxed Execution"}
+            </button>
+          </ModalFooter>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -322,142 +419,12 @@ function ConnectionsTabContent({
   );
 }
 
-interface ModelsTabContentProps {
-  settings: ReturnType<typeof useSettings>["data"];
-  saveSettingsMutation: ReturnType<typeof useSaveSettings>;
-}
-
-function ModelsTabContent({
-  settings,
-  saveSettingsMutation,
-}: ModelsTabContentProps) {
-  const [modelAProvider, setModelAProvider] = useState("");
-  const [modelAModel, setModelAModel] = useState("");
-  const [modelBProvider, setModelBProvider] = useState("");
-  const [modelBModel, setModelBModel] = useState("");
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (settings?.models) {
-      setModelAProvider(settings.models.sessionA?.provider || "");
-      setModelAModel(settings.models.sessionA?.model || "");
-      setModelBProvider(settings.models.sessionB?.provider || "");
-      setModelBModel(settings.models.sessionB?.model || "");
-    }
-  }, [settings]);
-
-  const handleSaveModels = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus("Saving…");
-    try {
-      // The model-settings wire contract is {provider, model} per session
-      // (#182) — never a bare model-name string, which the server would
-      // spread into the settings file. Empty fields are OMITTED, never sent
-      // as "": an empty value must not overwrite a stored provider or model.
-      const models: NonNullable<WorkbenchSettings["models"]> = {};
-      const sessionA: { provider?: string; model?: string } = {};
-      const providerA = modelAProvider.trim();
-      const modelA = modelAModel.trim();
-      if (providerA) sessionA.provider = providerA;
-      if (modelA) sessionA.model = modelA;
-      if (Object.keys(sessionA).length > 0) models.sessionA = sessionA;
-      const sessionB: { provider?: string; model?: string } = {};
-      const providerB = modelBProvider.trim();
-      const modelB = modelBModel.trim();
-      if (providerB) sessionB.provider = providerB;
-      if (modelB) sessionB.model = modelB;
-      if (Object.keys(sessionB).length > 0) models.sessionB = sessionB;
-
-      await saveSettingsMutation.mutateAsync({ models });
-      setSaveStatus("Settings saved successfully.");
-      setTimeout(() => setSaveStatus(null), 3000);
-    } catch (err) {
-      setSaveStatus(
-        `Failed to save: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  };
-
+/** Settings › Models (#277, #278): model connections, then the roles that use them. */
+function ModelsTabContent() {
   return (
     <div id="tab-models" className="settings-pane active">
-      <h3>Pi &amp; Models</h3>
-      <p className="text-muted">
-        Configure LLM providers and models for Pi Agent sessions.
-      </p>
-
-      <form onSubmit={handleSaveModels} className="mt-4">
-        <div className="setting-item">
-          <label htmlFor="setting-model-a-provider">
-            Implementation Provider (Session A)
-          </label>
-          <input
-            type="text"
-            id="setting-model-a-provider"
-            placeholder="e.g. anthropic, ollama, openai"
-            className="form-input"
-            value={modelAProvider}
-            onChange={(e) => setModelAProvider(e.target.value)}
-          />
-        </div>
-
-        <div className="setting-item mt-3">
-          <label htmlFor="setting-model-a-model">
-            Implementation Model (Session A)
-          </label>
-          <input
-            type="text"
-            id="setting-model-a-model"
-            placeholder="e.g. claude-3-7-sonnet or qwen2.5-coder:32b"
-            className="form-input"
-            value={modelAModel}
-            onChange={(e) => setModelAModel(e.target.value)}
-          />
-        </div>
-
-        <div className="setting-item mt-3">
-          <label htmlFor="setting-model-b-provider">
-            Review Provider (Session B)
-          </label>
-          <input
-            type="text"
-            id="setting-model-b-provider"
-            placeholder="e.g. anthropic"
-            className="form-input"
-            value={modelBProvider}
-            onChange={(e) => setModelBProvider(e.target.value)}
-          />
-        </div>
-
-        <div className="setting-item mt-3">
-          <label htmlFor="setting-model-b-model">
-            Review Model (Session B)
-          </label>
-          <input
-            type="text"
-            id="setting-model-b-model"
-            placeholder="e.g. claude-3-7-sonnet"
-            className="form-input"
-            value={modelBModel}
-            onChange={(e) => setModelBModel(e.target.value)}
-          />
-        </div>
-
-        <div className="settings-actions-bar">
-          <button
-            type="submit"
-            id="btn-save-settings"
-            className="btn-primary"
-            disabled={saveSettingsMutation.isPending}
-          >
-            {saveSettingsMutation.isPending ? "Saving…" : "Save Model Settings"}
-          </button>
-          {saveStatus && (
-            <span id="settings-status" className="text-muted text-footnote">
-              {saveStatus}
-            </span>
-          )}
-        </div>
-      </form>
+      <ModelConnectionsPanel />
+      <RolesPanel />
     </div>
   );
 }
@@ -492,6 +459,10 @@ export function SettingsView() {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const { theme: currentTheme, applyTheme: handleApplyTheme } = useTheme();
+
+  const handleUpdateUnsandboxed = async (enabled: boolean) => {
+    await saveSettingsMutation.mutateAsync({ allowUnsandboxed: enabled });
+  };
 
   return (
     <section id="area-settings" className="area-view active">
@@ -546,6 +517,9 @@ export function SettingsView() {
             <GeneralTabContent
               currentTheme={currentTheme}
               onApplyTheme={handleApplyTheme}
+              allowUnsandboxed={Boolean(settings?.allowUnsandboxed)}
+              onUpdateUnsandboxed={handleUpdateUnsandboxed}
+              isSavingUnsandboxed={saveSettingsMutation.isPending}
             />
           )}
 
@@ -557,12 +531,7 @@ export function SettingsView() {
             />
           )}
 
-          {activeTab === "models" && (
-            <ModelsTabContent
-              settings={settings}
-              saveSettingsMutation={saveSettingsMutation}
-            />
-          )}
+          {activeTab === "models" && <ModelsTabContent />}
 
           {activeTab === "git" && <GitTabContent />}
 

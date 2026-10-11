@@ -48,3 +48,10 @@
 .readiness-desc {
   font-size: var(--text-footnote);
 }
+
+/* Checks that need attention, one per line (#283). */
+.readiness-issues {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  color: var(--text);
+}

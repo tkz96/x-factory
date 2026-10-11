@@ -7,7 +7,8 @@ This document defines the security boundaries, execution model, and credential m
 X-Factory executes the autonomous Ralph loop using a strictly enforced sandbox boundary. 
 
 1. **Sandbox Requirement (`sbx`)**: The agent **must** execute inside the `sbx` sandbox CLI. It is strictly prohibited for the agent to execute bare-metal on the host system.
-2. **Fail Closed**: If the `sbx` sandbox environment is not available on the host, the Ralph loop script will fail immediately and return a non-zero exit code. It will never fall back to direct host execution.
+2. **Fail Closed**: If the `sbx` sandbox environment is not available on the host, the Ralph loop script will fail immediately and return a non-zero exit code. It never falls back to direct host execution on its own.
+   - **Explicit opt-out:** the exception is when the operator enables the "Run agents without a sandbox" setting in Settings or sets `X_FACTORY_ALLOW_UNSANDBOXED=1` in the worker's environment. The loop then runs the agent directly on the host, inside the run's worktree. Every such run records an info event saying it ran without a sandbox. This setting is off by default and is meant for local development only.
 3. **Iterative Isolation**: Each iteration of the Ralph loop spawns a fresh agent process inside the sandbox. The iterations interact purely via the Git worktree and `.agent/tasks.md`.
 
 ## Credential Management and Environment Sanitization
@@ -33,13 +34,29 @@ Only a minimal allowlist of necessary operating environment variables is passed 
 Because `HOME` passes through, the sanitization does not protect credential files such as `~/.aws`, `~/.config/gh` or `~/.npmrc`.
 
 ### 3. Explicit Credential Injection
-The selected LLM API credentials are not stored in configuration files (like `settings.json`) but are pulled selectively from the host environment based on the active provider.
+Model API keys never live in `settings.json`. Each role (Builder, Reviewer) points at a model on a model connection (#278), and every model call uses that connection's key and nothing else.
 
-- **Provider Resolution**: The executor reads `settings.json` to determine which LLM provider the user has configured (e.g., Anthropic, OpenAI, or Google).
-- **Credential Selection**: Only the API key corresponding to the selected provider (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GEMINI_API_KEY`) is injected into the sandbox environment. Irrelevant provider keys are stripped.
-- **Pi API Key (`PI_API_KEY`)**: The system universally allows `PI_API_KEY` through the sandbox boundary to support the `pi` execution agent.
+- **No fallback model**: a role with no model, an unchecked connection, a missing key, or a key the provider rejects stops the work with that reason. X-Factory never switches to another model or to the agent runtime's default.
+- **In-process calls (understand, plan, review, chat)**: X-Factory registers the role's connection with the agent runtime as one X-Factory-owned provider holding exactly that model. The runtime reads nothing from the user's `~/.pi`; its own config lives in `<data dir>/pi-agent`. Understand and Plan run as the Builder with the runtime's read-only tools (`read`, `grep`, `find`, `ls`), so a stage can inspect the repository but never change it.
+- **The coding agent**: each run gets its own agent config directory in its artifacts (`PI_CODING_AGENT_DIR`). Its `models.json` names only the Builder's model and refers to the key as `$XF_MODEL_API_KEY`, so no key is written to disk. The key reaches the agent only through that variable. Provider key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`) are not passed to it.
+- **Pi API Key (`PI_API_KEY`)**: still passed through the sandbox boundary to support the `pi` execution agent.
 
 Credentials are provided strictly via environment variables. They are never injected as command-line arguments to the agent process, ensuring they do not leak into process listings (`ps`).
+
+### 4. Model Connections (#276)
+Users can also store model API keys in X-Factory itself, as **model connections** (name, API type, base URL, key), managed through `/api/model-connections`.
+
+- **Where keys live**: non-secret fields go in `<data dir>/model-connections.json`. Keys go in `<data dir>/model-secrets.json`, written with owner-only permissions (`0600`) through a temp file and rename. Both paths come from `src/paths.ts`.
+- **Never returned**: API responses carry only `hasKey`, the key's last four characters and `keySource` (`stored`, `environment` or `none`). The key itself never crosses the API boundary.
+- **Environment override**: for headless setups, a provider key env var wins over a stored key for every connection of that API type:
+
+  | API type | Env var |
+  |---|---|
+  | `gemini` | `GEMINI_API_KEY` |
+  | `anthropic` | `ANTHROPIC_API_KEY` |
+  | `openai-compatible` | `OPENAI_API_KEY` |
+- **First-launch import**: when the API process starts with `LLM_API_KEY` set, it imports that key as a connection, once. The provider comes from `LLM_PROVIDER` (`gemini`, `google`, `anthropic` or `openai`) or else from the key's prefix: `AIzaSy` or `AQ.` means Gemini, `sk-ant-` means Anthropic, `sk-` means OpenAI. A key that matches none of these is skipped rather than guessed.
+- **The runtime's own config is never touched**: X-Factory does not read or write the agent runtime's `~/.pi` directory.
 
 ## Local-Only API Boundary
 

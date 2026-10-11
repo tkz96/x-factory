@@ -17,6 +17,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 
 const PROJECT_ID = "proj-exec-state";
 
@@ -142,6 +143,7 @@ async function execute(files: Array<[string, string]>): Promise<{
 
   await installAgent(files);
   const executor = new ExecuteExecutor({
+    resolveRole: stubResolveRole,
     loadSettings: async () => ({}),
     reviewExecutor: {
       stage: "review",

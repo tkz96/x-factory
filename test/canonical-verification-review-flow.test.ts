@@ -23,6 +23,7 @@ import type {
   VerificationResult,
 } from "../src/shared/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import {
   scriptedReviewSession,
   tempArtifactsDirs,
@@ -203,7 +204,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     runRepo.update(run.id, { verification: sampleVerification });
 
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => scriptedReviewSession(approvedOutput),
     });
 
@@ -229,7 +230,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     runRepo.update(run.id, { verification: sampleVerification });
 
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () =>
         scriptedReviewSession(
           "CRITERIA_CHECK:\n- [FAIL] AC 1: Must verify\n\nFINDINGS:\n- [ERROR] Critical bug detected\n\nVERDICT:\nFAILED - bug\n",
@@ -259,7 +260,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
     let sessionsCreated = 0;
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => {
         sessionsCreated++;
         return scriptedReviewSession(approvedOutput);

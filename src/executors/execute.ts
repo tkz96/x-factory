@@ -1,6 +1,14 @@
 // src/executors/execute.ts — ExecuteExecutor: events and persistence around the attempt loop (Ticket 02).
 
+import { writeRunAgentConfig } from "../agents/pi.js";
 import { runAttemptLoop } from "../attempt-loop.js";
+import { gatewayKeyFor, modelGateway } from "../model-gateway.js";
+import {
+  ModelUnavailableError,
+  modelFailureReason,
+  modelUse,
+  resolveRole,
+} from "../model-roles.js";
 import { loadSettings } from "../settings.js";
 import type { VerificationResult } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
@@ -14,11 +22,14 @@ import type {
 
 export interface ExecuteDependencies {
   loadSettings: typeof loadSettings;
+  /** Resolves the Builder role's model (#278); a test seam. */
+  resolveRole: typeof resolveRole;
   reviewExecutor: StageExecutor;
 }
 
 export const defaultExecuteDeps: ExecuteDependencies = {
   loadSettings,
+  resolveRole,
   get reviewExecutor() {
     return new ReviewExecutor();
   },
@@ -53,7 +64,37 @@ export class ExecuteExecutor implements StageExecutor {
     }
 
     const settings = await this.deps.loadSettings();
-    const provider = settings.models?.sessionA?.provider || "anthropic";
+    const allowUnsandboxed = settings.allowUnsandboxed;
+
+    // The Builder role's model, handed to the agent CLI through a per-run
+    // config that never touches ~/.pi; no fallback model (#278).
+    let agent: Awaited<ReturnType<typeof writeRunAgentConfig>>;
+    let gateKey: ReturnType<typeof gatewayKeyFor>;
+    try {
+      const resolved = await this.deps.resolveRole("builder");
+      context.assertBudget?.(resolved);
+      agent = await writeRunAgentConfig(run.artifactsDir, resolved);
+      const assertBudget = context.assertBudget;
+      gateKey = gatewayKeyFor(
+        resolved,
+        assertBudget ? () => assertBudget(resolved) : undefined,
+      );
+      context.recordModel(modelUse(resolved));
+    } catch (err: unknown) {
+      if (
+        err instanceof ModelUnavailableError &&
+        err.category === "budget reached"
+      ) {
+        return {
+          outcome: "paused",
+          reason: err.message,
+        };
+      }
+      if (err instanceof ModelUnavailableError) {
+        return { outcome: "error", error: modelFailureReason(err) };
+      }
+      throw err;
+    }
 
     // The latest verification is the stage's output; each one is also emitted as it happens.
     let latest: VerificationResult | undefined;
@@ -70,7 +111,11 @@ export class ExecuteExecutor implements StageExecutor {
         project,
         understanding: run.implementationContext,
         baseline,
-        provider,
+        provider: agent.provider,
+        model: agent.model,
+        agentEnv: agent.env,
+        gate: { gateway: modelGateway, key: gateKey },
+        allowUnsandboxed,
         signal,
         emit: context.emit,
         onVerification: (verification) => {
@@ -91,6 +136,13 @@ export class ExecuteExecutor implements StageExecutor {
       return {
         outcome: "error",
         error: "Execution stopped",
+        record: verificationRecord(),
+      };
+    }
+    if (result.outcome === "budget_exceeded") {
+      return {
+        outcome: "paused",
+        reason: result.error,
         record: verificationRecord(),
       };
     }

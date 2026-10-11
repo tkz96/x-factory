@@ -48,6 +48,8 @@ export interface ChatMessage {
   role: "agent" | "user" | "system";
   text: string;
   timestamp: string;
+  /** A system line shown as a warning (e.g. a run without a sandbox, #275). */
+  warning?: boolean | undefined;
   contextCard?: {
     title: string;
     items: string[];
@@ -421,6 +423,19 @@ export function RunChat({
             timestamp: e.timestamp,
           },
         ];
+      case "info":
+        if (e.payload.warning === "unsandboxed") {
+          return [
+            {
+              id: `info-${e.id}`,
+              role: "system",
+              text: e.payload.text,
+              warning: true,
+              timestamp: e.timestamp,
+            },
+          ];
+        }
+        return [];
       default:
         return [];
     }
@@ -619,10 +634,16 @@ export function RunChat({
       <div className="run-chat-messages" ref={scrollRef}>
         {finalMessages.map((msg) => {
           if (msg.role === "system") {
+            const isWarning = msg.warning === true;
             return (
-              <div key={msg.id} className="imsg-system-divider">
+              <div
+                key={msg.id}
+                className={`imsg-system-divider ${isWarning ? "imsg-system-divider-warning" : ""}`}
+              >
                 <div className="imsg-system-line" />
-                <div className="imsg-system-pill">
+                <div
+                  className={`imsg-system-pill ${isWarning ? "imsg-system-pill-warning" : ""}`}
+                >
                   <span>{msg.text}</span>
                   <span className="imsg-system-time">
                     {formatTimestamp(msg.timestamp)}

@@ -1,5 +1,6 @@
 // src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and Ralph progress (Ticket 02, #191).
 
+import { stageStartedText } from "../../lib/run-models.js";
 import "./ChatThread.css";
 
 import { useEffect, useRef } from "react";
@@ -137,6 +138,24 @@ function renderErrorBubble(item: RunEvent<"error">) {
   );
 }
 
+function renderInfoBubble(item: RunEvent<"info">) {
+  const text = item.payload.text;
+  if (item.payload.warning === "unsandboxed") {
+    return (
+      <div key={item.id} className="chat-bubble bubble-warning">
+        <div className="chat-bubble-header">
+          <span className="chat-bubble-badge">Warning</span>
+        </div>
+        <div className="chat-bubble-body">{text}</div>
+        <time className="chat-bubble-time" dateTime={item.timestamp}>
+          {formatFullTimestamp(item.timestamp)}
+        </time>
+      </div>
+    );
+  }
+  return renderTextBubble(item, text);
+}
+
 function renderTextBubble(item: RunEvent, text: string) {
   return (
     <div key={item.id} className="chat-bubble bubble-system">
@@ -186,6 +205,7 @@ function renderBubble(item: RunEvent) {
     case "error":
       return renderErrorBubble(item);
     case "info":
+      return renderInfoBubble(item);
     case "user_feedback":
       return renderTextBubble(item, item.payload.text);
     case "pr_step":
@@ -193,6 +213,8 @@ function renderBubble(item: RunEvent) {
         item,
         item.payload.text ?? item.payload.url ?? "",
       );
+    case "stage_started":
+      return renderTextBubble(item, stageStartedText(item.payload));
     case "verification":
     case "review":
       return renderTextBubble(item, JSON.stringify(item.payload));

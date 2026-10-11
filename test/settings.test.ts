@@ -57,10 +57,11 @@ describe("Settings Storage & Persistence", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
-  test("loadSettings returns defaults when file does not exist", async () => {
+  test("loadSettings returns defaults when file does not exist, with no default model (#278)", async () => {
     const settings = await loadSettings();
     expect(settings.theme).toBe("dark");
-    expect(settings.models?.sessionA?.model).toBe("claude-3-7-sonnet");
+    expect(settings.models?.sessionA?.model).toBeUndefined();
+    expect(settings.models?.sessionA?.provider).toBeUndefined();
   });
 
   test("saveSettings persists settings to disk with 0600 mode", async () => {
@@ -91,6 +92,25 @@ describe("Settings Storage & Persistence", () => {
     const updated = await loadSettings();
     expect(updated.theme).toBe("light");
   });
+
+  test("loadSettings defaults allowUnsandboxed to false", async () => {
+    const defaults = await loadSettings();
+    expect(defaults.allowUnsandboxed).toBe(false);
+  });
+
+  test("saveSettings persists allowUnsandboxed preference", async () => {
+    await saveSettings({ allowUnsandboxed: true });
+    const updated = await loadSettings();
+    expect(updated.allowUnsandboxed).toBe(true);
+
+    const raw = await readFile(settingsPath, "utf-8");
+    const onDisk = JSON.parse(raw);
+    expect(onDisk.allowUnsandboxed).toBe(true);
+
+    await saveSettings({ allowUnsandboxed: false });
+    const reverted = await loadSettings();
+    expect(reverted.allowUnsandboxed).toBe(false);
+  });
 });
 
 describe("Settings legacy model entries (#182)", () => {
@@ -111,7 +131,7 @@ describe("Settings legacy model entries (#182)", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
-  test("a legacy string model entry loads as that model with the default provider", async () => {
+  test("a legacy string model entry loads as that model, with no provider since there is no default (#278)", async () => {
     await writeFile(
       settingsPath,
       JSON.stringify({ theme: "dark", models: { sessionA: "gpt-4" } }),
@@ -119,10 +139,7 @@ describe("Settings legacy model entries (#182)", () => {
     );
 
     const settings = await loadSettings();
-    expect(settings.models?.sessionA).toEqual({
-      provider: "anthropic",
-      model: "gpt-4",
-    });
+    expect(settings.models?.sessionA).toEqual({ model: "gpt-4" });
   });
 
   test("an index-spread model entry loads as the model string it spells", async () => {
@@ -138,10 +155,7 @@ describe("Settings legacy model entries (#182)", () => {
     );
 
     const settings = await loadSettings();
-    expect(settings.models?.sessionA).toEqual({
-      provider: "anthropic",
-      model: "gpt-4",
-    });
+    expect(settings.models?.sessionA).toEqual({ model: "gpt-4" });
   });
 
   test("the next save writes a clean {provider, model} entry, never index keys", async () => {
@@ -166,13 +180,7 @@ describe("Settings legacy model entries (#182)", () => {
       models: { sessionA: unknown; sessionB: unknown };
     };
     expect(onDisk.theme).toBe("light");
-    expect(onDisk.models.sessionA).toEqual({
-      provider: "anthropic",
-      model: "gpt-4",
-    });
-    expect(onDisk.models.sessionB).toEqual({
-      provider: "anthropic",
-      model: "qwe",
-    });
+    expect(onDisk.models.sessionA).toEqual({ model: "gpt-4" });
+    expect(onDisk.models.sessionB).toEqual({ model: "qwe" });
   });
 });
