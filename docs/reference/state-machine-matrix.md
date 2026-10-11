@@ -118,6 +118,8 @@ A stage's repair budget is its single attempt cap. An `execute` stage whose veri
 ### 8. Budget-Exceeded Pauses and Resumption
 Starting a model call that would exceed the model's configured daily budget (either requests or USD per UTC day) does not fail or retry the job; instead, it pauses the stage and transitions the run to `recovery_required` carrying a structured reason with category `"budget reached"` (#281). Resuming the run via `POST /api/runs/:id/resume` re-checks the daily budget for the model assigned to the target stage. If the daily budget is still exceeded, the resume request is rejected with `409 Conflict` (`ConflictError`) and the run remains in `recovery_required`.
 
+**Not covered:** chat spend is not budgeted or queued with stage calls. Run chat uses its own gateway queue and is not checked against daily budgets. Its tokens and cost are recorded only on the `chat_agent` event, not in `stage_attempts`, so they do not count toward budgets. This is an accepted gap.
+
 ### 9. Why a Run Failed
 Every status event that moves a run to `failed` carries a structured `failure` alongside its technical `text` (#256): a `category` (`model`, `sandbox`, `timeout`, `verification`, `review`, `git`, `project`, `operator` or `unknown`), a plain-language `message`, and the `recovery` action to suggest. `src/shared/failure-reason.ts` derives it from the error text (the stage only names the fallback message), prefers the sandbox and model categories over the rest, and reports `unknown` rather than guessing. The three writers are the stage failure, the rejected stage and the operator's `abandon`.
 
