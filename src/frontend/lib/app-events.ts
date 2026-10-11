@@ -4,10 +4,13 @@ import type { QueryClient } from "@tanstack/react-query";
 import type {
   AppEventEnvelope,
   EventsSnapshot,
+  Run,
   RunEvent,
   RunEventPayloadMap,
 } from "../../shared/types.js";
+import { api } from "./api-client.js";
 import { patchRunCache } from "./query-client.js";
+import { queryKeys } from "./query-policies.js";
 import { reduceRun } from "./run-state.js";
 
 /** Fetches a fresh, consistent snapshot of app-wide events and current runs. */
@@ -17,6 +20,30 @@ export async function fetchEventsSnapshot(): Promise<EventsSnapshot> {
     throw new Error(`Failed to fetch events snapshot: ${res.status}`);
   }
   return (await res.json()) as EventsSnapshot;
+}
+
+const adopting = new Set<string>();
+
+/**
+ * A run created elsewhere (another tab, the CLI) is not in the cached list, so the
+ * list patch cannot show it (#259). Fetch just that run and insert it; never the list.
+ */
+function adoptUnknownRun(queryClient: QueryClient, runId: string): void {
+  const list = queryClient.getQueryData<Run[]>(queryKeys.runs());
+  if (!list || list.some((r) => r.id === runId) || adopting.has(runId)) return;
+  adopting.add(runId);
+  api
+    .getRun(runId)
+    .then((run) => {
+      queryClient.setQueryData<Run>(queryKeys.run(runId), run);
+      queryClient.setQueryData<Run[] | undefined>(queryKeys.runs(), (old) =>
+        !old || old.some((r) => r.id === runId) ? old : [run, ...old],
+      );
+    })
+    .catch(() => {
+      // Not fetched now: the next event for this run tries again.
+    })
+    .finally(() => adopting.delete(runId));
 }
 
 export interface AppEventTransportHandlers {
@@ -123,6 +150,8 @@ export function subscribeAppEvents({
         queryClient,
       );
     }
+
+    adoptUnknownRun(queryClient, envelope.runId);
 
     onEvent?.(envelope, delivery);
 

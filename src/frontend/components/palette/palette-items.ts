@@ -6,6 +6,7 @@
 
 import type { Project, Run } from "../../../shared/types.js";
 import { runStatusText } from "../../lib/run-status-ui.js";
+import type { ShortcutId } from "../../shortcuts/registry.js";
 
 export type PaletteGroup =
   | "Actions"
@@ -20,6 +21,8 @@ export interface PaletteItem {
   label: string;
   detail?: string | undefined;
   keywords: string;
+  /** The registry shortcut that does the same thing; the palette shows its keys. */
+  shortcutId?: ShortcutId;
   /** A route inside the app, or an external URL opened in a new tab. */
   target?: { kind: "route"; path: string } | { kind: "external"; url: string };
   /** An action with no route, such as opening a dialog. */
@@ -31,6 +34,7 @@ export const SECTION_ITEMS: PaletteItem[] = [
     id: "section-tickets",
     group: "Sections",
     label: "Tickets",
+    shortcutId: "goQueue",
     keywords: "queue work ready implement",
     target: { kind: "route", path: "/tickets" },
   },
@@ -38,6 +42,7 @@ export const SECTION_ITEMS: PaletteItem[] = [
     id: "section-runs",
     group: "Sections",
     label: "Runs",
+    shortcutId: "goRuns",
     keywords: "runs running history done needs you",
     target: { kind: "route", path: "/runs" },
   },
@@ -45,6 +50,7 @@ export const SECTION_ITEMS: PaletteItem[] = [
     id: "section-projects",
     group: "Sections",
     label: "Projects",
+    shortcutId: "goProjects",
     keywords: "repositories workspace",
     target: { kind: "route", path: "/projects" },
   },
@@ -69,6 +75,7 @@ export const HELP_ITEMS: PaletteItem[] = [
     id: "help-shortcuts",
     group: "Help",
     label: "Keyboard Shortcuts",
+    shortcutId: "help",
     keywords: "help keys shortcuts ?",
     action: "shortcuts",
   },
@@ -87,6 +94,7 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
       id: "action-start-run",
       group: "Actions",
       label: "Start Run",
+      shortcutId: "newRun",
       keywords: "new run ticket implement",
       action: "start-run",
     },
@@ -110,6 +118,7 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
       id: "action-stop-run",
       group: "Actions",
       label: "Stop Run",
+      shortcutId: "stopRun",
       keywords: "cancel halt abort",
       action: "stop-run",
     });

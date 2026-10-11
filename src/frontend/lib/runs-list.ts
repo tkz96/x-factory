@@ -1,7 +1,6 @@
 // src/frontend/lib/runs-list.ts — The Runs list model (#259, spec #241).
 //
-// Filter groups, segment counts, the default choice and the row's relative
-// time. Groups come from the one status → UI mapping in run-status-ui.ts, so
+// Filter groups, segment counts, and the default choice. Groups come from the one status → UI mapping in run-status-ui.ts, so
 // the list, its counts and the Runs badge can never disagree.
 
 import type { Run } from "../../shared/types.js";
@@ -64,25 +63,4 @@ export function defaultRunsFilter({
 }): RunsFilterId {
   if (needsYouCount > 0) return "needs-you";
   return lastChosen ?? "running";
-}
-
-const UNITS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
-  ["day", 86_400_000],
-  ["hour", 3_600_000],
-  ["minute", 60_000],
-];
-
-/** "5 minutes ago" style text for a row. Unparseable input is returned as is. */
-export function formatRelativeTime(iso: string, now: number): string {
-  const then = Date.parse(iso);
-  if (Number.isNaN(then)) return iso;
-  const elapsed = Math.max(0, now - then);
-  if (elapsed < 60_000) return "just now";
-  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "always" });
-  for (const [unit, size] of UNITS) {
-    if (elapsed >= size) {
-      return formatter.format(-Math.floor(elapsed / size), unit);
-    }
-  }
-  return "just now";
 }

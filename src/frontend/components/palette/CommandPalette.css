@@ -53,7 +53,7 @@
 
 .command-palette-option {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
@@ -80,6 +80,15 @@
 .command-palette-detail {
   font-size: var(--text-caption-1);
   color: var(--text-muted);
+}
+
+.command-palette-keys {
+  grid-column: 4;
+  justify-self: end;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .command-palette-empty {

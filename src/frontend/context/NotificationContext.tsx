@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { RunStatus, StatusEventPayload } from "../../shared/types.js";
 import { useAppEvents } from "../hooks/useAppEvents.js";
 import type { AppEventTransport } from "../lib/app-events.js";
 import {
@@ -29,8 +30,13 @@ import {
   type TrackedRun,
   visibleNotifications,
 } from "../lib/notifications.js";
+import { NEEDS_YOU_STATUSES } from "../lib/run-status-ui.js";
 
-/** Receives each notification that arrives live on the stream (#265). */
+/**
+ * Receives each notification that arrives live on the stream (#265). A Needs-you
+ * notification arrives only when the run was not already in a Needs-you status; a
+ * move from one Needs-you status to another is not new. Finished always arrives.
+ */
 export type LiveNotificationListener = (notification: AppNotification) => void;
 
 export interface NotificationListItem extends AppNotification {
@@ -83,6 +89,9 @@ export function NotificationProvider({
   );
 
   const liveListeners = useRef(new Set<LiveNotificationListener>());
+  // Each run's last status the stream or snapshot described, to tell a run that newly
+  // needs the user from one that was already waiting.
+  const lastStatus = useRef(new Map<string, RunStatus>());
 
   const onEvent = useCallback(
     (
@@ -90,9 +99,22 @@ export function NotificationProvider({
       delivery: { live: boolean },
     ) => {
       setState((current) => applyNotificationEnvelope(current, envelope));
-      if (!delivery.live) return;
       const notification = notificationFromEvent(envelope);
-      if (!notification) return;
+      const before = lastStatus.current.get(envelope.runId);
+      if (notification)
+        lastStatus.current.set(envelope.runId, notification.status);
+      else if (envelope.type === "status") {
+        lastStatus.current.set(
+          envelope.runId,
+          (envelope.payload as StatusEventPayload).status,
+        );
+      }
+      if (!delivery.live || !notification) return;
+      const alreadyWaiting =
+        notification.group === "Needs you" &&
+        before !== undefined &&
+        NEEDS_YOU_STATUSES.has(before);
+      if (alreadyWaiting) return;
       for (const listener of liveListeners.current) {
         // A listener that fails must not stop the stream: the event is applied already.
         try {
@@ -116,29 +138,33 @@ export function NotificationProvider({
   useEffect(() => {
     // A snapshot without its cursor is not a snapshot: nothing to seed.
     if (!snapshot || snapshot.cursor === undefined) return;
+    for (const r of snapshot.runs) {
+      if (!lastStatus.current.has(r.id)) lastStatus.current.set(r.id, r.status);
+    }
     setState((current) => seedNotificationState(current, snapshot));
   }, [snapshot]);
 
-  const markRead = useCallback(
-    (id: number) => {
-      setReadIds((current) => {
-        if (current.has(id)) return current;
-        const next = new Set(current).add(id);
-        saveReadIds(storage, next);
-        return next;
-      });
-    },
-    [storage],
-  );
+  // Persisting is a side effect, so it runs here and never inside a state updater
+  // (which React may call twice). The set loaded from storage needs no write.
+  const loadedIds = useRef(readIds);
+  useEffect(() => {
+    if (readIds === loadedIds.current) return;
+    saveReadIds(storage, readIds);
+  }, [readIds, storage]);
+
+  const markRead = useCallback((id: number) => {
+    setReadIds((current) =>
+      current.has(id) ? current : new Set(current).add(id),
+    );
+  }, []);
 
   const markAllRead = useCallback(() => {
     setReadIds((current) => {
       const next = new Set(current);
       for (const n of visibleNotifications(state)) next.add(n.id);
-      saveReadIds(storage, next);
       return next;
     });
-  }, [state, storage]);
+  }, [state]);
 
   const value = useMemo<NotificationCenterValue>(() => {
     const notifications = visibleNotifications(state).map((n) => ({

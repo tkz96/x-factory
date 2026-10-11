@@ -27,7 +27,10 @@ import { CommandPalette } from "../src/frontend/components/palette/CommandPalett
 import { ShortcutSheet } from "../src/frontend/components/palette/ShortcutSheet.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
-import { isMacPlatform } from "../src/frontend/shortcuts/registry.js";
+import {
+  isMacPlatform,
+  shortcutLabel,
+} from "../src/frontend/shortcuts/registry.js";
 import { useGlobalShortcuts } from "../src/frontend/shortcuts/useGlobalShortcuts.js";
 import type { Project, Run } from "../src/shared/types.js";
 
@@ -180,6 +183,20 @@ describe("command palette (#254)", () => {
     renderShell();
     fireEvent.click(dom().getByRole("button", { name: "Search" }));
     expect(dom().getByRole("dialog", { name: "Command palette" })).toBeTruthy();
+  });
+
+  test("each item shows the keys of its registry shortcut", () => {
+    renderShell();
+    press("k", modKey);
+    const keysOf = (name: RegExp) =>
+      dom()
+        .getAllByRole("option")
+        .find((o) => name.test(o.textContent ?? ""))
+        ?.querySelector("kbd")?.textContent ?? null;
+    expect(keysOf(/Start Run/)).toBe(shortcutLabel("newRun"));
+    expect(keysOf(/^SectionsTickets/)).toBe(shortcutLabel("goQueue"));
+    expect(keysOf(/Keyboard Shortcuts/)).toBe(shortcutLabel("help"));
+    expect(keysOf(/Add Project/)).toBeNull();
   });
 
   test("lists sections, projects, runs and the Help actions", () => {

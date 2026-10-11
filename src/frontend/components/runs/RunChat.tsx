@@ -5,14 +5,17 @@ import "./RunChat.css";
 import {
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { Link } from "react-router-dom";
 import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import { canRunAction } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
+import { useNow } from "../../hooks/useNow.js";
 import { api } from "../../lib/api-client.js";
 import {
   type ParsedDiffFile,
@@ -24,9 +27,10 @@ import {
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
 import { runStatusUi } from "../../lib/run-status-ui.js";
+import { AlertDialog } from "../overlays/AlertDialog.js";
 import { Button } from "../ui/Button.js";
 import { DiffModal } from "./DiffModal.js";
-import { RunChatRow, useNow } from "./RunChatItem.js";
+import { RunChatRow } from "./RunChatItem.js";
 import { type CheckpointAction, RunCheckpointBar } from "./RunCheckpointBar.js";
 import { RunNowHeader } from "./RunNowHeader.js";
 
@@ -139,6 +143,21 @@ function useScrollFollow(itemCount: number) {
 /** The line the reader sees when the model could not be reached at all (no event was recorded). */
 const UNREACHABLE_LINE = "Couldn't reach the model. Check Settings › Models.";
 
+const SETTINGS_MODELS = "Settings › Models";
+
+/** The message with its "Settings › Models" pointer made a link to that pane (#263). */
+function withSettingsLink(message: string): ReactNode {
+  const at = message.indexOf(SETTINGS_MODELS);
+  if (at === -1) return message;
+  return (
+    <>
+      {message.slice(0, at)}
+      <Link to="/settings?tab=models">{SETTINGS_MODELS}</Link>
+      {message.slice(at + SETTINGS_MODELS.length)}
+    </>
+  );
+}
+
 /** A failed send, kept until it is retried or the server records its own failure event (#263). */
 interface SendFailure {
   /** The message to re-send on Retry. */
@@ -179,6 +198,7 @@ export function RunChat({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<SendFailure | null>(null);
+  const [abandonOpen, setAbandonOpen] = useState(false);
   const [reworkPrompt, setReworkPrompt] = useState(false);
   const [pendingRework, setPendingRework] = useState<string | null>(null);
   const [resolved, setResolved] = useState<string | null>(null);
@@ -186,6 +206,8 @@ export function RunChat({
     null,
   );
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // The last message sent from this view: what Retry re-sends when no earlier message is in the chat.
+  const lastSentRef = useRef<string | null>(null);
 
   const parsedDiffFiles = useMemo(() => parseDiffToFiles(run.diff), [run.diff]);
 
@@ -226,6 +248,7 @@ export function RunChat({
 
   // Sends a message to the Builder. A refused or unreachable reply stays a system line with Retry.
   const send = async (text: string, echo: boolean) => {
+    lastSentRef.current = text;
     if (echo)
       addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
     setFailure(null);
@@ -244,6 +267,11 @@ export function RunChat({
   };
 
   const handleAction = (action: CheckpointAction) => {
+    // Abandoning cannot be undone: ask first, naming the branch (#262).
+    if (action === "abandon") {
+      setAbandonOpen(true);
+      return;
+    }
     if (action === "requeue") {
       setReworkPrompt(true);
       addLocal((id, at) => ({
@@ -316,11 +344,13 @@ export function RunChat({
     );
   };
 
-  // A trailing error can be retried: the message sent before it goes again.
-  const lastIndex = items.length - 1;
+  // A trailing error can be retried. Lines the reader just made here do not count as coming
+  // after it (the worker's own copy has not arrived yet), and when no earlier message is in the
+  // chat the message sent from this view goes again.
+  const lastRealIndex = realItems.length - 1;
   const retryTextFor = (item: ChatItem): string | null =>
-    canRetry && item.kind === "error" && item.id === items[lastIndex]?.id
-      ? messageBefore(items, lastIndex)
+    canRetry && item.kind === "error" && item.id === items[lastRealIndex]?.id
+      ? (messageBefore(items, lastRealIndex) ?? lastSentRef.current)
       : null;
 
   return (
@@ -372,7 +402,7 @@ export function RunChat({
           })}
           {showFailure && failure && (
             <div className="run-chat-system run-chat-system-error" role="alert">
-              <span>{failure.message}</span>
+              <span>{withSettingsLink(failure.message)}</span>
               {canRetry && (
                 <Button
                   variant="secondary"
@@ -443,6 +473,21 @@ export function RunChat({
           </svg>
         </button>
       </form>
+
+      <AlertDialog
+        id="alert-abandon-run"
+        isOpen={abandonOpen}
+        onClose={() => setAbandonOpen(false)}
+        title={`Abandon run on ${run.branch || "this branch"}?`}
+        description="Abandoning ends this run. It can't be undone."
+        confirmText="Abandon Run"
+        cancelText="Keep Run"
+        variant="danger"
+        onConfirm={() => {
+          onAction?.("abandon");
+          setResolved(resolvedTextFor("abandon", run.status));
+        }}
+      />
 
       <DiffModal
         isOpen={activeDiffFile !== null}

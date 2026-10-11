@@ -17,6 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects, useRuns } from "../../hooks/useQueries.js";
+import { isMacPlatform, shortcutLabel } from "../../shortcuts/registry.js";
 import { Dialog } from "../overlays/Dialog.js";
 import {
   buildPaletteItems,
@@ -55,6 +56,7 @@ function PaletteBody({
 }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { openNewRunModal, openOnboardingModal } = useModal();
+  const isMac = isMacPlatform();
   const { data: projects = [] } = useProjects();
   const { data: runs = [] } = useRuns();
   const [query, setQuery] = useState("");
@@ -165,6 +167,11 @@ function PaletteBody({
               <span className="command-palette-label">{item.label}</span>
               {item.detail ? (
                 <span className="command-palette-detail">{item.detail}</span>
+              ) : null}
+              {item.shortcutId && shortcutLabel(item.shortcutId, isMac) ? (
+                <kbd className="command-palette-keys">
+                  {shortcutLabel(item.shortcutId, isMac)}
+                </kbd>
               ) : null}
             </div>
           ))}

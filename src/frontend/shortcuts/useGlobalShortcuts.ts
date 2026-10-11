@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from "react";
 import { eventMatchesStep, isTextEntryTarget } from "./match.js";
-import { isMacPlatform } from "./registry.js";
+import { getShortcut, isMacPlatform } from "./registry.js";
 
 /** How long after "g" the second key of a G-sequence may follow. */
 export const SEQUENCE_TIMEOUT_MS = 1000;
@@ -61,20 +61,22 @@ export function useGlobalShortcuts(handlers: GlobalShortcutHandlers): void {
 
   useEffect(() => {
     const isMac = isMacPlatform();
+    const paletteStep = getShortcut("palette").steps[0] ?? "";
+    const primaryStep = getShortcut("primaryAction").steps[0] ?? "";
     let gPressedAt: number | null = null;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       const h = handlersRef.current;
 
-      if (eventMatchesStep(event, "mod+k", isMac)) {
+      if (eventMatchesStep(event, paletteStep, isMac)) {
         event.preventDefault();
         h.togglePalette();
         return;
       }
 
       // Mod+Enter presses the one primary action on screen; it works in text fields.
-      if (eventMatchesStep(event, "mod+enter", isMac)) {
+      if (eventMatchesStep(event, primaryStep, isMac)) {
         const primary = document.querySelector<HTMLButtonElement>(
           "[data-primary-action]:not([disabled])",
         );
