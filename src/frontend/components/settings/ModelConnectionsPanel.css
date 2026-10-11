@@ -109,6 +109,11 @@
   margin: 0 0 var(--space-2);
 }
 
+.model-confirm-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-callout);
+}
+
 .model-found-count {
   margin: 0 0 var(--space-2);
   font-size: var(--text-footnote);

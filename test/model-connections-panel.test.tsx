@@ -233,6 +233,68 @@ describe("ModelConnectionsPanel (#277)", () => {
     await click(el("btn-confirm-delete-model-connection-c1"));
     expect(remove).toHaveBeenCalledWith("c1");
   });
+
+  it("confirms in an alertdialog: Escape cancels and focus returns to Delete", async () => {
+    const remove = mock(async () => ({ ok: true }));
+    api.deleteModelConnection = remove as typeof api.deleteModelConnection;
+    renderPanel();
+    await flush();
+
+    const trigger = el("btn-delete-model-connection-c1");
+    act(() => trigger.focus());
+    await click(trigger);
+
+    const dialog = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement | null;
+    if (!dialog) throw new Error("alertdialog missing");
+    expect(
+      document.getElementById(dialog.getAttribute("aria-labelledby") ?? "")
+        ?.textContent,
+    ).toBe("Delete Connection");
+    expect(
+      document.getElementById(dialog.getAttribute("aria-describedby") ?? "")
+        ?.textContent,
+    ).toContain("My Gemini key");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(remove).not.toHaveBeenCalled();
+
+    act(() => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(remove).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("marks the key field as a new password field", async () => {
+    renderPanel();
+    await flush();
+    await click(el("btn-add-model-connection"));
+    expect(
+      el<HTMLInputElement>("model-connection-key").getAttribute("autocomplete"),
+    ).toBe("new-password");
+  });
+
+  it("edits a connection with the same payload builder and keeps a blank key", async () => {
+    const update = mock(async () => connection());
+    api.updateModelConnection = update as typeof api.updateModelConnection;
+    renderPanel();
+    await flush();
+
+    const editButton = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent === "Edit",
+    );
+    if (!(editButton instanceof HTMLElement)) throw new Error("Edit missing");
+    await click(editButton);
+    typeInto(el("model-connection-name"), "  Renamed  ");
+    await click(el("btn-save-model-connection"));
+
+    expect(update).toHaveBeenCalledWith("c1", {
+      name: "Renamed",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    });
+  });
 });
 
 afterAll(async () => {
