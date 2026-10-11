@@ -1,7 +1,44 @@
-// test/env-bootstrap.test.ts — Unit tests for LLM_API_KEY auto-detection and resolution.
-
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { bootstrapLLMEnv } from "../src/env-bootstrap.js";
+import {
+  bootstrapLLMEnv,
+  detectLegacyKeyProvider,
+} from "../src/env-bootstrap.js";
+
+describe("detectLegacyKeyProvider", () => {
+  it("detects Anthropic from sk-ant- prefix", () => {
+    expect(detectLegacyKeyProvider("sk-ant-test-key-12345")).toBe("anthropic");
+  });
+
+  it("detects Gemini from AIzaSy prefix", () => {
+    expect(detectLegacyKeyProvider("AIzaSyTestGeminiKey")).toBe("gemini");
+  });
+
+  it("detects Gemini from Google's newer AQ. prefix (#276)", () => {
+    expect(detectLegacyKeyProvider("AQ.test-google-key-12345")).toBe("gemini");
+  });
+
+  it("treats LLM_PROVIDER=google as Gemini (#276)", () => {
+    expect(detectLegacyKeyProvider("opaque-key-12345", "google")).toBe(
+      "gemini",
+    );
+  });
+
+  it("detects OpenAI from sk- prefix", () => {
+    expect(detectLegacyKeyProvider("sk-proj-test-openai-key")).toBe("openai");
+  });
+
+  it("respects explicit LLM_PROVIDER override for gemini", () => {
+    expect(detectLegacyKeyProvider("custom-key", "gemini")).toBe("gemini");
+  });
+
+  it("respects explicit LLM_PROVIDER override for openai", () => {
+    expect(detectLegacyKeyProvider("custom-key", "openai")).toBe("openai");
+  });
+
+  it("returns undefined for unrecognized keys without explicit provider", () => {
+    expect(detectLegacyKeyProvider("unrecognized-key-format")).toBeUndefined();
+  });
+});
 
 describe("bootstrapLLMEnv", () => {
   const originalEnv = { ...process.env };
@@ -18,71 +55,12 @@ describe("bootstrapLLMEnv", () => {
     process.env = { ...originalEnv };
   });
 
-  it("does nothing when LLM_API_KEY is not set", () => {
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(process.env.GEMINI_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
-  });
-
-  it("detects Anthropic from sk-ant- prefix", () => {
+  it("does not copy LLM_API_KEY into provider env vars (#276)", () => {
     process.env.LLM_API_KEY = "sk-ant-test-key-12345";
     bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBe("sk-ant-test-key-12345");
-    expect(process.env.GEMINI_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
-  });
-
-  it("detects Gemini from AIzaSy prefix", () => {
-    process.env.LLM_API_KEY = "AIzaSyTestGeminiKey";
-    bootstrapLLMEnv();
-    expect(process.env.GEMINI_API_KEY).toBe("AIzaSyTestGeminiKey");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
-  });
-
-  it("detects Gemini from Google's newer AQ. prefix (#276)", () => {
-    process.env.LLM_API_KEY = "AQ.test-google-key-12345";
-    bootstrapLLMEnv();
-    expect(process.env.GEMINI_API_KEY).toBe("AQ.test-google-key-12345");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-  });
-
-  it("treats LLM_PROVIDER=google as Gemini (#276)", () => {
-    process.env.LLM_API_KEY = "opaque-key-12345";
-    process.env.LLM_PROVIDER = "google";
-    bootstrapLLMEnv();
-    expect(process.env.GEMINI_API_KEY).toBe("opaque-key-12345");
-  });
-
-  it("detects OpenAI from sk- prefix", () => {
-    process.env.LLM_API_KEY = "sk-proj-test-openai-key";
-    bootstrapLLMEnv();
-    expect(process.env.OPENAI_API_KEY).toBe("sk-proj-test-openai-key");
     expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(process.env.GEMINI_API_KEY).toBeUndefined();
-  });
-
-  it("respects explicit LLM_PROVIDER override for gemini", () => {
-    process.env.LLM_API_KEY = "custom-key";
-    process.env.LLM_PROVIDER = "gemini";
-    bootstrapLLMEnv();
-    expect(process.env.GEMINI_API_KEY).toBe("custom-key");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-  });
-
-  it("respects explicit LLM_PROVIDER override for openai", () => {
-    process.env.LLM_API_KEY = "custom-key";
-    process.env.LLM_PROVIDER = "openai";
-    bootstrapLLMEnv();
-    expect(process.env.OPENAI_API_KEY).toBe("custom-key");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-  });
-
-  it("falls back to Anthropic for unrecognized keys without explicit provider", () => {
-    process.env.LLM_API_KEY = "unrecognized-key-format";
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBe("unrecognized-key-format");
+    expect(process.env.OPENAI_API_KEY).toBeUndefined();
   });
 
   it("does not overwrite already set provider keys", () => {

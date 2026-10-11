@@ -105,7 +105,7 @@ describe("checkModelConnection", () => {
     expect(result).toEqual({
       ok: false,
       error: {
-        category: "key_rejected",
+        category: "key rejected",
         status: 401,
         message: "Key rejected (401)",
       },

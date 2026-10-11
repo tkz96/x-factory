@@ -194,4 +194,51 @@ describe("ModelGateway.run", () => {
       await gateway.run({ key: "c1:m", limit: 1 }, async () => "unblocked"),
     ).toBe("unblocked");
   });
+
+  it("rejects immediately when acquire signal is already aborted", async () => {
+    const gateway = new ModelGateway({ clock: fakeClock().clock });
+    const controller = new AbortController();
+    controller.abort(new Error("pre-aborted"));
+
+    await expect(
+      gateway.acquire({ key: "c1:m", limit: 1 }, controller.signal),
+    ).rejects.toThrow("pre-aborted");
+
+    // The slot was not consumed
+    const release = await gateway.acquire({ key: "c1:m", limit: 1 });
+    release();
+  });
+
+  it("removes a FIFO waiter from queue and rejects when signal aborts while waiting", async () => {
+    const gateway = new ModelGateway({ clock: fakeClock().clock });
+    // Occupy the only slot
+    const release1 = await gateway.acquire({ key: "c1:m", limit: 1 });
+
+    const controllerB = new AbortController();
+    let bRejected = false;
+    const promiseB = gateway
+      .acquire({ key: "c1:m", limit: 1 }, controllerB.signal)
+      .catch((err: Error) => {
+        bRejected = true;
+        expect(err.message).toBe("waiter cancelled");
+      });
+
+    let cAcquired = false;
+    const promiseC = gateway.acquire({ key: "c1:m", limit: 1 }).then((rel) => {
+      cAcquired = true;
+      return rel;
+    });
+
+    // Abort waiter B while in queue
+    controllerB.abort(new Error("waiter cancelled"));
+    await promiseB;
+    expect(bRejected).toBe(true);
+    expect(cAcquired).toBe(false);
+
+    // Release slot 1: waiter C should get the slot (not waiter B)
+    release1();
+    const releaseC = await promiseC;
+    expect(cAcquired).toBe(true);
+    releaseC();
+  });
 });

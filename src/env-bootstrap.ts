@@ -23,17 +23,6 @@ export function detectLegacyKeyProvider(
 }
 
 export function bootstrapLLMEnv(): void {
-  const key = process.env.LLM_API_KEY?.trim();
-  if (!key) return;
-
-  const targetProvider =
-    detectLegacyKeyProvider(key, process.env.LLM_PROVIDER) ?? "anthropic";
-
-  if (targetProvider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
-    process.env.ANTHROPIC_API_KEY = key;
-  } else if (targetProvider === "gemini" && !process.env.GEMINI_API_KEY) {
-    process.env.GEMINI_API_KEY = key;
-  } else if (targetProvider === "openai" && !process.env.OPENAI_API_KEY) {
-    process.env.OPENAI_API_KEY = key;
-  }
+  // Deprecated: LLM_API_KEY is now imported as a model connection by
+  // importLegacyModelKey (#276), so we no longer copy it into provider vars.
 }

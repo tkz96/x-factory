@@ -40,9 +40,17 @@ describe("resumeRun budget re-check", () => {
   it("stays paused (throws ConflictError, status remains recovery_required) if budget is still exceeded", async () => {
     const { repos, run } = setup();
 
-    // Record an attempt in execute stage so resumeRoute targets execute (builder)
-    const attempt = repos.stageAttempts.recordStart(run.id, "execute", 1);
-    repos.stageAttempts.recordModel(attempt.id, {
+    // Record attempts in execute stage so resumeRoute targets execute (builder) and usage exceeds budget
+    const attempt1 = repos.stageAttempts.recordStart(run.id, "execute", 1);
+    repos.stageAttempts.recordModel(attempt1.id, {
+      role: "builder",
+      connectionId: "c-resume",
+      connectionName: "Resume Conn",
+      apiType: "openai-compatible",
+      modelId: "model-builder",
+    });
+    const attempt2 = repos.stageAttempts.recordStart(run.id, "execute", 2);
+    repos.stageAttempts.recordModel(attempt2.id, {
       role: "builder",
       connectionId: "c-resume",
       connectionName: "Resume Conn",
@@ -50,15 +58,15 @@ describe("resumeRun budget re-check", () => {
       modelId: "model-builder",
     });
     repos.stageAttempts.recordFailure(
-      attempt.id,
-      "Daily budget reached: 5/5 requests",
+      attempt2.id,
+      "Daily budget reached: 2/1 requests",
     );
 
     const builderModel: ResolvedModel = {
       ...testResolvedModel("builder"),
       connectionId: "c-resume",
       modelId: "model-builder",
-      budget: { perDay: { requests: 1 } }, // 1 request limit, 1 attempt exists today
+      budget: { perDay: { requests: 1 } }, // 1 request limit, 2 attempts exist today
     };
 
     // Attempt to resume

@@ -4,6 +4,7 @@ import { writeRunAgentConfig } from "../agents/pi.js";
 import { runAttemptLoop } from "../attempt-loop.js";
 import { gatewayKeyFor, modelGateway } from "../model-gateway.js";
 import {
+  isBudgetReached,
   ModelUnavailableError,
   modelFailureReason,
   modelUse,
@@ -82,10 +83,7 @@ export class ExecuteExecutor implements StageExecutor {
       );
       context.recordModel(modelUse(resolved));
     } catch (err: unknown) {
-      if (
-        err instanceof ModelUnavailableError &&
-        err.category === "budget reached"
-      ) {
+      if (isBudgetReached(err)) {
         return {
           outcome: "paused",
           reason: err.message,

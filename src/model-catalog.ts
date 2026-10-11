@@ -141,7 +141,7 @@ export async function listProviderModels(
   if (!input.apiKey) {
     return {
       ok: false,
-      error: { category: "key_rejected", message: "No API key is set" },
+      error: { category: "key rejected", message: "No API key is set" },
     };
   }
   const { url, headers } = request({ ...input, apiKey: input.apiKey });
@@ -166,7 +166,7 @@ export async function listProviderModels(
     return {
       ok: false,
       error: {
-        category: "key_rejected",
+        category: "key rejected",
         status: res.status,
         message: `Key rejected (${res.status})`,
       },
@@ -177,7 +177,7 @@ export async function listProviderModels(
     return {
       ok: false,
       error: compact({
-        category: "rate_limited" as const,
+        category: "rate limited" as const,
         status: 429,
         retryAfterSeconds: wait,
         message:

@@ -12,7 +12,10 @@
 import { randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { detectLegacyKeyProvider } from "./env-bootstrap.js";
+import {
+  detectLegacyKeyProvider,
+  type LegacyKeyProvider,
+} from "./env-bootstrap.js";
 import { NotFoundError, ValidationError } from "./errors.js";
 import { listProviderModels, runtimeCatalogDetails } from "./model-catalog.js";
 import { getModelConnectionsPath, getModelSecretsPath } from "./paths.js";
@@ -33,6 +36,22 @@ export const DEFAULT_BASE_URLS: Readonly<
   gemini: "https://generativelanguage.googleapis.com/v1beta",
   anthropic: "https://api.anthropic.com",
 };
+
+/** Official endpoints for each API type. Provider env vars override only these. */
+export const OFFICIAL_BASE_URLS: Readonly<Record<ModelApiType, string>> = {
+  gemini: "https://generativelanguage.googleapis.com/v1beta",
+  anthropic: "https://api.anthropic.com",
+  "openai-compatible": "https://api.openai.com/v1",
+};
+
+export function isOfficialEndpoint(
+  apiType: ModelApiType,
+  baseUrl?: string,
+): boolean {
+  if (!baseUrl) return true;
+  const normalize = (u: string) => u.trim().replace(/\/+$/, "");
+  return normalize(baseUrl) === normalize(OFFICIAL_BASE_URLS[apiType]);
+}
 
 /** The env var that overrides the stored key for each API type. */
 export const KEY_ENV_VARS: Readonly<Record<ModelApiType, string>> = {
@@ -115,8 +134,13 @@ async function readConnections(): Promise<ConnectionsFile> {
 }
 const readSecrets = () => readJson<SecretsFile>(getModelSecretsPath(), {});
 
-function envKey(apiType: ModelApiType): string | undefined {
-  const value = process.env[KEY_ENV_VARS[apiType]]?.trim();
+function connectionEnvKey(
+  connection: Pick<StoredConnection, "apiType" | "baseUrl">,
+): string | undefined {
+  if (!isOfficialEndpoint(connection.apiType, connection.baseUrl)) {
+    return undefined;
+  }
+  const value = process.env[KEY_ENV_VARS[connection.apiType]]?.trim();
   return value ? value : undefined;
 }
 
@@ -125,7 +149,7 @@ function toView(
   secrets: SecretsFile,
 ): ModelConnectionView {
   const stored = secrets[connection.id];
-  const fromEnv = envKey(connection.apiType);
+  const fromEnv = connectionEnvKey(connection);
   const effective = fromEnv ?? stored;
   return {
     ...connection,
@@ -246,8 +270,29 @@ export async function resolveModelConnectionKey(
   const file = await readConnections();
   const connection = file.connections.find((c) => c.id === id);
   if (!connection) return undefined;
-  return envKey(connection.apiType) ?? (await readSecrets())[id];
+  return connectionEnvKey(connection) ?? (await readSecrets())[id];
 }
+
+const IMPORTED_CONNECTION_CONFIG: Readonly<
+  Record<
+    LegacyKeyProvider,
+    { name: string; apiType: ModelApiType; baseUrl?: string }
+  >
+> = {
+  gemini: {
+    name: "Gemini (imported)",
+    apiType: "gemini",
+  },
+  anthropic: {
+    name: "Anthropic (imported)",
+    apiType: "anthropic",
+  },
+  openai: {
+    name: "OpenAI (imported)",
+    apiType: "openai-compatible",
+    baseUrl: "https://api.openai.com/v1",
+  },
+};
 
 /**
  * First-launch import (#276): turns an existing `LLM_API_KEY` (+ optional
@@ -268,20 +313,11 @@ export async function importLegacyModelKey(): Promise<
 
   let imported: ModelConnectionView | undefined;
   if (key && provider) {
-    const apiType: ModelApiType =
-      provider === "openai" ? "openai-compatible" : provider;
+    const config = IMPORTED_CONNECTION_CONFIG[provider];
     imported = await createModelConnection({
-      name:
-        provider === "gemini"
-          ? "Gemini (imported)"
-          : provider === "anthropic"
-            ? "Anthropic (imported)"
-            : "OpenAI (imported)",
-      apiType,
-      baseUrl:
-        apiType === "openai-compatible"
-          ? "https://api.openai.com/v1"
-          : undefined,
+      name: config.name,
+      apiType: config.apiType,
+      baseUrl: config.baseUrl,
       apiKey: key,
     });
   }

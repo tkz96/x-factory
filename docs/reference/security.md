@@ -48,7 +48,7 @@ Users can also store model API keys in X-Factory itself, as **model connections*
 
 - **Where keys live**: non-secret fields go in `<data dir>/model-connections.json`. Keys go in `<data dir>/model-secrets.json`, written with owner-only permissions (`0600`) through a temp file and rename. Both paths come from `src/paths.ts`.
 - **Never returned**: API responses carry only `hasKey`, the key's last four characters and `keySource` (`stored`, `environment` or `none`). The key itself never crosses the API boundary.
-- **Environment override**: for headless setups, a provider key env var wins over a stored key for every connection of that API type:
+- **Environment override**: for headless setups, a provider key env var wins over a stored key only for connections whose base URL is that provider's official endpoint (no custom base URL, or the provider's official endpoint URL):
 
   | API type | Env var |
   |---|---|

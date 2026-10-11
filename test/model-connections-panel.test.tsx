@@ -167,7 +167,7 @@ describe("ModelConnectionsPanel (#277)", () => {
     api.checkModelConnection = mock(async () => ({
       ok: false as const,
       error: {
-        category: "key_rejected" as const,
+        category: "key rejected" as const,
         status: 401,
         message: "Key rejected (401)",
       },

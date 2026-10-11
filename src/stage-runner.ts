@@ -22,7 +22,7 @@ import type {
 } from "./executors/types.js";
 import type { LeaseManager, WorkerLogRecord } from "./lease.js";
 import { assertBudgetNotExceeded } from "./model-budgets.js";
-import { ModelUnavailableError } from "./model-roles.js";
+import { isBudgetReached } from "./model-roles.js";
 import { failureReasonFor } from "./shared/failure-reason.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
@@ -325,10 +325,7 @@ export class StageRunner {
       } catch (err: unknown) {
         if (this.host.isShuttingDown()) return;
         if (this.stoppedUnder(work, attempt, startTime)) return;
-        if (
-          err instanceof ModelUnavailableError &&
-          err.category === "budget reached"
-        ) {
+        if (isBudgetReached(err)) {
           this.pauseForBudget(
             work,
             attempt,
@@ -530,8 +527,9 @@ export class StageRunner {
   }
 
   /**
-   * When a stage exceeds a model's daily budget, the work is failed without retry and the
-   * run moves to recovery_required carrying the structured budget reason (#281).
+   * When a stage exceeds a model's daily budget, the stage attempt failure is recorded
+   * and the run pauses in `recovery_required` carrying the structured budget reason
+   * without retrying the job (docs/reference/state-machine-matrix.md §8, #281).
    */
   private pauseForBudget(
     work: StageWork,
@@ -545,20 +543,12 @@ export class StageRunner {
     this.host.error(`Stage '${work.stage}' paused: budget reached: ${reason}`);
 
     try {
-      repos.stageAttempts.recordFailure(attempt.id, reason);
-    } catch (e: unknown) {
-      this.host.error(
-        "Failed to record stage attempt failure for budget pause",
-        e,
-      );
-    }
-
-    try {
       repos.db.transaction(() => {
         work.reject(reason);
         const latest = repos.runs.get(work.runId);
         if (!latest || latest.status !== expectedRunStatus) return;
         this.applyRecord(work.runId, record);
+        repos.stageAttempts.recordFailure(attempt.id, reason);
         if (canTransition(latest.status, "recovery_required")) {
           repos.runs.transitionRun(
             work.runId,

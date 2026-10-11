@@ -97,7 +97,7 @@ describe("github verification — edge coverage", () => {
       const urlStr = String(url);
       if (urlStr.includes("/user")) {
         const headers = new Headers();
-        headers.set("x-oauth-scopes", "repo");
+        headers.set("x-oauth-scopes", "repo, workflow");
         return textResponse("{}", { status: 200, headers });
       }
       if (urlStr.includes("/orgs/")) {

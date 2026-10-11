@@ -23,9 +23,9 @@ export interface DiscoveredModel extends ModelDetails {
 }
 
 export type CheckErrorCategory =
-  | "key_rejected"
+  | "key rejected"
   | "unreachable"
-  | "rate_limited"
+  | "rate limited"
   | "other";
 
 export interface CheckError {

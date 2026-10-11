@@ -3,7 +3,7 @@
 // or fails with a clear "model unavailable" reason — never a fallback (#278).
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { migrateLegacyRoles } from "../src/legacy-roles.js";
@@ -16,6 +16,7 @@ import {
 import {
   assertRolesReady,
   ModelUnavailableError,
+  modelFailureReason,
   resolveRole,
 } from "../src/model-roles.js";
 import { loadSettings, saveSettings } from "../src/settings.js";
@@ -119,6 +120,70 @@ describe("resolveRole", () => {
       (e: unknown) => e,
     )) as Error;
     expect(noKey.message).toMatch(/no API key/i);
+  });
+
+  it("fails when the model is not in the connection's available models list (#287)", async () => {
+    const c = await verifiedGemini();
+    const connPath = path.join(dataDir, "model-connections.json");
+    const json = JSON.parse(await readFile(connPath, "utf-8"));
+    json.connections[0].availableModels = [{ id: "gemini-flash-lite-latest" }];
+    await writeFile(connPath, JSON.stringify(json));
+
+    await saveSettings({
+      roles: { builder: { connectionId: c.id, modelId: "nonexistent-model" } },
+    });
+    const err = await resolveRole("builder").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ModelUnavailableError);
+    expect((err as ModelUnavailableError).category).toBe("model unavailable");
+    expect((err as Error).message).toContain(
+      'Builder\'s model "nonexistent-model" is not available on connection "Gemini"',
+    );
+  });
+});
+
+describe("modelFailureReason", () => {
+  it("labels each failure category in plain words", () => {
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError("No model set", "model unavailable"),
+      ),
+    ).toBe("Model unavailable: No model set");
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError("401 unauthorized", "key rejected"),
+      ),
+    ).toBe("Key rejected: 401 unauthorized");
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError("Quota exhausted", "rate limited"),
+      ),
+    ).toBe("Rate limited: Quota exhausted");
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError(
+          "130k tokens exceeds 128k",
+          "context too large",
+        ),
+      ),
+    ).toBe("Context too large: 130k tokens exceeds 128k");
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError("Daily budget reached", "budget reached"),
+      ),
+    ).toBe("Budget reached: Daily budget reached");
+  });
+
+  it("does not repeat the label when already prefixed", () => {
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError("Key rejected: 401", "key rejected"),
+      ),
+    ).toBe("Key rejected: 401");
+    expect(
+      modelFailureReason(
+        new ModelUnavailableError("Rate limited: wait 30s", "rate limited"),
+      ),
+    ).toBe("Rate limited: wait 30s");
   });
 });
 
