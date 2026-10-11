@@ -265,6 +265,22 @@ describe("notification bell (#264)", () => {
     expect(view().queryByRole("link", { name: /T-r1/ })).toBeNull();
   });
 
+  it("with several runs in progress the activity area counts them and opens Runs", () => {
+    renderCenter(
+      snapshot({
+        runs: [
+          run("r1", "executing"),
+          run("r2", "planning"),
+          run("r3", "ready_for_pr"),
+        ],
+      }),
+    );
+    const link = view().getByRole("link", { name: "2 runs in progress" });
+    expect(link.textContent).toContain("2 runs in progress");
+    fireEvent.click(link);
+    expect(view().getByTestId("location").textContent).toBe("/runs");
+  });
+
   it("the activity area is never written to storage", () => {
     renderCenter(snapshot({ runs: [run("r1", "planning")] }));
     expect(globalThis.localStorage?.length ?? 0).toBe(0);
