@@ -1,7 +1,7 @@
 /* src/frontend/connection/ConnectionCard.css — Role-based connection card styling */
 
 .connection-card {
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   padding: 1.25rem;
@@ -35,7 +35,7 @@
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
 }
 
 .connection-card-header-status {
@@ -54,7 +54,7 @@
 }
 
 .connection-status-pill.status-ok {
-  background: rgba(52, 199, 89, 0.12);
+  background: var(--green-dim);
   color: var(--green);
 }
 
@@ -69,7 +69,7 @@
 }
 
 .connection-status-pill.status-error {
-  background: rgba(255, 59, 48, 0.12);
+  background: var(--red-dim);
   color: var(--red);
 }
 
@@ -97,7 +97,7 @@
 
 .connection-required-scopes {
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   margin-bottom: var(--space-3);

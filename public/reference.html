@@ -9,9 +9,18 @@
   <link rel="stylesheet" href="/styles.css">
   <script>
     (() => {
-      const theme = localStorage.getItem("xf_theme") ||
-        (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-      document.documentElement.setAttribute("data-theme", theme);
+      let a = "automatic";
+      try {
+        a = localStorage.getItem("xf_appearance") || "automatic";
+      } catch {
+        // Storage unavailable: follow the system appearance.
+      }
+      const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const theme = a === "light" ? "light" : (a === "dark" ? "dark" : (dark ? "dark" : "light"));
+      const more = window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches;
+      document.documentElement.setAttribute("data-theme", "default");
+      document.documentElement.setAttribute("data-appearance", theme);
+      document.documentElement.setAttribute("data-contrast", more ? "more" : "standard");
       if (theme === "dark") {
         document.documentElement.classList.add("dark-mode");
       } else {
@@ -179,17 +188,16 @@
     // Theme toggle handling
     const themeBtn = document.getElementById("scalar-theme-toggle");
     themeBtn?.addEventListener("click", () => {
-      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const current = document.documentElement.getAttribute("data-appearance") || "dark";
       const next = current === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      if (next === "dark") {
-        document.documentElement.classList.add("dark-mode");
-        document.documentElement.classList.remove("light-mode");
-      } else {
-        document.documentElement.classList.add("light-mode");
-        document.documentElement.classList.remove("dark-mode");
+      document.documentElement.setAttribute("data-appearance", next);
+      document.documentElement.classList.toggle("dark-mode", next === "dark");
+      document.documentElement.classList.toggle("light-mode", next === "light");
+      try {
+        localStorage.setItem("xf_appearance", next);
+      } catch {
+        // Storage unavailable: the choice applies to this page only.
       }
-      localStorage.setItem("xf_theme", next);
     });
   </script>
 </body>

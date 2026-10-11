@@ -2,12 +2,12 @@
 
 .project-detail-meta-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-sm), 1fr));
   gap: 1.25rem;
   margin: 1.25rem 0;
   padding: 1.25rem 1.5rem;
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-card);
 }
 
@@ -52,7 +52,7 @@
 .repos-table-container {
   overflow-x: auto;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   background: var(--bg-card);
   box-shadow: var(--shadow-sm);
 }
@@ -71,14 +71,14 @@
   font-size: var(--text-caption-1);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   background: var(--bg-hover);
   white-space: nowrap;
 }
 
 .repos-table td {
   padding: 0.8rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
   vertical-align: middle;
 }
 
@@ -107,7 +107,7 @@
 }
 
 .repos-table .cell-truncate {
-  max-width: 260px;
+  max-width: var(--content-max-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -116,7 +116,7 @@
 }
 
 .repos-table .cell-truncate-remote {
-  max-width: 320px;
+  max-width: var(--content-max-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

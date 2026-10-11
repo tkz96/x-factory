@@ -157,7 +157,7 @@
 }
 .grid-auto-fit {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--grid-min-col), 1fr));
   gap: var(--space-4);
 }
 .text-center {
@@ -226,10 +226,10 @@
 /* ── Screen-Reader Only Accessibility Utility ───────────────────────── */
 .sr-only {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: var(--space-px);
+  height: var(--space-px);
   padding: 0;
-  margin: -1px;
+  margin: calc(var(--space-px) * -1);
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;

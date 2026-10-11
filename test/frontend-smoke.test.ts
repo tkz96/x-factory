@@ -611,4 +611,57 @@ describe("Frontend Smoke — CSS variable resolution", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("no transition: all used in frontend CSS (#248)", () => {
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        if (/transition:\s*all\b/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("no hex, rgb, or rgba literals outside token files in frontend CSS (#248)", () => {
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      if (file.endsWith("tokens.css") || file.includes("tokens/")) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        // Check for hex or rgb/rgba literals
+        if (/#[0-9a-fA-F]{3,8}\b/.test(line) || /rgba?\([^)]+\)/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("no px literals outside token files in frontend CSS (#248)", () => {
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      if (file.endsWith("tokens.css") || file.includes("tokens/")) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        // Media queries define viewport breakpoints, not component values
+        if (line.trim().startsWith("@media")) continue;
+        if (/\b\d+px\b/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
 });

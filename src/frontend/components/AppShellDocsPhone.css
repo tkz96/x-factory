@@ -5,8 +5,8 @@
   /* Reserve the full tab bar height (bar + safe area) under the content. */
   .main-content {
     padding-bottom: calc(
-      54px +
-      env(safe-area-inset-bottom, 0px) +
+      var(--tab-bar-height) +
+      env(safe-area-inset-bottom, 0) +
       var(--space-4)
     );
   }
@@ -18,10 +18,10 @@
     top: 0;
     left: 0;
     right: 0;
-    bottom: calc(54px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0));
     width: 100%;
     height: auto;
-    z-index: 999;
+    z-index: var(--z-fixed);
     overflow-y: auto;
   }
 

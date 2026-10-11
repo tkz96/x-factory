@@ -7,7 +7,7 @@
   <title>X-Factory</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
-  <script>(()=> {const t=localStorage.getItem("xf_theme")||(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.setAttribute("data-theme",t);})()</script>
+  <script>(()=>{let a="automatic";try{a=localStorage.getItem("xf_appearance")||"automatic";}catch{}const mm=(q)=>!!(window.matchMedia&&window.matchMedia(q).matches);const resolved=a==="light"?"light":a==="dark"?"dark":mm("(prefers-color-scheme: dark)")?"dark":"light";const root=document.documentElement;root.setAttribute("data-theme","default");root.setAttribute("data-appearance",resolved);root.setAttribute("data-contrast",mm("(prefers-contrast: more)")?"more":"standard");})();</script>
 </head>
 <body>
   <div id="root"></div>

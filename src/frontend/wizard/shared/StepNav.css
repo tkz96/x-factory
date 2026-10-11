@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   background: var(--bg-card);
   gap: 0.5rem;
   /* Persistent navigation bar: never squeezed by a tall scrolling body (#159). */
@@ -18,13 +18,16 @@
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   background: transparent;
   color: var(--text-muted);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast) ease;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .wizard-step-button:hover:not(:disabled) {
@@ -50,7 +53,7 @@
   justify-content: center;
   width: 1.375rem;
   height: 1.375rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--bg-secondary);
   color: var(--text-muted);
   font-size: 0.75rem;
@@ -59,17 +62,17 @@
 
 .wizard-step-button.active .wizard-step-number {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 
 .wizard-step-button.completed .wizard-step-number {
   background: var(--green);
-  color: #fff;
+  color: var(--text-on-accent);
 }
 
 .wizard-step-divider {
   flex: 1;
-  height: 1px;
+  height: var(--border-width);
   background: var(--border);
   margin: 0 0.25rem;
 }
@@ -81,10 +84,10 @@
 @media (max-width: 667px) {
   .wizard-step-label {
     position: absolute;
-    width: 1px;
-    height: 1px;
+    width: var(--space-px);
+    height: var(--space-px);
     padding: 0;
-    margin: -1px;
+    margin: calc(var(--space-px) * -1);
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;

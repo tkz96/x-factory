@@ -1,8 +1,8 @@
 /* ── Delivery Checkpoint ─────────────────────────────────────────────── */
 
 .delivery-checkpoint {
-  background: rgba(63, 185, 80, 0.05);
-  border: 1px solid rgba(63, 185, 80, 0.3);
+  background: var(--green-dim);
+  border: var(--border-width) solid var(--green);
   border-radius: var(--radius);
   padding: 1.2rem;
   margin-top: 1rem;
@@ -26,7 +26,7 @@
   margin-top: 1.2rem;
   padding: 1.2rem;
   background: var(--green-dim);
-  border: 1px solid rgba(63, 185, 80, 0.3);
+  border: var(--border-width) solid var(--green);
   border-radius: var(--radius);
   text-align: center;
 }

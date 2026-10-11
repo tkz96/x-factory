@@ -35,7 +35,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-6) var(--space-4);
-  border: 1px dashed var(--border);
+  border: var(--border-width) dashed var(--border);
   border-radius: var(--radius-sm);
   text-align: center;
 }
@@ -71,7 +71,7 @@
 
 .async-region-stale-badge {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-pill);
   color: var(--text-muted);
   font-size: var(--text-caption-1);

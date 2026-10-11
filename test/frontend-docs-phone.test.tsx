@@ -135,7 +135,7 @@ describe("Docs phone layout rules (390 px)", () => {
 
   it("reserves the full tab bar height including the safe area under the content", () => {
     expect(phone).toMatch(
-      /\.main-content\s*\{[^}]*padding-bottom:\s*calc\(\s*54px \+\s*env\(safe-area-inset-bottom, 0px\) \+\s*var\(--space-4\)/,
+      /\.main-content\s*\{[^}]*padding-bottom:\s*calc\(\s*var\(--tab-bar-height\) \+\s*env\(safe-area-inset-bottom,\s*0(?:px)?\)\s*\+\s*var\(--space-4\)/,
     );
   });
 
@@ -144,7 +144,7 @@ describe("Docs phone layout rules (390 px)", () => {
       /aside\.sidebar\.docs-nav-open\s*\{[^}]*display:\s*flex/,
     );
     expect(phone).toMatch(
-      /aside\.sidebar\.docs-nav-open\s*\{[^}]*bottom:\s*calc\(54px/,
+      /aside\.sidebar\.docs-nav-open\s*\{[^}]*bottom:\s*calc\(var\(--tab-bar-height\)/,
     );
   });
 

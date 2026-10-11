@@ -5,17 +5,17 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   padding-bottom: 0.85rem;
 }
 
 .projects-segmented-control {
   display: inline-flex;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
-  padding: 3px;
-  gap: 3px;
+  padding: var(--space-micro);
+  gap: var(--space-micro);
 }
 
 .projects-tab-btn {
@@ -23,14 +23,17 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.45rem 1rem;
-  border-radius: calc(var(--radius-md) - 3px);
+  border-radius: calc(var(--radius-md) - var(--space-micro));
   border: none;
   background: transparent;
   color: var(--text-muted);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
+  transition:
+    background-color var(--transition),
+    color var(--transition),
+    box-shadow var(--transition);
 }
 
 .projects-tab-btn:hover {
@@ -47,11 +50,13 @@
 .projects-tab-badge {
   font-family: var(--font-mono);
   font-size: var(--text-caption-2);
-  padding: 1px 7px;
+  padding: var(--space-px) var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   color: var(--text-secondary);
-  transition: all var(--transition);
+  transition:
+    background-color var(--transition),
+    color var(--transition);
 }
 
 .projects-tab-btn.active .projects-tab-badge {
@@ -61,7 +66,7 @@
 
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-card-min), 1fr));
   gap: 1.25rem;
 }
 
@@ -73,7 +78,7 @@
 
 .project-card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-card);
   padding: 1.35rem;
   box-shadow: var(--shadow-sm);
@@ -92,7 +97,7 @@
 .project-card:hover {
   border-color: var(--border-hover);
   background: var(--bg-card-hover);
-  transform: translateY(-2px);
+  transform: translateY(calc(var(--space-half) * -1));
   box-shadow: var(--shadow-lg);
 }
 
@@ -159,7 +164,7 @@
   background: var(--bg-hover);
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
 }
 
 .project-card-link {
@@ -185,7 +190,7 @@
   align-items: center;
   margin-top: var(--space-3);
   padding-top: var(--space-2);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--border-width) solid var(--border-subtle);
 }
 
 /* Integrity failure repair path (#147) — outside the card's anchor so no

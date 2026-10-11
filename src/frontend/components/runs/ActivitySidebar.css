@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
   min-height: 0;
@@ -16,7 +16,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
   flex-shrink: 0;
 }
 
@@ -33,12 +33,12 @@
   font-size: var(--text-caption-2);
   color: var(--text-dim);
   background: var(--bg-tertiary);
-  padding: 1px 6px;
+  padding: var(--space-px) var(--space-1-5);
   border-radius: var(--radius-pill);
 }
 
 .activity-dot {
-  margin-left: 6px;
+  margin-left: var(--space-1-5);
   display: inline-block;
 }
 
@@ -68,10 +68,10 @@
 }
 
 .activity-sidebar .chat-bubble-badge {
-  font-size: 9px;
+  font-size: var(--text-micro);
   padding: 0 var(--space-1);
 }
 
 .activity-sidebar .chat-bubble-header {
-  margin-bottom: 2px;
+  margin-bottom: var(--space-half);
 }
