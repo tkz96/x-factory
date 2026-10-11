@@ -6,6 +6,14 @@ import {
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
 import "./RunsView.css";
+import type { StageModelUse } from "../../shared/types.js";
+import { latestModelFor } from "../lib/run-models.js";
+
+/** " · gemini-x" for the Builder model the run last used (#279). */
+function builderModelLabel(stageModels?: readonly StageModelUse[]): string {
+  const builder = latestModelFor(stageModels ?? [], "builder");
+  return builder ? ` · ${builder.modelId}` : "";
+}
 
 export function RunsView() {
   const { openNewRunModal } = useModal();
@@ -75,6 +83,7 @@ export function RunsView() {
                     </h3>
                     <span className="code-sub run-card-subtitle">
                       {r.project?.name || r.project?.id || ""} · {r.branch}
+                      {builderModelLabel(r.stageModels)}
                     </span>
                   </div>
                   <span className="badge" data-status={r.status}>

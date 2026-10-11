@@ -1,5 +1,6 @@
 // src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and Ralph progress (Ticket 02, #191).
 
+import { stageStartedText } from "../../lib/run-models.js";
 import "./ChatThread.css";
 
 import { useEffect, useRef } from "react";
@@ -227,6 +228,8 @@ function renderBubble(item: RunEvent) {
         item,
         item.payload.text ?? item.payload.url ?? "",
       );
+    case "stage_started":
+      return renderTextBubble(item, stageStartedText(item.payload));
     case "verification":
     case "review":
       return renderTextBubble(item, JSON.stringify(item.payload));

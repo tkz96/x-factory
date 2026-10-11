@@ -8,6 +8,7 @@ import { CHECKPOINT_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ActivitySidebar } from "../components/runs/ActivitySidebar.js";
 import { HumanCheckpointSection } from "../components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../components/runs/RunChat.js";
+import { RunModelsCard } from "../components/runs/RunModelsCard.js";
 import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
 import {
   useAbandonRun,
@@ -86,6 +87,8 @@ export function RunDetailView() {
       <div className="run-detail-layout">
         {/* ── Main Content (2/3) ──────────────────────────────────────── */}
         <div className="run-detail-main">
+          <RunModelsCard stageModels={run.stageModels ?? []} />
+
           {/* Recovery Required Alert */}
           {isRecoveryRequired && (
             <div id="view-run" className="card">
