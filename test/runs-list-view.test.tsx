@@ -88,9 +88,11 @@ function makeClient(runs: Run[]) {
 function renderRuns(client: QueryClient, url = "/runs") {
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[url]}>
-        <RunsView />
-      </MemoryRouter>
+      <ProjectProvider>
+        <MemoryRouter initialEntries={[url]}>
+          <RunsView />
+        </MemoryRouter>
+      </ProjectProvider>
     </QueryClientProvider>,
   );
 }

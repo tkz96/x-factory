@@ -267,7 +267,7 @@ export const QUEUE_COPY = {
   noProjects: "Add a project to see its tickets.",
   addProject: "Add Project",
   /** The manual path that stays open when the tracker cannot be reached. */
-  manualRun: "Start Manual Run",
+  manualRun: "Start Run",
 } as const;
 
 /** Copy for the single-project detail surface (#147). */

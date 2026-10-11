@@ -252,7 +252,9 @@ describe("Runs filter (#258)", () => {
     const active = render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/runs"]}>
-          <RunsView />
+          <ProjectProvider>
+            <RunsView />
+          </ProjectProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -263,7 +265,9 @@ describe("Runs filter (#258)", () => {
     const done = render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/runs?filter=done"]}>
-          <RunsView />
+          <ProjectProvider>
+            <RunsView />
+          </ProjectProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     );

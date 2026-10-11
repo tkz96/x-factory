@@ -16,6 +16,7 @@ import { createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { AsyncRegion } from "../src/frontend/components/feedback/AsyncRegion.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
+import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
 import { composite, contrastRatio, parseColor } from "./helpers/contrast.js";
@@ -142,6 +143,7 @@ describe("placeholder rows are static, and the wait is one spinner", () => {
     client.setQueryDefaults(queryKeys.runs(), {
       queryFn: () => new Promise(() => {}),
     });
+    client.setQueryData(queryKeys.projects(), []);
     const { container, findByRole } = render(
       createElement(
         QueryClientProvider,
@@ -152,7 +154,7 @@ describe("placeholder rows are static, and the wait is one spinner", () => {
           createElement(
             MemoryRouter,
             { initialEntries: ["/runs?filter=done"] },
-            createElement(RunsView),
+            createElement(ProjectProvider, null, createElement(RunsView)),
           ),
         ),
       ),
