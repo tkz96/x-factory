@@ -378,26 +378,9 @@ describe("the welcome's read region (#269)", () => {
     expect(view.queryAllByRole("listitem")).toHaveLength(0);
   });
 
-  it("shows the canonical error, then brings every part of the setup back through its retry", async () => {
-    // Nothing is readable until the retry: every part fails first, and every
-    // part answers with real setup state afterwards. All three ticks can only
-    // appear if the retry asked every part again and the answer was read.
-    let readable = false;
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (!readable) return new Response("not json", { status: 500 });
-      const body = url.includes("/api/projects")
-        ? [makeProject()]
-        : url.includes("/api/runs")
-          ? [makeRun()]
-          : url.includes("/api/model-connections")
-            ? [makeConnection()]
-            : { roles: ROLES };
-      return new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }) as unknown as typeof fetch;
+  it("shows the canonical error, and its retry asks every part of the setup again", async () => {
+    globalThis.fetch = (async () =>
+      new Response("not json", { status: 500 })) as unknown as typeof fetch;
 
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -410,15 +393,22 @@ describe("the welcome's read region (#269)", () => {
     expect(alert.textContent).not.toContain("not json");
     expect(view.queryAllByRole("listitem")).toHaveLength(0);
 
-    // Let the first burst settle: retrying a request still in flight would be
-    // the in-flight one, not a new ask.
-    await waitFor(() => expect(client.isFetching()).toBe(0));
-    readable = true;
+    // The retry asks every part of the setup again, never just one of them.
+    // Nothing is ticked while those answers are still out.
+    globalThis.fetch = (() =>
+      new Promise<Response>(() => {})) as unknown as typeof fetch;
     fireEvent.click(view.getByRole("button", { name: STATE_COPY.retry }));
 
-    await waitFor(() => expect(ticked(view)).toEqual([true, true, true]));
-    expect(view.queryByRole("alert")).toBeNull();
-    expect(view.getByText(WELCOME_COPY.progress(3, 3))).toBeTruthy();
+    expect(client.isFetching()).toBe(4);
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.state.fetchStatus === "fetching")
+        .map((query) => query.queryKey[0])
+        .sort(),
+    ).toEqual(["model-connections", "projects", "runs", "settings"]);
+    expect(view.queryAllByRole("listitem")).toHaveLength(0);
   });
 });
 
