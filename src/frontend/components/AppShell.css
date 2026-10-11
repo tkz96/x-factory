@@ -119,54 +119,9 @@
   justify-content: space-between;
 }
 
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--tap-min);
-  height: var(--tap-min);
-  min-width: var(--tap-min);
-  min-height: var(--tap-min);
-  border-radius: 50%;
-  background: var(--bg-circle-btn);
-  border: var(--border-width) solid var(--border-subtle);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast),
-    border-color var(--transition-fast),
-    transform var(--transition-fast);
-  padding: 0;
-}
-
-.theme-toggle:hover {
-  background: var(--bg-circle-btn-hover);
-  color: var(--text);
-  border-color: var(--border-hover);
-  transform: scale(1.05);
-}
-
-.theme-toggle:active {
-  transform: scale(0.92);
-  background: var(--bg-circle-btn-active);
-}
-
-.theme-toggle .sun-icon {
-  display: none;
-}
-
-.theme-toggle .moon-icon {
-  display: flex;
-}
-
-[data-theme="light"] .theme-toggle .sun-icon {
-  display: flex;
-}
-
-[data-theme="light"] .theme-toggle .moon-icon {
-  display: none;
-}
+/* The theme button is the icon-button block (#251): its size, shape, surface
+   and hover are the vocabulary's, so nothing is redefined here. The class stays
+   as the hook forced-colors.css uses to draw it in system colours. */
 
 .system-status {
   display: flex;
@@ -258,6 +213,19 @@
   margin: 0;
   font-size: var(--text-subhead);
   color: var(--text-muted);
+}
+
+/* The full-window welcome (#269): the screen owns the window — no toolbar and
+   no tab bar — so nothing reserves room for either. */
+.app-shell--welcome .viewport-container {
+  padding-top: var(--space-8);
+}
+
+@media (max-width: 768px) {
+  .app-shell--welcome .main-content {
+    /* The tab bar's clearance is for a screen that has one. */
+    padding-bottom: var(--space-8);
+  }
 }
 
 .toolbar-breadcrumb {

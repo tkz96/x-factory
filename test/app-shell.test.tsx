@@ -24,6 +24,7 @@ import {
   RouterProvider,
 } from "react-router-dom";
 import { AppShell } from "../src/frontend/components/AppShell.js";
+import { WELCOME_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
@@ -174,6 +175,33 @@ describe("App shell toolbar (#258)", () => {
     expect(gear.getAttribute("href")).toBe("/settings");
   });
 
+  it("names the theme toggle once, after what pressing it does, and follows the mode", async () => {
+    const view = renderShell("/tickets");
+    // One accessible name — the action and the mode it switches to — and no
+    // second one (a title) that could disagree with it.
+    const toDark = within(view.getByRole("banner")).getByRole("button", {
+      name: "Switch to Dark Appearance",
+    });
+    expect(toDark.getAttribute("title")).toBeNull();
+
+    fireEvent.click(toDark);
+    await waitFor(() =>
+      expect(
+        view.getByRole("button", { name: "Switch to Light Appearance" }),
+      ).toBeTruthy(),
+    );
+
+    // Back to where the test found it, so the module store is left as it was.
+    fireEvent.click(
+      view.getByRole("button", { name: "Switch to Light Appearance" }),
+    );
+    await waitFor(() =>
+      expect(
+        view.getByRole("button", { name: "Switch to Dark Appearance" }),
+      ).toBeTruthy(),
+    );
+  });
+
   it("gives phone width a bottom tab bar with Tickets, Runs and Projects only", () => {
     const view = renderShell("/tickets");
     const tabs = view.getByRole("navigation", { name: "Mobile Navigation" });
@@ -223,6 +251,40 @@ describe("Large titles shrink into the toolbar (#258)", () => {
       main.dispatchEvent(new Event("scroll"));
     });
     expect(toolbarTitle()).toBe("");
+  });
+});
+
+describe("The welcome is a full-window screen (#269)", () => {
+  it("renders without the toolbar and the tab bar, and its step links still work", async () => {
+    const { view } = renderRoutes("/welcome");
+
+    await waitFor(() =>
+      expect(
+        view.getByRole("link", { name: WELCOME_COPY.stepAction.model }),
+      ).toBeTruthy(),
+    );
+    // Nothing frames a screen whose own work is not set up yet: no toolbar and
+    // no tab bar.
+    expect(view.queryByRole("banner")).toBeNull();
+    expect(
+      view.queryByRole("navigation", { name: "Mobile Navigation" }),
+    ).toBeNull();
+    // The screen keeps the title the toolbar would otherwise carry.
+    expect(
+      view.getByRole("heading", { level: 1, name: WELCOME_COPY.title }),
+    ).toBeTruthy();
+
+    // Its links are how the user leaves the welcome, and they still work.
+    expect(
+      view
+        .getByRole("link", { name: WELCOME_COPY.stepAction.model })
+        .getAttribute("href"),
+    ).toBe(WELCOME_COPY.stepPath.model);
+    expect(
+      view
+        .getByRole("link", { name: WELCOME_COPY.stepAction.run })
+        .getAttribute("href"),
+    ).toBe(WELCOME_COPY.stepPath.run);
   });
 });
 
