@@ -165,3 +165,41 @@ export const UpdateModelConnectionBodySchema = z.object({
 export type UpdateModelConnectionBody = z.infer<
   typeof UpdateModelConnectionBodySchema
 >;
+
+// ─── Model records on a connection (#277) ────────────────────────────────────
+
+export const AddConnectionModelBodySchema = z.object({
+  modelId: z
+    .string({ error: "A model needs an ID." })
+    .trim()
+    .min(1, "A model needs an ID."),
+});
+export type AddConnectionModelBody = z.infer<
+  typeof AddConnectionModelBodySchema
+>;
+
+const PositiveOrNull = z.number().positive().nullable().optional();
+const NonNegative = z.number().nonnegative().optional();
+
+export const UpdateConnectionModelBodySchema = z.object({
+  contextWindow: PositiveOrNull,
+  maxOutputTokens: PositiveOrNull,
+  inputPricePerMTok: z.number().nonnegative().nullable().optional(),
+  outputPricePerMTok: z.number().nonnegative().nullable().optional(),
+  limits: z
+    .object({
+      rpm: NonNegative,
+      tpm: NonNegative,
+      rpd: NonNegative,
+      tpd: NonNegative,
+    })
+    .optional(),
+  budget: z
+    .object({
+      perDay: z.object({ usd: NonNegative, requests: NonNegative }),
+    })
+    .optional(),
+});
+export type UpdateConnectionModelBody = z.infer<
+  typeof UpdateConnectionModelBodySchema
+>;

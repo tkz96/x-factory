@@ -3,16 +3,24 @@
 // set and its last four characters.
 
 import {
+  addConnectionModel,
+  checkModelConnection,
   createModelConnection,
   deleteModelConnection,
   getModelConnection,
   listModelConnections,
+  removeConnectionModel,
+  updateConnectionModel,
   updateModelConnection,
 } from "../model-connections.js";
 import { errorResponse, jsonResponse, withValidatedBody } from "./responses.js";
 import {
+  type AddConnectionModelBody,
+  AddConnectionModelBodySchema,
   type CreateModelConnectionBody,
   CreateModelConnectionBodySchema,
+  type UpdateConnectionModelBody,
+  UpdateConnectionModelBodySchema,
   type UpdateModelConnectionBody,
   UpdateModelConnectionBodySchema,
 } from "./schemas.js";
@@ -55,5 +63,57 @@ export async function handleDeleteModelConnection(
   id: string,
 ): Promise<Response> {
   await deleteModelConnection(id);
+  return jsonResponse({ ok: true });
+}
+
+export async function handleCheckModelConnection(
+  id: string,
+): Promise<Response> {
+  return jsonResponse(await checkModelConnection(id));
+}
+
+export async function handleAddConnectionModel(
+  id: string,
+  req: Request,
+): Promise<Response> {
+  return withValidatedBody<AddConnectionModelBody>(
+    req,
+    AddConnectionModelBodySchema,
+    async (body) =>
+      jsonResponse(await addConnectionModel(id, body.modelId), 201),
+    "Invalid JSON for model.",
+  );
+}
+
+/** Model IDs can contain slashes (OpenRouter), so they travel as `?modelId=`. */
+function modelIdFrom(url: URL): string | undefined {
+  return url.searchParams.get("modelId")?.trim() || undefined;
+}
+
+export async function handleUpdateConnectionModel(
+  id: string,
+  req: Request,
+  url: URL,
+): Promise<Response> {
+  const modelId = modelIdFrom(url);
+  if (!modelId)
+    return errorResponse("The modelId query parameter is required.", 400);
+  return withValidatedBody<UpdateConnectionModelBody>(
+    req,
+    UpdateConnectionModelBodySchema,
+    async (body) =>
+      jsonResponse(await updateConnectionModel(id, modelId, body)),
+    "Invalid JSON for model.",
+  );
+}
+
+export async function handleRemoveConnectionModel(
+  id: string,
+  url: URL,
+): Promise<Response> {
+  const modelId = modelIdFrom(url);
+  if (!modelId)
+    return errorResponse("The modelId query parameter is required.", 400);
+  await removeConnectionModel(id, modelId);
   return jsonResponse({ ok: true });
 }

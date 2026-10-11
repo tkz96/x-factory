@@ -125,3 +125,135 @@ describe("/api/model-connections (#276)", () => {
     );
   });
 });
+
+describe("/api/model-connections — check and models (#277)", () => {
+  let fake: ReturnType<typeof Bun.serve>;
+  let fakeBase: string;
+
+  beforeEach(() => {
+    fake = Bun.serve({
+      port: 0,
+      fetch(req) {
+        if (req.headers.get("x-goog-api-key") !== KEY) {
+          return new Response("{}", { status: 401 });
+        }
+        return Response.json({
+          models: [
+            {
+              name: "models/listed-model",
+              inputTokenLimit: 32000,
+              outputTokenLimit: 4000,
+            },
+          ],
+        });
+      },
+    });
+    fakeBase = `http://127.0.0.1:${fake.port}/v1beta`;
+  });
+
+  afterEach(() => fake.stop(true));
+
+  it("checks a connection, then adds, edits and removes a model (IDs may contain slashes)", async () => {
+    const created = await call("POST", "/api/model-connections", {
+      name: "Gemini",
+      apiType: "gemini",
+      baseUrl: fakeBase,
+      apiKey: KEY,
+    });
+    const id = created.json.id as string;
+
+    const checked = await call("POST", `/api/model-connections/${id}/check`);
+    expect(checked.status).toBe(200);
+    expect(checked.json.ok).toBe(true);
+    expect(JSON.stringify(checked.json)).not.toContain(KEY);
+    const view = await call("GET", `/api/model-connections/${id}`);
+    expect(view.json.verifiedAt).not.toBeNull();
+
+    const added = await call("POST", `/api/model-connections/${id}/models`, {
+      modelId: "listed-model",
+    });
+    expect(added.status).toBe(201);
+    expect(added.json.contextWindow).toBe(32000);
+
+    const slashed = await call("POST", `/api/model-connections/${id}/models`, {
+      modelId: "vendor/model-x",
+    });
+    expect(slashed.status).toBe(201);
+
+    const edited = await call(
+      "PATCH",
+      `/api/model-connections/${id}/models?modelId=${encodeURIComponent("vendor/model-x")}`,
+      {
+        contextWindow: 128000,
+        limits: { rpm: 5 },
+        budget: { perDay: { usd: 2 } },
+      },
+    );
+    expect(edited.status).toBe(200);
+    expect(edited.json.limits).toEqual({ rpm: 5 });
+
+    const removed = await call(
+      "DELETE",
+      `/api/model-connections/${id}/models?modelId=${encodeURIComponent("vendor/model-x")}`,
+    );
+    expect(removed.status).toBe(200);
+    const after = await call("GET", `/api/model-connections/${id}`);
+    expect(
+      (after.json.models as Array<{ modelId: string }>).map((m) => m.modelId),
+    ).toEqual(["listed-model"]);
+  });
+
+  it("returns a failing check as 200 with the categorised error", async () => {
+    const created = await call("POST", "/api/model-connections", {
+      name: "Gemini",
+      apiType: "gemini",
+      baseUrl: fakeBase,
+      apiKey: "wrong-key",
+    });
+    const checked = await call(
+      "POST",
+      `/api/model-connections/${created.json.id as string}/check`,
+    );
+    expect(checked.status).toBe(200);
+    expect(checked.json as unknown).toEqual({
+      ok: false,
+      error: {
+        category: "key_rejected",
+        status: 401,
+        message: "Key rejected (401)",
+      },
+    });
+  });
+
+  it("rejects invalid model edits with 400 and unknown models with 404", async () => {
+    const created = await call("POST", "/api/model-connections", {
+      name: "Gemini",
+      apiType: "gemini",
+      apiKey: KEY,
+    });
+    const id = created.json.id as string;
+    expect(
+      (await call("POST", `/api/model-connections/${id}/models`, {})).status,
+    ).toBe(400);
+    await call("POST", `/api/model-connections/${id}/models`, { modelId: "m" });
+    expect(
+      (
+        await call("PATCH", `/api/model-connections/${id}/models?modelId=m`, {
+          contextWindow: -5,
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call(
+          "PATCH",
+          `/api/model-connections/${id}/models?modelId=zz`,
+          {},
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (await call("DELETE", `/api/model-connections/${id}/models`)).status,
+    ).toBe(400);
+  });
+});
