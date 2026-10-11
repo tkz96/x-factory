@@ -1,9 +1,12 @@
-// src/frontend/wizard/steps/ConnectStep.tsx — Step 2: Dual decoupled connection cards & Quick-URL (spec #130, #133, #143).
+// src/frontend/wizard/steps/ConnectStep.tsx — Step 2: Dual decoupled connection cards (spec #130, #133, #143).
+//
+// The repository URL is collected on step 1 (#268), which is also where a
+// recognised URL pre-fills these cards: this step is only about credentials and
+// verification.
 
 import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
-import { QuickUrlIntake } from "../../connection/QuickUrlIntake.js";
+import { WizardFooter } from "../shared/WizardFooter.js";
 import { ConnectCardsContainer } from "./ConnectCardsContainer.js";
-import { ConnectStepFooter } from "./ConnectStepFooter.js";
 import { ConnectVerifyAllRow } from "./ConnectVerifyAllRow.js";
 import { useConnectStep } from "./useConnectStep.js";
 import "./ConnectStep.css";
@@ -16,7 +19,6 @@ export function ConnectStep() {
     connect,
     trackerConn,
     gitHostConn,
-    quickUrlState,
     handleVerifyAll,
     isVerifyingAny,
     canProceed,
@@ -45,15 +47,6 @@ export function ConnectStep() {
         </p>
       </div>
 
-      <QuickUrlIntake
-        value={quickUrlState.quickUrl}
-        onChange={quickUrlState.setQuickUrl}
-        onSubmit={quickUrlState.handleQuickUrlSubmit}
-        isSubmitting={quickUrlState.isParsingUrl}
-        disabled={isVerifyingAny}
-        missMessage={quickUrlState.quickUrlMissMessage}
-      />
-
       <ConnectVerifyAllRow
         isVisible={Boolean(
           connect.tracker.providerId && connect.gitHost.providerId,
@@ -67,13 +60,14 @@ export function ConnectStep() {
         connect={connect}
         trackerConn={trackerConn}
         gitHostConn={gitHostConn}
-        disabled={quickUrlState.isParsingUrl}
+        disabled={false}
       />
 
-      <ConnectStepFooter
-        canProceed={canProceed}
-        onPrev={prevStep}
+      <WizardFooter
+        step={2}
+        onBack={prevStep}
         onNext={handleNext}
+        isNextDisabled={!canProceed}
       />
     </div>
   );

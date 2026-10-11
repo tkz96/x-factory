@@ -428,14 +428,14 @@ export function DocsSidebarNav({
 
       <div className="sidebar-footer">
         <NavLink
-          to="/queue"
+          to="/tickets"
           className="docs-back-link"
           title="Return to the workbench"
         >
           <svg className="icon icon-sm" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-arrow-left" />
           </svg>
-          <span>Back to Workbench</span>
+          <span>Back to Tickets</span>
         </NavLink>
         <ThemeToggleButton
           id="docs-theme-toggle"

@@ -115,7 +115,7 @@ describe("Docs at phone width", () => {
         { client },
         React.createElement(
           MemoryRouter,
-          { initialEntries: ["/queue"] },
+          { initialEntries: ["/tickets"] },
           React.createElement(AppShell),
         ),
       ),

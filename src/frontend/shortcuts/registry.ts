@@ -48,24 +48,24 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   },
   {
     id: "goQueue",
-    label: "Go to Work Queue",
+    label: "Go to Tickets",
     group: "Navigation",
     steps: ["g", "t"],
-    alternative: "Work Queue in the sidebar",
+    alternative: "Tickets in the toolbar",
   },
   {
     id: "goRuns",
-    label: "Go to Active Runs",
+    label: "Go to Runs",
     group: "Navigation",
     steps: ["g", "r"],
-    alternative: "Active Runs in the sidebar",
+    alternative: "Runs in the toolbar",
   },
   {
     id: "goProjects",
     label: "Go to Projects",
     group: "Navigation",
     steps: ["g", "p"],
-    alternative: "Projects in the sidebar",
+    alternative: "Projects in the toolbar",
   },
   {
     id: "search",
@@ -76,10 +76,10 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   },
   {
     id: "newRun",
-    label: "New run",
+    label: "Start Run",
     group: "Actions",
     steps: ["n"],
-    alternative: "New Run button in the toolbar",
+    alternative: "Start Run button on Tickets",
   },
   {
     id: "primaryAction",

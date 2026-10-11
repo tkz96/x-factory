@@ -1,0 +1,49 @@
+/* src/frontend/wizard/shared/WizardFooter.css — the assistant's action bar
+   (#268). The bar itself is the sheet's dialog footer; these rules lay its two
+   groups out: the sheet's Cancel on the left, the step's Back and Continue on
+   the right. Tokens only. */
+
+.wizard-sheet-footer {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+/* The slot the active step's actions are rendered into. */
+.wizard-sheet-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+  margin-left: auto;
+}
+
+.wizard-footer-status {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  max-width: var(--content-max-sm);
+}
+
+.wizard-footer-status:empty {
+  display: none;
+}
+
+.wizard-footer-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A step rendered without the sheet (its own test) keeps the actions in place,
+   in the same order the sheet shows them. */
+.wizard-footer-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+  padding-top: var(--space-4);
+}

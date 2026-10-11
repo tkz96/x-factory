@@ -17,7 +17,7 @@ import { MemoryRouter } from "react-router-dom";
 import { AsyncRegion } from "../src/frontend/components/feedback/AsyncRegion.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
-import { HistoryView } from "../src/frontend/views/HistoryView.js";
+import { RunsView } from "../src/frontend/views/RunsView.js";
 import { composite, contrastRatio, parseColor } from "./helpers/contrast.js";
 
 const ROOT = `${import.meta.dir}/..`;
@@ -149,7 +149,11 @@ describe("placeholder rows are static, and the wait is one spinner", () => {
         createElement(
           ModalProvider,
           null,
-          createElement(MemoryRouter, null, createElement(HistoryView)),
+          createElement(
+            MemoryRouter,
+            { initialEntries: ["/runs?filter=done"] },
+            createElement(RunsView),
+          ),
         ),
       ),
     );

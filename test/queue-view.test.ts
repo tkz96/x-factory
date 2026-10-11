@@ -12,7 +12,7 @@ describe("Work Queue View & Refresh Controls", () => {
     const content = await Bun.file(toolbarPath).text();
 
     expect(content).toContain('id="btn-queue-refresh"');
-    expect(content).toContain('aria-label="Refresh work queue"');
+    expect(content).toContain('aria-label="Refresh tickets"');
     expect(content).toContain("btn-secondary btn-sm");
     expect(content).toContain("Refresh");
   });

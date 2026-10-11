@@ -8,7 +8,6 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/frontend/App.js";
-import { AppShell } from "../src/frontend/components/AppShell.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
 import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
@@ -23,7 +22,6 @@ import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
-import { HistoryView } from "../src/frontend/views/HistoryView.js";
 import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
 import { QueueView } from "../src/frontend/views/QueueView.js";
@@ -120,6 +118,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       const paths = children.map((c) => c.path ?? (c.index ? "index" : ""));
 
       expect(paths).toContain("index");
+      expect(paths).toContain("tickets");
       expect(paths).toContain("queue");
       expect(paths).toContain("runs");
       expect(paths).toContain("runs/:runId");
@@ -173,8 +172,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("Security Guardrail");
     });
 
-    it("HistoryView, RunsView, RunDetailView, and ProjectDetailView export functional components", () => {
-      expect(typeof HistoryView).toBe("function");
+    it("RunsView, RunDetailView, and ProjectDetailView export functional components", () => {
       expect(typeof RunsView).toBe("function");
       expect(typeof RunDetailView).toBe("function");
       expect(typeof ProjectDetailView).toBe("function");
@@ -182,39 +180,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
   });
 
   describe("Critical Components", () => {
-    it("AppShell renders navigation sidebar, header, and route outlets", () => {
-      const html = renderWithProviders(React.createElement(AppShell));
-
-      expect(html).toContain('id="app-shell"');
-      expect(html).toContain("X-Factory");
-      expect(html).toContain('href="/queue"');
-      expect(html).toContain('href="/runs"');
-      expect(html).toContain('href="/projects"');
-      expect(html).toContain('href="/settings"');
-      expect(html).toContain('href="/docs"');
-    });
-
-    it("AppShell renders Documentation ↗ link targeting new tab in workbench mode", () => {
-      const html = renderWithProviders(React.createElement(AppShell), [
-        "/queue",
-      ]);
-
-      expect(html).toContain('href="/docs"');
-      expect(html).toContain('target="_blank"');
-      expect(html).toContain("Documentation ↗");
-    });
-
-    it("AppShell renders DocsSidebarNav when viewing documentation route", () => {
-      const html = renderWithProviders(React.createElement(AppShell), [
-        "/docs",
-      ]);
-
-      expect(html).toContain("X-Factory Docs");
-      expect(html).toContain("Documentation");
-      expect(html).toContain('href="/queue"');
-      expect(html).toContain("Back to Workbench");
-      expect(html).not.toContain("btn-open-new-run");
-    });
+    // The shell's toolbar, sections, Help and one-h1 behaviour are asserted by
+    // behaviour in test/app-shell.test.tsx (#258).
 
     it("DocsSidebarNav exports functional component", () => {
       expect(typeof DocsSidebarNav).toBe("function");

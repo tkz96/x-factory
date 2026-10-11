@@ -5,6 +5,7 @@
 // run is found by its ticket key or its title.
 
 import type { Project, Run } from "../../../shared/types.js";
+import { runStatusText } from "../../lib/run-status-ui.js";
 
 export type PaletteGroup =
   | "Actions"
@@ -27,25 +28,18 @@ export interface PaletteItem {
 
 export const SECTION_ITEMS: PaletteItem[] = [
   {
-    id: "section-queue",
+    id: "section-tickets",
     group: "Sections",
-    label: "Work Queue",
-    keywords: "tickets queue",
-    target: { kind: "route", path: "/queue" },
+    label: "Tickets",
+    keywords: "queue work ready implement",
+    target: { kind: "route", path: "/tickets" },
   },
   {
     id: "section-runs",
     group: "Sections",
-    label: "Active Runs",
-    keywords: "runs running",
+    label: "Runs",
+    keywords: "runs running history done needs you",
     target: { kind: "route", path: "/runs" },
-  },
-  {
-    id: "section-history",
-    group: "Sections",
-    label: "History",
-    keywords: "audit past",
-    target: { kind: "route", path: "/history" },
   },
   {
     id: "section-projects",
@@ -134,7 +128,7 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
     id: `run-${run.id}`,
     group: "Runs",
     label: `${run.ticket.id} ${run.ticket.title}`,
-    detail: `${run.project.name} · ${run.status}`,
+    detail: `${run.project.name} · ${runStatusText(run.status)}`,
     keywords: `${run.ticket.id} ${run.id} ${run.branch}`,
     target: { kind: "route", path: `/runs/${run.id}` },
   }));

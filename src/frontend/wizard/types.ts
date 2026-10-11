@@ -11,15 +11,20 @@ import type { ProviderDescriptor } from "../connection/types.js";
  */
 export const WIZARD_SCHEMA_VERSION = 2;
 
+/**
+ * The five steps of the assistant, in order (#268, spec #241 stories 112–118):
+ * the repository URL comes first, because it is the easiest step and it is what
+ * the rest of the setup is about. `stepNumber` is the 1-based position the
+ * header counts ("Step N of 5") and the pane each step renders.
+ */
 export const WIZARD_STEPS = [
-  { id: "basics", label: "Basics", stepNumber: 1 },
+  { id: "repository", label: "Repository", stepNumber: 1 },
   { id: "connect", label: "Connect", stepNumber: 2 },
   { id: "repositories", label: "Repositories", stepNumber: 3 },
   { id: "inspection", label: "Inspection", stepNumber: 4 },
   { id: "review", label: "Review", stepNumber: 5 },
 ] as const;
 
-export type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];
 export type WizardStepNumber = 1 | 2 | 3 | 4 | 5;
 
 export interface WizardBasicsState {
@@ -193,6 +198,16 @@ export type WizardAction =
     }
   | { type: "PREV_STEP" }
   | { type: "UPDATE_BASICS"; patch: Partial<WizardBasicsState> }
+  | {
+      /**
+       * Records the repository URL the user pasted on the first step (#268).
+       * It writes the field ONLY: which provider claims the URL, and the
+       * configuration it suggests, are applied by `APPLY_PROVIDER_MATCH`, so a
+       * URL that no provider recognises still survives a step change.
+       */
+      type: "SET_REPOSITORY_URL";
+      url: string;
+    }
   | {
       type: "SELECT_PROVIDER";
       role: WizardConnectionRole;
