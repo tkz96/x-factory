@@ -21,6 +21,7 @@ import {
   render,
   within,
 } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
@@ -297,7 +298,9 @@ describe("a failed reply is a system line, never an agent message", () => {
       throw new TypeError("network down");
     }) as unknown as typeof fetch;
     const { container } = render(
-      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+      <MemoryRouter>
+        <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />
+      </MemoryRouter>,
     );
     const input = within(container).getByRole("textbox") as HTMLInputElement;
     await act(async () => {
@@ -308,11 +311,15 @@ describe("a failed reply is a system line, never an agent message", () => {
     await act(async () => {
       fireEvent.submit(input.closest("form") as HTMLFormElement);
     });
+    // The pointer is a link, so the sentence is split across elements.
+    expect(within(container).getByRole("alert").textContent).toContain(
+      "Couldn't reach the model. Check Settings › Models.",
+    );
     expect(
-      within(container).getByText(
-        "Couldn't reach the model. Check Settings › Models.",
-      ),
-    ).toBeTruthy();
+      within(container)
+        .getByRole("link", { name: "Settings › Models" })
+        .getAttribute("href"),
+    ).toBe("/settings?tab=models");
     expect(container.textContent).not.toContain("sorry");
     expect(container.textContent).not.toContain("Sorry");
   });
@@ -533,7 +540,9 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     const { container } = render(
-      <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
+      <MemoryRouter>
+        <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />
+      </MemoryRouter>,
     );
     typeInto(composer(container), "Why this plan?");
     await act(async () => {
@@ -582,6 +591,33 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
     });
     expect(calls).toHaveLength(1);
     expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({
+      message: "Why this plan?",
+    });
+  });
+
+  it("offers Retry on a recorded failure even when no earlier message is in the chat", async () => {
+    const run = makeRun("awaiting_plan_approval");
+    const view = render(<RunChat run={run} events={[]} />);
+    typeInto(composer(view.container), "Why this plan?");
+    await act(async () => {
+      fireEvent.submit(
+        composer(view.container).closest("form") as HTMLFormElement,
+      );
+    });
+    expect(calls).toHaveLength(1);
+    view.rerender(
+      <RunChat
+        run={run}
+        events={[ev(1, "error", { message: "The model is rate limited." })]}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(
+        within(log(view.container)).getByRole("button", { name: "Retry" }),
+      );
+    });
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(calls[1]?.body ?? "{}")).toEqual({
       message: "Why this plan?",
     });
   });
