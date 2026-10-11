@@ -9,6 +9,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useAppEvents } from "../hooks/useAppEvents.js";
@@ -22,11 +23,15 @@ import {
   loadReadIds,
   type NotificationState,
   needsYouCount,
+  notificationFromEvent,
   saveReadIds,
   seedNotificationState,
   type TrackedRun,
   visibleNotifications,
 } from "../lib/notifications.js";
+
+/** Receives each notification that arrives live on the stream (#265). */
+export type LiveNotificationListener = (notification: AppNotification) => void;
 
 export interface NotificationListItem extends AppNotification {
   unread: boolean;
@@ -41,6 +46,8 @@ export interface NotificationCenterValue {
   activeRuns: TrackedRun[];
   markRead: (id: number) => void;
   markAllRead: () => void;
+  /** Subscribes to notifications that arrive live. Returns the unsubscribe. */
+  subscribeLive: (listener: LiveNotificationListener) => () => void;
 }
 
 const EMPTY: NotificationCenterValue = {
@@ -50,6 +57,7 @@ const EMPTY: NotificationCenterValue = {
   activeRuns: [],
   markRead: () => {},
   markAllRead: () => {},
+  subscribeLive: () => () => {},
 };
 
 const NotificationCenterContext = createContext<NotificationCenterValue>(EMPTY);
@@ -74,11 +82,35 @@ export function NotificationProvider({
     loadReadIds(storage),
   );
 
+  const liveListeners = useRef(new Set<LiveNotificationListener>());
+
   const onEvent = useCallback(
-    (envelope: Parameters<typeof applyNotificationEnvelope>[1]) =>
-      setState((current) => applyNotificationEnvelope(current, envelope)),
+    (
+      envelope: Parameters<typeof applyNotificationEnvelope>[1],
+      delivery: { live: boolean },
+    ) => {
+      setState((current) => applyNotificationEnvelope(current, envelope));
+      if (!delivery.live) return;
+      const notification = notificationFromEvent(envelope);
+      if (!notification) return;
+      for (const listener of liveListeners.current) {
+        // A listener that fails must not stop the stream: the event is applied already.
+        try {
+          listener(notification);
+        } catch {
+          // Ignored: a banner that cannot be shown is not a reason to replay the event.
+        }
+      }
+    },
     [],
   );
+
+  const subscribeLive = useCallback((listener: LiveNotificationListener) => {
+    liveListeners.current.add(listener);
+    return () => {
+      liveListeners.current.delete(listener);
+    };
+  }, []);
   const { snapshot } = useAppEvents({ transport, onEvent });
 
   useEffect(() => {
@@ -120,8 +152,9 @@ export function NotificationProvider({
       activeRuns: activeRunsOf(state),
       markRead,
       markAllRead,
+      subscribeLive,
     };
-  }, [state, readIds, markRead, markAllRead]);
+  }, [state, readIds, markRead, markAllRead, subscribeLive]);
 
   return (
     <NotificationCenterContext.Provider value={value}>

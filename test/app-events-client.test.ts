@@ -122,6 +122,49 @@ describe("Client app-wide event subscriber (#257)", () => {
     stop();
   });
 
+  it("marks an event live only when it was created after the connection was requested (#265)", () => {
+    const queryClient = new QueryClient();
+    const run = createTestRun("run-live", "planning");
+    queryClient.setQueryData(queryKeys.run("run-live"), run);
+
+    const seen: { id: number; live: boolean }[] = [];
+    let messageHandler: (data: string) => void = () => {};
+
+    const stop = subscribeAppEvents({
+      queryClient,
+      initialCursor: 10,
+      transport: (_cursor, handlers) => {
+        messageHandler = handlers.onMessage;
+        handlers.onOpen();
+        return () => {};
+      },
+      onEvent: (e, meta) => seen.push({ id: e.id, live: meta.live }),
+    });
+
+    const base = {
+      runId: "run-live",
+      sequence: 2,
+      type: "status",
+      payload: { status: "awaiting_plan_approval" },
+      ticket: run.ticket,
+      project: run.project,
+    };
+    // Created before this connection existed: a replay on resume, never live.
+    messageHandler(
+      JSON.stringify({ ...base, id: 11, time: "2026-10-11T00:01:00.000Z" }),
+    );
+    // Created after the connection was requested: live.
+    messageHandler(
+      JSON.stringify({ ...base, id: 12, time: new Date().toISOString() }),
+    );
+
+    expect(seen).toEqual([
+      { id: 11, live: false },
+      { id: 12, live: true },
+    ]);
+    stop();
+  });
+
   it("patches run cache and runs list directly on status event without flicker", () => {
     const queryClient = new QueryClient();
     const run1 = createTestRun("run-1", "planning");

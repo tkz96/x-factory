@@ -35,6 +35,7 @@ import {
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
+import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
 import { NotificationBell } from "./notifications/NotificationBell.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
@@ -668,6 +669,8 @@ function AppShellContent() {
 
       <AppShellMobileTabBar needsYouCount={needsYouCount} />
       <ModalContainer />
+      {/* Desktop banners for live run events (#265). Renders nothing. */}
+      <DesktopBanners />
       <CommandPalette
         isOpen={paletteOpen}
         onClose={() => setPaletteOpen(false)}

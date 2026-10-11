@@ -41,6 +41,7 @@ export const WorkbenchSettingsSchema = z.object({
     })
     .optional(),
   allowUnsandboxed: z.boolean().optional(),
+  desktopNotifications: z.boolean().optional(),
   roles: z
     .object({
       builder: RoleAssignmentSchema.nullable().optional(),

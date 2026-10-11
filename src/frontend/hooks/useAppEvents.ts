@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { AppEventEnvelope, EventsSnapshot } from "../../shared/types.js";
 import {
+  type AppEventDelivery,
   type AppEventTransport,
   defaultAppEventTransport,
   fetchEventsSnapshot,
@@ -13,7 +14,9 @@ import { queryKeys } from "../lib/query-policies.js";
 
 export interface UseAppEventsOptions {
   transport?: AppEventTransport | undefined;
-  onEvent?: ((envelope: AppEventEnvelope) => void) | undefined;
+  onEvent?:
+    | ((envelope: AppEventEnvelope, delivery: AppEventDelivery) => void)
+    | undefined;
   enabled?: boolean | undefined;
 }
 
