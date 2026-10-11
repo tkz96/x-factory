@@ -39,6 +39,31 @@ The user receives the full execution history first, followed immediately by live
 
 Finished runs use the same endpoint rather than a REST events endpoint. The replay already carries the full history, so a second read path would only duplicate it. The client subscribes to a finished run in replay-only mode: the server closes the stream after the history, and the client closes it on error instead of letting `EventSource` reconnect and replay the same history forever.
 
+## App-Wide Event Stream and Consistent Snapshot
+
+For cross-run telemetry, live counts, runs filtering, and notifications (spec #241, #257), the API process serves a read-only app-wide stream and snapshot backed by SQLite.
+
+### 1. App-Wide Envelope
+The app-wide stream defines its own envelope rather than reusing the per-run wire event:
+- Envelope ID and SSE `id:` field use the global `run_events.id` integer primary key.
+- The envelope carries: `id` (global event ID), `runId`, `sequence` (per-run sequence number), `type`, `payload`, `time` (creation timestamp), `ticket` (`{ id, title, description, acceptanceCriteria }`), and `project` (`{ id, name }`).
+- The per-run stream (`GET /api/runs/:id/events`) remains unchanged with its per-run sequence numbers.
+
+### 2. Consistent Snapshot (`GET /api/events/snapshot`)
+A client on initial page load or full reload fetches a fresh snapshot in one SQLite read transaction:
+- **Cursor**: The highest global `run_events.id` included in the snapshot.
+- **Current Run Statuses**: Full list of current runs and their statuses.
+- **Needs-you Trigger Events**: For every run currently in a Needs-you status (`awaiting_understanding_approval`, `awaiting_plan_approval`, `awaiting_review`, `ready_for_pr`, `recovery_required`), the snapshot includes the event that transitioned it into that status with **no age limit**. A run waiting 30 days retains its original triggering event ID.
+- **Finished History**: Limited to eligible finished events (`pr_created`, `failed`, `stopped`) committed at or below the cursor within a 7-day window, capped at 100 events. Older finished events are deliberately omitted.
+- **No Gap**: Subscribing to `GET /api/events?last_event_id=<cursor>` guarantees that no event committed after the snapshot is missed.
+
+### 3. Cursor & Reconnection Rules (`GET /api/events`)
+- **Precedence**: The server resumes after the query-parameter cursor (`?last_event_id=<id>`) when present, otherwise after the `Last-Event-ID` header.
+- **Lower Wins**: When both query cursor and `Last-Event-ID` header are present and valid, the server resumes after the lower value.
+- **Validation**: Only non-negative integers are valid cursors. Malformed or negative cursors count as absent.
+- **Snapshot Required**: If neither cursor is valid (or both absent), the request is rejected with HTTP 400 instructing the client to take a fresh snapshot.
+- **At-Least-Once Delivery**: All events strictly above the chosen cursor are delivered. Clients deduplicate events by global ID.
+
 ## Frontend State Synchronization
 
 The frontend single page application uses TanStack Query to manage server state in the browser.

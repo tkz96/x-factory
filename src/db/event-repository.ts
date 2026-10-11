@@ -1,7 +1,15 @@
 // src/db/event-repository.ts — Durable SQLite repository for run lifecycle events (XFM-12, XFM-13).
 
 import type { Database } from "bun:sqlite";
-import type { RunEventPayloadMap, RunEventType } from "../shared/types.js";
+import {
+  NEEDS_YOU_RUN_STATUSES,
+  TERMINAL_RUN_STATUSES,
+} from "../shared/run-status-policy.js";
+import type {
+  AppEventEnvelope,
+  RunEventPayloadMap,
+  RunEventType,
+} from "../shared/types.js";
 import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
 export type EventRecord<T extends RunEventType = RunEventType> =
@@ -144,4 +152,180 @@ export class EventRepository {
     const result = stmt.get({ $runId: runId });
     return result?.max_seq ?? 0;
   }
+
+  /**
+   * Gets the highest global event ID recorded in run_events (or 0 if none exist).
+   */
+  getHighestEventId(): number {
+    const stmt = this.db.prepare<{ max_id: number | null }, []>(
+      "SELECT MAX(id) as max_id FROM run_events;",
+    );
+    const result = stmt.get();
+    return result?.max_id ?? 0;
+  }
+
+  /**
+   * Retrieves notification-relevant events across all runs with global id strictly greater
+   * than sinceId (#257). Selects status and pr_step types from existing payload map.
+   */
+  getAppEventsSince(sinceId: number, limit?: number): AppEventEnvelope[] {
+    const limitClause = typeof limit === "number" ? `LIMIT ${limit}` : "";
+    const query = `
+      SELECT
+        e.id,
+        e.run_id,
+        e.sequence,
+        e.type,
+        e.payload,
+        e.created_at,
+        r.project_id,
+        r.project_name,
+        r.ticket_id,
+        r.ticket_title,
+        r.ticket_description,
+        r.ticket_acceptance_criteria
+      FROM run_events e
+      JOIN runs r ON e.run_id = r.id
+      WHERE e.id > $sinceId AND e.type IN ('status', 'pr_step')
+      ORDER BY e.id ASC
+      ${limitClause};
+    `;
+    const stmt = this.db.prepare<JoinedEventRow, { $sinceId: number }>(query);
+    const rows = stmt.all({ $sinceId: sinceId });
+    return rows.map(joinedRowToEnvelope);
+  }
+
+  /**
+   * Retrieves Needs-you triggering status events for runs currently in a Needs-you status
+   * with id at or below cursor, with no age limit (#257).
+   */
+  getNeedsYouTriggerEvents(cursor: number): AppEventEnvelope[] {
+    const query = `
+      SELECT
+        e.id,
+        e.run_id,
+        e.sequence,
+        e.type,
+        e.payload,
+        e.created_at,
+        r.project_id,
+        r.project_name,
+        r.ticket_id,
+        r.ticket_title,
+        r.ticket_description,
+        r.ticket_acceptance_criteria
+      FROM run_events e
+      JOIN runs r ON e.run_id = r.id
+      WHERE r.status IN (${Array.from(NEEDS_YOU_RUN_STATUSES)
+        .map((s) => `'${s}'`)
+        .join(", ")})
+        AND e.type = 'status'
+        AND e.id <= $cursor
+        AND e.id = (
+          SELECT MAX(sub.id)
+          FROM run_events sub
+          WHERE sub.run_id = e.run_id AND sub.type = 'status' AND sub.id <= $cursor
+        )
+      ORDER BY e.id ASC;
+    `;
+    const stmt = this.db.prepare<JoinedEventRow, { $cursor: number }>(query);
+    const rows = stmt.all({ $cursor: cursor });
+    return rows.map(joinedRowToEnvelope);
+  }
+
+  /**
+   * Retrieves Finished history events (the policy's terminal statuses) at or below cursor,
+   * bounded by 7 days and capped at limit (default 100), returned in ascending id order (#257).
+   */
+  getFinishedHistoryEvents(
+    cursor: number,
+    sevenDaysAgo: string,
+    limit = 100,
+  ): AppEventEnvelope[] {
+    const query = `
+      SELECT
+        e.id,
+        e.run_id,
+        e.sequence,
+        e.type,
+        e.payload,
+        e.created_at,
+        r.project_id,
+        r.project_name,
+        r.ticket_id,
+        r.ticket_title,
+        r.ticket_description,
+        r.ticket_acceptance_criteria
+      FROM run_events e
+      JOIN runs r ON e.run_id = r.id
+      WHERE e.id <= $cursor
+        AND e.type = 'status'
+        AND json_extract(e.payload, '$.status') IN (${Array.from(
+          TERMINAL_RUN_STATUSES,
+        )
+          .map((s) => `'${s}'`)
+          .join(", ")})
+        AND e.created_at >= $sevenDaysAgo
+      ORDER BY e.id DESC
+      LIMIT $limit;
+    `;
+    const stmt = this.db.prepare<
+      JoinedEventRow,
+      { $cursor: number; $sevenDaysAgo: string; $limit: number }
+    >(query);
+    const rows = stmt.all({
+      $cursor: cursor,
+      $sevenDaysAgo: sevenDaysAgo,
+      $limit: limit,
+    });
+    return rows.reverse().map(joinedRowToEnvelope);
+  }
+}
+
+export interface JoinedEventRow {
+  id: number;
+  run_id: string;
+  sequence: number;
+  type: string;
+  payload: string;
+  created_at: string;
+  project_id: string;
+  project_name: string;
+  ticket_id: string;
+  ticket_title: string;
+  ticket_description: string | null;
+  ticket_acceptance_criteria: string;
+}
+
+export function joinedRowToEnvelope(row: JoinedEventRow): AppEventEnvelope {
+  return {
+    id: row.id,
+    runId: row.run_id,
+    sequence: row.sequence,
+    type: row.type as RunEventType,
+    payload: parseJsonColumn<unknown>(row.payload, row.payload, {
+      table: "run_events",
+      column: "payload",
+      rowId: String(row.id),
+    }) as RunEventPayloadMap[RunEventType],
+    time: row.created_at,
+    ticket: {
+      id: row.ticket_id,
+      title: row.ticket_title,
+      description: row.ticket_description || undefined,
+      acceptanceCriteria: parseJsonColumn<string[]>(
+        row.ticket_acceptance_criteria,
+        [],
+        {
+          table: "runs",
+          column: "ticket_acceptance_criteria",
+          rowId: row.run_id,
+        },
+      ),
+    },
+    project: {
+      id: row.project_id,
+      name: row.project_name,
+    },
+  };
 }

@@ -23,6 +23,10 @@ import {
 } from "./diagnostics-controller.js";
 import { handleDocsRoute } from "./docs-controller.js";
 import {
+  handleAppEvents,
+  handleGetEventsSnapshot,
+} from "./events-controller.js";
+import {
   handleAddConnectionModel,
   handleCheckModelConnection,
   handleCreateModelConnection,
@@ -586,6 +590,27 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "The abandoned run",
     handler: ({ req, params, ctx }) =>
       handleAbandonRun(ctx.repos, req, params.id),
+  }),
+  // App-wide event stream and consistent snapshot (#257, spec #241).
+  route({
+    method: "GET",
+    path: "/api/events/snapshot",
+    tags: ["Events"],
+    summary: "Get App-Wide Events Snapshot",
+    operationId: "getEventsSnapshot",
+    responseDescription:
+      "Consistent snapshot of current run statuses, Needs-you triggers, and Finished history with cursor",
+    handler: ({ ctx }) => handleGetEventsSnapshot(ctx.repos),
+  }),
+  route({
+    method: "GET",
+    path: "/api/events",
+    tags: ["Events"],
+    summary: "Stream App-Wide Events",
+    operationId: "streamAppEvents",
+    responseDescription:
+      "Server-Sent Events stream of notification-relevant events across all runs",
+    handler: ({ req, url, ctx }) => handleAppEvents(ctx.repos, req, url),
   }),
   // Providers.
   route({
