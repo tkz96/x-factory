@@ -209,7 +209,7 @@ describe("Scalar Static Asset & Page Serving", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")?.includes("text/html")).toBe(true);
     const html = await res.text();
-    expect(html).toContain("SCALAR API REFERENCE");
+    expect(html).toContain("X-Factory API Reference");
     expect(html).toContain('data-url="/api/openapi.json"');
     // The viewer is served by X-Factory itself, never from a CDN (#247).
     expect(html).toContain("/assets/api-reference/scalar-api-reference.min.js");
