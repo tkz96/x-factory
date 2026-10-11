@@ -229,9 +229,14 @@ describe("the now header says what the run is doing, with its facts", () => {
       <RunNowHeader run={run} now={runNow(run, [])} />,
     );
     expect(
-      within(container).getByRole("heading", { level: 2 }).textContent,
+      within(container).getByRole("heading", {
+        level: 2,
+        name: "Review the plan",
+      }).textContent,
     ).toBe("Review the plan");
-    expect(container.textContent).toContain("1. Read the parser.");
+    // The plan renders as a numbered list: the item text is there, the Markdown marker is not.
+    expect(container.textContent).toContain("Read the parser.");
+    expect(container.textContent).not.toContain("1. Read");
   });
 
   it("summarises the changes awaiting review", () => {
