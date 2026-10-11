@@ -7,7 +7,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { checkVendored } from "../scripts/vendor-api-reference.js";
 import { App } from "../src/frontend/App.js";
 import { AppShell } from "../src/frontend/components/AppShell.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
@@ -726,6 +725,7 @@ describe("Frontend Smoke — No third-party requests", () => {
   });
 
   it("serves the API Reference from a pinned viewer in this repository", async () => {
+    const assetDir = path.join(ROOT_DIR, "public", "assets", "api-reference");
     const reference = await Bun.file(
       path.join(ROOT_DIR, "public/reference.html"),
     ).text();
@@ -737,9 +737,27 @@ describe("Frontend Smoke — No third-party requests", () => {
     // The pinned Scalar build would otherwise fetch its web fonts from
     // fonts.scalar.com, which is a third-party host.
     expect(reference).toContain('"withDefaultFonts": false');
-    // The file we serve is the bytes the pin describes.
-    expect(checkVendored()).toMatch(
-      /^@scalar\/api-reference@\d+\.\d+\.\d+ [0-9a-f]{64}$/,
+
+    // The bytes we serve are the bytes the pin names, so this and `bun run
+    // vendor:api-reference --check` agree about what is on disk.
+    const provenance = (await Bun.file(
+      path.join(assetDir, "provenance.json"),
+    ).json()) as {
+      package: string;
+      version: string;
+      integrity: string;
+      vendoredSha256: string;
+    };
+    const vendored = new Uint8Array(
+      await Bun.file(
+        path.join(assetDir, "scalar-api-reference.min.js"),
+      ).arrayBuffer(),
+    );
+    expect(provenance.package).toBe("@scalar/api-reference");
+    expect(provenance.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(provenance.integrity.startsWith("sha512-")).toBe(true);
+    expect(new Bun.CryptoHasher("sha256").update(vendored).digest("hex")).toBe(
+      provenance.vendoredSha256,
     );
   });
 });
