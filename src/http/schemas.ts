@@ -30,6 +30,7 @@ export const WorkbenchSettingsSchema = z.object({
         .optional(),
     })
     .optional(),
+  allowUnsandboxed: z.boolean().optional(),
 });
 
 export type WorkbenchSettingsBody = z.infer<typeof WorkbenchSettingsSchema>;

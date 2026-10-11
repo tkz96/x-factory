@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: FactorySettings = {
     sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
     sessionB: { provider: "anthropic", model: "claude-3-7-sonnet" },
   },
+  allowUnsandboxed: false,
 };
 
 /** One session's model pair, as stored once normalized (#182). */
@@ -114,6 +115,10 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
       ...DEFAULT_SETTINGS,
       ...parsed,
       models: normalizeModels(parsed.models),
+      allowUnsandboxed:
+        typeof parsed.allowUnsandboxed === "boolean"
+          ? parsed.allowUnsandboxed
+          : false,
     };
   } catch {
     // Return defaults when file doesn't exist
@@ -140,6 +145,10 @@ export async function saveSettings(
       sessionA: { ...existing.models?.sessionA, ...patch.models?.sessionA },
       sessionB: { ...existing.models?.sessionB, ...patch.models?.sessionB },
     }),
+    allowUnsandboxed:
+      typeof patch.allowUnsandboxed === "boolean"
+        ? patch.allowUnsandboxed
+        : Boolean(existing.allowUnsandboxed),
   };
 
   await mkdir(path.dirname(filePath), { recursive: true });

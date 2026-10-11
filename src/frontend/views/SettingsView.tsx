@@ -9,6 +9,7 @@ import { ConnectionComboLine } from "../components/connections/ConnectionComboLi
 import { comboTone } from "../components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
+import { Modal, ModalFooter } from "../components/Modal.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
@@ -135,12 +136,37 @@ function DiagnosticsTabContent({
 interface GeneralTabContentProps {
   currentTheme: "light" | "dark";
   onApplyTheme: (theme: "light" | "dark") => void;
+  allowUnsandboxed: boolean;
+  onUpdateUnsandboxed: (enabled: boolean) => Promise<void>;
+  isSavingUnsandboxed?: boolean;
 }
 
 function GeneralTabContent({
   currentTheme,
   onApplyTheme,
+  allowUnsandboxed,
+  onUpdateUnsandboxed,
+  isSavingUnsandboxed,
 }: GeneralTabContentProps) {
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setShowConfirmModal(true);
+    } else {
+      void onUpdateUnsandboxed(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    await onUpdateUnsandboxed(true);
+    setShowConfirmModal(false);
+  };
+
+  const handleCancel = () => {
+    setShowConfirmModal(false);
+  };
+
   return (
     <div id="tab-general" className="settings-pane active">
       <h3>General Settings</h3>
@@ -192,6 +218,75 @@ function GeneralTabContent({
           className="code-input"
         />
       </div>
+
+      <div className="setting-item mt-4">
+        <span className="setting-label">Security &amp; Sandboxing</span>
+        <div className="setting-checkbox-row">
+          <input
+            id="setting-allow-unsandboxed"
+            type="checkbox"
+            className="setting-checkbox"
+            checked={allowUnsandboxed}
+            disabled={isSavingUnsandboxed}
+            onChange={handleCheckboxChange}
+          />
+          <div className="setting-checkbox-text">
+            <label
+              htmlFor="setting-allow-unsandboxed"
+              className="setting-checkbox-title"
+            >
+              Run agents without a sandbox
+            </label>
+            <p className="text-muted text-footnote m-0">
+              Allows the coding loop to run directly on the host machine when{" "}
+              <code>sbx</code> is unavailable.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {showConfirmModal && (
+        <Modal
+          id="modal-confirm-unsandboxed"
+          title="Run agents without a sandbox?"
+          onClose={handleCancel}
+          closeButtonId="btn-close-unsandboxed-modal"
+        >
+          <div className="unsandboxed-modal-content">
+            <p className="unsandboxed-modal-warning">
+              Coding agents will execute directly on this machine without
+              container isolation. The agent will have access to your local
+              filesystem, network, and environment.
+            </p>
+            <p className="text-muted text-footnote mt-2">
+              Only enable this if you trust the repository and model, or if you
+              do not have <code>sbx</code> installed. You can also enable this
+              per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
+            </p>
+          </div>
+          <ModalFooter>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              id="btn-cancel-unsandboxed"
+              onClick={handleCancel}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-warning"
+              id="btn-confirm-unsandboxed"
+              onClick={handleConfirm}
+              disabled={isSavingUnsandboxed}
+            >
+              {isSavingUnsandboxed
+                ? "Enabling…"
+                : "Enable Unsandboxed Execution"}
+            </button>
+          </ModalFooter>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -493,6 +588,10 @@ export function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const { theme: currentTheme, applyTheme: handleApplyTheme } = useTheme();
 
+  const handleUpdateUnsandboxed = async (enabled: boolean) => {
+    await saveSettingsMutation.mutateAsync({ allowUnsandboxed: enabled });
+  };
+
   return (
     <section id="area-settings" className="area-view active">
       <div className="settings-layout card">
@@ -546,6 +645,9 @@ export function SettingsView() {
             <GeneralTabContent
               currentTheme={currentTheme}
               onApplyTheme={handleApplyTheme}
+              allowUnsandboxed={Boolean(settings?.allowUnsandboxed)}
+              onUpdateUnsandboxed={handleUpdateUnsandboxed}
+              isSavingUnsandboxed={saveSettingsMutation.isPending}
             />
           )}
 

@@ -91,6 +91,25 @@ describe("Settings Storage & Persistence", () => {
     const updated = await loadSettings();
     expect(updated.theme).toBe("light");
   });
+
+  test("loadSettings defaults allowUnsandboxed to false", async () => {
+    const defaults = await loadSettings();
+    expect(defaults.allowUnsandboxed).toBe(false);
+  });
+
+  test("saveSettings persists allowUnsandboxed preference", async () => {
+    await saveSettings({ allowUnsandboxed: true });
+    const updated = await loadSettings();
+    expect(updated.allowUnsandboxed).toBe(true);
+
+    const raw = await readFile(settingsPath, "utf-8");
+    const onDisk = JSON.parse(raw);
+    expect(onDisk.allowUnsandboxed).toBe(true);
+
+    await saveSettings({ allowUnsandboxed: false });
+    const reverted = await loadSettings();
+    expect(reverted.allowUnsandboxed).toBe(false);
+  });
 });
 
 describe("Settings legacy model entries (#182)", () => {

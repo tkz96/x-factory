@@ -7,7 +7,8 @@ This document defines the security boundaries, execution model, and credential m
 X-Factory executes the autonomous Ralph loop using a strictly enforced sandbox boundary. 
 
 1. **Sandbox Requirement (`sbx`)**: The agent **must** execute inside the `sbx` sandbox CLI. It is strictly prohibited for the agent to execute bare-metal on the host system.
-2. **Fail Closed**: If the `sbx` sandbox environment is not available on the host, the Ralph loop script will fail immediately and return a non-zero exit code. It will never fall back to direct host execution.
+2. **Fail Closed**: If the `sbx` sandbox environment is not available on the host, the Ralph loop script will fail immediately and return a non-zero exit code. It never falls back to direct host execution on its own.
+   - **Explicit opt-out:** the exception is when the operator enables the "Run agents without a sandbox" setting in Settings or sets `X_FACTORY_ALLOW_UNSANDBOXED=1` in the worker's environment. The loop then runs the agent directly on the host, inside the run's worktree. Every such run records an info event saying it ran without a sandbox. This setting is off by default and is meant for local development only.
 3. **Iterative Isolation**: Each iteration of the Ralph loop spawns a fresh agent process inside the sandbox. The iterations interact purely via the Git worktree and `.agent/tasks.md`.
 
 ## Credential Management and Environment Sanitization

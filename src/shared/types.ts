@@ -388,6 +388,8 @@ export interface RalphProgressPayload {
 
 export type InfoEventPayload = {
   text: string;
+  /** Set when the line is a warning the run page must show as one (#275). */
+  warning?: "unsandboxed" | undefined;
 };
 
 export interface ErrorEventPayload {
@@ -504,6 +506,7 @@ export interface WorkbenchSettings {
           | undefined;
       }
     | undefined;
+  allowUnsandboxed?: boolean | undefined;
 }
 
 /** Request body of `POST /api/settings`: a patch merged into stored settings. */

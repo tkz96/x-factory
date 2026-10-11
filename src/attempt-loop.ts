@@ -35,6 +35,14 @@ while [[ $# -gt 0 ]]; do
       ITERATIONS="$2"
       shift 2
       ;;
+    --provider)
+      PROVIDER="$2"
+      shift 2
+      ;;
+    --model)
+      MODEL="$2"
+      shift 2
+      ;;
     *)
       shift
       ;;
@@ -43,15 +51,30 @@ done
 
 echo "Starting Ralph Loop: agent=$AGENT, iterations=$ITERATIONS"
 
+MODEL_ARGS=()
+if [[ -n "\${PROVIDER:-}" ]]; then MODEL_ARGS+=(--provider "\${PROVIDER}"); fi
+if [[ -n "\${MODEL:-}" ]]; then MODEL_ARGS+=(--model "\${MODEL}"); fi
+
+SANDBOX=1
 if ! command -v sbx &>/dev/null; then
-  echo "Error: Sandbox execution environment (sbx) is required but not found." >&2
-  exit 1
+  if [[ "\${X_FACTORY_ALLOW_UNSANDBOXED:-}" == "1" ]]; then
+    echo "Warning: sbx not found; running the agent WITHOUT a sandbox (X_FACTORY_ALLOW_UNSANDBOXED=1)." >&2
+    SANDBOX=0
+  else
+    echo "Error: Sandbox execution environment (sbx) is required but not found." >&2
+    exit 1
+  fi
 fi
 
 for (( i=1; i<=ITERATIONS; i++ )); do
   echo "Iteration $i of $ITERATIONS"
 
-  sbx run --name "ralph-\${AGENT}-\${RANDOM}" "\${AGENT}" .
+  PROMPT="$(cat .agent/PROMPT.md)"
+  if [[ "\${SANDBOX}" == "1" ]]; then
+    sbx run --name "ralph-\${AGENT}-\${RANDOM}" "\${AGENT}" -p \${MODEL_ARGS[@]+"\${MODEL_ARGS[@]}"} "\${PROMPT}"
+  else
+    "\${AGENT}" -p \${MODEL_ARGS[@]+"\${MODEL_ARGS[@]}"} "\${PROMPT}"
+  fi
 
   if [[ -f .agent/tasks.md ]]; then
     if ! grep -q '\\- \\[ \\]' .agent/tasks.md; then
@@ -185,6 +208,10 @@ export interface AttemptLoopInput {
   baseline: BaselineState;
   /** Provider of the implementation session (session A); its credentials reach the loop. */
   provider: string;
+  /** Model ID passed to the agent CLI; omitted means the agent's own default. */
+  model?: string | undefined;
+  /** Whether running without a sandbox is explicitly allowed via setting or env var. */
+  allowUnsandboxed?: boolean | undefined;
   signal?: AbortSignal | undefined;
   /** Loop timeout per attempt; defaults to 15 minutes. */
   timeoutMs?: number | undefined;
@@ -263,12 +290,35 @@ export async function runAttemptLoop(
   const scriptPath = await scaffold(input);
   const agentDir = path.join(input.worktreePath, ".agent");
   const env = resolveSanitizedEnv(input.provider);
+  const allowedBySetting = Boolean(input.allowUnsandboxed);
+  const allowUnsandboxed =
+    allowedBySetting || process.env.X_FACTORY_ALLOW_UNSANDBOXED === "1";
+  if (allowUnsandboxed) {
+    env.X_FACTORY_ALLOW_UNSANDBOXED = "1";
+  }
+  // The script falls back to running unsandboxed only when sbx is missing from
+  // the PATH it runs with; warn exactly when that will happen.
+  const runsUnsandboxed =
+    allowUnsandboxed && Bun.which("sbx", { PATH: env.PATH ?? "" }) === null;
+  const modelArgs = [
+    ...(input.provider ? ["--provider", input.provider] : []),
+    ...(input.model ? ["--model", input.model] : []),
+  ];
   const timeoutMs = input.timeoutMs ?? LOOP_TIMEOUT_MS;
 
   let verification: VerificationResult | null = null;
 
   for (let attempt = 1; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
     if (signal?.aborted) return { outcome: "aborted" };
+
+    if (runsUnsandboxed) {
+      emit("info", {
+        text: allowedBySetting
+          ? "Running the coding agent without a sandbox: sbx isn't installed and Settings allows running without one."
+          : "Running the coding agent without a sandbox: sbx isn't installed and X_FACTORY_ALLOW_UNSANDBOXED=1 is set.",
+        warning: "unsandboxed",
+      });
+    }
 
     const iterations =
       attempt === 1 ? FIRST_ATTEMPT_ITERATIONS : REPAIR_ATTEMPT_ITERATIONS;
@@ -295,7 +345,7 @@ export async function runAttemptLoop(
     );
     const loop = await execCommand(
       "bash",
-      [scriptPath, "--agent", "pi", "-n", String(iterations)],
+      [scriptPath, "--agent", "pi", "-n", String(iterations), ...modelArgs],
       {
         cwd: input.worktreePath,
         env,

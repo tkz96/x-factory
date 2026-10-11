@@ -223,7 +223,7 @@ describe("Ralph Loop Script", () => {
     const lines = invocations.trim().split("\n").filter(Boolean);
     expect(lines.length).toBe(2);
     for (const line of lines) {
-      expect(line).toMatch(/^run --name ralph-pi-\d+ pi \.$/);
+      expect(line).toMatch(/^run --name ralph-pi-\d+ pi -p Test prompt$/);
     }
   });
 

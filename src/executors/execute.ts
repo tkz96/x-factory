@@ -54,6 +54,8 @@ export class ExecuteExecutor implements StageExecutor {
 
     const settings = await this.deps.loadSettings();
     const provider = settings.models?.sessionA?.provider || "anthropic";
+    const model = settings.models?.sessionA?.model;
+    const allowUnsandboxed = settings.allowUnsandboxed;
 
     // The latest verification is the stage's output; each one is also emitted as it happens.
     let latest: VerificationResult | undefined;
@@ -71,6 +73,8 @@ export class ExecuteExecutor implements StageExecutor {
         understanding: run.implementationContext,
         baseline,
         provider,
+        model,
+        allowUnsandboxed,
         signal,
         emit: context.emit,
         onVerification: (verification) => {
