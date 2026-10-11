@@ -10,7 +10,17 @@
   color: var(--text-secondary);
   font-size: var(--text-footnote);
   text-decoration: none;
+  min-width: 0;
+  max-width: 100%;
   white-space: nowrap;
+}
+
+/* Phone width keeps only the glyph: the bar has no room for the text (the link
+   keeps its accessible name). */
+@media (max-width: 768px) {
+  .toolbar-activity-text {
+    display: none;
+  }
 }
 
 .toolbar-activity-text {

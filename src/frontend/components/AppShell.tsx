@@ -367,6 +367,8 @@ function AppShellHeader({
             ))}
           </select>
         )}
+
+        {!isDocs && <NotificationActivity />}
       </div>
 
       {!isDocs && (
@@ -402,7 +404,6 @@ function AppShellHeader({
             onAddProject={onAddProject}
           />
         )}
-        {!isDocs && <NotificationActivity />}
         {!isDocs && <NotificationBell />}
         <button
           type="button"
