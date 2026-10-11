@@ -325,6 +325,49 @@ describe("a failed reply is a system line, never an agent message", () => {
   });
 });
 
+describe("Abandon Run asks first (#262)", () => {
+  it("confirms in an alert naming the branch, and acts only on confirm", () => {
+    const actions: string[] = [];
+    const { container } = render(
+      <RunChat
+        run={makeRun("recovery_required", { branch: "feat/login" })}
+        events={[]}
+        onAction={(action) => actions.push(action)}
+      />,
+    );
+    fireEvent.click(
+      within(container).getByRole("button", { name: "Abandon Run" }),
+    );
+    const alert = within(document.body).getByRole("alertdialog");
+    expect(alert.textContent).toContain("feat/login");
+    expect(actions).toEqual([]);
+
+    fireEvent.click(within(alert).getByRole("button", { name: "Abandon Run" }));
+    expect(actions).toEqual(["abandon"]);
+  });
+
+  it("does nothing when the user keeps the run", () => {
+    const actions: string[] = [];
+    const { container } = render(
+      <RunChat
+        run={makeRun("recovery_required")}
+        events={[]}
+        onAction={(action) => actions.push(action)}
+      />,
+    );
+    fireEvent.click(
+      within(container).getByRole("button", { name: "Abandon Run" }),
+    );
+    fireEvent.click(
+      within(within(document.body).getByRole("alertdialog")).getByRole(
+        "button",
+        { name: "Keep Run" },
+      ),
+    );
+    expect(actions).toEqual([]);
+  });
+});
+
 describe("every kind of run event reads as its own line", () => {
   it("shows evidence, stage starts, pull request links, errors and results", () => {
     const events = [

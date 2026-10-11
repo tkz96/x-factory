@@ -27,6 +27,7 @@ import {
 } from "../../lib/run-chat-items.js";
 import { runNow } from "../../lib/run-now.js";
 import { runStatusUi } from "../../lib/run-status-ui.js";
+import { AlertDialog } from "../overlays/AlertDialog.js";
 import { Button } from "../ui/Button.js";
 import { DiffModal } from "./DiffModal.js";
 import { RunChatRow } from "./RunChatItem.js";
@@ -197,6 +198,7 @@ export function RunChat({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<SendFailure | null>(null);
+  const [abandonOpen, setAbandonOpen] = useState(false);
   const [reworkPrompt, setReworkPrompt] = useState(false);
   const [pendingRework, setPendingRework] = useState<string | null>(null);
   const [resolved, setResolved] = useState<string | null>(null);
@@ -265,6 +267,11 @@ export function RunChat({
   };
 
   const handleAction = (action: CheckpointAction) => {
+    // Abandoning cannot be undone: ask first, naming the branch (#262).
+    if (action === "abandon") {
+      setAbandonOpen(true);
+      return;
+    }
     if (action === "requeue") {
       setReworkPrompt(true);
       addLocal((id, at) => ({
@@ -466,6 +473,21 @@ export function RunChat({
           </svg>
         </button>
       </form>
+
+      <AlertDialog
+        id="alert-abandon-run"
+        isOpen={abandonOpen}
+        onClose={() => setAbandonOpen(false)}
+        title={`Abandon run on ${run.branch || "this branch"}?`}
+        description="Abandoning ends this run. It can't be undone."
+        confirmText="Abandon Run"
+        cancelText="Keep Run"
+        variant="danger"
+        onConfirm={() => {
+          onAction?.("abandon");
+          setResolved(resolvedTextFor("abandon", run.status));
+        }}
+      />
 
       <DiffModal
         isOpen={activeDiffFile !== null}

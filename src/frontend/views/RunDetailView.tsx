@@ -148,7 +148,7 @@ export function RunDetailView() {
         void runAction(() =>
           abandonMutation.mutateAsync({
             runId: run.id,
-            reason: "Abandoned from the run page",
+            reason: "chosen on the run page",
           }),
         );
         return;
