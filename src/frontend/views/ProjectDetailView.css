@@ -1,5 +1,11 @@
 /* ── Project Detail View (#267: the detail pane of the Projects split) ── */
 
+.section-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .projects-detail {
   display: flex;
   flex-direction: column;

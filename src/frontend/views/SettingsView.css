@@ -5,6 +5,7 @@
   grid-template-columns: var(--sidebar-width-xs) minmax(0, 1fr);
   gap: var(--space-6);
   align-items: start;
+  min-height: var(--settings-layout-min-height);
 }
 
 .settings-categories {
@@ -114,6 +115,15 @@
 
 .setting-item {
   margin-top: 1rem;
+}
+
+/* A segment's own label keeps the size and weight the settings rows gave it
+   before the legacy rule was retired (#248). The specificity (0,1,1) is the old
+   rule's: it sits above the base segment and under a selected segment. */
+:where(.setting-item) label.ui-segment {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 /* Only a field's own label (a direct child): a label inside a control, such as

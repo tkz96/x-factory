@@ -272,6 +272,7 @@
   --modal-max-width-lg: 900px;
   --chat-thread-max-height: 480px;
   --docs-min-height: 600px;
+  --settings-layout-min-height: 380px;
 
   --status-dot-sm: 6px;
   --status-dot-md: 8px;
@@ -349,6 +350,13 @@
   --z-popover: 1200;
   --z-tooltip: 1300;
   --modal-backdrop: rgba(0, 0, 0, 0.65);
+
+  /* Help tooltips (New Run modal): a dark popover in both appearances (#248 legacy move). */
+  --tooltip-bg: rgba(28, 28, 30, 0.96);
+  --tooltip-border: rgba(255, 255, 255, 0.18);
+  --tooltip-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.55);
+  --tooltip-code-bg: rgba(255, 255, 255, 0.1);
+  --code-chip-bg: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Default Theme: Light Appearance (Standard Contrast) ─────────────── */

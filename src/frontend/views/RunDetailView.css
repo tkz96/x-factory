@@ -271,3 +271,32 @@
     padding: 0.5rem var(--space-3);
   }
 }
+
+/* ── Empty and loading states of the run page (moved from public/styles.css) ──
+   The card (shared/cards.css) owns the box and the heading, as it did before; the
+   legacy padding, dashed border and heading size were already overridden there. */
+
+.empty-state {
+  text-align: center;
+}
+
+.empty-icon {
+  margin-bottom: 0.8rem;
+  color: var(--text-dim);
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 27.5rem;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.empty-state code {
+  font-family: var(--font-mono);
+  background: var(--code-chip-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.1875rem;
+  color: var(--accent);
+}

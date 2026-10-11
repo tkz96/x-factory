@@ -10,7 +10,8 @@
 
 /* WHATWG HTML5 Spec: [hidden] attribute enforcement ensures hidden state cannot be overridden by display properties */
 [hidden] {
-  display: none;
+  /* biome-ignore lint/complexity/noImportantStyles: the one allowed override in the design system, the [hidden] spec rule (#248) */
+  display: none !important;
 }
 
 html {

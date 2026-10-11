@@ -7,6 +7,7 @@ import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { ActiveRunConflictError } from "../../lib/api-client.js";
 import { Dialog, DialogCloseButton, DialogTitle } from "../overlays/Dialog.js";
+import "./NewRunModal.css";
 
 /**
  * The server refuses a run whose Builder or Reviewer role can't resolve, and its

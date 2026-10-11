@@ -11,6 +11,10 @@
   overflow-y: auto;
   margin-bottom: var(--space-4);
   font-family: var(--font-sans);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+  border-color: var(--border);
   scroll-behavior: smooth;
   gap: var(--space-2);
 }
