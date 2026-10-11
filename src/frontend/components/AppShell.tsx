@@ -12,6 +12,7 @@ import {
 import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import type { Project } from "../../shared/types.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
+import { NotificationProvider } from "../context/NotificationContext.js";
 import {
   ProjectProvider,
   useCurrentProject,
@@ -35,6 +36,8 @@ import {
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
+import { NotificationActivity } from "./notifications/NotificationActivity.js";
+import { NotificationBell } from "./notifications/NotificationBell.js";
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
@@ -370,6 +373,8 @@ function AppShellHeader({
             ))}
           </select>
         )}
+
+        {!isDocs && <NotificationActivity />}
       </div>
 
       {!isDocs && (
@@ -410,6 +415,7 @@ function AppShellHeader({
             onAddProject={onAddProject}
           />
         )}
+        {!isDocs && <NotificationBell />}
         <button
           type="button"
           id="btn-search"
@@ -682,7 +688,9 @@ export function AppShell() {
   return (
     <ProjectProvider>
       <ModalProvider>
-        <AppShellContent />
+        <NotificationProvider>
+          <AppShellContent />
+        </NotificationProvider>
       </ModalProvider>
     </ProjectProvider>
   );

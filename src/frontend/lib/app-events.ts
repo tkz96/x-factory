@@ -41,7 +41,12 @@ export const defaultAppEventTransport: AppEventTransport = (
   );
   source.onopen = () => handlers.onOpen();
   source.onmessage = (event) => handlers.onMessage(event.data);
-  source.onerror = () => handlers.onError();
+  // The client reopens with its own processed cursor, so the browser's automatic
+  // reconnect (which would reuse this URL and its stale cursor) is switched off.
+  source.onerror = () => {
+    source.close();
+    handlers.onError();
+  };
   return () => source.close();
 };
 
@@ -51,12 +56,25 @@ export interface AppEventSubscription {
   transport?: AppEventTransport | undefined;
   onEvent?: ((envelope: AppEventEnvelope) => void) | undefined;
   onConnectionChange?: ((connected: boolean) => void) | undefined;
+  /** Delay before reconnect attempt n (0-based). Defaults to exponential backoff. */
+  retryDelayMs?: ((attempt: number) => number) | undefined;
+}
+
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 30_000;
+
+/** Exponential backoff: 1s, 2s, 4s … capped at 30s. */
+export function defaultRetryDelayMs(attempt: number): number {
+  return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** attempt);
 }
 
 /**
  * Connects the app-wide event stream to TanStack Query and consumers (#257, spec #241).
- * Deduplicates received events by global id, advances the in-memory cursor, and
- * directly patches the query cache for status transitions without page flicker.
+ *
+ * Recovery contract: a dropped connection is closed and a new one opens after a
+ * backoff, from the cursor of the last event this client has fully applied. The
+ * cursor moves only after an event is applied; a failed apply closes the connection
+ * so the event is replayed. Received events are deduplicated by global id.
  */
 export function subscribeAppEvents({
   queryClient,
@@ -64,28 +82,17 @@ export function subscribeAppEvents({
   transport = defaultAppEventTransport,
   onEvent,
   onConnectionChange,
+  retryDelayMs = defaultRetryDelayMs,
 }: AppEventSubscription): () => void {
   let stopped = false;
-  let close: (() => void) | null = null;
   let currentCursor = initialCursor;
+  let attempt = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let dropCurrent: (() => void) | null = null;
   const seenEventIds = new Set<number>();
-
-  const stop = () => {
-    if (stopped) return;
-    stopped = true;
-    close?.();
-    close = null;
-    onConnectionChange?.(false);
-  };
 
   const applyEnvelope = (envelope: AppEventEnvelope) => {
     if (seenEventIds.has(envelope.id)) return;
-    seenEventIds.add(envelope.id);
-
-    // Advance cursor in memory
-    if (envelope.id > currentCursor) {
-      currentCursor = envelope.id;
-    }
 
     // Direct cache update: patch run cache for status events (#257)
     if (envelope.type === "status") {
@@ -103,35 +110,93 @@ export function subscribeAppEvents({
     }
 
     onEvent?.(envelope);
+
+    // Only now is the event applied: remember it and move the cursor.
+    seenEventIds.add(envelope.id);
+    if (envelope.id > currentCursor) {
+      currentCursor = envelope.id;
+    }
   };
 
-  const opened = transport(currentCursor, {
-    onOpen: () => {
-      if (!stopped) onConnectionChange?.(true);
-    },
-    onMessage: (data) => {
-      if (stopped) return;
-      try {
-        const envelope = JSON.parse(data) as AppEventEnvelope;
-        if (
-          envelope &&
-          typeof envelope.id === "number" &&
-          typeof envelope.type === "string"
-        ) {
-          applyEnvelope(envelope);
-        }
-      } catch {
-        // keepalive comment or non-JSON frame
-      }
-    },
-    onError: () => {
-      if (stopped) return;
+  const connect = (): void => {
+    if (stopped) return;
+    let live = true;
+    let close: (() => void) | null = null;
+
+    const drop = () => {
+      if (!live) return;
+      live = false;
+      const closeFn = close;
+      close = null;
+      if (dropCurrent === drop) dropCurrent = null;
+      closeFn?.();
+    };
+    dropCurrent = drop;
+
+    const scheduleReconnect = () => {
+      drop();
       onConnectionChange?.(false);
-    },
-  });
+      if (stopped) return;
+      const delay = retryDelayMs(attempt);
+      attempt += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        connect();
+      }, delay);
+    };
 
-  if (stopped) opened();
-  else close = opened;
+    const returnedClose = transport(currentCursor, {
+      onOpen: () => {
+        if (!live || stopped) return;
+        attempt = 0;
+        onConnectionChange?.(true);
+      },
+      onMessage: (data) => {
+        if (!live || stopped) return;
+        let envelope: AppEventEnvelope;
+        try {
+          envelope = JSON.parse(data) as AppEventEnvelope;
+        } catch {
+          return; // keepalive comment or non-JSON frame
+        }
+        if (
+          !envelope ||
+          typeof envelope.id !== "number" ||
+          typeof envelope.type !== "string"
+        ) {
+          return;
+        }
+        try {
+          applyEnvelope(envelope);
+        } catch {
+          // Not applied: the cursor stays put, so the connection is replaced and
+          // this event comes again.
+          scheduleReconnect();
+        }
+      },
+      onError: () => {
+        if (!live || stopped) return;
+        scheduleReconnect();
+      },
+    });
 
-  return stop;
+    close = returnedClose;
+    // A handler may have dropped the connection before the transport returned.
+    if (!live) {
+      close();
+      close = null;
+    }
+  };
+
+  connect();
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    if (retryTimer !== null) clearTimeout(retryTimer);
+    retryTimer = null;
+    dropCurrent?.();
+    dropCurrent = null;
+    onConnectionChange?.(false);
+  };
 }

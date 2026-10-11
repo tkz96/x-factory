@@ -330,6 +330,14 @@
   grid-column: 2;
 }
 
+/* Between the phone and the wide desktop the bell (#264) takes the room the
+   Search label used to. The button keeps its accessible name without it. */
+@media (max-width: 1320px) {
+  .search-label {
+    display: none;
+  }
+}
+
 .toolbar-select {
   min-height: var(--tap-min);
   max-width: 14rem;
