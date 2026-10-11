@@ -83,9 +83,9 @@ describe("no third-party requests", () => {
       // The list is the evidence matrix, so a screen added there is covered here.
       expect(visited).toEqual([
         "/runs",
-        "/queue",
+        "/tickets",
         "/runs",
-        "/history",
+        "/runs?filter=done",
         `/runs/${instance.runId}`,
         "/projects",
         `/projects/${instance.projectId}`,
@@ -136,6 +136,33 @@ describe("no third-party requests", () => {
 
       await page.waitForTimeout(SETTLE_MS);
       expect(offOrigin).toEqual([]);
+      await context.close();
+    },
+    TIMEOUT,
+  );
+  test(
+    "no screen scrolls sideways at phone width (390 px)",
+    async () => {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+      });
+      const page = await context.newPage();
+      const overflowing: string[] = [];
+      // The API Reference is Scalar's own viewer page, not the app's layout, so
+      // the app's screens are the ones held to this rule.
+      for (const screen of SCREENS.filter((s) => s.name !== "reference")) {
+        const path = resolveScreenPath(screen, instance);
+        await page.goto(`${origin}${path}`, { waitUntil: "load" });
+        await page.waitForTimeout(SETTLE_MS);
+        const overflow = await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        );
+        if (overflow > 0)
+          overflowing.push(`${path} overflows by ${overflow}px`);
+      }
+      expect(overflowing).toEqual([]);
       await context.close();
     },
     TIMEOUT,

@@ -60,7 +60,7 @@ for (const { name, engine } of ENGINES) {
     });
 
     test("Mod+K and the Search button open the same palette", async () => {
-      const page = await openPage(browser, "/queue");
+      const page = await openPage(browser, "/tickets");
       const palette = page.getByRole("dialog", { name: "Command palette" });
       await page.keyboard.press(`${MOD}+k`);
       await palette.waitFor();
@@ -80,18 +80,18 @@ for (const { name, engine } of ENGINES) {
       await page.locator("body").click({ position: { x: 1, y: 1 } });
       await page.keyboard.press("g");
       await page.keyboard.press("t");
-      await page.waitForURL(/\/queue$/);
+      await page.waitForURL(/\/tickets$/);
       await page.keyboard.press("g");
       await page.keyboard.press("r");
       await page.waitForURL(/\/runs$/);
     });
 
     test("single keys are ignored while a text field has focus", async () => {
-      const page = await openPage(browser, "/queue");
+      const page = await openPage(browser, "/tickets");
       const search = page.locator("#queue-search");
       await search.focus();
       await page.keyboard.type("gr?n");
-      expect(new URL(page.url()).pathname).toBe("/queue");
+      expect(new URL(page.url()).pathname).toBe("/tickets");
       expect(await search.inputValue()).toBe("gr?n");
       expect(
         await page.getByRole("dialog", { name: "Keyboard shortcuts" }).count(),
@@ -99,7 +99,7 @@ for (const { name, engine } of ENGINES) {
     });
 
     test("/ focuses the page search; ? opens the shortcut sheet; Esc closes it", async () => {
-      const page = await openPage(browser, "/queue");
+      const page = await openPage(browser, "/tickets");
       await page.locator("body").click({ position: { x: 1, y: 1 } });
       await page.keyboard.press("/");
       expect(await page.evaluate(() => document.activeElement?.id)).toBe(
@@ -114,7 +114,7 @@ for (const { name, engine } of ENGINES) {
     });
 
     test("ArrowDown and ArrowUp move focus through the history rows", async () => {
-      const page = await openPage(browser, "/history");
+      const page = await openPage(browser, "/runs?filter=done");
       await page.waitForSelector("[data-list-row]");
       await page.locator("body").click({ position: { x: 1, y: 1 } });
       await page.keyboard.press("ArrowDown");
@@ -133,7 +133,7 @@ for (const { name, engine } of ENGINES) {
     });
 
     test("Return opens the focused history row", async () => {
-      const page = await openPage(browser, "/history");
+      const page = await openPage(browser, "/runs?filter=done");
       await page.waitForSelector("[data-list-row]");
       await page.locator("body").click({ position: { x: 1, y: 1 } });
       await page.keyboard.press("ArrowDown");

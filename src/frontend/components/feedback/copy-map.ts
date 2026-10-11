@@ -264,7 +264,7 @@ export const QUEUE_COPY = {
   noMatches: (query: string) => `No tickets matched “${query}”.`,
   clearFilter: "Clear Filter",
   /** No project exists yet, so there is no queue to show. */
-  noProjects: "Add a project to see its work queue.",
+  noProjects: "Add a project to see its tickets.",
   addProject: "Add Project",
   /** The manual path that stays open when the tracker cannot be reached. */
   manualRun: "Start Manual Run",

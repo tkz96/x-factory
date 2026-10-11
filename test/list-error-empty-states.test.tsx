@@ -97,9 +97,10 @@ describe("empty state layout", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), []);
     const { container } = renderView(React.createElement(RunsView), client);
+    // The CTA is a link to Tickets (#258), styled as a button, with its icon.
     expect(
-      container.querySelector(".async-region--empty button svg.icon"),
+      container.querySelector(".async-region--empty a svg.icon"),
     ).not.toBeNull();
-    expect(container.textContent).toContain("No active runs");
+    expect(container.textContent).toContain("No runs are working right now");
   });
 });

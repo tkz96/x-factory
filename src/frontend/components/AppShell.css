@@ -40,29 +40,6 @@
   display: block;
 }
 
-.project-selector-wrapper {
-  margin-top: 0.5rem;
-}
-
-.sidebar-select {
-  width: 100%;
-  min-height: var(--tap-min);
-  padding: 0.6rem 0.8rem;
-  background: var(--bg-card);
-  color: var(--text);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-subhead);
-  font-family: var(--font-sans);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-}
-
-.sidebar-select:focus {
-  outline: none;
-  border-color: var(--border-focus);
-}
-
 .sidebar-nav {
   flex: 1;
   padding: 1rem 0.6rem;
@@ -221,9 +198,13 @@
 }
 
 .toolbar {
-  display: flex;
+  /* One row: title and project on the start, the section switch centred,
+     the actions at the end. The columns are equal, so the switch stays
+     centred whatever the title width (#258). */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 1rem;
   padding: 0.9rem 2rem;
   background: var(--bg-glass);
   backdrop-filter: blur(var(--blur-glass));
@@ -237,12 +218,46 @@
     border-color var(--duration-slow) var(--ease-spring);
 }
 
-.toolbar-left h1 {
+/* The toolbar title is the page title shrunk into the bar (#258): invisible
+   until the page scrolls, so the large title and the bar never both read as
+   the heading. A run page keeps it visible as its only heading. */
+.toolbar-left .toolbar-title {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-title-2);
+  font-size: var(--text-title-3);
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.024em;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.toolbar-left .toolbar-title.is-visible {
+  opacity: 1;
+}
+
+/* The large title (#258) scrolls with the page and is the screen's one h1. */
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-5);
+}
+
+.large-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-large-title);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.page-subtitle {
+  margin: 0;
+  font-size: var(--text-subhead);
+  color: var(--text-muted);
 }
 
 .toolbar-breadcrumb {
@@ -290,10 +305,76 @@
   display: block;
 }
 
-.toolbar-actions {
+.toolbar-left {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
+  grid-column: 1;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* The toolbar's section switch (#258): Tickets | Runs | Projects. */
+.toolbar-sections {
+  flex-shrink: 0;
+  grid-column: 2;
+}
+
+.toolbar-select {
+  min-height: var(--tap-min);
+  max-width: 14rem;
+  padding: 0.3rem 0.7rem;
+  background: var(--bg-card);
+  color: var(--text);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-subhead);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.toolbar-select:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-0-5);
+}
+
+/* The gear opens Settings and nothing else (#258). */
+.toolbar-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: 50%;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.toolbar-gear:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.toolbar-gear.active {
+  color: var(--accent);
+}
+
+.toolbar-gear:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-0-5);
 }
 
 .viewport-container {
@@ -382,6 +463,44 @@
 @media (max-width: 768px) {
   aside.sidebar {
     display: none;
+  }
+
+  /* Phone width has no segmented control and no status readout in the bar;
+     the bottom tab bar carries the sections (#258). */
+  .toolbar .desktop-only {
+    display: none;
+  }
+
+  /* Phone: the bar is project + actions on one row. Search drops its label
+     and keeps its accessible name (#258). */
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.6rem 1rem;
+  }
+
+  .toolbar-actions {
+    grid-column: 2;
+    gap: 0.25rem;
+  }
+
+  .toolbar-left {
+    gap: 0.5rem;
+  }
+
+  .toolbar-select {
+    max-width: 6.5rem;
+    min-width: 0;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .search-label {
+    display: none;
+  }
+
+  #btn-search {
+    width: var(--tap-min);
+    padding: 0;
+    justify-content: center;
   }
 
   button.mobile-only {

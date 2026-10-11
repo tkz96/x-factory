@@ -8,7 +8,6 @@ import {
 } from "react-router-dom";
 import { AppShell } from "./components/AppShell.js";
 import { DocsView } from "./views/DocsView.js";
-import { HistoryView } from "./views/HistoryView.js";
 import { ProjectDetailView } from "./views/ProjectDetailView.js";
 import { ProjectsView } from "./views/ProjectsView.js";
 import { QueueView } from "./views/QueueView.js";
@@ -23,11 +22,16 @@ export const routeDefinitions: RouteObject[] = [
     children: [
       {
         index: true,
-        element: <Navigate to="/queue" replace />,
+        element: <Navigate to="/tickets" replace />,
       },
       {
-        path: "queue",
+        path: "tickets",
         element: <QueueView />,
+      },
+      // The old Queue route moved to Tickets (#258).
+      {
+        path: "queue",
+        element: <Navigate to="/tickets" replace />,
       },
       {
         path: "runs",
@@ -37,9 +41,10 @@ export const routeDefinitions: RouteObject[] = [
         path: "runs/:runId",
         element: <RunDetailView />,
       },
+      // History is the Done filter of Runs (#258).
       {
         path: "history",
-        element: <HistoryView />,
+        element: <Navigate to="/runs?filter=done" replace />,
       },
       {
         path: "projects",
@@ -59,7 +64,7 @@ export const routeDefinitions: RouteObject[] = [
       },
       {
         path: "*",
-        element: <Navigate to="/queue" replace />,
+        element: <Navigate to="/tickets" replace />,
       },
     ],
   },

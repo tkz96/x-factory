@@ -16,8 +16,8 @@ import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
-import { HistoryView } from "../src/frontend/views/HistoryView.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
+import { RunsView } from "../src/frontend/views/RunsView.js";
 
 type Project = Parameters<
   typeof import("../src/frontend/components/projects/ProjectCard.js").ProjectCard
@@ -34,7 +34,7 @@ function makeClient(): QueryClient {
   });
 }
 
-function renderView(ui: React.ReactElement, client: QueryClient) {
+function renderView(ui: React.ReactElement, client: QueryClient, path = "/") {
   return render(
     React.createElement(
       QueryClientProvider,
@@ -42,7 +42,7 @@ function renderView(ui: React.ReactElement, client: QueryClient) {
       React.createElement(
         ModalProvider,
         null,
-        React.createElement(MemoryRouter, null, ui),
+        React.createElement(MemoryRouter, { initialEntries: [path] }, ui),
       ),
     ),
   );
@@ -183,13 +183,19 @@ describe("ProjectsView — feedback-family read region", () => {
   });
 });
 
-describe("HistoryView — feedback-family read region", () => {
+describe("Runs — feedback-family read region (#258, formerly History)", () => {
+  const DONE = "/runs?filter=done";
+
   it("renders loading as the reserved spinner region while the query is pending", () => {
     const client = makeClient();
     client.setQueryDefaults(queryKeys.runs(), {
       queryFn: () => new Promise(() => {}),
     });
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const { container } = renderView(
+      React.createElement(RunsView),
+      client,
+      DONE,
+    );
 
     expect(container.querySelector(".async-region--loading")).not.toBeNull();
     expect(container.textContent).toContain("Loading…");
@@ -202,7 +208,11 @@ describe("HistoryView — feedback-family read region", () => {
         throw new Error("raw provider body");
       },
     });
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const { container } = renderView(
+      React.createElement(RunsView),
+      client,
+      DONE,
+    );
 
     await waitFor(
       () => {
@@ -218,38 +228,36 @@ describe("HistoryView — feedback-family read region", () => {
     expect(container.querySelector("button.retry-action")).not.toBeNull();
   });
 
-  it("renders true empty with launch guidance and a launch call-to-action", () => {
+  it("renders true empty for the running list with guidance to start one from Tickets", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), []);
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const { container } = renderView(
+      React.createElement(RunsView),
+      client,
+      "/runs",
+    );
 
     expect(container.querySelector(".async-region--empty")).not.toBeNull();
     expect(container.textContent).toContain(
-      "No runs found. Launch your first run to populate history.",
+      "No runs are working right now. Start one from Tickets.",
     );
     const cta = container.querySelector(
-      ".async-region--empty .async-region-actions button",
+      ".async-region--empty .async-region-actions a",
     );
-    expect(cta?.textContent).toContain("Launch New Run");
+    expect(cta?.textContent).toContain("Go to Tickets");
   });
 
   it("renders a filter that matches nothing with filter guidance and no CTA", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("executing")]);
-    const { container } = renderView(React.createElement(HistoryView), client);
-
-    const deliveredFilter = Array.from(
-      container.querySelectorAll("button"),
-    ).find((b) => b.textContent === "Delivered (PR)");
-    if (!(deliveredFilter instanceof HTMLElement)) {
-      throw new Error("Delivered (PR) filter button missing");
-    }
-    fireEvent.click(deliveredFilter);
+    const { container } = renderView(
+      React.createElement(RunsView),
+      client,
+      DONE,
+    );
 
     expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain(
-      "No runs matching the “completed” filter.",
-    );
+    expect(container.textContent).toContain("No finished runs yet.");
     expect(
       container.querySelector(".async-region--empty .async-region-actions"),
     ).toBeNull();
@@ -258,7 +266,11 @@ describe("HistoryView — feedback-family read region", () => {
   it("renders ready content with no feedback chrome", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("pr_created")]);
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const { container } = renderView(
+      React.createElement(RunsView),
+      client,
+      DONE,
+    );
 
     expect(container.textContent).toContain("TICK-42");
     expect(container.querySelector(".async-region--empty")).toBeNull();

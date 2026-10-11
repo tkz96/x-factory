@@ -17,7 +17,7 @@
     "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov",
     "test:integration": "bun --config=bunfig.selective.toml test test/integration.test.ts",
     "test:integration:production": "NODE_ENV=production bun --config=bunfig.selective.toml test test/integration.test.ts",
-    "test:frontend-smoke": "bun --config=bunfig.selective.toml test test/frontend-smoke.test.ts test/no-third-party-requests.test.ts",
+    "test:frontend-smoke": "bun --config=bunfig.selective.toml test test/frontend-smoke.test.ts test/app-shell.test.tsx test/no-third-party-requests.test.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:frontend": "tsc --project tsconfig.frontend.json --noEmit",
     "lint": "biome check .",

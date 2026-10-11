@@ -50,7 +50,7 @@ function moveListFocus(delta: 1 | -1): boolean {
 }
 
 const SECTION_KEYS: Record<string, string> = {
-  t: "/queue",
+  t: "/tickets",
   r: "/runs",
   p: "/projects",
 };
