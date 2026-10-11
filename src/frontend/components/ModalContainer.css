@@ -17,7 +17,8 @@
 
 .modal-backdrop:not([hidden]) {
   display: flex;
-  animation: appleBackdropBlur 340ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: appleBackdropBlur var(--duration-backdrop) var(--ease-spring)
+    forwards;
 }
 
 @keyframes appleBackdropBlur {
@@ -36,7 +37,7 @@
 }
 
 .modal-backdrop:not([hidden]) .modal-dialog {
-  animation: appleModalSpring 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: appleModalSpring var(--duration-modal) var(--ease-spring) forwards;
 }
 
 @keyframes appleModalSpring {
@@ -52,6 +53,31 @@
     opacity: 1;
     transform: scale(1) translateY(0);
     filter: var(--blur-none);
+  }
+}
+
+/* Reduced motion (#252): the backdrop stops blurring (a costly effect) and the
+   dialog crossfades in place at its centre; what goes is the rise, the blur and
+   the scale, because those are the parts that travel. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes appleBackdropBlur {
+    0% {
+      opacity: 0;
+      background: transparent;
+    }
+    100% {
+      opacity: 1;
+      background: var(--modal-backdrop);
+    }
+  }
+
+  @keyframes appleModalSpring {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
   }
 }
 

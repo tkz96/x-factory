@@ -50,7 +50,7 @@
 
 .settings-pane.active {
   display: block;
-  animation: fadeIn 180ms ease;
+  animation: fadeIn var(--duration-fast) var(--ease-out);
 }
 
 @keyframes fadeIn {

@@ -233,8 +233,8 @@
   top: 0;
   z-index: 5;
   transition:
-    background-color 280ms var(--spring),
-    border-color 280ms var(--spring);
+    background-color var(--duration-slow) var(--ease-spring),
+    border-color var(--duration-slow) var(--ease-spring);
 }
 
 .toolbar-left h1 {
@@ -329,7 +329,7 @@
 
 .area-view.active {
   display: block;
-  animation: appleViewIn 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: appleViewIn var(--duration-slow) var(--ease-spring);
 }
 
 @keyframes appleViewIn {
@@ -340,6 +340,18 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Reduced motion (#252): the view fades in where it lands instead of rising. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes appleViewIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 }
 

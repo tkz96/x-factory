@@ -37,29 +37,33 @@
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
   bottom: 0;
   background: var(--green);
   border-radius: var(--border-width);
-  transition: width 350ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: left;
+  /* The fill scales rather than resizes, so progress stays on the compositor
+     (#252, .agents/skills/review-animations/STANDARDS.md). */
+  transition: transform var(--duration-slow) var(--ease-spring);
 }
 
 .stepper-track-fill.progress-step-0 {
-  width: 0%;
+  transform: scaleX(0);
 }
 .stepper-track-fill.progress-step-1 {
-  width: 20%;
+  transform: scaleX(0.2);
 }
 .stepper-track-fill.progress-step-2 {
-  width: 40%;
+  transform: scaleX(0.4);
 }
 .stepper-track-fill.progress-step-3 {
-  width: 60%;
+  transform: scaleX(0.6);
 }
 .stepper-track-fill.progress-step-4 {
-  width: 80%;
+  transform: scaleX(0.8);
 }
 .stepper-track-fill.progress-step-5 {
-  width: 100%;
+  transform: scaleX(1);
 }
 
 .stepper-steps-row {
@@ -117,7 +121,7 @@
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: -0.01em;
-  transition: color 220ms ease;
+  transition: color var(--duration-normal) var(--ease-in-out);
 }
 
 .step-evidence {
@@ -139,6 +143,21 @@
   }
 }
 
+/* Reduced motion (#252): the active step keeps a steady ring instead of
+   pulsing for attention. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes stepPulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 var(--space-1) var(--accent-dim);
+    }
+  }
+
+  .step.active .step-dot {
+    animation-iteration-count: 1;
+  }
+}
+
 /* ── Step States (HIG Compliant) ─────────────────────────────────────── */
 
 .step.active {
@@ -151,7 +170,7 @@
   background: var(--accent);
   border-color: var(--accent);
   color: var(--text-on-accent);
-  animation: stepPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: stepPulse var(--duration-pulse) var(--ease-pulse) infinite;
 }
 
 .step.active .step-label {

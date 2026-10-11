@@ -13,8 +13,8 @@
   vertical-align: -0.125em;
   flex-shrink: 0;
   transition:
-    color var(--transition-fast, 0.15s ease),
-    stroke var(--transition-fast, 0.15s ease);
+    color var(--transition-fast),
+    stroke var(--transition-fast);
 }
 
 .icon-xs {
@@ -48,7 +48,22 @@
 }
 
 .icon-spin {
-  animation: icon-spin 1s linear infinite;
+  animation: icon-spin var(--duration-loader) var(--ease-linear) infinite;
+}
+
+/* Reduced motion (#252): the spinner stops and reads as a static indicator
+   instead of turning forever. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes icon-spin {
+    from,
+    to {
+      transform: none;
+    }
+  }
+
+  .icon-spin {
+    animation-iteration-count: 1;
+  }
 }
 
 .icon-status-passed {
