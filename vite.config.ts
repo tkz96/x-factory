@@ -22,7 +22,9 @@ export default defineConfig({
   },
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
-    emptyOutDir: false,
+    // dist/public is wholly generated (vite build, then build:assets), so it is
+    // cleared first: a file removed from the app can't linger in a later build.
+    emptyOutDir: true,
     sourcemap: true,
   },
 });
