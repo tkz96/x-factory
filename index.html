@@ -7,7 +7,7 @@
   <title>X-Factory</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
-  <script>(()=>{let a="automatic";try{a=localStorage.getItem("xf_appearance")||"automatic";}catch{}const mm=(q)=>!!(window.matchMedia&&window.matchMedia(q).matches);const resolved=a==="light"?"light":a==="dark"?"dark":mm("(prefers-color-scheme: dark)")?"dark":"light";const root=document.documentElement;let t="default";try{const s=localStorage.getItem("xf_theme_choice");if(s==="graphite"||s==="sandstone")t=s;}catch{}root.setAttribute("data-theme",t);root.setAttribute("data-appearance",resolved);root.setAttribute("data-contrast",mm("(prefers-contrast: more)")?"more":"standard");})();</script>
+  <script>(()=>{let a="automatic";try{a=localStorage.getItem("xf_appearance")||"automatic";}catch{}const mm=(q)=>!!window.matchMedia?.(q).matches;const resolved=a==="light"?"light":a==="dark"?"dark":mm("(prefers-color-scheme: dark)")?"dark":"light";const root=document.documentElement;let t="default";try{const s=localStorage.getItem("xf_theme_choice");if(s==="graphite"||s==="sandstone")t=s;}catch{}root.setAttribute("data-theme",t);root.setAttribute("data-appearance",resolved);root.setAttribute("data-contrast",mm("(prefers-contrast: more)")?"more":"standard");})();</script>
 </head>
 <body>
   <div id="root"></div>

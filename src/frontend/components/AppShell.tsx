@@ -27,11 +27,7 @@ import {
   useStopRun,
   useTickets,
 } from "../hooks/useQueries.js";
-import {
-  resolveInitialTheme,
-  setTheme,
-  useTheme,
-} from "../hooks/useTheme.js";
+import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
 

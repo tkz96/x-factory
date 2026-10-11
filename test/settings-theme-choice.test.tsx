@@ -119,9 +119,7 @@ describe("Settings › General: Theme choice (#249)", () => {
     await waitFor(() => {
       expect(postedBodies).toContainEqual({ theme: "graphite" });
     });
-    expect(postedBodies.some((b) => "appearance" in (b as object))).toBe(
-      false,
-    );
+    expect(postedBodies.some((b) => "appearance" in (b as object))).toBe(false);
     expect(document.documentElement.getAttribute("data-theme")).toBe(
       "graphite",
     );
