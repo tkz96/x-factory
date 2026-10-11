@@ -16,6 +16,7 @@ import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { loadSettings } from "./settings.js";
+import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import { initializeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
@@ -400,6 +401,8 @@ export async function abandonRun(
           payload: {
             status: "failed",
             text: statusText,
+            // An abandoned run is a decision, not a crash: its structured reason says so (#256).
+            failure: OPERATOR_ABANDON_REASON,
           },
         },
       },

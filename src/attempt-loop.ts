@@ -290,9 +290,14 @@ export async function runAttemptLoop(
       iteration: 1,
     });
 
-    const forward = progressLineForwarder((line) =>
-      emit("ralph_progress", { text: line }),
-    );
+    // Every progress line belongs to a loop iteration; the script prints "Iteration N of M", so
+    // the number is read from the line and carried on the event (#256).
+    let iteration = 1;
+    const forward = progressLineForwarder((line) => {
+      const parsed = line.match(/Iteration (\d+)/i);
+      if (parsed?.[1]) iteration = Number.parseInt(parsed[1], 10);
+      emit("ralph_progress", { text: line, iteration });
+    });
     const loop = await execCommand(
       "bash",
       [scriptPath, "--agent", "pi", "-n", String(iterations)],

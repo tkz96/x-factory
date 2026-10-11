@@ -21,6 +21,8 @@ export interface ScriptOptions {
   disposeError?: Error;
   /** Called when prompt() starts, so a test can abort mid-flight. */
   onPrompt?: () => void;
+  /** Tool names the session reports as it works (#256). */
+  tools?: string[];
 }
 
 export function scriptedReviewSession(
@@ -43,6 +45,8 @@ export function scriptedReviewSession(
       }
       if (output)
         for (const cb of listeners) cb({ type: "text", text: output });
+      for (const tool of options.tools ?? [])
+        for (const cb of listeners) cb({ type: "tool", tool });
       if (options.promptError) throw options.promptError;
     },
     abort: async () => {

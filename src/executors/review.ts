@@ -42,7 +42,8 @@ export class ReviewExecutor implements StageExecutor {
     }
 
     const settings = await this.deps.loadSettings(false);
-    // reviewRun owns review.json; this executor only records the result.
+    // reviewRun owns review.json; this executor only records the result. Its session activity is
+    // forwarded as run events so the review is not a black box (#256).
     const rResult = await reviewRun({
       worktreePath,
       artifactsDir: run.artifactsDir,
@@ -54,6 +55,18 @@ export class ReviewExecutor implements StageExecutor {
       modelConfig: settings.models?.sessionB,
       signal: context.signal,
       sessionFactory: this.deps.sessionFactory,
+      onEvent: (event) => {
+        if (event.type === "error") {
+          context.emit("error", {
+            message: event.error ?? "The review session reported an error.",
+          });
+          return;
+        }
+        context.emit("review_activity", {
+          ...(event.tool ? { tool: event.tool } : {}),
+          ...(event.text ? { text: event.text } : {}),
+        });
+      },
     });
 
     // The review record and its events are committed by the runner with the transition.

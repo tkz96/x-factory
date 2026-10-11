@@ -114,3 +114,6 @@ A worker that releases a job on shutdown gives back the attempt the claim counte
 
 ### 7. One Repair Budget
 A stage's repair budget is its single attempt cap. An `execute` stage whose verification still fails after the budget is spent ends the run as `failed`, like a rejected review, with the verification evidence kept. The job is not retried.
+
+### 8. Why a Run Failed
+Every status event that moves a run to `failed` carries a structured `failure` alongside its technical `text` (#256): a `category` (`model`, `sandbox`, `timeout`, `verification`, `review`, `git`, `project`, `operator` or `unknown`), a plain-language `message`, and the `recovery` action to suggest. `src/shared/failure-reason.ts` derives it from the error text (the stage only names the fallback message), prefers the sandbox and model categories over the rest, and reports `unknown` rather than guessing. The three writers are the stage failure, the rejected stage and the operator's `abandon`.

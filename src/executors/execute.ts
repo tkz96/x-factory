@@ -2,6 +2,7 @@
 
 import { runAttemptLoop } from "../attempt-loop.js";
 import { loadSettings } from "../settings.js";
+import { summarizeDiff } from "../shared/diff-summary.js";
 import type { VerificationResult } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import { ReviewExecutor } from "./review.js";
@@ -115,6 +116,9 @@ export class ExecuteExecutor implements StageExecutor {
       stage: "execute",
       evidence: `Ralph Loop completed and verified; ${result.verification.filesChanged.length} files modified.`,
     });
+
+    // What changed, with line counts, so the timeline never has to re-parse the diff (#256).
+    context.emit("diff_summary", summarizeDiff(result.verification.diff));
 
     // Delegate to ReviewExecutor now that execution is verified. It reads the verification
     // from the run it is given, so hand it the run as this stage has updated it.

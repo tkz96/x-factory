@@ -17,6 +17,14 @@ import type {
   VerificationResult,
 } from "./types.js";
 
+/** One activity line from the read-only review session (#256). */
+export interface ReviewActivityEvent {
+  type: "info" | "tool" | "error";
+  text?: string | undefined;
+  tool?: string | undefined;
+  error?: string | undefined;
+}
+
 export interface ReviewContext {
   worktreePath: string;
   /** Run artifacts directory; review.json is written here, once. */
@@ -27,12 +35,7 @@ export interface ReviewContext {
   verification: VerificationResult;
   /** What the understand stage learned; rendered into the review prompt. */
   understanding?: ImplementationContext | null | undefined;
-  onEvent?: (event: {
-    type: string;
-    text?: string | undefined;
-    tool?: string | undefined;
-    error?: string | undefined;
-  }) => void;
+  onEvent?: ((event: ReviewActivityEvent) => void) | undefined;
   modelConfig?: SessionOptions | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
   signal?: AbortSignal | undefined;
@@ -46,12 +49,7 @@ export type ReviewSessionFactory = (
 
 function attachReviewListeners(
   session: PiAgentSession,
-  onEvent?: (event: {
-    type: string;
-    text?: string | undefined;
-    tool?: string | undefined;
-    error?: string | undefined;
-  }) => void,
+  onEvent?: ((event: ReviewActivityEvent) => void) | undefined,
 ): () => string {
   let fullOutput = "";
   session.subscribe((e) => {
@@ -59,7 +57,8 @@ function attachReviewListeners(
       fullOutput += e.text;
       onEvent?.({ type: "info", text: e.text });
     } else if (e.type === "tool") {
-      onEvent?.({ type: "info", text: `Running tool ${e.tool}` });
+      // The tool's name rides along so the caller can forward the activity as its own event.
+      onEvent?.({ type: "tool", text: `Running tool ${e.tool}`, tool: e.tool });
     } else if (e.type === "error") {
       onEvent?.({ type: "error", error: e.error });
     }

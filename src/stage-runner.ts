@@ -21,6 +21,7 @@ import type {
   StageRunUpdate,
 } from "./executors/types.js";
 import type { LeaseManager, WorkerLogRecord } from "./lease.js";
+import { failureReasonFor } from "./shared/failure-reason.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
 import {
@@ -517,6 +518,10 @@ export class StageRunner {
                 payload: {
                   status: REJECTED_RUN_STATUS,
                   text: `Run failed during stage '${work.stage}': ${reason}`,
+                  failure: failureReasonFor({
+                    error: reason,
+                    stage: work.stage,
+                  }),
                 },
               },
             },
@@ -582,6 +587,10 @@ export class StageRunner {
               payload: {
                 status: "failed",
                 text: `Run failed during stage '${work.stage}': ${errorMsg}`,
+                failure: failureReasonFor({
+                  error: errorMsg,
+                  stage: work.stage,
+                }),
               },
             },
           });
