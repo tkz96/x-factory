@@ -1,6 +1,7 @@
-// src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and Ralph progress (Ticket 02, #191).
+// src/frontend/components/runs/ChatThread.tsx — Continuous chat thread streaming events and coding progress (Ticket 02, #191).
 
-import { stageStartedText } from "../../lib/run-models.js";
+import { stageLabel, stageStartedText } from "../../lib/run-models.js";
+import { runStatusText } from "../../lib/run-status-ui.js";
 import "./ChatThread.css";
 
 import { useEffect, useRef } from "react";
@@ -17,7 +18,7 @@ function renderStatusBubble(item: RunEvent<"status">) {
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-header">
         <span className="chat-bubble-badge">Status</span>
-        <span>[{status.toUpperCase()}]</span>
+        <span>{runStatusText(status)}</span>
       </div>
       <div className="chat-bubble-body">{text ?? ""}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
@@ -33,7 +34,7 @@ function renderEvidenceBubble(item: RunEvent<"stage_evidence">) {
     <div key={item.id} className="chat-bubble bubble-evidence">
       <div className="chat-bubble-header">
         <span className="chat-bubble-badge">Evidence</span>
-        {stage && <strong>{stage.toUpperCase()}</strong>}
+        {stage && <strong>{stageLabel(stage)}</strong>}
       </div>
       <div className="chat-bubble-body">✓ {evidence}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
@@ -48,7 +49,7 @@ function renderRalphBubble(item: RunEvent<"ralph_progress">) {
   return (
     <div key={item.id} className="chat-bubble bubble-ralph">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Ralph Loop</span>
+        <span className="chat-bubble-badge">Progress</span>
         {iteration ? <span>Iteration #{String(iteration)}</span> : null}
       </div>
       <div className="chat-bubble-body">{text}</div>
@@ -65,11 +66,8 @@ function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
   const bubbleClass = isRalph
     ? "chat-bubble bubble-ralph"
     : "chat-bubble bubble-agent";
-  const badgeLabel = isRalph
-    ? "Ralph"
-    : role === "reviewer"
-      ? "Reviewer"
-      : "Pi Agent";
+  // The roles the redesign names (#278): the Builder writes, the Reviewer reads.
+  const badgeLabel = role === "reviewer" ? "Reviewer" : "Builder";
 
   return (
     <div key={item.id} className={bubbleClass}>
@@ -243,7 +241,7 @@ export function ChatThread({ events }: ChatThreadProps) {
       role="log"
     >
       {events.length === 0 ? (
-        <div className="chat-thread-empty">Awaiting pipeline messages…</div>
+        <div className="chat-thread-empty">Waiting for the first update…</div>
       ) : (
         events.map((event) => renderBubble(event))
       )}

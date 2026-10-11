@@ -102,10 +102,7 @@ export function DiagramModal({
                 color="var(--border)"
               />
               <Controls showInteractive={false} />
-              <MiniMap
-                nodeColor="var(--accent)"
-                maskColor="rgba(0, 0, 0, 0.4)"
-              />
+              <MiniMap nodeColor="var(--accent)" maskColor="var(--scrim)" />
             </ReactFlow>
           </div>
         </div>

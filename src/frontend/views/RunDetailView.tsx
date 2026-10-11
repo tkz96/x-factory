@@ -114,14 +114,14 @@ export function RunDetailView() {
                       <strong>
                         {isBudgetPaused
                           ? "Budget reached: run paused"
-                          : "Pipeline requires operator recovery"}
+                          : "This run needs recovery"}
                       </strong>
                       <p className="text-muted text-footnote m-0 mt-1">
                         {isBudgetPaused
                           ? (budgetReason ??
                             recoveryPayload?.text ??
                             "A model call exceeded its daily budget.")
-                          : "Worker process terminated or an unexpected state interruption occurred."}
+                          : "The run stopped unexpectedly before it finished. Resume it to carry on."}
                       </p>
                       {resumeMutation.error && (
                         <p className="recovery-error text-footnote m-0 mt-1">
@@ -145,7 +145,7 @@ export function RunDetailView() {
                         onClick={() =>
                           abandonMutation.mutate({
                             runId: run.id,
-                            reason: "Abandoned from operator console",
+                            reason: "Abandoned from the run page",
                           })
                         }
                       >

@@ -6,7 +6,7 @@
 
 import "./ModelConnectionsPanel.css";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MODEL_API_TYPES,
   type ModelApiType,
@@ -16,6 +16,7 @@ import {
   type ModelRecord,
   type ModelRecordPatch,
 } from "../../../shared/model-connection-types.js";
+import { useDialogFocus } from "../../hooks/useDialogFocus.js";
 import {
   useModelConnectionMutations,
   useModelConnections,
@@ -66,26 +67,19 @@ function ConnectionForm({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const key = apiKey.trim();
+    // One payload for both paths: creating also sends the API type (#277).
+    const fields = {
+      name: name.trim(),
+      baseUrl: baseUrl.trim(),
+      ...(key ? { apiKey: key } : {}),
+    };
     if (initial) {
       mutations.update.mutate(
-        {
-          id: initial.id,
-          name: name.trim(),
-          baseUrl: baseUrl.trim(),
-          ...(key ? { apiKey: key } : {}),
-        },
+        { id: initial.id, ...fields },
         { onSuccess: onDone },
       );
     } else {
-      mutations.create.mutate(
-        {
-          name: name.trim(),
-          apiType,
-          baseUrl: baseUrl.trim(),
-          ...(key ? { apiKey: key } : {}),
-        },
-        { onSuccess: onDone },
-      );
+      mutations.create.mutate({ ...fields, apiType }, { onSuccess: onDone });
     }
   };
 
@@ -133,7 +127,7 @@ function ConnectionForm({
             id="model-connection-key"
             className="form-input"
             type="password"
-            autoComplete="off"
+            autoComplete="new-password"
             value={apiKey}
             placeholder={initial ? COPY.apiKeyKeep : ""}
             onChange={(e) => setApiKey(e.target.value)}
@@ -321,6 +315,74 @@ function ModelDetailsForm({
 
 // ─── One connection ────────────────────────────────────────────────────────
 
+// ─── Delete confirmation ───────────────────────────────────────────────────
+
+/**
+ * The inline "delete this connection?" confirmation (#245). It is an
+ * alertdialog: focus moves in, Escape cancels, focus returns to the Delete
+ * button, and the question and its title are both announced. It stays inline —
+ * the surrounding card is still visible, so `useDialogFocus` has nothing
+ * outside the dialog to make inert here.
+ */
+function ConfirmDelete({
+  id,
+  name,
+  onCancel,
+  onConfirm,
+}: {
+  id: string;
+  name: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDialogFocus(ref);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div
+      ref={ref}
+      tabIndex={-1}
+      className="model-confirm"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby={`model-confirm-title-${id}`}
+      aria-describedby={`model-confirm-question-${id}`}
+    >
+      <h4 id={`model-confirm-title-${id}`} className="model-confirm-title">
+        {COPY.confirmDelete}
+      </h4>
+      <p id={`model-confirm-question-${id}`}>
+        {COPY.confirmDeleteQuestion(name)}
+      </p>
+      <div className="model-actions">
+        <button
+          type="button"
+          className="btn-secondary btn-sm"
+          onClick={onCancel}
+        >
+          {COPY.cancel}
+        </button>
+        <button
+          type="button"
+          id={`btn-confirm-delete-model-connection-${id}`}
+          className="btn-danger btn-sm"
+          onClick={onConfirm}
+        >
+          {COPY.confirmDelete}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ConnectionCard({
   connection,
   mutations,
@@ -413,26 +475,12 @@ function ConnectionCard({
       </div>
 
       {confirmingDelete && (
-        <div className="model-confirm" role="alertdialog" aria-live="polite">
-          <p>{COPY.confirmDeleteQuestion(connection.name)}</p>
-          <div className="model-actions">
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={() => setConfirmingDelete(false)}
-            >
-              {COPY.cancel}
-            </button>
-            <button
-              type="button"
-              id={`btn-confirm-delete-model-connection-${id}`}
-              className="btn-danger btn-sm"
-              onClick={() => mutations.remove.mutate(id)}
-            >
-              {COPY.confirmDelete}
-            </button>
-          </div>
-        </div>
+        <ConfirmDelete
+          id={id}
+          name={connection.name}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => mutations.remove.mutate(id)}
+        />
       )}
 
       {checkResult && !checkResult.ok && (

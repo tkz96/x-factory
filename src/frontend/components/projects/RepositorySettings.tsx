@@ -85,7 +85,7 @@ function RepositoryForm({
         </span>
         <input
           id={`${prefix}-path`}
-          className="repo-settings-input"
+          className="form-input repo-settings-input"
           value={pathValue}
           aria-invalid={pathError}
           aria-describedby={`${prefix}-path-help`}
@@ -107,7 +107,7 @@ function RepositoryForm({
           </span>
           <input
             id={`${prefix}-${field}`}
-            className="repo-settings-input repo-settings-input--mono"
+            className="form-input repo-settings-input repo-settings-input--mono"
             value={commands[field]}
             placeholder={
               field === "test" ? undefined : REPOSITORY_SETTINGS_COPY.optional

@@ -31,7 +31,7 @@ This document serves as the persistent domain glossary and architectural context
 
 ## UI wording
 
-On-screen words for internal terms. Code identifiers keep their internal names. The status mapping lives in `src/frontend/lib/run-status-ui.ts`, which takes its allowed actions only from the shared run-status policy.
+On-screen words for internal terms. Code identifiers keep their internal names. The status mapping lives in `src/frontend/lib/run-status-ui.ts`, which takes its allowed actions only from the shared run-status policy. That one map also owns the run chat's header title, its input placeholder and its now-subtitle, so no screen keeps a cascade of its own.
 
 | Internal term | On screen |
 | --- | --- |
@@ -44,7 +44,7 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Awaiting-human statuses plus `recovery_required` | Needs you |
 | Active statuses / terminal statuses | Running / Done |
 | Start a run, add a project | Start Run, Add Project |
-| Start a new run for a failed or stopped ticket | Start New Run (a ticket command, not a run action) |
+| Start a new run for a terminal ticket (pull request opened, failed or stopped) | Start New Run (a ticket command, not a run action) |
 
 | Status | Label | Step | Filter |
 | --- | --- | --- | --- |
@@ -62,7 +62,7 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | failed | Failed | last step | Done |
 | stopped | Stopped | last step | Done |
 
-Buttons are sentence-case and verb-first: Approve Understanding, Approve Plan, Approve Changes, Request Changes, Create Pull Request, Resume Run, Abandon Run, Stop Run.
+Buttons use macOS HIG title-style capitalisation, verb-first: Approve Understanding, Approve Plan, Approve Changes, Request Changes, Create Pull Request, Resume Run, Abandon Run, Stop Run.
 
 ---
 

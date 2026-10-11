@@ -360,7 +360,27 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       );
       expect(html).toContain("Human Checkpoint &amp; Evidence");
       expect(html).toContain("Deterministic Verification");
-      expect(html).toContain("Independent Review");
+      // The redesign names the roles, not Session A / Session B (#278).
+      expect(html).toContain("Independent review (Reviewer)");
+      // Delivery comes from the policy's own delivery set, not a local list.
+      const withStatus = (
+        status: "ready_for_pr" | "awaiting_review" | "pr_created",
+      ) => ({ ...mockRun, status });
+      expect(html).toContain("Create Pull Request");
+      expect(
+        renderWithProviders(
+          React.createElement(HumanCheckpointSection, {
+            run: withStatus("awaiting_review"),
+          }),
+        ),
+      ).not.toContain('id="btn-pr"');
+      expect(
+        renderWithProviders(
+          React.createElement(HumanCheckpointSection, {
+            run: withStatus("pr_created"),
+          }),
+        ),
+      ).toContain("Pull Request Created");
     });
   });
 

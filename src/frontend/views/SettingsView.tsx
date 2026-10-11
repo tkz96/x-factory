@@ -3,7 +3,7 @@
 import "./SettingsView.css";
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
@@ -30,6 +30,19 @@ import {
 import { useTheme } from "../hooks/useTheme.js";
 
 type SettingsTab = "general" | "trackers" | "models" | "git" | "diagnostics";
+
+/** The panes the `?tab=` query string may open (#278 links straight to Models). */
+const SETTINGS_TABS: readonly SettingsTab[] = [
+  "general",
+  "trackers",
+  "models",
+  "git",
+  "diagnostics",
+];
+
+function settingsTabFromParam(value: string | null): SettingsTab {
+  return SETTINGS_TABS.find((tab) => tab === value) ?? "general";
+}
 
 interface DiagnosticMetricCardProps {
   title: string;
@@ -457,7 +470,11 @@ export function SettingsView() {
   const { openOnboardingModal } = useModal();
   const saveSettingsMutation = useSaveSettings();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  // The open pane is the URL's `?tab=`, so a link can open one directly.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = settingsTabFromParam(searchParams.get("tab"));
+  const setActiveTab = (tab: SettingsTab) =>
+    setSearchParams({ tab }, { replace: true });
   const { theme: currentTheme, applyTheme: handleApplyTheme } = useTheme();
 
   const handleUpdateUnsandboxed = async (enabled: boolean) => {

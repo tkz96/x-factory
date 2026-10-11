@@ -31,7 +31,7 @@ export function RunsView() {
       <AsyncRegion
         derived={derived}
         onRetry={() => refetch()}
-        emptyCopy="No active runs. Start a run from the Work Queue or launch one now."
+        emptyCopy="No active runs. Pick a ticket to start one, or launch a run now."
         emptyAction={
           <button
             type="button"
@@ -50,9 +50,7 @@ export function RunsView() {
           <div className="runs-header">
             <div>
               <h2>Active Runs</h2>
-              <p className="text-muted">
-                Currently executing agentic workflow pipelines.
-              </p>
+              <p className="text-muted">Runs that are still working.</p>
             </div>
             <button
               type="button"

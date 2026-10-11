@@ -386,7 +386,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(54px + env(safe-area-inset-bottom, 0px));
+    height: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--bg-glass);
     backdrop-filter: blur(20px);

@@ -48,12 +48,6 @@
   font-family: var(--font-mono);
 }
 
-.repo-settings-input:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
-}
-
 .repo-settings-input[aria-invalid="true"] {
   border-color: var(--red);
 }

@@ -5,7 +5,7 @@ import "./RunChat.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   canRunAction,
-  DELIVERY_RUN_STATUSES,
+  type RunAction,
   STATUS_TO_STAGE,
   UNSUCCESSFUL_TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
@@ -21,7 +21,7 @@ import {
   parseDiffToFiles,
 } from "../../lib/diff-parser.js";
 import { formatTimestamp } from "../../lib/format-timestamp.js";
-import { runStatusText } from "../../lib/run-status-ui.js";
+import { runStatusText, runStatusUi } from "../../lib/run-status-ui.js";
 import { DiffModal } from "./DiffModal.js";
 
 export interface ChatAction {
@@ -68,39 +68,85 @@ export interface RunChatProps {
   isTransitioning?: boolean;
 }
 
+/**
+ * The status's chat buttons: the one map's labels (#253) wired to the actions
+ * this view knows how to send. Actions with no handler here (chat, deliver,
+ * resume, abandon) keep their own controls elsewhere on the page.
+ */
+const CHAT_ACTION_HANDLERS: Partial<
+  Record<
+    RunAction,
+    { action: ChatAction["action"]; variant: ChatAction["variant"] }
+  >
+> = {
+  approve: { action: "approve", variant: "primary" },
+  requeue: { action: "requeue", variant: "secondary" },
+  restart: { action: "restart", variant: "secondary" },
+  stop: { action: "abort", variant: "danger" },
+};
+
+function chatActionsFor(status: RunStatus): ChatAction[] {
+  return runStatusUi(status).actions.flatMap(({ action, label }) => {
+    const handler = CHAT_ACTION_HANDLERS[action];
+    return handler && label ? [{ label, ...handler }] : [];
+  });
+}
+
+/** What the run is doing, in plain words — never a raw status string (#253). */
 function statusToSystemText(status: string, eventText?: string): string {
   if (eventText?.trim()) return eventText.trim();
   switch (status) {
+    case "queued":
+      return "⏳ Waiting to start";
     case "preparing":
-      return "Preparing workspace and environment...";
+      return "Preparing the workspace and environment…";
     case "understanding":
-      return "🔍 Analyzing codebase and requirements...";
+      return "🔍 Reading the ticket…";
     case "planning":
-      return "🔄 Moving to planning phase...";
+      return "🔄 Planning the changes…";
     case "executing":
-      return "⚙️ Execution started — Ralph loop active";
+      return "⚙️ Writing the code…";
     case "awaiting_understanding_approval":
-      return "📋 Codebase analysis complete — review required";
+      return "📋 Finished reading the ticket — your turn";
     case "awaiting_plan_approval":
-      return "📋 Implementation plan ready — review required";
+      return "📋 The plan is ready — your turn";
     case "awaiting_review":
-      return "🔍 Implementation finished — review changes";
+      return "🔍 The changes are ready to review";
     case "ready_for_pr":
-      return "✅ Verification passed — ready for pull request";
+      return "✅ Verified — ready for a pull request";
     case "pr_created":
-      return "🎉 Pull request created";
+      return "🎉 Pull request opened";
+    case "recovery_required":
+      return "⚠️ The run stopped and needs recovery";
     case "stopped":
-      return "⏹️ Run stopped by operator";
+      return "⏹️ Run stopped";
     case "failed":
-      return "❌ Run execution failed";
+      return "❌ Run failed";
     default:
-      return `Status changed to ${runStatusText(status as RunStatus)}`;
+      return runStatusText(status as RunStatus);
   }
 }
 
-function buildInitialMessages(run: Run): ChatMessage[] {
+/**
+ * The time of the message that describes the run's current state (#242): the
+ * event that moved the run into its status, not the run's start time.
+ */
+function stateTimestamp(run: Run, events: readonly RunEvent[]): string {
+  const transition = [...events]
+    .reverse()
+    .find((e) => e.type === "status" && e.payload.status === run.status);
+  if (transition) return transition.timestamp;
+  return run.updatedAt || run.startedAt || new Date().toISOString();
+}
+
+function buildInitialMessages(
+  run: Run,
+  events: readonly RunEvent[],
+): ChatMessage[] {
   const messages: ChatMessage[] = [];
-  const now = run.startedAt || new Date().toISOString();
+  // The greeting is about the start, so it keeps the run's own start time.
+  const runStart = run.startedAt || run.updatedAt || new Date().toISOString();
+  const at = stateTimestamp(run, events);
   const ctx: ImplementationContext | null = run.implementationContext;
 
   // Run start greeting
@@ -108,15 +154,15 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     id: "system-run-start",
     role: "system",
     text: `Starting run for #${run.ticket.id} — ${run.ticket.title}`,
-    timestamp: now,
+    timestamp: runStart,
   });
 
   if (STATUS_TO_STAGE[run.status] === "prepare") {
     messages.push({
       id: "agent-preparing",
       role: "agent",
-      text: `I'm setting up the workspace and initializing branch factory/${run.ticket.id.toLowerCase()}. Give me a moment to prepare the environment.`,
-      timestamp: now,
+      text: "I'm setting up the workspace and creating this run's branch. Give me a moment to prepare the environment.",
+      timestamp: at,
     });
     return messages;
   }
@@ -126,7 +172,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-understanding",
       role: "agent",
       text: "I'm setting up the workspace and analyzing the codebase. I'll walk you through what I find when I'm done.",
-      timestamp: now,
+      timestamp: at,
     });
     return messages;
   }
@@ -136,7 +182,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-planning",
       role: "agent",
       text: "I'm synthesizing our context analysis into a concrete implementation plan.",
-      timestamp: now,
+      timestamp: at,
     });
     return messages;
   }
@@ -145,14 +191,14 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     messages.push({
       id: "system-executing",
       role: "system",
-      text: "⚙️ Execution started — Ralph loop running",
-      timestamp: now,
+      text: statusToSystemText("executing"),
+      timestamp: at,
     });
     messages.push({
       id: "agent-executing",
       role: "agent",
       text: "I'm actively implementing the changes in the worktree. I'll let you know as soon as the test suite verifies the work.",
-      timestamp: now,
+      timestamp: at,
     });
     return messages;
   }
@@ -162,26 +208,22 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-intro-plan",
       role: "agent",
       text: "I've drafted a plan based on our context analysis. Let me know if the steps make sense or if you want to tweak the approach before I start coding.",
-      timestamp: now,
+      timestamp: at,
     });
     if (run.plan) {
       messages.push({
         id: "agent-plan",
         role: "agent",
         text: run.plan,
-        timestamp: now,
+        timestamp: at,
       });
     }
     messages.push({
       id: "agent-grill-plan",
       role: "agent",
       text: "Does this plan look correct? Are there any missing steps or edge cases?\n\nWhen you're satisfied, approve to move to execution.",
-      timestamp: now,
-      actions: [
-        { label: "Approve Plan", action: "approve", variant: "primary" },
-        { label: "Revise Plan", action: "restart", variant: "secondary" },
-        { label: "Abort", action: "abort", variant: "danger" },
-      ],
+      timestamp: at,
+      actions: chatActionsFor(run.status),
     });
     return messages;
   }
@@ -191,7 +233,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-intro-review",
       role: "agent",
       text: "I've finished implementing the changes and test verification passed. Let's review the changes before opening a pull request.",
-      timestamp: now,
+      timestamp: at,
     });
 
     const parsedDiff = parseDiffToFiles(run.diff);
@@ -200,7 +242,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
         id: "agent-diff-summary",
         role: "agent",
         text: `Here is a summary of ${parsedDiff.length} modified file${parsedDiff.length === 1 ? "" : "s"}. Click any file to view line-by-line diffs:`,
-        timestamp: now,
+        timestamp: at,
         diffSummary: parsedDiff.map((f) => ({
           file: f.file,
           added: f.added,
@@ -213,11 +255,8 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-review-actions",
       role: "agent",
       text: "Does the implementation look ready to open a pull request, or does anything need rework?",
-      timestamp: now,
-      actions: [
-        { label: "Approve → PR", action: "approve", variant: "primary" },
-        { label: "Request Rework", action: "requeue", variant: "secondary" },
-      ],
+      timestamp: at,
+      actions: chatActionsFor(run.status),
     });
     return messages;
   }
@@ -227,7 +266,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-ready-for-pr",
       role: "agent",
       text: "Verification passed and the changes are approved. The pull request is ready to be opened.",
-      timestamp: now,
+      timestamp: at,
     });
     return messages;
   }
@@ -237,7 +276,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
       id: "agent-pr-created",
       role: "agent",
       text: "The pull request has been created. This run is complete.",
-      timestamp: now,
+      timestamp: at,
     });
     return messages;
   }
@@ -250,18 +289,22 @@ function buildInitialMessages(run: Run): ChatMessage[] {
         run.status === "failed"
           ? "This run failed and can't continue."
           : "This run was stopped and can't continue.",
-      timestamp: now,
+      timestamp: at,
     });
     return messages;
   }
 
   if (run.status !== "awaiting_understanding_approval") {
-    // recovery_required and any other status without an approval gate.
+    // recovery_required and any other status with no approval action: say what
+    // the run is doing and offer nothing to approve (#242).
     messages.push({
       id: "agent-waiting",
       role: "agent",
-      text: `This run is in "${runStatusText(run.status)}". There is nothing to approve right now.`,
-      timestamp: now,
+      text:
+        run.status === "recovery_required"
+          ? "This run stopped before it finished and needs you. Resume it to carry on, or abandon it."
+          : `This run is ${runStatusText(run.status)}.`,
+      timestamp: at,
     });
     return messages;
   }
@@ -271,7 +314,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     id: "agent-intro",
     role: "agent",
     text: "I've finished analyzing the codebase for this ticket. Let me walk you through what I found — feel free to ask questions or challenge anything before we move forward.",
-    timestamp: now,
+    timestamp: at,
   });
 
   if (ctx) {
@@ -280,7 +323,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
         id: "agent-files",
         role: "agent",
         text: `I identified ${ctx.relevantFiles.length} relevant file${ctx.relevantFiles.length === 1 ? "" : "s"} that will likely need changes:`,
-        timestamp: now,
+        timestamp: at,
         contextCard: {
           title: "Relevant Files",
           items: ctx.relevantFiles.slice(0, 12),
@@ -307,7 +350,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
           id: "agent-constraints",
           role: "agent",
           text: "I also found some constraints and patterns to respect:",
-          timestamp: now,
+          timestamp: at,
           contextCard: {
             title: "Constraints",
             items: filteredConstraints,
@@ -321,7 +364,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
         id: "agent-risks",
         role: "agent",
         text: "A few risks I want to flag:",
-        timestamp: now,
+        timestamp: at,
         contextCard: {
           title: "Risks",
           items: ctx.risks,
@@ -334,7 +377,7 @@ function buildInitialMessages(run: Run): ChatMessage[] {
         id: "agent-arch",
         role: "agent",
         text: ctx.architecturalNotes,
-        timestamp: now,
+        timestamp: at,
       });
     }
   }
@@ -343,12 +386,8 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     id: "agent-grill",
     role: "agent",
     text: "Does this analysis match your understanding? Is there anything I'm missing, any edge cases I should watch for, or any constraints I haven't accounted for?\n\nWhen you're satisfied, approve to move to planning.",
-    timestamp: now,
-    actions: [
-      { label: "Approve & Continue", action: "approve", variant: "primary" },
-      { label: "Restart Analysis", action: "restart", variant: "secondary" },
-      { label: "Abort", action: "abort", variant: "danger" },
-    ],
+    timestamp: at,
+    actions: chatActionsFor(run.status),
   });
 
   return messages;
@@ -363,8 +402,11 @@ export function RunChat({
   onRequeue,
   isTransitioning,
 }: RunChatProps) {
-  const [initialMessages, setInitialMessages] = useState<ChatMessage[]>(() =>
-    buildInitialMessages(run),
+  // A status's screens are pure functions of the run and its events (#242):
+  // nothing here is stored, so the times always match the events they came from.
+  const initialMessages = useMemo(
+    () => buildInitialMessages(run, events),
+    [run, events],
   );
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -385,16 +427,15 @@ export function RunChat({
 
   const parsedDiffFiles = useMemo(() => parseDiffToFiles(run.diff), [run.diff]);
 
-  // Update initial messages when run status advances
+  // A new status starts the chat over: fresh gate banner, fresh rework prompt.
   const lastStatusRef = useRef(run.status);
   useEffect(() => {
     if (lastStatusRef.current !== run.status) {
       lastStatusRef.current = run.status;
-      setInitialMessages(buildInitialMessages(run));
       setHasStartedChat(false);
       setReworkPromptActive(false);
     }
-  }, [run]);
+  }, [run.status]);
 
   // The server only accepts chat during approval gates; the shared policy
   // gates the input on the same action guard.
@@ -461,21 +502,22 @@ export function RunChat({
     if (actionItem.action === "approve") {
       setResolvedActions((prev) => ({
         ...prev,
-        [msgId]: actionItem.label.includes("PR")
-          ? "Implementation approved → PR"
-          : "Approved",
+        [msgId]:
+          run.status === "awaiting_review"
+            ? "Changes approved — opening a pull request"
+            : "Approved",
       }));
       onApprove?.();
     } else if (actionItem.action === "restart") {
       setResolvedActions((prev) => ({
         ...prev,
-        [msgId]: "Restart requested",
+        [msgId]: "Changes requested",
       }));
       onRestart?.();
     } else if (actionItem.action === "abort") {
       setResolvedActions((prev) => ({
         ...prev,
-        [msgId]: "Aborted",
+        [msgId]: "Stopped",
       }));
       onAbort?.();
     } else if (actionItem.action === "requeue") {
@@ -555,54 +597,18 @@ export function RunChat({
     }
   };
 
-  const getPlaceholderText = () => {
-    if (reworkPromptActive) {
-      return "Describe the changes needed before replanning…";
-    }
-    if (run.status === "awaiting_understanding_approval") {
-      return "Ask about the analysis, challenge assumptions…";
-    }
-    if (run.status === "awaiting_plan_approval") {
-      return "Ask about the plan, challenge steps…";
-    }
-    if (run.status === "awaiting_review") {
-      return "Ask about modified files or request rework…";
-    }
-    if (run.status === "executing") {
-      return "Waiting for agent to finish executing changes…";
-    }
-    if (run.status === "planning") {
-      return "Waiting for agent to finish drafting plan…";
-    }
-    if (run.status === "understanding") {
-      return "Waiting for agent to finish codebase analysis…";
-    }
+  // One map owns the chat's words for every status (#253): placeholder, header
+  // title and subtitle all come from `run-status-ui`, never a local cascade.
+  const ui = runStatusUi(run.status);
 
-    if (DELIVERY_RUN_STATUSES.has(run.status)) {
-      return "Pull request stage reached.";
-    }
-    if (UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(run.status)) {
-      return "Run execution ended.";
-    }
-    return `Waiting for agent (${runStatusText(run.status)})…`;
-  };
+  const placeholderText = reworkPromptActive
+    ? "Describe the changes needed before replanning…"
+    : ui.placeholder;
 
-  const getHeaderTitle = () => {
-    if (run.status === "awaiting_plan_approval") return "Plan Review";
-    if (run.status === "awaiting_understanding_approval")
-      return "Context Synthesis";
-    if (run.status === "awaiting_review") return "Implementation Review";
-    if (run.status === "executing") return "Implementation Execution";
-    if (run.status === "planning") return "Plan Drafting";
-    if (run.status === "understanding") return "Codebase Understanding";
-
-    return "Agent Workspace";
-  };
-
-  const getHeaderSubtitle = () => {
-    if (isApprovalGate) return "Approval gate · input active";
-    return `Phase: ${runStatusText(run.status)}`;
-  };
+  // Say what the run is doing, and say when the reader can reply (#253).
+  const headerSubtitle = isApprovalGate
+    ? `${ui.now} · you can reply below`
+    : ui.now;
 
   return (
     <div className="run-chat" id="understanding-chat">
@@ -624,8 +630,8 @@ export function RunChat({
             </svg>
           </div>
           <div className="run-chat-meta">
-            <strong>{getHeaderTitle()}</strong>
-            <span>{getHeaderSubtitle()}</span>
+            <strong>{ui.header}</strong>
+            <span>{headerSubtitle}</span>
           </div>
         </div>
       </div>
@@ -790,7 +796,7 @@ export function RunChat({
           ref={inputRef}
           id="input-understanding-chat"
           type="text"
-          placeholder={getPlaceholderText()}
+          placeholder={placeholderText}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={!isApprovalGate || sending || isTransitioning}
