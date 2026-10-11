@@ -9,7 +9,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
@@ -20,14 +20,18 @@ import {
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
+import { PROJECTS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
+import type { Project } from "../src/shared/types.js";
 
-type Project = Parameters<
-  typeof import("../src/frontend/components/projects/ProjectCard.js").ProjectCard
->[0]["project"];
+afterEach(() => {
+  // Each test starts from an empty document: the renders here are queries by
+  // role, and a screen left mounted by the previous test would answer them.
+  cleanup();
+});
 
 afterAll(async () => {
   cleanup();
@@ -135,38 +139,33 @@ describe("ProjectsView — feedback-family read region", () => {
     expect(container.querySelector("button.retry-action")).not.toBeNull();
   });
 
-  it("renders the empty active tab with guidance and the onboard call-to-action", () => {
+  it("renders the first run's empty state with guidance and the Add Project action", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.projects(), []);
-    const { container } = renderView(React.createElement(ProjectsView), client);
+    const view = renderView(React.createElement(ProjectsView), client);
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain(
-      "Click Onboard Project to connect a workspace repository.",
-    );
-    const cta = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.closest(".async-region--empty"),
-    );
-    expect(cta?.textContent).toContain("Onboard Project");
+    const empty = view.getByRole("status");
+    expect(empty.textContent).toContain(PROJECTS_COPY.empty);
+    expect(
+      view.getByRole("button", { name: PROJECTS_COPY.addProject }),
+    ).toBeTruthy();
   });
 
-  it("renders the empty archived tab with guidance and no call-to-action", () => {
+  it("renders the empty archived filter with guidance and no call-to-action", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.projects(), [
       makeProject({ id: "proj-active", archived: false }),
     ]);
-    const { container } = renderView(React.createElement(ProjectsView), client);
+    const view = renderView(React.createElement(ProjectsView), client);
 
-    const archivedTab = container.querySelector("#btn-toggle-archived");
-    if (!(archivedTab instanceof HTMLElement)) {
-      throw new Error("archived tab button missing");
-    }
-    fireEvent.click(archivedTab);
+    fireEvent.click(
+      view.getByRole("radio", { name: PROJECTS_COPY.filterArchived }),
+    );
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain("No archived projects found.");
+    const empty = view.getByRole("status");
+    expect(empty.textContent).toContain(PROJECTS_COPY.emptyArchived);
     expect(
-      container.querySelector(".async-region--empty .async-region-actions"),
+      view.queryByRole("button", { name: PROJECTS_COPY.addProject }),
     ).toBeNull();
   });
 
@@ -180,12 +179,14 @@ describe("ProjectsView — feedback-family read region", () => {
       }),
       makeProject({ id: "proj-archived", archived: true }),
     ]);
-    const { container } = renderView(React.createElement(ProjectsView), client);
+    const view = renderView(React.createElement(ProjectsView), client);
 
-    expect(container.querySelector("#projects-container")).not.toBeNull();
-    expect(container.textContent).toContain("Ready Project");
-    expect(container.querySelector(".async-region--empty")).toBeNull();
-    expect(container.querySelector(".async-region--loading")).toBeNull();
+    const row = view.getByRole("link", {
+      name: PROJECTS_COPY.openProject("Ready Project"),
+    });
+    expect(row.getAttribute("href")).toBe("/projects/proj-active");
+    expect(view.container.querySelector(".async-region--empty")).toBeNull();
+    expect(view.container.querySelector(".async-region--loading")).toBeNull();
   });
 });
 

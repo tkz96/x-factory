@@ -1,10 +1,12 @@
-// src/frontend/views/ProjectDetailView.tsx — Detailed single project view
-// (XFM-48; rebuilt on the feedback family in #147).
+// src/frontend/views/ProjectDetailView.tsx — One project in the detail pane of
+// the Projects split (#267, spec #241; XFM-48, rebuilt on the feedback family
+// in #147).
 //
-// The read region (loading / error / not-found) renders through AsyncRegion and
-// the copy map; the project header carries the persisted git host + tracker
-// combo line (spec #133 story 48) and the tracker card below it carries the
-// integrity failure when the project has no tracker.
+// The pane answers the three plain-word questions first — which repository,
+// which tracker, which branch (spec story 108) — and then shows the surfaces
+// that act on the project: the wiring line, readiness, the tracker card and the
+// repositories. The read region (loading / error / not-found) renders through
+// AsyncRegion and the copy map, beside the list.
 
 import "./ProjectDetailView.css";
 
@@ -20,6 +22,8 @@ import {
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { ProjectsSplit } from "../components/projects/ProjectsSplit.js";
+import { projectFacts } from "../components/projects/project-facts.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { RepositorySettings } from "../components/projects/RepositorySettings.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
@@ -63,7 +67,7 @@ export function ProjectDetailView() {
 
   if (project === undefined || integrity === undefined) {
     return (
-      <section id="area-projects" className="area-view active">
+      <ProjectsSplit selectedId={id}>
         <AsyncRegion
           derived={derived}
           onRetry={() => void projectsQuery.refetch()}
@@ -78,38 +82,50 @@ export function ProjectDetailView() {
             </button>
           }
         />
-      </section>
+      </ProjectsSplit>
     );
   }
 
+  const facts = projectFacts(project, descriptors);
   const repos = project.repositories || [];
 
   return (
-    <section id="area-projects" className="area-view active">
-      <div id="projects-detail-view" className="view-panel">
-        <div className="section-header-flex">
-          <div className="flex-center gap-3">
-            <button
-              type="button"
-              id="btn-back-to-projects-list"
-              className="btn-secondary btn-sm"
-              title={PROJECT_DETAIL_COPY.backToProjectsTitle}
-              aria-label={PROJECT_DETAIL_COPY.backToProjectsTitle}
-              onClick={backToProjects}
-            >
-              <svg className="icon icon-sm" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-arrow-left" />
-              </svg>
-              <span>{PROJECT_DETAIL_COPY.allProjects}</span>
-            </button>
-            <h2 id="project-detail-name">{project.name}</h2>
-            {project.archived && (
-              <span className="role-badge role-badge-archived">
-                {PROJECT_DETAIL_COPY.archived}
-              </span>
-            )}
-          </div>
-        </div>
+    <ProjectsSplit selectedId={project.id}>
+      <article className="projects-detail">
+        <header className="projects-detail-header">
+          <h2 id="project-detail-name" className="projects-detail-name">
+            {project.name}
+          </h2>
+          {project.archived && (
+            <span className="role-badge role-badge-archived">
+              {PROJECT_DETAIL_COPY.archived}
+            </span>
+          )}
+        </header>
+
+        <dl className="projects-detail-facts">
+          {facts.map((fact) => (
+            <div className="projects-detail-fact" key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd
+                className={
+                  fact.isPath
+                    ? "projects-detail-fact-value projects-detail-fact-value--path"
+                    : "projects-detail-fact-value"
+                }
+              >
+                {fact.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="projects-detail-id">
+          <span className="projects-detail-id-label">
+            {PROJECT_DETAIL_COPY.projectId}
+          </span>
+          <code>{project.id}</code>
+        </p>
 
         <ConnectionComboLine
           id="project-connections-combo"
@@ -117,34 +133,6 @@ export function ProjectDetailView() {
           tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
           descriptors={descriptors}
         />
-
-        <div id="project-detail-meta" className="project-detail-meta-grid mt-4">
-          <div className="project-meta-item">
-            <strong>{PROJECT_DETAIL_COPY.projectId}</strong>
-            <code>{project.id}</code>
-          </div>
-          <div className="project-meta-item">
-            <strong>{PROJECT_DETAIL_COPY.workspacePath}</strong>
-            <code>
-              {project.workspacePath ||
-                project.repositoryPath ||
-                PROJECT_DETAIL_COPY.defaultWorkspace}
-            </code>
-          </div>
-          <div className="project-meta-item">
-            <strong>{PROJECT_DETAIL_COPY.defaultBranch}</strong>
-            <span>
-              {project.defaultBranch ||
-                PROJECT_DETAIL_COPY.defaultBranchFallback}
-            </span>
-          </div>
-          <div className="project-meta-item">
-            <strong>{PROJECT_DETAIL_COPY.repositories}</strong>
-            <span>
-              {PROJECT_DETAIL_COPY.repositoriesConnected(repos.length)}
-            </span>
-          </div>
-        </div>
 
         <ReadinessBanner />
 
@@ -199,7 +187,7 @@ export function ProjectDetailView() {
             <RepositorySettings projectId={project.id} repositories={repos} />
           </div>
         )}
-      </div>
-    </section>
+      </article>
+    </ProjectsSplit>
   );
 }
