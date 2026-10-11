@@ -23,7 +23,7 @@ import {
 } from "../lib/runs-list.js";
 import { MotionList, MotionListItem } from "../motion/MotionList.js";
 import "./RunsView.css";
-import type { StageModelUse } from "../../shared/types.js";
+import type { Run, StageModelUse } from "../../shared/types.js";
 import { latestModelFor } from "../lib/run-models.js";
 
 /** " · gemini-x" for the Builder model the run last used (#279). */
@@ -34,6 +34,14 @@ function builderModelLabel(stageModels?: readonly StageModelUse[]): string {
 
 /** The filter the user chose last, kept per viewer (#259). */
 const LAST_FILTER_KEY = "runs-list-filter";
+
+/** When the row's state last changed: the PR's merge or close time, else the run's update (#271). */
+function runShownAt(r: Run): string {
+  const outcome = r.pullRequestOutcome;
+  if (outcome?.status === "merged" && outcome.mergedAt) return outcome.mergedAt;
+  if (outcome?.status === "closed" && outcome.closedAt) return outcome.closedAt;
+  return r.updatedAt;
+}
 
 function readLastChosenFilter(): RunsFilterId | null {
   try {
@@ -156,15 +164,26 @@ export function RunsView() {
                         </span>
                       </div>
                       <div className="run-card-status">
-                        <span className="badge" data-status={r.status}>
-                          {runStatusText(r.status)}
+                        <span
+                          className="badge"
+                          data-status={
+                            r.pullRequestOutcome
+                              ? r.pullRequestOutcome.status
+                              : r.status
+                          }
+                        >
+                          {r.pullRequestOutcome
+                            ? r.pullRequestOutcome.status === "merged"
+                              ? "Merged"
+                              : "Closed without merging"
+                            : runStatusText(r.status)}
                         </span>
                         <time
                           className="run-card-time code-sub"
-                          dateTime={r.updatedAt}
-                          title={formatTimestamp(r.updatedAt)}
+                          dateTime={runShownAt(r)}
+                          title={formatTimestamp(runShownAt(r))}
                         >
-                          {formatRelativeTime(r.updatedAt, now)}
+                          {formatRelativeTime(runShownAt(r), now)}
                         </time>
                       </div>
                     </div>

@@ -616,7 +616,7 @@ function documentedSpec() {
           tags: ["Runs"],
           summary: "Get Run Details",
           description:
-            "Retrieves full details, stage status, collected events, worktree information, and pull request links for a run.",
+            "Retrieves full details, stage status, collected events, worktree information, and pull request links for a run. For `pr_created` runs, opening the run enqueues an asynchronous `check_pr` command for the worker to poll pull request status without blocking the API process.",
           operationId: "getRun",
           parameters: [
             {
@@ -1728,6 +1728,27 @@ function documentedSpec() {
                 branch: { type: "string" },
                 worktreePath: { type: "string" },
                 updatedAt: { type: "string", format: "date-time" },
+                pullRequestOutcome: {
+                  type: "object",
+                  description:
+                    "Outcome of the pull request check once merged or closed without merging.",
+                  properties: {
+                    status: {
+                      type: "string",
+                      enum: ["merged", "closed"],
+                      description: "Outcome status.",
+                    },
+                    state: {
+                      type: "string",
+                      enum: ["merged", "closed"],
+                      description: "Outcome state alias.",
+                    },
+                    url: { type: "string", format: "uri" },
+                    mergedAt: { type: "string", format: "date-time" },
+                    mergedBy: { type: "string" },
+                    closedAt: { type: "string", format: "date-time" },
+                  },
+                },
               },
             },
           ],

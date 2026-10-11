@@ -79,7 +79,7 @@ describe("GET /api/diagnostics counts over HTTP (#188)", () => {
       };
     };
 
-    expect(body.database.version).toBe(11);
+    expect(body.database.version).toBe(12);
     expect(body.database.runs).toEqual({ total: 6, active: 3 });
     expect(body.database.jobs).toEqual(
       expect.objectContaining({

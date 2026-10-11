@@ -7,6 +7,9 @@ import {
 } from "../shared/run-status-policy.js";
 import type {
   AppEventEnvelope,
+  PrClosedPayload,
+  PrMergedPayload,
+  PullRequestOutcome,
   RunEventPayloadMap,
   RunEventType,
 } from "../shared/types.js";
@@ -52,7 +55,12 @@ export function rowToEventRecord(row: EventRow): EventRecord {
 }
 
 /** The notification-relevant event types the app-wide stream carries. */
-const APP_EVENT_TYPES = ["status", "pr_step"] as const;
+const APP_EVENT_TYPES = [
+  "status",
+  "pr_step",
+  "pr_merged",
+  "pr_closed",
+] as const;
 
 /**
  * The 12 columns of an event joined to its run, shared by every app-wide read
@@ -103,6 +111,17 @@ export class EventRepository {
     type: T,
     payload: RunEventPayloadMap[T],
   ): EventRecord<T> {
+    if (type === "pr_merged" || type === "pr_closed") {
+      const existing = this.db
+        .prepare<EventRow, { $runId: string }>(
+          "SELECT * FROM run_events WHERE run_id = $runId AND type IN ('pr_merged', 'pr_closed') LIMIT 1;",
+        )
+        .get({ $runId: runId });
+      if (existing) {
+        return rowToEventRecord(existing) as EventRecord<T>;
+      }
+    }
+
     const now = new Date().toISOString();
     const serializedPayload = serializeJsonColumn(payload ?? {}) ?? "{}";
 
@@ -128,12 +147,32 @@ export class EventRepository {
       }
     >(query);
 
-    const row = stmt.get({
-      $runId: runId,
-      $type: type,
-      $payload: serializedPayload,
-      $createdAt: now,
-    });
+    let row: EventRow | null = null;
+    try {
+      row = stmt.get({
+        $runId: runId,
+        $type: type,
+        $payload: serializedPayload,
+        $createdAt: now,
+      });
+    } catch (err: unknown) {
+      if (
+        (type === "pr_merged" || type === "pr_closed") &&
+        err instanceof Error &&
+        (err.message.includes("idx_run_events_pr_outcome") ||
+          err.message.includes("UNIQUE constraint failed"))
+      ) {
+        const existing = this.db
+          .prepare<EventRow, { $runId: string }>(
+            "SELECT * FROM run_events WHERE run_id = $runId AND type IN ('pr_merged', 'pr_closed') LIMIT 1;",
+          )
+          .get({ $runId: runId });
+        if (existing) {
+          return rowToEventRecord(existing) as EventRecord<T>;
+        }
+      }
+      throw err;
+    }
 
     if (!row) {
       throw new Error(`Failed to append event for run ${runId}`);
@@ -255,8 +294,8 @@ export class EventRepository {
   }
 
   /**
-   * Retrieves Finished history events (the policy's terminal statuses) at or below cursor,
-   * bounded by 7 days and capped at limit (default 100), returned in ascending id order (#257).
+   * Retrieves Finished history events (the policy's terminal statuses plus pr_merged) at or below cursor,
+   * bounded by 7 days and capped at limit (default 100), returned in ascending id order (#257, #271).
    */
   getFinishedHistoryEvents(
     cursor: number,
@@ -266,8 +305,11 @@ export class EventRepository {
     const query = `
       ${JOINED_EVENT_SELECT}
       WHERE e.id <= $cursor
-        AND e.type = 'status'
-        AND json_extract(e.payload, '$.status') IN (${placeholders(TERMINAL_RUN_STATUSES, "status").join(", ")})
+        AND (
+          (e.type = 'status'
+           AND json_extract(e.payload, '$.status') IN (${placeholders(TERMINAL_RUN_STATUSES, "status").join(", ")}))
+          OR e.type = 'pr_merged'
+        )
         AND e.created_at >= $sevenDaysAgo
       ORDER BY e.id DESC
       LIMIT $limit;
@@ -282,6 +324,73 @@ export class EventRepository {
       .prepare<JoinedEventRow, typeof params>(query)
       .all(params);
     return rows.reverse().map(joinedRowToEnvelope);
+  }
+
+  /**
+   * Returns the PR outcome (merged or closed) for a run, or null if not yet detected.
+   */
+  getPullRequestOutcome(runId: string): PullRequestOutcome | null {
+    const row = this.db
+      .prepare<EventRow, { $runId: string }>(
+        "SELECT * FROM run_events WHERE run_id = $runId AND type IN ('pr_merged', 'pr_closed') LIMIT 1;",
+      )
+      .get({ $runId: runId });
+    if (!row) return null;
+    const rec = rowToEventRecord(row);
+    if (rec.type === "pr_merged") {
+      const p = rec.payload as PrMergedPayload;
+      return {
+        status: "merged",
+        state: "merged",
+        url: p.url,
+        mergedAt: p.mergedAt,
+        mergedBy: p.mergedBy,
+      };
+    }
+    if (rec.type === "pr_closed") {
+      const p = rec.payload as PrClosedPayload;
+      return {
+        status: "closed",
+        state: "closed",
+        url: p.url,
+        closedAt: p.closedAt,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Returns a map of runId -> PullRequestOutcome for all runs with recorded PR outcomes.
+   */
+  listPullRequestOutcomes(): Map<string, PullRequestOutcome> {
+    const rows = this.db
+      .prepare<EventRow, []>(
+        "SELECT * FROM run_events WHERE type IN ('pr_merged', 'pr_closed');",
+      )
+      .all();
+    const map = new Map<string, PullRequestOutcome>();
+    for (const row of rows) {
+      const rec = rowToEventRecord(row);
+      if (rec.type === "pr_merged") {
+        const p = rec.payload as PrMergedPayload;
+        map.set(rec.runId, {
+          status: "merged",
+          state: "merged",
+          url: p.url,
+          mergedAt: p.mergedAt,
+          mergedBy: p.mergedBy,
+        });
+      } else if (rec.type === "pr_closed") {
+        const p = rec.payload as PrClosedPayload;
+        map.set(rec.runId, {
+          status: "closed",
+          state: "closed",
+          url: p.url,
+          closedAt: p.closedAt,
+        });
+      }
+    }
+    return map;
   }
 }
 

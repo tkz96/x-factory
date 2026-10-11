@@ -54,7 +54,8 @@ A client on initial page load or full reload fetches a fresh snapshot in one SQL
 - **Cursor**: The highest global `run_events.id` included in the snapshot.
 - **Current Run Statuses**: Full list of current runs and their statuses.
 - **Needs-you Trigger Events**: For every run currently in a Needs-you status (`awaiting_understanding_approval`, `awaiting_plan_approval`, `awaiting_review`, `ready_for_pr`, `recovery_required`), the snapshot includes the event that transitioned it into that status with **no age limit**. A run waiting 30 days retains its original triggering event ID.
-- **Finished History**: Limited to eligible finished events (`pr_created`, `failed`, `stopped`) committed at or below the cursor within a 7-day window, capped at 100 events. Older finished events are deliberately omitted.
+- **Finished History**: Limited to eligible finished events (`pr_created`, `pr_merged`, `failed`, `stopped`) committed at or below the cursor within a 7-day window, capped at 100 events. Older finished events are deliberately omitted.
+- **Pull Request Outcomes**: Pull request outcome events (`pr_merged` and `pr_closed`) are appended durably when detected by the worker, recording the PR URL, timestamp, and optional author. They do not alter the run's state-machine status (`pr_created`), but stream through the app-wide channel and update `pullRequestOutcome` directly in the client cache.
 - **No Gap**: Subscribing to `GET /api/events?last_event_id=<cursor>` guarantees that no event committed after the snapshot is missed.
 
 ### 3. Cursor & Reconnection Rules (`GET /api/events`)

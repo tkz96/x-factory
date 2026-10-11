@@ -263,6 +263,22 @@ export interface ProviderPullRequest {
   lastMergeSourceCommit?: string;
 }
 
+export interface GetPullRequestStateInput {
+  repository: string;
+  sourceBranch: string;
+  pullRequestUrl?: string | undefined;
+}
+
+export type PullRequestStateStatus = "open" | "merged" | "closed";
+
+export interface PullRequestState {
+  status: PullRequestStateStatus;
+  url: string;
+  mergedAt?: string | undefined;
+  mergedBy?: string | undefined;
+  closedAt?: string | undefined;
+}
+
 // ---------------------------------------------------------------------------
 // The Provider interface (#127 §1)
 // ---------------------------------------------------------------------------
@@ -275,6 +291,7 @@ const OPTIONAL_CAPABILITIES = [
   "parseQuickUrl",
   "createPullRequest",
   "findExistingPullRequest",
+  "getPullRequestState",
   "describeConnection",
 ] as const;
 
@@ -335,6 +352,15 @@ export interface Provider<Id extends string = string> {
     input: FindPullRequestInput,
     signal?: AbortSignal,
   ): Promise<ProviderPullRequest | null>;
+  /**
+   * Retrieves current PR state (open, merged, closed) for a given branch / URL.
+   * Read-only: does not merge, close, or update the pull request.
+   */
+  getPullRequestState?(
+    config: ProviderConfig,
+    input: GetPullRequestStateInput,
+    signal?: AbortSignal,
+  ): Promise<PullRequestState | null>;
   /**
    * The connection's identity as a human reads it (#133 story 34): a SHORT,
    * NON-SECRET identifier derived from the configuration a user already typed —

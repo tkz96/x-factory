@@ -37,9 +37,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+.run-now-pr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .run-now-link {
   align-self: flex-start;
   font-weight: 600;
+  font-size: var(--text-footnote);
+}
+
+.run-now-pr-time {
+  color: var(--text-muted);
   font-size: var(--text-footnote);
 }
 

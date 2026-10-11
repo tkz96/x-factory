@@ -39,6 +39,14 @@
   background: var(--green-dim);
   color: var(--green);
 }
+.badge[data-status="merged"] {
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+.badge[data-status="closed"] {
+  background: var(--red-dim);
+  color: var(--red);
+}
 .badge[data-status="failed"] {
   background: var(--red-dim);
   color: var(--red);

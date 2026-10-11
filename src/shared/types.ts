@@ -452,6 +452,17 @@ export interface ReviewActivityPayload {
   text?: string | undefined;
 }
 
+export interface PrMergedPayload {
+  url: string;
+  mergedAt: string;
+  mergedBy?: string | undefined;
+}
+
+export interface PrClosedPayload {
+  url: string;
+  closedAt: string;
+}
+
 export type RunEventPayloadMap = {
   status: StatusEventPayload;
   stage_evidence: StageEvidencePayload;
@@ -469,6 +480,8 @@ export type RunEventPayloadMap = {
   info: InfoEventPayload;
   error: ErrorEventPayload;
   stage_started: StageStartedPayload;
+  pr_merged: PrMergedPayload;
+  pr_closed: PrClosedPayload;
 };
 
 export type RunEventType = keyof RunEventPayloadMap;
@@ -526,6 +539,18 @@ export interface EventsSnapshot {
 }
 
 /**
+ * Pull request outcome recorded when a PR is merged or closed.
+ */
+export interface PullRequestOutcome {
+  status: "merged" | "closed";
+  state?: "merged" | "closed" | undefined;
+  url: string;
+  mergedAt?: string | undefined;
+  mergedBy?: string | undefined;
+  closedAt?: string | undefined;
+}
+
+/**
  * Public run shape exposed via API.
  */
 export interface Run {
@@ -544,6 +569,8 @@ export interface Run {
   artifacts: Artifact[];
   diff: string | null;
   pullRequest: PullRequest | null;
+  /** PR outcome when known (merged or closed without merging) (#271). */
+  pullRequestOutcome?: PullRequestOutcome | undefined;
   repairAttempts: number;
   artifactsDir: string;
   worktreePath: string;

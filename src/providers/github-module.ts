@@ -3,12 +3,14 @@
 import type {
   CreatePullRequestInput,
   FindPullRequestInput,
+  GetPullRequestStateInput,
   Provider,
   ProviderConfig,
   ProviderErrorContext,
   ProviderErrorEnvelope,
   ProviderPullRequest,
   ProviderRepository,
+  PullRequestState,
   QuickUrlDraft,
   ScopeVerificationReport,
   TicketQueryOptions,
@@ -26,6 +28,7 @@ import {
   createGitHubPullRequest,
   enforceGitHubPrCreateOnly,
   findExistingGitHubPullRequest,
+  getGitHubPullRequestState,
 } from "./github/pull-requests.js";
 import { listGitHubRepositories } from "./github/repositories.js";
 import { listGitHubTickets } from "./github/tickets.js";
@@ -92,6 +95,14 @@ export function createGithubProvider(
       signal?: AbortSignal,
     ): Promise<ProviderPullRequest | null> {
       return findExistingGitHubPullRequest(config, input, fetchFn, signal);
+    },
+
+    getPullRequestState(
+      config: ProviderConfig,
+      input: GetPullRequestStateInput,
+      signal?: AbortSignal,
+    ): Promise<PullRequestState | null> {
+      return getGitHubPullRequestState(config, input, fetchFn, signal);
     },
 
     describeConnection(config: ProviderConfig): string | null {

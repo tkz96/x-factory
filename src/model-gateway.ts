@@ -10,12 +10,12 @@
 import { ModelUnavailableError, type ResolvedModel } from "./model-roles.js";
 import { modelKey } from "./shared/model-key.js";
 
-export interface Clock {
+export interface ModelGatewayClock {
   now(): number;
   sleep(ms: number, signal?: AbortSignal): Promise<void>;
 }
 
-const realClock: Clock = {
+const realClock: ModelGatewayClock = {
   now: () => Date.now(),
   sleep: (ms, signal) =>
     new Promise<void>((resolve, reject) => {
@@ -76,7 +76,7 @@ export function concurrencyLimitFor(limits: {
 }
 
 export interface GatewayOptions {
-  clock?: Clock;
+  clock?: ModelGatewayClock;
   /** Longest total wait before giving up, ms. */
   maxWaitMs?: number;
   baseBackoffMs?: number;
@@ -110,7 +110,7 @@ interface Lane {
 }
 
 export class ModelGateway {
-  private readonly clock: Clock;
+  private readonly clock: ModelGatewayClock;
   private readonly maxWaitMs: number;
   private readonly baseBackoffMs: number;
   private readonly maxBackoffMs: number;

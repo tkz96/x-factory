@@ -4,7 +4,7 @@
 // pull request, and the failure with its recovery.
 
 import { type DiffSummary, summarizeDiff } from "../../shared/diff-summary.js";
-import type { Run, RunEvent } from "../../shared/types.js";
+import type { PullRequestOutcome, Run, RunEvent } from "../../shared/types.js";
 import { runStatusUi } from "./run-status-ui.js";
 
 export interface RunNowFailure {
@@ -22,6 +22,7 @@ export interface RunNow {
   /** The change summary once changes exist, or null. */
   diff: DiffSummary | null;
   pullRequestUrl: string | null;
+  pullRequestOutcome: PullRequestOutcome | null;
   failure: RunNowFailure | null;
 }
 
@@ -88,12 +89,52 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     diff = summary.files.length > 0 ? summary : null;
   }
 
+  const mergedEvent = latest<{
+    url: string;
+    mergedAt: string;
+    mergedBy?: string;
+  }>(events, "pr_merged");
+  const closedEvent = latest<{ url: string; closedAt: string }>(
+    events,
+    "pr_closed",
+  );
+
+  const outcome: PullRequestOutcome | null =
+    run.pullRequestOutcome ??
+    (mergedEvent
+      ? {
+          status: "merged",
+          state: "merged",
+          url: mergedEvent.url,
+          mergedAt: mergedEvent.mergedAt,
+          mergedBy: mergedEvent.mergedBy,
+        }
+      : closedEvent
+        ? {
+            status: "closed",
+            state: "closed",
+            url: closedEvent.url,
+            closedAt: closedEvent.closedAt,
+          }
+        : null);
+
+  let title = ui.header;
+  let sentence = ui.now;
+  if (outcome?.status === "merged") {
+    title = "Merged";
+    sentence = "The pull request was merged.";
+  } else if (outcome?.status === "closed") {
+    title = "Closed without merging";
+    sentence = "The pull request was closed without merging.";
+  }
+
   return {
-    title: ui.header,
-    sentence: ui.now,
+    title,
+    sentence,
     plan,
     diff,
-    pullRequestUrl: run.pullRequest?.url ?? null,
+    pullRequestUrl: run.pullRequest?.url ?? outcome?.url ?? null,
+    pullRequestOutcome: outcome,
     failure: failureFor(run, events),
   };
 }

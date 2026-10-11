@@ -182,6 +182,34 @@ describe("Runs rows", () => {
       /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
     );
   });
+
+  it("shows Merged and Closed without merging badges when pullRequestOutcome is present", () => {
+    const mergedRun = {
+      ...run("m", "pr_created", "Merged ticket"),
+      pullRequestOutcome: {
+        status: "merged" as const,
+        url: "https://github.com/o/r/pull/1",
+        mergedAt: "2026-10-11T10:00:00.000Z",
+      },
+    };
+    const closedRun = {
+      ...run("c", "pr_created", "Closed ticket"),
+      pullRequestOutcome: {
+        status: "closed" as const,
+        url: "https://github.com/o/r/pull/2",
+        closedAt: "2026-10-11T10:00:00.000Z",
+      },
+    };
+    const view = renderRuns(
+      makeClient([mergedRun, closedRun]),
+      "/runs?filter=done",
+    );
+    const mergedRow = view.getByRole("link", { name: /T-m/ });
+    expect(mergedRow.textContent).toContain("Merged");
+
+    const closedRow = view.getByRole("link", { name: /T-c/ });
+    expect(closedRow.textContent).toContain("Closed without merging");
+  });
 });
 
 describe("Live updates from the app-wide stream", () => {
@@ -264,6 +292,45 @@ describe("Live updates from the app-wide stream", () => {
     );
     expect(urls).toEqual(["/api/runs/n"]);
     expect(segment(view, /^All\s*2$/)).toBeTruthy();
+  });
+
+  it("updates a row with Merged badge when pr_merged event arrives", async () => {
+    const prRun = run("c", "pr_created", "PR ticket");
+    const client = makeClient([prRun]);
+    const view = renderRuns(client, "/runs?filter=done");
+    expect(rowTitles(view).join("|")).toContain("PR ticket");
+
+    let onMessage: ((data: string) => void) | undefined;
+    const stop = subscribeAppEvents({
+      queryClient: client,
+      initialCursor: 0,
+      transport: (_cursor, handlers) => {
+        onMessage = handlers.onMessage;
+        return () => {};
+      },
+    });
+
+    const envelope: AppEventEnvelope = {
+      id: 5,
+      runId: "c",
+      sequence: 10,
+      type: "pr_merged",
+      payload: {
+        url: "https://github.com/o/r/pull/1",
+        mergedAt: new Date().toISOString(),
+      },
+      time: new Date().toISOString(),
+      ticket: prRun.ticket,
+      project: PROJECT,
+    } as unknown as AppEventEnvelope;
+
+    act(() => onMessage?.(JSON.stringify(envelope)));
+    stop();
+
+    await waitFor(() => {
+      const row = view.getByRole("link", { name: /T-c/ });
+      expect(row.textContent).toContain("Merged");
+    });
   });
 });
 

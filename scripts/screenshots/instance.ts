@@ -203,6 +203,11 @@ function seedRuns(dataDir: string): DemoRun[] {
           title: spec.title,
         },
       });
+      repos.events.appendEvent(id, "pr_merged", {
+        url: "https://example.invalid/pull/12",
+        mergedAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+        mergedBy: "octocat",
+      });
     }
     created.push({ id, status: spec.status });
   }

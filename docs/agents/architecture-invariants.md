@@ -19,7 +19,7 @@ If a connection that the graph suggests conflicts with the docs, the docs win.
 
 Owner: [Process boundaries and system topology](../explanation/process-boundaries-and-topology.md).
 
-- **API process (`src/server.ts`).** Handles HTTP and SSE routing, validates input and writes to SQLite. A command writes its intent to SQLite and returns at once. The API process never executes workflows, starts agent sessions or runs pipeline stages. That keeps the API responsive, and a crash in a stage cannot take the API down.
+- **API process (`src/server.ts`).** Handles HTTP and SSE routing, validates input and writes to SQLite. A command writes its intent to SQLite and returns at once (e.g. opening a `pr_created` run writes a `check_pr` command; the API process never makes host network calls). The API process never executes workflows, starts agent sessions or runs pipeline stages. That keeps the API responsive, and a crash in a stage cannot take the API down.
 
 Run chat is the known exception. A chat message makes a short model call inside the request, and that call can wait up to 60 seconds for a rate-limit slot. It uses its own queue (`chatGateway` in `src/runs.ts`). It is outside the shared model gateway and the daily model budgets.
 - **Worker process (`src/worker.ts`).** A separate Bun process. It polls SQLite, claims a job atomically with a lease, runs the stage through its executor in `src/executors/`, and records the result. While it works, it renews the lease. If a worker dies, its lease expires and another worker can claim the job.

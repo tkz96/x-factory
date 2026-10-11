@@ -102,6 +102,40 @@ describe("the now header says what the run is doing", () => {
     expect(now.pullRequestUrl).toBe("https://github.com/o/r/pull/9");
   });
 
+  it("updates title and outcome when pull request is merged", () => {
+    const now = runNow(
+      makeRun("pr_created", {
+        pullRequestOutcome: {
+          status: "merged",
+          url: "https://github.com/o/r/pull/9",
+          mergedAt: "2026-09-20T12:30:00.000Z",
+          mergedBy: "octocat",
+        },
+      }),
+      [],
+    );
+    expect(now.title).toBe("Merged");
+    expect(now.sentence).toBe("The pull request was merged.");
+    expect(now.pullRequestOutcome?.status).toBe("merged");
+    expect(now.pullRequestOutcome?.mergedBy).toBe("octocat");
+  });
+
+  it("updates title and outcome when pull request is closed without merging", () => {
+    const now = runNow(
+      makeRun("pr_created", {
+        pullRequestOutcome: {
+          status: "closed",
+          url: "https://github.com/o/r/pull/9",
+          closedAt: "2026-09-20T12:30:00.000Z",
+        },
+      }),
+      [],
+    );
+    expect(now.title).toBe("Closed without merging");
+    expect(now.sentence).toBe("The pull request was closed without merging.");
+    expect(now.pullRequestOutcome?.status).toBe("closed");
+  });
+
   it("explains a failed run with its structured reason and recovery", () => {
     const now = runNow(makeRun("failed"), [
       ev(3, "status", {

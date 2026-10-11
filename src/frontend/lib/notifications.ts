@@ -64,6 +64,20 @@ type EnvelopeLike = Pick<
 export function notificationFromEvent(
   envelope: EnvelopeLike,
 ): AppNotification | null {
+  if (envelope.type === "pr_merged") {
+    return {
+      id: envelope.id,
+      runId: envelope.runId,
+      ticketId: envelope.ticket.id,
+      ticketTitle: envelope.ticket.title,
+      projectName: envelope.project.name,
+      status: "pr_created",
+      group: "Finished",
+      text: "Merged",
+      detail: null,
+      time: envelope.time,
+    };
+  }
   if (envelope.type !== "status") return null;
   const payload = envelope.payload as StatusEventPayload;
   const kind = runStatusUi(payload.status).notification;
@@ -139,6 +153,13 @@ export function applyNotificationEnvelope(
   state: NotificationState,
   envelope: EnvelopeLike,
 ): NotificationState {
+  if (envelope.type === "pr_merged") {
+    const notification = notificationFromEvent(envelope);
+    const items = notification
+      ? withItems(state.items, [notification])
+      : state.items;
+    return { items, triggers: state.triggers, runs: state.runs };
+  }
   if (envelope.type !== "status") return state;
   const payload = envelope.payload as StatusEventPayload;
   const runs = new Map(state.runs);

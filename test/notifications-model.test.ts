@@ -127,12 +127,26 @@ describe("notificationFromEvent (#264)", () => {
       text: "Run stopped",
       detail: "Stopped by operator",
     });
+    const prMergedEnvelope = {
+      ...envelope(15, "r1", "pr_created"),
+      type: "pr_merged",
+      payload: {
+        url: "https://github.com/org/repo/pull/42",
+        mergedAt: "2026-10-11T01:00:00.000Z",
+        mergedBy: "octocat",
+      },
+    } as unknown as AppEventEnvelope;
+    expect(notificationFromEvent(prMergedEnvelope)).toMatchObject({
+      group: "Finished",
+      text: "Merged",
+      detail: null,
+    });
   });
 
   it("maps nothing for statuses with no notification and for non-status events", () => {
-    expect(notificationFromEvent(envelope(15, "r1", "executing"))).toBeNull();
+    expect(notificationFromEvent(envelope(16, "r1", "executing"))).toBeNull();
     const info = {
-      ...envelope(16, "r1", "planning"),
+      ...envelope(17, "r1", "planning"),
       type: "info",
       payload: { text: "x" },
     };
@@ -192,6 +206,27 @@ describe("notification state (#264)", () => {
     );
     const shown = visibleNotifications(state).map((n) => n.text);
     expect(shown).toEqual(["Run failed"]);
+  });
+
+  it("applies pr_merged event to visible Finished notifications", () => {
+    let state = emptyNotificationState();
+    state = applyNotificationEnvelope(state, envelope(52, "r1", "pr_created"));
+    const prMergedEnv = {
+      ...envelope(53, "r1", "pr_created"),
+      type: "pr_merged",
+      payload: {
+        url: "https://github.com/org/repo/pull/42",
+        mergedAt: "2026-10-11T01:00:00.000Z",
+        mergedBy: "octocat",
+      },
+    } as unknown as AppEventEnvelope;
+    state = applyNotificationEnvelope(state, prMergedEnv);
+    const shown = visibleNotifications(state);
+    expect(
+      shown.some(
+        (n) => n.id === 53 && n.text === "Merged" && n.group === "Finished",
+      ),
+    ).toBe(true);
   });
 
   it("counts runs in a Needs-you status, not notifications", () => {
