@@ -1,5 +1,8 @@
-// test/theme-contrast.test.ts — Contrast verification across theme × appearance × contrast (#248).
+// test/theme-contrast.test.ts — Contrast verification across theme × appearance × contrast (#248, #249).
 // Requires 4.5:1 for body/muted text, and 3:1 for controls and focus rings.
+// The twelve sets (Default, Graphite, Sandstone × Light, Dark × Standard, More)
+// are resolved the way the browser cascades tokens.css: matching rules in
+// specificity and source order, with var() references followed.
 
 import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
@@ -78,6 +81,99 @@ function contrastRatio(colorA: RGB, colorB: RGB): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+// ─── A small cascade over tokens.css ────────────────────────────────────────
+
+type Combo = Record<string, string>;
+
+interface Rule {
+  /** Attribute conditions of one selector, e.g. [["data-theme","graphite"]]. */
+  conditions: [string, string][];
+  order: number;
+  declarations: [string, string][];
+}
+
+/** Top-level style rules only: @font-face and @media blocks are skipped. */
+function parseRules(css: string): Rule[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: Rule[] = [];
+  let order = 0;
+  let i = 0;
+  while (i < text.length) {
+    const open = text.indexOf("{", i);
+    if (open === -1) break;
+    const selectorText = text.slice(i, open).trim();
+    let depth = 1;
+    let j = open + 1;
+    while (j < text.length && depth > 0) {
+      if (text[j] === "{") depth++;
+      else if (text[j] === "}") depth--;
+      j++;
+    }
+    const body = text.slice(open + 1, j - 1);
+    i = j;
+    if (selectorText.startsWith("@")) continue;
+
+    const declarations: [string, string][] = [];
+    for (const decl of body.split(";")) {
+      const colon = decl.indexOf(":");
+      if (colon === -1) continue;
+      const prop = decl.slice(0, colon).trim();
+      const value = decl
+        .slice(colon + 1)
+        .trim()
+        .replace(/\s+/g, " ");
+      if (prop.startsWith("--") && value) declarations.push([prop, value]);
+    }
+
+    for (const selector of selectorText.split(",")) {
+      let rest = selector.trim();
+      const conditions: [string, string][] = [];
+      let supported = true;
+      while (rest.length > 0) {
+        const attr = rest.match(/^\[(data-[a-z-]+)="([^"]+)"\]/);
+        if (attr) {
+          conditions.push([attr[1] ?? "", attr[2] ?? ""]);
+          rest = rest.slice(attr[0].length);
+        } else if (rest.startsWith(":root")) {
+          rest = rest.slice(":root".length);
+        } else {
+          supported = false;
+          break;
+        }
+      }
+      if (supported) rules.push({ conditions, order: order++, declarations });
+    }
+  }
+  return rules;
+}
+
+/** The custom-property values an element computes for one combination. */
+function cascade(rules: Rule[], combo: Combo): Record<string, string> {
+  const matching = rules
+    .filter((rule) =>
+      rule.conditions.every(([attr, value]) => combo[attr] === value),
+    )
+    .sort(
+      (a, b) => a.conditions.length - b.conditions.length || a.order - b.order,
+    );
+  const values: Record<string, string> = {};
+  for (const rule of matching) {
+    for (const [prop, value] of rule.declarations) values[prop] = value;
+  }
+  return values;
+}
+
+function resolveVars(
+  value: string,
+  values: Record<string, string>,
+  depth = 0,
+): string {
+  if (depth > 10) return value;
+  return value.replace(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g, (_, name: string) =>
+    resolveVars(values[name] ?? "", values, depth + 1),
+  );
+}
+
 interface ResolvedThemeTokens {
   bg: RGB;
   bgCard: RGB;
@@ -88,103 +184,72 @@ interface ResolvedThemeTokens {
   accent: RGB;
 }
 
-function extractThemeTokens(tokensCss: string): {
-  lightStandard: ResolvedThemeTokens;
-  lightMore: ResolvedThemeTokens;
-  darkStandard: ResolvedThemeTokens;
-  darkMore: ResolvedThemeTokens;
-} {
-  // Parse blocks from tokens.css
-  function parseBlock(blockText: string): Record<string, string> {
-    const tokens: Record<string, string> = {};
-    for (const match of blockText.matchAll(
-      /(--[a-zA-Z0-9_-]+)\s*:\s*([^;]+);/g,
-    )) {
-      const prop = match[1];
-      const val = match[2];
-      if (prop && val) {
-        tokens[prop] = val.trim();
-      }
-    }
-    return tokens;
-  }
-
-  // Find blocks for each combination
-  // Light standard tokens
-  const lightBlock =
-    tokensCss.match(/\[data-appearance="light"\][^{]*\{([^}]+)\}/)?.[1] ??
-    tokensCss.match(/\[data-theme="light"\][^{]*\{([^}]+)\}/)?.[1] ??
-    "";
-  const lightTokens = parseBlock(lightBlock);
-
-  // Light more contrast
-  const lightMoreBlock =
-    tokensCss.match(
-      /\[data-appearance="light"\]\[data-contrast="more"\][^{]*\{([^}]+)\}/,
-    )?.[1] ??
-    tokensCss.match(/\[data-contrast="more"\][^{]*\{([^}]+)\}/)?.[1] ??
-    "";
-  const lightMoreTokens = { ...lightTokens, ...parseBlock(lightMoreBlock) };
-
-  // Dark standard tokens
-  const darkBlock =
-    tokensCss.match(/\[data-appearance="dark"\][^{]*\{([^}]+)\}/)?.[1] ??
-    tokensCss.match(/\[data-theme="dark"\][^{]*\{([^}]+)\}/)?.[1] ??
-    "";
-  const darkTokens = parseBlock(darkBlock);
-
-  // Dark more contrast
-  const darkMoreBlock =
-    tokensCss.match(
-      /\[data-appearance="dark"\]\[data-contrast="more"\][^{]*\{([^}]+)\}/,
-    )?.[1] ?? "";
-  const darkMoreTokens = { ...darkTokens, ...parseBlock(darkMoreBlock) };
-
-  function buildResolved(t: Record<string, string>): ResolvedThemeTokens {
-    const bg = parseColor(t["--bg"] ?? "#000000");
-    const bgCard = parseColor(t["--bg-card"] ?? t["--bg"] ?? "#1c1c1e");
-    const rawBorder = parseColor(t["--border"] ?? "#888888");
-    const rawFocus = parseColor(t["--border-focus"] ?? "#0a84ff");
-    const rawAccent = parseColor(t["--accent"] ?? "#0a84ff");
-    const rawText = parseColor(t["--text"] ?? "#ffffff");
-    const rawMuted = parseColor(t["--text-muted"] ?? "#999999");
-
-    return {
-      bg,
-      bgCard,
-      text: composite(rawText, bg),
-      textMuted: composite(rawMuted, bg),
-      border: composite(rawBorder, bg),
-      borderFocus: composite(rawFocus, bg),
-      accent: composite(rawAccent, bg),
-    };
-  }
+function buildResolved(values: Record<string, string>): ResolvedThemeTokens {
+  const get = (name: string, fallback: string) =>
+    resolveVars(values[name] ?? fallback, values);
+  const bg = parseColor(get("--bg", "#000000"));
+  const bgCard = parseColor(get("--bg-card", get("--bg", "#1c1c1e")));
+  const rawBorder = parseColor(get("--border", "#888888"));
+  const rawFocus = parseColor(get("--border-focus", "#0a84ff"));
+  const rawAccent = parseColor(get("--accent", "#0a84ff"));
+  const rawText = parseColor(get("--text", "#ffffff"));
+  const rawMuted = parseColor(get("--text-muted", "#999999"));
 
   return {
-    lightStandard: buildResolved(lightTokens),
-    lightMore: buildResolved(lightMoreTokens),
-    darkStandard: buildResolved(darkTokens),
-    darkMore: buildResolved(darkMoreTokens),
+    bg,
+    bgCard,
+    text: composite(rawText, bg),
+    textMuted: composite(rawMuted, bg),
+    border: composite(rawBorder, bg),
+    borderFocus: composite(rawFocus, bg),
+    accent: composite(rawAccent, bg),
   };
 }
 
-describe("Default Theme Contrast Gates across appearance × contrast (#248)", () => {
+const THEMES = [
+  { id: "default", name: "Default" },
+  { id: "graphite", name: "Graphite" },
+  { id: "sandstone", name: "Sandstone" },
+];
+const APPEARANCES = [
+  { id: "light", name: "Light" },
+  { id: "dark", name: "Dark" },
+];
+const CONTRASTS = [
+  { id: "standard", name: "Standard" },
+  { id: "more", name: "More contrast" },
+];
+
+describe("Theme Contrast Gates across theme × appearance × contrast (#248, #249)", () => {
   const TOKENS_PATH = path.resolve(
     import.meta.dir,
     "../src/frontend/styles/tokens.css",
   );
-  const tokensCss = fs.readFileSync(TOKENS_PATH, "utf-8");
-  const themes = extractThemeTokens(tokensCss);
+  const rules = parseRules(fs.readFileSync(TOKENS_PATH, "utf-8"));
 
-  const configs = [
-    { name: "Light (Standard)", tokens: themes.lightStandard, isMore: false },
-    { name: "Light (More Contrast)", tokens: themes.lightMore, isMore: true },
-    { name: "Dark (Standard)", tokens: themes.darkStandard, isMore: false },
-    { name: "Dark (More Contrast)", tokens: themes.darkMore, isMore: true },
-  ];
+  const sets = THEMES.flatMap((theme) =>
+    APPEARANCES.flatMap((appearance) =>
+      CONTRASTS.map((contrast) => ({
+        name: `${theme.name} · ${appearance.name} · ${contrast.name}`,
+        combo: {
+          "data-theme": theme.id,
+          "data-appearance": appearance.id,
+          "data-contrast": contrast.id,
+        },
+        isMore: contrast.id === "more",
+      })),
+    ),
+  );
 
-  for (const { name, tokens, isMore } of configs) {
-    describe(`${name}`, () => {
+  it("covers all 12 theme × appearance × contrast sets", () => {
+    expect(sets.length).toBe(12);
+    expect(new Set(sets.map((s) => s.name)).size).toBe(12);
+  });
+
+  for (const { name, combo, isMore } of sets) {
+    describe(name, () => {
+      const tokens = buildResolved(cascade(rules, combo));
+
       it("meets 4.5:1 text contrast for primary and muted text against background", () => {
         const textRatio = contrastRatio(tokens.text, tokens.bg);
         const mutedRatio = contrastRatio(tokens.textMuted, tokens.bg);
