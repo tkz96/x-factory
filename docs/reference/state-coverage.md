@@ -8,11 +8,13 @@ All async and input feedback renders through the presentation-only family at `sr
 
 - `AsyncRegion` — renders the five-state taxonomy from a derived state enum. It never sees the query.
 - `FieldFeedback` — inline input states: `valid | invalid | warning | indeterminate` (plus `default`, which renders nothing).
-- `FeedbackBanner` — inline partial/degraded warnings and rate-limit timed guidance, with `role="status"` semantics.
+- `FeedbackBanner` — inline partial/degraded warnings and rate-limit timed guidance. Errors are announced as `role="alert"`; informational and partial states stay `role="status"` (#251).
 - `RetryAction` — the uniform retry affordance.
 - `copy-map.ts` — THE canonical `(code, context) → message` map plus the five-state guidance strings. All canonical copy lives there, nowhere else. The provider error table itself is defined once in `src/shared/provider-error-copy.ts` and re-exported here, because the provider layer (`src/providers/errors.ts`) must resolve the same strings and the frontend may not import `src/providers/`.
 
-Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). All feedback renders inline in its region — there is no toast system, ever.
+The family is presentation-only and renders through the one control vocabulary in `src/frontend/components/ui/` (#251): the button, badge, list row, placeholder rows and spinner blocks, built on React Aria and styled with tokens.
+
+Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). The one escape besides `src/shared` is `components/ui/`, which is screen-agnostic by construction and is itself held to the same rule. All feedback renders inline in its region — there is no toast system, ever.
 
 ## Read regions — loading / empty / partial / error / stale
 
@@ -20,7 +22,7 @@ State derivation is pure: `deriveAsyncState(query, { isEmpty, isPartial, isStale
 
 | State | Definition | Presentation |
 |---|---|---|
-| `loading` | No result yet — an initial fetch in flight (or paused/offline). A background refetch with data on screen is NOT loading. | Indeterminate spinner in a reserved region (`min-height` from spacing tokens, no layout shift). No skeleton or shimmer, ever. |
+| `loading` | No result yet — an initial fetch in flight (or paused/offline). A background refetch with data on screen is NOT loading. | Lists reserve **static placeholder rows** at the height the loaded rows will have (`--list-row-height`, from the row block in `src/frontend/components/ui/`); everything else shows the **one standard spinner** (`Spinner`) for small inline waits. The wait is announced once through `role="status"`. No shimmer, ever — placeholders are static and never animated (#251). |
 | `empty` | The region has results but none are usable (caller predicate `isEmpty`). | Guidance text from the copy map, overridable per region via props. |
 | `partial` | Some results loaded and others failed (caller predicate `isPartial`). | Content stays on screen plus a warning banner listing exactly which parts failed (`failedParts`), so the user knows what still works. |
 | `error` | The query failed AND the region has nothing to show. | Normalized message from the copy map + `RetryAction`. Never a raw provider body. |
@@ -29,7 +31,8 @@ State derivation is pure: `deriveAsyncState(query, { isEmpty, isPartial, isStale
 Two recorded refinements:
 
 1. **Error with data on screen is a suppressed diagnostic, not a primary state.** A failed refresh never hides working results; the error renders inline as a banner with a retry, carried in `suppressed`. The canonical case: stale + failed refresh → stale badge + error context + retry.
-2. **Loading means "no result yet."** An enabled-but-not-started query shows the reserved spinner region; consumers that gate a region (for example, a wizard step waiting on upstream inputs) simply do not render the region until it is live.
+2. **Loading means "no result yet."** An enabled-but-not-started query shows the reserved loading region; consumers that gate a region (for example, a wizard step waiting on upstream inputs) simply do not render the region until it is live.
+3. **Lists load as placeholder rows, everything else as the spinner (#251).** A list passes `placeholderRows` to `AsyncRegion`; its placeholder rows are the same row block as the real rows, so they reserve the same height and the list does not jump when data arrives. A small inline wait uses `Spinner`, the one wait indicator in the vocabulary. Neither is ever animated or shimmering, and neither is constructed by hand outside the blocks.
 
 Required test coverage for every read region: loading, empty, partial, error, stale.
 
@@ -296,7 +299,7 @@ Inputs render through `FieldFeedback`. The coverage contract requires testing `d
 
 ## Enforcement — honest scope
 
-- `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, and toast systems constructed outside `feedback/`. The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
+- `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, toast systems constructed outside `feedback/`, and any shimmer animation (#251 — static placeholder rows are the approved loading shape, a shimmer is not, in markup or in CSS). The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
 - Three end-to-end provider journeys (`test/provider-journeys.test.tsx`) run the REAL wizard against a REAL server with a registry injected through the provider contract's own seam: GitHub-only, Azure dual-role, and Jira tracker-only (degraded evidence plus a git host from another provider). They are written provider-agnostically — the provider under test is DATA (`test/fixtures/journey-providers.ts`), and the api-client transport is the only boundary that stands in — and they assert the created project's persisted connections, its role-tagged repository, its `gitIdentity`, and that no secret appears in any response.
 - The #148 read/mutation/input audit closed two gaps the earlier tickets left: the Connect step's own manifest region (`test/connect-step.test.tsx`) and the project detail surface's catalog region (`test/post-creation-surfacing.test.tsx`) now assert loading, error and empty, not only their ready and failure-of-connection states.
 - The scan carries an explicit legacy allowlist (`LEGACY_ADHOC_FEEDBACK_FILES`) for files whose ad-hoc markup predates this contract and is scheduled for absorption by the wizard rebuild (spec #133). New files must never appear there, and entries leave the list when their absorbing ticket deletes them. `ProjectDetailView` and `QueueView` left it in #147.
@@ -304,7 +307,8 @@ Inputs render through `FieldFeedback`. The coverage contract requires testing `d
 
 ## Adding a new region
 
-1. Derive its state with `deriveAsyncState` and render through `AsyncRegion` — never construct loading/error markup by hand.
+1. Derive its state with `deriveAsyncState` and render through `AsyncRegion` — never construct loading/error markup by hand. A list passes `placeholderRows`; anything else keeps the standard spinner.
 2. Pull all copy from `copy-map.ts`; extend the map rather than inlining strings.
-3. Test all five read states (or the three mutation states, or the three input states) for the new region.
-4. If the region errors with a normalized envelope, route the payload through `resolveErrorCopy` — raw error messages are never rendered.
+3. Render controls from `src/frontend/components/ui/` — never a hand-rolled button, field, switch or badge.
+4. Test all five read states (or the three mutation states, or the three input states) for the new region.
+5. If the region errors with a normalized envelope, route the payload through `resolveErrorCopy` — raw error messages are never rendered.

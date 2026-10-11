@@ -225,6 +225,17 @@ Before building any of the following, pull the matching component from the Figma
 
 For flows, check the Patterns section first: onboarding, search, feedback, data entry, notifications, undo/redo, settings. Apple has already solved most of the "how should this flow work" questions — use the solved version.
 
+### Building blocks (the control vocabulary)
+
+A screen composes blocks; it never hand-rolls a control. The vocabulary lives in `src/frontend/components/ui/` and is built on React Aria's unstyled primitives — React Aria owns behaviour (keyboard, press, focus visibility, disabled and touch semantics) and the tokens own every visual value. The one stylesheet is `src/frontend/styles/shared/controls.css`; see [docs/agents/frontend-styling.md](./docs/agents/frontend-styling.md) for the rules and the gate that enforces them.
+
+- button, icon button, text field, text area, select, segmented control, switch, badge, list row.
+- **Tap targets.** Every block a finger can hit is at least 44pt tall, taken from `--tap-min`.
+- **Focus.** One ring definition, drawn from `--border-width-indicator` and `--border-focus`, proved at 3:1 or better by the twelve-set contrast gate.
+- **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
+- **Loading.** A list reserves static placeholder rows at the height the loaded rows will have (`--list-row-height`) — no layout shift and no shimmer, ever. Every other wait is the one standard spinner, for small inline waits only.
+- **Icon-only controls** always carry an accessible name, and no status is ever an emoji.
+
 ## 8. Non-negotiables
 
 - MUST check the relevant HIG page and Figma kit before designing any new screen or component.
@@ -243,6 +254,9 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 - MUST NOT write inline `style={{...}}` blocks in TSX/JSX components. All styling must use semantic tokens, co-located component CSS (`./ComponentName.css`), or utility classes (`src/frontend/styles/utilities.css`).
 - MUST co-locate component and view stylesheets (`ComponentName.css` alongside `ComponentName.tsx`) and import them explicitly.
 - MUST adhere to the layered CSS architecture (`src/frontend/styles/index.css` = tokens → base → shared → utilities).
+- MUST build controls from the vocabulary in `src/frontend/components/ui/` (React Aria, tokens-only, `shared/controls.css`) instead of hand-rolling a button, field, switch or badge.
+- MUST keep lists' loading shape static: placeholder rows at the row height, never an animated shimmer. Small inline waits use the one spinner.
+- MUST announce errors as alerts, and MUST NOT exceed one wait indicator per view region.
 
 ## 9. Definition of done
 
@@ -261,6 +275,7 @@ Before calling any UI work finished, confirm:
 - [ ] Zero raw emojis used for status or diagnostics
 - [ ] Anti-drift & Design System tests pass (`bun test test/frontend-smoke.test.ts`)
 - [ ] Contrast checked — 4.5:1 minimum for body text
+- [ ] Loading states use the blocks: static placeholder rows for a list, the one spinner for an inline wait — no shimmer
 - [ ] Every icon-only control has an accessible label
 
 
