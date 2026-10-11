@@ -230,6 +230,7 @@ function DeliveryCheckpointSection({
               type="button"
               id="btn-approve"
               className="btn-primary"
+              data-primary-action
               onClick={onApprove}
             >
               {approveLabel}

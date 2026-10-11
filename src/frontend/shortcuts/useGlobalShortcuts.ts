@@ -27,6 +27,28 @@ function dialogIsOpen(): boolean {
   return document.querySelector(".xf-dialog-overlay") !== null;
 }
 
+/** The rows of the list that holds the focused element, or the first list on the page. */
+function moveListFocus(delta: 1 | -1): boolean {
+  const active =
+    document.activeElement?.closest<HTMLElement>("[data-list-row]");
+  let next: HTMLElement | null = null;
+  if (!active) {
+    next = document.querySelector<HTMLElement>("[data-list-row]");
+  } else {
+    const rows = Array.from(
+      active
+        .closest("[data-list]")
+        ?.querySelectorAll<HTMLElement>("[data-list-row]") ?? [],
+    );
+    const index = rows.indexOf(active);
+    next = rows[index + delta] ?? null;
+  }
+  if (!next) return false;
+  next.focus();
+  next.scrollIntoView({ block: "nearest" });
+  return true;
+}
+
 const SECTION_KEYS: Record<string, string> = {
   t: "/queue",
   r: "/runs",
@@ -48,6 +70,18 @@ export function useGlobalShortcuts(handlers: GlobalShortcutHandlers): void {
       if (eventMatchesStep(event, "mod+k", isMac)) {
         event.preventDefault();
         h.togglePalette();
+        return;
+      }
+
+      // Mod+Enter presses the one primary action on screen; it works in text fields.
+      if (eventMatchesStep(event, "mod+enter", isMac)) {
+        const primary = document.querySelector<HTMLButtonElement>(
+          "[data-primary-action]:not([disabled])",
+        );
+        if (primary) {
+          event.preventDefault();
+          primary.click();
+        }
         return;
       }
 
@@ -89,6 +123,25 @@ export function useGlobalShortcuts(handlers: GlobalShortcutHandlers): void {
         const search = findSearchInput();
         if (search) search.focus();
         else h.togglePalette();
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (moveListFocus(event.key === "ArrowDown" ? 1 : -1)) {
+          event.preventDefault();
+        }
+        return;
+      }
+      // Return on a focused row opens it. A link or button would do this itself;
+      // clicking here keeps one path for every row, including cards.
+      if (event.key === "Enter") {
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLElement &&
+          active.matches("[data-list-row]")
+        ) {
+          event.preventDefault();
+          active.click();
+        }
         return;
       }
       if (event.key === "?") {

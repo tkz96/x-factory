@@ -55,6 +55,7 @@ export function ProjectCard({ project, isArchived }: ProjectCardProps) {
       <Link
         to={`/projects/${project.id}`}
         className="project-card-link"
+        data-list-row
         aria-label={PROJECT_CARD_COPY.viewDetailsLabel(project.name)}
       >
         <div className="project-card-header">

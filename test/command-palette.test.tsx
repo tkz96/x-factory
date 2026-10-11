@@ -144,7 +144,12 @@ function dom() {
 function typeInto(el: HTMLElement, value: string) {
   act(() => {
     el.focus();
-    fireEvent.change(el, { target: { value } });
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    setter?.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
     fireEvent.keyUp(el);
   });
 }
@@ -263,7 +268,11 @@ describe("global shortcuts (#254)", () => {
 
   test("single keys are ignored while a text field has focus", () => {
     renderShell();
-    const field = dom().getByLabelText("Note field");
+    // A plain input outside React's tree: React's own event handling does not run
+    // for it under happy-dom, so the test checks only the shortcut guard.
+    const field = document.createElement("input");
+    field.type = "text";
+    document.body.appendChild(field);
     press("g", {}, field);
     press("r", {}, field);
     expect(currentPath()).toBe("/queue");
@@ -271,6 +280,7 @@ describe("global shortcuts (#254)", () => {
     expect(
       dom().queryByRole("dialog", { name: "Keyboard shortcuts" }),
     ).toBeNull();
+    field.remove();
   });
 
   test("? opens the shortcut sheet, which lists the registry", () => {

@@ -26,6 +26,7 @@ export const SHORTCUT_IDS = [
   "goRuns",
   "goProjects",
   "newRun",
+  "primaryAction",
   "search",
   "help",
   "stopRun",
@@ -81,6 +82,13 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     alternative: "New Run button in the toolbar",
   },
   {
+    id: "primaryAction",
+    label: "Primary action on this screen",
+    group: "Actions",
+    steps: ["mod+enter"],
+    alternative: "The highlighted button on the screen (Approve, Send)",
+  },
+  {
     id: "stopRun",
     label: "Stop run",
     group: "Actions",
@@ -106,14 +114,14 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     label: "Previous item in a list",
     group: "Navigation",
     steps: ["arrowup"],
-    alternative: "Mouse or touch",
+    alternative: "Tab to the list and click a row",
   },
   {
     id: "moveDown",
     label: "Next item in a list",
     group: "Navigation",
     steps: ["arrowdown"],
-    alternative: "Mouse or touch",
+    alternative: "Tab to the list and click a row",
   },
   {
     id: "openItem",

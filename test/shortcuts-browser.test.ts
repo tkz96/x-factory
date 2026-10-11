@@ -18,9 +18,14 @@ import { startIsolatedInstance } from "../scripts/screenshots/instance.js";
 
 const MOD = process.platform === "darwin" ? "Meta" : "Control";
 
+// Firefox runs only where it is enforced: Playwright's Firefox builds do not
+// launch on macOS 27, so locally it is opt-in. CI sets X_FACTORY_E2E_FIREFOX=1
+// on Linux, where a Firefox failure fails the build. Chromium and WebKit always run.
+const FIREFOX_ENABLED = process.env.X_FACTORY_E2E_FIREFOX === "1";
+
 const ENGINES = [
   { name: "chromium", engine: chromium },
-  { name: "firefox", engine: firefox },
+  ...(FIREFOX_ENABLED ? [{ name: "firefox", engine: firefox }] : []),
   { name: "webkit", engine: webkit },
 ] as const;
 
@@ -107,5 +112,59 @@ for (const { name, engine } of ENGINES) {
       await page.keyboard.press("Escape");
       await sheet.waitFor({ state: "detached" });
     });
+
+    test("ArrowDown and ArrowUp move focus through the history rows", async () => {
+      const page = await openPage(browser, "/history");
+      await page.waitForSelector("[data-list-row]");
+      await page.locator("body").click({ position: { x: 1, y: 1 } });
+      await page.keyboard.press("ArrowDown");
+      const first = await page.evaluate(() =>
+        document.activeElement?.getAttribute("href"),
+      );
+      await page.keyboard.press("ArrowDown");
+      const second = await page.evaluate(() =>
+        document.activeElement?.getAttribute("href"),
+      );
+      expect(second).not.toBe(first);
+      await page.keyboard.press("ArrowUp");
+      expect(
+        await page.evaluate(() => document.activeElement?.getAttribute("href")),
+      ).toBe(first);
+    });
+
+    test("Return opens the focused history row", async () => {
+      const page = await openPage(browser, "/history");
+      await page.waitForSelector("[data-list-row]");
+      await page.locator("body").click({ position: { x: 1, y: 1 } });
+      await page.keyboard.press("ArrowDown");
+      const href = await page.evaluate(
+        () => document.activeElement?.getAttribute("href") ?? "",
+      );
+      await page.keyboard.press("Enter");
+      await page.waitForURL((url) => url.pathname === href);
+    });
+
+    test("Mod+Enter presses the primary action on the run page", async () => {
+      const run = instance.runs.find((r) => r.status === "awaiting_review");
+      if (!run) throw new Error("The demo data has no run awaiting review.");
+      const page = await openPage(browser, `/runs/${run.id}`);
+      // The seeded run is shared by every engine, so the approve request is
+      // aborted rather than sent: the press is what this test checks.
+      await page.route(
+        (url) => url.pathname.includes(`/api/runs/${run.id}`),
+        (route) => {
+          if (route.request().method() === "GET") return route.continue();
+          return route.abort();
+        },
+      );
+      await page.locator("#btn-approve").waitFor();
+      const approved = page.waitForRequest(
+        (req) =>
+          req.method() === "POST" && req.url().includes(`/api/runs/${run.id}`),
+      );
+      await page.locator("body").click({ position: { x: 1, y: 1 } });
+      await page.keyboard.press(`${MOD}+Enter`);
+      await approved;
+    }, 60_000);
   });
 }

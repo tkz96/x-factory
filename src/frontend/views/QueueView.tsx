@@ -110,7 +110,7 @@ export function QueueView() {
         isRefreshing={isRefetching}
       />
 
-      <div id="queue-tickets-list" className="tickets-grid">
+      <div id="queue-tickets-list" className="tickets-grid" data-list>
         <AsyncRegion
           derived={derived}
           onRetry={

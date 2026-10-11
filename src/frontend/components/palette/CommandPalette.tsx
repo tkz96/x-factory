@@ -6,7 +6,14 @@
 
 import "./CommandPalette.css";
 
-import { type KeyboardEvent, useId, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects, useRuns } from "../../hooks/useQueries.js";
@@ -53,6 +60,12 @@ function PaletteBody({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const listId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Focus is set after mount rather than with the autoFocus attribute, which
+  // React applies during commit and which the test DOM reports as an error.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const items = useMemo(
     () =>
@@ -108,7 +121,7 @@ function PaletteBody({
       <div className="command-palette-search">
         <input
           // biome-ignore lint/a11y/noAutofocus: the palette exists to be typed into
-          autoFocus
+          ref={inputRef}
           type="text"
           role="combobox"
           aria-expanded="true"
