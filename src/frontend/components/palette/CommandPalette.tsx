@@ -169,7 +169,7 @@ function PaletteBody({
                 <span className="command-palette-detail">{item.detail}</span>
               ) : null}
               {item.shortcutId && shortcutLabel(item.shortcutId, isMac) ? (
-                <kbd className="command-palette-keys" aria-hidden="true">
+                <kbd className="command-palette-keys">
                   {shortcutLabel(item.shortcutId, isMac)}
                 </kbd>
               ) : null}
