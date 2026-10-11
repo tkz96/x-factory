@@ -15,6 +15,7 @@ import {
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -380,6 +381,8 @@ function ModelsTabContent({
 
   return (
     <div id="tab-models" className="settings-pane active">
+      <ModelConnectionsPanel />
+
       <h3>Pi &amp; Models</h3>
       <p className="text-muted">
         Configure LLM providers and models for Pi Agent sessions.

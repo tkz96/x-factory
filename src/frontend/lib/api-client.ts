@@ -1,4 +1,11 @@
 import type {
+  ModelApiType,
+  ModelConnectionView,
+  ModelListResult,
+  ModelRecord,
+  ModelRecordPatch,
+} from "../../shared/model-connection-types.js";
+import type {
   AbandonRunRequest,
   AbandonRunResponse,
   ChatWithRunRequest,
@@ -403,6 +410,103 @@ export const api = {
   },
 
   // Settings & Readiness
+  // ─── Model connections (#276/#277) ─────────────────────────────────────────
+
+  async listModelConnections(): Promise<ModelConnectionView[]> {
+    const res = await fetch("/api/model-connections");
+    return handleResponse<ModelConnectionView[]>(res);
+  },
+
+  async createModelConnection(payload: {
+    name: string;
+    apiType: ModelApiType;
+    baseUrl?: string | undefined;
+    apiKey?: string | undefined;
+  }): Promise<ModelConnectionView> {
+    const res = await fetch("/api/model-connections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<ModelConnectionView>(res);
+  },
+
+  async updateModelConnection(
+    id: string,
+    payload: {
+      name?: string | undefined;
+      baseUrl?: string | undefined;
+      apiKey?: string | undefined;
+    },
+  ): Promise<ModelConnectionView> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    return handleResponse<ModelConnectionView>(res);
+  },
+
+  async deleteModelConnection(id: string): Promise<{ ok: boolean }> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    );
+    return handleResponse<{ ok: boolean }>(res);
+  },
+
+  async checkModelConnection(id: string): Promise<ModelListResult> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/check`,
+      { method: "POST" },
+    );
+    return handleResponse<ModelListResult>(res);
+  },
+
+  async addConnectionModel(id: string, modelId: string): Promise<ModelRecord> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/models`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId }),
+      },
+    );
+    return handleResponse<ModelRecord>(res);
+  },
+
+  async updateConnectionModel(
+    id: string,
+    modelId: string,
+    patch: ModelRecordPatch,
+  ): Promise<ModelRecord> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/models?modelId=${encodeURIComponent(modelId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      },
+    );
+    return handleResponse<ModelRecord>(res);
+  },
+
+  async removeConnectionModel(
+    id: string,
+    modelId: string,
+  ): Promise<{ ok: boolean }> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/models?modelId=${encodeURIComponent(modelId)}`,
+      { method: "DELETE" },
+    );
+    return handleResponse<{ ok: boolean }>(res);
+  },
+
   async getSettings(): Promise<WorkbenchSettings> {
     const res = await fetch("/api/settings");
     return handleResponse<WorkbenchSettings>(res);
