@@ -209,7 +209,7 @@ describe("one active run per ticket (#255)", () => {
       "utf-8",
     );
     const tx =
-      /const insertActiveRun = db\.transaction\([\s\S]*?\n {2}\}\);\n\n {2}const createdRun = insertActiveRun\.immediate\(\);/.exec(
+      /const insertActiveRun = db\.transaction\([\s\S]*?\n {2}\}\);[\s\S]*?createdRun = insertActiveRun\.immediate\(\);/.exec(
         source,
       )?.[0];
     if (tx === undefined) {
@@ -219,7 +219,10 @@ describe("one active run per ticket (#255)", () => {
     }
     // The guard and the insert live in that one transaction, and the transaction
     // is the immediate one: it takes the write lock before its first read.
-    expect(tx).toContain("findActiveRunForTicket");
+    expect(tx).toContain("refuseIfActive();");
+    expect(source).toMatch(
+      /const refuseIfActive = \(\) => \{\n\s+const active = runRepo\.findActiveRunForTicket\(/,
+    );
     expect(tx).toContain("runRepo.create(");
     expect(tx).toContain("insertActiveRun.immediate()");
   });

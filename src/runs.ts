@@ -144,16 +144,21 @@ export async function createRun(
   const jobRepo = repos.jobs;
   const eventRepo = repos.events;
 
-  // One active run per ticket (#255). The guard and the insert share ONE
-  // immediate transaction: it takes the write lock before reading the active
-  // run, so a second concurrent create — in this process or another — waits,
-  // then sees the winner and is refused with the winner's id. "Active" is the
-  // shared policy's set; the repository declares no statuses of its own.
-  const insertActiveRun = db.transaction((): RunRecord => {
+  // One active run per ticket (#255). A quick check refuses before any file
+  // is written. The run's files are then written before its pending job is
+  // visible to a worker (Phase 1, Section 19), and the guard runs again inside
+  // ONE immediate transaction with the insert: it takes the write lock before
+  // reading, so a concurrent create waits, then sees the winner and is refused
+  // with the winner's id. "Active" is the shared policy's set.
+  const refuseIfActive = () => {
     const active = runRepo.findActiveRunForTicket(project.id, ticket.id);
-    if (active) {
-      throw new ActiveRunExistsError(active.id, ticket.id);
-    }
+    if (active) throw new ActiveRunExistsError(active.id, ticket.id);
+  };
+  refuseIfActive();
+  await initializeRunArtifacts(artifactsDir, ticket, plan);
+
+  const insertActiveRun = db.transaction((): RunRecord => {
+    refuseIfActive();
 
     const created = runRepo.create({
       id,
@@ -181,16 +186,11 @@ export async function createRun(
     return created;
   });
 
-  const createdRun = insertActiveRun.immediate();
-
-  // The artifacts are written only once the insert has won, so a refused or
-  // failed attempt leaves no run files on disk (#255). If writing them fails
-  // anyway, the run it created is removed again: no half-created run is left
-  // for a worker to claim.
+  // A run that lost the race (or failed to insert) leaves no files behind.
+  let createdRun: RunRecord;
   try {
-    await initializeRunArtifacts(artifactsDir, ticket, plan);
+    createdRun = insertActiveRun.immediate();
   } catch (err) {
-    runRepo.delete(id);
     await removeRunArtifacts(artifactsDir);
     throw err;
   }
