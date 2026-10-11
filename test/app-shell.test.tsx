@@ -285,6 +285,8 @@ describe("Help is reachable from Settings (#258)", () => {
         </ProjectProvider>
       </QueryClientProvider>,
     );
+    // Help is its own category in the Settings list (#266).
+    fireEvent.click(view.getByRole("link", { name: "Help" }));
     const docs = view.getByRole("link", { name: "Documentation" });
     expect(docs.getAttribute("href")).toBe("/docs");
     const reference = view.getByRole("link", { name: "API Reference" });
