@@ -3,43 +3,43 @@ import {
   ACTIVE_RUN_STATUSES,
   runStatusLabel,
 } from "../../shared/run-status-policy.js";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
 import "./RunsView.css";
 
 export function RunsView() {
   const { openNewRunModal } = useModal();
-  const { data: runs = [], isLoading } = useRuns();
+  const runsQuery = useRuns();
+  const runs = runsQuery.data ?? [];
+  const { refetch } = runsQuery;
 
   const activeRuns = runs.filter((r) => ACTIVE_RUN_STATUSES.has(r.status));
+  const derived = deriveAsyncState(runsQuery, {
+    isEmpty: (query) => Array.isArray(query.data) && activeRuns.length === 0,
+  });
 
   return (
     <section id="area-runs" className="area-view active">
-      {isLoading ? (
-        <div className="empty-state card">
-          <div className="spinner-sm" />
-          <h3 className="mt-4">Loading Active Runs…</h3>
-        </div>
-      ) : activeRuns.length === 0 ? (
-        /* Standby state when no active run */
-        <div id="runs-standby" className="empty-state card">
-          <div className="empty-icon">
-            <svg className="icon icon-xl" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-play" />
-            </svg>
-          </div>
-          <h3>No Active Factory Run</h3>
-          <p>Start a run from the Work Queue or click Launch New Run.</p>
+      <AsyncRegion
+        derived={derived}
+        onRetry={() => refetch()}
+        emptyCopy="No active runs. Start a run from the Work Queue or launch one now."
+        emptyAction={
           <button
             type="button"
             id="btn-runs-start"
-            className="btn-primary btn-sm mt-4"
+            className="btn-primary btn-sm"
             onClick={() => openNewRunModal()}
           >
-            Launch New Run
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-plus" />
+            </svg>
+            <span>Launch New Run</span>
           </button>
-        </div>
-      ) : (
+        }
+      >
         <div>
           <div className="runs-header">
             <div>
@@ -85,7 +85,7 @@ export function RunsView() {
             ))}
           </div>
         </div>
-      )}
+      </AsyncRegion>
     </section>
   );
 }
