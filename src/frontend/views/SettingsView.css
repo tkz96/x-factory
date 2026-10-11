@@ -2,16 +2,16 @@
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: var(--sidebar-width-xs) 1fr;
   gap: 1.5rem;
-  min-height: 380px;
+  min-height: var(--settings-min-height);
 }
 
 .settings-sidebar {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  border-right: 1px solid var(--border);
+  border-right: var(--border-width) solid var(--border);
   padding-right: 0.8rem;
 }
 
@@ -24,16 +24,18 @@
   color: var(--text-muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition);
+  transition:
+    background-color var(--transition),
+    color var(--transition);
 }
 
 .settings-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
   color: var(--text);
 }
 
 .settings-tab-btn.active {
-  background: rgba(88, 166, 255, 0.12);
+  background: var(--accent-subtle);
   color: var(--accent);
   font-weight: 600;
 }
@@ -77,10 +79,10 @@
 .theme-segmented-control {
   display: inline-flex;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
-  padding: 3px;
-  gap: 3px;
+  padding: var(--space-micro);
+  gap: var(--space-micro);
 }
 
 .theme-segment-btn {
@@ -88,7 +90,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  min-height: 44px;
+  min-height: var(--tap-min);
   font-size: var(--text-callout);
   font-weight: 500;
   border-radius: var(--radius-sm);
@@ -96,12 +98,15 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all var(--transition);
+  transition:
+    background-color var(--transition),
+    color var(--transition),
+    box-shadow var(--transition);
 }
 
 .theme-segment-btn:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
 }
 
 .theme-segment-btn.active {
@@ -113,21 +118,21 @@
 
 .theme-segment-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent);
+  box-shadow: 0 0 0 var(--border-width-thick) var(--accent);
 }
 
 /* ── Diagnostics & Telemetry (new classes for migrated inline styles) ── */
 
 .diagnostics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--grid-min-col), 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
 .metric-card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   padding: 1rem 1.2rem;
   display: flex;
@@ -152,7 +157,7 @@
 
 .telemetry-card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   padding: 1rem 1.2rem;
   margin-bottom: 1rem;
@@ -182,7 +187,7 @@
   justify-content: space-between;
   padding: 0.8rem 1rem;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   margin-bottom: 0.6rem;
 }
@@ -201,8 +206,8 @@
 }
 
 .status-dot-sm {
-  width: 8px;
-  height: 8px;
+  width: var(--status-dot-md);
+  height: var(--status-dot-md);
 }
 
 .metric-value-lg {
@@ -213,7 +218,7 @@
 
 .telemetry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-xs), 1fr));
   gap: var(--space-4);
 }
 
@@ -243,7 +248,7 @@
 .connections-table th {
   padding: 0.5rem;
   text-align: left;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   font-size: var(--text-footnote);
 }
 
@@ -253,7 +258,7 @@
 
 .connections-table td {
   padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
   font-size: var(--text-footnote);
 }
 
@@ -267,19 +272,19 @@
 }
 
 .badge-status-active {
-  padding: 2px 6px;
+  padding: var(--space-0-5) var(--space-1-5);
   background: var(--green-dim);
   color: var(--green);
 }
 
 .badge-status-archived {
-  padding: 2px 6px;
+  padding: var(--space-0-5) var(--space-1-5);
   background: var(--bg-tertiary);
   color: var(--text-muted);
 }
 
 .badge-provider {
-  padding: 2px 6px;
+  padding: var(--space-0-5) var(--space-1-5);
   text-transform: uppercase;
   font-weight: 600;
 }
@@ -320,7 +325,7 @@
 }
 
 .setting-checkbox {
-  margin-top: var(--space-1);
+  margin-top: var(--space-micro);
   cursor: pointer;
   accent-color: var(--accent);
 }
@@ -349,7 +354,7 @@
 .btn-warning {
   background: var(--orange-dim);
   color: var(--orange);
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-pill);
 }
 

@@ -59,14 +59,15 @@ describe("Settings Storage & Persistence", () => {
 
   test("loadSettings returns defaults when file does not exist, with no default model (#278)", async () => {
     const settings = await loadSettings();
-    expect(settings.theme).toBe("dark");
+    expect(settings.theme).toBe("default");
+    expect(settings.appearance).toBe("automatic");
     expect(settings.models?.sessionA?.model).toBeUndefined();
     expect(settings.models?.sessionA?.provider).toBeUndefined();
   });
 
   test("saveSettings persists settings to disk with 0600 mode", async () => {
     await saveSettings({
-      theme: "light",
+      appearance: "light",
       models: {
         sessionA: { provider: "ollama", model: "qwen2.5-coder:32b" },
       },
@@ -80,17 +81,26 @@ describe("Settings Storage & Persistence", () => {
 
     const raw = await readFile(settingsPath, "utf-8");
     const onDisk = JSON.parse(raw);
-    expect(onDisk.theme).toBe("light");
+    expect(onDisk.appearance).toBe("light");
     expect(onDisk.models?.sessionA?.model).toBe("qwen2.5-coder:32b");
   });
 
-  test("saveSettings persists theme preference", async () => {
+  test("saveSettings persists appearance preference (#248)", async () => {
     const defaults = await loadSettings();
-    expect(defaults.theme).toBe("dark");
+    expect(defaults.theme).toBe("default");
+    expect(defaults.appearance).toBe("automatic");
 
-    await saveSettings({ theme: "light" });
+    await saveSettings({ appearance: "dark" });
     const updated = await loadSettings();
-    expect(updated.theme).toBe("light");
+    expect(updated.appearance).toBe("dark");
+  });
+
+  test("settings saved before Appearance existed start at Automatic (#248)", async () => {
+    // theme "dark" was the old default, written for every install: not a choice.
+    await writeFile(settingsPath, JSON.stringify({ theme: "dark" }));
+    const migrated = await loadSettings(false);
+    expect(migrated.theme).toBe("default");
+    expect(migrated.appearance).toBe("automatic");
   });
 
   test("loadSettings defaults allowUnsandboxed to false", async () => {

@@ -19,7 +19,11 @@ const RoleAssignmentSchema = z.object({
 });
 
 export const WorkbenchSettingsSchema = z.object({
-  theme: z.enum(["dark", "light"]).optional(),
+  theme: z
+    .enum(["default", "graphite", "sandstone", "dark", "light"])
+    .optional(),
+  appearance: z.enum(["automatic", "auto", "light", "dark"]).optional(),
+
   models: z
     .object({
       sessionA: z

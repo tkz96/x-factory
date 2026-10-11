@@ -23,7 +23,7 @@
   margin-top: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
 }
 
 .tracker-test-result.success {

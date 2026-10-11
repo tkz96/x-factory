@@ -1737,7 +1737,16 @@ function documentedSpec() {
           description:
             "Workbench settings: theme plus per-session {provider, model} pairs (#182).",
           properties: {
-            theme: { type: "string", enum: ["dark", "light"], example: "dark" },
+            theme: {
+              type: "string",
+              enum: ["default", "graphite", "sandstone", "dark", "light"],
+              example: "default",
+            },
+            appearance: {
+              type: "string",
+              enum: ["automatic", "auto", "light", "dark"],
+              example: "automatic",
+            },
             models: {
               type: "object",
               properties: {

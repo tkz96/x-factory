@@ -12,5 +12,5 @@
 .wizard-modal-dialog {
   /* Stable height: content of varying lengths scrolls inside .modal-body rather than
      growing or shrinking the dialog between steps. */
-  height: min(88vh, 720px);
+  height: min(88vh, var(--modal-height));
 }

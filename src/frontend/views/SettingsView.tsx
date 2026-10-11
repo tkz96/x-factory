@@ -27,7 +27,7 @@ import {
   useSaveSettings,
   useSettings,
 } from "../hooks/useQueries.js";
-import { useTheme } from "../hooks/useTheme.js";
+import { type AppearanceSetting, useTheme } from "../hooks/useTheme.js";
 
 type SettingsTab = "general" | "trackers" | "models" | "git" | "diagnostics";
 
@@ -149,16 +149,16 @@ function DiagnosticsTabContent({
 }
 
 interface GeneralTabContentProps {
-  currentTheme: "light" | "dark";
-  onApplyTheme: (theme: "light" | "dark") => void;
+  currentAppearance?: AppearanceSetting | undefined;
+  onApplyAppearance: (appearance: AppearanceSetting) => void;
   allowUnsandboxed: boolean;
   onUpdateUnsandboxed: (enabled: boolean) => Promise<void>;
   isSavingUnsandboxed?: boolean;
 }
 
 function GeneralTabContent({
-  currentTheme,
-  onApplyTheme,
+  currentAppearance = "automatic",
+  onApplyAppearance,
   allowUnsandboxed,
   onUpdateUnsandboxed,
   isSavingUnsandboxed,
@@ -189,18 +189,29 @@ function GeneralTabContent({
 
       <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
-        <div
-          className="theme-segmented-control"
-          role="radiogroup"
-          aria-label="Appearance Theme"
-        >
+        <div className="theme-segmented-control">
           <button
             type="button"
-            className={`theme-segment-btn ${currentTheme === "light" ? "active" : ""}`}
+            aria-pressed={currentAppearance === "automatic"}
+            className={`theme-segment-btn ${currentAppearance === "automatic" ? "active" : ""}`}
+            id="btn-appearance-auto"
+            data-theme-val="automatic"
+            aria-label="Automatic Appearance"
+            onClick={() => onApplyAppearance("automatic")}
+          >
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
+            </svg>
+            <span>Automatic</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={currentAppearance === "light"}
+            className={`theme-segment-btn ${currentAppearance === "light" ? "active" : ""}`}
             id="btn-theme-light"
             data-theme-val="light"
-            aria-label="Light Theme"
-            onClick={() => onApplyTheme("light")}
+            aria-label="Light Appearance"
+            onClick={() => onApplyAppearance("light")}
           >
             <svg className="icon icon-sm" aria-hidden="true">
               <use href="/assets/icons/sprite.svg#icon-sun" />
@@ -209,11 +220,12 @@ function GeneralTabContent({
           </button>
           <button
             type="button"
-            className={`theme-segment-btn ${currentTheme === "dark" ? "active" : ""}`}
+            aria-pressed={currentAppearance === "dark"}
+            className={`theme-segment-btn ${currentAppearance === "dark" ? "active" : ""}`}
             id="btn-theme-dark"
             data-theme-val="dark"
-            aria-label="Dark Theme"
-            onClick={() => onApplyTheme("dark")}
+            aria-label="Dark Appearance"
+            onClick={() => onApplyAppearance("dark")}
           >
             <svg className="icon icon-sm" aria-hidden="true">
               <use href="/assets/icons/sprite.svg#icon-moon" />
@@ -475,7 +487,12 @@ export function SettingsView() {
   const activeTab = settingsTabFromParam(searchParams.get("tab"));
   const setActiveTab = (tab: SettingsTab) =>
     setSearchParams({ tab }, { replace: true });
-  const { theme: currentTheme, applyTheme: handleApplyTheme } = useTheme();
+  const { appearance: currentAppearance, setAppearance } = useTheme();
+
+  const handleUpdateAppearance = async (appearance: AppearanceSetting) => {
+    setAppearance(appearance);
+    await saveSettingsMutation.mutateAsync({ appearance });
+  };
 
   const handleUpdateUnsandboxed = async (enabled: boolean) => {
     await saveSettingsMutation.mutateAsync({ allowUnsandboxed: enabled });
@@ -532,8 +549,8 @@ export function SettingsView() {
         <div className="settings-content">
           {activeTab === "general" && (
             <GeneralTabContent
-              currentTheme={currentTheme}
-              onApplyTheme={handleApplyTheme}
+              currentAppearance={currentAppearance}
+              onApplyAppearance={handleUpdateAppearance}
               allowUnsandboxed={Boolean(settings?.allowUnsandboxed)}
               onUpdateUnsandboxed={handleUpdateUnsandboxed}
               isSavingUnsandboxed={saveSettingsMutation.isPending}
