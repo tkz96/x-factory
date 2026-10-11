@@ -16,6 +16,7 @@ import {
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { DesktopNotificationsSetting } from "../components/settings/DesktopNotificationsSetting.js";
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
@@ -255,6 +256,10 @@ function GeneralTabContent({
             accessibleLabel: `${choice.label} Appearance`,
           }))}
         />
+      </div>
+
+      <div className="setting-item mt-4">
+        <DesktopNotificationsSetting />
       </div>
 
       <div className="setting-item mt-4">

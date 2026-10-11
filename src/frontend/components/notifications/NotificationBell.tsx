@@ -20,9 +20,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../overlays/index.js";
+import { DesktopNotificationPrompt } from "./DesktopNotificationPrompt.js";
 
 export function NotificationBell() {
-  const { notifications, unreadCount, markRead, markAllRead } =
+  const { notifications, unreadCount, needsYouCount, markRead, markAllRead } =
     useNotificationCenter();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -53,6 +54,7 @@ export function NotificationBell() {
       </OverlayTriggerButton>
       <Popover placement="bottom end" className="notification-popover">
         <PopoverContent aria-label="Notifications">
+          <DesktopNotificationPrompt hasNeedsYou={needsYouCount > 0} />
           <div className="notification-popover-head">
             <h2 className="notification-popover-title">Notifications</h2>
             <OverlayTriggerButton
