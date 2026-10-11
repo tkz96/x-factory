@@ -54,13 +54,25 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 
 ---
 
-## 5. Never load from a third party
+## 5. Motion
+
+Motion explains a state change; it never decorates one. [`DESIGN.md`](../../DESIGN.md) (Foundations → Motion) holds the full contract; these are the rules every change under `src/frontend/` follows.
+
+- **Every duration and easing is a token.** `transition`, `animation`, `animation-delay` and `transition-duration` take their timing from `src/frontend/styles/tokens.css` (`--duration-*`, `--ease-*`, `--transition*`, `--duration-stagger`). A raw `180ms`, `1.4s` or `cubic-bezier()` anywhere but the token file fails `bun run test:frontend-smoke`.
+- **Never `transition: all`.** Name the properties, and animate `transform` and `opacity` rather than anything that re-lays-out.
+- **Every keyframe has a reduced-motion path beside it.** Declare the same `@keyframes` again inside a `@media (prefers-reduced-motion: reduce)` block in the same file, with the movement dropped and the fade kept; an infinite animation stops there (`animation-iteration-count: 1`) and becomes a static indicator. The smoke gate fails when a moving keyframe has no reduced path, when a reduced path still moves, or when a loop never stops.
+- **Use the motion library's vocabulary** instead of new keyframes. `src/frontend/motion/MotionProvider.tsx` mounts `LazyMotion` once, with `MotionConfig reducedMotion="user"`; `MotionEntry`, `MotionList` / `MotionListItem`, `MotionSheet` and `MotionDrag` cover entry, list reordering, sheets and drag. Use the `m` components, never `motion`, so the lazily loaded feature pack stays out of the entry chunk — exactly one file, `src/frontend/motion/motion-feature-pack.ts`, may name a feature pack.
+- **Springs, not durations, for interruptible motion.** Keep bounce subtle (0.1–0.3) and parameterise springs in `src/frontend/motion/motion-springs.ts`.
+
+---
+
+## 6. Never load from a third party
 
 - Do not point `src`, `href` (except a plain navigation link on `<a>`), `srcset`, `poster`, `@import` or `url()` at another host, and do not `fetch` one. `bun run test:frontend-smoke` scans the pages, the stylesheets and the frontend sources for this, and drives a browser through every screen to catch requests made from JavaScript.
 - Vendored assets are served by X-Factory: the API Reference viewer is a pinned copy under `public/assets/api-reference/` (see [ci-checks.md](./ci-checks.md)).
 - Everything from a CDN is a bug, however convenient: an offline laptop is a supported way to run X-Factory.
 
-## 6. Verification Gate
+## 7. Verification Gate
 
 Before submitting or completing any UI/frontend task, run:
 ```bash
