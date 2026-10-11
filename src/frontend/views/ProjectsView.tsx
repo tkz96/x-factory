@@ -108,7 +108,7 @@ export function ProjectsView() {
           }
         >
           {activeTab === "active" ? (
-            <div id="projects-container" className="projects-grid">
+            <div id="projects-container" className="projects-grid" data-list>
               {activeProjects.map((p) => (
                 <ProjectCard key={p.id} project={p} />
               ))}

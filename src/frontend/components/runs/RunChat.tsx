@@ -804,6 +804,7 @@ export function RunChat({
         <button
           type="submit"
           className="imsg-send-btn"
+          data-primary-action
           disabled={
             !isApprovalGate || !input.trim() || sending || isTransitioning
           }

@@ -27,6 +27,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
     // biome-ignore lint/a11y/useSemanticElements: Composite card contains nested action buttons
     <div
       className="ticket-card"
+      data-list-row
       onClick={handleSelect}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

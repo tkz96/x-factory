@@ -35,6 +35,8 @@ X-Factory never relies on a CDN. The frontend smoke gate enforces that in two wa
 
 The test launches the Chromium Playwright manages, and falls back to the system's Google Chrome when that download is absent (`bunx playwright-core install chromium` provides the first). CI installs it before the gate.
 
+The keyboard tests in `test/shortcuts-browser.test.ts` run in Chromium and WebKit everywhere, and in Firefox only when `X_FACTORY_E2E_FIREFOX=1` is set; CI sets it on Linux, so Firefox runs there only. To run Firefox locally, install it with `bunx playwright-core install firefox` and run `X_FACTORY_E2E_FIREFOX=1 bun test test/shortcuts-browser.test.ts`.
+
 The API Reference viewer (`@scalar/api-reference`) is vendored rather than fetched: `bun run vendor:api-reference` downloads the pinned tarball, checks the npm integrity string and both SHA-256 hashes recorded in `public/assets/api-reference/provenance.json`, and writes `public/assets/api-reference/scalar-api-reference.min.js`. The page sets `withDefaultFonts: false`, so the viewer uses the fonts X-Factory already serves instead of fonts.scalar.com. Run `bun run vendor:api-reference --check` to verify the committed file against the pin; only that command needs the network.
 
 ## Lint baselines

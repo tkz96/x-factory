@@ -21,6 +21,7 @@ export function RunHistoryCard({ run }: RunHistoryCardProps) {
     <Link
       to={`/runs/${run.id}`}
       className="history-item card"
+      data-list-row
       aria-label={`View run for ticket ${ticketId}: ${ticketTitle}`}
     >
       <div className="history-meta">

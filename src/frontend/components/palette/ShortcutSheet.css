@@ -1,0 +1,59 @@
+/* src/frontend/components/palette/ShortcutSheet.css — The ? shortcut sheet (#254) */
+
+.shortcut-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.shortcut-group-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shortcut-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.shortcut-row dt {
+  color: var(--text);
+}
+
+.shortcut-row dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-0-5);
+  text-align: right;
+}
+
+.shortcut-keys {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-1);
+  padding: var(--space-0-5) var(--space-1-5);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  color: var(--text);
+}
+
+.shortcut-alternative {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}

@@ -64,12 +64,13 @@ export function RunsView() {
             </button>
           </div>
 
-          <div className="runs-grid">
+          <div className="runs-grid" data-list>
             {activeRuns.map((r) => (
               <Link
                 key={r.id}
                 to={`/runs/${r.id}`}
                 className="card run-card run-card-link"
+                data-list-row
                 aria-label={`Open run ${r.id}`}
               >
                 <div className="run-card-header">

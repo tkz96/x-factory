@@ -82,6 +82,8 @@ describe("Settings › General: Theme choice (#249)", () => {
   afterEach(() => {
     cleanup();
     globalThis.fetch = originalFetch;
+    // The theme store is shared with every later test file: leave it at Default.
+    act(() => setTheme("default"));
   });
 
   it("offers Default, Graphite and Sandstone as a Theme choice, apart from Appearance", () => {

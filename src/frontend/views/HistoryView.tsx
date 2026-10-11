@@ -86,7 +86,7 @@ export function HistoryView() {
           ))}
         </div>
 
-        <div id="history-runs-container">
+        <div id="history-runs-container" data-list>
           <AsyncRegion
             derived={derived}
             onRetry={() => void runsQuery.refetch()}
