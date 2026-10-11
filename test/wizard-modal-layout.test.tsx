@@ -188,7 +188,8 @@ describe("Setup modal layout contract (#159)", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
 
-    const overlay = getEl("onboarding-wizard-modal-overlay");
+    // The dialog role sits on the dialog element, not the backdrop around it (#250).
+    const overlay = getEl("onboarding-wizard-modal");
     expect(overlay.getAttribute("role")).toBe("dialog");
     expect(overlay.getAttribute("aria-modal")).toBe("true");
     const labelledBy = overlay.getAttribute("aria-labelledby");

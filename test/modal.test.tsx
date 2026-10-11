@@ -52,7 +52,8 @@ describe("Modal (#159)", () => {
 
   it("exposes dialog semantics labelled by its title", () => {
     renderModal();
-    const overlay = getEl("test-modal-overlay");
+    // The dialog role sits on the dialog element, not the backdrop around it (#250).
+    const overlay = getEl("test-modal");
     expect(overlay.getAttribute("role")).toBe("dialog");
     expect(overlay.getAttribute("aria-modal")).toBe("true");
     const title = getEl(overlay.getAttribute("aria-labelledby") as string);
