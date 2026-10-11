@@ -91,6 +91,9 @@ export const REPOSITORIES_COPY = {
     count === 1 ? "1 repository selected" : `${count} repositories selected`,
   /** Header control for bulk selection (#160). */
   selectAllLabel: "Select all",
+  filterLabel: "Filter repositories",
+  filterPlaceholder: "Filter by name",
+  noFilterMatches: (query: string) => `No repositories match “${query}”.`,
   /** Live "N of M selected" count shown in the list header (#160). */
   selectedOfTotal: (selected: number, total: number) =>
     `${selected} of ${total} selected`,
