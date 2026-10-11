@@ -24,6 +24,7 @@ export function TicketSearchToolbar({
         <input
           type="text"
           id="queue-search"
+          data-search-input
           placeholder="Filter tickets (label: agentic-workflow)…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}

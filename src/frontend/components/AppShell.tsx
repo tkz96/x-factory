@@ -6,6 +6,7 @@ import {
   NavLink,
   Outlet,
   useLocation,
+  useNavigate,
   useSearchParams,
 } from "react-router-dom";
 import {
@@ -28,8 +29,16 @@ import {
   useTickets,
 } from "../hooks/useQueries.js";
 import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import {
+  formatShortcut,
+  getShortcut,
+  isMacPlatform,
+} from "../shortcuts/registry.js";
+import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
 import { ModalContainer } from "./ModalContainer.js";
+import { CommandPalette } from "./palette/CommandPalette.js";
+import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 
 function getActiveTitle(pathname: string): { title: string; subtitle: string } {
   if (pathname.startsWith("/runs/")) {
@@ -346,6 +355,7 @@ interface AppShellHeaderProps {
   activeRunId: string | undefined;
   onStopRun: () => void;
   stopPending: boolean;
+  onOpenPalette: () => void;
 }
 
 function AppShellHeader({
@@ -360,7 +370,10 @@ function AppShellHeader({
   activeRunId,
   onStopRun,
   stopPending,
+  onOpenPalette,
 }: AppShellHeaderProps) {
+  const paletteKeys =
+    formatShortcut(getShortcut("palette"), isMacPlatform()) ?? "";
   return (
     <header id="content-toolbar" className="toolbar">
       <div className="toolbar-left">
@@ -405,6 +418,19 @@ function AppShellHeader({
             Browse documents
           </button>
         )}
+        <button
+          type="button"
+          id="btn-search"
+          className="btn-secondary btn-sm"
+          aria-keyshortcuts="Control+K Meta+K"
+          title={`Search (${paletteKeys})`}
+          onClick={onOpenPalette}
+        >
+          <svg className="icon icon-sm" aria-hidden="true">
+            <use href="/assets/icons/sprite.svg#icon-search" />
+          </svg>
+          <span>Search</span>
+        </button>
         <ThemeToggleButton
           id="theme-toggle-mobile"
           className="theme-toggle mobile-only"
@@ -512,6 +538,9 @@ function AppShellContent() {
     setSelectedProjectId,
   } = useCurrentProject();
   const { openNewRunModal } = useModal();
+  const navigate = useNavigate();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { toggleTheme, setAppearance } = useTheme();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
@@ -546,6 +575,13 @@ function AppShellContent() {
     if (!confirm("Are you sure you want to stop this run?")) return;
     stopRunMutation.mutate(activeRunId);
   };
+
+  useGlobalShortcuts({
+    togglePalette: () => setPaletteOpen((open) => !open),
+    openHelp: () => setShortcutsOpen(true),
+    newRun: () => openNewRunModal(),
+    navigate,
+  });
 
   const { data: runs = [] } = useRuns();
   const { data: tickets = [] } = useTickets(selectedProjectId);
@@ -629,6 +665,7 @@ function AppShellContent() {
           activeRunId={activeRunId}
           onStopRun={handleStopRun}
           stopPending={stopRunMutation.isPending}
+          onOpenPalette={() => setPaletteOpen(true)}
         />
 
         <div
@@ -641,6 +678,17 @@ function AppShellContent() {
 
       <AppShellMobileTabBar />
       <ModalContainer />
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        stopRunAvailable={activeRunId !== undefined}
+        onStopRun={handleStopRun}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+      />
+      <ShortcutSheet
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
     </div>
   );
 }

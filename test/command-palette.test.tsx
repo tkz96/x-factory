@@ -1,0 +1,299 @@
+// test/command-palette.test.tsx — Command palette, ? sheet and the global shortcut handler (#254).
+// Behaviour as a user sees it: what opens, what navigates, what is ignored while typing.
+
+/// <reference lib="dom" />
+import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
+
+registerHappyDom();
+
+import { afterAll, afterEach, describe, expect, test } from "bun:test";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
+import { useState } from "react";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import { CommandPalette } from "../src/frontend/components/palette/CommandPalette.js";
+import { ShortcutSheet } from "../src/frontend/components/palette/ShortcutSheet.js";
+import { ModalProvider } from "../src/frontend/context/ModalContext.js";
+import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import { isMacPlatform } from "../src/frontend/shortcuts/registry.js";
+import { useGlobalShortcuts } from "../src/frontend/shortcuts/useGlobalShortcuts.js";
+import type { Project, Run } from "../src/shared/types.js";
+
+afterAll(async () => {
+  await unregisterHappyDom();
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+const PROJECT: Pick<Project, "id" | "name"> = {
+  id: "demo-app",
+  name: "Demo App",
+};
+
+function makeRun(id: string, ticketId: string, title: string): Run {
+  return {
+    id,
+    project: PROJECT,
+    ticket: { id: ticketId, title, acceptanceCriteria: [] },
+    plan: "",
+    branch: `feat/${ticketId.toLowerCase()}`,
+    status: "awaiting_plan_approval",
+    startedAt: "2026-10-01T00:00:00.000Z",
+    finishedAt: null,
+    updatedAt: "2026-10-01T00:00:00.000Z",
+    implementationContext: null,
+    verification: null,
+    review: null,
+    artifacts: [],
+    diff: null,
+  } as unknown as Run;
+}
+
+const RUNS = [
+  makeRun("run-1", "ENG-7", "Add retry to the webhook sender"),
+  makeRun("run-2", "ENG-12", "Document the approval flow"),
+];
+
+/** Mirrors the wiring in AppShell: one global handler, palette and ? sheet. */
+function Shell({ stopRunAvailable = false }: { stopRunAvailable?: boolean }) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  useGlobalShortcuts({
+    togglePalette: () => setPaletteOpen((open) => !open),
+    openHelp: () => setSheetOpen(true),
+    newRun: () => {},
+    navigate: (path) => navigate(path),
+  });
+  return (
+    <>
+      <main>
+        <input aria-label="Ticket filter" data-search-input />
+        <input aria-label="Note field" />
+        <span data-testid="location">{location.pathname}</span>
+        <button type="button" onClick={() => setPaletteOpen(true)}>
+          Search
+        </button>
+      </main>
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        stopRunAvailable={stopRunAvailable}
+        onStopRun={() => {}}
+        onOpenShortcuts={() => setSheetOpen(true)}
+      />
+      <ShortcutSheet isOpen={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
+  );
+}
+
+function renderShell(options: { stopRunAvailable?: boolean } = {}) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  client.setQueryData(queryKeys.projects(), [PROJECT]);
+  client.setQueryData(queryKeys.runs(), RUNS);
+  return render(
+    <QueryClientProvider client={client}>
+      <ModalProvider>
+        <MemoryRouter initialEntries={["/queue"]}>
+          <Routes>
+            <Route path="*" element={<Shell {...options} />} />
+          </Routes>
+        </MemoryRouter>
+      </ModalProvider>
+    </QueryClientProvider>,
+  );
+}
+
+const modKey = isMacPlatform() ? { metaKey: true } : { ctrlKey: true };
+
+function press(key: string, init: KeyboardEventInit = {}, target?: Element) {
+  act(() => {
+    const event = new KeyboardEvent("keydown", {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...init,
+    });
+    (target ?? window).dispatchEvent(event);
+  });
+}
+
+/** Queries are created lazily: happy-dom registers after this module loads. */
+function dom() {
+  return within(document.body);
+}
+
+/** happy-dom needs focus and a keyUp before React sees the typed value (see dialog-focus). */
+function typeInto(el: HTMLElement, value: string) {
+  act(() => {
+    el.focus();
+    fireEvent.change(el, { target: { value } });
+    fireEvent.keyUp(el);
+  });
+}
+
+function currentPath(): string {
+  return dom().getByTestId("location").textContent ?? "";
+}
+
+describe("command palette (#254)", () => {
+  test("Mod+K opens the palette, and Mod+K again closes it", () => {
+    renderShell();
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+    press("k", modKey);
+    expect(dom().getByRole("dialog", { name: "Command palette" })).toBeTruthy();
+    press("k", modKey);
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+  });
+
+  test("the toolbar Search button opens the same palette", () => {
+    renderShell();
+    fireEvent.click(dom().getByRole("button", { name: "Search" }));
+    expect(dom().getByRole("dialog", { name: "Command palette" })).toBeTruthy();
+  });
+
+  test("lists sections, projects, runs and the Help actions", () => {
+    renderShell();
+    press("k", modKey);
+    const options = dom()
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    const joined = options.join("|");
+    for (const label of [
+      "Work Queue",
+      "Active Runs",
+      "Demo App",
+      "ENG-7",
+      "Start Run",
+      "Add Project",
+      "Open Settings",
+      "Documentation",
+      "API Reference",
+    ]) {
+      expect(joined).toContain(label);
+    }
+  });
+
+  test("finds a run by its ticket key and by its title", () => {
+    renderShell();
+    press("k", modKey);
+    const input = dom().getByRole("combobox");
+    typeInto(input, "ENG-12");
+    expect(
+      dom()
+        .getAllByRole("option")
+        .map((o) => o.textContent)
+        .join("|"),
+    ).toContain("ENG-12");
+    typeInto(input, "webhook");
+    expect(dom().getAllByRole("option")).toHaveLength(1);
+    expect(dom().getByRole("option").textContent).toContain("ENG-7");
+  });
+
+  test("Return opens the highlighted run and closes the palette", () => {
+    renderShell();
+    press("k", modKey);
+    const input = dom().getByRole("combobox");
+    typeInto(input, "ENG-12");
+    act(() => {
+      input.focus();
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+    expect(currentPath()).toBe("/runs/run-2");
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+  });
+
+  test("arrow keys move the highlighted item", () => {
+    renderShell();
+    press("k", modKey);
+    const input = dom().getByRole("combobox");
+    const before = input.getAttribute("aria-activedescendant");
+    act(() => {
+      input.focus();
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+    });
+    expect(input.getAttribute("aria-activedescendant")).not.toBe(before);
+  });
+
+  test("Stop Run is offered only on a run page where the run can stop", () => {
+    const { unmount } = renderShell();
+    press("k", modKey);
+    expect(dom().queryByText("Stop Run")).toBeNull();
+    unmount();
+    renderShell({ stopRunAvailable: true });
+    press("k", modKey);
+    expect(dom().getByText("Stop Run")).toBeTruthy();
+  });
+
+  test("Escape closes the palette", () => {
+    renderShell();
+    press("k", modKey);
+    fireEvent.keyDown(dom().getByRole("combobox"), { key: "Escape" });
+    expect(dom().queryByRole("dialog", { name: "Command palette" })).toBeNull();
+  });
+});
+
+describe("global shortcuts (#254)", () => {
+  test("G then T goes to the Work Queue; G then R goes to Active Runs", () => {
+    renderShell();
+    press("g");
+    press("r");
+    expect(currentPath()).toBe("/runs");
+    press("g");
+    press("t");
+    expect(currentPath()).toBe("/queue");
+  });
+
+  test("single keys are ignored while a text field has focus", () => {
+    renderShell();
+    const field = dom().getByLabelText("Note field");
+    press("g", {}, field);
+    press("r", {}, field);
+    expect(currentPath()).toBe("/queue");
+    press("?", { shiftKey: true }, field);
+    expect(
+      dom().queryByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).toBeNull();
+  });
+
+  test("? opens the shortcut sheet, which lists the registry", () => {
+    renderShell();
+    press("?", { shiftKey: true });
+    const sheet = dom().getByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(sheet.textContent).toContain("Command palette");
+    expect(sheet.textContent).toContain("Stop run");
+  });
+
+  test("/ focuses the page's search field", () => {
+    renderShell();
+    const search = dom().getByLabelText("Ticket filter");
+    press("/");
+    expect(document.activeElement).toBe(search);
+  });
+
+  test("Escape closes the ? sheet", () => {
+    renderShell();
+    press("?", { shiftKey: true });
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(
+      dom().queryByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).toBeNull();
+  });
+});
