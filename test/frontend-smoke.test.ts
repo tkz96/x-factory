@@ -11,11 +11,9 @@ import { App } from "../src/frontend/App.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
 import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
-import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
-import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunEvidence } from "../src/frontend/components/runs/RunEvidence.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
@@ -23,8 +21,6 @@ import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
-import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
-import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
 import { QueueView } from "../src/frontend/views/QueueView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
@@ -148,15 +144,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("agentic-workflow");
     });
 
-    it("ProjectsView renders segmented tabs and project catalog layout", () => {
-      const html = renderWithProviders(React.createElement(ProjectsView));
-
-      expect(html).toContain("Projects");
-      expect(html).toContain("Active Projects");
-      expect(html).toContain("Archived");
-      expect(html).toContain("Onboard Project");
-    });
-
     it("SettingsView renders tab navigation and settings sections", () => {
       const html = renderWithProviders(React.createElement(SettingsView));
 
@@ -173,16 +160,18 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("Security Guardrail");
     });
 
-    it("RunsView, RunDetailView, and ProjectDetailView export functional components", () => {
+    it("RunsView and RunDetailView export functional components", () => {
       expect(typeof RunsView).toBe("function");
       expect(typeof RunDetailView).toBe("function");
-      expect(typeof ProjectDetailView).toBe("function");
     });
   });
 
   describe("Critical Components", () => {
     // The shell's toolbar, sections, Help and one-h1 behaviour are asserted by
-    // behaviour in test/app-shell.test.tsx (#258).
+    // behaviour in test/app-shell.test.tsx (#258). The Projects screens — the
+    // list, its rows and the detail pane — are asserted by behaviour in
+    // test/projects-split.test.tsx (#267); the markup assertions that used to
+    // stand here pinned class names and ids the ticket replaced.
 
     it("DocsSidebarNav exports functional component", () => {
       expect(typeof DocsSidebarNav).toBe("function");
@@ -192,8 +181,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof ChatThread).toBe("function");
     });
 
-    it("RunChat and DiffModal export functional components and render cleanly", () => {
-      expect(typeof RunChat).toBe("function");
+    it("DiffModal renders its file and line counts (the run chat's behaviour is in run-chat-view)", () => {
       expect(typeof DiffModal).toBe("function");
 
       const diffModalHtml = renderToString(
@@ -211,33 +199,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(diffModalHtml).toContain("−2");
       expect(diffModalHtml).toContain("diff-row-add");
       expect(diffModalHtml).toContain("diff-row-del");
-    });
-
-    it("ProjectCard renders project name, tracker badge, and action links", () => {
-      const html = renderWithProviders(
-        React.createElement(ProjectCard, {
-          project: {
-            id: "proj-1",
-            name: "X-Factory Core",
-            repositoryPath: "/path/to/repo",
-            defaultBranch: "main",
-            testCommand: "bun test",
-            repositories: [],
-            issueTracker: {
-              provider: "azure",
-              azure: {
-                orgUrl: "https://dev.azure.com/org",
-                project: "proj",
-              },
-            },
-          },
-        }),
-      );
-
-      expect(html).toContain("X-Factory Core");
-      expect(html).toContain("proj-1");
-      expect(html).toContain("azure");
-      expect(html).toContain("View Details →");
     });
 
     it("RunHistoryCard renders run ticket details, status, and duration", () => {
@@ -287,7 +248,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("Prepare");
       expect(html).toContain("Understand");
       expect(html).toContain("Plan");
-      expect(html).toContain("Execute");
+      // The step is named for what it does: Code, not Execute (#262).
+      expect(html).toContain("Code");
       expect(html).toContain("Review");
       expect(html).toContain("Deliver");
     });

@@ -55,3 +55,13 @@
   padding-left: var(--space-4);
   color: var(--text);
 }
+
+/* At phone width the action goes under the checks, so the text keeps the
+   banner's full width instead of wrapping word by word beside the button. */
+@media (max-width: 768px) {
+  .readiness-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+}

@@ -25,13 +25,6 @@ export interface RunNow {
   failure: RunNowFailure | null;
 }
 
-const PLAN_STATUSES = new Set<Run["status"]>(["awaiting_plan_approval"]);
-const DIFF_STATUSES = new Set<Run["status"]>([
-  "awaiting_review",
-  "ready_for_pr",
-  "pr_created",
-]);
-
 /** The newest event of one type, read as the payload shape the caller expects. */
 function latest<T>(events: readonly RunEvent[], type: string): T | null {
   for (let i = events.length - 1; i >= 0; i--) {
@@ -81,14 +74,16 @@ function failureFor(
 export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
   const ui = runStatusUi(run.status);
 
+  // The plan shows at the plan checkpoint: the step is Plan and the status can approve.
   let plan: string | null = null;
-  if (PLAN_STATUSES.has(run.status)) {
+  if (ui.step === "Plan" && ui.actions.some((a) => a.action === "approve")) {
     plan =
       latest<{ plan: string }>(events, "plan_ready")?.plan ?? run.plan ?? null;
   }
 
+  // Changes exist from review onwards: the review and delivery steps.
   let diff: DiffSummary | null = null;
-  if (DIFF_STATUSES.has(run.status)) {
+  if (ui.step === "Review" || ui.step === "Deliver") {
     const summary = summarizeDiff(run.diff);
     diff = summary.files.length > 0 ? summary : null;
   }

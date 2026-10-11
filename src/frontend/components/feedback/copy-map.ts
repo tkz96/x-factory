@@ -292,6 +292,36 @@ export const PROJECT_DETAIL_COPY = {
   repositoryBranchColumn: "Default Branch",
 } as const;
 
+/**
+ * Copy for the Projects list and its detail pane (#267, spec #241): the list
+ * reads like a mail list, and the detail says what a project is wired to in
+ * plain words — repository, tracker, branch (spec story 108).
+ */
+export const PROJECTS_COPY = {
+  /** The list pane's filter over archived projects. */
+  filterLabel: "Show",
+  filterActive: "Active",
+  filterArchived: "Archived",
+  /** A row's accessible name: the row shows more than the project's name. */
+  openProject: (projectName: string) => `Open project ${projectName}`,
+  /** First run: no projects at all, so the pane offers the one action that helps. */
+  empty: "No projects yet. Add one to start working on tickets.",
+  /** The Active filter hides every project because they are all archived. */
+  emptyActive: "No active projects. Archived projects are under Archived.",
+  emptyArchived: "No archived projects.",
+  addProject: "Add Project",
+  /** The detail pane on the list-only route: nothing is selected yet. */
+  selectPrompt: "Select a project to see its repository, tracker and branch.",
+  /** The way back to the list, at phone width where the detail pushes over it. */
+  backToList: "Projects",
+  /** The detail pane's three plain-word facts (spec story 108). */
+  repositoryFact: "Repository",
+  trackerFact: "Tracker",
+  branchFact: "Branch",
+  /** No repository is recorded on the project at all. */
+  noRepository: "Not recorded",
+} as const;
+
 /** Copy for editing a repository's checkout and commands (#283). */
 export const REPOSITORY_SETTINGS_COPY = {
   title: "Repository settings",
@@ -307,18 +337,6 @@ export const REPOSITORY_SETTINGS_COPY = {
   saving: "Saving…",
   saved: "Saved.",
   pathRequired: "Enter the folder where this repository is checked out.",
-} as const;
-
-/** Copy for the project cards (#147). */
-export const PROJECT_CARD_COPY = {
-  viewDetailsLabel: (projectName: string) =>
-    `View details for project ${projectName}`,
-  id: "ID",
-  workspace: "Workspace",
-  workspaceFallback: "Configured",
-  repositoryCount: (count: number) =>
-    count === 1 ? "1 repo" : `${count} repos`,
-  viewDetails: "View Details →",
 } as const;
 
 /**

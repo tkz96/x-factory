@@ -4,7 +4,11 @@
 // root, #169). This module never opens a connection of its own.
 
 import { randomUUID } from "node:crypto";
-import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
+import {
+  type ChatMessageInput,
+  chatWithModel,
+  classifyModelError,
+} from "./agents/pi.js";
 import type { Repositories } from "./composition-root.js";
 import type { CommandRepository } from "./db/command-repository.js";
 import type { EventRecord } from "./db/event-repository.js";
@@ -15,11 +19,12 @@ import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import {
   ActiveRunExistsError,
   ConflictError,
+  DomainError,
   NotFoundError,
 } from "./errors.js";
 import * as git from "./git.js";
 import { assertBudgetNotExceeded, modelRoleForStage } from "./model-budgets.js";
-import { ModelGateway } from "./model-gateway.js";
+import { ModelGateway, RateLimitedError } from "./model-gateway.js";
 import {
   ModelUnavailableError,
   modelUse,
@@ -553,6 +558,11 @@ export async function abandonRun(
   return tx();
 }
 
+const EMPTY_REPLY_MESSAGE =
+  "The model sent an empty reply. Retry, or check Settings › Models.";
+const UNREACHABLE_MESSAGE =
+  "Couldn't reach the model. Check Settings › Models.";
+
 /**
  * Handle a chat message during an approval gate (understanding or plan).
  * Records the user message and generates a contextual agent response
@@ -584,9 +594,11 @@ export async function chatWithRun(
   // here.
   const ctx = run.implementationContext;
 
-  let agentResponse: string;
+  let agentResponse = "";
   // Which model wrote the reply, and what it cost (#279); unset when none did.
   let replyModel: { model: ModelUse; usage: ModelUsage } | undefined;
+  // A failed call is an error event with the reason, never an agent message (#263).
+  let failure: string | null = null;
 
   try {
     // Chat uses the Builder role's model (#278); there is no fallback model.
@@ -624,22 +636,23 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
     const reply = await chatWithModel(resolved, messages, {
       gateway: chatGateway,
     });
-    agentResponse = reply.text;
-    replyModel = {
-      model: modelUse(resolved),
-      usage: usageWithCost(resolved, reply.usage),
-    };
-    if (!agentResponse?.trim()) {
-      agentResponse =
-        "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+    if (reply.text?.trim()) {
+      agentResponse = reply.text;
+      replyModel = {
+        model: modelUse(resolved),
+        usage: usageWithCost(resolved, reply.usage),
+      };
+    } else {
+      failure = EMPTY_REPLY_MESSAGE;
     }
   } catch (err) {
     console.error("LLM Chat Error:", err);
-    // A model that can't be used says why (#278), instead of a generic line.
-    agentResponse =
-      err instanceof ModelUnavailableError
-        ? `I can't reply: ${err.message}`
-        : "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+    failure = chatFailureMessage(err);
+  }
+
+  if (failure !== null) {
+    eventRepo.appendEvent(id, "error", { message: failure });
+    return { ok: false, message: failure };
   }
 
   // Record agent response as an event
@@ -649,6 +662,36 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
   });
 
   return { ok: true, message: agentResponse };
+}
+
+/**
+ * The plain line a chat failure shows (#263): what happened, and what to do next.
+ * A model error the provider adapter has not classified yet is read the same way it is in
+ * the stages, so a rejected key or a rate limit names itself.
+ */
+export function chatFailureMessage(err: unknown): string {
+  const classified =
+    err instanceof Error && !(err instanceof DomainError)
+      ? classifyModelError(err.message)
+      : err;
+  if (classified instanceof RateLimitedError) {
+    return "The model is rate limited. Wait a moment, then Retry.";
+  }
+  if (classified instanceof ModelUnavailableError) {
+    switch (classified.category) {
+      case "key rejected":
+        return "The model rejected the API key. Check the key in Settings › Models.";
+      case "rate limited":
+        return "The model is rate limited. Wait a moment, then Retry.";
+      case "budget reached":
+        return "The model budget is used up for now. Raise it in Settings › Models, then Retry.";
+      case "context too large":
+        return "This chat is too long for the model. Shorten your message, then Retry.";
+      case "model unavailable":
+        return `Couldn't reach the model: ${classified.message}`;
+    }
+  }
+  return UNREACHABLE_MESSAGE;
 }
 
 export async function handleTransition(

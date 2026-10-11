@@ -8,9 +8,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ReviewExecutor } from "../src/executors/review.js";
 import type { StageContext } from "../src/executors/types.js";
+import { BudgetExceededError } from "../src/model-budgets.js";
+import { RateLimitedError } from "../src/model-gateway.js";
 import { ModelUnavailableError } from "../src/model-roles.js";
 import { reviewRun } from "../src/review.js";
-import { chatWithRun } from "../src/runs.js";
+import { chatFailureMessage, chatWithRun } from "../src/runs.js";
 import type { VerificationResult } from "../src/shared/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { testResolvedModel } from "./helpers/resolved-model.js";
@@ -131,12 +133,76 @@ describe("chat", () => {
     const errSpy = spyOn(console, "error").mockImplementation(() => {});
     try {
       const result = await chatWithRun(repos, "run-chat", "Why this plan?");
-      expect(result.message).toStartWith(
-        "I can't reply: Builder has no model.",
+      expect(result.ok).toBe(false);
+      expect(result.message).toBe(
+        "Couldn't reach the model: Builder has no model. Choose a model in Settings › Models.",
       );
-      expect(result.message).toContain("Settings › Models");
     } finally {
       errSpy.mockRestore();
     }
+  });
+
+  it("records a failed model call as an error event, never as an agent message", async () => {
+    const repos = createTestRepositories();
+    repos.runs.create({
+      id: "run-chat-error",
+      projectId: "p",
+      projectName: "P",
+      ticket: TICKET,
+      plan: "1. Do it",
+      branch: "main",
+      status: "queued",
+      artifactsDir: dataDir,
+      worktreePath: dataDir,
+    });
+    forceRunStatus(repos.db, "run-chat-error", "awaiting_plan_approval");
+
+    const errSpy = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await chatWithRun(repos, "run-chat-error", "Why this plan?");
+    } finally {
+      errSpy.mockRestore();
+    }
+
+    const events = repos.events.getEventsForRun("run-chat-error");
+    expect(events.map((e) => e.type)).toEqual(["chat_user", "error"]);
+    expect(events.some((e) => e.type === "chat_agent")).toBe(false);
+    expect(events.at(-1)?.payload).toEqual({
+      message:
+        "Couldn't reach the model: Builder has no model. Choose a model in Settings › Models.",
+    });
+  });
+});
+
+describe("chat failures say what happened and what to do", () => {
+  it("names each failure category in plain words", () => {
+    expect(
+      chatFailureMessage(new RateLimitedError("429 Too Many Requests")),
+    ).toBe("The model is rate limited. Wait a moment, then Retry.");
+    expect(
+      chatFailureMessage(
+        new ModelUnavailableError("Key rejected: 401", "key rejected"),
+      ),
+    ).toBe(
+      "The model rejected the API key. Check the key in Settings › Models.",
+    );
+    expect(
+      chatFailureMessage(new BudgetExceededError("Daily budget reached.")),
+    ).toBe(
+      "The model budget is used up for now. Raise it in Settings › Models, then Retry.",
+    );
+    expect(
+      chatFailureMessage(
+        new ModelUnavailableError("Prompt too long", "context too large"),
+      ),
+    ).toBe(
+      "This chat is too long for the model. Shorten your message, then Retry.",
+    );
+  });
+
+  it("reads an unclassified provider error as an unreachable model", () => {
+    expect(chatFailureMessage(new Error("socket hang up"))).toBe(
+      "Couldn't reach the model. Check Settings › Models.",
+    );
   });
 });

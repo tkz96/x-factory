@@ -11,6 +11,7 @@ import {
 } from "../../lib/format-timestamp.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
+import { Button } from "../ui/Button.js";
 
 /** The current time, refreshed each minute so relative labels stay true. */
 export function useNow(intervalMs = 60_000): number {
@@ -34,6 +35,8 @@ export interface RunChatItemProps {
   item: ChatItem;
   now: number;
   onOpenFile: (file: DiffFileSummary) => void;
+  /** Re-sends the message before a trailing error (#263); absent when a retry is not offered. */
+  onRetry?: (() => void) | undefined;
 }
 
 function Status({
@@ -61,10 +64,12 @@ function SystemLine({
   item,
   now,
   tone,
+  onRetry,
 }: {
   item: ChatItem;
   now: number;
   tone?: "warning" | "error" | undefined;
+  onRetry?: (() => void) | undefined;
 }) {
   const text = "text" in item ? item.text : "";
   const link = item.kind === "notice" && item.url ? item.url : undefined;
@@ -80,12 +85,22 @@ function SystemLine({
       ) : (
         <span>{text}</span>
       )}
+      {onRetry && (
+        <Button variant="secondary" size="sm" onPress={onRetry}>
+          Retry
+        </Button>
+      )}
       <RunTime at={item.at} now={now} />
     </div>
   );
 }
 
-export function RunChatItemView({ item, now, onOpenFile }: RunChatItemProps) {
+export function RunChatItemView({
+  item,
+  now,
+  onOpenFile,
+  onRetry,
+}: RunChatItemProps) {
   switch (item.kind) {
     case "status":
       return <Status item={item} now={now} />;
@@ -105,7 +120,9 @@ export function RunChatItemView({ item, now, onOpenFile }: RunChatItemProps) {
         />
       );
     case "error":
-      return <SystemLine item={item} now={now} tone="error" />;
+      return (
+        <SystemLine item={item} now={now} tone="error" onRetry={onRetry} />
+      );
     case "evidence":
       return (
         <div className="run-chat-system" data-kind="evidence">
