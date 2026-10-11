@@ -13,6 +13,7 @@ import {
 import {
   formatShortcut,
   getShortcut,
+  isMacPlatform,
   OVERRIDABLE_BINDINGS,
   RESERVED_BINDINGS,
   SHORTCUTS,
@@ -103,5 +104,50 @@ describe("shortcut registry (#254)", () => {
     expect(isTextEntryTarget(document.createElement("textarea"))).toBe(true);
     expect(isTextEntryTarget(document.createElement("button"))).toBe(false);
     expect(isTextEntryTarget(null)).toBe(false);
+  });
+});
+
+describe("platform detection and Mod on non-Mac systems (#254)", () => {
+  const macUa =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Safari/605.1.15";
+  const ev = (key: string, mods: object) => ({
+    key,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...mods,
+  });
+
+  test("a Mac platform is Mac", () => {
+    expect(isMacPlatform({ platform: "MacIntel", userAgent: macUa })).toBe(
+      true,
+    );
+    expect(isMacPlatform({ userAgentData: { platform: "macOS" } })).toBe(true);
+    expect(isMacPlatform({ platform: "iPhone", userAgent: "" })).toBe(true);
+  });
+
+  test("a Linux platform wins over a Macintosh user agent (Playwright WebKit on Linux)", () => {
+    expect(isMacPlatform({ platform: "Linux x86_64", userAgent: macUa })).toBe(
+      false,
+    );
+    expect(isMacPlatform({ platform: "Win32", userAgent: macUa })).toBe(false);
+  });
+
+  test("the user agent is the fallback when no platform is reported", () => {
+    expect(isMacPlatform({ platform: "", userAgent: macUa })).toBe(true);
+    expect(isMacPlatform({})).toBe(false);
+  });
+
+  test("off Mac, Ctrl+Enter and Ctrl+K match and Meta does not", () => {
+    expect(
+      eventMatchesStep(ev("Enter", { ctrlKey: true }), "mod+enter", false),
+    ).toBe(true);
+    expect(eventMatchesStep(ev("k", { ctrlKey: true }), "mod+k", false)).toBe(
+      true,
+    );
+    expect(
+      eventMatchesStep(ev("Enter", { metaKey: true }), "mod+enter", false),
+    ).toBe(false);
   });
 });
