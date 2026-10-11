@@ -26,11 +26,6 @@ import type {
   ModelRecordPatch,
 } from "./shared/model-connection-types.js";
 
-export {
-  MODEL_API_TYPES,
-  type ModelApiType,
-} from "./shared/model-connection-types.js";
-
 /** Base URLs pre-filled for API types with one well-known endpoint. */
 export const DEFAULT_BASE_URLS: Readonly<
   Record<Exclude<ModelApiType, "openai-compatible">, string>
