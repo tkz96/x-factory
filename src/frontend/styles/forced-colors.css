@@ -45,7 +45,13 @@
     border-color: GrayText;
   }
 
-  :root .settings-category[aria-current="page"] {
+  /* Selected navigation rows paint Highlight themselves: without opting out,
+     the browser's Canvas backplate hides HighlightText (as on segments). */
+  :root .settings-category[aria-current="page"],
+  :root .settings-category[aria-current="page"] *,
+  :root .projects-list-row[aria-current="page"],
+  :root .projects-list-row[aria-current="page"] * {
+    forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
   }

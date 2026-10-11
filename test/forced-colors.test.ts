@@ -239,4 +239,26 @@ describe("forced colours: emulated in a browser (#249)", () => {
     expect(colours.text).not.toBe(colours.fill);
     await context.close();
   }, 120_000);
+
+  test("the current Settings category's label stays readable under forced colours", async () => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.goto(`${instance.url}/settings?tab=general`, {
+      waitUntil: "load",
+    });
+    const current = page.locator('.settings-category[aria-current="page"]');
+    await current.waitFor();
+    const colours = await current.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        text: cs.color,
+        fill: cs.backgroundColor,
+        adjust: cs.getPropertyValue("forced-color-adjust"),
+      };
+    });
+    expect(colours.adjust).toBe("none");
+    expect(colours.text).not.toBe(colours.fill);
+    await context.close();
+  }, 120_000);
 });
