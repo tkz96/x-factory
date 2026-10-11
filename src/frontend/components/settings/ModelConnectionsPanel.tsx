@@ -320,7 +320,9 @@ function ModelDetailsForm({
 /**
  * The inline "delete this connection?" confirmation (#245). It is an
  * alertdialog: focus moves in, Escape cancels, focus returns to the Delete
- * button, and the question and its title are both announced.
+ * button, and the question and its title are both announced. It stays inline —
+ * the surrounding card is still visible, so `useDialogFocus` has nothing
+ * outside the dialog to make inert here.
  */
 function ConfirmDelete({
   id,

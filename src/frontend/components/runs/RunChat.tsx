@@ -511,13 +511,13 @@ export function RunChat({
     } else if (actionItem.action === "restart") {
       setResolvedActions((prev) => ({
         ...prev,
-        [msgId]: "Restart requested",
+        [msgId]: "Changes requested",
       }));
       onRestart?.();
     } else if (actionItem.action === "abort") {
       setResolvedActions((prev) => ({
         ...prev,
-        [msgId]: "Aborted",
+        [msgId]: "Stopped",
       }));
       onAbort?.();
     } else if (actionItem.action === "requeue") {

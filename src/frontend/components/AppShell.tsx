@@ -298,7 +298,7 @@ function AppShellSidebar({
             className={`status-dot ${readiness?.ready !== false ? "online" : "offline"}`}
           />
           <span className="status-label">
-            {readiness?.ready !== false ? "Factory Ready" : "Degraded"}
+            {readiness?.ready !== false ? "Ready" : "Degraded"}
           </span>
         </div>
         <ThemeToggleButton

@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
+import { AppShell } from "../src/frontend/components/AppShell.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
@@ -214,4 +215,42 @@ describe("screens that show no internal vocabulary at all", () => {
       expect(readFileSync(file, "utf8")).not.toMatch(INTERNAL_VOCABULARY);
     });
   }
+});
+
+describe("AppShell wording", () => {
+  const realFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("labels the workbench status Ready or Degraded, never the factory", () => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("/api/docs") ? { categories: [] } : [];
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    render(
+      React.createElement(
+        QueryClientProvider,
+        {
+          client: new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+          }),
+        },
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ["/queue"] },
+          React.createElement(AppShell),
+        ),
+      ),
+    );
+
+    const label = document.querySelector(".status-label")?.textContent ?? "";
+    expect(["Ready", "Degraded"]).toContain(label);
+  });
 });

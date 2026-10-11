@@ -430,7 +430,7 @@ export function DocsSidebarNav({
         <NavLink
           to="/queue"
           className="docs-back-link"
-          title="Return to Factory Workbench"
+          title="Return to the workbench"
         >
           <svg className="icon icon-sm" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-arrow-left" />
