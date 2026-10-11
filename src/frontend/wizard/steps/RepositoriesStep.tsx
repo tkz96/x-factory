@@ -12,10 +12,10 @@ import { useMemo, useState } from "react";
 import { AsyncRegion } from "../../components/feedback/AsyncRegion.js";
 import { REPOSITORIES_COPY } from "../../components/feedback/copy-map.js";
 import { FeedbackBanner } from "../../components/feedback/FeedbackBanner.js";
+import { WizardFooter } from "../shared/WizardFooter.js";
 import { filterAndOrderRepositories } from "./repository-filter.js";
 import { useRepositoryDiscovery } from "./useRepositoryDiscovery.js";
 import "./RepositoriesStep.css";
-import { ModalFooter } from "../../components/Modal.js";
 
 /** Inline explanation for a gated Continue, keyed by the authoritative reason. */
 const CONTINUE_REASON_COPY = {
@@ -219,34 +219,23 @@ export function RepositoriesStep() {
         </AsyncRegion>
       </div>
 
-      <ModalFooter>
-        {continueBlockedReason && (
-          <p
-            className="repositories-continue-reason"
-            id="repositories-continue-reason"
-            role="status"
-          >
-            {CONTINUE_REASON_COPY[continueBlockedReason]}
-          </p>
-        )}
-        <button
-          type="button"
-          id="btn-step-3-back"
-          className="btn-secondary"
-          onClick={prevStep}
-        >
-          ← {REPOSITORIES_COPY.previous}
-        </button>
-        <button
-          type="button"
-          id="btn-step-3-next"
-          className="btn-primary"
-          onClick={nextStep}
-          disabled={!canAdvance}
-        >
-          {REPOSITORIES_COPY.next} →
-        </button>
-      </ModalFooter>
+      <WizardFooter
+        step={3}
+        onBack={prevStep}
+        onNext={nextStep}
+        isNextDisabled={!canAdvance}
+        status={
+          continueBlockedReason !== null ? (
+            <p
+              className="repositories-continue-reason"
+              id="repositories-continue-reason"
+              role="status"
+            >
+              {CONTINUE_REASON_COPY[continueBlockedReason]}
+            </p>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

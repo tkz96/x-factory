@@ -649,3 +649,59 @@ export const MODEL_ROLES_COPY = {
   sameModel:
     "Builder and Reviewer use the same model. A different Reviewer model gives a stronger second opinion.",
 } as const;
+/**
+ * Copy for the add-project assistant sheet (#268, spec #241 stories 112–118).
+ * The assistant's own chrome: its title, its step counter, its action labels
+ * and its two terminal states (dismissing with progress, and success). Step
+ * bodies keep their own copy maps — this one is only what surrounds them.
+ */
+export const WIZARD_COPY = {
+  title: "Add Project",
+  /** `<current>` of `<total>`, e.g. "Step 2 of 5". */
+  stepOfTotal: (current: number, total: number) =>
+    `Step ${current} of ${total}`,
+  /** The progress bar's accessible name; the visible counter says the rest. */
+  progressLabel: "Setup progress",
+  cancel: "Cancel",
+  back: "Back",
+  continue: "Continue",
+  /** Esc (or Cancel) with work in progress: three honest ways out. */
+  dismissTitle: "You haven't finished adding this project.",
+  dismissBody:
+    "Save it as a draft and pick it up later, discard it, or keep going.",
+  saveDraft: "Save Draft",
+  discard: "Discard",
+  keepEditing: "Cancel",
+  /** The terminal state after the project exists. */
+  successTitle: "Project added",
+  successBody: (projectName: string) =>
+    `${projectName} is ready. Open it to see its repositories and settings.`,
+  openProject: "Open Project",
+  done: "Done",
+} as const;
+
+/** Copy for the add-project assistant's first step (#268, story 112). */
+export const REPOSITORY_STEP_COPY = {
+  title: "Add a repository",
+  subtitle: "Paste the repository's URL. It is the easiest place to start.",
+  urlLabel: "Repository URL",
+  urlDescription:
+    "A link like https://github.com/owner/repository. The provider is matched from it.",
+  urlRequired: "Paste a repository URL.",
+  urlInvalid: "That does not look like a URL. Paste the repository's link.",
+  /** Parsed, but no registered provider claims the URL. Informational, never a block. */
+  urlUnmatched:
+    "No provider recognises this URL. Connect one in the next step.",
+  parseFailed:
+    "The URL could not be checked. Connect a provider in the next step.",
+  detailsTitle: "Project",
+  nameLabel: "Project Name",
+  nameRequired: "Project name is required.",
+  identifierLabel: "Identifier",
+  identifierHint: "Used in commands, configuration and branch names.",
+  identifierRequired: "Identifier is required.",
+  descriptionLabel: "Description",
+  workspaceLabel: "Workspace Folder",
+  workspaceHint:
+    "Folder where X-Factory keeps this project's checkouts. Leave empty for the default.",
+} as const;

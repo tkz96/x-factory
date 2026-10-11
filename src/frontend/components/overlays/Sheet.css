@@ -1,4 +1,4 @@
-/* src/frontend/components/overlays/Sheet.css — Sheet overlay styles (#250) */
+/* src/frontend/components/overlays/Sheet.css — Sheet overlay styles (#250, #268) */
 
 .xf-sheet-modal {
   background: var(--bg-modal);
@@ -10,6 +10,44 @@
   position: fixed;
   z-index: var(--z-modal);
   outline: none;
+}
+
+/* The assistant sheet: undocked, centred by its overlay, and exactly as tall
+   as the step it shows — a short step never leaves empty space behind it
+   (#268, "the sheet fits its content"). */
+.xf-sheet-center {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: var(--content-max-md);
+  max-height: 100%;
+  height: auto;
+  border-radius: var(--radius-card);
+  animation: xfSheetAppear var(--duration-fast) var(--spring);
+}
+
+@keyframes xfSheetAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion: the assistant sheet's own keyframe is declared again as a
+   fade, so the same animation name crossfades in place instead of settling. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfSheetAppear {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
 }
 
 .xf-sheet-bottom {
