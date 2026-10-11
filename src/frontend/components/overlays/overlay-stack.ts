@@ -1,15 +1,23 @@
-// src/frontend/components/overlays/overlay-stack.ts — Top-layer Escape and background inertness for overlays (#250).
+// src/frontend/components/overlays/overlay-stack.ts — Top-layer Escape, background inertness and the closing window for overlays (#250).
 //
 // React Aria handles focus containment and focus restore inside each overlay.
 // What it does not know is that several overlays can be open at once (an alert
 // over a dialog), so this module keeps the stack: Escape dismisses only the top
-// layer, and while an overlay is open the rest of <body> is inert.
+// layer, and while an overlay is open the rest of <body> is inert. It also owns
+// how long a closed overlay stays in the DOM, so that closing can animate.
 
-import { type RefObject, useEffect, useRef } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 type DismissHandler = () => void;
 
 const stack: DismissHandler[] = [];
+
 let listening = false;
 
 function onEscape(e: KeyboardEvent) {
@@ -48,6 +56,54 @@ export function useOverlayDismiss(
       }
     };
   }, [isOpen]);
+}
+
+/** True while `element` has an animation playing on it. */
+function isAnimating(element: HTMLElement): boolean {
+  if (!("getAnimations" in element)) return false;
+  return element
+    .getAnimations()
+    .some((animation) => animation.playState === "running");
+}
+
+/**
+ * True while an overlay should be in the DOM: while it is open, and while its exit
+ * animation runs after it closes. Closing animates (#250), so the overlay may not be
+ * unmounted the moment `isOpen` turns false.
+ *
+ * React Aria marks the overlay `data-exiting` (which the exit CSS keys off) and leaves it
+ * mounted until the animation ends, but it can only observe that from a layout effect,
+ * and an environment that never runs React Aria's layout effects would hold the overlay
+ * forever. The wrapper that renders the overlay therefore owns the window: it waits for
+ * `animationend`, and an overlay with nothing playing on it is gone at once rather than a
+ * frame or a timer later. Nothing here changes what a browser sees — an overlay in a
+ * browser plays its exit animation and then leaves, exactly as without it.
+ */
+export function useOverlayPresence(
+  ref: RefObject<HTMLElement | null>,
+  isOpen: boolean,
+): boolean {
+  const [isPresent, setIsPresent] = useState(isOpen);
+  // Reopened during the exit: keep it, rather than unmounting under a new open.
+  if (isOpen && !isPresent) setIsPresent(true);
+
+  useLayoutEffect(() => {
+    if (isOpen || !isPresent) return;
+    const element = ref.current;
+    if (!element || !isAnimating(element)) {
+      setIsPresent(false);
+      return;
+    }
+    const finish = () => setIsPresent(false);
+    element.addEventListener("animationend", finish);
+    element.addEventListener("animationcancel", finish);
+    return () => {
+      element.removeEventListener("animationend", finish);
+      element.removeEventListener("animationcancel", finish);
+    };
+  }, [isOpen, isPresent, ref]);
+
+  return isPresent;
 }
 
 /**

@@ -10,6 +10,7 @@ import "./Dialog.css";
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useId,
   useRef,
@@ -25,6 +26,7 @@ import {
   useFocusTrap,
   useInertBackground,
   useOverlayDismiss,
+  useOverlayPresence,
   useRestoreFocus,
 } from "./overlay-stack.js";
 
@@ -71,13 +73,24 @@ export function Dialog({
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const resolvedOverlayId = overlayId ?? `${dialogId}-overlay`;
   // React Aria's ModalOverlay takes no id prop, so the id lands on the element here.
-  const setOverlay = (el: HTMLDivElement | null) => {
-    overlayRef.current = el;
-    if (el) el.id = resolvedOverlayId;
-  };
+  //
+  // Both refs this component hands to React Aria are STABLE. React Aria wraps a
+  // callback ref in `useObjectRef`, which rebuilds its ref object whenever the
+  // callback's identity changes — and `useDialog`'s "focus the dialog on mount"
+  // effect depends on that ref. A fresh callback ref on every render therefore
+  // re-runs the effect on every render, and it steals focus from whatever the
+  // user is typing in mid-keystroke. A stable ref keeps the effect to the mount.
+  const setOverlay = useCallback(
+    (el: HTMLDivElement | null) => {
+      overlayRef.current = el;
+      if (el) el.id = resolvedOverlayId;
+    },
+    [resolvedOverlayId],
+  );
   // React Aria's Dialog does not render aria-modal, so the dialog marks itself.
-  const markModal = (el: HTMLElement | null) =>
+  const markModal = useCallback((el: HTMLElement | null) => {
     el?.setAttribute("aria-modal", "true");
+  }, []);
   // Exactly one accessible name: the title when there is one, otherwise the label.
   const labelProps = titleId
     ? { "aria-labelledby": titleId }
@@ -87,14 +100,20 @@ export function Dialog({
   useScrollLock(isOpen);
   useOverlayDismiss(isOpen, onClose);
   useInertBackground(overlayRef, isOpen);
-  useRestoreFocus(isOpen);
   useFocusTrap(overlayRef, isOpen);
-
-  if (!isOpen) return null;
+  // Closing animates: React Aria keeps the overlay mounted, marked `data-exiting`, and
+  // Dialog.css and Sheet.css play the exit from that state. Returning null on
+  // `isOpen === false` would unmount straight away and skip the animation.
+  const isPresent = useOverlayPresence(overlayRef, isOpen);
+  // Focus returns to the trigger once the overlay is gone, not while it is still on
+  // screen: React Aria moves focus back into the dialog as it exits, so a restore at
+  // close time would be undone a moment later.
+  useRestoreFocus(isPresent);
 
   // Server render has no document to portal into, so the markup is written in
   // place, as the old DialogPortal did. Focus and dismissal are client effects.
   if (typeof document === "undefined") {
+    if (!isOpen) return null;
     return (
       <div
         id={resolvedOverlayId}
@@ -111,6 +130,8 @@ export function Dialog({
       </div>
     );
   }
+
+  if (!isPresent) return null;
 
   return (
     <DialogContext.Provider value={{ titleId, onClose }}>

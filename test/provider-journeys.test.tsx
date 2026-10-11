@@ -304,9 +304,14 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   renderWizard();
   fireEvent.click(getEl("btn-open-wizard"));
 
-  // ── Basics ───────────────────────────────────────────────────────────────
+  // ── Step 1: the repository URL, and the project's own details ────────────
+  // The assistant's first step collects the URL (#268), and the paste runs
+  // through the provider that owns its shape: the Connect step opens with
+  // whatever the providers made of it. The URL goes last so the project's name
+  // is already there when the match is asked for.
   await typeInput(getEl("onboard-proj-name"), fixture.project.name);
   await typeInput(getEl("onboard-workspace-path"), workspacePath);
+  await typeInput(getEl("onboard-repo-url"), fixture.quickUrl);
   fireEvent.click(getEl("btn-step-1-next"));
   expect(document.getElementById("onboard-step-2")).not.toBeNull();
   // The Connect step is only rendered once the manifest it renders from has
@@ -315,12 +320,8 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
     Boolean(document.getElementById("select-tracker-provider")),
   );
 
-  // ── Connect: the paste runs through the provider that owns the URL shape ──
-  await typeInput(getEl("connect-quick-url"), fixture.quickUrl);
-  await act(async () => {
-    fireEvent.click(getEl("btn-quick-url-submit"));
-  });
-  await flushUntil("the Quick-URL parse to fill the cards", () =>
+  // ── Connect: the URL the first step took fills the cards ─────────────────
+  await flushUntil("the provider match to fill the cards", () =>
     ROLES.every(
       (role) =>
         !fixture.filledRoles.includes(role) ||
@@ -434,6 +435,16 @@ async function runJourney(fixture: JourneyFixture): Promise<JourneyRun> {
   await act(async () => {
     fireEvent.click(getEl("btn-step-5-submit"));
   });
+  // The assistant's own terminal state (#268): it does not vanish the moment
+  // the project exists. It says what was created and offers to open it.
+  await flushUntil("the assistant's success state", () =>
+    Boolean(document.getElementById("onboard-success")),
+  );
+  expect(getEl("success-step-project-name").textContent).toBe(
+    fixture.project.name,
+  );
+
+  fireEvent.click(getEl("btn-open-project"));
   await flushUntil(
     "the wizard to close after creation",
     () => document.getElementById("onboarding-wizard-modal") === null,

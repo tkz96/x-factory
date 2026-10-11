@@ -201,7 +201,9 @@ function setupStep3Draft(
         workspacePath: "/work/rocket",
       },
       connect: {
-        quickUrl: "",
+        // Step 1's repository URL (#268): present, so the step that holds it
+        // still validates when navigation returns to it.
+        quickUrl: "https://git.example.com/acme/rocket",
         // Configuration is keyed by PROVIDER (correction 2, #133): the git-host
         // role's card and its discovery read this one entry.
         providerConfigs: {
@@ -241,7 +243,7 @@ function setupStep2Draft() {
       workspacePath: "/work/rocket",
     },
     connect: {
-      quickUrl: "",
+      quickUrl: "https://git.example.com/acme/rocket",
       providerConfigs: {},
       tracker: {
         providerId: null,
@@ -321,7 +323,11 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
 
-    // Step 1 — Basics
+    // Step 1 — the repository URL, the project's name and its workspace
+    await typeInput(
+      getEl("onboard-repo-url"),
+      "https://git.example.com/acme/rocket",
+    );
     await typeInput(getEl("onboard-proj-name"), "Rocket");
     await typeInput(getEl("onboard-workspace-path"), "/work/rocket");
     fireEvent.click(getEl("btn-step-1-next"));
@@ -764,28 +770,30 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
     expect(document.getElementById("onboard-step-4")).toBeNull();
   });
 
-  it("STEPNAV REGRESSION: forward jumps past unvalidated steps stay disabled while the gate is closed", async () => {
+  it("the gate keeps the assistant on Repositories until an application repository is selected (#144)", async () => {
     setupStep3Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
     await flushDiscovery();
 
-    expect(getEl<HTMLButtonElement>("step-nav-basics").disabled).toBe(false);
-    expect(getEl<HTMLButtonElement>("step-nav-connect").disabled).toBe(false);
-    expect(getEl<HTMLButtonElement>("step-nav-inspection").disabled).toBe(true);
-    expect(getEl<HTMLButtonElement>("step-nav-review").disabled).toBe(true);
-
-    // A disabled forward jump is inert.
-    fireEvent.click(getEl("step-nav-review"));
+    // With nothing selected the step does not advance, and Continue says so
+    // rather than leaving the user on a dead button.
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-3")).not.toBeNull();
+    expect(getEl("wizard-progress-counter").textContent).toBe("Step 3 of 5");
 
-    // After the gate opens and the wizard advances, only visited steps unlock.
+    // With a selection the gate opens and the assistant moves on.
     act(() => {
       fireEvent.click(getEl("repo-select-repo-app"));
     });
     fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-4")).not.toBeNull();
-    expect(getEl<HTMLButtonElement>("step-nav-review").disabled).toBe(true);
+    expect(getEl("wizard-progress-counter").textContent).toBe("Step 4 of 5");
+
+    // The assistant can still come back, and the selection is still there.
+    fireEvent.click(getEl("btn-step-4-back"));
+    expect(getEl("wizard-progress-counter").textContent).toBe("Step 3 of 5");
   });
 
   // ── Smoothness #2, #3, #6 (#148): selection, keying, and back-navigation ───

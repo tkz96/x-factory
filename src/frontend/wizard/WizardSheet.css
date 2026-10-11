@@ -1,0 +1,20 @@
+/* src/frontend/wizard/WizardSheet.css — The assistant sheet's own geometry
+   (#268).
+ *
+ * The surface, the backdrop, the focus ring and the Escape behaviour come from
+ * the #250 Sheet overlay (class `xf-sheet-modal xf-sheet-center`). This file
+ * only adds what is the assistant's: a body that holds a step and scrolls on
+ * its own, so the title, the counter and the action bar stay put. Tokens only
+ * (docs/agents/frontend-styling.md).
+ */
+
+.wizard-sheet-header {
+  padding-bottom: var(--space-3);
+  border-bottom: none;
+}
+
+.wizard-sheet-body {
+  /* Steps are padded by the body, never by a `.wizard-step-pane` of their own,
+     so every step starts at the same place. */
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}

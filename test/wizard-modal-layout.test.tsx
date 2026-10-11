@@ -22,7 +22,13 @@ import {
   mock,
 } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
@@ -38,6 +44,15 @@ function getEl<T extends HTMLElement = HTMLElement>(id: string): T {
   const el = document.getElementById(id);
   if (!el) throw new Error(`Element #${id} not found`);
   return el as T;
+}
+
+/** Types into a field the way the browser does: focus, change, keyup. */
+function typeInput(input: HTMLElement, value: string) {
+  act(() => {
+    input.focus();
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyUp(input);
+  });
 }
 
 function Harness() {
@@ -136,15 +151,12 @@ describe("Setup modal layout contract (#159)", () => {
     fireEvent.click(getEl("btn-open-wizard"));
     expect(bodyOverflow()).toBe("hidden");
 
-    // Advance to step 2: fill the required name (auto-fills the id).
-    const nameInput = getEl<HTMLInputElement>("onboard-proj-name");
+    // Advance to step 2: the URL step needs a well-formed URL and a name.
+    typeInput(getEl("onboard-repo-url"), "https://git.example.com/acme/titan");
+    typeInput(getEl("onboard-proj-name"), "Titan");
     await act(async () => {
-      nameInput.focus();
-      fireEvent.change(nameInput, { target: { value: "Titan" } });
-      fireEvent.keyUp(nameInput);
       await Promise.resolve();
     });
-    expect(nameInput.value).toBe("Titan");
     const nextBtn = getEl<HTMLButtonElement>("btn-step-1-next");
     expect(nextBtn.disabled).toBe(false);
     fireEvent.click(nextBtn);
@@ -164,16 +176,21 @@ describe("Setup modal layout contract (#159)", () => {
     expect(bodyOverflow()).not.toBe("hidden");
   });
 
-  it("composes the shared modal: step actions sit in the fixed footer, not the scrolling body", () => {
+  it("keeps the step's actions in the sheet, never inside the step it belongs to", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
 
-    const next = getEl("btn-step-1-next");
-    expect(next.closest(".modal-footer")).not.toBeNull();
-    expect(next.closest(".modal-body")).toBeNull();
-    expect(getEl("onboarding-wizard-modal").closest(".modal-backdrop")).toBe(
-      getEl("onboarding-wizard-modal-overlay"),
-    );
+    const sheet = getEl("onboarding-wizard-modal");
+    // The step's own actions are part of the sheet's chrome, so a tall step
+    // can scroll without taking Back and Continue with it.
+    const next = within(sheet).getByRole("button", { name: "Continue" });
+    expect(sheet.contains(next)).toBe(true);
+    expect(getEl("onboard-step-1").contains(next)).toBe(false);
+
+    // Cancel belongs to the sheet too: it means the same on every step.
+    const cancel = within(sheet).getByRole("button", { name: "Cancel" });
+    expect(sheet.contains(cancel)).toBe(true);
+    expect(getEl("onboard-step-1").contains(cancel)).toBe(false);
   });
 
   it("closes on Escape through the shared modal", () => {
