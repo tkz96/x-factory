@@ -37,23 +37,37 @@ function StepMark({ done }: { done: boolean }) {
   );
 }
 
+/**
+ * How loudly a step's action is drawn. Only the first step still to do gets the
+ * primary fill; the other open steps are secondary, and a finished step's action
+ * is quiet, so it stays reachable without competing with the step that needs
+ * doing.
+ */
+type ActionWeight = "primary" | "secondary" | "quiet";
+
 /** The one action that finishes a step. */
 function StepAction({
   stepId,
+  done,
+  weight,
   openAddProject,
 }: {
   stepId: SetupStepId;
+  done: boolean;
+  weight: ActionWeight;
   openAddProject: () => void;
 }) {
   if (stepId === "project") {
     return (
       <Button
-        variant="primary"
+        variant={weight}
         size="sm"
         icon="icon-plus"
         onPress={openAddProject}
       >
-        {WELCOME_COPY.stepAction.project}
+        {done
+          ? WELCOME_COPY.stepAction.projectAgain
+          : WELCOME_COPY.stepAction.project}
       </Button>
     );
   }
@@ -62,7 +76,7 @@ function StepAction({
       ? WELCOME_COPY.stepPath.model
       : WELCOME_COPY.stepPath.run;
   return (
-    <Link className="btn-secondary btn-sm" to={to}>
+    <Link className={`ui-button ui-button--${weight} ui-button--sm`} to={to}>
       {WELCOME_COPY.stepAction[stepId]}
     </Link>
   );
@@ -75,6 +89,9 @@ export interface SetupChecklistProps {
 
 export function SetupChecklist({ checklist }: SetupChecklistProps) {
   const { openOnboardingModal } = useModal();
+  // The first step still to do is the one the screen asks for: the only primary
+  // action. Once every step is done there is none.
+  const nextStepId = checklist.steps.find((step) => !step.done)?.id;
 
   return (
     <div className="welcome-checklist">
@@ -103,6 +120,14 @@ export function SetupChecklist({ checklist }: SetupChecklistProps) {
             <div className="setup-step-action">
               <StepAction
                 stepId={step.id}
+                done={step.done}
+                weight={
+                  step.done
+                    ? "quiet"
+                    : step.id === nextStepId
+                      ? "primary"
+                      : "secondary"
+                }
                 openAddProject={openOnboardingModal}
               />
             </div>

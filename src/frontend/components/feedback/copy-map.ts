@@ -761,6 +761,8 @@ export const WELCOME_COPY = {
   stepAction: {
     /** Opens the add-project assistant (#268) through the modal context. */
     project: "Add Project",
+    /** The same action once a project exists: a quieter way to add another. */
+    projectAgain: "Add Another Project",
     /** The pane that owns Check Connection, the models and the roles (#274). */
     model: "Open Settings › Models",
     run: "Open Tickets",

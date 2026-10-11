@@ -363,6 +363,94 @@ describe("each step goes where it is finished (#269)", () => {
   });
 });
 
+/** The drawing weight a step's action carries: one primary, the rest quieter. */
+type ActionWeight = "primary" | "secondary" | "quiet";
+
+function weightOf(control: HTMLElement): ActionWeight | undefined {
+  const match = /ui-button--(primary|secondary|quiet)\b/.exec(
+    control.className,
+  );
+  return match?.[1] as ActionWeight | undefined;
+}
+
+/** The control that finishes a step: its one button or link. */
+function actionsOf(row: HTMLElement): HTMLElement[] {
+  return [
+    ...within(row).queryAllByRole("button"),
+    ...within(row).queryAllByRole("link"),
+  ];
+}
+
+describe("one primary action on the checklist (#269)", () => {
+  it("draws the only primary action on the first step that is not done", () => {
+    const view = renderWelcome();
+
+    expect(
+      stepRows(view).map((row) => actionsOf(row).map((el) => weightOf(el))),
+    ).toEqual([["primary"], ["secondary"], ["secondary"]]);
+    expect(view.container.querySelectorAll(".ui-button--primary")).toHaveLength(
+      1,
+    );
+  });
+
+  it("moves the primary action to the first unfinished step once the project exists", () => {
+    const view = renderWelcome({ projects: [makeProject()] });
+
+    expect(
+      stepRows(view).map((row) => actionsOf(row).map((el) => weightOf(el))),
+    ).toEqual([["quiet"], ["primary"], ["secondary"]]);
+    expect(view.container.querySelectorAll(".ui-button--primary")).toHaveLength(
+      1,
+    );
+  });
+
+  it("moves the primary action to the run step when the model is set up", () => {
+    const view = renderWelcome({
+      projects: [makeProject()],
+      connections: [makeConnection()],
+      roles: ROLES,
+    });
+
+    expect(
+      stepRows(view).map((row) => actionsOf(row).map((el) => weightOf(el))),
+    ).toEqual([["quiet"], ["quiet"], ["primary"]]);
+    expect(view.container.querySelectorAll(".ui-button--primary")).toHaveLength(
+      1,
+    );
+  });
+
+  it("leaves no primary action once every step is done", () => {
+    const view = renderWelcome(COMPLETE);
+
+    expect(
+      stepRows(view).map((row) => actionsOf(row).map((el) => weightOf(el))),
+    ).toEqual([["quiet"], ["quiet"], ["quiet"]]);
+    expect(view.container.querySelectorAll(".ui-button--primary")).toHaveLength(
+      0,
+    );
+  });
+
+  it("keeps a done step's action reachable: a finished project can still be added to", () => {
+    const view = renderWelcome({ projects: [makeProject()] });
+
+    fireEvent.click(
+      view.getByRole("button", { name: WELCOME_COPY.stepAction.projectAgain }),
+    );
+
+    expect(view.getByRole("dialog", { name: WIZARD_COPY.title })).toBeTruthy();
+  });
+
+  it("keeps a finished model step's link to Settings", () => {
+    const view = renderWelcome(COMPLETE);
+
+    expect(
+      view
+        .getByRole("link", { name: WELCOME_COPY.stepAction.model })
+        .getAttribute("href"),
+    ).toBe(WELCOME_COPY.stepPath.model);
+  });
+});
+
 describe("the welcome's read region (#269)", () => {
   it("announces one wait and ticks nothing while the setup is unknown", () => {
     globalThis.fetch = (() =>
