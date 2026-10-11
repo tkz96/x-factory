@@ -14,17 +14,22 @@ import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { detectLegacyKeyProvider } from "./env-bootstrap.js";
 import { NotFoundError, ValidationError } from "./errors.js";
-import {
-  type DiscoveredModel,
-  listProviderModels,
-  type ModelApiType,
-  type ModelDetails,
-  type ModelListResult,
-  runtimeCatalogDetails,
-} from "./model-catalog.js";
+import { listProviderModels, runtimeCatalogDetails } from "./model-catalog.js";
 import { getModelConnectionsPath, getModelSecretsPath } from "./paths.js";
+import type {
+  DiscoveredModel,
+  ModelApiType,
+  ModelConnectionView,
+  ModelDetails,
+  ModelListResult,
+  ModelRecord,
+  ModelRecordPatch,
+} from "./shared/model-connection-types.js";
 
-export { MODEL_API_TYPES, type ModelApiType } from "./model-catalog.js";
+export {
+  MODEL_API_TYPES,
+  type ModelApiType,
+} from "./shared/model-connection-types.js";
 
 /** Base URLs pre-filled for API types with one well-known endpoint. */
 export const DEFAULT_BASE_URLS: Readonly<
@@ -40,35 +45,6 @@ export const KEY_ENV_VARS: Readonly<Record<ModelApiType, string>> = {
   gemini: "GEMINI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
 };
-
-export interface ModelLimits {
-  rpm?: number | undefined;
-  tpm?: number | undefined;
-  rpd?: number | undefined;
-  tpd?: number | undefined;
-}
-
-export interface ModelBudget {
-  perDay: { usd?: number | undefined; requests?: number | undefined };
-}
-
-/** A model chosen from a connection, with its (editable) details (#277). */
-export interface ModelRecord extends ModelDetails {
-  modelId: string;
-  name?: string | undefined;
-  limits: ModelLimits;
-  budget: ModelBudget;
-}
-
-/** Edits to a model record; `null` clears a detail. */
-export interface ModelRecordPatch {
-  contextWindow?: number | null | undefined;
-  maxOutputTokens?: number | null | undefined;
-  inputPricePerMTok?: number | null | undefined;
-  outputPricePerMTok?: number | null | undefined;
-  limits?: ModelLimits | undefined;
-  budget?: ModelBudget | undefined;
-}
 
 /** A connection as stored (no key). */
 interface StoredConnection {
@@ -93,13 +69,7 @@ interface ConnectionsFile {
 
 type SecretsFile = Record<string, string>;
 
-/** A connection as returned to callers: never the key itself. */
-export interface ModelConnectionView extends StoredConnection {
-  hasKey: boolean;
-  keyLast4: string | null;
-  /** Where the effective key comes from. */
-  keySource: "stored" | "environment" | "none";
-}
+export type { ModelConnectionView, ModelRecord, ModelRecordPatch };
 
 export interface CreateModelConnectionInput {
   name: string;

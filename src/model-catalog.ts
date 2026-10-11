@@ -13,42 +13,12 @@ import { GOOGLE_MODELS } from "@earendil-works/pi-ai/providers/google.models";
 import { OPENAI_MODELS } from "@earendil-works/pi-ai/providers/openai.models";
 import { OPENROUTER_MODELS } from "@earendil-works/pi-ai/providers/openrouter.models";
 
-export const MODEL_API_TYPES = [
-  "openai-compatible",
-  "gemini",
-  "anthropic",
-] as const;
-export type ModelApiType = (typeof MODEL_API_TYPES)[number];
-
-/** Details X-Factory keeps per model; every field is optional and editable. */
-export interface ModelDetails {
-  contextWindow?: number | undefined;
-  maxOutputTokens?: number | undefined;
-  inputPricePerMTok?: number | undefined;
-  outputPricePerMTok?: number | undefined;
-}
-
-export interface DiscoveredModel extends ModelDetails {
-  id: string;
-  name?: string | undefined;
-}
-
-export type CheckErrorCategory =
-  | "key_rejected"
-  | "unreachable"
-  | "rate_limited"
-  | "other";
-
-export interface CheckError {
-  category: CheckErrorCategory;
-  message: string;
-  status?: number | undefined;
-  retryAfterSeconds?: number | undefined;
-}
-
-export type ModelListResult =
-  | { ok: true; models: DiscoveredModel[] }
-  | { ok: false; error: CheckError };
+import type {
+  DiscoveredModel,
+  ModelApiType,
+  ModelDetails,
+  ModelListResult,
+} from "./shared/model-connection-types.js";
 
 interface ListInput {
   apiType: ModelApiType;
