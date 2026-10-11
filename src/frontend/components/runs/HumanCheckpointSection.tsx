@@ -3,7 +3,6 @@
 import "./HumanCheckpointSection.css";
 
 import { useState } from "react";
-import { runStatusLabel } from "../../../shared/run-status-policy.js";
 import type {
   ReviewResult,
   Run,
@@ -11,6 +10,7 @@ import type {
 } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { usePrRun } from "../../hooks/useQueries.js";
+import { runStatusText } from "../../lib/run-status-ui.js";
 
 interface HumanCheckpointSectionProps {
   run: Run;
@@ -307,7 +307,7 @@ export function HumanCheckpointSection({
             className="badge"
             data-status={run.status}
           >
-            {runStatusLabel(run.status)}
+            {runStatusText(run.status)}
           </span>
         </div>
 

@@ -1,12 +1,10 @@
 import { Link } from "react-router-dom";
-import {
-  ACTIVE_RUN_STATUSES,
-  runStatusLabel,
-} from "../../shared/run-status-policy.js";
+import { ACTIVE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { useModal } from "../context/ModalContext.js";
 import { useRuns } from "../hooks/useQueries.js";
+import { runStatusText } from "../lib/run-status-ui.js";
 import "./RunsView.css";
 
 export function RunsView() {
@@ -78,7 +76,7 @@ export function RunsView() {
                     </span>
                   </div>
                   <span className="badge" data-status={r.status}>
-                    {runStatusLabel(r.status)}
+                    {runStatusText(r.status)}
                   </span>
                 </div>
               </Link>
