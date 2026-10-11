@@ -20,6 +20,7 @@ import {
   type ParsedDiffFile,
   parseDiffToFiles,
 } from "../../lib/diff-parser.js";
+import { formatTimestamp } from "../../lib/format-timestamp.js";
 import { DiffModal } from "./DiffModal.js";
 
 export interface ChatAction {
@@ -62,14 +63,6 @@ export interface RunChatProps {
   onAbort?: () => void;
   onRequeue?: (notes?: string) => void;
   isTransitioning?: boolean;
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function statusToSystemText(status: string, eventText?: string): string {
@@ -226,7 +219,51 @@ function buildInitialMessages(run: Run): ChatMessage[] {
     return messages;
   }
 
-  // Default: understanding approval gate messages
+  if (run.status === "ready_for_pr") {
+    messages.push({
+      id: "agent-ready-for-pr",
+      role: "agent",
+      text: "Verification passed and the changes are approved. The pull request is ready to be opened.",
+      timestamp: now,
+    });
+    return messages;
+  }
+
+  if (run.status === "pr_created") {
+    messages.push({
+      id: "agent-pr-created",
+      role: "agent",
+      text: "The pull request has been created. This run is complete.",
+      timestamp: now,
+    });
+    return messages;
+  }
+
+  if (UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(run.status)) {
+    messages.push({
+      id: "agent-run-ended",
+      role: "agent",
+      text:
+        run.status === "failed"
+          ? "This run failed and can't continue."
+          : "This run was stopped and can't continue.",
+      timestamp: now,
+    });
+    return messages;
+  }
+
+  if (run.status !== "awaiting_understanding_approval") {
+    // recovery_required and any other status without an approval gate.
+    messages.push({
+      id: "agent-waiting",
+      role: "agent",
+      text: `This run is in "${runStatusLabel(run.status)}". There is nothing to approve right now.`,
+      timestamp: now,
+    });
+    return messages;
+  }
+
+  // Understanding approval gate messages
   messages.push({
     id: "agent-intro",
     role: "agent",
@@ -359,6 +396,7 @@ export function RunChat({
   // The server only accepts chat during approval gates; the shared policy
   // gates the input on the same action guard.
   const isApprovalGate = canRunAction(run.status, "chat");
+  const canApprove = canRunAction(run.status, "approve");
 
   // Conversation turns and status transitions, read straight from the typed event union.
   const historyMessages: ChatMessage[] = events.flatMap((e): ChatMessage[] => {
@@ -586,13 +624,18 @@ export function RunChat({
                 <div className="imsg-system-pill">
                   <span>{msg.text}</span>
                   <span className="imsg-system-time">
-                    {formatTime(msg.timestamp)}
+                    {formatTimestamp(msg.timestamp)}
                   </span>
                 </div>
                 <div className="imsg-system-line" />
               </div>
             );
           }
+
+          // Never offer an approval the shared policy doesn't allow on this status.
+          const actions = msg.actions?.filter(
+            (act) => act.action !== "approve" || canApprove,
+          );
 
           return (
             <div
@@ -652,7 +695,7 @@ export function RunChat({
                 )}
 
                 {/* Inline Actions */}
-                {msg.actions && msg.actions.length > 0 && (
+                {actions && actions.length > 0 && (
                   <div className="imsg-actions">
                     {resolvedActions[msg.id] ? (
                       <div className="imsg-action-resolved">
@@ -660,7 +703,7 @@ export function RunChat({
                         <span>{resolvedActions[msg.id]}</span>
                       </div>
                     ) : (
-                      msg.actions.map((act) => (
+                      actions.map((act) => (
                         <button
                           key={act.action}
                           type="button"
@@ -676,7 +719,7 @@ export function RunChat({
                 )}
               </div>
               <span className="imsg-timestamp">
-                {formatTime(msg.timestamp)}
+                {formatTimestamp(msg.timestamp)}
               </span>
             </div>
           );
