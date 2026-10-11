@@ -259,8 +259,15 @@ describe("Shared run-event union (#171)", () => {
       worktreePath: `/tmp/worktrees-${runId}`,
     });
 
-    // 1. PlanExecutor producer (emits info and stage_evidence)
-    const planExecutor = new PlanExecutor();
+    // 1. PlanExecutor producer (emits info and stage_evidence); the plan is the
+    // Builder's own answer, so the stage runs on a stub model (#282).
+    const planExecutor = new PlanExecutor({
+      resolveRole: stubResolveRole,
+      sessionFactory: async () =>
+        scriptedReviewSession(
+          "# Execution Plan for #T-2: Ticket 2\n\n1. Add `test/plan.test.ts`.\n2. Change `src/plan.ts`.\n",
+        ),
+    });
     await executeStage(repos, planExecutor, runId, "plan");
 
     const eventsAfterPlan = eventRepo.getEventsForRun(runId);

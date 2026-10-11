@@ -2,17 +2,19 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { validateProject } from "../src/config.js";
 import type { Project, Ticket } from "../src/types.js";
 import {
-  buildImplementationContext,
   buildProjectConstraints,
   checkKnowledgeNotes,
+  cleanFilePath,
+  existingRelevantFiles,
   extractMentionedFiles,
   inspectRootFiles,
+  parseUnderstandingOutput,
 } from "../src/understand.js";
 
 describe("Understand Stage (src/understand.ts)", () => {
@@ -196,60 +198,66 @@ describe("Understand Stage (src/understand.ts)", () => {
     });
   });
 
-  describe("buildImplementationContext", () => {
-    it("synthesizes complete ImplementationContext combining root inspection, knowledge, and constraints", async () => {
-      const tempDir = await mkdtemp(path.join(os.tmpdir(), "xf-ctx-"));
-      await writeFile(path.join(tempDir, "package.json"), "{}");
-      await writeFile(path.join(tempDir, "AGENTS.md"), "# Agents");
-
-      const project: Project = {
-        ...baseProject,
-        knowledgeRepositoryPath: tempDir,
-        typecheckCommand: "tsc --noEmit",
-      };
-
-      const context = await buildImplementationContext(
-        tempDir,
-        project,
-        baseTicket,
-        "Plan: modify src/auth.ts",
+  describe("parseUnderstandingOutput", () => {
+    it("reads every section, tolerating markdown and case and cleaning file references", () => {
+      const sections = parseUnderstandingOutput(
+        "## Relevant Files:\n- `src/auth.ts`\n- ./src/middleware.ts:12\n\n**SUMMARY:**\nAdds JWT validation to the API.\n\nEXISTING BEHAVIOR:\nTokens are never checked.\n\nConstraints:\n1. Keep the API stable\n- No new dependencies\n\nRisks:\n* Expired tokens are accepted\n",
       );
 
-      assert.ok(context.relevantFiles.includes("package.json"));
-      assert.ok(context.relevantFiles.includes("src/auth.ts"));
-      assert.ok(
-        context.architecturalNotes.includes(
-          "Repository instructions available in AGENTS.md",
-        ),
-      );
-      assert.ok(
-        context.architecturalNotes.includes(
-          "Knowledge repository configured and verified",
-        ),
-      );
-      assert.equal(context.constraints.length, 4);
-      assert.ok(context.risks.length >= 3);
-      assert.ok(
-        context.existingBehavior.includes("Refer to worktree repository files"),
-      );
-
-      await rm(tempDir, { recursive: true, force: true });
+      assert.deepEqual(sections?.relevantFiles, [
+        "src/auth.ts",
+        "src/middleware.ts",
+      ]);
+      assert.equal(sections?.summary, "Adds JWT validation to the API.");
+      assert.equal(sections?.existingBehavior, "Tokens are never checked.");
+      assert.deepEqual(sections?.constraints, [
+        "Keep the API stable",
+        "No new dependencies",
+      ]);
+      assert.deepEqual(sections?.risks, ["Expired tokens are accepted"]);
     });
 
-    it("falls back to standard architectural note when no instructions or knowledge repo exist", async () => {
-      const tempDir = await mkdtemp(path.join(os.tmpdir(), "xf-ctx2-"));
-
-      const context = await buildImplementationContext(
-        tempDir,
-        baseProject,
-        { ...baseTicket, description: undefined },
-        "",
-      );
-
+    it("returns null when the answer carries no sections at all", () => {
       assert.equal(
-        context.architecturalNotes,
-        "Standard software project structure.",
+        parseUnderstandingOutput("I did not look at the code."),
+        null,
       );
+    });
+
+    it("keeps a section's lines and ends them at the next heading", () => {
+      const sections = parseUnderstandingOutput(
+        "SUMMARY:\nFirst line.\nSecond line.\n\nRules:\nNot a section a run reads.\n",
+      );
+
+      assert.equal(sections?.summary, "First line.\nSecond line.");
+    });
+  });
+
+  describe("cleanFilePath", () => {
+    it("strips bullets, backticks, line references and trailing punctuation", () => {
+      assert.equal(cleanFilePath("- `./src/a.ts`:12"), "src/a.ts");
+      assert.equal(cleanFilePath("src/b.ts (line 4-6),"), "src/b.ts");
+      assert.equal(cleanFilePath("2. test/c.test.ts"), "test/c.test.ts");
+    });
+  });
+
+  describe("existingRelevantFiles", () => {
+    it("keeps only paths that are files inside the worktree", async () => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "xf-files-"));
+      await mkdir(path.join(tempDir, "src"), { recursive: true });
+      await writeFile(path.join(tempDir, "src", "a.ts"), "export {};\n");
+      await mkdir(path.join(tempDir, "src", "dir"), { recursive: true });
+
+      const files = await existingRelevantFiles(tempDir, [
+        "src/a.ts",
+        "`src/a.ts`",
+        "src/dir",
+        "src/missing.ts",
+        "../outside.ts",
+        "/etc/passwd",
+      ]);
+
+      assert.deepEqual(files, ["src/a.ts"]);
 
       await rm(tempDir, { recursive: true, force: true });
     });
