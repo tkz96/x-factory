@@ -341,6 +341,11 @@
 .toolbar-select {
   min-height: var(--tap-min);
   max-width: 14rem;
+  /* A long project name ends in an ellipsis, never a cut-off word (#260). */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0.3rem 0.7rem;
   background: var(--bg-card);
   color: var(--text);
@@ -496,7 +501,7 @@
   }
 
   .toolbar-select {
-    max-width: 6.5rem;
+    max-width: 8rem;
     min-width: 0;
     padding: 0.3rem 0.5rem;
   }
