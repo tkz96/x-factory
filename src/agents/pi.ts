@@ -9,6 +9,14 @@ import {
   ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import {
+  gatewayKeyFor,
+  isRateLimitMessage,
+  type ModelGateway,
+  modelGateway,
+  parseRetryDelayMs,
+  RateLimitedError,
+} from "../model-gateway.js";
 import { ModelUnavailableError, type ResolvedModel } from "../model-roles.js";
 import { getPiAgentDir } from "../paths.js";
 import type { ModelApiType } from "../shared/model-connection-types.js";
@@ -96,6 +104,10 @@ const KEY_REJECTED =
 
 /** A model error as X-Factory reports it: a rejected key is never retried as something else. */
 export function classifyModelError(message: string): Error {
+  if (isRateLimitMessage(message)) {
+    // The gateway waits and retries these (#280).
+    return new RateLimitedError(message, parseRetryDelayMs(message));
+  }
   return KEY_REJECTED.test(message)
     ? new ModelUnavailableError(`Key rejected: ${message}`, "key rejected")
     : new Error(message);
@@ -363,10 +375,33 @@ export interface ChatMessageInput {
   timestamp?: number;
 }
 
+/** A rough token count for a context: about four characters per token. */
+export function estimateTokens(messages: readonly ChatMessageInput[]): number {
+  const chars = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
+  return Math.ceil(chars / 4);
+}
+
+export interface ChatOptions {
+  /** The gateway that paces and queues the call (#280); the worker's by default. */
+  gateway?: ModelGateway | undefined;
+  /** Told about each rate-limit wait before it happens. */
+  onWait?: ((ms: number, reason: string) => void) | undefined;
+}
+
 export async function chatWithModel(
   resolved: ResolvedModel,
   messages: ChatMessageInput[],
+  options: ChatOptions = {},
 ): Promise<{ text: string; usage: PiUsage }> {
+  // A request larger than the model's window would fail anyway; say why (#280).
+  const window = resolved.details.contextWindow;
+  const estimated = estimateTokens(messages);
+  if (window !== undefined && estimated > window) {
+    throw new ModelUnavailableError(
+      `Context too large: about ${estimated} tokens for ${resolved.modelId}, whose window is ${window}.`,
+      "context too large",
+    );
+  }
   const { modelRuntime, model } = await isolatedRuntime(resolved);
 
   let systemPrompt: string | undefined;
@@ -418,21 +453,31 @@ export async function chatWithModel(
   type SimpleOptionsPayload = {
     reasoning?: "low" | "medium" | "high";
   };
-  const options: SimpleOptionsPayload = {};
+  const simpleOptions: SimpleOptionsPayload = {};
   if (model.reasoning) {
-    options.reasoning = "low";
+    simpleOptions.reasoning = "low";
   }
 
-  const response = await modelRuntime.completeSimple(
-    model,
-    context as unknown as Parameters<typeof modelRuntime.completeSimple>[1],
-    options as unknown as Parameters<typeof modelRuntime.completeSimple>[2],
+  const gateway = options.gateway ?? modelGateway;
+  const response = await gateway.run(
+    gatewayKeyFor(resolved),
+    async () => {
+      const reply = await modelRuntime.completeSimple(
+        model,
+        context as unknown as Parameters<typeof modelRuntime.completeSimple>[1],
+        simpleOptions as unknown as Parameters<
+          typeof modelRuntime.completeSimple
+        >[2],
+      );
+      if (reply.stopReason === "error") {
+        throw classifyModelError(
+          reply.errorMessage || "Model request returned error",
+        );
+      }
+      return reply;
+    },
+    { onWait: options.onWait },
   );
-  if (response.stopReason === "error") {
-    throw classifyModelError(
-      response.errorMessage || "Model request returned error",
-    );
-  }
 
   let text = "";
   if (typeof response.content === "string") {

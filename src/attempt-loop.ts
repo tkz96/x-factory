@@ -2,6 +2,14 @@
 
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  type GatewayKey,
+  isRateLimitMessage,
+  type ModelGateway,
+  parseRetryDelayMs,
+  RateLimitedError,
+} from "./model-gateway.js";
+import { ModelUnavailableError } from "./model-roles.js";
 import { execCommand, resolveSanitizedEnv } from "./proc.js";
 import { buildRalphPrompt, buildRepairPrompt } from "./prompts.js";
 import type {
@@ -212,6 +220,8 @@ export interface AttemptLoopInput {
   model?: string | undefined;
   /** Extra env for the agent CLI: its per-run config dir and key (#278). */
   agentEnv?: Record<string, string> | undefined;
+  /** Paces and queues the agent per model; a 429 is waited out (#280). */
+  gate?: { gateway: ModelGateway; key: GatewayKey } | undefined;
   /** Whether running without a sandbox is explicitly allowed via setting or env var. */
   allowUnsandboxed?: boolean | undefined;
   signal?: AbortSignal | undefined;
@@ -345,22 +355,64 @@ export async function runAttemptLoop(
     const forward = progressLineForwarder((line) =>
       emit("ralph_progress", { text: line }),
     );
-    const loop = await execCommand(
-      "bash",
-      [scriptPath, "--agent", "pi", "-n", String(iterations), ...modelArgs],
-      {
-        cwd: input.worktreePath,
-        env,
-        envPolicy: "sanitized",
-        timeoutMs,
-        signal,
-        onOutputChunk: (chunk, stream) => {
-          if (stream !== "stdout") return;
-          forward(chunk);
-          emit("pi_output_chunk", { role: "ralph", text: chunk });
+    const runLoop = () =>
+      execCommand(
+        "bash",
+        [scriptPath, "--agent", "pi", "-n", String(iterations), ...modelArgs],
+        {
+          cwd: input.worktreePath,
+          env,
+          envPolicy: "sanitized",
+          timeoutMs,
+          signal,
+          onOutputChunk: (chunk, stream) => {
+            if (stream !== "stdout") return;
+            forward(chunk);
+            emit("pi_output_chunk", { role: "ralph", text: chunk });
+          },
         },
-      },
-    );
+      );
+
+    let loop: Awaited<ReturnType<typeof runLoop>>;
+    try {
+      loop = input.gate
+        ? await input.gate.gateway.run(
+            input.gate.key,
+            async () => {
+              const result = await runLoop();
+              const output = `${result.stderr}\n${result.stdout}`;
+              // A provider rate limit is waited out and the same attempt
+              // runs again; it never spends the repair budget (#280).
+              if (
+                result.exitCode !== 0 &&
+                !result.timedOut &&
+                !signal?.aborted &&
+                isRateLimitMessage(output)
+              ) {
+                throw new RateLimitedError(
+                  output.trim().slice(-500),
+                  parseRetryDelayMs(output),
+                );
+              }
+              return result;
+            },
+            {
+              signal,
+              onWait: (ms) =>
+                emit("ralph_progress", {
+                  text: `The provider is rate limiting the model; waiting ${Math.ceil(ms / 1000)} s, then retrying. This does not count as a repair attempt.`,
+                }),
+            },
+          )
+        : await runLoop();
+    } catch (err: unknown) {
+      if (signal?.aborted) return { outcome: "aborted" };
+      if (err instanceof ModelUnavailableError) {
+        emit("error", { message: err.message });
+        return { outcome: "failed", error: err.message };
+      }
+      throw err;
+    }
 
     if (signal?.aborted) return { outcome: "aborted" };
     if (loop.timedOut) {

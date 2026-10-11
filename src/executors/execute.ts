@@ -2,6 +2,7 @@
 
 import { writeRunAgentConfig } from "../agents/pi.js";
 import { runAttemptLoop } from "../attempt-loop.js";
+import { gatewayKeyFor, modelGateway } from "../model-gateway.js";
 import {
   ModelUnavailableError,
   modelUse,
@@ -67,9 +68,11 @@ export class ExecuteExecutor implements StageExecutor {
     // The Builder role's model, handed to the agent CLI through a per-run
     // config that never touches ~/.pi; no fallback model (#278).
     let agent: Awaited<ReturnType<typeof writeRunAgentConfig>>;
+    let gateKey: ReturnType<typeof gatewayKeyFor>;
     try {
       const resolved = await this.deps.resolveRole("builder");
       agent = await writeRunAgentConfig(run.artifactsDir, resolved);
+      gateKey = gatewayKeyFor(resolved);
       context.recordModel(modelUse(resolved));
     } catch (err: unknown) {
       if (err instanceof ModelUnavailableError) {
@@ -96,6 +99,7 @@ export class ExecuteExecutor implements StageExecutor {
         provider: agent.provider,
         model: agent.model,
         agentEnv: agent.env,
+        gate: { gateway: modelGateway, key: gateKey },
         allowUnsandboxed,
         signal,
         emit: context.emit,

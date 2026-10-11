@@ -16,6 +16,7 @@ import { loadSettings } from "./settings.js";
 import type {
   ModelApiType,
   ModelDetails,
+  ModelLimits,
 } from "./shared/model-connection-types.js";
 import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 
@@ -47,6 +48,8 @@ export interface ResolvedModel {
   /** Server-side only; never sent to a client or written to disk. */
   apiKey: string;
   details: ModelDetails & { reasoning?: boolean | undefined };
+  /** The model's rate limits as recorded on its connection (#280). */
+  limits: ModelLimits;
 }
 
 const ROLE_LABELS: Readonly<Record<ModelRoleName, string>> = {
@@ -107,6 +110,7 @@ export async function resolveRole(role: ModelRoleName): Promise<ResolvedModel> {
         modelId,
       ),
     },
+    limits: record?.limits ?? {},
   };
 }
 

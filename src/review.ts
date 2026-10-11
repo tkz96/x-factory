@@ -9,6 +9,11 @@ import {
   type PiUsage,
   type SessionOptions,
 } from "./agents/pi.js";
+import {
+  type GatewayKey,
+  gatewayKeyFor,
+  modelGateway,
+} from "./model-gateway.js";
 import { ModelUnavailableError } from "./model-roles.js";
 import { ensureDir } from "./paths.js";
 import { buildReviewPrompt } from "./prompts.js";
@@ -38,6 +43,8 @@ export interface ReviewContext {
   }) => void;
   /** The Reviewer role's model (#278); the default Pi session requires it. */
   modelConfig?: SessionOptions | undefined;
+  /** Told about each rate-limit wait before it happens (#280). */
+  onWait?: ((ms: number, reason: string) => void) | undefined;
   /** Receives the tokens and cost the review session reported (#279). */
   onUsage?: ((usage: PiUsage) => void) | undefined;
   /** Aborts an in-flight review. The review rejects and its session is disposed. */
@@ -159,6 +166,12 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
       ticket,
       onEvent,
       signal,
+      context.modelConfig
+        ? {
+            key: gatewayKeyFor(context.modelConfig.resolved),
+            onWait: context.onWait,
+          }
+        : undefined,
     );
   } finally {
     const usage = reviewSession.usage?.();
@@ -185,6 +198,10 @@ async function promptForVerdict(
   ticket: Ticket,
   onEvent: ReviewContext["onEvent"],
   signal: AbortSignal | undefined,
+  gate?: {
+    key: GatewayKey;
+    onWait?: ((ms: number, reason: string) => void) | undefined;
+  },
 ): Promise<ReviewResult> {
   const getOutput = attachReviewListeners(reviewSession, onEvent);
 
@@ -199,11 +216,30 @@ async function promptForVerdict(
   try {
     // A real Pi session ignores an abort that arrives before a prompt.
     if (aborted) throw abortError();
-    await reviewSession.prompt(reviewPrompt);
+    if (gate) {
+      // Paced and queued per model; a 429 waits instead of failing (#280).
+      await modelGateway.run(
+        gate.key,
+        async () => {
+          try {
+            await reviewSession.prompt(reviewPrompt);
+          } catch (err: unknown) {
+            throw classifyModelError(
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        },
+        { onWait: gate.onWait, signal },
+      );
+    } else {
+      await reviewSession.prompt(reviewPrompt);
+    }
   } catch (err: unknown) {
     if (aborted) throw abortError();
     const errorMsg = err instanceof Error ? err.message : String(err);
-    // A rejected key fails the stage; it is not a review verdict (#278).
+    // A model that can't be used — a rejected key, or a rate limit the
+    // gateway gave up on — fails the stage; it is not a review verdict.
+    if (err instanceof ModelUnavailableError) throw err;
     const classified = classifyModelError(errorMsg);
     if (classified instanceof ModelUnavailableError) throw classified;
     if (!getOutput()) {

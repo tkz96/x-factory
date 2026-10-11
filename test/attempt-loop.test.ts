@@ -860,4 +860,44 @@ ${CHECK_OFF_FIRST_TASK}
       );
     expect(warnings).toEqual([]);
   });
+
+  it("waits out a provider 429 and retries the same attempt without spending the repair budget (#280)", async () => {
+    await commitAndRecordBaseline();
+    const calls = path.join(tempDir, "sbx-calls.txt");
+    await installSbx(`
+echo call >> "${calls}"
+if [[ $(wc -l < "${calls}") -eq 1 ]]; then
+  echo '{"error":{"code":429,"message":"You exceeded your current quota. Please retry in 1s."}}' >&2
+  exit 1
+fi
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup();
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    expect(await lines(calls)).toEqual(["call", "call"]);
+    const events = eventRepo.getEventsForRun(run.id);
+    expect(
+      events.some(
+        (e) =>
+          e.type === "ralph_progress" &&
+          (e.payload as { text: string }).text.includes("waiting 1 s"),
+      ),
+    ).toBe(true);
+    // Still the first attempt: the wait is not a repair.
+    const verifications = events.filter((e) => e.type === "verification");
+    expect(
+      verifications.map(
+        (e) =>
+          (e.payload as { result: { repairAttempt: number } }).result
+            .repairAttempt,
+      ),
+    ).toEqual([1]);
+  });
 });

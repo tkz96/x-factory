@@ -62,6 +62,10 @@ export class ReviewExecutor implements StageExecutor {
         verification: run.verification,
         understanding: run.implementationContext,
         modelConfig: { resolved },
+        onWait: (ms) =>
+          context.emit("info", {
+            text: `The provider is rate limiting ${resolved.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
+          }),
         onUsage: (usage) => context.reportUsage(usageWithCost(resolved, usage)),
         signal: context.signal,
         sessionFactory: this.deps.sessionFactory,

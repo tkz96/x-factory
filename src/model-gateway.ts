@@ -7,7 +7,7 @@
 // - Concurrency: at most `limit` calls per model run at once, across runs, in
 //   arrival order; other models are never held up.
 
-import { ModelUnavailableError } from "./model-roles.js";
+import { ModelUnavailableError, type ResolvedModel } from "./model-roles.js";
 
 export interface Clock {
   now(): number;
@@ -92,7 +92,7 @@ export interface GatewayKey {
 
 export interface RunHooks {
   /** Called before each wait, with its length and why. */
-  onWait?: (ms: number, reason: string) => void;
+  onWait?: ((ms: number, reason: string) => void) | undefined;
   signal?: AbortSignal | undefined;
 }
 
@@ -180,6 +180,14 @@ export class ModelGateway {
       release();
     }
   }
+}
+
+/** The gateway queue a role's model uses: one per connection and model. */
+export function gatewayKeyFor(resolved: ResolvedModel): GatewayKey {
+  return {
+    key: `${resolved.connectionId}:${resolved.modelId}`,
+    limit: concurrencyLimitFor(resolved.limits),
+  };
 }
 
 /** The worker's one gateway, shared by every run it executes. */

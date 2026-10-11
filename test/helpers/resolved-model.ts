@@ -17,6 +17,7 @@ export function testResolvedModel(
     modelId: "test/model",
     apiKey: "test-key",
     details: { contextWindow: 32000, maxOutputTokens: 4000 },
+    limits: {},
   };
 }
 

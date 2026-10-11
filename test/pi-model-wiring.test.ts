@@ -14,6 +14,7 @@ import {
   writeRunAgentConfig,
   XFACTORY_PROVIDER_ID,
 } from "../src/agents/pi.js";
+import { ModelGateway } from "../src/model-gateway.js";
 import {
   ModelUnavailableError,
   type ResolvedModel,
@@ -69,6 +70,7 @@ function resolved(apiKey: string): ResolvedModel {
     modelId: "vendor/test-model",
     apiKey,
     details: { contextWindow: 32000, maxOutputTokens: 4000 },
+    limits: {},
   };
 }
 
@@ -87,6 +89,79 @@ describe("chatWithModel through the role's connection", () => {
     ]).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ModelUnavailableError);
     expect((err as ModelUnavailableError).category).toBe("key rejected");
+  });
+});
+
+describe("chatWithModel through the gateway (#280)", () => {
+  let limited: Server<undefined>;
+  let requests = 0;
+
+  beforeAll(() => {
+    limited = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        requests++;
+        if (requests === 1) {
+          return Response.json(
+            {
+              error: {
+                code: 429,
+                message: "You exceeded your current quota. Please retry in 3s.",
+              },
+            },
+            { status: 429 },
+          );
+        }
+        const body = (await req.json()) as { model: string };
+        const chunk = (delta: Record<string, unknown>, finish: string | null) =>
+          `data: ${JSON.stringify({
+            id: "c1",
+            object: "chat.completion.chunk",
+            created: 0,
+            model: body.model,
+            choices: [{ index: 0, delta, finish_reason: finish }],
+          })}\n\n`;
+        return new Response(
+          `${chunk({ role: "assistant", content: "after the wait" }, null)}${chunk({}, "stop")}data: [DONE]\n\n`,
+          { headers: { "content-type": "text/event-stream" } },
+        );
+      },
+    });
+  });
+
+  afterAll(() => limited.stop(true));
+
+  it("waits out a 429 for as long as the provider asked, then replies", async () => {
+    const sleeps: number[] = [];
+    const gateway = new ModelGateway({
+      clock: {
+        now: () => 0,
+        sleep: async (ms: number) => {
+          sleeps.push(ms);
+        },
+      },
+    });
+    const waits: number[] = [];
+    const reply = await chatWithModel(
+      {
+        ...resolved("good-key"),
+        baseUrl: `http://127.0.0.1:${limited.port}/v1`,
+      },
+      [{ role: "user", content: "ping" }],
+      { gateway, onWait: (ms) => waits.push(ms) },
+    );
+    expect(reply.text).toBe("after the wait");
+    expect(waits).toEqual([3000]);
+    expect(sleeps).toEqual([3000]);
+  });
+
+  it("refuses a context larger than the model's window", async () => {
+    const err = await chatWithModel(
+      { ...resolved("good-key"), details: { contextWindow: 10 } },
+      [{ role: "user", content: "x".repeat(400) }],
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ModelUnavailableError);
+    expect((err as ModelUnavailableError).category).toBe("context too large");
   });
 });
 

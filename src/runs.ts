@@ -14,6 +14,7 @@ import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import * as git from "./git.js";
+import { ModelGateway } from "./model-gateway.js";
 import {
   ModelUnavailableError,
   modelUse,
@@ -55,6 +56,12 @@ export function getOperationLedger(
 ): OperationLedgerRecord[] {
   return repos.operationLedger.listForRun(runId);
 }
+
+/**
+ * Chat replies run inside an HTTP request, so a rate limit is waited out for
+ * at most a minute before the reply says so (#280).
+ */
+const chatGateway = new ModelGateway({ maxWaitMs: 60_000 });
 
 export function getRun(repos: Repositories, id: string): Run | null {
   const run = repos.runs.get(id);
@@ -493,7 +500,9 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
       }
     }
 
-    const reply = await chatWithModel(resolved, messages);
+    const reply = await chatWithModel(resolved, messages, {
+      gateway: chatGateway,
+    });
     agentResponse = reply.text;
     replyModel = {
       model: modelUse(resolved),
