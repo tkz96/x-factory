@@ -208,9 +208,27 @@ export function formatShortcut(
   return def.steps.map((step) => labelForStep(step, isMac)).join(" then ");
 }
 
-/** True when the platform is macOS (or iOS), where Mod is ⌘. */
-export function isMacPlatform(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const source = `${navigator.platform} ${navigator.userAgent}`;
+export interface PlatformSource {
+  platform?: string;
+  userAgent?: string;
+  userAgentData?: { platform?: string };
+}
+
+/**
+ * True when the platform is macOS (or iOS), where Mod is ⌘.
+ *
+ * The platform fields come first and the user agent is only a fallback. Some
+ * engines keep a Macintosh user agent on every OS (Playwright's WebKit does,
+ * including on Linux) while navigator.platform reports the real system, so
+ * reading both at once made Linux look like a Mac and Ctrl+K stopped working.
+ */
+export function isMacPlatform(
+  nav: PlatformSource | undefined = typeof navigator === "undefined"
+    ? undefined
+    : navigator,
+): boolean {
+  if (!nav) return false;
+  const platform = nav.userAgentData?.platform || nav.platform || "";
+  const source = platform || nav.userAgent || "";
   return /mac|iphone|ipad/i.test(source);
 }
