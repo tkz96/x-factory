@@ -1,56 +1,72 @@
-/* ── Settings Paned Layout (Apple HIG) ───────────────────────────────── */
+/* ── Settings: category list and detail pane (#266, spec #241) ───────── */
 
 .settings-layout {
   display: grid;
-  grid-template-columns: var(--sidebar-width-xs) 1fr;
-  gap: 1.5rem;
-  min-height: var(--settings-min-height);
+  grid-template-columns: var(--sidebar-width-xs) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
 }
 
-.settings-sidebar {
+.settings-categories {
+  min-width: 0;
+  border-right: var(--border-width) solid var(--border-subtle);
+  padding-right: var(--space-3);
+}
+
+.settings-category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  border-right: var(--border-width) solid var(--border);
-  padding-right: 0.8rem;
+  gap: var(--space-1);
 }
 
-.settings-tab-btn {
-  background: transparent;
-  border: none;
-  text-align: left;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.84rem;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--transition),
-    color var(--transition);
-}
-
-.settings-tab-btn:hover {
-  background: var(--bg-hover);
+.settings-category {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-callout);
+  font-weight: 500;
   color: var(--text);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition);
 }
 
-.settings-tab-btn.active {
+.settings-category:hover {
+  background: var(--bg-hover);
+}
+
+.settings-category[aria-current="page"] {
   background: var(--accent-subtle);
   color: var(--accent);
   font-weight: 600;
 }
 
-.settings-content {
-  padding-left: 0.5rem;
+.settings-category:focus-visible {
+  outline: var(--border-width-thick) solid var(--accent);
+  outline-offset: var(--space-0-5);
 }
 
-.settings-pane {
+.settings-detail {
+  min-width: 0;
+}
+
+/* The way back from a pushed pane: only at phone width (see the media query). */
+.settings-back {
   display: none;
 }
 
-.settings-pane.active {
+.settings-pane {
   display: block;
   animation: fadeIn var(--duration-fast) var(--ease-out);
+}
+
+.settings-pane h2 {
+  margin: 0;
 }
 
 /* The pane fade is opacity-only, so it is already the reduced-motion path: the
@@ -64,11 +80,46 @@
   }
 }
 
+/* Phone width: the category list and the pushed pane take turns, so a pane
+   never sits beside the list in a column too narrow for it (#265). */
+@media (max-width: 768px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .settings-categories {
+    border-right: none;
+    padding-right: 0;
+  }
+
+  .settings-layout[data-pushed="false"] .settings-detail {
+    display: none;
+  }
+
+  .settings-layout[data-pushed="true"] .settings-categories {
+    display: none;
+  }
+
+  .settings-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--tap-min);
+    color: var(--accent);
+    font-size: var(--text-callout);
+    text-decoration: none;
+  }
+}
+
 .setting-item {
   margin-top: 1rem;
 }
 
-.setting-item label {
+/* Only a field's own label (a direct child): a label inside a control, such as
+   a segment, keeps the control's box (#266). */
+.setting-item > label,
+.setting-item > .setting-label {
   display: block;
   font-size: 0.8rem;
   font-weight: 500;
@@ -80,6 +131,8 @@
 
 .theme-segmented-control {
   display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
   background: var(--bg-tertiary);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
@@ -92,6 +145,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
+  min-width: 0;
   min-height: var(--tap-min);
   font-size: var(--text-callout);
   font-weight: 500;
@@ -369,7 +423,7 @@
   cursor: not-allowed;
 }
 
-/* Help links in General (#258): a plain list of links, one per line. */
+/* Help links (#266): a plain list of links, one per line. */
 .settings-help-links {
   list-style: none;
   margin: var(--space-2) 0 0;

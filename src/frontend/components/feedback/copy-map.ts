@@ -168,7 +168,7 @@ export const CONNECTIONS_COPY = {
   registryLoading: "Loading connections…",
   registryEmpty: "No projects configured.",
   registryAction: "View Project →",
-  onboardProject: "Onboard Project",
+  onboardProject: "Add Project",
   /** The tracker card on the project detail surface. */
   trackerCardTitle: "Issue Tracker Connection",
   trackerCardSubtitle: "Automated ticket ingestion and PR linking.",

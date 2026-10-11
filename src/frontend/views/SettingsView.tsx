@@ -1,4 +1,8 @@
-// src/frontend/views/SettingsView.tsx — Workbench Settings view (XFM-38, XFM-40, XFM-51).
+// src/frontend/views/SettingsView.tsx — Settings in the System Settings layout (#266, spec #241).
+//
+// A category list beside a detail pane. The open category is the URL's `?tab=`
+// so a link can open one directly. At phone width the list and the pane take
+// turns: a category pushes its pane, and the pane's "Settings" link goes back.
 
 import "./SettingsView.css";
 
@@ -37,16 +41,32 @@ import {
   useTheme,
 } from "../hooks/useTheme.js";
 
-type SettingsTab = "general" | "trackers" | "models" | "git" | "diagnostics";
+type SettingsTab =
+  | "general"
+  | "trackers"
+  | "models"
+  | "git"
+  | "diagnostics"
+  | "help";
+
+/** The categories, in the order the list shows them (#266). */
+const SETTINGS_CATEGORIES: readonly {
+  id: SettingsTab;
+  label: string;
+  icon: string;
+}[] = [
+  { id: "general", label: "General", icon: "icon-settings" },
+  { id: "trackers", label: "Connections", icon: "icon-layers" },
+  { id: "models", label: "Models", icon: "icon-code" },
+  { id: "git", label: "Git", icon: "icon-git-branch" },
+  { id: "diagnostics", label: "Diagnostics", icon: "icon-check-circle-2" },
+  { id: "help", label: "Help", icon: "icon-book-open" },
+];
 
 /** The panes the `?tab=` query string may open (#278 links straight to Models). */
-const SETTINGS_TABS: readonly SettingsTab[] = [
-  "general",
-  "trackers",
-  "models",
-  "git",
-  "diagnostics",
-];
+const SETTINGS_TABS: readonly SettingsTab[] = SETTINGS_CATEGORIES.map(
+  (category) => category.id,
+);
 
 function settingsTabFromParam(value: string | null): SettingsTab {
   return SETTINGS_TABS.find((tab) => tab === value) ?? "general";
@@ -212,9 +232,11 @@ function GeneralTabContent({
   };
 
   return (
-    <div id="tab-general" className="settings-pane active">
-      <h3>General Settings</h3>
-      <p className="text-muted">Workbench behavior and system defaults.</p>
+    <div className="settings-pane">
+      <h2>General</h2>
+      <p className="text-muted">
+        Appearance, notifications and the data folder.
+      </p>
 
       <div className="setting-item mt-4">
         <span className="setting-label">Theme</span>
@@ -299,23 +321,6 @@ function GeneralTabContent({
         </div>
       </div>
 
-      {/* Help lives here and in the command palette, at every width (#258). */}
-      <div className="setting-item mt-4">
-        <span className="setting-label">Help</span>
-        <ul className="settings-help-links">
-          <li>
-            <a href="/docs" target="_blank" rel="noopener noreferrer">
-              Documentation
-            </a>
-          </li>
-          <li>
-            <a href="/reference" target="_blank" rel="noopener noreferrer">
-              API Reference
-            </a>
-          </li>
-        </ul>
-      </div>
-
       {showConfirmModal && (
         <Modal
           id="modal-confirm-unsandboxed"
@@ -395,7 +400,7 @@ function ConnectionsTabContent({
   );
 
   return (
-    <div id="tab-trackers" className="settings-pane active">
+    <div className="settings-pane">
       <div className="connections-header">
         <div>
           <h3>{CONNECTIONS_COPY.registryTitle}</h3>
@@ -403,7 +408,6 @@ function ConnectionsTabContent({
         </div>
         <button
           type="button"
-          id="btn-settings-onboard-project"
           className="btn-primary btn-sm"
           onClick={onOnboardProject}
         >
@@ -491,20 +495,40 @@ function ConnectionsTabContent({
 /** Settings › Models (#277, #278): model connections, then the roles that use them. */
 function ModelsTabContent() {
   return (
-    <div id="tab-models" className="settings-pane active">
+    <div className="settings-pane">
       <ModelConnectionsPanel />
       <RolesPanel />
     </div>
   );
 }
 
+/** Settings › Help (#266): the documentation and the API reference, at every width. */
+function HelpTabContent() {
+  return (
+    <div className="settings-pane">
+      <h2>Help</h2>
+      <p className="text-muted">Guides for X-Factory and its API.</p>
+      <ul className="settings-help-links">
+        <li>
+          <a href="/docs" target="_blank" rel="noopener noreferrer">
+            Documentation
+          </a>
+        </li>
+        <li>
+          <a href="/reference" target="_blank" rel="noopener noreferrer">
+            API Reference
+          </a>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 function GitTabContent() {
   return (
-    <div id="tab-git" className="settings-pane active">
-      <h3>Git &amp; Worktree Isolation</h3>
-      <p className="text-muted">
-        Worktree storage and baseline pollution rules.
-      </p>
+    <div className="settings-pane">
+      <h2>Git</h2>
+      <p className="text-muted">Where run worktrees are stored.</p>
       <div className="setting-item mt-4">
         <label htmlFor="setting-worktree-path">Worktree Path</label>
         <input
@@ -527,10 +551,8 @@ export function SettingsView() {
   const saveSettingsMutation = useSaveSettings();
 
   // The open pane is the URL's `?tab=`, so a link can open one directly.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const activeTab = settingsTabFromParam(searchParams.get("tab"));
-  const setActiveTab = (tab: SettingsTab) =>
-    setSearchParams({ tab }, { replace: true });
   const {
     theme: currentTheme,
     appearance: currentAppearance,
@@ -553,55 +575,41 @@ export function SettingsView() {
     await saveSettingsMutation.mutateAsync({ allowUnsandboxed: enabled });
   };
 
+  const hasPushedPane = searchParams.has("tab");
+
   return (
     <section id="area-settings" className="area-view active">
-      <div className="settings-layout card">
-        {/* Settings Navigation Sidebar */}
-        <div className="settings-sidebar">
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "general" ? "active" : ""}`}
-            data-tab="general"
-            onClick={() => setActiveTab("general")}
-          >
-            General
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "trackers" ? "active" : ""}`}
-            data-tab="trackers"
-            onClick={() => setActiveTab("trackers")}
-          >
-            Connections
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "models" ? "active" : ""}`}
-            data-tab="models"
-            onClick={() => setActiveTab("models")}
-          >
-            Pi &amp; Models
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "git" ? "active" : ""}`}
-            data-tab="git"
-            onClick={() => setActiveTab("git")}
-          >
-            Git &amp; Worktrees
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "diagnostics" ? "active" : ""}`}
-            data-tab="diagnostics"
-            onClick={() => setActiveTab("diagnostics")}
-          >
-            Diagnostics
-          </button>
-        </div>
+      <div className="settings-layout" data-pushed={String(hasPushedPane)}>
+        <nav aria-label="Settings categories" className="settings-categories">
+          <ul className="settings-category-list">
+            {SETTINGS_CATEGORIES.map((category) => {
+              const isCurrent = activeTab === category.id;
+              return (
+                <li key={category.id}>
+                  <Link
+                    to={`/settings?tab=${category.id}`}
+                    className="settings-category"
+                    aria-current={isCurrent ? "page" : undefined}
+                  >
+                    <svg className="icon icon-md" aria-hidden="true">
+                      <use href={`/assets/icons/sprite.svg#${category.icon}`} />
+                    </svg>
+                    <span>{category.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-        {/* Settings Content Area */}
-        <div className="settings-content">
+        <div className="settings-detail">
+          <Link to="/settings" className="settings-back">
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-arrow-left" />
+            </svg>
+            <span>Settings</span>
+          </Link>
+
           {activeTab === "general" && (
             <GeneralTabContent
               currentTheme={currentTheme}
@@ -627,8 +635,8 @@ export function SettingsView() {
           {activeTab === "git" && <GitTabContent />}
 
           {activeTab === "diagnostics" && (
-            <div id="tab-diagnostics" className="settings-pane active">
-              <h3>System &amp; Worker Diagnostics</h3>
+            <div className="settings-pane">
+              <h2>Diagnostics</h2>
               <p className="text-muted">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.
@@ -640,6 +648,8 @@ export function SettingsView() {
               />
             </div>
           )}
+
+          {activeTab === "help" && <HelpTabContent />}
         </div>
       </div>
     </section>

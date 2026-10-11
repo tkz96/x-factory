@@ -30,7 +30,7 @@
   :root .btn-sm,
   :root .btn-danger-hover,
   :root .btn-warning,
-  :root .settings-tab-btn,
+  :root .settings-category,
   :root .theme-toggle,
   :root .theme-segment-btn {
     background: ButtonFace;
@@ -48,6 +48,11 @@
 
   :root .theme-segment-btn[aria-pressed="true"],
   :root .theme-segment-btn.active {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root .settings-category[aria-current="page"] {
     background: Highlight;
     color: HighlightText;
   }
