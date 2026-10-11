@@ -34,22 +34,24 @@ export function formatTimestamp(iso: string, timeZone?: string): string {
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
 /**
- * A short relative time for recent instants ("Just now", "5 min ago", "3 h ago"),
- * and the full timestamp for anything a day or more old. The notification list uses
- * it; the exact time belongs in a hover title.
+ * The app's one relative clock (#261, #264): "Just now", "2 min ago" or "3 h ago" for
+ * the last day, and the exact `formatTimestamp` form once it is older. Callers put the
+ * exact time in a hover title, so the relative label never hides the precise one.
  */
 export function formatRelativeTime(
   iso: string,
   now: number = Date.now(),
 ): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return iso;
-  const seconds = Math.max(0, Math.round((now - then) / 1000));
-  if (seconds < 60) return "Just now";
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return iso;
+  const elapsed = Math.max(0, now - time);
+  if (elapsed < MINUTE_MS) return "Just now";
+  if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)} min ago`;
+  if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)} h ago`;
   return formatTimestamp(iso);
 }

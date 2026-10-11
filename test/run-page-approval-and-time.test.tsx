@@ -1,5 +1,5 @@
-// test/run-page-approval-and-time.test.tsx — Run page shows approval prompts only where the policy allows `approve`,
-// and renders one shared timestamp everywhere (#242).
+// test/run-page-approval-and-time.test.tsx — The run chat offers approval only where the policy allows it,
+// takes its words from the one status map, and shows one time for one event (#242, #261).
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -7,7 +7,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, within } from "@testing-library/react";
 import { ActivitySidebar } from "../src/frontend/components/runs/ActivitySidebar.js";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
@@ -51,25 +51,28 @@ function makeRun(status: RunStatus): Run {
   } as Run;
 }
 
+function buttonNames(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll("button")).map(
+    (b) => b.textContent ?? "",
+  );
+}
+
 describe("run chat approval prompts follow the shared policy", () => {
   for (const status of ALL_STATUSES) {
-    it(`${status}: renders a message, and approval only if approve is allowed`, () => {
+    it(`${status}: approval is offered only if approve is allowed`, () => {
       const { container } = render(
         <RunChat run={makeRun(status)} events={[]} />,
       );
-      const text = container.textContent ?? "";
-      const buttons = Array.from(container.querySelectorAll("button")).map(
-        (b) => b.textContent ?? "",
-      );
-      expect(container.querySelectorAll(".imsg-agent").length).toBeGreaterThan(
-        0,
+      const approvals = buttonNames(container).filter((b) =>
+        /^Approve/.test(b),
       );
       if (canRunAction(status, "approve")) {
-        expect(buttons.some((b) => /^Approve/.test(b))).toBe(true);
+        expect(approvals.length).toBe(1);
       } else {
-        expect(buttons.some((b) => /approve/i.test(b))).toBe(false);
-        expect(text).not.toMatch(/approve to move|approve to continue/i);
-        expect(text).not.toContain("Does this analysis match");
+        expect(approvals).toEqual([]);
+        expect(container.textContent).not.toMatch(
+          /approve to move|approve to continue/i,
+        );
       }
     });
   }
@@ -106,17 +109,12 @@ describe("run chat words come from the one status map (#253)", () => {
       const { container } = render(
         <RunChat run={makeRun(status)} events={[]} />,
       );
-      const text = container.textContent ?? "";
-      expect(
-        container.querySelector(".run-chat-meta strong")?.textContent,
-      ).toBe(ui.header);
-      expect(text).toContain(ui.now);
-      const input = container.querySelector(
-        "#input-understanding-chat",
-      ) as HTMLInputElement;
+      const header = container.querySelector(".run-chat-meta");
+      expect(within(header as HTMLElement).getByText(ui.header)).toBeTruthy();
+      expect(container.textContent).toContain(ui.now);
+      const input = within(container).getByRole("textbox") as HTMLInputElement;
       expect(input.placeholder).toBe(ui.placeholder);
-      // No local cascade survives: no phase label, no gate jargon, no "agent".
-      expect(text).not.toMatch(
+      expect(container.textContent).not.toMatch(
         /Phase:|Approval gate|Waiting for agent|Context Synthesis|Agent Workspace/,
       );
     });
@@ -138,10 +136,12 @@ describe("run chat words come from the one status map (#253)", () => {
         )
         .map((a) => a.label)
         .filter((label): label is string => label !== null);
-      const buttons = Array.from(
-        container.querySelectorAll(".imsg-action-btn"),
-      ).map((b) => b.textContent ?? "");
-      expect({ status, buttons }).toEqual({ status, buttons: expected });
+      const group = within(container).getByRole("region", {
+        name: "Next step",
+      });
+      expect(
+        Array.from(group.querySelectorAll("button")).map((b) => b.textContent),
+      ).toEqual(expected);
       const text = container.textContent ?? "";
       for (const old of [
         "Revise Plan",
@@ -160,9 +160,7 @@ describe("run chat words come from the one status map (#253)", () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_review")} events={[]} />,
     );
-    const buttons = Array.from(
-      container.querySelectorAll(".imsg-action-btn"),
-    ).map((b) => b.textContent);
+    const buttons = buttonNames(container);
     expect(buttons).toContain("Approve Changes");
     expect(buttons).toContain("Request Changes");
     expect(buttons).toContain("Stop Run");
@@ -170,48 +168,38 @@ describe("run chat words come from the one status map (#253)", () => {
 });
 
 describe("no approval text without an approve action (#242)", () => {
-  it("recovery_required says what the run needs, and nothing about approving", () => {
+  it("recovery_required names the status and offers nothing to approve", () => {
     const { container } = render(
       <RunChat run={makeRun("recovery_required")} events={[]} />,
     );
-    const text = container.textContent ?? "";
-    expect(text).not.toMatch(/approve/i);
-    expect(text).not.toContain("nothing to approve");
-    expect(text).toContain("Resume it to carry on");
+    expect(container.textContent).not.toMatch(/approve/i);
+    expect(container.textContent).toContain("Needs recovery");
   });
 });
 
-describe("a run-state bubble carries its own event's time (#242)", () => {
-  it("the plan bubble shows when the plan arrived, not the run's start", () => {
+describe("a run-state line carries its own event's time (#242)", () => {
+  it("the plan shows when the plan arrived, not the run's start", () => {
     const planAt = "2026-11-01T09:00:00.000Z";
     const events: RunEvent[] = [
       {
         id: 1,
         timestamp: planAt,
-        type: "status",
-        payload: { status: "awaiting_plan_approval", text: "Plan ready" },
+        type: "plan_ready",
+        payload: { plan: "the plan" },
       } as RunEvent,
     ];
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={events} />,
     );
-    const planRow = Array.from(
-      container.querySelectorAll(".imsg-row.imsg-agent"),
-    ).find(
-      (row) => row.querySelector(".imsg-bubble")?.textContent === "the plan",
-    );
-    if (!planRow) throw new Error("plan bubble missing");
-    expect(planRow.querySelector(".imsg-timestamp")?.textContent).toBe(
-      formatTimestamp(planAt),
-    );
-    // The greeting is still the run's own start.
-    const greeting = container.querySelector(".imsg-system-time");
-    expect(greeting?.textContent).toBe(formatTimestamp(INSTANT));
+    const plan = within(container).getByRole("article", { name: "Plan" });
+    const time = plan.querySelector("time");
+    expect(time?.getAttribute("datetime")).toBe(planAt);
+    expect(time?.getAttribute("title")).toBe(formatTimestamp(planAt));
   });
 });
 
 describe("one event shows one time across the run page", () => {
-  it("chat divider and activity log render the same string", () => {
+  it("the chat's status line and the activity log show the same exact time", () => {
     const events: RunEvent[] = [
       {
         id: 1,
@@ -221,16 +209,12 @@ describe("one event shows one time across the run page", () => {
       } as RunEvent,
     ];
     const chat = render(<RunChat run={makeRun("planning")} events={events} />);
-    const pill = chat.container.querySelector(".imsg-system-time");
     const log = render(<ActivitySidebar events={events} connected />);
-    const logTime = log.container.querySelector("time.chat-bubble-time");
     const expected = formatTimestamp(INSTANT);
-    // The divider for the status event is the last system pill.
-    const pills = Array.from(
-      chat.container.querySelectorAll(".imsg-system-time"),
-    ).map((e) => e.textContent);
-    expect(pill).not.toBeNull();
-    expect(pills).toContain(expected);
-    expect(logTime?.textContent).toBe(expected);
+    const chatTime = chat.container.querySelector(
+      `time[datetime="${INSTANT}"]`,
+    );
+    expect(chatTime?.textContent).toBe(expected);
+    expect(within(log.container).getByText(expected)).toBeTruthy();
   });
 });

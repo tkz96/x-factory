@@ -97,12 +97,6 @@ export const ACTIVE_RUN_STATUSES = new Set<RunStatus>(
   ),
 );
 
-/** Terminal statuses where the run ended without a pull request. */
-export const UNSUCCESSFUL_TERMINAL_RUN_STATUSES = new Set<RunStatus>([
-  "failed",
-  "stopped",
-]);
-
 /** Statuses at or past delivery: the run is ready for, or has, a pull request. */
 export const DELIVERY_RUN_STATUSES = new Set<RunStatus>([
   "ready_for_pr",
