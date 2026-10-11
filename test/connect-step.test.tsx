@@ -1892,7 +1892,10 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       const step = getEl("onboard-step-2");
       const loading = step.querySelector(".async-region--loading");
       expect(loading).not.toBeNull();
-      expect(loading?.getAttribute("role")).toBe("status");
+      // The wait is announced by the standard spinner block (#251).
+      expect(loading?.querySelector('[role="status"]')?.textContent).toContain(
+        "Loading…",
+      );
       expect(getManifest).toHaveBeenCalledTimes(1);
       // Nothing to configure yet: the cards are not rendered behind the region.
       expect(document.getElementById("connection-card-tracker")).toBeNull();

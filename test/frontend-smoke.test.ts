@@ -451,6 +451,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
 describe("Frontend Smoke — Feedback System Enforcement", () => {
   const FRONTEND_DIR = path.join(ROOT_DIR, "src/frontend");
   const FEEDBACK_DIR = path.join(FRONTEND_DIR, "components", "feedback");
+  /** The one control vocabulary (#251) the feedback family renders through. */
+  const BLOCKS_DIR = path.join(FRONTEND_DIR, "components", "ui");
 
   function getSourceFiles(dir: string, extensions: string[]): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -475,6 +477,9 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
     { name: "ad-hoc spinner markup", pattern: /className="[^"]*spinner/i },
     { name: "ad-hoc generic error copy", pattern: /something went wrong/i },
     { name: "toast system", pattern: /\btoast\b/i },
+    // Static placeholder rows are the approved loading shape (#251); an
+    // animated shimmer is not, in markup or in CSS.
+    { name: "shimmer animation", pattern: /\bshimmer\b/i },
   ];
 
   /**
@@ -530,10 +535,15 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
     const feedbackFiles = getSourceFiles(FEEDBACK_DIR, [".ts", ".tsx"]);
     expect(feedbackFiles.length).toBeGreaterThan(0);
 
-    // The shared layer is the one family escape the architecture boundaries
-    // allow (`frontend` may import `shared`; `.fallowrc.json`), and the
-    // canonical provider error copy table lives there. Every other
-    // escape lands in screen- or app-specific wiring and stays a violation.
+    // Two escapes are allowed, because neither is screen- or app-specific:
+    //   - `src/shared`, the layer the architecture boundaries allow (`frontend`
+    //     may import `shared`; `.fallowrc.json`) — the canonical provider error
+    //     copy table lives there;
+    //   - `components/ui`, the one control vocabulary (#251) the family renders
+    //     through: buttons, badges, list rows, the spinner. It is as
+    //     screen-agnostic as the family itself.
+    // Every other escape lands in screen- or app-specific wiring and stays a
+    // violation.
     const SHARED_DIR = path.join(ROOT_DIR, "src", "shared");
 
     const importPattern = /from\s+"(\.[^"]*)"/g;
@@ -546,6 +556,48 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
         const line = lines[i] ?? "";
         for (const match of line.matchAll(importPattern)) {
           // A relative import starting with "../" escapes the feedback family.
+          const specifier = match[1] ?? "";
+          if (!specifier.startsWith("..")) {
+            continue;
+          }
+          const resolved = path.resolve(path.dirname(filePath), specifier);
+          if (
+            resolved === SHARED_DIR ||
+            resolved.startsWith(`${SHARED_DIR}${path.sep}`) ||
+            resolved === BLOCKS_DIR ||
+            resolved.startsWith(`${BLOCKS_DIR}${path.sep}`)
+          ) {
+            continue;
+          }
+          violations.push({
+            file: path.relative(ROOT_DIR, filePath),
+            line: i + 1,
+            text: line.trim(),
+          });
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("enforces the building-block import rule: components/ui imports nothing screen-specific", () => {
+    // The blocks are the shared vocabulary every screen renders through, so
+    // they may reach themselves, `src/shared` and the design tokens — nothing
+    // else. A screen-specific import here would make the vocabulary app-bound.
+    const blockFiles = getSourceFiles(BLOCKS_DIR, [".ts", ".tsx"]);
+    expect(blockFiles.length).toBeGreaterThan(0);
+
+    const SHARED_DIR = path.join(ROOT_DIR, "src", "shared");
+    const importPattern = /from\s+"(\.[^"]*)"/g;
+    const violations: Array<{ file: string; line: number; text: string }> = [];
+
+    for (const filePath of blockFiles) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        for (const match of line.matchAll(importPattern)) {
           const specifier = match[1] ?? "";
           if (!specifier.startsWith("..")) {
             continue;
@@ -648,6 +700,27 @@ describe("Frontend Smoke — CSS variable resolution", () => {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? "";
         if (/transition:\s*all\b/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("no shimmer keyframes or shimmer animation in frontend CSS (#251)", () => {
+    // Static placeholder rows are the approved loading shape (#251); an
+    // animated shimmer stays banned, in any name.
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        if (/@keyframes\s+[^{]*shimmer/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+        if (/animation(?:-name)?\s*:[^;]*\bshimmer\b/i.test(line)) {
           violations.push(`${file}:${i + 1}: ${line.trim()}`);
         }
       }

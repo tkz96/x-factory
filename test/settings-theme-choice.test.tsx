@@ -91,7 +91,11 @@ describe("Settings › General: Theme choice (#249)", () => {
     expect(getByRole("button", { name: "Default Theme" })).toBeTruthy();
     expect(getByRole("button", { name: "Graphite Theme" })).toBeTruthy();
     expect(getByRole("button", { name: "Sandstone Theme" })).toBeTruthy();
-    expect(getByRole("button", { name: "Automatic Appearance" })).toBeTruthy();
+    // The Appearance choice moved to the segmented-control block in #251: one
+    // control, mutually exclusive options, so the segments are radios in a
+    // named radiogroup rather than aria-pressed buttons.
+    expect(getByRole("radiogroup", { name: "Appearance" })).toBeTruthy();
+    expect(getByRole("radio", { name: "Automatic Appearance" })).toBeTruthy();
   });
 
   it("marks the chosen theme as pressed", () => {

@@ -273,7 +273,11 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
     const region = inspectionRegion();
     const loading = region.querySelector(".async-region--loading");
     expect(loading).not.toBeNull();
-    expect(loading?.getAttribute("role")).toBe("status");
+    // The region waits behind the one standard spinner block, which carries the
+    // status role and the canonical copy (#251).
+    const waiting = loading?.querySelector('[role="status"]');
+    expect(waiting).not.toBeNull();
+    expect(waiting?.textContent).toContain("Loading…");
     expect(loading?.querySelector("use")?.getAttribute("href")).toContain(
       "icon-loader-2",
     );
