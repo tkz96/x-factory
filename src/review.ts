@@ -3,6 +3,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  assertFitsContextWindow,
   classifyModelError,
   createReadOnlySession,
   disposeQuietly,
@@ -131,6 +132,11 @@ async function runReview(context: ReviewContext): Promise<ReviewResult> {
     verification,
     understanding,
   );
+
+  // Refused before a session opens: a prompt that cannot fit is never sent (#280).
+  if (context.modelConfig) {
+    assertFitsContextWindow(context.modelConfig.resolved, reviewPrompt);
+  }
 
   let reviewSession: PiAgentSession;
   try {

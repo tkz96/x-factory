@@ -394,9 +394,27 @@ export interface ChatMessageInput {
 }
 
 /** A rough token count for a context: about four characters per token. */
-export function estimateTokens(messages: readonly ChatMessageInput[]): number {
-  const chars = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
-  return Math.ceil(chars / 4);
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Refuses a prompt that cannot fit the model's context window, before any call
+ * is made (#280). A model whose window is unknown is not blocked: there is no
+ * number to compare against.
+ */
+export function assertFitsContextWindow(
+  resolved: ResolvedModel,
+  promptText: string,
+): void {
+  const window = resolved.details.contextWindow;
+  const estimated = estimateTokens(promptText);
+  if (window !== undefined && estimated > window) {
+    throw new ModelUnavailableError(
+      `Context too large: about ${estimated} tokens for ${resolved.modelId}, whose window is ${window}.`,
+      "context too large",
+    );
+  }
 }
 
 export interface ChatOptions {
@@ -412,14 +430,10 @@ export async function chatWithModel(
   options: ChatOptions = {},
 ): Promise<{ text: string; usage: PiUsage }> {
   // A request larger than the model's window would fail anyway; say why (#280).
-  const window = resolved.details.contextWindow;
-  const estimated = estimateTokens(messages);
-  if (window !== undefined && estimated > window) {
-    throw new ModelUnavailableError(
-      `Context too large: about ${estimated} tokens for ${resolved.modelId}, whose window is ${window}.`,
-      "context too large",
-    );
-  }
+  assertFitsContextWindow(
+    resolved,
+    messages.map((m) => m.content ?? "").join(""),
+  );
   const { modelRuntime, model } = await isolatedRuntime(resolved);
 
   let systemPrompt: string | undefined;
