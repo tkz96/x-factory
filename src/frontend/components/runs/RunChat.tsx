@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   canRunAction,
   DELIVERY_RUN_STATUSES,
-  runStatusLabel,
   STATUS_TO_STAGE,
   UNSUCCESSFUL_TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
@@ -14,12 +13,14 @@ import type {
   ImplementationContext,
   Run,
   RunEvent,
+  RunStatus,
 } from "../../../shared/types.js";
 import { api } from "../../lib/api-client.js";
 import {
   type ParsedDiffFile,
   parseDiffToFiles,
 } from "../../lib/diff-parser.js";
+import { runStatusText } from "../../lib/run-status-ui.js";
 import { DiffModal } from "./DiffModal.js";
 
 export interface ChatAction {
@@ -98,7 +99,7 @@ function statusToSystemText(status: string, eventText?: string): string {
     case "failed":
       return "❌ Run execution failed";
     default:
-      return `Status changed to ${status}`;
+      return `Status changed to ${runStatusText(status as RunStatus)}`;
   }
 }
 
@@ -530,7 +531,7 @@ export function RunChat({
     if (UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(run.status)) {
       return "Run execution ended.";
     }
-    return `Waiting for agent (${run.status})…`;
+    return `Waiting for agent (${runStatusText(run.status)})…`;
   };
 
   const getHeaderTitle = () => {
@@ -547,7 +548,7 @@ export function RunChat({
 
   const getHeaderSubtitle = () => {
     if (isApprovalGate) return "Approval gate · input active";
-    return `Phase: ${runStatusLabel(run.status)}`;
+    return `Phase: ${runStatusText(run.status)}`;
   };
 
   return (
