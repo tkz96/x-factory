@@ -30,7 +30,6 @@ coveragePathIgnorePatterns = [
   "src/frontend/components/ModalContainer.tsx",
   "src/frontend/components/history/RunHistoryCard.tsx",
   "src/frontend/components/modals/NewRunModal.tsx",
-  "src/frontend/components/projects/ProjectCard.tsx",
   "src/frontend/components/projects/ReadinessBanner.tsx",
   "src/frontend/components/projects/TrackerSection.tsx",
   "src/frontend/components/queue/TicketCard.tsx",
