@@ -7,7 +7,9 @@ import {
   MiniMap,
   ReactFlow,
 } from "@xyflow/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useDialogFocus } from "../../hooks/useDialogFocus.js";
+import { DialogPortal } from "../DialogPortal.js";
 import { customNodeTypes } from "./CustomNodes.js";
 import type { DiagramDefinition } from "./registry.js";
 
@@ -22,6 +24,9 @@ export function DiagramModal({
   colorMode,
   onClose,
 }: DiagramModalProps) {
+  const backdropRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(backdropRef);
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,71 +39,77 @@ export function DiagramModal({
   }, [onClose]);
 
   return (
-    <div
-      className="flow-modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          onClose();
-        }
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="flow-modal-heading"
-      tabIndex={-1}
-    >
-      <div className="flow-modal-container">
-        <div className="flow-modal-header">
-          <div>
-            <span className="flow-diagram-badge">Detailed Inspection</span>
-            <h3 id="flow-modal-heading" className="flow-diagram-title">
-              {diagram.title}
-            </h3>
-            <span className="flow-diagram-subtitle">{diagram.subtitle}</span>
+    <DialogPortal>
+      <div
+        ref={backdropRef}
+        className="flow-modal-backdrop"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            onClose();
+          }
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="flow-modal-heading"
+        tabIndex={-1}
+      >
+        <div className="flow-modal-container">
+          <div className="flow-modal-header">
+            <div>
+              <span className="flow-diagram-badge">Detailed Inspection</span>
+              <h3 id="flow-modal-heading" className="flow-diagram-title">
+                {diagram.title}
+              </h3>
+              <span className="flow-diagram-subtitle">{diagram.subtitle}</span>
+            </div>
+            <button
+              type="button"
+              className="flow-modal-close-btn"
+              onClick={onClose}
+              title="Close modal (Esc)"
+            >
+              <span>Close</span>
+              <kbd className="code-sub">Esc</kbd>
+            </button>
           </div>
-          <button
-            type="button"
-            className="flow-modal-close-btn"
-            onClick={onClose}
-            title="Close modal (Esc)"
-          >
-            <span>Close</span>
-            <kbd className="code-sub">Esc</kbd>
-          </button>
-        </div>
 
-        <div className="flow-modal-canvas">
-          <ReactFlow
-            nodes={diagram.nodes}
-            edges={diagram.edges}
-            nodeTypes={customNodeTypes}
-            colorMode={colorMode}
-            fitView
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable={false}
-            zoomOnScroll={true}
-            panOnScroll={false}
-            panOnDrag={true}
-            minZoom={0.2}
-            maxZoom={2.5}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={16}
-              size={1}
-              color="var(--border)"
-            />
-            <Controls showInteractive={false} />
-            <MiniMap nodeColor="var(--accent)" maskColor="rgba(0, 0, 0, 0.4)" />
-          </ReactFlow>
+          <div className="flow-modal-canvas">
+            <ReactFlow
+              nodes={diagram.nodes}
+              edges={diagram.edges}
+              nodeTypes={customNodeTypes}
+              colorMode={colorMode}
+              fitView
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              zoomOnScroll={true}
+              panOnScroll={false}
+              panOnDrag={true}
+              minZoom={0.2}
+              maxZoom={2.5}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={16}
+                size={1}
+                color="var(--border)"
+              />
+              <Controls showInteractive={false} />
+              <MiniMap
+                nodeColor="var(--accent)"
+                maskColor="rgba(0, 0, 0, 0.4)"
+              />
+            </ReactFlow>
+          </div>
         </div>
       </div>
-    </div>
+    </DialogPortal>
   );
 }

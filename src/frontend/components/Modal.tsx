@@ -14,10 +14,13 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useDialogFocus } from "../hooks/useDialogFocus.js";
 import { useScrollLock } from "../hooks/useScrollLock.js";
+import { DialogPortal } from "./DialogPortal.js";
 
 // undefined: not inside a <Modal>. null: inside one whose footer has not mounted yet.
 const FooterSlot = createContext<HTMLElement | null | undefined>(undefined);
@@ -48,7 +51,10 @@ export function Modal({
   const [footer, setFooter] = useState<HTMLElement | null>(null);
   const titleId = `${id}-title`;
 
+  const backdropRef = useRef<HTMLDivElement>(null);
+
   useScrollLock(true);
+  useDialogFocus(backdropRef);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -59,45 +65,49 @@ export function Modal({
   }, [onClose]);
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop click dismisses; Escape is the keyboard equivalent
-    <div
-      className="modal-backdrop"
-      id={`${id}-overlay`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <DialogPortal>
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop click dismisses; Escape is the keyboard equivalent */}
       <div
-        className={className ? `modal-dialog ${className}` : "modal-dialog"}
-        id={id}
+        ref={backdropRef}
+        tabIndex={-1}
+        className="modal-backdrop"
+        id={`${id}-overlay`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
       >
-        <div className="modal-header">
-          <h2 id={titleId}>{title}</h2>
-          <button
-            type="button"
-            id={closeButtonId}
-            className="btn-close"
-            aria-label="Close dialog"
-            onClick={onClose}
-          >
-            <svg className="icon icon-xs" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-x" />
-            </svg>
-          </button>
+        <div
+          className={className ? `modal-dialog ${className}` : "modal-dialog"}
+          id={id}
+        >
+          <div className="modal-header">
+            <h2 id={titleId}>{title}</h2>
+            <button
+              type="button"
+              id={closeButtonId}
+              className="btn-close"
+              aria-label="Close dialog"
+              onClick={onClose}
+            >
+              <svg className="icon icon-xs" aria-hidden="true">
+                <use href="/assets/icons/sprite.svg#icon-x" />
+              </svg>
+            </button>
+          </div>
+
+          {subheader}
+
+          <FooterSlot.Provider value={footer}>
+            <div className="modal-body">{children}</div>
+          </FooterSlot.Provider>
+
+          <div className="modal-footer" ref={setFooter} />
         </div>
-
-        {subheader}
-
-        <FooterSlot.Provider value={footer}>
-          <div className="modal-body">{children}</div>
-        </FooterSlot.Provider>
-
-        <div className="modal-footer" ref={setFooter} />
       </div>
-    </div>
+    </DialogPortal>
   );
 }
 
