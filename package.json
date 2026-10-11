@@ -27,6 +27,7 @@
     "check:fallow": "bunx fallow@3.33.0 dead-code --baseline scripts/baselines/fallow-dead-code.json --fail-on-stale-baseline && bunx fallow@3.33.0 dupes --baseline scripts/baselines/fallow-dupes.json --fail-on-stale-baseline && bunx fallow@3.33.0 health --baseline scripts/baselines/fallow-health.json --fail-on-stale-baseline",
     "docs:schema": "bun scripts/generate-schema-doc.ts",
     "docs:schema:check": "bun scripts/generate-schema-doc.ts --check",
+    "screenshots": "bun scripts/screenshots.ts",
     "check:all": "bun scripts/check-all.ts",
     "check:agent-docs": "bun scripts/check-agent-docs.ts",
     "check:cycles": "dpdm --exit-code circular:1 --circular --warning=false --tree=false src/server.ts src/worker.ts src/frontend/main.tsx",
@@ -57,6 +58,7 @@
     "dpdm": "^4.3.0",
     "knip": "^6.36.0",
     "lefthook": "^2.1.14",
+    "playwright-core": "1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
   },

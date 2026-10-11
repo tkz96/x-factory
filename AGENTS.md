@@ -35,6 +35,7 @@ How the gates and lint baselines work is in [`docs/agents/ci-checks.md`](./docs/
 | audit the frontend CSS | [`docs/agents/css-audit.md`](./docs/agents/css-audit.md) |
 | look up how code connects, or after you change code structure | [`docs/agents/graphify.md`](./docs/agents/graphify.md) |
 | say a change that users can see is done | [`docs/agents/reticle.md`](./docs/agents/reticle.md) |
+| open a screen PR and need before/after screenshots | [`docs/agents/screenshots.md`](./docs/agents/screenshots.md) |
 | use a domain term, or look for a spec | [`docs/agents/domain.md`](./docs/agents/domain.md) and [`CONTEXT.md`](./CONTEXT.md) |
 | read, create or update a GitHub issue | [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md) |
 | label or triage an issue | [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md) |
