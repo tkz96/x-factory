@@ -101,8 +101,6 @@ describe("empty state layout", () => {
     expect(
       container.querySelector(".async-region--empty a svg.icon"),
     ).not.toBeNull();
-    expect(container.textContent).toContain(
-      "No runs are working right now",
-    );
+    expect(container.textContent).toContain("No runs are working right now");
   });
 });
