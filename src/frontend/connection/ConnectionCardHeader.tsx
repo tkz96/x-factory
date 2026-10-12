@@ -1,4 +1,4 @@
-// src/frontend/connection/ConnectionCardHeader.tsx — Header with icon, title, badge, and status pill.
+// src/frontend/connection/ConnectionCardHeader.tsx — Header with icon, title and status pill.
 
 import { ConnectionStatusPill } from "./ConnectionStatusPill.js";
 import { ProviderMark } from "./ProviderMark.js";
@@ -18,11 +18,6 @@ export function ConnectionCardHeader({
   selectedProvider,
   verificationStatus,
 }: ConnectionCardHeaderProps) {
-  const isDualRole = Boolean(
-    selectedProvider?.roles.includes("tracker") &&
-      selectedProvider?.roles.includes("gitHost"),
-  );
-
   return (
     <div className="connection-card-header">
       <div className="connection-card-title-group">
@@ -32,11 +27,6 @@ export function ConnectionCardHeader({
           displayName={selectedProvider?.displayName}
         />
         <h3 className="connection-card-role-title">{title}</h3>
-        {isDualRole && (
-          <span className="badge badge-secondary dual-role-badge">
-            Dual-role
-          </span>
-        )}
       </div>
       <div className="connection-card-header-status">
         <ConnectionStatusPill status={verificationStatus} />

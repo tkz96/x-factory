@@ -769,32 +769,45 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(getEl("connection-card-gitHost").textContent).toContain("Verified");
   });
 
-  it("PROVIDER REUSE: a dual-role provider populates tracker and git-host independently with dual-role badge", () => {
+  it("PROVIDER REUSE: one provider can serve both cards, with no jargon chip", () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
 
-    // Select dual-service on tracker
     act(() => {
       fireEvent.change(getEl("select-tracker-provider"), {
         target: { value: "dual-service" },
       });
     });
-
-    // Dual-role badge appears on tracker card
-    const trackerCard = getEl("connection-card-tracker");
-    expect(trackerCard.textContent).toContain("Dual-role");
-
-    // Select dual-service on git-host
     act(() => {
       fireEvent.change(getEl("select-gitHost-provider"), {
         target: { value: "dual-service" },
       });
     });
 
-    // Dual-role badge appears on git-host card
-    const gitHostCard = getEl("connection-card-gitHost");
-    expect(gitHostCard.textContent).toContain("Dual-role");
+    expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe(
+      "dual-service",
+    );
+    expect(getEl<HTMLSelectElement>("select-gitHost-provider").value).toBe(
+      "dual-service",
+    );
+    const step = getEl("onboard-step-2");
+    expect(step.textContent).not.toContain("Dual-role");
+    expect(step.textContent).not.toContain("Dual connections");
+    expect(step.querySelector(".dual-role-badge")).toBeNull();
+  });
+
+  it("explains the step in plain words", () => {
+    setupStep2Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    const subtitle = getEl("onboard-step-2").querySelector(
+      ".wizard-step-subtitle",
+    );
+    expect(subtitle?.textContent).toBe(
+      "Connect where your tickets live and where your code lives.",
+    );
   });
 
   // Correction 2 (#133): the two roles' configurations are NOT independent when

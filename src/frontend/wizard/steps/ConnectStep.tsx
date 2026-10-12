@@ -42,8 +42,7 @@ export function ConnectStep() {
       <div className="wizard-step-header">
         <h2 className="wizard-step-title">Connect Providers</h2>
         <p className="wizard-step-subtitle">
-          Connect your Issue Tracker and Git Host. Dual connections are
-          decoupled and mandatory.
+          Connect where your tickets live and where your code lives.
         </p>
       </div>
 
