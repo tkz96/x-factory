@@ -331,7 +331,11 @@ function ConnectionCard({
   const [checkError, setCheckError] = useState<string | null>(null);
   const id = connection.id;
   const chosen = new Set(connection.models.map((m) => m.modelId));
-  const found = checkResult?.ok ? checkResult.models : [];
+  // A fresh check wins; otherwise show what the last check found and the
+  // server kept, so a reload does not hide the models still to be added.
+  const found = checkResult?.ok
+    ? checkResult.models
+    : connection.availableModels;
   const checking =
     mutations.check.isPending && mutations.check.variables === id;
 
