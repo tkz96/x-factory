@@ -46,6 +46,12 @@
   color: var(--text);
   font-family: var(--font-sans);
   font-size: var(--text-title-3);
+  /* The palette is opened from the keyboard and animates nothing inside itself.
+     The field would otherwise inherit the generic text-input box-shadow
+     transition and animate its focus shadow as the palette opens (DESIGN.md
+     Motion: never animate a keyboard-opened surface). */
+  box-shadow: none;
+  transition: none;
 }
 
 .command-palette-input::placeholder {

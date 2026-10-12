@@ -126,7 +126,11 @@
   border-radius: var(--radius-sm);
 }
 
-@media (pointer: coarse) {
+/* A finger's target, whatever the pointer claims to be: a coarse pointer, or a
+   viewport narrow enough that the pointer is a finger in practice. A phone
+   reports `pointer: coarse` until something in the page disturbs the emulation,
+   and the target must not depend on that (DESIGN.md §8: 44×44pt). */
+@media (pointer: coarse), (max-width: 768px) {
   .ui-button--sm {
     min-height: var(--tap-min);
   }

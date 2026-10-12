@@ -26,6 +26,9 @@ const TOKENS = await Bun.file(`${ROOT}/src/frontend/styles/tokens.css`).text();
 const CONTROLS = await Bun.file(
   `${ROOT}/src/frontend/styles/shared/controls.css`,
 ).text();
+const FORMS = await Bun.file(
+  `${ROOT}/src/frontend/styles/shared/forms.css`,
+).text();
 const RUNS_VIEW = await Bun.file(
   `${ROOT}/src/frontend/views/RunsView.css`,
 ).text();
@@ -75,6 +78,13 @@ describe("touch targets and the row height come from tokens", () => {
     expect(declarationsFor(CONTROLS, ".ui-list-row")).toContain(
       "min-height: var(--list-row-height)",
     );
+    // The legacy field classes are still regular controls: a text input on a
+    // project-detail or a model connection clears the minimum too.
+    for (const selector of [".form-input", ".form-select"]) {
+      expect(declarationsFor(FORMS, selector)).toContain(
+        "min-height: var(--tap-min)",
+      );
+    }
     // A settings row is a finger's target too (SYSTEM.md "Surfaces").
     expect(declarationsFor(CONTROLS, ".ui-settings-row")).toContain(
       "min-height: var(--tap-min)",

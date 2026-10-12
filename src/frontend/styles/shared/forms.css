@@ -63,6 +63,10 @@ select {
 .form-input,
 .form-select {
   width: 100%;
+  /* A regular control is a finger's target (DESIGN.md §8, 44×44pt). The
+     padding alone lands just under it, so the height is stated here, once, for
+     every screen that wears these classes. */
+  min-height: var(--tap-min);
   padding: 0.6rem 0.8rem;
   background: var(--bg-input);
   border: var(--border-width) solid var(--border-control);

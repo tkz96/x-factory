@@ -8,29 +8,31 @@
   margin-bottom: var(--space-5);
 }
 
-/* The field is a regular control (SYSTEM.md): 44px tall, --radius-md. */
+/* The field is a regular control: --tap-min tall, --radius-md. The ring is drawn
+   inside the field rather than as a border, so the field itself is exactly one
+   tap target tall and the input inside it fills that target — a 1px border would
+   leave the input 42px, two pixels short of a finger. */
 .search-box {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border-control);
+  border: none;
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
   border-radius: var(--radius-md);
   padding: 0 var(--space-4);
-  height: var(--tap-min);
   min-height: var(--tap-min);
   /* Grows to fill the row, but keeps a usable width when the bar wraps (#258). */
   flex: 1 1 12rem;
   min-width: 0;
   box-sizing: border-box;
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+  transition: box-shadow var(--transition-fast);
 }
 
 .search-box:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 var(--border-width-indicator) var(--accent-dim);
+  box-shadow:
+    inset 0 0 0 var(--border-width) var(--accent),
+    0 0 0 var(--border-width-indicator) var(--accent-dim);
 }
 
 .search-box input {
@@ -40,7 +42,8 @@
   font-size: var(--text-subhead);
   font-family: var(--font-sans);
   width: 100%;
-  height: 100%;
+  /* The input is the tap target, not just the field around it. */
+  height: var(--tap-min);
 }
 
 .search-box input:focus {

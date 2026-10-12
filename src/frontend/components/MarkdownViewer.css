@@ -110,6 +110,15 @@
   color: var(--green);
 }
 
+/* The chip stays a chip, but a finger gets the full target: at phone width the
+   copy row grows and the button fills it (DESIGN.md §8, 44×44pt). */
+@media (pointer: coarse), (max-width: 768px) {
+  .md-copy-btn {
+    min-height: var(--tap-min);
+    padding-inline: var(--space-3);
+  }
+}
+
 .md-code-pre {
   margin: 0;
   padding: 0.85rem 1rem;
