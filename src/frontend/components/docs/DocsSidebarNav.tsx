@@ -135,12 +135,15 @@ export function DocsSidebarNav() {
     }
   };
 
+  // Switching documents replaces the reading pane's content, so the pane goes
+  // to the top instantly: a smooth glide would animate a document that is no
+  // longer on screen. Only an in-page heading (below) scrolls smoothly.
   const handleSelectDoc = (category: string, slug: string) => {
     setSearchParams({ cat: category, slug });
     window.location.hash = "";
     const readingPane = document.getElementById("app-main");
     if (readingPane) {
-      readingPane.scrollTo({ top: 0, behavior: scrollBehavior() });
+      readingPane.scrollTo({ top: 0, behavior: "auto" });
     }
   };
 
@@ -149,7 +152,7 @@ export function DocsSidebarNav() {
     window.location.hash = "";
     const readingPane = document.getElementById("app-main");
     if (readingPane) {
-      readingPane.scrollTo({ top: 0, behavior: scrollBehavior() });
+      readingPane.scrollTo({ top: 0, behavior: "auto" });
     }
   };
 
@@ -169,7 +172,7 @@ export function DocsSidebarNav() {
       window.location.hash = "";
       const readingPane = document.getElementById("app-main");
       if (readingPane) {
-        readingPane.scrollTo({ top: 0, behavior: scrollBehavior() });
+        readingPane.scrollTo({ top: 0, behavior: "auto" });
       }
     }
   };

@@ -45,11 +45,9 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: var(--text-caption-1);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
   margin-bottom: 0.75rem;
 }
 

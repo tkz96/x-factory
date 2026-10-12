@@ -16,11 +16,11 @@
   letter-spacing: -0.02em;
 }
 
-/* A section header inside a card (DESIGN.md §7): footnote, 600, secondary, in
-   the case it was written in — never small caps, never letterspaced. */
+/* A section header inside a card: footnote, 600, --text-secondary, in the case
+   it was written in — never small caps, never letterspaced. */
 .card h3 {
   font-size: var(--text-footnote);
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-bottom: var(--space-2);
 }

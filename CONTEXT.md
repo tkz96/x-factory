@@ -47,8 +47,8 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Active statuses / terminal statuses | Running / Done |
 | Runs list filters | Needs you / Running / Done / All, each with its count. The Runs badge and the tab title show the Needs-you count, not notifications |
 | Start a run, add a project | Start Run, Add Project |
-| Start a new run for a terminal ticket (pull request opened, failed or stopped) | Start New Run (a ticket command, not a run action) |
-| Notification list in the toolbar | Notifications (the bell); unread count on the bell, "Mark all as read" |
+| Start a fresh run for a terminal run's ticket (pull request opened, failed or stopped) | Start New Run, on the run page (a ticket command, not a run action) |
+| Notification list in the toolbar | Notifications (the bell); unread count on the bell, "Mark All as Read" |
 | Runs in progress, shown quietly in the toolbar | Activity (never stored, never announced as a popup) |
 | A run that needs you, kind by kind | Understanding ready, Plan ready, Changes ready, Ready for a pull request, Needs recovery |
 | A run that finished, kind by kind | Pull request opened, Run failed (with its reason), Run stopped |

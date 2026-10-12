@@ -55,9 +55,11 @@
   justify-content: flex-end;
 }
 
+/* The required permissions are a note inside the connection's own box, so it is
+   a quiet fill rather than a second frame. */
 .connection-required-scopes {
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
+  background: var(--bg-secondary);
+  border: none;
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   margin-bottom: var(--space-3);

@@ -197,7 +197,7 @@ describe("notification bell (#264)", () => {
     expect(bellLabel()).toBe("Notifications");
   });
 
-  it("Mark all as read clears the unread count", async () => {
+  it("Mark All as Read clears the unread count", async () => {
     renderCenter(
       snapshot({
         runs: [run("r1", "awaiting_plan_approval"), run("r2", "ready_for_pr")],
@@ -210,9 +210,37 @@ describe("notification bell (#264)", () => {
     expect(bellLabel()).toBe("Notifications, 2 unread");
     fireEvent.click(bell());
     fireEvent.click(
-      await view().findByRole("button", { name: "Mark all as read" }),
+      await view().findByRole("button", { name: "Mark All as Read" }),
     );
     expect(bellLabel()).toBe("Notifications");
+  });
+
+  it("animates the badge only when a count arrives while the page is open", () => {
+    const { push } = renderCenter(
+      snapshot({
+        runs: [run("r1", "awaiting_plan_approval")],
+        needsYou: [envelope(140, "r1", "awaiting_plan_approval")],
+      }),
+    );
+    // The bell, even while its popover hides the page.
+    const bellClass = () =>
+      view()
+        .getByRole("button", { name: /^Notifications/, hidden: true })
+        .className;
+
+    // The page opened with a count already on the bell: it is simply shown, so
+    // the first paint never animates.
+    expect(bellLabel()).toBe("Notifications, 1 unread");
+    expect(bellClass()).not.toContain("notification-bell--arriving");
+
+    fireEvent.click(bell());
+    fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
+    expect(bellLabel()).toBe("Notifications");
+
+    // A count that arrives while the page is open is the one that animates in.
+    push(envelope(141, "r1", "ready_for_pr"));
+    expect(bellLabel()).toBe("Notifications, 1 unread");
+    expect(bellClass()).toContain("notification-bell--arriving");
   });
 
   it("keeps read state across a reload, keyed by event id", () => {
@@ -223,7 +251,7 @@ describe("notification bell (#264)", () => {
     const first = renderCenter(seed);
     expect(bellLabel()).toBe("Notifications, 1 unread");
     fireEvent.click(bell());
-    fireEvent.click(view().getByRole("button", { name: "Mark all as read" }));
+    fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
     first.unmount();
 
     expect(globalThis.localStorage?.getItem(READ_STATE_STORAGE_KEY)).toContain(
@@ -257,7 +285,7 @@ describe("notification bell (#264)", () => {
     try {
       renderCenter(seed, liveStream(), { strict: true });
       fireEvent.click(bell());
-      fireEvent.click(view().getByRole("button", { name: "Mark all as read" }));
+      fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
     } finally {
       if (original) Object.defineProperty(globalThis, "localStorage", original);
     }
@@ -283,7 +311,7 @@ describe("notification bell (#264)", () => {
       const { push, unmount } = renderCenter(seed);
       expect(bellLabel()).toBe("Notifications, 1 unread");
       fireEvent.click(bell());
-      fireEvent.click(view().getByRole("button", { name: "Mark all as read" }));
+      fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
       expect(bellLabel()).toBe("Notifications");
 
       push(envelope(141, "r1", "recovery_required"));

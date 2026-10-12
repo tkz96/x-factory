@@ -4,7 +4,7 @@
 
 import "./NotificationBell.css";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   type NotificationListItem,
@@ -31,6 +31,24 @@ export function NotificationBell() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
+  // The badge animates on arrival only: when the count goes from none to some
+  // while the page is open. A count the page opened with (already there on the
+  // first paint, or arriving with the first load) is simply shown, and a count
+  // that ticks up never re-animates.
+  const [arriving, setArriving] = useState(false);
+  const previousCount = useRef(unreadCount);
+  const hasShownACount = useRef(false);
+  useEffect(() => {
+    const was = previousCount.current;
+    previousCount.current = unreadCount;
+    if (unreadCount === 0) {
+      setArriving(false);
+      return;
+    }
+    if (hasShownACount.current && was === 0) setArriving(true);
+    hasShownACount.current = true;
+  }, [unreadCount]);
+
   const label =
     unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications";
 
@@ -46,7 +64,9 @@ export function NotificationBell() {
         variant="plain"
         icon="icon-bell"
         label={label}
-        className="notification-bell"
+        className={
+          arriving ? "notification-bell notification-bell--arriving" : "notification-bell"
+        }
       >
         {unreadCount > 0 && (
           <Badge tone="accent" className="notification-badge">
@@ -65,7 +85,7 @@ export function NotificationBell() {
               isDisabled={unreadCount === 0}
               onPress={markAllRead}
             >
-              Mark all as read
+              Mark All as Read
             </Button>
           </div>
           {notifications.length === 0 ? (

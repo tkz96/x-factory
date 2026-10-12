@@ -61,11 +61,11 @@
   border: none;
 }
 
+/* A group header inside a menu: footnote, 600, --text-secondary, in the case it
+   was written in. */
 .xf-menu-header {
-  font-size: var(--text-caption-1);
+  font-size: var(--text-footnote);
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   padding: var(--space-1) var(--space-3);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }

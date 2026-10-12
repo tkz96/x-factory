@@ -5,13 +5,18 @@
 }
 
 /* The unread count rides inside the circle as the one Badge block, so the
-   circle never grows and the count reads as a badge. It animates only as it
-   arrives while the page is open — a count that ticks up does not jump. */
+   circle never grows and the count reads as a badge. */
 .notification-badge {
   position: absolute;
   top: 0;
   right: 0;
   line-height: 1;
+}
+
+/* Arrival only: the badge animates when the unread count goes from none to some
+   while the page is open. A count the page opened with is simply there — the
+   first paint never animates. */
+.notification-bell--arriving .notification-badge {
   animation: notificationBadgeIn var(--duration-fast) var(--ease-out);
 }
 

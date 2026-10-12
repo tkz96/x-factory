@@ -7,8 +7,8 @@ import "./RunInspector.css";
 import { useState } from "react";
 import { summarizeDiff } from "../../../shared/diff-summary.js";
 import type { Run, RunEvent } from "../../../shared/types.js";
+import { Button } from "../ui/Button.js";
 import { Sheet } from "../overlays/index.js";
-import { IconButton } from "../ui/IconButton.js";
 import { ChatThread } from "./ChatThread.js";
 import { RunEvidence } from "./RunEvidence.js";
 
@@ -97,17 +97,21 @@ export function RunInspector(props: RunInspectorProps) {
   );
 }
 
-/** The inspector at phone width: an icon button that opens it as a sheet. */
+/** The inspector at phone width: a labelled button that opens it as a sheet. */
 export function RunInspectorSheet(props: RunInspectorProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <IconButton
-        variant="plain"
+      {/* A labelled toolbar button, not a lone glyph: the words say what opens,
+          so the row above the chat is not an orphan icon. */}
+      <Button
+        variant="secondary"
+        size="sm"
         icon="icon-info"
-        label="Inspector"
         onPress={() => setOpen(true)}
-      />
+      >
+        Inspector
+      </Button>
       <Sheet
         isOpen={open}
         onClose={() => setOpen(false)}

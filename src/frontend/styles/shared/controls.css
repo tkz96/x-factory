@@ -120,7 +120,7 @@
   color: var(--text);
 }
 
-/* A row accessory: Add, Copy, Mark all as read. Half a height below the regular
+/* A row accessory: Add, Copy, Mark All as Read. Half a height below the regular
    control, and back to a finger's target under a coarse pointer. */
 .ui-button--sm {
   min-height: var(--control-height-sm);
@@ -407,11 +407,12 @@
   opacity: 0.4;
 }
 
-/* The selected segment is a thumb inset 4px inside the 12px track, so its
-   visible corner is 8px — outer radius minus the inset. The inset is a
-   transparent border and the fill is clipped to the padding box, which keeps
-   the segment itself a full 44px tall. */
+/* The selected segment is a thumb inset 4px inside the 12px track, drawn as a
+   ::before so its 8px corner (outer radius minus the inset) and its shadow sit
+   on the visible shape rather than 4px outside it. The segment itself is a full
+   44px tap target with no box of its own. */
 .ui-segment {
+  position: relative;
   display: inline-flex;
   margin: 0; /* a segment is a <label>: the label margins do not apply (#266) */
   align-items: center;
@@ -423,15 +424,13 @@
   font-size: var(--text-callout);
   font-weight: 500;
   color: var(--text-muted);
-  background-color: transparent;
-  background-clip: padding-box;
-  border: var(--space-1) solid transparent;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition:
     background-color var(--transition),
-    color var(--transition),
-    box-shadow var(--transition);
+    color var(--transition);
 }
 
 .ui-segment[data-hovered] {
@@ -440,10 +439,24 @@
 }
 
 .ui-segment[data-selected] {
-  background-color: var(--bg-card);
   color: var(--text);
   font-weight: 600;
+}
+
+/* The label, the icon and the count stay above the thumb below. */
+.ui-segment > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ui-segment[data-selected]::before {
+  content: "";
+  position: absolute;
+  inset: var(--space-1);
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
+  pointer-events: none;
 }
 
 .ui-segment[data-disabled] {

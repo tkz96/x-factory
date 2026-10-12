@@ -36,10 +36,16 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-2);
-  scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+/* Only a reader who has not asked for reduced motion gets the smooth scroll. */
+@media (prefers-reduced-motion: no-preference) {
+  .run-inspector-scroll {
+    scroll-behavior: smooth;
+  }
 }
 
 /* Override ChatThread styles when inside the inspector */

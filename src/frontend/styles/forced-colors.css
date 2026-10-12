@@ -95,6 +95,11 @@
     color: HighlightText;
   }
 
+  /* The thumb keeps its inset shape in system colours too. */
+  :root .ui-segment[data-selected]::before {
+    background: Highlight;
+  }
+
   :root .ui-segment-count,
   :root .tab-count {
     background: ButtonFace;
