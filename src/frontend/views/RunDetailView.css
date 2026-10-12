@@ -60,11 +60,20 @@
     overflow: visible;
   }
 
+  /* The strip is sticky with a bottom offset of one tab bar (F1), and at the
+     end of the scroll it lifts by that offset. The layout keeps that much
+     empty room below the chat, so the lift lands on space the composer is
+     never behind. */
   .run-detail-layout {
     grid-template-columns: 1fr;
     height: auto;
     overflow: visible;
     padding: var(--space-3);
+    padding-bottom: calc(
+      var(--space-3) +
+      var(--tab-bar-height) +
+      env(safe-area-inset-bottom, var(--space-0))
+    );
     gap: var(--space-3);
   }
 
