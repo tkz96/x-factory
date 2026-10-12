@@ -76,8 +76,6 @@ Returns UI descriptors for registered providers and their configuration fields.
 #### Query Parameters
 - `role` (optional, string): Filters providers and fields by role. Allowed values: `tracker`, `git-host`, `gitHost`. Any other value answers `400 { error }`.
 
-**Repository probe (#290).** A GitHub verification that carries an owner and a repository probes that repository (`GET /repos/{owner}/{repo}`, `src/providers/github/verification.ts`). A `404` becomes a `NOT_FOUND` envelope, so a tracker pointed at the wrong repository fails here rather than later on the Tickets screen.
-
 #### Response Shape (`200 OK`)
 ```json
 [
@@ -147,6 +145,8 @@ Verifies connection credentials for a provider and role.
 
    `missingScopes` (string[], optional): present on a warning when token scopes were introspectable and one or more required scopes are provably absent. When scopes are not visible (e.g. fine-grained personal access tokens), capabilities are reported as unconfirmed without `missingScopes`.
 
+   **Repository probe (#290).** A GitHub verification that carries an owner and a repository probes that repository (`GET /repos/{owner}/{repo}`, `src/providers/github/verification.ts`). A `404` becomes a `NOT_FOUND` envelope, so a tracker pointed at the wrong repository fails here rather than later on the Tickets screen.
+
 ---
 
 ### C. POST /api/providers/parse-url
@@ -172,14 +172,14 @@ Parses a repository or tracker URL into a configuration draft.
     "inferredName": "rocket"
   }
   ```
-  - **Unrecognized URL (`200 OK`)**:
+- **Unrecognized URL (`200 OK`)**:
   ```json
   {
     "matched": false,
     "url": "https://unrecognized.example/unknown"
   }
   ```
-  A provider whose `parseQuickUrl` throws is skipped, and the route answers the same unmatched shape with a `UNKNOWN` code and the URL as the context:
+  A provider whose `parseQuickUrl` throws is skipped. If no provider matches, the route answers the same unmatched shape with a `UNKNOWN` code and the URL as the context:
   ```json
   {
     "code": "UNKNOWN",
