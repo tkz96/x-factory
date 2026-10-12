@@ -170,7 +170,8 @@
 
   :root .ui-list-row,
   :root .ui-list-row--pressable,
-  :root .ui-list-row--placeholder {
+  :root .ui-list-row--placeholder,
+  :root .ui-list-group {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;

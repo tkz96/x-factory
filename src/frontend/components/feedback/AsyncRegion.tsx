@@ -40,8 +40,15 @@ export interface AsyncRegionProps {
   errorCopy?: string | undefined;
   /** Overrides the error region's retry label (e.g. the repair path, #147). */
   retryLabel?: string | undefined;
+  /**
+   * The empty state's headline: what is not here, in a few words (E3). A region
+   * without one falls back to the canonical line as its own headline.
+   */
+  emptyTitle?: string | undefined;
   /** Overrides the canonical empty guidance for this region. */
   emptyCopy?: string | undefined;
+  /** The empty state's glyph — a sprite icon that fits what is missing (E3). */
+  emptyIcon?: string | undefined;
   /** The empty state's optional call-to-action (e.g. the onboard button). */
   emptyAction?: ReactNode | undefined;
   /** Region content — rendered in ready, partial, and stale. */
@@ -53,6 +60,11 @@ export interface AsyncRegionProps {
    * inline spinner, for small waits.
    */
   placeholderRows?: number | undefined;
+  /**
+   * Lists only: the class the reserved rows carry, so a loading group wears the
+   * same shape as the loaded one (e.g. `ui-list-group`).
+   */
+  placeholderClassName?: string | undefined;
 }
 
 export function AsyncRegion({
@@ -61,10 +73,13 @@ export function AsyncRegion({
   failedParts,
   errorCopy,
   retryLabel,
+  emptyTitle,
   emptyCopy,
+  emptyIcon = "icon-info",
   emptyAction,
   children,
   placeholderRows,
+  placeholderClassName,
 }: AsyncRegionProps) {
   const normalized = unwrapNormalizedError(derived.error);
   const retryAfterMs = normalized?.retryAfterMs;
@@ -84,7 +99,10 @@ export function AsyncRegion({
           <span className="sr-only" role="status">
             {STATE_COPY.loading}
           </span>
-          <PlaceholderRows count={placeholderRows} />
+          <PlaceholderRows
+            count={placeholderRows}
+            className={placeholderClassName}
+          />
         </div>
       );
     }
@@ -124,12 +142,20 @@ export function AsyncRegion({
   }
 
   if (derived.state === "empty") {
+    // The content-unavailable pattern (SYSTEM.md): a fitting glyph, a headline
+    // naming what is missing, one guidance line, then the action. No dashed box.
+    // A region with its own copy names the headline itself; a region without one
+    // falls back to the canonical line, which then IS the headline.
+    const title =
+      emptyTitle ?? (emptyCopy === undefined ? STATE_COPY.empty : undefined);
+    const hint = emptyCopy;
     return (
       <div className="async-region async-region--empty" role="status">
         <svg className="icon icon-xl" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-info" />
+          <use href={`/assets/icons/sprite.svg#${emptyIcon}`} />
         </svg>
-        <p className="async-region-hint">{emptyCopy ?? STATE_COPY.empty}</p>
+        {title !== undefined && <p className="async-region-title">{title}</p>}
+        {hint !== undefined && <p className="async-region-hint">{hint}</p>}
         {emptyAction !== undefined && (
           <div className="async-region-actions">{emptyAction}</div>
         )}

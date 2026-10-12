@@ -141,11 +141,15 @@ function ProjectTickets({
             : undefined
         }
         retryLabel={integrityFailure ? CONNECTIONS_COPY.reconnect : undefined}
+        emptyTitle={
+          searching ? QUEUE_COPY.noMatchesTitle : QUEUE_COPY.emptyTitle
+        }
         emptyCopy={
           searching
             ? QUEUE_COPY.noMatches(searchQuery)
             : QUEUE_COPY.empty(workflowLabel)
         }
+        emptyIcon={searching ? "icon-search" : "icon-layers"}
         emptyAction={
           searching ? (
             <Button variant="secondary" size="sm" onPress={onClearSearch}>
@@ -241,7 +245,9 @@ export function QueueView() {
         <div id="queue-tickets-list" className="tickets-region" data-list>
           <AsyncRegion
             derived={empty}
+            emptyTitle={QUEUE_COPY.noProjectsTitle}
             emptyCopy={QUEUE_COPY.noProjects}
+            emptyIcon="icon-folder"
             emptyAction={
               <Button
                 variant="primary"

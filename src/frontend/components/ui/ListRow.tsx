@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 import { Button as AriaButton } from "react-aria-components";
+import { Link } from "react-router-dom";
 import { withoutUndefined } from "./aria-props.js";
 
 export interface ListRowProps {
@@ -23,6 +24,14 @@ export interface ListRowProps {
   isDisabled?: boolean | undefined;
   /** The accessible name of a pressable row, when the title is not enough. */
   accessibleLabel?: string | undefined;
+  /**
+   * The row opens something at this path: it is a link, so the browser's own
+   * link semantics (middle click, copy link, focus) keep working. One of
+   * `href` and `onPress` decides what the row is.
+   */
+  href?: string | undefined;
+  /** The row is the one the URL names: `aria-current="page"`. */
+  isCurrent?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -34,6 +43,8 @@ export function ListRow({
   onPress,
   isDisabled,
   accessibleLabel,
+  href,
+  isCurrent,
   className,
 }: ListRowProps) {
   const content = (
@@ -54,6 +65,24 @@ export function ListRow({
       )}
     </>
   );
+
+  if (href !== undefined) {
+    const classes = ["ui-list-row", "ui-list-row--pressable"];
+    if (className !== undefined) classes.push(className);
+    return (
+      <Link
+        to={href}
+        className={classes.join(" ")}
+        data-list-row
+        {...(accessibleLabel !== undefined
+          ? { "aria-label": accessibleLabel }
+          : {})}
+        {...(isCurrent === true ? { "aria-current": "page" as const } : {})}
+      >
+        {content}
+      </Link>
+    );
+  }
 
   if (onPress === undefined) {
     const classes = ["ui-list-row"];

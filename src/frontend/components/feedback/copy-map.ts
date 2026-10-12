@@ -261,12 +261,17 @@ export const DEGRADED_CAPABILITY_FALLBACK = {
 
 /** Copy for the Work Queue read region (#147), including its integrity failure. */
 export const QUEUE_COPY = {
-  /** Only issues carrying the tracker's workflow label are listed. */
-  empty: (label: string) =>
-    `No tickets yet. Only issues labelled “${label}” appear here.`,
+  /**
+   * Only issues carrying the tracker's workflow label are listed.
+   * `emptyTitle` headlines it; this line is the guidance beneath (E3).
+   */
+  emptyTitle: "No tickets yet",
+  empty: (label: string) => `Only issues labelled “${label}” appear here.`,
+  noMatchesTitle: "No matches",
   noMatches: (query: string) => `No tickets matched “${query}”.`,
   clearFilter: "Clear Filter",
   /** No project exists yet, so there is no queue to show. */
+  noProjectsTitle: "No projects yet",
   noProjects: "Add a project to see its tickets.",
   addProject: "Add Project",
   /** The manual path that stays open when the tracker cannot be reached. */
@@ -308,10 +313,13 @@ export const PROJECTS_COPY = {
   /** A row's accessible name: the row shows more than the project's name. */
   openProject: (projectName: string) => `Open project ${projectName}`,
   /** First run: no projects at all, so the pane offers the one action that helps. */
-  empty: "No projects yet. Add one to start working on tickets.",
+  emptyTitle: "No projects yet",
+  empty: "Add one to start working on tickets.",
   /** The Active filter hides every project because they are all archived. */
-  emptyActive: "No active projects. Archived projects are under Archived.",
-  emptyArchived: "No archived projects.",
+  emptyActiveTitle: "No active projects",
+  emptyActive: "Archived projects are under Archived.",
+  emptyArchivedTitle: "No archived projects",
+  emptyArchived: "Archive a project to find it here.",
   addProject: "Add Project",
   /** The detail pane on the list-only route: nothing is selected yet. */
   selectPrompt: "Select a project to see its repository, tracker and branch.",

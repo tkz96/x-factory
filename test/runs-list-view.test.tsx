@@ -186,7 +186,7 @@ describe("Runs rows", () => {
     );
   });
 
-  it("lead with the ticket title as a heading and show the status as a toned badge", () => {
+  it("lead with the ticket title as the row's own text and show the status as a toned badge", () => {
     const view = renderRuns(
       makeClient([
         run("a", "awaiting_plan_approval", "Add login"),
@@ -196,9 +196,11 @@ describe("Runs rows", () => {
       "/runs?filter=all",
     );
     const row = view.getByRole("link", { name: /T-a/ });
-    expect(
-      within(row).getByRole("heading", { name: "Add login" }).className,
-    ).toContain("run-card-title");
+    // The title is the shared list row's own title text, in the case the ticket
+    // was written in: no card heading, no small caps.
+    expect(row.querySelector(".ui-list-row-title")?.textContent).toBe(
+      "Add login",
+    );
     const badgeOf = (key: RegExp) =>
       view.getByRole("link", { name: key }).querySelector(".ui-badge");
     expect(badgeOf(/T-a/)?.textContent).toBe("Review the plan");
@@ -207,21 +209,17 @@ describe("Runs rows", () => {
     expect(badgeOf(/T-f/)?.className).toContain("ui-badge--error");
   });
 
-  it("keep the title in the case it was written, not the card's small caps heading", () => {
-    const css = readFileSync(
-      path.join(import.meta.dir, "../src/frontend/views/RunsView.css"),
+  it("is a grouped inset list of the shared rows, with no card of its own", () => {
+    const tsx = readFileSync(
+      path.join(import.meta.dir, "../src/frontend/views/RunsView.tsx"),
       "utf8",
     );
-    const match = /([^{}]*\.run-card-title)\s*\{([^}]*)\}/.exec(css);
-    const selector = match?.[1]?.trim() ?? "";
-    const rule = match?.[2] ?? "";
-    // It must out-rank the shared `.card h3` (one class, one element).
-    expect((selector.match(/\.[\w-]+/g) ?? []).length).toBeGreaterThanOrEqual(
-      2,
-    );
-    expect(rule).toMatch(/text-transform:\s*none/);
-    expect(rule).toMatch(/letter-spacing:\s*normal/);
-    expect(rule).toMatch(/color:\s*var\(--text\)/);
+    // One group per list (E2): the rows share hairlines, so no row is a card.
+    expect(tsx).toContain('className="ui-list-group"');
+    expect(tsx).toContain("ListRow");
+    expect(tsx).not.toContain('className="card run-card');
+    // The meta line is plain text, not the mono .code-sub the audit found.
+    expect(tsx).not.toContain("code-sub");
   });
 
   it("shows Merged and Closed without merging badges when pullRequestOutcome is present", () => {

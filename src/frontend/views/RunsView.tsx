@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { Badge } from "../components/ui/Badge.js";
+import { ListRow } from "../components/ui/ListRow.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useNow } from "../hooks/useNow.js";
@@ -13,6 +14,7 @@ import {
   formatTimestamp,
 } from "../lib/format-timestamp.js";
 import { runsInScope } from "../lib/project-scope.js";
+import type { RunStatusTone } from "../lib/run-status-ui.js";
 import { runStatusText, runStatusTone } from "../lib/run-status-ui.js";
 import {
   countRunsByFilter,
@@ -22,15 +24,23 @@ import {
   RUNS_FILTERS,
   type RunsFilterId,
 } from "../lib/runs-list.js";
-import { MotionList, MotionListItem } from "../motion/MotionList.js";
+import { MotionListItem } from "../motion/MotionList.js";
 import "./RunsView.css";
 import type { Run, StageModelUse } from "../../shared/types.js";
 import { latestModelFor } from "../lib/run-models.js";
 
-/** " · gemini-x" for the Builder model the run last used (#279). */
+/** The Builder model the run last used (#279), or "" when none was recorded. */
 function builderModelLabel(stageModels?: readonly StageModelUse[]): string {
   const builder = latestModelFor(stageModels ?? [], "builder");
-  return builder ? ` · ${builder.modelId}` : "";
+  return builder ? builder.modelId : "";
+}
+
+/** The row's subtitle: which ticket, which project, which model — all in plain text. */
+function runRowSubtitle(r: Run): string {
+  const project = r.project?.name || r.project?.id || "";
+  return [r.ticket?.id || r.id, project, builderModelLabel(r.stageModels)]
+    .filter((part) => part !== "")
+    .join(" · ");
 }
 
 /** The filter the user chose last, kept per viewer (#259). */
@@ -64,11 +74,56 @@ function rememberFilter(id: RunsFilterId): void {
 }
 
 const EMPTY_COPY: Record<RunsFilterId, string> = {
-  "needs-you": "Nothing needs you right now.",
-  running: "No runs are working right now. Start one from Tickets.",
-  done: "No finished runs yet.",
-  all: "No runs yet. Start one from Tickets.",
+  "needs-you": "Runs that need a decision from you appear here.",
+  running: "Start one from Tickets, and it appears here while it works.",
+  done: "Finished runs appear here.",
+  all: "Start one from Tickets, and it appears here.",
 };
+
+/** The empty list's headline per filter (E3): what is missing, in a few words. */
+const EMPTY_TITLE: Record<RunsFilterId, string> = {
+  "needs-you": "Nothing needs you right now",
+  running: "No runs are working",
+  done: "No finished runs yet",
+  all: "No runs yet",
+};
+
+/** The status a row carries: the pull request's outcome when there is one (#271). */
+function runRowStatus(r: Run): { text: string; tone: RunStatusTone } {
+  const outcome = r.pullRequestOutcome;
+  if (outcome) {
+    return outcome.status === "merged"
+      ? { text: "Merged", tone: "success" }
+      : { text: "Closed without merging", tone: "neutral" };
+  }
+  return { text: runStatusText(r.status), tone: runStatusTone(r.status) };
+}
+
+/** One run, as a row of the grouped list: a link into the run page. */
+function RunRow({ r, now }: { r: Run; now: number }) {
+  const status = runRowStatus(r);
+  const shownAt = runShownAt(r);
+  return (
+    <ListRow
+      href={`/runs/${r.id}`}
+      className="run-row-link"
+      title={r.ticket?.title || "Task"}
+      subtitle={runRowSubtitle(r)}
+      trailing={
+        <>
+          <Badge tone={status.tone}>{status.text}</Badge>
+          <time
+            className="run-row-time"
+            dateTime={shownAt}
+            title={formatTimestamp(shownAt)}
+          >
+            {formatRelativeTime(shownAt, now)}
+          </time>
+        </>
+      }
+    />
+  );
+}
 
 /**
  * The Runs section (#258, #259). One list with a Needs you / Running / Done /
@@ -126,7 +181,10 @@ export function RunsView() {
         derived={derived}
         onRetry={() => refetch()}
         placeholderRows={5}
+        placeholderClassName="ui-list-group"
+        emptyTitle={EMPTY_TITLE[filter]}
         emptyCopy={EMPTY_COPY[filter]}
+        emptyIcon="icon-play"
         emptyAction={
           filter === "running" || filter === "all" ? (
             <Link
@@ -141,59 +199,16 @@ export function RunsView() {
           ) : undefined
         }
       >
-        <div data-list>
-          <MotionList className="runs-grid">
-            <AnimatePresence initial={false}>
-              {shown.map((r) => (
-                <MotionListItem key={r.id}>
-                  <Link
-                    to={`/runs/${r.id}`}
-                    className="card run-card run-card-link"
-                    data-list-row
-                  >
-                    <div className="run-card-header">
-                      <div>
-                        <span className="code-sub run-card-key">
-                          {r.ticket?.id || r.id}
-                        </span>
-                        <h3 className="run-card-title">
-                          {r.ticket?.title || "Task"}
-                        </h3>
-                        <span className="code-sub run-card-subtitle">
-                          {r.project?.name || r.project?.id || ""}
-                          {builderModelLabel(r.stageModels)}
-                        </span>
-                      </div>
-                      <div className="run-card-status">
-                        <Badge
-                          tone={
-                            r.pullRequestOutcome
-                              ? r.pullRequestOutcome.status === "merged"
-                                ? "success"
-                                : "neutral"
-                              : runStatusTone(r.status)
-                          }
-                        >
-                          {r.pullRequestOutcome
-                            ? r.pullRequestOutcome.status === "merged"
-                              ? "Merged"
-                              : "Closed without merging"
-                            : runStatusText(r.status)}
-                        </Badge>
-                        <time
-                          className="run-card-time code-sub"
-                          dateTime={runShownAt(r)}
-                          title={formatTimestamp(runShownAt(r))}
-                        >
-                          {formatRelativeTime(runShownAt(r), now)}
-                        </time>
-                      </div>
-                    </div>
-                  </Link>
-                </MotionListItem>
-              ))}
-            </AnimatePresence>
-          </MotionList>
+        {/* One inset group (SYSTEM.md): the rows share hairlines, and each row
+            is the shared list row — no card of its own, no hover lift (E2). */}
+        <div className="ui-list-group" data-list>
+          <AnimatePresence initial={false}>
+            {shown.map((r) => (
+              <MotionListItem key={r.id}>
+                <RunRow r={r} now={now} />
+              </MotionListItem>
+            ))}
+          </AnimatePresence>
         </div>
       </AsyncRegion>
     </section>

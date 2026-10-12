@@ -85,9 +85,9 @@ describe("touch targets and the row height come from tokens", () => {
     expect(declarationsFor(CONTROLS, ".ui-list-row")).toContain(
       "min-height: var(--list-row-height)",
     );
-    // The Runs list's own row reserves the same height, so the placeholder rows
-    // a loading Runs list shows have the height the loaded rows will have.
-    expect(declarationsFor(RUNS_VIEW, ".run-card-link")).toContain(
+    // The Runs list's own row is the shared row, so the placeholder rows a
+    // loading Runs list shows have the height the loaded rows will have.
+    expect(declarationsFor(RUNS_VIEW, ".run-row-link")).toContain(
       "min-height: var(--list-row-height)",
     );
   });
