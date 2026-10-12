@@ -21,6 +21,7 @@
   .ui-select-item,
   .ui-segment,
   .ui-switch,
+  .ui-nav-item,
   .ui-list-row--pressable
 ):focus-visible,
 :is(
@@ -32,6 +33,7 @@
   .ui-select-item,
   .ui-segment,
   .ui-switch,
+  .ui-nav-item,
   .ui-list-row--pressable
 )[data-focus-visible] {
   outline: var(--border-width-indicator) solid var(--border-focus);
