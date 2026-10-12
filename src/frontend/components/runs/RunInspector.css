@@ -4,29 +4,11 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
   overflow-y: auto;
   min-height: 0;
   height: 100%;
-}
-
-.run-inspector-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.run-inspector-header h4 {
-  margin: 0;
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .run-inspector-count {
@@ -39,9 +21,15 @@
   border-radius: var(--radius-full);
 }
 
-.run-inspector-dot {
+/* The live-stream dot: one definition, scoped to the inspector (G2). It is a
+   circle, and it is green because the stream is connected. */
+.run-inspector-stream-dot {
   margin-left: var(--space-1-5);
   display: inline-block;
+  width: var(--status-dot-sm);
+  height: var(--status-dot-sm);
+  border-radius: var(--radius-full);
+  background: var(--green);
 }
 
 .run-inspector-scroll {

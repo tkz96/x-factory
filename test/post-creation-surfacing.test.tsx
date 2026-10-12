@@ -1051,8 +1051,12 @@ describe("Work Queue — combo state matrix", () => {
         throw new Error("empty region missing");
       }
     });
+    // The empty state is a headline and one guidance line (E3).
+    expect(container.querySelector(".async-region-title")?.textContent).toBe(
+      QUEUE_COPY.emptyTitle,
+    );
     expect(container.textContent).toContain(
-      "No tickets yet. Only issues labelled “agentic-workflow” appear here.",
+      "Only issues labelled “agentic-workflow” appear here.",
     );
   });
 

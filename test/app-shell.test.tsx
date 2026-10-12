@@ -138,6 +138,14 @@ describe("App shell toolbar (#258)", () => {
     );
   });
 
+  it("names a project's page after the project, so one screen has one title", () => {
+    // The pane below the heading carries no title of its own (G1): the heading
+    // is the project's name, not the word "Project".
+    const view = renderShell("/projects/demo-app");
+    const heading = view.container.querySelector("#page-title");
+    expect(heading?.textContent).toBe("Demo App");
+  });
+
   it("offers Start Run in the page heading on Tickets and Add Project on Projects, and neither in the toolbar", () => {
     const tickets = renderShell("/tickets");
     const ticketsSlot = tickets.container.querySelector(

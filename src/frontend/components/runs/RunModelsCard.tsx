@@ -5,13 +5,7 @@
 import "./RunModelsCard.css";
 
 import type { StageModelUse } from "../../../shared/types.js";
-import {
-  formatUsage,
-  latestModelFor,
-  stageLabel,
-} from "../../lib/run-models.js";
-
-const ROLE_LABELS = { builder: "Builder", reviewer: "Reviewer" } as const;
+import { formatUsage, stageLabel } from "../../lib/run-models.js";
 
 export function RunModelsCard({
   stageModels,
@@ -20,21 +14,12 @@ export function RunModelsCard({
 }) {
   if (stageModels.length === 0) return null;
   return (
-    <section className="card run-models" aria-labelledby="run-models-title">
-      <h3 id="run-models-title" className="run-models-title">
+    // A disclosure (F2): the rows are a detail of the run, and a phone can fold
+    // them away. Open by default, so nothing is hidden from a first look.
+    <details className="card run-models" open>
+      <summary className="run-models-title" id="run-models-title">
         Models
-      </h3>
-      <p className="run-models-summary">
-        {(["builder", "reviewer"] as const)
-          .map((role) => {
-            const latest = latestModelFor(stageModels, role);
-            return latest
-              ? `${ROLE_LABELS[role]}: ${latest.modelId} (${latest.connectionName})`
-              : null;
-          })
-          .filter(Boolean)
-          .join(" · ")}
-      </p>
+      </summary>
       <ul className="run-models-list">
         {stageModels.map((use) => {
           const usage = formatUsage(use);
@@ -59,6 +44,6 @@ export function RunModelsCard({
           );
         })}
       </ul>
-    </section>
+    </details>
   );
 }

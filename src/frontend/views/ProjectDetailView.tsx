@@ -90,12 +90,13 @@ export function ProjectDetailView() {
   return (
     <ProjectsSplit selectedId={project.id}>
       <article className="projects-detail">
-        <header className="projects-detail-header">
-          <h2 id="project-detail-name" className="projects-detail-name">
-            {project.name}
-          </h2>
-          {project.archived && <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>}
-        </header>
+        {/* No second title (G1): the page heading above the split names the
+            project, so this pane starts with what the project is wired to. */}
+        {project.archived && (
+          <header className="projects-detail-header">
+            <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>
+          </header>
+        )}
 
         <dl className="projects-detail-facts">
           {facts.map((fact) => (
@@ -140,9 +141,11 @@ export function ProjectDetailView() {
             <Badge id="project-detail-repo-count">{repos.length}</Badge>
           </div>
 
+          {/* A table is not a card: one --radius-card border and hairlines
+              between its rows, never a box inside the pane (C3). */}
           <div
             id="project-detail-repos-table"
-            className="repos-table-container card"
+            className="repos-table-container"
           >
             {repos.length === 0 ? (
               <p className="text-muted p-4">

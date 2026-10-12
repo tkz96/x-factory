@@ -12,20 +12,24 @@
   margin-top: var(--space-3);
 }
 
-.tickets-grid .feedback-banner {
-  grid-column: 1 / -1;
+/* One region per project: what the read region showed, then its diagnostics. */
+.tickets-region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 /* All Projects: one group per project, each with its own heading and states (#260). */
 .ticket-groups {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-8);
 }
 
+/* A list's group header (SYSTEM.md): footnote, 600, secondary, sentence case. */
 .ticket-group-title {
   margin: 0 0 var(--space-3);
-  font-size: var(--text-headline);
+  font-size: var(--text-footnote);
   font-weight: 600;
-  color: var(--text-main);
+  color: var(--text-muted);
 }

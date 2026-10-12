@@ -332,7 +332,8 @@
   --duration-loader-slow: 600ms;
   --duration-pulse: 2000ms;
   --duration-typing: 1400ms;
-  --duration-stagger: 160ms;
+  /* How far apart the typing dots start their beat: the offset, not a duration. */
+  --duration-typing-offset: 160ms;
 
   /* One spring, two names: `--ease-spring` is the name new code uses, `--spring`
      is the alias a screen may still reach for (M14). The curve decelerates and
@@ -946,6 +947,6 @@
     --duration-loader-slow: 120ms;
     --duration-pulse: 120ms;
     --duration-typing: 120ms;
-    --duration-stagger: 0ms;
+    --duration-typing-offset: 0ms;
   }
 }

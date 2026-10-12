@@ -113,7 +113,12 @@ describe("run chat words come from the one status map (#253)", () => {
       expect(within(header as HTMLElement).getByText(ui.header)).toBeTruthy();
       expect(container.textContent).toContain(ui.now);
       const input = within(container).getByRole("textbox") as HTMLInputElement;
-      expect(input.placeholder).toBe(ui.placeholder);
+      // At a gate the map's own words guide the reader; on a run that cannot
+      // take a message the box says what it is for, never the status line the
+      // header already shows (F6).
+      expect(input.placeholder).toBe(
+        canRunAction(status, "chat") ? ui.placeholder : "Message the Builder…",
+      );
       expect(container.textContent).not.toMatch(
         /Phase:|Approval gate|Waiting for agent|Context Synthesis|Agent Workspace/,
       );

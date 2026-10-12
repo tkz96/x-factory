@@ -60,11 +60,20 @@
     overflow: visible;
   }
 
+  /* The strip is sticky with a bottom offset of one tab bar (F1), and at the
+     end of the scroll it lifts by that offset. The layout keeps that much
+     empty room below the chat, so the lift lands on space the composer is
+     never behind. */
   .run-detail-layout {
     grid-template-columns: 1fr;
     height: auto;
     overflow: visible;
     padding: var(--space-3);
+    padding-bottom: calc(
+      var(--space-3) +
+      var(--tab-bar-height) +
+      env(safe-area-inset-bottom, var(--space-0))
+    );
     gap: var(--space-3);
   }
 
@@ -79,185 +88,34 @@
 
   .workflow-stepper-footer {
     position: sticky;
-    bottom: 0;
-    padding: 0.5rem var(--space-3);
+    /* Above the fixed tab bar, so the strip is never hidden under it (F1). */
+    bottom: calc(
+      var(--tab-bar-height) +
+      env(safe-area-inset-bottom, var(--space-0))
+    );
+    padding: var(--space-2) var(--space-3);
   }
 }
 
 /* ── Run Detail View ─────────────────────────────────────────────────── */
 
-.run-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
 .code-sub {
   display: block;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-footnote);
   color: var(--text-muted);
-  margin-top: 0.2rem;
+  margin-top: var(--space-1);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.6rem;
+  margin-bottom: var(--space-2);
 }
 
 .section-header h3 {
   margin-bottom: 0;
-}
-
-/* ── Run Actions ─────────────────────────────────────────────────────── */
-
-.run-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-
-/* ── Knowledge Status ────────────────────────────────────────────────── */
-
-.knowledge-status {
-  margin-top: 0.8rem;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.knowledge-status .check {
-  color: var(--green);
-}
-
-.knowledge-status .missing {
-  color: var(--text-dim);
-}
-
-/* ── Result & Evidence Sections ──────────────────────────────────────── */
-
-.result-section {
-  margin-bottom: 1.6rem;
-  padding-bottom: 1.2rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
-}
-
-.evidence-row {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  margin-bottom: 0.6rem;
-}
-
-.evidence-text {
-  font-family: var(--font-sans);
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.test-output {
-  margin-top: 0.5rem;
-  background: var(--bg);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-  max-height: var(--sidebar-width-sm);
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* ── Criteria & Findings ─────────────────────────────────────────────── */
-
-.criteria-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.6rem;
-  margin-bottom: 0.8rem;
-}
-
-.criteria-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.84rem;
-  color: var(--text);
-  background: var(--bg-hover);
-  padding: 0.4rem 0.6rem;
-  border-radius: var(--radius-sm);
-  border: var(--border-width) solid var(--border-subtle);
-}
-
-.criteria-icon.pass {
-  color: var(--green);
-  font-weight: 700;
-}
-
-.criteria-icon.fail {
-  color: var(--red);
-  font-weight: 700;
-}
-
-.findings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
-}
-
-.finding-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  font-size: 0.82rem;
-  background: var(--bg);
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-sm);
-  border-left: var(--border-width-indicator) solid var(--border);
-}
-
-.finding-item.finding-error {
-  border-left-color: var(--red);
-}
-.finding-item.finding-warning {
-  border-left-color: var(--orange);
-}
-.finding-item.finding-info {
-  border-left-color: var(--accent);
-}
-
-.recovery-box {
-  margin-top: 1rem;
-  padding: 0.8rem 1rem;
-  border-radius: var(--radius-sm);
-  background: var(--red-dim);
-  border: var(--border-width) solid var(--red);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.8rem;
-}
-
-.btn-danger-text {
-  color: var(--red);
-}
-
-.status-dot-sm {
-  width: var(--status-dot-md);
-  height: var(--status-dot-md);
-}
-
-.recovery-error {
-  color: var(--red);
-  font-weight: 500;
 }
 
 /* The phone-width toolbar above the chat: the inspector opens from here (#262). */

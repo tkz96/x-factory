@@ -7,56 +7,19 @@
   margin-bottom: var(--space-5);
 }
 
-.runs-grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.run-card-link {
-  display: block;
+/* A run's row is the shared list row (E2). It is a link, so it drops the
+   underline, and it reserves the height its static placeholders hold. */
+.run-row-link {
   min-height: var(--list-row-height);
   text-decoration: none;
   color: inherit;
-  cursor: pointer;
 }
 
-.run-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-/* The ticket title is the row's primary text, in the case it was written —
-   not the small-caps section heading a card's h3 gets by default. */
-.run-card .run-card-title {
-  margin: 0 0 var(--space-1);
-  font-size: var(--text-headline);
-  font-weight: 600;
-  color: var(--text);
-  text-transform: none;
-  letter-spacing: normal;
-}
-
-.run-card-subtitle {
-  font-size: var(--text-footnote);
-}
-
-.run-card-key {
-  display: block;
-  margin-bottom: var(--space-0-5);
-}
-
-.run-card-status {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-1);
-  flex-shrink: 0;
-}
-
-.run-card-time {
+.run-row-time {
   font-size: var(--text-caption-1);
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* The filter fits the phone width: four segments share the row, each label

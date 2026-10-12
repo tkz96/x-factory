@@ -46,13 +46,46 @@
 
 .run-now-link {
   align-self: flex-start;
-  font-weight: 600;
-  font-size: var(--text-footnote);
+  text-decoration: none;
 }
 
 .run-now-pr-time {
   color: var(--text-muted);
   font-size: var(--text-footnote);
+}
+
+/* What the run has just produced arrives rather than appearing (O1): the plan,
+   the change summary, the pull request and a failure each settle into place. */
+.run-now-plan,
+.run-now-diff,
+.run-now-pr,
+.run-now-failure {
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+}
+
+@starting-style {
+  .run-now-plan,
+  .run-now-diff,
+  .run-now-pr,
+  .run-now-failure {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+}
+
+/* Reduced motion: the same arrival, without the rise. */
+@media (prefers-reduced-motion: reduce) {
+  @starting-style {
+    .run-now-plan,
+    .run-now-diff,
+    .run-now-pr,
+    .run-now-failure {
+      opacity: 0;
+      transform: none;
+    }
+  }
 }
 
 .run-now-failure {

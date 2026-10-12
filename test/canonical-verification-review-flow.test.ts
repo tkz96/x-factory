@@ -384,7 +384,12 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).toContain("Passed");
     expect(html).toContain("All 10 tests passed without pollution.");
     expect(html).toContain("10 pass, 0 fail");
-    expect(html).toContain("Files modified:");
+    // The run's files are the Inspector's Files section when it recorded a
+    // diff, so the verification block does not repeat the list (F5).
+    expect(html).not.toContain("Files modified:");
+    expect(html).toContain('class="evidence-file"');
+    expect(html).toContain("Acceptance criteria");
+    expect(html).toContain("Findings");
     expect(html).toContain("src/app.ts");
 
     // Real review data rendered
@@ -392,6 +397,32 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).toContain("AC 1: Must verify");
     expect(html).toContain("AC 2: Must review");
     expect(html).toContain("Clean implementation");
+
+    // With no diff recorded there is no Files section to hold the list, so the
+    // verification names the files it checked itself (F5).
+    const withoutDiff = renderToString(
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(
+          ProjectProvider,
+          null,
+          React.createElement(
+            ModalProvider,
+            null,
+            React.createElement(
+              MemoryRouter,
+              null,
+              React.createElement(RunEvidence, {
+                run: { ...fullRun, diff: null },
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(withoutDiff).toContain("Files modified:");
+    expect(withoutDiff).toContain("src/app.ts");
   });
 
   it("RunEvidence says no tests ran, never that they passed, when the project has no test command", () => {

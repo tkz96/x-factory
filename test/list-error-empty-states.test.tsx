@@ -83,14 +83,22 @@ describe("QueueView — zero projects", () => {
 });
 
 describe("empty state layout", () => {
-  it("centres the empty state and caps its text at a readable measure", async () => {
+  it("heads the empty state with a title, caps its text and draws no box", async () => {
     const css = await Bun.file(
       `${import.meta.dir}/../src/frontend/components/feedback/AsyncRegion.css`,
     ).text();
     const hint = /\.async-region-hint\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(hint).toContain("max-width: 36ch");
+    expect(hint).toContain("max-width: 48ch");
     expect(hint).toContain("text-wrap: balance");
-    expect(css).toMatch(/\.async-region--empty\s*\{[^}]*text-align: center/);
+    const empty = /\.async-region--empty\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(empty).toContain("text-align: center");
+    // The content-unavailable pattern (E3): a glyph, a headline and guidance —
+    // never a dashed box around nothing.
+    expect(css).not.toContain("dashed");
+    expect(empty).not.toMatch(/border\s*:/);
+    expect(css).toMatch(
+      /\.async-region-title\s*\{[^}]*font-size:\s*var\(--text-headline\)/,
+    );
   });
 
   it("gives the Runs standby CTA an icon", () => {
@@ -101,6 +109,10 @@ describe("empty state layout", () => {
     expect(
       container.querySelector(".async-region--empty a svg.icon"),
     ).not.toBeNull();
-    expect(container.textContent).toContain("No runs are working right now");
+    // The standby state says what is missing, in a headline and one line.
+    expect(container.querySelector(".async-region-title")?.textContent).toBe(
+      "No runs are working",
+    );
+    expect(container.textContent).toContain("Start one from Tickets");
   });
 });

@@ -5,29 +5,29 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-card);
   margin-top: var(--space-5);
   margin-bottom: var(--space-5);
   font-size: var(--text-callout);
 }
 
+/* A quiet tint, no border of its own (G2): the card's own border already holds
+   it, and the title stays readable text on the tint. */
 .readiness-banner.ready {
   background: var(--green-dim);
-  color: var(--green);
-  border: var(--border-width) solid var(--green);
 }
 
-.readiness-banner.pending {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-  border: var(--border-width) solid var(--yellow);
+.readiness-banner.warning {
+  background: var(--orange-dim);
+}
+
+.readiness-banner.ready .readiness-icon {
+  color: var(--green);
 }
 
 /* Warning semantics always use --orange — never --yellow (#132). */
-.readiness-banner.warning {
-  background: var(--orange-dim);
+.readiness-banner.warning .readiness-icon {
   color: var(--orange);
-  border: var(--border-width) solid var(--orange);
 }
 
 .readiness-content {
@@ -36,17 +36,14 @@
   gap: var(--space-3);
 }
 
-.status-dot-sm {
-  width: var(--status-dot-lg);
-  height: var(--status-dot-lg);
-}
-
 .readiness-title {
   display: block;
+  color: var(--text);
 }
 
 .readiness-desc {
   font-size: var(--text-footnote);
+  color: var(--text-muted);
 }
 
 /* Checks that need attention, one per line (#283). */

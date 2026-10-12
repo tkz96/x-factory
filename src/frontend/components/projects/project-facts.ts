@@ -35,16 +35,30 @@ export interface ProjectRepositoryValue {
 }
 
 /**
- * The repository in plain words: the primary repository's name, with its remote
- * when one is recorded, or the folder the project is checked out in. Answers
- * "Not recorded" only when the project records neither.
+ * `owner/repository` from a remote URL (G3): a project row names the
+ * repository, not the whole URL. A remote that names no repository — a bare
+ * folder, say — is shown exactly as it was recorded.
+ */
+function ownerRepoFromRemote(remote: string): string {
+  const match = /[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(remote.trim());
+  return match?.[1] ?? remote.trim();
+}
+
+/**
+ * The repository in plain words: the primary repository's name, with the
+ * `owner/repository` its remote names when one is recorded, or the folder the
+ * project is checked out in. Answers "Not recorded" only when the project
+ * records neither.
  */
 export function projectRepository(project: Project): ProjectRepositoryValue {
   const primary = (project.repositories ?? [])[0];
   if (primary !== undefined) {
     const remote = primary.remote?.trim() ?? "";
     return {
-      value: remote === "" ? primary.name : `${primary.name} — ${remote}`,
+      value:
+        remote === ""
+          ? primary.name
+          : `${primary.name} — ${ownerRepoFromRemote(remote)}`,
       isPath: false,
     };
   }

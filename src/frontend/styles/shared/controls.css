@@ -699,3 +699,69 @@
   gap: var(--space-2);
   color: var(--text-muted);
 }
+
+/* ── Grouped inset list ──────────────────────────────────────────────────
+ * One group (SYSTEM.md "Grouped inset lists"): a --radius-card container whose
+ * rows share hairlines instead of each row drawing its own box. The rows are
+ * `ListRow`s; the group is the list, and a screen composes it.
+ *
+ * Works for a `<ul>` of `<li>` rows and for a plain container of rows, so a
+ * list with motion wrappers keeps the same shape. This is the last block in
+ * this file, so the group settles what a row looks like inside one.
+ */
+
+.ui-list-group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+
+/* The separator between two rows: a hairline inside the group's own edge. */
+.ui-list-group > * + * {
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+/* Inside a group the row draws no box of its own: the hairline separates. */
+.ui-list-group .ui-list-row {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* The group's own corners: the first and last row's fill follows them. */
+.ui-list-group > *:first-child .ui-list-row {
+  border-start-start-radius: var(--radius-card);
+  border-start-end-radius: var(--radius-card);
+}
+
+.ui-list-group > *:last-child .ui-list-row {
+  border-end-start-radius: var(--radius-card);
+  border-end-end-radius: var(--radius-card);
+}
+
+/* A row inside a group is a link (its own element, so it carries no
+   data-hovered): the hover fill is gated on a real pointer, like every other
+   hover motion (M8). */
+@media (hover: hover) and (pointer: fine) {
+  .ui-list-group .ui-list-row--pressable:hover {
+    background: var(--bg-hover);
+  }
+}
+
+/* The row the URL names reads as chosen: one filled row, no border (G4). */
+.ui-list-group .ui-list-row[aria-current="page"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-title,
+.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-subtitle,
+.ui-list-group .ui-list-row[aria-current="page"] > .icon {
+  color: var(--text-on-accent);
+}

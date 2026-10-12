@@ -82,17 +82,21 @@ describe("run model helpers (#279)", () => {
 });
 
 describe("RunModelsCard (#279)", () => {
-  it("shows each role's model in its header and every attempt with usage", () => {
+  it("lists every attempt with its model and usage, and repeats nothing", () => {
     const { container } = render(
       <RunModelsCard stageModels={[BUILDER, REVIEWER]} />,
     );
+    // A disclosure (F2): the card is foldable, and open on a first look.
+    const details = container.querySelector("details.run-models");
+    expect(details?.hasAttribute("open")).toBe(true);
+    expect(container.querySelector("summary")?.textContent).toBe("Models");
+    expect(container.querySelectorAll(".run-models-row")).toHaveLength(2);
     const text = container.textContent ?? "";
-    expect(text).toContain("Builder");
     expect(text).toContain("gemini-flash-lite-latest");
-    expect(text).toContain("Reviewer");
     expect(text).toContain("gemini-pro");
     expect(text).toContain("12.4K in · 2.1K out · $0.0062");
-    expect(container.querySelectorAll(".run-models-row")).toHaveLength(2);
+    // F7: the rows say it once, so nothing repeats them above.
+    expect(container.querySelector(".run-models-summary")).toBeNull();
   });
 
   it("shows coding on the Builder and its review on the Reviewer when both ran in the execute stage", () => {
@@ -115,9 +119,6 @@ describe("RunModelsCard (#279)", () => {
     expect(rows[1]).toContain("Reviewing");
     expect(rows[1]).toContain("gemini-pro");
     expect(rows[1]).toContain("900 in");
-    expect(container.querySelector(".run-models-summary")?.textContent).toBe(
-      "Builder: gemini-flash-lite-latest (Gemini) · Reviewer: gemini-pro (Gemini)",
-    );
   });
 
   it("renders nothing before any stage has used a model", () => {

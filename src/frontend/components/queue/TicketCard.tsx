@@ -1,6 +1,7 @@
 // src/frontend/components/queue/TicketCard.tsx — A ticket in the Tickets list
 // (XFM-47, #260). Its action follows the ticket's run: Open Run when a run is
-// active, Start New Run when every run has finished, Start Run otherwise.
+// active, Start Run otherwise — one label, always those two words (D1) — and it
+// is a row accessory, never the region's filled button.
 
 import "./TicketCard.css";
 
@@ -16,9 +17,20 @@ interface TicketCardProps {
   /** The project the ticket belongs to: its run starts there (#260). */
   projectId: string;
   runLink: TicketRunLink;
+  /**
+   * The tracker's workflow label. A ticket that carries its own labels shows
+   * those; a provider that maps none falls back to the label the tracker
+   * requires, never a hard-coded one (A4).
+   */
+  workflowLabel: string;
 }
 
-export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
+export function TicketCard({
+  ticket,
+  projectId,
+  runLink,
+  workflowLabel,
+}: TicketCardProps) {
   const { openNewRunModal } = useModal();
   const navigate = useNavigate();
   const activeRunId = runLink.kind === "active" ? runLink.runId : null;
@@ -38,6 +50,14 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
   };
 
   const criteriaPreview = (ticket.acceptanceCriteria || []).slice(0, 3);
+  // The ticket's own labels, or the label the tracker requires when the
+  // provider maps none. A tag, never a control: the Badge block's quiet role.
+  const labels =
+    ticket.labels && ticket.labels.length > 0
+      ? ticket.labels
+      : workflowLabel
+        ? [workflowLabel]
+        : [];
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: Composite card contains nested action buttons
@@ -56,14 +76,9 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
       aria-label={`Select ticket ${ticket.id}: ${ticket.title}`}
     >
       <div className="ticket-card-header">
-        <div className="ticket-badges">
-          <Badge variant="id" className="ticket-key">
-            {ticket.id}
-          </Badge>
-          {ticket.provider && (
-            <span className="ticket-provider">{ticket.provider}</span>
-          )}
-        </div>
+        <Badge variant="id" className="ticket-key">
+          {ticket.id}
+        </Badge>
         {activeRunId ? (
           <Link
             to={`/runs/${activeRunId}`}
@@ -75,7 +90,7 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
           </Link>
         ) : (
           <Button
-            variant="primary"
+            variant="secondary"
             size="sm"
             className="btn-start-ticket"
             data-id={ticket.id}
@@ -84,7 +99,7 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
             // click must not reach it, or the run would open twice.
             onClick={(event) => event.stopPropagation()}
           >
-            {runLink.kind === "finished" ? "Start New Run" : "Start Run"}
+            Start Run
           </Button>
         )}
       </div>
@@ -101,10 +116,9 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
 
       <div className="ticket-footer">
         <div className="ticket-tags">
-          <span className="filter-pill ticket-pill">
-            <span className="pill-dot" />
-            agentic-workflow
-          </span>
+          {labels.slice(0, 3).map((label) => (
+            <Badge key={label}>{label}</Badge>
+          ))}
         </div>
         {ticket.url && (
           <a

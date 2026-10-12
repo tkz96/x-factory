@@ -10,7 +10,6 @@
 import "./ProjectList.css";
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import type { Project } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import { useProjects } from "../../hooks/useQueries.js";
@@ -23,6 +22,7 @@ import {
 import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { ListRow } from "../ui/ListRow.js";
 import { SegmentedControl } from "../ui/SegmentedControl.js";
 import { deriveConnectionIntegrity } from "./connection-integrity.js";
 import { projectRepository } from "./project-facts.js";
@@ -38,44 +38,12 @@ function RowBadges({ project }: { project: Project }) {
     return null;
   }
   return (
-    <span className="projects-list-row-badges">
+    <>
       {archived && <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>}
       {hasIntegrityFailure && (
         <Badge tone="error">{CONNECTIONS_COPY.integrityFailure.title}</Badge>
       )}
-    </span>
-  );
-}
-
-interface ProjectListRowProps {
-  project: Project;
-  /** The project the URL names, if any: the row reads as the current one. */
-  isSelected: boolean;
-}
-
-/** One project row. The whole row is the link, and nothing sits inside it. */
-function ProjectListRow({ project, isSelected }: ProjectListRowProps) {
-  return (
-    <li>
-      <Link
-        to={`/projects/${project.id}`}
-        className="projects-list-row"
-        data-list-row
-        aria-label={PROJECTS_COPY.openProject(project.name)}
-        aria-current={isSelected ? "page" : undefined}
-      >
-        <svg className="icon icon-md" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-folder" />
-        </svg>
-        <span className="projects-list-row-main">
-          <span className="projects-list-row-title">{project.name}</span>
-          <span className="projects-list-row-subtitle">
-            {projectRepository(project).value}
-          </span>
-        </span>
-        <RowBadges project={project} />
-      </Link>
-    </li>
+    </>
   );
 }
 
@@ -129,7 +97,16 @@ export function ProjectList({ selectedId }: ProjectListProps) {
         derived={derived}
         onRetry={() => void projectsQuery.refetch()}
         placeholderRows={4}
+        placeholderClassName="ui-list-group"
+        emptyTitle={
+          projects.length === 0
+            ? PROJECTS_COPY.emptyTitle
+            : filter === "active"
+              ? PROJECTS_COPY.emptyActiveTitle
+              : PROJECTS_COPY.emptyArchivedTitle
+        }
         emptyCopy={emptyCopy}
+        emptyIcon="icon-folder"
         emptyAction={
           projects.length === 0 ? (
             <Button
@@ -143,13 +120,22 @@ export function ProjectList({ selectedId }: ProjectListProps) {
           ) : undefined
         }
       >
-        <ul className="projects-list" data-list>
+        {/* One inset group (E2): the rows share hairlines, and each row is the
+            shared list row — 44pt tall, title left, accessory trailing. */}
+        <ul className="ui-list-group" data-list>
           {visible.map((project) => (
-            <ProjectListRow
-              key={project.id}
-              project={project}
-              isSelected={project.id === selectedId}
-            />
+            <li key={project.id}>
+              <ListRow
+                href={`/projects/${project.id}`}
+                isCurrent={project.id === selectedId}
+                className="projects-list-row"
+                leadingIcon="icon-folder"
+                title={project.name}
+                subtitle={projectRepository(project).value}
+                trailing={<RowBadges project={project} />}
+                accessibleLabel={PROJECTS_COPY.openProject(project.name)}
+              />
+            </li>
           ))}
         </ul>
       </AsyncRegion>

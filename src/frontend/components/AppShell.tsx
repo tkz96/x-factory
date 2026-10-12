@@ -15,6 +15,7 @@ import { ModalProvider, useModal } from "../context/ModalContext.js";
 import { NotificationProvider } from "../context/NotificationContext.js";
 import { ProjectProvider } from "../context/ProjectContext.js";
 import {
+  useProjects,
   useReadiness,
   useRun,
   useRuns,
@@ -572,12 +573,19 @@ function AppShellContent() {
   const { title: genericTitle, subtitle: genericSubtitle } = getActiveTitle(
     location.pathname,
   );
+  // A project's page is named by the project (G1), so the detail pane below the
+  // heading carries no second title of its own.
+  const projectIdMatch = location.pathname.match(/^\/projects\/([^/]+)/);
+  const { data: projectsForHeading } = useProjects();
+  const headingProject = projectIdMatch
+    ? projectsForHeading?.find((p) => p.id === projectIdMatch[1])
+    : undefined;
 
   // A run is named by its ticket id, without punctuation around it (#SYS: the
   // id reads GH-3 everywhere).
   const title = runData
     ? `${runData.ticket?.id || runData.id} — ${runData.ticket?.title || "Task"}`
-    : genericTitle;
+    : (headingProject?.name ?? genericTitle);
   const subtitle = runData
     ? `${runData.project?.name} · ${runData.branch}`
     : genericSubtitle;
@@ -670,7 +678,7 @@ function AppShellContent() {
             <div className="page-heading">
               <div className="page-heading-text">
                 <h1 id="page-title" className="large-title">
-                  {genericTitle}
+                  {title}
                 </h1>
                 <p className="page-subtitle">{genericSubtitle}</p>
               </div>

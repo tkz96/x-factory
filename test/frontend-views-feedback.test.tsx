@@ -248,8 +248,12 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
     const view = renderRuns(client, "/runs");
     const s = within(view.container);
 
+    // The empty state is a headline and one guidance line (E3).
+    expect(
+      view.container.querySelector(".async-region-title")?.textContent,
+    ).toBe("No runs are working");
     expect(s.getByRole("status").textContent).toContain(
-      "No runs are working right now. Start one from Tickets.",
+      "Start one from Tickets",
     );
     expect(
       s.getByRole("link", { name: /Go to Tickets/ }).getAttribute("href"),
@@ -262,9 +266,9 @@ describe("Runs — feedback-family read region (#258, formerly History)", () => 
     const view = renderRuns(client, DONE);
     const s = within(view.container);
 
-    expect(s.getByRole("status").textContent).toContain(
-      "No finished runs yet.",
-    );
+    expect(
+      view.container.querySelector(".async-region-title")?.textContent,
+    ).toBe("No finished runs yet");
     expect(s.queryByRole("link", { name: /Go to Tickets/ })).toBeNull();
   });
 
