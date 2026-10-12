@@ -22,7 +22,7 @@ function choicesFrom(connections: readonly ModelConnectionView[]): Choice[] {
     .flatMap((c) =>
       c.models.map((m, index) => ({
         key: `${c.id}#${index}`,
-        label: COPY.option(m.modelId, c.name),
+        label: COPY.option(m.name ?? m.modelId, c.name),
         assignment: { connectionId: c.id, modelId: m.modelId },
       })),
     );

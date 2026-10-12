@@ -186,6 +186,36 @@ describe("Settings › Models roles (#278)", () => {
     expect(picker("reviewer").selectedOptions[0]?.textContent).toBe("Not set");
   });
 
+  it("labels each model by its display name, and by its id when it has none", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/model-connections")) {
+        return Promise.resolve(
+          jsonResponse([
+            connection({
+              id: "c3",
+              name: "FreeLLMAPI",
+              apiType: "openai-compatible",
+              models: [
+                { ...record("mistral-large-3"), name: "Mistral Large 3" },
+                record("plain-model"),
+              ],
+            }),
+          ]),
+        );
+      }
+      return Promise.resolve(jsonResponse(serverSettings));
+    }) as typeof fetch;
+    const { container } = renderSettings();
+    await openModelsTab(container);
+
+    expect(optionLabels(picker("reviewer"))).toEqual([
+      "Not set",
+      "Mistral Large 3 — FreeLLMAPI",
+      "plain-model — FreeLLMAPI",
+    ]);
+  });
+
   it("saves a role as soon as it is chosen, as {connectionId, modelId}", async () => {
     const { container } = renderSettings();
     await openModelsTab(container);

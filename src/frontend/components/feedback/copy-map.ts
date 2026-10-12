@@ -661,8 +661,8 @@ export const MODEL_ROLES_COPY = {
   reviewerHelp:
     "Reviews the changes. A different model gives a stronger second opinion.",
   notSet: "Not set",
-  option: (modelId: string, connectionName: string) =>
-    `${modelId} — ${connectionName}`,
+  option: (modelName: string, connectionName: string) =>
+    `${modelName} — ${connectionName}`,
   unavailable: (modelId: string) => `${modelId} (unavailable)`,
   noModels:
     "No models to choose yet. Check a connection above and add a model to it.",
