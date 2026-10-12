@@ -168,7 +168,8 @@ function isBasicsState(value: unknown): boolean {
     typeof value.name === "string" &&
     typeof value.id === "string" &&
     typeof value.description === "string" &&
-    typeof value.workspacePath === "string"
+    typeof value.workspacePath === "string" &&
+    (value.testCommand === undefined || typeof value.testCommand === "string")
   );
 }
 

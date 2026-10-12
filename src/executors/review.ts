@@ -58,7 +58,9 @@ export class ReviewExecutor implements StageExecutor {
       const resolved = await this.deps.resolveRole("reviewer");
       reviewer = resolved;
       context.assertBudget?.(resolved);
-      context.recordModel(modelUse(resolved));
+      // Its own step, so a review inside the execute stage never overwrites
+      // the Builder's record of the coding.
+      context.recordModel(modelUse(resolved), "review");
       // reviewRun owns review.json; this executor only records the result.
       let answer = "";
       rResult = await reviewRun({

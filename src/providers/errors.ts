@@ -14,6 +14,7 @@ import {
 } from "../shared/provider-error-copy.js";
 import {
   isProviderError,
+  isScopeList,
   type ProviderErrorCode,
   type ProviderErrorContext,
   type ProviderErrorEnvelope,
@@ -40,7 +41,19 @@ export function getProviderErrorMessage(
 
 export interface ProviderErrorOptions {
   retryAfterMs?: number | undefined;
+  /** Scopes the token lacks; kept on a `PERMISSION` error only. */
+  missingScopes?: readonly string[] | undefined;
   cause?: unknown;
+}
+
+/** The `missingScopes` field of an envelope, when it may carry one. */
+export function missingScopesField(
+  code: ProviderErrorCode,
+  missingScopes: unknown,
+): { missingScopes?: readonly string[] } {
+  return code === "PERMISSION" && isScopeList(missingScopes)
+    ? { missingScopes: [...missingScopes] }
+    : {};
 }
 
 /**
@@ -53,6 +66,7 @@ export class ProviderError extends Error {
   readonly code: ProviderErrorCode;
   readonly context: ProviderErrorContext;
   readonly retryAfterMs?: number | undefined;
+  readonly missingScopes?: readonly string[] | undefined;
 
   constructor(
     code: ProviderErrorCode,
@@ -71,6 +85,8 @@ export class ProviderError extends Error {
     if (retry !== undefined && retry > 0) {
       this.retryAfterMs = retry;
     }
+    const scopes = missingScopesField(code, options?.missingScopes);
+    if (scopes.missingScopes) this.missingScopes = scopes.missingScopes;
   }
 }
 
@@ -99,6 +115,7 @@ export function normalizeRawObjectGuard(
       ...(raw.retryAfterMs !== undefined && raw.retryAfterMs > 0
         ? { retryAfterMs: raw.retryAfterMs }
         : {}),
+      ...missingScopesField(raw.code, raw.missingScopes),
     };
   }
 
@@ -115,6 +132,7 @@ export function normalizeRawObjectGuard(
         ...(raw.retryAfterMs !== undefined && raw.retryAfterMs > 0
           ? { retryAfterMs: raw.retryAfterMs }
           : {}),
+        ...missingScopesField(raw.code, raw.missingScopes),
       };
     }
     // Object with code and context plus extra fields or invalid shape:

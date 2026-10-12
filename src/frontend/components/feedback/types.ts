@@ -101,6 +101,8 @@ export interface NormalizedError {
   readonly code: FeedbackErrorCode;
   readonly context: FeedbackErrorContext;
   readonly retryAfterMs?: number;
+  /** On a `PERMISSION` error: the token scopes the provider found missing. */
+  readonly missingScopes?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------

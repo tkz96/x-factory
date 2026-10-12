@@ -382,6 +382,41 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(document.getElementById("tracker-jiraHost")).toBeNull();
   });
 
+  it("QUICK-URL: a name typed while the URL is being checked is kept, not replaced by the repository name", async () => {
+    setupStep2Draft({
+      basics: { name: "", id: "", description: "", workspacePath: "" },
+    });
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    goToStepOne();
+
+    let answer!: (value: unknown) => void;
+    api.providers.parseUrl = mock(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    ) as never;
+
+    // Leaving the URL field asks the providers; the user types the name
+    // before they answer.
+    await pasteRepositoryUrl("https://git.example.com/tkz96/xf-e2e-calc");
+    typeInput(getEl("onboard-proj-name"), "XF E2E Calc");
+    await act(async () => {
+      answer({
+        matched: true,
+        providerId: "generic-githost",
+        configDraft: { gitUrl: "https://git.example.com/tkz96/xf-e2e-calc" },
+        inferredName: "xf-e2e-calc",
+      });
+    });
+    await settle();
+
+    expect(getEl<HTMLInputElement>("onboard-proj-name").value).toBe(
+      "XF E2E Calc",
+    );
+  });
+
   it("QUICK-URL SUCCESS ×3: three provider-shaped parse-url responses through API mock → correct provider selected, configDraft applied, inferred name applied", async () => {
     // Start with empty basics name so inferredName applies. The URL is pasted on
     // the assistant's first step (#268); the Connect step opens with whatever
@@ -769,32 +804,45 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     expect(getEl("connection-card-gitHost").textContent).toContain("Verified");
   });
 
-  it("PROVIDER REUSE: a dual-role provider populates tracker and git-host independently with dual-role badge", () => {
+  it("PROVIDER REUSE: one provider can serve both cards, with no jargon chip", () => {
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
 
-    // Select dual-service on tracker
     act(() => {
       fireEvent.change(getEl("select-tracker-provider"), {
         target: { value: "dual-service" },
       });
     });
-
-    // Dual-role badge appears on tracker card
-    const trackerCard = getEl("connection-card-tracker");
-    expect(trackerCard.textContent).toContain("Dual-role");
-
-    // Select dual-service on git-host
     act(() => {
       fireEvent.change(getEl("select-gitHost-provider"), {
         target: { value: "dual-service" },
       });
     });
 
-    // Dual-role badge appears on git-host card
-    const gitHostCard = getEl("connection-card-gitHost");
-    expect(gitHostCard.textContent).toContain("Dual-role");
+    expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe(
+      "dual-service",
+    );
+    expect(getEl<HTMLSelectElement>("select-gitHost-provider").value).toBe(
+      "dual-service",
+    );
+    const step = getEl("onboard-step-2");
+    expect(step.textContent).not.toContain("Dual-role");
+    expect(step.textContent).not.toContain("Dual connections");
+    expect(step.querySelector(".dual-role-badge")).toBeNull();
+  });
+
+  it("explains the step in plain words", () => {
+    setupStep2Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    const subtitle = getEl("onboard-step-2").querySelector(
+      ".wizard-step-subtitle",
+    );
+    expect(subtitle?.textContent).toBe(
+      "Connect where your tickets live and where your code lives.",
+    );
   });
 
   // Correction 2 (#133): the two roles' configurations are NOT independent when

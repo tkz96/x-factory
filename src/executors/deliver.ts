@@ -3,7 +3,10 @@
 import * as git from "../git.js";
 import { loadProjectEnv } from "../project-env.js";
 import { renderAcceptanceCriteria, renderTicketHeading } from "../prompts.js";
-import type { ProviderPullRequest } from "../providers/contract.js";
+import {
+  hasCapability,
+  type ProviderPullRequest,
+} from "../providers/contract.js";
 import { resolveProjectConnection } from "../providers/project-connections.js";
 import {
   PROVIDER_REGISTRY,
@@ -19,15 +22,48 @@ export interface PrMetadata {
   prBody: string;
 }
 
-export function buildPrMetadata(ticket: {
-  id: string;
-  title: string;
-  acceptanceCriteria: string[];
-}): PrMetadata {
+export function buildPrMetadata(
+  ticket: {
+    id: string;
+    title: string;
+    acceptanceCriteria: string[];
+  },
+  closingLine?: string | undefined,
+): PrMetadata {
   const commitMsg = `[X-Factory] ${ticket.id}: ${ticket.title}`;
   const prTitle = commitMsg;
-  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}`;
+  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}${closingLine ? `\n\n${closingLine}` : ""}`;
   return { commitMsg, prTitle, prBody };
+}
+
+/**
+ * The line that makes merging the pull request close the run's ticket, when
+ * the tracker and the git host are the same provider and it can say one
+ * (`closingReference`). Reads only the connections' non-secret coordinates;
+ * anything it cannot resolve yields no line rather than a failed delivery.
+ */
+export function pullRequestClosingLine(
+  project: Project,
+  ticketId: string,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
+): string | undefined {
+  try {
+    const tracker = resolveProjectConnection(project, "tracker", {}, registry);
+    const gitHost = resolveProjectConnection(project, "gitHost", {}, registry);
+    if (!tracker || !gitHost || tracker.providerId !== gitHost.providerId) {
+      return undefined;
+    }
+    if (!hasCapability(gitHost.provider, "closingReference")) return undefined;
+    return (
+      gitHost.provider.closingReference({
+        ticketId,
+        tracker: { config: tracker.config, repository: tracker.repository },
+        gitHost: { config: gitHost.config, repository: gitHost.repository },
+      }) ?? undefined
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 /** The project's git host connection, with its saved secrets merged in (#172). */
@@ -239,7 +275,10 @@ export class DeliverExecutor implements StageExecutor {
     const { run, project, ledger, signal } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
-    const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket);
+    const { commitMsg, prTitle, prBody } = buildPrMetadata(
+      run.ticket,
+      pullRequestClosingLine(project, run.ticket.id),
+    );
 
     // 1. Idempotent Git commit (XFM-32, XFM-33)
     await ledger.execute(

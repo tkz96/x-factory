@@ -169,7 +169,18 @@ interface BuiltRepository {
 }
 
 function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
-  return input.repositories.map((discovered) => {
+  const testCommand = input.testCommand?.trim();
+  const primaryIndex = Math.max(
+    0,
+    input.repositories.findIndex((r) => r.primary === true),
+  );
+  // A stored project's primary repository is its first one (getPrimaryRepository),
+  // so the primary is saved first whatever order the wizard listed them in.
+  const ordered = [
+    input.repositories[primaryIndex],
+    ...input.repositories.filter((_, index) => index !== primaryIndex),
+  ].filter((r) => r !== undefined);
+  return ordered.map((discovered, index) => {
     const repositoryPath = resolveRepositoryPath({
       workspacePath: input.workspacePath,
       repository: discovered,
@@ -184,6 +195,10 @@ function buildRepositories(input: ConnectionsProjectInput): BuiltRepository[] {
         path: repositoryPath,
         defaultBranch: discovered.defaultBranch?.trim() || "main",
         role: discovered.role ?? "other",
+        // The project's one test command belongs to its primary repository.
+        ...(testCommand && index === 0
+          ? { commands: { test: testCommand } }
+          : {}),
       },
       primary: discovered.primary === true,
     };

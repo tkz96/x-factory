@@ -41,6 +41,18 @@ const EMPTY_TICKETS: Ticket[] = [];
 const EMPTY_RUNS: Run[] = [];
 const EMPTY_DESCRIPTORS: ProviderDescriptor[] = [];
 
+/**
+ * The label a ticket needs to appear: the tracker connection's own
+ * `requiredLabel` when set, otherwise the default workflow label.
+ */
+function workflowLabelOf(project: Project): string {
+  const tracker = project.connections?.find((c) => c.roles.includes("tracker"));
+  const label = tracker?.config.requiredLabel;
+  return typeof label === "string" && label.trim()
+    ? label.trim()
+    : CONNECTIONS_COPY.workflowLabel;
+}
+
 function filterTickets(tickets: readonly Ticket[], searchQuery: string) {
   const q = searchQuery.toLowerCase().trim();
   if (!q) return tickets;
@@ -127,7 +139,9 @@ function ProjectTickets({
         }
         retryLabel={integrityFailure ? CONNECTIONS_COPY.reconnect : undefined}
         emptyCopy={
-          searching ? QUEUE_COPY.noMatches(searchQuery) : QUEUE_COPY.empty
+          searching
+            ? QUEUE_COPY.noMatches(searchQuery)
+            : QUEUE_COPY.empty(workflowLabelOf(project))
         }
         emptyAction={
           searching ? (

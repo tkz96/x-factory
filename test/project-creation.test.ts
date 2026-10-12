@@ -420,6 +420,67 @@ describe("POST /api/projects with a connections payload", () => {
     expect(resolved?.config.apiToken).toBe(MARKER_JIRA_TOKEN);
   });
 
+  it("saves the test command as the primary repository's test command", async () => {
+    const projectId = `rocket-${Date.now()}-test-cmd`;
+    const { status, body } = await createProject({
+      ...jiraAndGithubPayload(projectId),
+      testCommand: "  bun test  ",
+    });
+    expect(status).toBe(201);
+    expect(body.testCommand).toBe("bun test");
+
+    // Read back from disk: the command lives on the repository, and the
+    // project's test command is derived from it on load.
+    const stored = await readStoredProject(projectId);
+    expect(stored?.repositories[0]?.commands).toEqual({ test: "bun test" });
+    const loaded = (await loadProjects(configPath)).find(
+      (p) => p.id === projectId,
+    );
+    expect(loaded?.testCommand).toBe("bun test");
+  });
+
+  it("keeps the primary repository primary after a reload when it was not listed first", async () => {
+    const projectId = `rocket-${Date.now()}-primary-second`;
+    const payload = jiraAndGithubPayload(projectId);
+    const [web] = payload.repositories;
+    const { status } = await createProject({
+      ...payload,
+      testCommand: "bun test",
+      repositories: [
+        {
+          ...web,
+          id: `${projectId}-docs`,
+          name: "docs",
+          remote: "https://github.com/acme/docs.git",
+          localPath: path.join(tempDir, "docs"),
+          role: "other",
+          primary: false,
+        },
+        web,
+      ],
+    });
+    expect(status).toBe(201);
+
+    const loaded = (await loadProjects(configPath)).find(
+      (p) => p.id === projectId,
+    );
+    expect(loaded?.repositories[0]?.name).toBe("web");
+    expect(loaded?.repositoryPath).toBe(path.join(tempDir, "web"));
+    expect(loaded?.testCommand).toBe("bun test");
+  });
+
+  it("saves no test command when none is given", async () => {
+    const projectId = `rocket-${Date.now()}-no-test-cmd`;
+    const { status, body } = await createProject({
+      ...jiraAndGithubPayload(projectId),
+      testCommand: "   ",
+    });
+    expect(status).toBe(201);
+    expect(body.testCommand).toBe("");
+    const stored = await readStoredProject(projectId);
+    expect(stored?.repositories[0]?.commands).toBeUndefined();
+  });
+
   it("accepts one same-provider dual-role connection", async () => {
     const projectId = `rocket-${Date.now()}-dual`;
     const payload: ConnectionsPayload = {

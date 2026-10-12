@@ -345,6 +345,28 @@ describe("Prompt module (src/prompts.ts)", () => {
     });
   });
 
+  describe("the coding loop prompt without a test command", () => {
+    it("never names a test command the project does not have", () => {
+      const bareProject: Project = { ...project, testCommand: "" };
+      const loop = buildRalphPrompt(ticket, "1. Toggle", bareProject);
+
+      expect(loop).not.toContain("bun test");
+      expect(loop).toContain(
+        "- Test Command: none. This project has no test command.",
+      );
+      expect(loop).not.toContain("the project's test command (``)");
+    });
+
+    it("names the project's own test command when it has one", () => {
+      const loop = buildRalphPrompt(ticket, "1. Toggle", {
+        ...project,
+        testCommand: "npm test",
+      });
+      expect(loop).toContain("- Test Command: `npm test`");
+      expect(loop).toContain("the project's test command (`npm test`)");
+    });
+  });
+
   describe("the dead implementation-prompt path stays deleted", () => {
     it("has no reader of a repository-root prompts/ directory anywhere in src/", () => {
       const readers = sourceFiles(SRC_ROOT).filter((file) =>

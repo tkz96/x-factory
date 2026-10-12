@@ -34,6 +34,10 @@ export function useQuickUrlIntake({
   );
   const internalGenRef = useRef(0);
   const activeGenRef = parseGenRef ?? internalGenRef;
+  // The name as it is NOW, not as it was when the parse started: a name the
+  // user types while the providers are answering must not be replaced.
+  const basicsNameRef = useRef(basicsName);
+  basicsNameRef.current = basicsName;
 
   const bumpParseGeneration = () => {
     activeGenRef.current += 1;
@@ -92,10 +96,7 @@ export function useQuickUrlIntake({
         url,
       });
 
-      if (
-        result.inferredName &&
-        (!basicsName || basicsName.trim().length === 0)
-      ) {
+      if (result.inferredName && basicsNameRef.current.trim().length === 0) {
         updateBasics({
           name: result.inferredName,
           id: normalizeProjectId(result.inferredName),

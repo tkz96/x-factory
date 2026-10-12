@@ -1,6 +1,7 @@
 // src/providers/github-module.ts — GitHub provider module conforming to the provider contract (#138).
 
 import type {
+  ClosingReferenceInput,
   CreatePullRequestInput,
   FindPullRequestInput,
   GetPullRequestStateInput,
@@ -17,6 +18,7 @@ import type {
   TrackerTicket,
   VerificationResult,
 } from "./contract.js";
+import { githubClosingReference } from "./github/closing-reference.js";
 import {
   describeGitHubConnection,
   detectGitHubConfigMismatch,
@@ -107,6 +109,10 @@ export function createGithubProvider(
 
     describeConnection(config: ProviderConfig): string | null {
       return describeGitHubConnection(config);
+    },
+
+    closingReference(input: ClosingReferenceInput): string | null {
+      return githubClosingReference(input);
     },
 
     toUserError(

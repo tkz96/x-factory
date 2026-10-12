@@ -231,7 +231,11 @@ export async function createRun(
     throw new ValidationError("Implementation plan is required.");
   }
 
-  await git.validateRepo(project.repositoryPath);
+  // A missing folder is fine when there is a remote: the worker clones it in prepare.
+  await git.checkRepositoryForRun({
+    path: project.repositoryPath,
+    remote: project.repositories[0]?.remote,
+  });
 
   const id = randomUUID().slice(0, 8);
   const cleanTicketId = ticketId.trim().replace(/[^a-zA-Z0-9._-]/g, "-");

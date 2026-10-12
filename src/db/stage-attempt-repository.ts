@@ -12,17 +12,18 @@ import type {
 import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 import { startOfUtcDay } from "./utc-day.js";
 
-/** The model columns of a stage attempt row (#279). */
+/** One model step of a stage attempt, with the attempt it belongs to (#279). */
 interface AttemptModelRow {
   run_id: string;
   stage: string;
+  step: string;
   attempt: number;
   started_at: string;
-  model_role: string | null;
-  connection_id: string | null;
-  connection_name: string | null;
-  api_type: string | null;
-  model_id: string | null;
+  model_role: string;
+  connection_id: string;
+  connection_name: string;
+  api_type: string;
+  model_id: string;
   tokens_in: number | null;
   tokens_out: number | null;
   cost_usd: number | null;
@@ -30,12 +31,13 @@ interface AttemptModelRow {
 
 function rowToModelUse(row: AttemptModelRow): StageModelUse {
   const use: StageModelUse = {
-    role: (row.model_role ?? "builder") as ModelRoleName,
-    connectionId: row.connection_id ?? "",
-    connectionName: row.connection_name ?? "",
-    apiType: row.api_type ?? "",
-    modelId: row.model_id ?? "",
+    role: row.model_role as ModelRoleName,
+    connectionId: row.connection_id,
+    connectionName: row.connection_name,
+    apiType: row.api_type,
+    modelId: row.model_id,
     stage: row.stage,
+    step: row.step,
     attempt: row.attempt,
     startedAt: row.started_at,
   };
@@ -286,50 +288,65 @@ export class StageAttemptRepository {
     return row ? rowToRecord(row) : null;
   }
 
-  /** Records the model an attempt runs on, as it is now (#279). */
-  recordModel(id: string, model: ModelUse): void {
+  /**
+   * Starts a model step of an attempt: the model it runs on, as it is now (#279).
+   * An attempt can have several steps, each on its own model: the execute stage
+   * codes with the Builder (step "execute") and then reviews with the Reviewer
+   * (step "review"). The step defaults to the attempt's stage. Usage reported
+   * afterwards belongs to this step.
+   */
+  recordModel(id: string, model: ModelUse, step?: string): void {
     this.db
       .prepare(
-        `UPDATE stage_attempts
-         SET model_role = $role, connection_id = $connectionId,
-             connection_name = $connectionName, api_type = $apiType,
-             model_id = $modelId, updated_at = $now
-         WHERE id = $id`,
+        `INSERT INTO stage_attempt_models (
+           stage_attempt_id, step, model_role, connection_id, connection_name,
+           api_type, model_id
+         ) VALUES (
+           $id,
+           COALESCE($step, (SELECT stage FROM stage_attempts WHERE id = $id)),
+           $role, $connectionId, $connectionName, $apiType, $modelId
+         )`,
       )
       .run({
         $id: id,
+        $step: step ?? null,
         $role: model.role,
         $connectionId: model.connectionId,
         $connectionName: model.connectionName,
         $apiType: model.apiType,
         $modelId: model.modelId,
-        $now: new Date().toISOString(),
       });
   }
 
-  /** Adds reported tokens and cost to an attempt's running totals (#279). */
+  /**
+   * Adds reported tokens and cost to the running totals of the attempt's latest
+   * model step (#279). Usage reported before any step was recorded has no model
+   * to belong to and is not kept.
+   */
   addUsage(id: string, usage: ModelUsage): void {
     this.db
       .prepare(
-        `UPDATE stage_attempts
+        `UPDATE stage_attempt_models
          SET tokens_in = CASE WHEN $tokensIn IS NULL THEN tokens_in ELSE COALESCE(tokens_in, 0) + $tokensIn END,
              tokens_out = CASE WHEN $tokensOut IS NULL THEN tokens_out ELSE COALESCE(tokens_out, 0) + $tokensOut END,
-             cost_usd = CASE WHEN $costUsd IS NULL THEN cost_usd ELSE COALESCE(cost_usd, 0) + $costUsd END,
-             updated_at = $now
-         WHERE id = $id`,
+             cost_usd = CASE WHEN $costUsd IS NULL THEN cost_usd ELSE COALESCE(cost_usd, 0) + $costUsd END
+         WHERE id = (
+           SELECT id FROM stage_attempt_models
+           WHERE stage_attempt_id = $id
+           ORDER BY id DESC LIMIT 1
+         )`,
       )
       .run({
         $id: id,
         $tokensIn: usage.tokensIn ?? null,
         $tokensOut: usage.tokensOut ?? null,
         $costUsd: usage.costUsd ?? null,
-        $now: new Date().toISOString(),
       });
   }
 
-  /** The models a run's attempts used, oldest first; attempts with no model are left out (#279). */
+  /** The model steps of a run's attempts, oldest first (#279). */
   listModelsForRun(runId: string): StageModelUse[] {
-    return this.listModels("WHERE run_id = $runId AND model_id IS NOT NULL", {
+    return this.listModels("WHERE a.run_id = $runId", {
       $runId: runId,
     });
   }
@@ -337,7 +354,7 @@ export class StageAttemptRepository {
   /** Every run's attempt models, grouped by run ID, for listing runs (#279). */
   listModelsByRun(): Map<string, StageModelUse[]> {
     const byRun = new Map<string, StageModelUse[]>();
-    for (const row of this.modelRows("WHERE model_id IS NOT NULL", {})) {
+    for (const row of this.modelRows("", {})) {
       const list = byRun.get(row.run_id) ?? [];
       list.push(rowToModelUse(row));
       byRun.set(row.run_id, list);
@@ -346,8 +363,9 @@ export class StageAttemptRepository {
   }
 
   /**
-   * Today's cost for a specific model, summed from the attempts that reported it (#281).
-   * By default, sums attempts started since the beginning of the current UTC day.
+   * Today's cost for a specific model, summed from the attempt steps that ran on it and
+   * reported it (#281). By default, sums steps of attempts started since the beginning of
+   * the current UTC day.
    * Call counts are not here: the requests/day budget counts `model_calls` (#281).
    */
   getDailyCostForModel(
@@ -361,11 +379,12 @@ export class StageAttemptRepository {
         { spend_usd: number | null },
         { $connectionId: string; $modelId: string; $since: string }
       >(
-        `SELECT SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
-         FROM stage_attempts
-         WHERE connection_id = $connectionId
-           AND model_id = $modelId
-           AND started_at >= $since`,
+        `SELECT SUM(COALESCE(m.cost_usd, 0.0)) AS spend_usd
+         FROM stage_attempt_models m
+         JOIN stage_attempts a ON a.id = m.stage_attempt_id
+         WHERE m.connection_id = $connectionId
+           AND m.model_id = $modelId
+           AND a.started_at >= $since`,
       )
       .get({
         $connectionId: connectionId,
@@ -388,14 +407,13 @@ export class StageAttemptRepository {
         { connection_id: string; model_id: string; spend_usd: number | null },
         { $since: string }
       >(
-        `SELECT connection_id,
-                model_id,
-                SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
-         FROM stage_attempts
-         WHERE connection_id IS NOT NULL
-           AND model_id IS NOT NULL
-           AND started_at >= $since
-         GROUP BY connection_id, model_id`,
+        `SELECT m.connection_id AS connection_id,
+                m.model_id AS model_id,
+                SUM(COALESCE(m.cost_usd, 0.0)) AS spend_usd
+         FROM stage_attempt_models m
+         JOIN stage_attempts a ON a.id = m.stage_attempt_id
+         WHERE a.started_at >= $since
+         GROUP BY m.connection_id, m.model_id`,
       )
       .all({ $since: since });
 
@@ -419,10 +437,16 @@ export class StageAttemptRepository {
   ): AttemptModelRow[] {
     return this.db
       .prepare<AttemptModelRow, Record<string, string>>(
-        `SELECT run_id, stage, attempt, started_at, model_role, connection_id,
-                connection_name, api_type, model_id, tokens_in, tokens_out, cost_usd
-         FROM stage_attempts ${where}
-         ORDER BY started_at ASC, rowid ASC`,
+        `SELECT a.run_id AS run_id, a.stage AS stage, m.step AS step,
+                a.attempt AS attempt, a.started_at AS started_at,
+                m.model_role AS model_role, m.connection_id AS connection_id,
+                m.connection_name AS connection_name, m.api_type AS api_type,
+                m.model_id AS model_id, m.tokens_in AS tokens_in,
+                m.tokens_out AS tokens_out, m.cost_usd AS cost_usd
+         FROM stage_attempt_models m
+         JOIN stage_attempts a ON a.id = m.stage_attempt_id
+         ${where}
+         ORDER BY a.started_at ASC, a.rowid ASC, m.id ASC`,
       )
       .all(params);
   }
