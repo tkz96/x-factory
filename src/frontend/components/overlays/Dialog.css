@@ -19,6 +19,9 @@
   width: 100%;
   display: flex;
   flex-direction: column;
+  /* The wrapper is as wide as the window; each surface caps its own width, so
+     the wrapper centres it rather than leaving it at the left edge. */
+  align-items: center;
   position: relative;
   z-index: var(--z-modal);
   outline: none;
