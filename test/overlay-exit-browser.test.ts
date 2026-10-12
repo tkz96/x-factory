@@ -160,57 +160,69 @@ async function openPalette(page: Page) {
 }
 
 describe("closing an overlay animates in chromium (#250)", () => {
-  test("the palette stays in the DOM, marked data-exiting, until its exit has ended", async () => {
+  test("the palette is a keyboard surface: it never animates, and leaves at once (M1)", async () => {
     const { page, close } = await openQueue();
     const palette = await openPalette(page);
+
+    // Nothing is declared on the palette or its overlay, however long the
+    // motion ladder's own beats are: a surface that answers a keystroke must be
+    // there on the next frame, in and out.
+    const surface = await page.evaluate(() => {
+      const overlay = document.querySelector(".command-palette-overlay");
+      const content = document.querySelector(".command-palette-content");
+      return {
+        overlayName: overlay
+          ? getComputedStyle(overlay).animationName
+          : "missing",
+        overlayDuration: overlay
+          ? getComputedStyle(overlay).animationDuration
+          : null,
+        contentName: content
+          ? getComputedStyle(content).animationName
+          : "missing",
+      };
+    });
+    expect(surface.overlayName).toBe("none");
+    expect(surface.contentName).toBe("none");
+    expect(cssTime(surface.overlayDuration)).toBe(0);
+    expect(
+      cssTime(await readToken(page, "--duration-instant")),
+    ).toBeGreaterThan(0);
 
     await page.keyboard.press("Escape");
     await palette.waitFor({ state: "detached" });
     const record = await readRecord(page);
 
-    // The exit was watched in the page: the overlay carried `data-exiting` while the
-    // dialog was still mounted, and the dialog was gone once the animation ended.
-    expect(record.exitingAt).not.toBeNull();
-    expect(record.removedAt).not.toBeNull();
-    expect(exitWindow(record)).toBeGreaterThan(0);
-    // The surface settles as it leaves, rather than being cut off mid-animation.
-    expect(record.transform).not.toBe("none");
-    // Both beats come from the motion ladder, and leaving is the quicker one.
-    expect(cssTime(record.exitingDuration)).toBe(
-      cssTime(await readToken(page, "--duration-instant")),
-    );
-    expect(cssTime(record.enteringDuration)).toBe(
-      cssTime(await readToken(page, "--duration-fast")),
-    );
-    expect(exitWindow(record)).toBeLessThan(enterWindow(record));
+    // No entering or exiting state to wait on, and therefore no window in which
+    // the palette lingers after it closes.
+    expect(record.enteringAt).toBeNull();
+    expect(record.exitingAt).toBeNull();
+    expect(record.removedAt).toBeNull();
+    expect(exitWindow(record)).toBe(0);
+    expect(enterWindow(record)).toBe(0);
     await close();
   }, 60_000);
 
-  test("with reduced motion the palette closes within the short crossfade", async () => {
+  test("with reduced motion the palette is unchanged: no animation, gone at once", async () => {
     const { page, close } = await openQueue({ reducedMotion: "reduce" });
     expect(
       await page.evaluate(
         () => matchMedia("(prefers-reduced-motion: reduce)").matches,
       ),
     ).toBe(true);
+    // The ladder has collapsed to one short beat (DESIGN.md Motion), and the
+    // palette opts out of it entirely.
+    expect(cssTime(await readToken(page, "--duration-instant"))).toBe(120);
 
     const palette = await openPalette(page);
     await page.keyboard.press("Escape");
     await palette.waitFor({ state: "detached" });
     const record = await readRecord(page);
 
-    expect(record.exitingAt).not.toBeNull();
-    expect(record.removedAt).not.toBeNull();
-    // One short crossfade: the ladder has collapsed to a single beat, the surface never
-    // moves, and the overlay is gone within that beat.
-    expect(cssTime(record.exitingDuration)).toBe(
-      cssTime(await readToken(page, "--duration-instant")),
-    );
-    expect(cssTime(record.exitingDuration)).toBe(
-      cssTime(record.enteringDuration),
-    );
-    expect(record.transform).toBe("none");
-    expect(exitWindow(record)).toBeLessThan(250);
+    expect(record.exitingAt).toBeNull();
+    expect(record.removedAt).toBeNull();
+    expect(exitWindow(record)).toBe(0);
+    expect(enterWindow(record)).toBe(0);
     await close();
   }, 60_000);
 });

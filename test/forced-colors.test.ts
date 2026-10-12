@@ -75,12 +75,13 @@ describe("forced colours: static (#249)", () => {
       ".ui-switch",
       ".ui-field-input",
       ".ui-badge",
+      ".ui-badge--id",
       ".ui-list-row",
       ".ui-placeholder-line",
       "input,",
       "textarea,",
       "select,",
-      ".badge,",
+      ".filter-pill",
       ".card,",
     ]) {
       expect(forcedColors).toContain(selector);

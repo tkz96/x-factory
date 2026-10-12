@@ -203,7 +203,7 @@ describe("Runs rows", () => {
       view.getByRole("link", { name: key }).querySelector(".ui-badge");
     expect(badgeOf(/T-a/)?.textContent).toBe("Review the plan");
     expect(badgeOf(/T-a/)?.className).toContain("ui-badge--warning");
-    expect(badgeOf(/T-b/)?.className).toContain("ui-badge--info");
+    expect(badgeOf(/T-b/)?.className).toContain("ui-badge--accent");
     expect(badgeOf(/T-f/)?.className).toContain("ui-badge--error");
   });
 
