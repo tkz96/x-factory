@@ -17,4 +17,61 @@
   /* Steps are padded by the body, never by a `.wizard-step-pane` of their own,
      so every step starts at the same place. */
   padding: var(--space-4) var(--space-5) var(--space-5);
+  /* A step arrives from the side, so the body never scrolls sideways. */
+  overflow-x: hidden;
+}
+
+/* The step's pane arrives from the side the reader moved towards (O3): forward
+   slides in from the right, Back from the left. Enter only — the pane that
+   leaves is replaced in the same frame, and animating height would make the
+   sheet jump. */
+.wizard-step-swap[data-direction="forward"] {
+  animation: wizardStepInForward var(--duration-normal) var(--ease-out);
+}
+
+.wizard-step-swap[data-direction="back"] {
+  animation: wizardStepInBack var(--duration-normal) var(--ease-out);
+}
+
+@keyframes wizardStepInForward {
+  0% {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes wizardStepInBack {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(var(--space-3) * -1));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Reduced motion: the travel drops, the crossfade stays, in both directions. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes wizardStepInForward {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes wizardStepInBack {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
 }
