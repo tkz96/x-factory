@@ -116,4 +116,16 @@ describe("failureReasonFor (#256)", () => {
   it("describes an abandoned run as an operator decision", () => {
     expect(OPERATOR_ABANDON_REASON.category).toBe("operator");
   });
+
+  it("does not blame the key for a model failure it cannot name", () => {
+    // A live run whose model was gone (a 404) was told to check its key, which was fine.
+    // A failure the stage names exactly carries its own reason; this is the fallback.
+    const reason = failureReasonFor({
+      error: "Model call failed: 500 from the provider.",
+      stage: "plan",
+    });
+    expect(reason.category).toBe("model");
+    expect(`${reason.message} ${reason.recovery}`).not.toMatch(/\bkey\b/i);
+    expect(reason.recovery).toContain("Settings › Models");
+  });
 });

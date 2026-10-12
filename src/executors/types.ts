@@ -5,6 +5,7 @@
 
 import type { RunRecord } from "../db/run-repository.js";
 import type { ResolvedModel } from "../model-roles.js";
+import type { FailureReason } from "../shared/failure-reason.js";
 import type {
   ImplementationContext,
   ModelUsage,
@@ -106,7 +107,18 @@ export type StageOutcome =
     }
   | {
       outcome: "error";
+      /** The technical reason: kept on the attempt record and the status event's text. */
       error: string;
+      /**
+       * What the run's failure says, when the stage can say it exactly (a model failure
+       * naming its model). Otherwise the runner derives it from `error`.
+       */
+      failure?: FailureReason | undefined;
+      /**
+       * False when the same work would fail the same way at once (a model the provider
+       * does not offer, a used-up quota): the job is not retried and the run fails.
+       */
+      retryable?: false | undefined;
       output?: unknown;
       record?: StageRecord | undefined;
     }

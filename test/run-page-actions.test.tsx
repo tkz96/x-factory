@@ -49,6 +49,7 @@ function makeRun(id: string, status: RunStatus): Run {
     ticket: {
       id: `T-${id}`,
       title: `Ticket ${id}`,
+      description: `What ${id} is about.`,
       url: "",
       acceptanceCriteria: [],
     },
@@ -215,5 +216,28 @@ describe("Start New Run on a finished run", () => {
       (r) => r.method === "POST" && r.url.endsWith("/api/runs"),
     );
     expect(create?.body).toMatchObject({ projectId: "p", ticketId: "T-run-1" });
+  });
+
+  it("sends the run's plan and ticket description, which the server requires", async () => {
+    const { view, requests } = renderRunPage("failed", (method, url) => {
+      if (method === "POST" && url.endsWith("/api/runs")) {
+        return json(makeRun("run-2", "queued"), 201);
+      }
+      return json(makeRun("run-1", "failed"));
+    });
+
+    fireEvent.click(view.getByRole("button", { name: "Start New Run" }));
+
+    await waitFor(() => expect(location(view.container)).toBe("/runs/run-2"));
+    const create = requests.find(
+      (r) => r.method === "POST" && r.url.endsWith("/api/runs"),
+    );
+    expect(create?.body).toMatchObject({
+      projectId: "p",
+      ticketId: "T-run-1",
+      ticketTitle: "Ticket run-1",
+      plan: "1. Do the thing.",
+      description: "What run-1 is about.",
+    });
   });
 });

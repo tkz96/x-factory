@@ -2,11 +2,11 @@
 
 import { writeRunAgentConfig } from "../agents/pi.js";
 import { runAttemptLoop } from "../attempt-loop.js";
+import { modelStageFailure } from "../model-failures.js";
 import { gatewayKeyFor, modelGateway } from "../model-gateway.js";
 import {
   isBudgetReached,
   ModelUnavailableError,
-  modelFailureReason,
   modelUse,
   type ResolvedModel,
   resolveRole,
@@ -95,7 +95,7 @@ export class ExecuteExecutor implements StageExecutor {
         };
       }
       if (err instanceof ModelUnavailableError) {
-        return { outcome: "error", error: modelFailureReason(err) };
+        return modelStageFailure(err, undefined);
       }
       throw err;
     }
@@ -162,6 +162,12 @@ export class ExecuteExecutor implements StageExecutor {
       };
     }
     if (result.outcome === "failed") {
+      if (result.modelError) {
+        return {
+          ...modelStageFailure(result.modelError, builderModel),
+          record: verificationRecord(),
+        };
+      }
       return {
         outcome: "error",
         error: result.error,

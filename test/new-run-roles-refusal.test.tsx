@@ -130,6 +130,7 @@ describe("a refused run start links to Settings › Models (#278)", () => {
 
     const ticketId = el("input-ticket-id");
     const ticketTitle = el("input-ticket-title");
+    const plan = el("input-plan");
     act(() => {
       ticketId.focus();
       fireEvent.change(ticketId, { target: { value: "T-1" } });
@@ -137,6 +138,9 @@ describe("a refused run start links to Settings › Models (#278)", () => {
       ticketTitle.focus();
       fireEvent.change(ticketTitle, { target: { value: "Ticket one" } });
       fireEvent.keyUp(ticketTitle);
+      plan.focus();
+      fireEvent.change(plan, { target: { value: "1. Do it." } });
+      fireEvent.keyUp(plan);
     });
     await flush();
 

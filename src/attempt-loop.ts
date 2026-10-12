@@ -2,6 +2,7 @@
 
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { isModelNotFoundMessage, providerSentence } from "./model-failures.js";
 import {
   type GatewayKey,
   isRateLimitMessage,
@@ -250,7 +251,8 @@ export interface AttemptLoopInput {
 export type AttemptLoopResult =
   | { outcome: "verified"; verification: VerificationResult }
   | { outcome: "aborted" }
-  | { outcome: "failed"; error: string }
+  /** `modelError` is set when the model could not be used, so the stage can name it. */
+  | { outcome: "failed"; error: string; modelError?: ModelUnavailableError }
   | { outcome: "budget_exceeded"; error: string }
   /** The one repair budget is spent and verification still fails: the stage's verdict, never retried. */
   | { outcome: "exhausted"; error: string; verification: VerificationResult };
@@ -328,6 +330,20 @@ async function runLoopWithGateway(
           parseRetryDelayMs(output),
         );
       }
+      // A model the provider does not offer fails every iteration the same way.
+      if (
+        result.exitCode !== 0 &&
+        !result.timedOut &&
+        !signal?.aborted &&
+        isModelNotFoundMessage(output)
+      ) {
+        const raw = output.trim().slice(-500);
+        throw new ModelUnavailableError(
+          `Model not available: ${providerSentence(raw)}`,
+          "model not found",
+          { raw },
+        );
+      }
       return result;
     },
     {
@@ -351,7 +367,7 @@ function handleAttemptError(
     emit("error", { message: err.message });
     return isBudgetReached(err)
       ? { outcome: "budget_exceeded", error: err.message }
-      : { outcome: "failed", error: err.message };
+      : { outcome: "failed", error: err.message, modelError: err };
   }
   throw err;
 }

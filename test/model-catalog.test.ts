@@ -42,6 +42,41 @@ function failureFor(key: string | null): Response | undefined {
   return undefined;
 }
 
+const generate = ["generateContent", "countTokens"];
+const GEMINI_MIXED_MODELS = [
+  { name: "models/gemini-3.8-flash", supportedGenerationMethods: generate },
+  { name: "models/gemini-2.5-pro", supportedGenerationMethods: generate },
+  {
+    name: "models/gemini-2.5-flash-preview-tts",
+    supportedGenerationMethods: generate,
+  },
+  {
+    name: "models/gemini-2.5-flash-image",
+    supportedGenerationMethods: generate,
+  },
+  {
+    name: "models/gemini-2.0-flash-preview-image-generation",
+    supportedGenerationMethods: generate,
+  },
+  {
+    name: "models/gemini-2.5-flash-native-audio-latest",
+    supportedGenerationMethods: ["countTokens", "bidiGenerateContent"],
+  },
+  {
+    name: "models/gemini-live-2.5-flash-preview",
+    supportedGenerationMethods: ["bidiGenerateContent"],
+  },
+  { name: "models/lyria-realtime-exp", supportedGenerationMethods: [] },
+  {
+    name: "models/imagen-4.0-generate-001",
+    supportedGenerationMethods: ["predict"],
+  },
+  {
+    name: "models/gemini-embedding-001",
+    supportedGenerationMethods: ["embedContent", "countTextTokens"],
+  },
+];
+
 beforeAll(() => {
   server = Bun.serve({
     port: 0,
@@ -83,6 +118,42 @@ beforeAll(() => {
             ],
           })
         );
+      }
+      // Gemini, as a real key lists it: chat models next to speech, image,
+      // live-audio, music and embedding models (seen in a live end-to-end test).
+      if (url.pathname === "/gemini-mixed/v1beta/models") {
+        return Response.json({ models: GEMINI_MIXED_MODELS });
+      }
+      // OpenRouter-style list that says what each model outputs.
+      if (url.pathname === "/openrouter/v1/models") {
+        return Response.json({
+          data: [
+            {
+              id: "vendor/chat",
+              architecture: {
+                input_modalities: ["text", "image"],
+                output_modalities: ["text"],
+              },
+            },
+            {
+              id: "vendor/image-maker",
+              architecture: {
+                input_modalities: ["text"],
+                output_modalities: ["image"],
+              },
+            },
+            {
+              id: "vendor/text-and-image",
+              architecture: { output_modalities: ["image", "text"] },
+            },
+            { id: "vendor/legacy", architecture: { modality: "text->text" } },
+            {
+              id: "vendor/old-image",
+              architecture: { modality: "text->image" },
+            },
+            { id: "vendor/no-signal" },
+          ],
+        });
       }
       // Anthropic.
       if (url.pathname === "/anthropic/v1/models") {
@@ -143,6 +214,37 @@ describe("listProviderModels", () => {
         },
       ],
     });
+  });
+
+  it("lists only the Gemini models that can generate text for a coding agent", async () => {
+    const result = await listProviderModels({
+      apiType: "gemini",
+      baseUrl: `${base}/gemini-mixed/v1beta`,
+      apiKey: GOOD,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.models.map((m) => m.id)).toEqual([
+      "gemini-3.8-flash",
+      "gemini-2.5-pro",
+    ]);
+  });
+
+  it("drops OpenAI-compatible models whose listing says they do not output text, and keeps the rest", async () => {
+    const result = await listProviderModels({
+      apiType: "openai-compatible",
+      baseUrl: `${base}/openrouter/v1`,
+      apiKey: GOOD,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A model the listing says nothing about is kept: no signal, no guess.
+    expect(result.models.map((m) => m.id)).toEqual([
+      "vendor/chat",
+      "vendor/text-and-image",
+      "vendor/legacy",
+      "vendor/no-signal",
+    ]);
   });
 
   it("lists Anthropic models", async () => {

@@ -88,7 +88,7 @@ async function flush() {
   }
 }
 
-/** Opens the New Run modal and fills the two required fields. */
+/** Opens the New Run modal and fills the required fields. */
 async function openAndFill() {
   const trigger = document.getElementById("trigger") as HTMLElement;
   act(() => trigger.focus());
@@ -99,6 +99,7 @@ async function openAndFill() {
   const ticketTitle = document.getElementById(
     "input-ticket-title",
   ) as HTMLElement;
+  const plan = document.getElementById("input-plan") as HTMLElement;
   const title = "Ticket one";
   act(() => {
     ticketId.focus();
@@ -107,6 +108,9 @@ async function openAndFill() {
     ticketTitle.focus();
     fireEvent.change(ticketTitle, { target: { value: title } });
     fireEvent.keyUp(ticketTitle);
+    plan.focus();
+    fireEvent.change(plan, { target: { value: "1. Do it." } });
+    fireEvent.keyUp(plan);
   });
   await flush();
 }

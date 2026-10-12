@@ -170,6 +170,49 @@ describe("ModelConnectionsPanel (#277)", () => {
     expect(add).toHaveBeenCalledWith("c1", "gemini-flash-lite-latest");
   });
 
+  it("lists the models a past check found after a reload, without checking again", async () => {
+    connections = [
+      connection({
+        verifiedAt: "2026-10-11T01:00:00.000Z",
+        availableModels: [{ id: "gemini-3.8-flash", name: "Flash 3.8" }],
+      }),
+    ];
+    const check = mock(async () => ({ ok: true as const, models: [] }));
+    api.checkModelConnection = check as typeof api.checkModelConnection;
+    renderPanel();
+    await flush();
+
+    expect(check).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain(
+      MODEL_CONNECTIONS_COPY.modelsFound(1),
+    );
+    expect(document.body.textContent).toContain("Flash 3.8");
+    expect(
+      document.getElementById("btn-add-model-c1-gemini-3.8-flash"),
+    ).not.toBeNull();
+  });
+
+  it("a fresh check's models replace the persisted list", async () => {
+    connections = [
+      connection({ availableModels: [{ id: "old-model", name: "Old" }] }),
+    ];
+    api.checkModelConnection = mock(async () => ({
+      ok: true as const,
+      models: [{ id: "new-model", name: "New" }],
+    }));
+    renderPanel();
+    await flush();
+    expect(
+      document.getElementById("btn-add-model-c1-old-model"),
+    ).not.toBeNull();
+
+    await click(el("btn-check-model-connection-c1"));
+    expect(
+      document.getElementById("btn-add-model-c1-new-model"),
+    ).not.toBeNull();
+    expect(document.getElementById("btn-add-model-c1-old-model")).toBeNull();
+  });
+
   it("shows a failed check's plain error", async () => {
     api.checkModelConnection = mock(async () => ({
       ok: false as const,
@@ -227,6 +270,32 @@ describe("ModelConnectionsPanel (#277)", () => {
       limits: { rpm: 5 },
       budget: { perDay: { usd: 5 } },
     });
+  });
+
+  it("writes today's spend with two decimals, and more only below a cent", async () => {
+    connections = [
+      connection({
+        models: [
+          {
+            modelId: "m1",
+            limits: {},
+            budget: { perDay: { usd: 5 } },
+            todayUsage: { usd: 0.0047, requests: 3 },
+          },
+          {
+            modelId: "m2",
+            limits: {},
+            budget: { perDay: {} },
+            todayUsage: { usd: 0.047, requests: 1 },
+          },
+        ],
+      }),
+    ];
+    renderPanel();
+    await flush();
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("$0.0047 / $5.00");
+    expect(text).toContain("$0.05 • 1 reqs");
   });
 
   it("asks for confirmation before deleting a connection", async () => {

@@ -77,6 +77,8 @@
 
 .model-field {
   display: flex;
+  /* A grid cell: the grid's gap spaces it, not the global label rhythm. */
+  margin: 0;
   flex-direction: column;
   gap: var(--space-1);
 }

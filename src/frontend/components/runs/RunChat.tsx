@@ -236,8 +236,18 @@ export function RunChat({
       i.kind === "message" && i.role === "user" ? [i.text] : [],
     ),
   );
+  // A failed run's header states its failure and recovery, so the status line
+  // that recorded it keeps only its label and time: the failure reads once.
+  const lastStatus = realItems.findLast((i) => i.kind === "status");
   const items: ChatItem[] = [
-    ...realItems,
+    ...realItems.map((item) =>
+      run.status === "failed" &&
+      item === lastStatus &&
+      item.kind === "status" &&
+      item.failure
+        ? { ...item, failure: undefined }
+        : item,
+    ),
     ...localItems.filter(
       (i) => !(i.kind === "message" && realUserTexts.has(i.text)),
     ),

@@ -24,6 +24,8 @@
 
 .repo-settings-field {
   display: flex;
+  /* The form's gap spaces the fields, not the global label rhythm. */
+  margin: 0;
   flex-direction: column;
   gap: var(--space-1);
 }

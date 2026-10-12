@@ -2,7 +2,8 @@
 // knows about them (#277).
 //
 // `listProviderModels` makes ONE real request to the provider's model-list
-// endpoint for the connection's API type and returns the models, or an error
+// endpoint for the connection's API type and returns the models that can run
+// a coding agent (text out, by what the listing says), or an error
 // in a category the UI can explain ("Key rejected (401)", "Can't reach this
 // URL", "Rate limited, try again in 40 s"). `runtimeCatalogDetails` looks a
 // model up in the agent runtime's built-in catalogue, the fallback for details
@@ -13,6 +14,7 @@ import { GOOGLE_MODELS } from "@earendil-works/pi-ai/providers/google.models";
 import { OPENAI_MODELS } from "@earendil-works/pi-ai/providers/openai.models";
 import { OPENROUTER_MODELS } from "@earendil-works/pi-ai/providers/openrouter.models";
 
+import { parseDurationSeconds } from "./retry-delay.js";
 import type {
   DiscoveredModel,
   ModelApiType,
@@ -72,11 +74,50 @@ function compact<T extends object>(value: T): T {
   ) as T;
 }
 
+/**
+ * Gemini model ids whose output is speech, images or live audio. They answer
+ * generateContent, so the method list alone cannot tell them apart; Google's
+ * ids name the output (`-tts`, `-image`, `native-audio`), and that is the only
+ * signal its model list gives.
+ */
+const GEMINI_NON_TEXT_OUTPUT = /-tts(-|$)|-image(-|$)|native-audio/;
+
+/**
+ * Whether a Gemini model can run a coding agent: it must offer
+ * generateContent (when the listing says what it offers) and not be a speech
+ * or image model.
+ */
+function isGeminiTextModel(m: Record<string, unknown>): boolean {
+  const id = String(m.name ?? "").replace(/^models\//, "");
+  const methods = m.supportedGenerationMethods;
+  if (Array.isArray(methods) && !methods.includes("generateContent")) {
+    return false;
+  }
+  return !GEMINI_NON_TEXT_OUTPUT.test(id);
+}
+
+/**
+ * Whether an OpenAI-compatible model outputs text, by what its listing says:
+ * OpenRouter publishes `architecture.output_modalities` (or the older
+ * `architecture.modality`, "input->output"). A listing that says nothing, like
+ * OpenAI's own, keeps the model: there is no signal to filter on.
+ */
+function outputsText(m: Record<string, unknown>): boolean {
+  const architecture = (m.architecture ?? {}) as Record<string, unknown>;
+  const outputs = architecture.output_modalities;
+  if (Array.isArray(outputs)) return outputs.includes("text");
+  const modality = architecture.modality;
+  if (typeof modality === "string" && modality.includes("->")) {
+    return modality.split("->")[1]?.split("+").includes("text") ?? true;
+  }
+  return true;
+}
+
 function parseModels(apiType: ModelApiType, body: unknown): DiscoveredModel[] {
   const record = (body ?? {}) as Record<string, unknown>;
   if (apiType === "gemini") {
     const models = Array.isArray(record.models) ? record.models : [];
-    return models.map((m: Record<string, unknown>) =>
+    return models.filter(isGeminiTextModel).map((m: Record<string, unknown>) =>
       compact({
         id: String(m.name ?? "").replace(/^models\//, ""),
         name: typeof m.displayName === "string" ? m.displayName : undefined,
@@ -94,7 +135,7 @@ function parseModels(apiType: ModelApiType, body: unknown): DiscoveredModel[] {
       }),
     );
   }
-  return data.map((m: Record<string, unknown>) => {
+  return data.filter(outputsText).map((m: Record<string, unknown>) => {
     const pricing = (m.pricing ?? {}) as Record<string, unknown>;
     const topProvider = (m.top_provider ?? {}) as Record<string, unknown>;
     const perToken = (v: unknown) => {
@@ -120,9 +161,9 @@ function retryAfterSeconds(res: Response, body: unknown): number | undefined {
   const details = (body as { error?: { details?: unknown[] } })?.error?.details;
   for (const detail of Array.isArray(details) ? details : []) {
     const delay = (detail as { retryDelay?: unknown }).retryDelay;
-    if (typeof delay === "string" && /^[\d.]+s$/.test(delay)) {
-      return Math.ceil(Number(delay.slice(0, -1)));
-    }
+    const seconds =
+      typeof delay === "string" ? parseDurationSeconds(delay) : undefined;
+    if (seconds !== undefined) return Math.ceil(seconds);
   }
   return undefined;
 }

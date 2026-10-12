@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
+import { Badge } from "../components/ui/Badge.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useNow } from "../hooks/useNow.js";
@@ -12,7 +13,7 @@ import {
   formatTimestamp,
 } from "../lib/format-timestamp.js";
 import { runsInScope } from "../lib/project-scope.js";
-import { runStatusText } from "../lib/run-status-ui.js";
+import { runStatusText, runStatusTone } from "../lib/run-status-ui.js";
 import {
   countRunsByFilter,
   defaultRunsFilter,
@@ -164,12 +165,13 @@ export function RunsView() {
                         </span>
                       </div>
                       <div className="run-card-status">
-                        <span
-                          className="badge"
-                          data-status={
+                        <Badge
+                          tone={
                             r.pullRequestOutcome
-                              ? r.pullRequestOutcome.status
-                              : r.status
+                              ? r.pullRequestOutcome.status === "merged"
+                                ? "success"
+                                : "neutral"
+                              : runStatusTone(r.status)
                           }
                         >
                           {r.pullRequestOutcome
@@ -177,7 +179,7 @@ export function RunsView() {
                               ? "Merged"
                               : "Closed without merging"
                             : runStatusText(r.status)}
-                        </span>
+                        </Badge>
                         <time
                           className="run-card-time code-sub"
                           dateTime={runShownAt(r)}

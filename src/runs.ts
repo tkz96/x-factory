@@ -21,6 +21,7 @@ import {
   ConflictError,
   DomainError,
   NotFoundError,
+  ValidationError,
 } from "./errors.js";
 import * as git from "./git.js";
 import { assertBudgetNotExceeded, modelRoleForStage } from "./model-budgets.js";
@@ -33,6 +34,8 @@ import {
   usageWithCost,
 } from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
+import { buildChatSystemPrompt } from "./prompts.js";
+import { formatApproxWait } from "./retry-delay.js";
 import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import type {
@@ -221,9 +224,12 @@ export async function createRun(
   ticketDescription?: string,
   customBranch?: string,
 ): Promise<Run> {
-  if (!project) throw new Error("Project is required.");
-  if (!ticketId?.trim()) throw new Error("Ticket ID is required.");
-  if (!plan?.trim()) throw new Error("Implementation plan is required.");
+  // Missing input is the caller's mistake: a 400 with the reason, never a 500.
+  if (!project) throw new ValidationError("Project is required.");
+  if (!ticketId?.trim()) throw new ValidationError("Ticket ID is required.");
+  if (!plan?.trim()) {
+    throw new ValidationError("Implementation plan is required.");
+  }
 
   await git.validateRepo(project.repositoryPath);
 
@@ -669,16 +675,20 @@ export async function chatWithRun(
 
     const phase =
       run.status === "awaiting_understanding_approval"
-        ? "Understanding/Analysis phase"
+        ? "understanding"
         : run.status === "awaiting_plan_approval"
-          ? "Planning phase"
-          : "Review phase";
+          ? "plan"
+          : "review";
 
+    // The Builder answers the operator about its own work (see buildChatSystemPrompt).
     messages.push({
       role: "system",
-      content: `You are a senior software engineer grilling the user about their ticket implementation. You follow Matt Pocock's "grill-me" skill persona: be relentless, question their plan, look for edge cases, ask hard questions, ensure they have fully thought through constraints.
-We are currently in the ${phase}. Keep your responses concise (like an iMessage chat).
-Context:\n${JSON.stringify(ctx, null, 2)}`,
+      content: buildChatSystemPrompt({
+        ticket: run.ticket,
+        phase,
+        plan: run.plan,
+        understanding: ctx,
+      }),
     });
 
     for (const e of events) {
@@ -747,6 +757,12 @@ export function chatFailureMessage(err: unknown): string {
         return "The model budget is used up for now. Raise it in Settings › Models, then Retry.";
       case "context too large":
         return "This chat is too long for the model. Shorten your message, then Retry.";
+      case "model not found":
+        return "The Builder's model isn't available from its provider. Choose another model in Settings › Models.";
+      case "quota exhausted":
+        return classified.retryAfterMs === undefined
+          ? "The model's provider quota is used up. Choose another model in Settings › Models, or wait for it to reset."
+          : `The model's provider quota is used up; it resets in ${formatApproxWait(classified.retryAfterMs)}. Choose another model in Settings › Models, or wait.`;
       case "model unavailable":
         return `Couldn't reach the model: ${classified.message}`;
     }

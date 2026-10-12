@@ -10,6 +10,7 @@ import {
 } from "../../lib/format-timestamp.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
+import { MarkdownViewer } from "../MarkdownViewer.js";
 import { Button } from "../ui/Button.js";
 
 export function RunTime({ at, now }: { at: string; now: number }) {
@@ -204,7 +205,15 @@ export function RunChatItemView({
           className={`run-chat-bubble run-chat-bubble-${item.role}`}
           data-kind="message"
         >
-          <p className="run-chat-pre">{item.text}</p>
+          {/* The Builder answers in Markdown; the shared renderer never makes
+              HTML from it. The reader's own words stay exactly as typed. */}
+          {item.role === "agent" ? (
+            <div className="run-chat-markdown">
+              <MarkdownViewer content={item.text} />
+            </div>
+          ) : (
+            <p className="run-chat-pre">{item.text}</p>
+          )}
           <RunTime at={item.at} now={now} />
         </div>
       );

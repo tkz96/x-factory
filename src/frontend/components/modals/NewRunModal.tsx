@@ -1,13 +1,15 @@
 // src/frontend/components/modals/NewRunModal.tsx — New Run modal dialog (XFM-46, XFM-47).
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { ActiveRunConflictError } from "../../lib/api-client.js";
 import { Dialog, DialogCloseButton, DialogTitle } from "../overlays/Dialog.js";
+import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
 import { Button } from "../ui/Button.js";
+import { IconButton } from "../ui/IconButton.js";
 import "./NewRunModal.css";
 
 /**
@@ -16,6 +18,35 @@ import "./NewRunModal.css";
  */
 function needsModelSetup(error: unknown): boolean {
   return error instanceof Error && error.message.includes("Settings › Models");
+}
+
+/**
+ * A field's help: a focusable, named button whose tooltip opens on hover or
+ * keyboard focus. React Aria puts role="tooltip" on the popup and links it to
+ * the button with aria-describedby while it is open.
+ */
+function FieldHelp({
+  field,
+  title,
+  children,
+}: {
+  field: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <TooltipTrigger delay={300}>
+      <IconButton
+        label={`Help: ${field}`}
+        icon="icon-info"
+        className="ui-icon-button--inline"
+      />
+      <Tooltip className="field-help-tooltip" placement="bottom start">
+        <strong>{title}</strong>
+        {children}
+      </Tooltip>
+    </TooltipTrigger>
+  );
 }
 
 export function NewRunModal() {
@@ -69,8 +100,8 @@ export function NewRunModal() {
       setError("Please select a target project before starting a run.");
       return;
     }
-    if (!ticketId.trim() || !ticketTitle.trim()) {
-      setError("Ticket ID and Ticket Title are required.");
+    if (!ticketId.trim() || !ticketTitle.trim() || !plan.trim()) {
+      setError("Ticket ID, Ticket Title and Implementation Plan are required.");
       return;
     }
 
@@ -89,7 +120,7 @@ export function NewRunModal() {
         branch: branch.trim() || undefined,
         acceptanceCriteria:
           acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
-        plan: plan.trim() || undefined,
+        plan: plan.trim(),
       });
 
       closeNewRunModal();
@@ -107,8 +138,13 @@ export function NewRunModal() {
     }
   };
 
+  // The server refuses a run without a plan, so the form asks for one up
+  // front, exactly as it does for the ticket ID and title.
   const isSubmitDisabled =
-    !ticketId.trim() || !ticketTitle.trim() || createRunMutation.isPending;
+    !ticketId.trim() ||
+    !ticketTitle.trim() ||
+    !plan.trim() ||
+    createRunMutation.isPending;
 
   return (
     <Dialog
@@ -128,19 +164,11 @@ export function NewRunModal() {
           <div className="form-group">
             <div className="label-with-tooltip">
               <label htmlFor="input-ticket-id">Ticket ID</label>
-              <span
-                className="tooltip-badge"
-                role="tooltip"
-                aria-label="Help: Ticket ID"
-              >
-                ?
-                <span className="tooltip-popover">
-                  <strong>Ticket Identifier</strong>
-                  Unique identifier of the ticket in your issue tracker (e.g.{" "}
-                  <code>VEND-101</code>, <code>#42</code>, or{" "}
-                  <code>AB#1234</code>).
-                </span>
-              </span>
+              <FieldHelp field="Ticket ID" title="Ticket Identifier">
+                Unique identifier of the ticket in your issue tracker (e.g.{" "}
+                <code>VEND-101</code>, <code>#42</code>, or <code>AB#1234</code>
+                ).
+              </FieldHelp>
             </div>
             <input
               id="input-ticket-id"
@@ -155,17 +183,9 @@ export function NewRunModal() {
           <div className="form-group">
             <div className="label-with-tooltip">
               <label htmlFor="input-ticket-title">Ticket Title</label>
-              <span
-                className="tooltip-badge"
-                role="tooltip"
-                aria-label="Help: Ticket Title"
-              >
-                ?
-                <span className="tooltip-popover">
-                  <strong>Ticket Title</strong>
-                  Summary description of the task or feature to implement.
-                </span>
-              </span>
+              <FieldHelp field="Ticket Title" title="Ticket Title">
+                Summary description of the task or feature to implement.
+              </FieldHelp>
             </div>
             <input
               id="input-ticket-title"
@@ -182,18 +202,10 @@ export function NewRunModal() {
               <label htmlFor="input-branch">
                 Custom Branch (Optional — auto-generated if blank)
               </label>
-              <span
-                className="tooltip-badge"
-                role="tooltip"
-                aria-label="Help: Custom Branch"
-              >
-                ?
-                <span className="tooltip-popover">
-                  <strong>Git Branch</strong>
-                  Branch name created across all repository worktrees. If left
-                  blank, X-Factory generates one from the ticket ID and slug.
-                </span>
-              </span>
+              <FieldHelp field="Custom Branch" title="Git Branch">
+                Branch name created across all repository worktrees. If left
+                blank, X-Factory generates one from the ticket ID and slug.
+              </FieldHelp>
             </div>
             <input
               id="input-branch"
@@ -209,18 +221,13 @@ export function NewRunModal() {
               <label htmlFor="input-criteria">
                 Acceptance Criteria (one per line)
               </label>
-              <span
-                className="tooltip-badge"
-                role="tooltip"
-                aria-label="Help: Acceptance Criteria"
+              <FieldHelp
+                field="Acceptance Criteria"
+                title="Acceptance Criteria"
               >
-                ?
-                <span className="tooltip-popover">
-                  <strong>Acceptance Criteria</strong>
-                  List each testable condition or requirement on its own line.
-                  The coding agent checks these criteria as it works.
-                </span>
-              </span>
+                List each testable condition or requirement on its own line. The
+                coding agent checks these criteria as it works.
+              </FieldHelp>
             </div>
             <textarea
               id="input-criteria"
@@ -234,18 +241,13 @@ export function NewRunModal() {
           <div className="form-group">
             <div className="label-with-tooltip">
               <label htmlFor="input-plan">Implementation Plan</label>
-              <span
-                className="tooltip-badge"
-                role="tooltip"
-                aria-label="Help: Implementation Plan"
+              <FieldHelp
+                field="Implementation Plan"
+                title="Implementation Plan"
               >
-                ?
-                <span className="tooltip-popover">
-                  <strong>Implementation Plan</strong>
-                  Step-by-step instructions or architectural guidance for the
-                  coding agent.
-                </span>
-              </span>
+                Step-by-step instructions or architectural guidance for the
+                coding agent.
+              </FieldHelp>
             </div>
             <textarea
               id="input-plan"
@@ -253,6 +255,7 @@ export function NewRunModal() {
               placeholder="Paste the step-by-step implementation plan here…"
               value={plan}
               onChange={(e) => setPlan(e.target.value)}
+              required
             />
           </div>
 

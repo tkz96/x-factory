@@ -23,21 +23,51 @@ import type { ModelRoleName, ModelUsage, ModelUse } from "./shared/types.js";
 
 export type ModelFailureCategory =
   | "model unavailable"
+  | "model not found"
   | "key rejected"
   | "rate limited"
+  | "quota exhausted"
   | "context too large"
   | "budget reached";
+
+export interface ModelFailureDetail {
+  /** The provider's own error text, for diagnostics only; never shown as copy. */
+  raw?: string | undefined;
+  /** How long the provider asked to wait, when it said (a used-up quota). */
+  retryAfterMs?: number | undefined;
+}
 
 /** A model call that can't happen: the role or its model/key isn't usable. */
 export class ModelUnavailableError extends DomainError {
   readonly category: ModelFailureCategory;
+  readonly raw: string | undefined;
+  readonly retryAfterMs: number | undefined;
   constructor(
     message: string,
     category: ModelFailureCategory = "model unavailable",
+    detail: ModelFailureDetail = {},
   ) {
     super(message);
     this.category = category;
+    this.raw = detail.raw;
+    this.retryAfterMs = detail.retryAfterMs;
   }
+}
+
+/**
+ * Failures that the same call would hit again at once: a model the provider does not
+ * offer, a rejected key, a used-up quota, a prompt too large for the window. Retrying the
+ * stage only repeats the request, so the stage fails without a retry.
+ */
+const NOT_RETRYABLE: ReadonlySet<ModelFailureCategory> = new Set([
+  "model not found",
+  "key rejected",
+  "quota exhausted",
+  "context too large",
+]);
+
+export function isRetryableModelFailure(err: ModelUnavailableError): boolean {
+  return !NOT_RETRYABLE.has(err.category);
 }
 
 export function isBudgetReached(
@@ -154,8 +184,10 @@ export async function assertRolesReady(): Promise<void> {
 
 const CATEGORY_LABELS: Readonly<Record<ModelFailureCategory, string>> = {
   "model unavailable": "Model unavailable",
+  "model not found": "Model not available",
   "key rejected": "Key rejected",
   "rate limited": "Rate limited",
+  "quota exhausted": "Quota used up",
   "context too large": "Context too large",
   "budget reached": "Budget reached",
 };

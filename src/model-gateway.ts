@@ -3,11 +3,14 @@
 // - Rate limits: a 429 makes the call wait as long as the provider asked
 //   (Retry-After, or Gemini's "retry in 49.58s"), else back off exponentially
 //   with jitter, capped. Waiting is reported, not failed. Past a ceiling the
-//   call fails with "rate limited".
+//   call fails with "rate limited". A provider that asks for a wait longer than
+//   the ceiling (a daily quota: "retry in 23h") fails the call at once with
+//   "quota exhausted" and when it resets.
 // - Concurrency: at most `limit` calls per model run at once, across runs, in
 //   arrival order; other models are never held up.
 
 import { ModelUnavailableError, type ResolvedModel } from "./model-roles.js";
+import { formatApproxWait } from "./retry-delay.js";
 import { modelKey } from "./shared/model-key.js";
 
 export interface ModelGatewayClock {
@@ -49,23 +52,8 @@ export function isRateLimitMessage(message: string): boolean {
   return RATE_LIMIT.test(message);
 }
 
-/** The wait a provider asked for in an error text, in ms, rounded up to whole seconds. */
-export function parseRetryDelayMs(text: string): number | undefined {
-  const patterns = [
-    /retry in ([\d.]+)\s*s/i,
-    /"retryDelay"\s*:\s*"([\d.]+)s"/i,
-    /retry-after:\s*([\d.]+)/i,
-    /retry after ([\d.]+)\s*(?:s|sec|seconds)\b/i,
-  ];
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    const seconds = match?.[1] ? Number(match[1]) : Number.NaN;
-    if (Number.isFinite(seconds) && seconds > 0) {
-      return Math.ceil(seconds) * 1000;
-    }
-  }
-  return undefined;
-}
+/** The wait a provider asked for: one reader, shared with model discovery. */
+export { parseRetryDelayMs } from "./retry-delay.js";
 
 /** Calls in flight per model: from requests per minute (one per 10 rpm, 1–8), else 2. */
 export function concurrencyLimitFor(limits: {
@@ -88,6 +76,8 @@ export interface GatewayOptions {
 export interface GatewayKey {
   /** One queue per model: connection ID and model ID. */
   key: string;
+  /** The model as a person names it, for the reasons the gateway gives. */
+  label?: string | undefined;
   limit: number;
   /** Optional budget check hook called before acquiring a concurrency slot (#281). */
   checkBudget?: (() => void | Promise<void>) | undefined;
@@ -204,11 +194,25 @@ export class ModelGateway {
           return await fn();
         } catch (err: unknown) {
           if (!(err instanceof RateLimitedError)) throw err;
+          // A wait longer than the gateway would ever wait is a used-up quota (a
+          // daily limit says "retry in 23h"), not a short rate limit: fail now
+          // instead of backing off until the ceiling.
+          if (
+            err.retryAfterMs !== undefined &&
+            err.retryAfterMs > this.maxWaitMs
+          ) {
+            throw new ModelUnavailableError(
+              `The provider's quota for ${key.label ?? "the model"} is used up. It resets in ${formatApproxWait(err.retryAfterMs)}.`,
+              "quota exhausted",
+              { raw: err.message, retryAfterMs: err.retryAfterMs },
+            );
+          }
           const wait = this.nextWaitMs(err, retry, waited);
           if (wait === undefined) {
             throw new ModelUnavailableError(
-              `Rate limited: the provider kept refusing requests for over ${Math.round(this.maxWaitMs / 60_000)} min. ${err.message}`,
+              `Rate limited: the provider kept refusing requests for over ${Math.round(this.maxWaitMs / 60_000)} min.`,
               "rate limited",
+              { raw: err.message },
             );
           }
           hooks.onWait?.(wait, err.message);
@@ -235,6 +239,7 @@ export function gatewayKeyFor(
 ): GatewayKey {
   return {
     key: modelKey(resolved.connectionId, resolved.modelId),
+    label: resolved.modelId,
     limit: concurrencyLimitFor(resolved.limits),
     checkBudget: hooks.checkBudget,
     recordCall: hooks.recordCall,
