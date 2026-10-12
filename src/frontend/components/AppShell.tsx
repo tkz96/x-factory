@@ -433,7 +433,7 @@ function AppShellHeader({
             onPress={onOpenPalette}
           >
             <span className="toolbar-search-label">Search</span>
-            <kbd className="toolbar-search-keys" aria-hidden="true">
+            <kbd className="toolbar-search-keys">
               {shortcutLabel("palette")}
             </kbd>
           </Button>
