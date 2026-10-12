@@ -1,5 +1,6 @@
-// src/frontend/components/runs/RunModelsCard.tsx — Which model did each stage
-// of a run, with tokens and cost when the provider reported them (#279).
+// src/frontend/components/runs/RunModelsCard.tsx — Which model did each step
+// of a run (coding and its review are separate rows), with tokens and cost when
+// the provider reported them (#279).
 
 import "./RunModelsCard.css";
 
@@ -38,9 +39,12 @@ export function RunModelsCard({
         {stageModels.map((use) => {
           const usage = formatUsage(use);
           return (
-            <li key={`${use.stage}-${use.attempt}`} className="run-models-row">
+            <li
+              key={`${use.stage}-${use.attempt}-${use.step}`}
+              className="run-models-row"
+            >
               <span className="run-models-stage">
-                {stageLabel(use.stage)}
+                {stageLabel(use.step)}
                 {use.attempt > 1 ? ` (attempt ${use.attempt})` : ""}
               </span>
               <span className="run-models-model">

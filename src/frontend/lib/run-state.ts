@@ -107,18 +107,19 @@ export function reduceRun(run: Run, event: RunEvent): Run {
         },
       };
     case "stage_started": {
-      // The model a stage attempt runs on (#279), shown live; a replay of the
-      // same attempt is not added twice.
+      // The model a step of a stage attempt runs on (#279), shown live; a
+      // replay of the same step is not added twice.
       const { stage, attempt, model } = event.payload;
+      const step = event.payload.step ?? stage;
       const known = (run.stageModels ?? []).some(
-        (m) => m.stage === stage && m.attempt === attempt,
+        (m) => m.stage === stage && m.attempt === attempt && m.step === step,
       );
       if (known) return run;
       return {
         ...run,
         stageModels: [
           ...(run.stageModels ?? []),
-          { ...model, stage, attempt, startedAt: event.timestamp },
+          { ...model, stage, step, attempt, startedAt: event.timestamp },
         ],
       };
     }

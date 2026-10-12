@@ -363,9 +363,48 @@ describe("client run-state module (#191)", () => {
         apiType: "gemini",
         modelId: "gemini-x",
         stage: "review",
+        step: "review",
         attempt: 1,
         startedAt: "2026-10-01T10:00:00.000Z",
       },
+    ]);
+  });
+
+  it("stage_started keeps coding and its review as separate steps of one execute attempt", () => {
+    const model = {
+      connectionId: "c1",
+      connectionName: "Gemini",
+      apiType: "gemini",
+    };
+    const coding = {
+      id: 8,
+      timestamp: "2026-10-01T10:00:00.000Z",
+      type: "stage_started",
+      payload: {
+        stage: "execute",
+        step: "execute",
+        attempt: 1,
+        model: { ...model, role: "builder", modelId: "builder-x" },
+      },
+    } as RunEvent;
+    const review = {
+      id: 9,
+      timestamp: "2026-10-01T10:05:00.000Z",
+      type: "stage_started",
+      payload: {
+        stage: "execute",
+        step: "review",
+        attempt: 1,
+        model: { ...model, role: "reviewer", modelId: "reviewer-x" },
+      },
+    } as RunEvent;
+    const run = reduceRun(
+      reduceRun(reduceRun(runSnapshot("executing"), coding), review),
+      review,
+    );
+    expect(run.stageModels?.map((m) => [m.step, m.role, m.modelId])).toEqual([
+      ["execute", "builder", "builder-x"],
+      ["review", "reviewer", "reviewer-x"],
     ]);
   });
 

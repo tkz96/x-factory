@@ -216,10 +216,11 @@ export function buildStageContext(
     emit: (type, payload) => {
       repos.events.appendEvent(run.id, type, payload);
     },
-    recordModel: (model) => {
-      if (attemptId) repos.stageAttempts.recordModel(attemptId, model);
+    recordModel: (model, step = ids.stage) => {
+      if (attemptId) repos.stageAttempts.recordModel(attemptId, model, step);
       repos.events.appendEvent(run.id, "stage_started", {
         stage: ids.stage,
+        step,
         attempt: ids.attempt,
         model,
       });

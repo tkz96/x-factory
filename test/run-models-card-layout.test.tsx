@@ -22,6 +22,7 @@ const USE: StageModelUse = {
   apiType: "gemini",
   modelId: "gemini-3.8-flash",
   stage: "understand",
+  step: "understand",
   attempt: 1,
   startedAt: "2026-10-11T10:00:00.000Z",
   tokensIn: 52_700,
@@ -35,6 +36,7 @@ const MODELS: StageModelUse[] = [
   {
     ...USE,
     stage: "plan",
+    step: "plan",
     tokensIn: undefined,
     tokensOut: undefined,
     costUsd: undefined,

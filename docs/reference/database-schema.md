@@ -35,7 +35,8 @@ PRAGMA busy_timeout = 5000;
 - **`jobs`**: schedulable units of work for a stage. A worker claims a job with a lease (`worker_id`, `lease_until`) and renews it by heartbeat. Attempts are bounded by `max_attempts`. Only the lease module (`src/lease.ts`) claims, renews, releases, expires and exhausts a lease. When a lease expires with `attempts >= max_attempts`, the job becomes `failed` and its run moves to `recovery_required`, in one transaction together with closing the running stage attempt. This happens while the worker runs, not only at startup.
 - **`run_events`**: the append-only event log for a run, ordered by a per-run `sequence`. It backs the SSE stream and historical replay.
 - **`stage_attempts`**: telemetry for each execution attempt of a stage (status, output, timing).
-- **`model_calls`**: one row per model call the worker sends through the model gateway, so the requests/day half of a model's budget counts calls rather than stage attempts (#281). A stage may make several calls (and every `429` retry is another request); the coding loop, whose subprocess calls are invisible, records one row per loop iteration. Rows carry the connection and model they called and the stage attempt that made them, and are dropped with that attempt when a run is deleted. Cost is not here: the USD half of the budget keeps summing `stage_attempts`.
+- **`stage_attempt_models`**: one row per model step of a stage attempt: the role, connection and model it ran on, as they were at the time, plus the tokens and cost the provider reported (#279). An attempt can have more than one step: the execute stage codes with the Builder (step `execute`) and then reviews with the Reviewer (step `review`), so the run page credits each model with its own work and usage. `step` is the stage itself otherwise. Reported usage is added to the attempt's latest step. Rows are dropped with their attempt. Migration 013 moved the one model each attempt row held into this table and dropped those columns from `stage_attempts`.
+- **`model_calls`**: one row per model call the worker sends through the model gateway, so the requests/day half of a model's budget counts calls rather than stage attempts (#281). A stage may make several calls (and every `429` retry is another request); the coding loop, whose subprocess calls are invisible, records one row per loop iteration. Rows carry the connection and model they called and the stage attempt that made them, and are dropped with that attempt when a run is deleted. Cost is not here: the USD half of the budget sums `stage_attempt_models`.
 - **`operation_ledger`**: idempotency for side-effecting external operations (for example PR creation). There is at most one row per `(run_id, operation)`.
 - **`run_commands`**: durable operator commands (`stop`, `deliver`) handed from the API process to a worker, with their own lease and attempt bounds. A claimed command whose lease expired with `attempts >= max_attempts` is marked `failed` (`Command lease expired; retries exhausted`) instead of staying claimed; with attempts left, another worker can claim it again. Deleting a run deletes its commands (`ON DELETE CASCADE`, migration 009). Upgrading to migration 009 drops orphan `run_commands` rows, those whose run was already gone, because the cascade would remove them anyway and copying them would fail the foreign key.
 - **`worker_heartbeats`**: liveness of worker processes, used for orphan recovery and diagnostics. A worker is live when `last_heartbeat` is within the policy's heartbeat TTL of the lease module's clock. It stores the worker's OS PID and hostname for diagnostics only. PIDs are never used to signal or control processes.
@@ -68,6 +69,7 @@ Large artifacts (logs, transcripts, diffs) live on disk under the data dir. SQLi
 - **v10** `010_stage_attempt_models.sql`
 - **v11** `011_model_calls.sql`
 - **v12** `012_pr_outcome_events_unique.sql`
+- **v13** `013_stage_attempt_model_steps.sql`
 
 ### Table: `jobs`
 
@@ -209,6 +211,27 @@ Indexes and constraints:
 | `name` | TEXT | NOT NULL |  |  |  |
 | `applied_at` | TEXT | NOT NULL |  |  |  |
 
+### Table: `stage_attempt_models`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NULL |  | PK |  |
+| `stage_attempt_id` | TEXT | NOT NULL |  |  | stage_attempts(id) ON DELETE CASCADE |
+| `step` | TEXT | NOT NULL |  |  |  |
+| `model_role` | TEXT | NOT NULL |  |  |  |
+| `connection_id` | TEXT | NOT NULL |  |  |  |
+| `connection_name` | TEXT | NOT NULL |  |  |  |
+| `api_type` | TEXT | NOT NULL |  |  |  |
+| `model_id` | TEXT | NOT NULL |  |  |  |
+| `tokens_in` | INTEGER | NULL |  |  |  |
+| `tokens_out` | INTEGER | NULL |  |  |  |
+| `cost_usd` | REAL | NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_stage_attempt_models_model` on (connection_id, model_id)
+- INDEX `idx_stage_attempt_models_attempt` on (stage_attempt_id)
+
 ### Table: `stage_attempts`
 
 | Column | Type | Null | Default | Key | References |
@@ -224,14 +247,6 @@ Indexes and constraints:
 | `error` | TEXT | NULL |  |  |  |
 | `created_at` | TEXT | NOT NULL |  |  |  |
 | `updated_at` | TEXT | NOT NULL |  |  |  |
-| `model_role` | TEXT | NULL |  |  |  |
-| `connection_id` | TEXT | NULL |  |  |  |
-| `connection_name` | TEXT | NULL |  |  |  |
-| `api_type` | TEXT | NULL |  |  |  |
-| `model_id` | TEXT | NULL |  |  |  |
-| `tokens_in` | INTEGER | NULL |  |  |  |
-| `tokens_out` | INTEGER | NULL |  |  |  |
-| `cost_usd` | REAL | NULL |  |  |  |
 
 Indexes and constraints:
 

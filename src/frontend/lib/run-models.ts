@@ -40,9 +40,10 @@ const STAGE_VERBS: Readonly<Record<string, string>> = {
   review: "Reviewing",
 };
 
-/** "Coding with gemini-x via Gemini". */
+/** "Coding with gemini-x via Gemini"; a step names the work when there is one. */
 export function stageStartedText(payload: StageStartedPayload): string {
-  const verb = STAGE_VERBS[payload.stage] ?? `Running ${payload.stage}`;
+  const work = payload.step ?? payload.stage;
+  const verb = STAGE_VERBS[work] ?? `Running ${work}`;
   return `${verb} with ${payload.model.modelId} via ${payload.model.connectionName}`;
 }
 
