@@ -276,6 +276,11 @@ export const ConnectionsProjectInputSchema = z
       .optional(),
     connections: z.array(ProjectConnectionInputSchema).min(1),
     repositories: z.array(DiscoveredRepositoryInputSchema).min(1),
+    /**
+     * Optional; saved, trimmed, as the primary repository's `commands.test`.
+     * Blank means the project has no test command.
+     */
+    testCommand: z.string().optional(),
   })
   .refine(
     (input) => input.repositories.some((r) => r.role !== "knowledge"),

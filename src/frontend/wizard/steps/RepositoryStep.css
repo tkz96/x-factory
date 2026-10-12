@@ -19,8 +19,9 @@
   font-size: var(--text-footnote);
 }
 
-/* An identifier is code: read the block's own class from `controls.css` and
-   add only the monospaced face here. */
-.repository-step-identifier .ui-field-input {
+/* An identifier and a test command are code: read the block's own class from
+   `controls.css` and add only the monospaced face here. */
+.repository-step-identifier .ui-field-input,
+.repository-step-command .ui-field-input {
   font-family: var(--font-mono);
 }

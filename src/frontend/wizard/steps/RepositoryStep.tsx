@@ -259,6 +259,16 @@ export function RepositoryStep() {
         onChange={(next) => updateBasics({ workspacePath: next })}
       />
 
+      <TextField
+        label={REPOSITORY_STEP_COPY.testCommandLabel}
+        description={REPOSITORY_STEP_COPY.testCommandHint}
+        inputId="onboard-test-command"
+        className="repository-step-command"
+        placeholder="bun test"
+        value={state.basics.testCommand ?? ""}
+        onChange={(next) => updateBasics({ testCommand: next })}
+      />
+
       <WizardFooter step={1} onNext={handleContinue} />
     </div>
   );

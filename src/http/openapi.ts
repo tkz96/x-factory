@@ -1516,6 +1516,12 @@ function documentedSpec() {
               type: "array",
               items: { $ref: "#/components/schemas/Repository" },
             },
+            testCommand: {
+              type: "string",
+              description:
+                "Optional. Saved as the primary repository's test command. Blank means the project has no test command, and verification records its tests as not run.",
+              example: "bun test",
+            },
             archived: { type: "boolean", default: false },
           },
         },

@@ -109,11 +109,13 @@ export function buildCreationPayload(
     });
 
   const { name, id, description, workspacePath } = state.basics;
+  const testCommand = state.basics.testCommand?.trim();
   return {
     id,
     name,
     description: description.trim() ? description : undefined,
     workspacePath: workspacePath.trim() ? workspacePath : undefined,
+    testCommand: testCommand ? testCommand : undefined,
     gitIdentity: identity,
     connections,
     repositories,

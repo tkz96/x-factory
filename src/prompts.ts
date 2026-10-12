@@ -97,7 +97,14 @@ export function buildRalphPrompt(
   });
   const understandingBlock = renderUnderstanding(understanding);
 
-  const testCmd = project.testCommand || "bun test";
+  // Never invent a test command the project does not have.
+  const testCmd = project.testCommand?.trim();
+  const testCommandLine = testCmd
+    ? `- Test Command: \`${testCmd}\``
+    : "- Test Command: none. This project has no test command.";
+  const runTestsStep = testCmd
+    ? `Run the test suite using the project's test command (\`${testCmd}\`).`
+    : "Run the test with the repository's own test runner, if it has one.";
   const typecheckCmd = project.typecheckCommand
     ? `- Typecheck Command: \`${project.typecheckCommand}\``
     : "";
@@ -113,7 +120,7 @@ ${ticket.description ? `${ticket.description}\n` : ""}
 ${acList}
 
 ### Verification Commands:
-- Test Command: \`${testCmd}\`
+${testCommandLine}
 ${typecheckCmd}
 ${lintCmd}
 
@@ -132,7 +139,7 @@ Follow these rules strictly:
 ### 1. Test-Driven Development (TDD) Loop (Red-Green-Refactor)
 For EVERY task in \`.agent/tasks.md\`:
 1. **Red**: Write a failing test first that specifies the expected behavior.
-   - Run the test suite using the project's test command (\`${testCmd}\`).
+   - ${runTestsStep}
    - Verify that the test fails for the expected reason.
 2. **Green**: Write the minimal amount of implementation code to make the test pass.
    - Do NOT add unnecessary abstractions or speculative code.
@@ -166,7 +173,7 @@ export function buildRepairPrompt(
 ): string {
   const failedParts: string[] = [];
 
-  if (!verification.tests.passed) {
+  if (!verification.tests.passed && !verification.tests.skipped) {
     failedParts.push(
       `### Test Failure (${verification.tests.command}):\n\`\`\`\n${verification.tests.stderr || verification.tests.stdout}\n\`\`\``,
     );

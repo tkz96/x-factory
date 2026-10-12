@@ -263,6 +263,14 @@ export interface CommandResult {
   durationMs: number;
   /** Present (true) only when the command was killed for exceeding its timeout. */
   timedOut?: boolean;
+  /**
+   * Present (true) only when the command was never run — the project sets no
+   * test command. A skipped command did not pass (`passed` is false), and it
+   * does not fail verification either.
+   */
+  skipped?: boolean;
+  /** Why a skipped command was not run, in plain words. */
+  skipReason?: string;
 }
 
 /**

@@ -14,12 +14,13 @@ export function wizardHasProgress(state: WizardSourceState): boolean {
   if (state.step > 1 || state.maxStepVisited > 1) {
     return true;
   }
-  const { name, id, description, workspacePath } = state.basics;
+  const { name, id, description, workspacePath, testCommand } = state.basics;
   if (
     name.trim() !== "" ||
     id.trim() !== "" ||
     description.trim() !== "" ||
-    workspacePath.trim() !== ""
+    workspacePath.trim() !== "" ||
+    (testCommand ?? "").trim() !== ""
   ) {
     return true;
   }

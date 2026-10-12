@@ -32,6 +32,12 @@ export interface WizardBasicsState {
   id: string;
   description: string;
   workspacePath: string;
+  /**
+   * The command that runs the project's tests, saved as the primary
+   * repository's test command. Optional: absent or blank means none, and a
+   * draft saved before the field existed simply has none.
+   */
+  testCommand?: string;
 }
 
 /**

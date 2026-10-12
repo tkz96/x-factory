@@ -7,6 +7,31 @@ import { type BaselineState, readWorktreeState } from "./worktree-state.js";
 
 export const MAX_REPAIR_ATTEMPTS = 3;
 
+/** What verification records when the project sets no test command. */
+export const NO_TEST_COMMAND_REASON =
+  "No tests ran. This project has no test command.";
+
+/** The tests as not run: never a pass, never a failure. */
+function skippedTests(): CommandResult {
+  return {
+    command: "",
+    exitCode: 0,
+    stdout: "",
+    stderr: "",
+    passed: false,
+    durationMs: 0,
+    skipped: true,
+    skipReason: NO_TEST_COMMAND_REASON,
+  };
+}
+
+function testsSummary(tests: CommandResult): string {
+  if (tests.skipped) return tests.skipReason ?? NO_TEST_COMMAND_REASON;
+  return tests.passed
+    ? "Tests passed"
+    : `Tests failed (exit ${tests.exitCode})`;
+}
+
 interface VerificationOptions {
   signal?: AbortSignal | undefined;
 }
@@ -34,9 +59,7 @@ function buildVerificationSummary(
   pollutionDetails: string[],
   hasImplementationChanges: boolean,
 ): string {
-  const parts: string[] = [
-    tests.passed ? "Tests passed" : `Tests failed (exit ${tests.exitCode})`,
-  ];
+  const parts: string[] = [testsSummary(tests)];
   if (typecheck) {
     parts.push(
       typecheck.passed
@@ -60,7 +83,7 @@ function buildVerificationSummary(
 
 /**
  * Run deterministic verification checks on the worktree.
- * 1. Test command
+ * 1. Test command (recorded as skipped when the project sets none)
  * 2. Optional typecheck command
  * 3. Optional lint command
  * 4. Pollution detection against baseline
@@ -75,16 +98,17 @@ export async function runVerification(
 ): Promise<VerificationResult> {
   const timeoutMs = project.commandTimeoutMs;
 
-  const tests: CommandResult = await execCommand(
-    "sh",
-    ["-c", project.testCommand],
-    {
-      cwd: worktreePath,
-      timeoutMs,
-      envPolicy: "sanitized",
-      signal: options?.signal,
-    },
-  );
+  // No test command means no tests ran: recorded as skipped, never as a pass
+  // (an empty `sh -c ""` exits 0 and would read as one).
+  const testCommand = project.testCommand?.trim();
+  const tests: CommandResult = testCommand
+    ? await execCommand("sh", ["-c", testCommand], {
+        cwd: worktreePath,
+        timeoutMs,
+        envPolicy: "sanitized",
+        signal: options?.signal,
+      })
+    : skippedTests();
   const typecheck = await runOptionalCommand(
     project.typecheckCommand,
     worktreePath,
@@ -101,7 +125,7 @@ export async function runVerification(
   const diff = await getDiffText(worktreePath, state);
 
   const passed =
-    tests.passed &&
+    (tests.passed || tests.skipped === true) &&
     (typecheck ? typecheck.passed : true) &&
     (lint ? lint.passed : true) &&
     !state.hasPollution &&
