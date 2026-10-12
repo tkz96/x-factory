@@ -14,7 +14,7 @@ All async and input feedback renders through the presentation-only family at `sr
 
 The family is presentation-only and renders through the one control vocabulary in `src/frontend/components/ui/` (#251): the button, badge, list row, placeholder rows and spinner blocks, built on React Aria and styled with tokens.
 
-Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). The one escape besides `src/shared` is `components/ui/`, which is screen-agnostic by construction and is itself held to the same rule. All feedback renders inline in its region — there is no toast system, ever. The one exception is the notification center (`src/frontend/components/notifications/`, #264): the toolbar bell opens a list the user chooses to read, and nothing floats over the page. Floating toasts stay banned everywhere else; the smoke gate's toast ban names the notification center as its only exception. Desktop banners (#265) are browser notifications, not in-page toasts.
+Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). The one escape besides `src/shared` is `components/ui/`, which is screen-agnostic by construction and is itself held to the same rule. All feedback renders inline in its region — there is no toast system, ever. The one exception is the notification center (`src/frontend/components/notifications/`, #264): the bell in the toolbar opens a list the user chooses to read, and nothing floats over the page. Floating toasts stay banned everywhere else; the smoke gate's toast ban names the notification center as its only exception. Desktop banners (#265) are browser notifications, not in-page toasts.
 
 ## Read regions — loading / empty / partial / error / stale
 
@@ -28,7 +28,7 @@ State derivation is pure: `deriveAsyncState(query, { isEmpty, isPartial, isStale
 | `error` | The query failed AND the region has nothing to show. | Normalized message from the copy map + `RetryAction`. Never a raw provider body. |
 | `stale` | Displayed results were produced from inputs that are no longer current (caller predicate `isStale`). This is INPUT staleness — never TanStack Query's `isStale`, which reports cache freshness. | Content stays on screen plus the visible "Out of date" badge and a Refresh action. Stale blocks Review until refreshed (wizard concern). |
 
-Two recorded refinements:
+Three recorded refinements:
 
 1. **Error with data on screen is a suppressed diagnostic, not a primary state.** A failed refresh never hides working results; the error renders inline as a banner with a retry, carried in `suppressed`. The canonical case: stale + failed refresh → stale badge + error context + retry.
 2. **Loading means "no result yet."** An enabled-but-not-started query shows the reserved loading region; consumers that gate a region (for example, a wizard step waiting on upstream inputs) simply do not render the region until it is live.
@@ -73,8 +73,8 @@ them outright, so the refusal does not depend on the `disabled` attribute. The
 row of a connection that is no longer configured therefore can never be recorded
 under the current fingerprint, which is exactly the state the selection
 comparison above would then read as current. `canAdvance` in
-`wizard/steps/useRepositoryDiscovery.ts` folds this result staleness in, on top
-of the state-only rule in `repositoryRules.ts`: whether the ROWS on screen
+`src/frontend/wizard/steps/useRepositoryDiscovery.ts` folds this result staleness in, on top
+of the state-only rule in `src/frontend/wizard/state/repositoryRules.ts`: whether the ROWS on screen
 belong to the connection is a query-derived fact, and the hook is the one place
 that composes the query with the wizard's state. The two are not alternatives —
 the pure rule still blocks a stale selection on its own, and it always blocks
@@ -87,7 +87,7 @@ beside it, still non-selectable and still blocked.
 **Inspection & Review staleness (`#146`).** The Inspection step records the
 resolved identity together with the fingerprint of the INPUTS it was resolved
 from — the workspace root, the selection and its order, and each selected
-repository's role tags and local path (`inspectionRules.ts`, same digest
+repository's role tags and local path (`src/frontend/wizard/state/inspectionRules.ts`, same digest
 technique). The record is stale the moment any of those moves. Review derives
 `isReviewReady` per render (never stored, #126) and is blocked while ANY value
 downstream is not current: an unverified connection, a selection that is not an

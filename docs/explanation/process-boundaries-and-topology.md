@@ -23,7 +23,7 @@ If the API server executed agent sessions directly, the server would face critic
 - Memory spikes in subagents can crash the web server.
 - Server restarts terminate active agent workflows and lose execution progress.
 
-By isolating the API process, X-Factory guarantees fast HTTP responses under 15 milliseconds.
+By isolating the API process, X-Factory keeps HTTP responses free of agent work.
 The API process accepts requests, persists durable records to SQLite, and returns immediately.
 The API server remains stable even when agent sessions consume substantial system resources.
 
@@ -76,20 +76,20 @@ To prevent duplicate execution of the same job, X-Factory uses database-backed l
 ```
 
 1. When a worker polls for work, the worker atomically claims a job with a 30-second lease.
-2. The claiming worker records its `worker_id` and sets `lease_until = datetime('now', '+30 seconds')`.
+2. The claiming worker records its `worker_id` and sets `lease_until` to an ISO timestamp 30 seconds ahead, computed from the lease module's injected clock (`src/lease.ts`).
 3. While the stage executes, the worker emits heartbeats every 10 seconds to renew the lease.
 4. If a worker crashes, its heartbeat stops and the lease expires.
 5. Other active workers detect the expired lease, increment the attempt counter, and reclaim the job.
 
 This mechanism provides reliable fault tolerance without requiring complex distributed lock managers.
 
-## Pull Request Status Polling and Host Network Isolation
+## Pull Request Status Polling and Host Network Calls
 
-The API process never performs host network calls (such as GitHub or Azure DevOps API calls).
+The API process never polls in the background. A few routes do make one host call inside the request, because the user is waiting on the answer: `/api/providers/verify` and `/repositories`, `POST /api/projects/{id}/tracker/test`, `/api/model-connections/{id}/check` and `/models`, and run chat. None of them is a poll.
 When a user opens a run in `pr_created` state (`GET /api/runs/:id`), the API process writes an idempotent `check_pr` intent command to SQLite and responds immediately.
 
 The worker process claims `check_pr` commands and runs a background polling loop:
-1. It queries `pr_created` runs that have had no outcome recorded (`pr_merged` or `pr_closed`) within the last 30 days.
+1. It queries `pr_created` runs that have no outcome recorded (`pr_merged` or `pr_closed`) and whose run is less than 30 days old (`src/pull-request-checker.ts` measures the age from the run's creation).
 2. It polls provider status (`getPullRequestState`) every 5 minutes per run.
 3. If the host rate-limits or returns an error, the worker backs off exponentially with jitter (honoring `Retry-After` headers).
 4. When a PR is detected as merged or closed, the worker appends a durable `pr_merged` or `pr_closed` event to SQLite atomically and ceases polling for that run. The run's state-machine status remains `pr_created`.

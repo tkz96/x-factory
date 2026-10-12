@@ -9,20 +9,19 @@ Every production deployment must satisfy the requirements across twelve architec
 ### 1. Architecture and Process Boundaries
 - The API process (`src/server.ts`) and Worker process (`src/worker.ts`) execute independently.
 - The API process never executes agent sessions, Git checkouts, or workflow stages directly.
-- The API process commits records to SQLite and returns HTTP responses in less than 15 milliseconds.
+- The API process commits records to SQLite and returns, so a request never waits on agent work. No latency target is asserted here: the API process makes one host call only on the routes that answer it directly (see [`architecture-invariants.md`](../agents/architecture-invariants.md)).
 - Automated tests verify zero workflow stage executor calls inside HTTP request handlers.
 
 ### 2. Data Durability and Integrity
 - All workflow state, jobs, telemetry, and events persist to SQLite (`x-factory.db`).
 - SQLite operates in Write-Ahead Logging (WAL) mode with foreign keys enabled.
-- Automatic database migrations apply sequentially from `v1` through `v6` on application startup.
+- Automatic database migrations apply sequentially from `001` through `013` on application startup.
 - In-memory data stores are prohibited for persistent state.
 
 ### 3. Concurrency and Locking
 - State mutations require optimistic locking checks using a monotonic `revision` column.
 - Concurrent updates with stale revisions fail immediately with a concurrency error.
-- Workers claim schedulable jobs using 30-second leases.
-- Workers transmit heartbeats every 10 seconds to renew active leases.
+- Workers claim schedulable jobs with a lease and renew it by heartbeat. The lease TTLs and the heartbeat interval are defined once in `DEFAULT_LEASE_POLICY` (`src/lease.ts`) and explained in [Process boundaries and system topology](../explanation/process-boundaries-and-topology.md).
 - Workers automatically reclaim abandoned jobs when lease timestamps expire.
 
 ### 4. Idempotency and Duplicate Action Safety
@@ -37,8 +36,7 @@ Every production deployment must satisfy the requirements across twelve architec
 
 ### 6. Graceful Degradation and Shutdown
 - The API server handles `SIGINT` and `SIGTERM` signals with a coordinated shutdown procedure.
-- The server provides a 10-second drain window for active requests.
-- The server emits a shutdown event to all Server-Sent Events streams before connection termination.
+- The server drains for 5 seconds by default (`shutdown(timeoutMs = 5000)`) and closes every open Server-Sent Events stream as the first step of the shutdown.
 - New non-health requests receive HTTP status `503 Service Unavailable` during shutdown.
 
 ### 7. Disaster Recovery and Backups
@@ -56,7 +54,7 @@ Every production deployment must satisfy the requirements across twelve architec
 ### 9. Performance and Resource Hygiene
 - Git worktrees reside in isolated directories under `<data dir>/projects/<projectId>/worktrees/<runId>/`.
 - The application detects and logs orphaned worktrees during startup.
-- Database indexes cover `runs(status)`, `jobs(status, available_at)`, and `events(run_id)`.
+- Database indexes cover `runs(status)`, `jobs(status, available_at, lease_until)`, and `run_events(run_id, sequence)`.
 - The production JavaScript client bundle remains under 500 kilobytes uncompressed.
 
 ### 10. Error Handling and Failure Recovery

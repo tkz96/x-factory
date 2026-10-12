@@ -29,7 +29,7 @@ The provider API surface implements the HTTP boundary between the provider syste
    - `envKey` and raw credential values are **never** included in client-facing field descriptors or any manifest HTTP response.
 2. **Copy Map & Message Boundary**:
    - Provider-generated raw messages, error strings, and exception text never cross the HTTP boundary.
-   - Validation failures return machine-readable error codes (`REQUIRED`, `INVALID`, `INCOMPATIBLE_CONFIGURATION`, `UNKNOWN_PROVIDER`).
+   - Validation failures return machine-readable error codes. The closed `formErrors` set is `REQUIRED`, `INVALID`, `UNKNOWN_PROVIDER`, `INCOMPATIBLE_CONFIGURATION`, `INCAPABLE_PROVIDER` (the provider lacks the capability the route needs), `SECRET_NOT_ACCEPTED` (a declared secret field carried a value on a read), `MISSING_TRACKER_CONNECTION` and `MISSING_GIT_HOST_CONNECTION`. A stored connection whose shapes conflict answers `409` with `code: "CONNECTION_CONFLICT"`.
    - Upstream provider errors return normalized `ProviderError` envelopes (`AUTH_INVALID`, `AUTH_LOCKED`, `NOT_FOUND`, `RATE_LIMITED`, `PERMISSION`, `UNKNOWN`).
 3. **Fail-Loud Serialization Gate**:
    - Provider configuration schemas (`configSchema`) must strictly adhere to the supported Zod subset. Any schema outside the subset fails loudly with `SchemaSerializationError` at test/build time.
@@ -74,7 +74,9 @@ The generic serializer (`serializeProviderConfigSchema`) parses this schema into
 Returns UI descriptors for registered providers and their configuration fields.
 
 #### Query Parameters
-- `role` (optional, string): Filters providers and fields by role. Allowed values: `tracker`, `git-host`, `gitHost`.
+- `role` (optional, string): Filters providers and fields by role. Allowed values: `tracker`, `git-host`, `gitHost`. Any other value answers `400 { error }`.
+
+**Repository probe (#290).** A GitHub verification that carries an owner and a repository probes that repository (`GET /repos/{owner}/{repo}`, `src/providers/github/verification.ts`). A `404` becomes a `NOT_FOUND` envelope, so a tracker pointed at the wrong repository fails here rather than later on the Tickets screen.
 
 #### Response Shape (`200 OK`)
 ```json
@@ -170,9 +172,18 @@ Parses a repository or tracker URL into a configuration draft.
     "inferredName": "rocket"
   }
   ```
-- **Unrecognized URL (`200 OK`)**:
+  - **Unrecognized URL (`200 OK`)**:
   ```json
   {
+    "matched": false,
+    "url": "https://unrecognized.example/unknown"
+  }
+  ```
+  A provider whose `parseQuickUrl` throws is skipped, and the route answers the same unmatched shape with a `UNKNOWN` code and the URL as the context:
+  ```json
+  {
+    "code": "UNKNOWN",
+    "context": "https://unrecognized.example/unknown",
     "matched": false,
     "url": "https://unrecognized.example/unknown"
   }
@@ -465,7 +476,11 @@ raw failure through `provider.toUserError(err, context)` and re-throws a
 `ProviderError`. A route that must answer a raw throw itself —
 `/api/providers/verify`, `/api/providers/repositories` and the project ticket
 probe — calls the provider's own `toUserError(err, context)` to build the wire
-`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs?, missingScopes? }`).
+`ProviderErrorEnvelope` (`{ code, context, retryAfterMs?, missingScopes? }`;
+`src/providers/contract.ts`). The envelope carries no message: the response body
+adds `error`, set to the canonical copy for that `(code, context)` pair
+(`providerErrorResponse` in `src/http/responses.ts`), so provider text never
+crosses the boundary.
 The UI shows a `PERMISSION` envelope that carries `missingScopes` as "The token
 is missing the workflow scope. Add it, then verify again." (`getMissingScopesCopy`
 in `src/shared/provider-error-copy.ts`) instead of the generic permission copy.
@@ -522,8 +537,10 @@ Adapters receive **typed config** and nothing else: the shape their own
   every request body, through **`toTypedProviderConfig(provider, raw)`** in
   `src/providers/config-validation.ts`: migration first, then the provider's
   schema. It backs `/api/providers/verify|repositories`, the project routes
-  `test-connection`, `discover-repositories` and `test-scopes`, project creation
-  and connection updates, and the project connection test. The Azure adapter
+  `POST /api/projects/{id}/tracker/test` and
+  `POST /api/projects/{id}/tracker/scopes`, `PUT`/`POST
+  /api/projects/{id}/tracker/credentials`, project creation and connection
+  updates. The Azure adapter
   keeps one defensive conflict check of its own. Duplicate detection in
   `src/shared` reads the same aliases without importing the step.
 - **Where conflicts are rejected.** Two legacy values that disagree (two owners,
@@ -707,7 +724,12 @@ write through `createProject`, after the tracker gate above.
 | Any other unexpected failure (including a persistence failure) | 500 | `{ error: "Internal error", code: "INTERNAL" }` |
 | Provider failure on `GET /api/projects/:id/tickets` and `POST /api/projects/:id/tracker/test` and `/tracker/scopes` | by code, below | `{ error, code, context, retryAfterMs? }` |
 
-Codes only — provider and zod messages never cross the boundary. Upstream
+Provider text never crosses the boundary — neither a provider's own message nor
+the text of an unexpected failure. Zod validation messages do cross it: a
+transport-shape failure answers `400 { error, details }`, where `error` is the
+first issue's message when it says more than "Required" or "Invalid input", and
+`z.prettifyError` output otherwise, and `details` is the issue list
+(`validateAgainstSchema` in `src/http/responses.ts`). Upstream
 failures use the separate `ProviderError` envelope. An unexpected error is never
 described to the caller either: `handleApi` logs its text — which can quote SQL,
 a filesystem path or a secret — through the structured logger and answers the
@@ -798,6 +820,25 @@ env keys. The one distinction the summary and the credentials update still draw
 is between "no tracker connection" and "a connection that names an unregistered
 provider"; the credentials update answers 400 with copy that names each case and
 saves nothing for the latter.
+
+### Credentials update verb
+
+`POST /api/projects/{id}/tracker/credentials` is the same update as the `PUT`
+form above, offered so a client that cannot send `PUT` still has a route
+(`updateProjectTrackerCredentialsPost` in `src/http/route-table.ts`).
+
+### Project readiness, inspection and migration
+
+These four routes are the read side a project needs before it can run. Every one
+is listed in `src/http/route-table.ts` and in the OpenAPI document served at
+`/api/openapi.json`.
+
+| Route | What it answers |
+|---|---|
+| `GET /api/projects/{id}/readiness` | The project's readiness assessment, check by check. |
+| `POST /api/projects/inspect-repository` | The local repository's identity, tooling and readiness for a path. |
+| `POST /api/projects/check-path` | Whether a workspace folder is usable, before a project is created. |
+| `POST /api/projects/{id}/migrate` | Migrates a stored project record to the current connection shape. |
 
 ### Secret update semantics
 

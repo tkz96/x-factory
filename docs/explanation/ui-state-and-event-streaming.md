@@ -31,7 +31,7 @@ Standard load balancers, proxies, and firewalls handle SSE streams without speci
 ## Historical Event Replay
 
 When a client connects to `GET /api/runs/:id/events`, the server executes two sequential operations:
-1. **Historical Flush**: The server queries the durable `events` table for all past events associated with the run identifier. The server immediately flushes these events to the client stream.
+1. **Historical Flush**: The server queries the durable `run_events` table for all past events associated with the run identifier. The server immediately flushes these events to the client stream.
 2. **Live Subscription**: The server registers the client with `SSERegistry` and continuously polls durable SQLite events (and flushes on commits), streaming newly appended events to the open SSE connection in real time.
 
 This dual-path design solves the race condition where a user opens or refreshes a browser tab while a run is in progress.
@@ -97,7 +97,7 @@ This layered approach guarantees that the user interface always reflects true sy
 
 ## Onboarding: the five-step wizard and its render-graph model
 
-Onboarding is a five-step modal wizard (`Basics → Connect → Repositories →
+Onboarding is a five-step modal wizard (`Repository → Connect → Repositories →
 Inspection → Review`) built on the provider contract. The invariants that
 matter to the rest of the UI:
 
@@ -168,7 +168,7 @@ events that describe what the stages did (#256):
 Detail events never move the run: the reducer in `run-state.ts` ignores them, and only
 `status`, `verification` and `review` change run fields. A `failed` status additionally
 carries the structured `failure` reason described in
-[`state-machine-matrix.md`](../reference/state-machine-matrix.md) §8.
+[`state-machine-matrix.md`](../reference/state-machine-matrix.md) §9.
 
 
 ## Optimistic Concurrency Control

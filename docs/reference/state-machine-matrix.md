@@ -54,7 +54,7 @@ The finite state machine governs each run through discrete, sequential execution
 | `awaiting_review` | Checkpoint | Execution pauses for human code review of the execution results. |
 | `ready_for_pr` | Checkpoint | The reviewer has approved the code changes; pending PR creation. |
 | `pr_created` | Terminal | The pull request exists on the remote repository. |
-| `recovery_required` | Exception | The run encountered a recoverable fault and is attempting self-repair. |
+| `recovery_required` | Exception | The run encountered a recoverable fault. It holds no live work and waits for `resume` or `abandon`. |
 | `failed` | Terminal | The run halted because of unrecoverable errors or retry exhaustion. |
 | `stopped` | Terminal | The user requested cancellation of the active run. |
 

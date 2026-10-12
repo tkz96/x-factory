@@ -18,7 +18,7 @@ Returns JSON in one SQLite read transaction:
 | `cursor` | The highest global `run_events.id` the snapshot includes. |
 | `runs` | Every run with its current status. |
 | `needsYou` | For each run in a Needs-you status, the event that moved it there. No age limit. |
-| `finished` | Finished events (`pr_created`, `failed`, `stopped`) at or below `cursor`, last 7 days, at most 100, ascending. |
+| `finished` | Finished events at or below `cursor`, last 7 days, at most 100, ascending. A finished event is a `status` event whose status is terminal (`pr_created`, `failed`, `stopped`) or a `pr_merged` event. |
 
 ## GET /api/events
 
