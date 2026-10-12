@@ -26,12 +26,20 @@ To specify a custom backup directory, set the `BACKUP_DIR` variable:
 BACKUP_DIR=/mnt/secure-backups bun scripts/backup.ts
 ```
 
-4. Confirm that the script outputs a success confirmation:
+4. Confirm that the script reports the verified snapshot:
 
 ```text
-Database backup complete: .../backup-<timestamp>.db
-Artifacts archive complete: .../artifacts-<timestamp>.tar.gz
+[Backup] Database backup complete and verified!
+  - Destination: <backup dir>/x-factory-db-<timestamp>.db
+  - Size: 2.31 MB (2416640 bytes)
+  - Schema Version: 13
+  - Integrity: ok
+  - Contents: 3 runs, 5 jobs, 42 events
+[Backup] Archiving artifacts from <data dir>/artifacts to <backup dir>/x-factory-artifacts-<timestamp>.tar.gz…
+[Backup] Artifacts archive complete: <backup dir>/x-factory-artifacts-<timestamp>.tar.gz
 ```
+
+The timestamp is the UTC time of the run, with `:` and `.` replaced by `-`.
 
 ## How to Schedule Automated Backups
 
@@ -45,7 +53,7 @@ crontab -e
 Add this line to execute a backup every six hours:
 
 ```cron
-0 */6 * * * cd /Users/talhazuberi/x-factory && BACKUP_DIR=/var/backups/x-factory bun scripts/backup.ts >> /var/log/x-factory-backup.log 2>&1
+0 */6 * * * cd "$HOME/x-factory" && BACKUP_DIR=/var/backups/x-factory bun scripts/backup.ts >> /var/log/x-factory-backup.log 2>&1
 ```
 
 Save and close the editor.
@@ -86,8 +94,8 @@ Run the database restoration utility:
 ```bash
 bun -e "
 import { restoreDatabase } from './src/db/backup.js';
-import { getDbPath } from './src/paths.js';
-await restoreDatabase('/path/to/backup.db', getDbPath());
+import { getDatabasePath } from './src/paths.js';
+await restoreDatabase('/path/to/backup.db', getDatabasePath());
 console.log('Restoration complete.');
 "
 ```

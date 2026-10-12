@@ -20,7 +20,7 @@ bun run screenshots --themes --label after
 | `motion` | Reduced motion (`prefers-reduced-motion: reduce`) |
 | `forced-colors` | Forced colours (`forced-colors: active`) |
 
-- `--themes` captures the shell in each theme (`theme-light`, `theme-dark`) and ignores the screen name. When the Default, Graphite and Sandstone themes land, extend `SHELL_THEMES` in `scripts/screenshots/matrix.ts`.
+- `--themes` captures the shell in each variant named by `SHELL_THEMES` in `scripts/screenshots/matrix.ts` — today `light` and `dark`, the two appearances — and ignores the screen name. It does not cover the three named themes (Default, Graphite, Sandstone), the increased-contrast sets, or forced colours; the variant sweep below is what covers contrast and forced colours.
 - `--label` names the folder for this capture. Capture on the integration branch with `--label before`, make your change, then capture again with `--label after`.
 - Files land in `.scratch/screenshots/<label>/<screen>/<variant>.png`. That folder is git-ignored. Attach the files to the PR.
 - `--viewport-only` captures the visible window instead of growing the window to the whole page. `--public-dir <dir>` serves a frontend build you already made instead of building one.

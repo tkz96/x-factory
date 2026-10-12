@@ -19,7 +19,7 @@ If a connection that the graph suggests conflicts with the docs, the docs win.
 
 Owner: [Process boundaries and system topology](../explanation/process-boundaries-and-topology.md).
 
-- **API process (`src/server.ts`).** Handles HTTP and SSE routing, validates input and writes to SQLite. A command writes its intent to SQLite and returns at once (e.g. opening a `pr_created` run writes a `check_pr` command; the API process never makes host network calls). The API process never executes workflows, starts agent sessions or runs pipeline stages. That keeps the API responsive, and a crash in a stage cannot take the API down.
+- **API process (`src/server.ts`).** Handles HTTP and SSE routing, validates input and writes to SQLite. A command writes its intent to SQLite and returns at once (e.g. opening a `pr_created` run writes a `check_pr` command; the API process never polls in the background). The API process never executes workflows, starts agent sessions or runs pipeline stages. A few routes do make one host call inside the request, because the user is waiting on the answer: `/api/providers/verify` and `/repositories`, `POST /api/projects/{id}/tracker/test`, `/api/model-connections/{id}/check` and `/models`, and run chat. None of them is a poll. That keeps the API responsive, and a crash in a stage cannot take the API down.
 
 Run chat is the known exception. A chat message makes a short model call inside the request, and that call can wait up to 60 seconds for a rate-limit slot. It uses its own queue (`chatGateway` in `src/runs.ts`). It is outside the shared model gateway and the daily model budgets.
 - **Worker process (`src/worker.ts`).** A separate Bun process. It polls SQLite, claims a job atomically with a lease, runs the stage through its executor in `src/executors/`, and records the result. While it works, it renews the lease. If a worker dies, its lease expires and another worker can claim the job.
@@ -34,7 +34,7 @@ Run chat is the known exception. A chat message makes a short model call inside 
 Owner: [Workflow state machine and transition contracts](../reference/state-machine-matrix.md).
 
 - The happy path is `queued` → `preparing` → `understanding` → `awaiting_understanding_approval` → `planning` → `awaiting_plan_approval` → `executing` → `awaiting_review` → `ready_for_pr` → `pr_created`. The last step happens only when a user asks for the pull request. The other states are `recovery_required`, `failed` and `stopped`.
-- Only the transitions in the matrix are allowed. Each one is atomic and monotonic, and it is recorded in `runs`, `jobs`, `events` and `stage_attempts`.
+- Only the transitions in the matrix are allowed. Each one is atomic and monotonic, and it is recorded in `runs`, `jobs`, `run_events` and `stage_attempts`.
 - The run-status policy (matrix, terminal/active/stoppable sets, allowed actions per status, status→stage, labels) lives in `src/shared/run-status-policy.ts`; the server and the client both import it, and `test/run-status-policy.test.ts` checks it against the server's action guards.
 
 ## Database schema

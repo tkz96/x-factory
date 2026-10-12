@@ -6,9 +6,9 @@ You will inspect terminal logs, query SQLite database records, and monitor Serve
 ## Prerequisites
 
 Before you begin this procedure, ensure that you have:
-- Bun runtime (version 1.2.3 or newer).
+- Bun runtime (version 1.4.0 or newer).
 - A clean working directory with installed dependencies (`bun install`).
-- Optional: `ANTHROPIC_API_KEY` set in your environment. If you omit the key, the agent session starts, validates configuration, and emits an authentication notice.
+- A project with a model connection that passed **Check Connection** in **Settings › Models**, and a model chosen for the **Builder** and **Reviewer** roles. A run refuses to start without them (`409`), and a stage fails with the connection's own reason instead of starting a session.
 
 ## Step 1: Start the API Server
 
@@ -22,7 +22,7 @@ bun run start
 3. Confirm that the terminal displays:
 
 ```text
-X-Factory server running at http://127.0.0.1:3777
+X-Factory running at http://localhost:3777
 ```
 
 ## Step 2: Start the Independent Worker Process
@@ -48,45 +48,36 @@ Worker started. Polling for pending jobs and commands...
 ```bash
 curl -X POST http://127.0.0.1:3777/api/runs \
   -H "Content-Type: application/json" \
-  -d '{"projectId": "converso", "ticketId": "SMOKE-1", "ticketTitle": "Smoke Test", "plan": "Verify real Pi process execution"}'
+  -d '{"projectId": "converso", "ticketId": "SMOKE-1", "ticketTitle": "Smoke Test", "plan": "Verify worker execution", "acceptanceCriteria": "The worker runs the prepare stage."}'
 ```
 
-3. Confirm that the API returns HTTP status `201 Created` with a JSON payload:
+3. Confirm that the API returns HTTP status `201 Created` with the new run as a JSON body.
+4. Note the run's `id` value. You will use this value as `<runId>` in the next steps.
 
-```json
-{
-  "id": "<runId>",
-  "project": { "id": "converso", "name": "Converso" },
-  "status": "preparing",
-  "ticket": { "id": "SMOKE-1", "title": "Smoke Test" },
-  "revision": 1
-}
-```
-
-4. Note the returned `id` value. You will use this value as `<runId>` in the next steps.
+If the API answers `409`, a model role is not ready. Fix it in **Settings › Models**, then try again.
 
 ## Step 4: Verify Worker Execution Logs
 
 1. Observe the output in the worker terminal.
-2. Verify that the worker claims the job:
+2. The worker claims the job without a claim line. It writes one structured JSON line when a stage commits:
 
 ```text
-Claimed job job-... for stage prepare
+{"job_id":"<jobId>","run_id":"<runId>","stage":"prepare","attempt":1,"duration_ms":12,"result":"success","message":"Stage 'prepare' completed successfully","timestamp":"2026-10-13T00:00:00.000Z","worker_id":"<workerId>"}
 ```
 
-3. Verify that the worker transitions the run:
+3. Beside it, the worker prints one plain line. Each plain line starts with the timestamp and the worker id:
 
 ```text
-Stage prepare completed. Next stage: understand
+[2026-10-13T00:00:00.000Z] [Worker <workerId>] Stage completed successfully: id=<jobId>, stage=prepare
 ```
 
-4. If `ANTHROPIC_API_KEY` is not present, confirm that the worker logs report the missing key:
+4. Confirm that the run advances. The run's `status` event carries the transition:
 
 ```text
-Pi execution failed: AuthenticationError: 401 invalid x-api-key
+Stage 'prepare' completed. Transitioning to 'understanding'.
 ```
 
-This error confirms that the worker invoked the real agent process.
+A stage that cannot reach its model records the connection's own reason in the `stage_attempts` row's `error` column and moves the run to `failed`. The raw provider text never crosses the boundary.
 
 ## Step 5: Verify SQLite Database State
 
@@ -95,11 +86,11 @@ This error confirms that the worker invoked the real agent process.
 ```bash
 bun -e "
 import { createDatabase } from './src/db/connection.js';
-import { getDbPath } from './src/paths.js';
-const db = createDatabase({ path: getDbPath() });
+import { getDatabasePath } from './src/paths.js';
+const db = createDatabase({ path: getDatabasePath() });
 console.log('Run:', db.query('SELECT id, status, revision FROM runs WHERE id = ?').get('<runId>'));
 console.log('Jobs:', db.query('SELECT id, stage, status, attempts, worker_id FROM jobs WHERE run_id = ?').all('<runId>'));
-console.log('Attempts:', db.query('SELECT stage, exit_code, error FROM stage_attempts WHERE run_id = ?').all('<runId>'));
+console.log('Attempts:', db.query('SELECT stage, attempt, status, error FROM stage_attempts WHERE run_id = ?').all('<runId>'));
 db.close();
 "
 ```
@@ -117,16 +108,19 @@ db.close();
 curl -N http://127.0.0.1:3777/api/runs/<runId>/events
 ```
 
-2. Confirm that the server sends `data:` lines containing `stage_start`, `status`, or `error` events.
-3. Confirm that the server emits periodic `: keepalive` comments.
+2. Confirm that the server sends `data:` lines carrying `stage_started`, `status`, or `error` events.
+3. Confirm that the server emits periodic `: keep-alive` comment frames.
 
 ## Step 7: Verify Clean Worker Shutdown
 
 1. Navigate to the worker terminal.
 2. Send a termination signal by pressing `Ctrl+C`.
-3. Verify that the worker displays a graceful shutdown message:
+3. Verify that the worker displays the shutdown lines:
 
 ```text
-Worker received termination signal. Cleaning up...
-Worker stopped cleanly.
+Received SIGINT. Gracefully stopping worker...
+[2026-10-13T00:00:00.000Z] [Worker <workerId>] Stopping worker cleanly...
+[2026-10-13T00:00:00.000Z] [Worker <workerId>] Worker stopped.
 ```
+
+The worker also writes one structured line at the end: `"result":"shutdown"` with the message `Worker stopped cleanly`.

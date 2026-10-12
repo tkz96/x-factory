@@ -10,12 +10,13 @@ You will complete this tutorial in approximately 5 minutes.
 
 Before you start, make sure that you have:
 - **Bun** runtime (version 1.4.0 or newer) — [install instructions](https://bun.sh)
-- **Git** CLI installed and configured
-- An **LLM API key** from Anthropic, Google (Gemini), or OpenAI
+- **Git** CLI installed and configured, with credentials that can read the repository you will add
+- **`sbx`**, the sandbox the coding stage runs the agent in — see [How to Check the Sandbox](../how-to/install-and-check-sbx.md). Without it the coding stage fails closed unless you allow running without a sandbox.
+- A **provider API key** for the model connection you add in Step 4: Anthropic, Google (Gemini), or an OpenAI-compatible endpoint. X-Factory stores the key itself; you do not need it in the environment.
 
 ---
 
-## Step 1: Install & Configure
+## Step 1: Install
 
 Clone the repository and install dependencies:
 
@@ -25,19 +26,7 @@ cd x-factory
 bun install
 ```
 
-Copy the environment template and add your API key:
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` in your editor and paste your API key:
-
-```bash
-LLM_API_KEY=your-api-key-here
-```
-
-> **Tip**: X-Factory automatically detects the model provider based on key prefix (`sk-ant-*` for Anthropic Claude, `AIzaSy*` or `AQ.*` for Google Gemini, `sk-*` for OpenAI). Set `LLM_PROVIDER` (`gemini`, `anthropic` or `openai`) when your key has another format. On first launch the key is also saved as a model connection; see `docs/reference/security.md`.
+X-Factory needs no environment configuration, and it needs no API key in the environment: you add model connections in the app. To change a path or a port, copy [`.env.example`](../.env.example) to `.env`; every variable there is optional.
 
 ---
 
@@ -60,48 +49,67 @@ Open your browser to:
 http://localhost:5173
 ```
 
----
-
-## Step 3: Onboard Your First Project
-
-On first launch, X-Factory starts with an empty workspace.
-
-1. Open **Projects** in the section switcher at the top of the window (on a phone, the bottom tab bar).
-2. Click **"Add Project"** beside the Projects heading to open the assistant sheet.
-3. Provide a project name and select or input the absolute path to a local Git repository on your machine.
-4. Optionally configure your issue tracker connection (GitHub Issues, Azure DevOps, or Jira).
-5. Click **"Save Project"**.
-
-Your project appears in the Projects list, and its detail pane shows the
-repository, tracker and branch it is wired to.
+The first screen is the **Welcome** checklist: **Add Project**, **Connect a Model**, **Start Run**. A step gets its tick only when the app can see that it is done. Choose **I'll set up later** to skip the checklist and go straight to Tickets; the choice is remembered in this browser.
 
 ---
 
-## Step 4: Create and Observe a Run
+## Step 3: Add Your First Project
 
-1. Open **Tickets** in the section switcher and click **"Start Run"** beside the Tickets heading.
-2. Select your newly onboarded project and primary repository.
-3. Enter a ticket title and prompt or task description (for example: `"Add health check endpoint and test"`).
-4. Click **"Start Run"**.
+On first launch, X-Factory has no projects.
 
-X-Factory redirects you directly to the live Run Detail view. Watch the pipeline advance across sequential stages in real time:
+1. On the **Welcome** checklist, choose **Add Project**. (You can also open **Projects** and use **Add Project** beside the heading.)
+2. Paste the **Repository** URL of the repository you want to work on. The assistant resolves it through the provider that owns that URL format, so you never pick a provider by hand.
+3. In **Connect**, fill in the provider configuration: one card for the issue tracker, one for the Git host. Pass **Check Connection** on each card.
+4. In **Repositories**, select the repositories the project uses, and mark the one that holds the application.
+5. In **Inspection**, review the resolved Git identity and the tooling report.
+6. In **Review**, read the summary and choose **Create Project**.
 
-- **Prepare**: Allocates an isolated, ephemeral Git worktree outside your active branch.
-- **Understand**: Pi agent reads the codebase, gathers context, and forms an execution plan.
-- **Implement**: Agent edits files, applies changes, and executes self-repair against compiler errors.
-- **Verify**: Executes test suites and deterministic verification checks inside the worktree.
-- **Review**: A fresh, independent read-only reviewer evaluates the diff against acceptance criteria.
-- **Deliver**: Presents the final human-in-the-loop checkpoint.
+Your project appears in the Projects list, and its detail pane shows the repository, tracker and branch it is wired to. The run's first **Prepare** stage clones the repository when no local checkout exists yet.
 
 ---
 
-## Step 5: Review & Deliver
+## Step 4: Connect a Model
 
-When the run transitions to `ready_for_pr` (the Deliver stage):
+The worker runs two model roles, and each one needs a model before a run can start:
 
-1. Inspect the interactive **Diff Viewer** modal to examine every modified line.
-2. Review the automated verification logs, test results, and reviewer scorecards.
-3. Chat with the agent directly in the Run Detail view during the understanding and plan approval gates to request revisions before approving.
-4. Click **"Approve & Create PR"** to commit, push the branch, and open a pull request on your remote repository.
+- **Builder** writes the understanding, the plan and the code.
+- **Reviewer** reviews the diff against the acceptance criteria, inside the code stage.
+
+1. Open **Settings**, then the **Models** tab. (The Welcome step also links here.)
+2. Add a connection: choose Gemini, Anthropic, or an OpenAI-compatible endpoint, then paste the API key and the base URL if the endpoint is not the official one.
+3. Choose **Check Connection** and wait for it to pass.
+4. Pick the model for **Builder** and the model for **Reviewer**.
+
+A run refuses to start while a role has no model (`409`), and no role ever falls back to another model.
+
+---
+
+## Step 5: Create and Observe a Run
+
+1. Open **Tickets** in the section switcher and choose **Start Run** beside the Tickets heading.
+2. Fill in the form: **Ticket ID**, **Ticket Title**, **Branch (optional)**, **Acceptance criteria**, and **Implementation plan**. The run is scoped to the project you are looking at, so there is no project or repository picker.
+3. Choose **Start Run**.
+
+X-Factory opens the live run view. Watch the steps advance in real time:
+
+- **Prepare**: Creates the branch and an isolated Git worktree outside your active branch.
+- **Understand**: The Builder reads the ticket and the code it touches, then the run pauses for **Approve Understanding**.
+- **Plan**: The Builder writes a task list and names the files and tests it will change, then the run pauses for **Approve Plan**.
+- **Code**: The agent edits the files in the worktree, runs your test command, and self-repairs when a check fails. When verification passes, the Reviewer reads the diff against the acceptance criteria. A project with no test command records the tests as not run and says so.
+- **Review**: The run pauses for **Approve Changes**. Choose **Request Changes** to send it back to planning with your feedback.
+- **Deliver**: The run reaches `ready_for_pr` and waits for you.
+
+---
+
+## Step 6: Review & Deliver
+
+When the run reaches `ready_for_pr`:
+
+1. Open the diff to examine every modified line.
+2. Read the verification results and the Reviewer's verdict.
+3. Use the run chat during the understanding and plan checkpoints to ask questions or challenge an assumption.
+4. Choose **Create Pull Request**.
+
+X-Factory publishes the branch, opens the pull request on GitHub or Azure DevOps, and the run becomes `pr_created`. The worker checks that pull request every 5 minutes; when it is merged, the run shows **Merged**.
 
 You have successfully run your first autonomous engineering workflow with X-Factory!

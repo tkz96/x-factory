@@ -25,11 +25,15 @@ If any matches appear:
 Scan all TSX files for raw hex color literals:
 
 ```bash
-grep -rnE '#[0-9a-fA-F]{3,8}' src/frontend/ --include='*.tsx'
+grep -rnE "[\"'\`]#[0-9a-fA-F]{3,8}[\"'\`]" src/frontend/ --include='*.tsx'
 ```
 
-**Expected Result**: Zero matches outside of mock data or documentation.
-If found, replace with semantic tokens (`var(--accent)`, `var(--text)`, `var(--green)`, etc.).
+The pattern requires a quote or a backtick on both sides, so it matches a color
+literal (`"#fff"`, `'#007aff'`) and not an issue reference (`(#241)`).
+
+**Expected Result**: Zero matches. A color literal in TSX is always a token that
+was not used.
+If found, replace it with semantic tokens (`var(--accent)`, `var(--text)`, `var(--green)`, etc.), or move the rule into the co-located `.css` file, where hex values belong.
 
 ---
 
