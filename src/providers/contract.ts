@@ -92,12 +92,31 @@ export type ProviderErrorContext =
 
 /**
  * Structured error envelope. `retryAfterMs` is provider-computed, positive,
- * milliseconds and is present only when actually known.
+ * milliseconds and is present only when actually known. `missingScopes`, on a
+ * `PERMISSION` error only, names the token scopes the provider found missing
+ * (e.g. `["workflow"]`) so the user is told exactly what to add.
  */
 export interface ProviderErrorEnvelope {
   code: ProviderErrorCode;
   context: ProviderErrorContext;
   retryAfterMs?: number;
+  missingScopes?: readonly string[];
+}
+
+/**
+ * A scope name is a short lowercase token (`repo`, `read:org`, `write:jira-work`).
+ * The guard keeps provider-generated text from riding through the envelope.
+ */
+const SCOPE_NAME = /^[a-z][a-z0-9:_.-]{0,63}$/;
+
+/** Whether `value` is a non-empty, short list of scope names. */
+export function isScopeList(value: unknown): value is readonly string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.length <= 16 &&
+    value.every((v) => typeof v === "string" && SCOPE_NAME.test(v))
+  );
 }
 
 /** Runtime guard for values crossing the API boundary as error envelopes. */
@@ -110,7 +129,12 @@ export function isProviderError(
   const candidate = value as Record<string, unknown>;
   const keys = Object.keys(candidate);
   for (const key of keys) {
-    if (key !== "code" && key !== "context" && key !== "retryAfterMs") {
+    if (
+      key !== "code" &&
+      key !== "context" &&
+      key !== "retryAfterMs" &&
+      key !== "missingScopes"
+    ) {
       return false;
     }
   }
@@ -121,7 +145,9 @@ export function isProviderError(
     PROVIDER_ERROR_CONTEXTS.set.has(candidate.context) &&
     (candidate.retryAfterMs === undefined ||
       (typeof candidate.retryAfterMs === "number" &&
-        candidate.retryAfterMs > 0))
+        candidate.retryAfterMs > 0)) &&
+    (candidate.missingScopes === undefined ||
+      (candidate.code === "PERMISSION" && isScopeList(candidate.missingScopes)))
   );
 }
 

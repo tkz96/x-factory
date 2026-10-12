@@ -15,6 +15,7 @@
 // "never a raw provider body").
 
 import {
+  getMissingScopesCopy,
   getProviderErrorCopy,
   PROVIDER_ERROR_COPY,
 } from "../../../shared/provider-error-copy.js";
@@ -580,9 +581,17 @@ export function getErrorCopy(
  */
 export function resolveErrorCopy(error: unknown): string {
   const normalized = unwrapNormalizedError(error);
-  return normalized
-    ? getErrorCopy(normalized.code, normalized.context)
-    : STATE_COPY.errorFallback;
+  if (!normalized) return STATE_COPY.errorFallback;
+  const scopes = normalized.missingScopes;
+  if (
+    normalized.code === "PERMISSION" &&
+    Array.isArray(scopes) &&
+    scopes.length > 0 &&
+    scopes.every((s) => typeof s === "string")
+  ) {
+    return getMissingScopesCopy(scopes);
+  }
+  return getErrorCopy(normalized.code, normalized.context);
 }
 
 /**

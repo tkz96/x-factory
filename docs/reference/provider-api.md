@@ -444,6 +444,9 @@ with:
 - `message` set to the canonical copy for that `(code, context)` pair
   (`PROVIDER_ERROR_MESSAGES` in `src/providers/errors.ts`), never provider text;
 - `retryAfterMs` only when the provider supplied a positive wait;
+- `missingScopes` only on a `PERMISSION` error whose provider knows which token
+  scopes are missing (a list of short scope names, checked by `isScopeList` in
+  `src/providers/contract.ts`);
 - the raw failure only as `cause`.
 
 A `ProviderError` thrown by a provider is re-tagged with the capability's
@@ -452,7 +455,10 @@ raw failure through `provider.toUserError(err, context)` and re-throws a
 `ProviderError`. A route that must answer a raw throw itself —
 `/api/providers/verify`, `/api/providers/repositories` and the project ticket
 probe — calls the provider's own `toUserError(err, context)` to build the wire
-`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs? }`).
+`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs?, missingScopes? }`).
+The UI shows a `PERMISSION` envelope that carries `missingScopes` as "The token
+is missing the workflow scope. Add it, then verify again." (`getMissingScopesCopy`
+in `src/shared/provider-error-copy.ts`) instead of the generic permission copy.
 
 ### `parseQuickUrl` accepted URL shapes (GitHub reference)
 - `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
@@ -472,6 +478,8 @@ probe — calls the provider's own `toUserError(err, context)` to build the wire
 - A `401` with a `retry-after` header is strictly an auth error (`AUTH_INVALID`),
   never rate-limiting.
 - `403` without rate-limit evidence → `PERMISSION`, distinct from `AUTH_INVALID`.
+- A classic token whose `x-oauth-scopes` lacks `repo` or `workflow` fails
+  verification with `PERMISSION` and `missingScopes` naming the absent ones.
 
 ### Ticket listing
 `listTickets` filters by the contract-required `requiredLabel` and lists **open**
