@@ -96,6 +96,9 @@ function ProjectTickets({
   );
   const searching = searchQuery.trim().length > 0;
   const headingId = `tickets-group-${project.id}`;
+  // The label this tracker requires: the tag a ticket with no labels of its own
+  // shows, and the name the search field's guidance carries (A4).
+  const workflowLabel = workflowLabelOf(project);
 
   const integrity = deriveConnectionIntegrity(project, descriptors);
   // The integrity failure is primary over every async condition: the list
@@ -124,7 +127,7 @@ function ProjectTickets({
   );
 
   const list = (
-    <div className="tickets-grid" data-list>
+    <div className="tickets-region">
       <AsyncRegion
         derived={derived}
         onRetry={
@@ -141,7 +144,7 @@ function ProjectTickets({
         emptyCopy={
           searching
             ? QUEUE_COPY.noMatches(searchQuery)
-            : QUEUE_COPY.empty(workflowLabelOf(project))
+            : QUEUE_COPY.empty(workflowLabel)
         }
         emptyAction={
           searching ? (
@@ -153,14 +156,19 @@ function ProjectTickets({
           )
         }
       >
-        {filtered.map((ticket) => (
-          <TicketCard
-            key={ticket.id}
-            ticket={ticket}
-            projectId={project.id}
-            runLink={ticketRunLinkOf(runs, project.id, ticket.id)}
-          />
-        ))}
+        {/* The list is inside the region, so the cards keep the list's own gap
+            whether the region is ready, stale or partial (E1). */}
+        <div className="tickets-grid" data-list>
+          {filtered.map((ticket) => (
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              projectId={project.id}
+              workflowLabel={workflowLabel}
+              runLink={ticketRunLinkOf(runs, project.id, ticket.id)}
+            />
+          ))}
+        </div>
       </AsyncRegion>
 
       {integrity.tracker.state === "degraded" && (
@@ -206,6 +214,11 @@ export function QueueView() {
   // With no project at all there is no tracker to query: an empty workspace,
   // not a load, so say how to add one.
   const noProjects = !isProjectsLoading && projects.length === 0;
+  // The toolbar names the label the search filters by: the one selected project's
+  // label, or the default when the scope is every project (A4).
+  const toolbarWorkflowLabel = selectedProject
+    ? workflowLabelOf(selectedProject)
+    : CONNECTIONS_COPY.workflowLabel;
 
   const searchToolbar = (
     <TicketSearchToolbar
@@ -213,6 +226,7 @@ export function QueueView() {
       onSearchChange={setSearchQuery}
       onRefresh={refresh}
       isRefreshing={isRefreshing}
+      workflowLabel={toolbarWorkflowLabel}
     />
   );
 
@@ -224,7 +238,7 @@ export function QueueView() {
     return (
       <section id="area-queue" className="area-view active">
         {searchToolbar}
-        <div id="queue-tickets-list" className="tickets-grid" data-list>
+        <div id="queue-tickets-list" className="tickets-region" data-list>
           <AsyncRegion
             derived={empty}
             emptyCopy={QUEUE_COPY.noProjects}

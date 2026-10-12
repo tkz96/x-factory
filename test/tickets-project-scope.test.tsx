@@ -377,7 +377,7 @@ describe("a ticket's run", () => {
     expect(screen().getByRole("button", { name: "Start Run" })).toBeDefined();
   });
 
-  it("offers Start New Run for a ticket whose only run has finished", () => {
+  it("offers Start Run for a ticket whose only run has finished", () => {
     const client = makeClient();
     seedProjects(client, [DEMO]);
     const t = ticket("DEMO-7", "Login banner");
@@ -387,10 +387,16 @@ describe("a ticket's run", () => {
     ]);
     renderWithScope(React.createElement(QueueView), client);
 
+    // One label for the row's action, always those two words (D1): a finished
+    // run does not rename it, and the row is not a link to the old run.
+    const action = screen().getByRole("button", { name: "Start Run" });
+    expect(action).toBeDefined();
     expect(
-      screen().getByRole("button", { name: "Start New Run" }),
-    ).toBeDefined();
+      screen().queryByRole("button", { name: "Start New Run" }),
+    ).toBeNull();
     expect(screen().queryByRole("link", { name: "Open Run" })).toBeNull();
+    // A row accessory is never the region's one filled button (D1).
+    expect(action.className).toContain("ui-button--secondary");
   });
 
   it("starts the run in the project the ticket belongs to, in All Projects mode", () => {

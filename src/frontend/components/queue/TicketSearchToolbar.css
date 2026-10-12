@@ -4,18 +4,19 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.85rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
+/* The field is a regular control (SYSTEM.md): 44px tall, --radius-md. */
 .search-box {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: var(--space-3);
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-md);
-  padding: 0 1rem;
+  padding: 0 var(--space-4);
   height: var(--tap-min);
   min-height: var(--tap-min);
   /* Grows to fill the row, but keeps a usable width when the bar wraps (#258). */
@@ -36,7 +37,7 @@
   background: transparent;
   border: none;
   color: var(--text);
-  font-size: 0.84rem;
+  font-size: var(--text-subhead);
   font-family: var(--font-sans);
   width: 100%;
   height: 100%;
@@ -48,13 +49,4 @@
 
 #btn-queue-refresh {
   flex-shrink: 0;
-  height: var(--tap-min);
-  min-height: var(--tap-min);
-  border-radius: var(--radius-md);
-  padding: 0 1.1rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: var(--text-subhead);
-  box-sizing: border-box;
 }
