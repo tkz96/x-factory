@@ -334,8 +334,9 @@
   --duration-typing: 1400ms;
   --duration-stagger: 160ms;
 
-  /* One spring, two names: --spring is the alias Sheet.css and ModalContainer.css
-     already use (M14). The curve decelerates and settles — it never overshoots. */
+  /* One spring, two names: `--ease-spring` is the name new code uses, `--spring`
+     is the alias a screen may still reach for (M14). The curve decelerates and
+     settles — it never overshoots. */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --spring: var(--ease-spring);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
