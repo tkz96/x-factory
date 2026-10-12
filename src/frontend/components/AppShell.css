@@ -389,32 +389,10 @@
   display: none;
 }
 
+/* Area navigation does not animate (M2): switching a workbench area is a
+   destination change, not a transition, so the new view is simply there. */
 .area-view.active {
   display: block;
-  animation: appleViewIn var(--duration-slow) var(--ease-spring);
-}
-
-@keyframes appleViewIn {
-  from {
-    opacity: 0;
-    transform: translateY(var(--space-2));
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Reduced motion (#252): the view fades in where it lands instead of rising. */
-@media (prefers-reduced-motion: reduce) {
-  @keyframes appleViewIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
 }
 
 .view {

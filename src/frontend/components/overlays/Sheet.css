@@ -65,7 +65,7 @@
   border-bottom: none;
   border-left: none;
   border-right: none;
-  animation: xfSheetSlideUp var(--duration-fast) var(--spring);
+  animation: xfSheetSlideUp var(--duration-slow) var(--ease-drawer);
 }
 
 .xf-sheet-right {
@@ -79,7 +79,7 @@
   border-right: none;
   border-top: none;
   border-bottom: none;
-  animation: xfSheetSlideInRight var(--duration-fast) var(--spring);
+  animation: xfSheetSlideInRight var(--duration-slow) var(--ease-drawer);
 }
 
 .xf-sheet-left {
@@ -93,7 +93,7 @@
   border-left: none;
   border-top: none;
   border-bottom: none;
-  animation: xfSheetSlideInLeft var(--duration-fast) var(--spring);
+  animation: xfSheetSlideInLeft var(--duration-slow) var(--ease-drawer);
 }
 
 @keyframes xfSheetSlideUp {
@@ -127,15 +127,15 @@
    marked `data-exiting`, until these animations end. The rules are declared here, after
    the surface's own exit in Dialog.css, so each position keeps its direction. */
 .xf-dialog-overlay[data-exiting] .xf-sheet-bottom {
-  animation: xfSheetSlideDown var(--duration-instant) var(--ease-in);
+  animation: xfSheetSlideDown var(--duration-instant) var(--ease-out);
 }
 
 .xf-dialog-overlay[data-exiting] .xf-sheet-right {
-  animation: xfSheetSlideOutRight var(--duration-instant) var(--ease-in);
+  animation: xfSheetSlideOutRight var(--duration-instant) var(--ease-out);
 }
 
 .xf-dialog-overlay[data-exiting] .xf-sheet-left {
-  animation: xfSheetSlideOutLeft var(--duration-instant) var(--ease-in);
+  animation: xfSheetSlideOutLeft var(--duration-instant) var(--ease-out);
 }
 
 @keyframes xfSheetSlideDown {

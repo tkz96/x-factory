@@ -11,7 +11,7 @@
   color: var(--text);
   z-index: var(--z-tooltip);
   pointer-events: none;
-  animation: xfTooltipFadeIn var(--duration-fast) var(--ease-out);
+  animation: xfTooltipFadeIn var(--duration-instant) var(--ease-out);
 }
 
 @keyframes xfTooltipFadeIn {
@@ -28,7 +28,7 @@
    descriptive, so it should not pull the eye as it goes — on the quicker rung of the
    ladder (#252) than arriving. A plain fade needs no reduced-motion path. */
 .xf-tooltip[data-exiting] {
-  animation: xfTooltipFadeOut var(--duration-instant) var(--ease-in);
+  animation: xfTooltipFadeOut var(--duration-instant) var(--ease-out);
 }
 
 @keyframes xfTooltipFadeOut {

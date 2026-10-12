@@ -330,16 +330,25 @@
   --duration-typing: 1400ms;
   --duration-stagger: 160ms;
 
-  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  /* One spring, two names: --spring is the alias Sheet.css and ModalContainer.css
+     already use (M14). The curve decelerates and settles — it never overshoots. */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: var(--ease-spring);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* Side and bottom sheets travel along an edge, so they get the drawer curve
+     rather than the spring (M13). */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-linear: linear;
   --ease-pulse: cubic-bezier(0.4, 0, 0.6, 1);
   --transition: var(--duration-normal) var(--ease-spring);
   --transition-fast: var(--duration-fast) var(--ease-spring);
   --transition-slow: var(--duration-slow) var(--ease-spring);
+
+  /* React Aria writes --trigger-anchor-point inline on each popover, so the
+     surface grows from the point of its trigger (M6). This is the fallback for
+     any surface that reads it without one: its own centre. */
+  --trigger-anchor-point: 50% 50%;
 
   /* Z-Layers Scale */
   --z-base: 0;

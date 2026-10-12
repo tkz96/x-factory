@@ -57,3 +57,11 @@
   font-size: var(--text-caption-1);
   color: var(--text-muted);
 }
+
+/* The ? sheet is a keyboard surface too (M1): it appears in answer to a
+   keystroke, so it does not slide in or out. React Aria's presence window
+   collapses because nothing on the overlay is animating. */
+.xf-dialog-overlay .xf-sheet-right.shortcut-sheet,
+.xf-dialog-overlay[data-exiting] .xf-sheet-right.shortcut-sheet {
+  animation: none;
+}

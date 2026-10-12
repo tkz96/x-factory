@@ -8,7 +8,10 @@
   z-index: var(--z-popover);
   padding: var(--space-3);
   outline: none;
-  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
+  /* A popover grows from the point of its trigger rather than from its own
+     middle (M6): React Aria hands the anchor point down as a custom property. */
+  transform-origin: var(--trigger-anchor-point);
+  animation: xfPopoverIn var(--duration-fast) var(--ease-out);
 }
 
 .xf-popover-content {
@@ -22,7 +25,18 @@
    `data-exiting`, and unmounts it when the animation ends. Leaving takes the quicker
    rung of the ladder (#252) than arriving. */
 .xf-popover[data-exiting] {
-  animation: xfPopoverOut var(--duration-instant) var(--ease-in);
+  animation: xfPopoverOut var(--duration-instant) var(--ease-out);
+}
+
+@keyframes xfPopoverIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes xfPopoverOut {
@@ -36,8 +50,18 @@
   }
 }
 
-/* Reduced motion (#252): the settle drops, the crossfade stays. */
+/* Reduced motion (#252): the settle drops, the crossfade stays, in both
+   directions. */
 @media (prefers-reduced-motion: reduce) {
+  @keyframes xfPopoverIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
   @keyframes xfPopoverOut {
     0% {
       opacity: 1;

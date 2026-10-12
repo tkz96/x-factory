@@ -19,8 +19,8 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition:
-    background-color var(--duration-slow) var(--ease-spring),
-    color var(--duration-slow) var(--ease-spring);
+    background-color var(--transition),
+    color var(--transition);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -40,8 +40,8 @@ body {
   min-height: 100vh;
   line-height: 1.55;
   transition:
-    background-color var(--duration-slow) var(--ease-spring),
-    color var(--duration-slow) var(--ease-spring);
+    background-color var(--transition),
+    color var(--transition);
 }
 
 a {

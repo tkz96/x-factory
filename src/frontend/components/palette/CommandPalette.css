@@ -97,3 +97,17 @@
   color: var(--text-muted);
   font-size: var(--text-callout);
 }
+
+/* The palette is opened from the keyboard, so it does not animate: a surface
+   that appears in answer to a keystroke must be there on the next frame, not
+   rise into place (M1, SYSTEM.md "never animate a keyboard-opened surface").
+   With nothing animating on the overlay, the presence hook unmounts it at
+   once on close instead of waiting for an animation that never runs. */
+.xf-dialog-overlay.command-palette-overlay,
+.xf-dialog-overlay.command-palette-overlay[data-exiting],
+.xf-dialog-overlay.command-palette-overlay .xf-dialog-modal,
+.xf-dialog-overlay.command-palette-overlay .xf-dialog-modal[data-exiting],
+.xf-dialog-overlay.command-palette-overlay .xf-dialog-content,
+.xf-dialog-overlay.command-palette-overlay[data-exiting] .xf-dialog-content {
+  animation: none;
+}

@@ -11,7 +11,6 @@
   padding: var(--space-4);
   backdrop-filter: var(--blur-xl);
   -webkit-backdrop-filter: var(--blur-xl);
-  transition: opacity var(--duration-fast) var(--ease-out);
   animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
 }
 
@@ -29,14 +28,14 @@
 
 /* The primitive is structure only: each dialog brings its own surface
    (modal-dialog, xf-alert-dialog-modal, xf-sheet-modal), so one surface
-   never stacks on another. */
+   never stacks on another. The content is not animated on top of the
+   overlay's own fade — one crossfade per arrival (M18). */
 .xf-dialog-content {
   display: flex;
   flex-direction: column;
   min-height: 0;
   max-height: 100%;
   outline: none;
-  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
 }
 
 .xf-dialog-header {
@@ -94,15 +93,15 @@
    motion ladder (#252) than arriving, because a dismissal should get out of the way: the
    backdrop and the surface crossfade, and the surface settles a hair smaller. */
 .xf-dialog-overlay[data-exiting] {
-  animation: xfDialogFadeOut var(--duration-instant) var(--ease-in);
+  animation: xfDialogFadeOut var(--duration-instant) var(--ease-out);
 }
 
 .xf-dialog-modal[data-exiting] {
-  animation: xfDialogFadeOut var(--duration-instant) var(--ease-in);
+  animation: xfDialogFadeOut var(--duration-instant) var(--ease-out);
 }
 
 .xf-dialog-overlay[data-exiting] .xf-dialog-content {
-  animation: xfDialogContentOut var(--duration-instant) var(--ease-in);
+  animation: xfDialogContentOut var(--duration-instant) var(--ease-out);
 }
 
 @keyframes xfDialogFadeOut {
