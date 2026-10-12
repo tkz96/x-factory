@@ -12,6 +12,7 @@ import type { PullRequest } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import { deliveredOutcome } from "./helpers/deliver-outcome.js";
 import { ensureProject } from "./helpers/project-fixture.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 import {
   PASSING_REVIEW_OUTPUT,
@@ -88,6 +89,7 @@ describe("Stabilization Pass — Delivery & External PR Crash Recovery", () => {
 
     // Mock review executor with passing result
     const reviewExecutor = new ReviewExecutor({
+      resolveRole: stubResolveRole,
       sessionFactory: async () => scriptedReviewSession(PASSING_REVIEW_OUTPUT),
     });
 

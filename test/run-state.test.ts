@@ -336,6 +336,39 @@ describe("client run-state module (#191)", () => {
     expect(invalidations).toEqual([["runs", RUN_ID]]);
   });
 
+  it("stage_started adds the attempt's model to the run once, even when replayed (#279)", () => {
+    const event = {
+      id: 7,
+      timestamp: "2026-10-01T10:00:00.000Z",
+      type: "stage_started",
+      payload: {
+        stage: "review",
+        attempt: 1,
+        model: {
+          role: "reviewer",
+          connectionId: "c1",
+          connectionName: "Gemini",
+          apiType: "gemini",
+          modelId: "gemini-x",
+        },
+      },
+    } as RunEvent;
+    const once = reduceRun(runSnapshot("executing"), event);
+    const twice = reduceRun(once, event);
+    expect(twice.stageModels).toEqual([
+      {
+        role: "reviewer",
+        connectionId: "c1",
+        connectionName: "Gemini",
+        apiType: "gemini",
+        modelId: "gemini-x",
+        stage: "review",
+        attempt: 1,
+        startedAt: "2026-10-01T10:00:00.000Z",
+      },
+    ]);
+  });
+
   it("the reducer handles every event type in the shared union", () => {
     const samples: { [K in RunEventType]: RunEventPayloadMap[K] } = {
       status: { status: "awaiting_review" },
@@ -348,8 +381,35 @@ describe("client run-state module (#191)", () => {
       verification: { result: sampleVerification },
       review: { result: sampleReview },
       ralph_progress: { text: "iteration 2", iteration: 2 },
+      plan_ready: { plan: "1. Do the thing" },
+      diff_summary: {
+        files: [{ path: "src/app.ts", added: 2, removed: 1 }],
+        totalAdded: 2,
+        totalRemoved: 1,
+      },
+      review_activity: { tool: "read", text: "Running tool read" },
       info: { text: "info" },
       error: { message: "boom" },
+      pr_merged: {
+        url: "https://github.com/org/repo/pull/1",
+        mergedAt: "2026-10-12T12:00:00Z",
+        mergedBy: "octocat",
+      },
+      pr_closed: {
+        url: "https://github.com/org/repo/pull/1",
+        closedAt: "2026-10-12T12:00:00Z",
+      },
+      stage_started: {
+        stage: "execute",
+        attempt: 1,
+        model: {
+          role: "builder",
+          connectionId: "c1",
+          connectionName: "Gemini",
+          apiType: "gemini",
+          modelId: "gemini-x",
+        },
+      },
     };
     const run = runSnapshot("executing");
     for (const type of Object.keys(samples) as RunEventType[]) {
@@ -361,6 +421,33 @@ describe("client run-state module (#191)", () => {
       } as RunEvent;
       expect(reduceRun(run, event)).toBeDefined();
     }
+
+    const mergedRun = reduceRun(run, {
+      id: 2,
+      timestamp: "2026-10-12T12:00:00Z",
+      type: "pr_merged",
+      payload: samples.pr_merged,
+    });
+    expect(mergedRun.pullRequestOutcome).toEqual({
+      status: "merged",
+      state: "merged",
+      url: "https://github.com/org/repo/pull/1",
+      mergedAt: "2026-10-12T12:00:00Z",
+      mergedBy: "octocat",
+    });
+
+    const closedRun = reduceRun(run, {
+      id: 3,
+      timestamp: "2026-10-12T12:00:00Z",
+      type: "pr_closed",
+      payload: samples.pr_closed,
+    });
+    expect(closedRun.pullRequestOutcome).toEqual({
+      status: "closed",
+      state: "closed",
+      url: "https://github.com/org/repo/pull/1",
+      closedAt: "2026-10-12T12:00:00Z",
+    });
   });
 
   it("polls an active run every 2 seconds and never a finished one", () => {

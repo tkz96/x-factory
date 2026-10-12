@@ -127,7 +127,7 @@ export interface FlowDiagramViewerProps {
 }
 
 export function FlowDiagramViewer({ diagramId }: FlowDiagramViewerProps) {
-  const { theme } = useTheme();
+  const { resolvedAppearance } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -159,7 +159,7 @@ export function FlowDiagramViewer({ diagramId }: FlowDiagramViewerProps) {
     );
   }
 
-  const colorMode: "dark" | "light" = theme === "light" ? "light" : "dark";
+  const colorMode: "dark" | "light" = resolvedAppearance;
 
   return (
     <>

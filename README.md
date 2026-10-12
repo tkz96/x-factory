@@ -123,7 +123,7 @@ bun run dev
 
 Open **http://localhost:5173** in your browser.
 
-On first launch, X-Factory starts with an empty project list. Click **"Onboard Project"** to connect your first Git repository, then click **"+ New Run"** to trigger your first autonomous workflow.
+On first launch, X-Factory starts with an empty project list. Click **"Add Project"** to connect your first Git repository, then open **Tickets** and click **"Start Run"** to trigger your first autonomous workflow.
 
 > **Production Mode**: To run without Vite HMR on a single port:
 > ```bash

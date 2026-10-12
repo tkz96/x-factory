@@ -6,7 +6,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   padding: 0.2rem 0.6rem;
-  border-radius: 99px;
+  border-radius: var(--radius-dot);
   text-transform: lowercase;
   letter-spacing: 0.02em;
 }
@@ -39,6 +39,14 @@
   background: var(--green-dim);
   color: var(--green);
 }
+.badge[data-status="merged"] {
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+.badge[data-status="closed"] {
+  background: var(--red-dim);
+  color: var(--red);
+}
 .badge[data-status="failed"] {
   background: var(--red-dim);
   color: var(--red);
@@ -53,7 +61,7 @@
 }
 
 .badge-info {
-  background: rgba(88, 166, 255, 0.15);
+  background: var(--accent-dim);
   color: var(--accent);
 }
 .badge-warning {
@@ -65,7 +73,7 @@
   color: var(--red);
 }
 .badge-neutral {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
   color: var(--text-muted);
 }
 
@@ -74,9 +82,9 @@
 .role-badge {
   font-size: 0.72rem;
   padding: 0.2rem 0.55rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--bg-hover);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   color: var(--text-dim);
   font-weight: 500;
   text-transform: capitalize;
@@ -85,7 +93,7 @@
 .primary-badge {
   font-size: 0.7rem;
   padding: 0.15rem 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--accent);
   color: var(--text-on-accent);
   font-weight: 600;
@@ -94,10 +102,10 @@
 .knowledge-badge {
   font-size: 0.7rem;
   padding: 0.15rem 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--purple-dim);
   color: var(--purple);
-  border: 1px solid var(--purple);
+  border: var(--border-width) solid var(--purple);
   font-weight: 600;
 }
 
@@ -109,7 +117,7 @@
   gap: 0.35rem;
   font-size: 0.75rem;
   padding: 0.25rem 0.65rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   font-weight: 500;
 }
 

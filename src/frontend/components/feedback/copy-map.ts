@@ -91,6 +91,9 @@ export const REPOSITORIES_COPY = {
     count === 1 ? "1 repository selected" : `${count} repositories selected`,
   /** Header control for bulk selection (#160). */
   selectAllLabel: "Select all",
+  filterLabel: "Filter repositories",
+  filterPlaceholder: "Filter by name",
+  noFilterMatches: (query: string) => `No repositories match “${query}”.`,
   /** Live "N of M selected" count shown in the list header (#160). */
   selectedOfTotal: (selected: number, total: number) =>
     `${selected} of ${total} selected`,
@@ -165,7 +168,7 @@ export const CONNECTIONS_COPY = {
   registryLoading: "Loading connections…",
   registryEmpty: "No projects configured.",
   registryAction: "View Project →",
-  onboardProject: "Onboard Project",
+  onboardProject: "Add Project",
   /** The tracker card on the project detail surface. */
   trackerCardTitle: "Issue Tracker Connection",
   trackerCardSubtitle: "Automated ticket ingestion and PR linking.",
@@ -260,8 +263,11 @@ export const QUEUE_COPY = {
   empty: "No tickets are waiting in this queue.",
   noMatches: (query: string) => `No tickets matched “${query}”.`,
   clearFilter: "Clear Filter",
+  /** No project exists yet, so there is no queue to show. */
+  noProjects: "Add a project to see its tickets.",
+  addProject: "Add Project",
   /** The manual path that stays open when the tracker cannot be reached. */
-  manualRun: "Start Manual Run",
+  manualRun: "Start Run",
 } as const;
 
 /** Copy for the single-project detail surface (#147). */
@@ -286,16 +292,51 @@ export const PROJECT_DETAIL_COPY = {
   repositoryBranchColumn: "Default Branch",
 } as const;
 
-/** Copy for the project cards (#147). */
-export const PROJECT_CARD_COPY = {
-  viewDetailsLabel: (projectName: string) =>
-    `View details for project ${projectName}`,
-  id: "ID",
-  workspace: "Workspace",
-  workspaceFallback: "Configured",
-  repositoryCount: (count: number) =>
-    count === 1 ? "1 repo" : `${count} repos`,
-  viewDetails: "View Details →",
+/**
+ * Copy for the Projects list and its detail pane (#267, spec #241): the list
+ * reads like a mail list, and the detail says what a project is wired to in
+ * plain words — repository, tracker, branch (spec story 108).
+ */
+export const PROJECTS_COPY = {
+  /** The list pane's filter over archived projects. */
+  filterLabel: "Show",
+  filterActive: "Active",
+  filterArchived: "Archived",
+  /** A row's accessible name: the row shows more than the project's name. */
+  openProject: (projectName: string) => `Open project ${projectName}`,
+  /** First run: no projects at all, so the pane offers the one action that helps. */
+  empty: "No projects yet. Add one to start working on tickets.",
+  /** The Active filter hides every project because they are all archived. */
+  emptyActive: "No active projects. Archived projects are under Archived.",
+  emptyArchived: "No archived projects.",
+  addProject: "Add Project",
+  /** The detail pane on the list-only route: nothing is selected yet. */
+  selectPrompt: "Select a project to see its repository, tracker and branch.",
+  /** The way back to the list, at phone width where the detail pushes over it. */
+  backToList: "Projects",
+  /** The detail pane's three plain-word facts (spec story 108). */
+  repositoryFact: "Repository",
+  trackerFact: "Tracker",
+  branchFact: "Branch",
+  /** No repository is recorded on the project at all. */
+  noRepository: "Not recorded",
+} as const;
+
+/** Copy for editing a repository's checkout and commands (#283). */
+export const REPOSITORY_SETTINGS_COPY = {
+  title: "Repository settings",
+  path: "Checkout folder",
+  pathHelp: "The local folder where this repository is checked out.",
+  test: "Test command",
+  testHelp:
+    "Run to verify a run's changes. Without one, verification checks nothing.",
+  typecheck: "Typecheck command",
+  lint: "Lint command",
+  optional: "Optional",
+  save: "Save",
+  saving: "Saving…",
+  saved: "Saved.",
+  pathRequired: "Enter the folder where this repository is checked out.",
 } as const;
 
 /**
@@ -554,3 +595,181 @@ export function formatRetryCountdown(retryAfterMs: number): string {
   const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
   return `Retry available in ${seconds}s`;
 }
+
+/** Copy for Settings › Models › Model connections (#277). */
+export const MODEL_CONNECTIONS_COPY = {
+  title: "Model connections",
+  subtitle:
+    "Where models come from. Add an endpoint and API key, check it, then choose models.",
+  empty: "No model connections yet. Add one to choose models for runs.",
+  add: "Add Connection",
+  edit: "Edit",
+  name: "Name",
+  apiType: "API type",
+  apiTypes: {
+    "openai-compatible": "OpenAI-compatible (OpenRouter, gateways)",
+    gemini: "Gemini",
+    anthropic: "Anthropic",
+  },
+  baseUrl: "Base URL",
+  apiKey: "API key",
+  apiKeyKeep: "Leave blank to keep the current key",
+  save: "Save",
+  cancel: "Cancel",
+  check: "Check Connection",
+  checking: "Checking…",
+  delete: "Delete",
+  confirmDelete: "Delete Connection",
+  confirmDeleteQuestion: (name: string) =>
+    `Delete “${name}” and its key? Runs using its models will stop working.`,
+  keyMasked: (last4: string) => `•••• ${last4}`,
+  noKey: "No key",
+  fromEnvironment: "from environment",
+  verified: "Verified",
+  notChecked: "Not checked",
+  modelsFound: (count: number) =>
+    count === 1 ? "1 model found" : `${count} models found`,
+  addModel: "Add",
+  added: "Added",
+  chosenModels: "Chosen models",
+  contextWindow: "Context window (tokens)",
+  maxOutputTokens: "Max output (tokens)",
+  inputPricePerMTok: "Input price ($ / 1M tokens)",
+  outputPricePerMTok: "Output price ($ / 1M tokens)",
+  rpm: "Requests / min",
+  tpm: "Tokens / min",
+  rpd: "Requests / day",
+  tpd: "Tokens / day",
+  budgetUsd: "Budget ($ / day)",
+  budgetRequests: "Budget (model calls / day)",
+  todayUsageLabel: (todayText: string) => `Today’s usage: ${todayText}`,
+  saveModel: "Save Model",
+  removeModel: "Remove",
+} as const;
+
+/** Copy for Settings › Models › Roles (#278). */
+export const MODEL_ROLES_COPY = {
+  title: "Roles",
+  subtitle:
+    "Which model does each job. Choose from models on checked connections.",
+  builder: "Builder",
+  builderHelp:
+    "Understands the ticket, plans, writes the code and chats with you.",
+  reviewer: "Reviewer",
+  reviewerHelp:
+    "Reviews the changes. A different model gives a stronger second opinion.",
+  notSet: "Not set",
+  option: (modelId: string, connectionName: string) =>
+    `${modelId} — ${connectionName}`,
+  unavailable: (modelId: string) => `${modelId} (unavailable)`,
+  noModels:
+    "No models to choose yet. Check a connection above and add a model to it.",
+  sameModel:
+    "Builder and Reviewer use the same model. A different Reviewer model gives a stronger second opinion.",
+} as const;
+/**
+ * Copy for the add-project assistant sheet (#268, spec #241 stories 112–118).
+ * The assistant's own chrome: its title, its step counter, its action labels
+ * and its two terminal states (dismissing with progress, and success). Step
+ * bodies keep their own copy maps — this one is only what surrounds them.
+ */
+export const WIZARD_COPY = {
+  title: "Add Project",
+  /** `<current>` of `<total>`, e.g. "Step 2 of 5". */
+  stepOfTotal: (current: number, total: number) =>
+    `Step ${current} of ${total}`,
+  /** The progress bar's accessible name; the visible counter says the rest. */
+  progressLabel: "Setup progress",
+  cancel: "Cancel",
+  back: "Back",
+  continue: "Continue",
+  /** Esc (or Cancel) with work in progress: three honest ways out. */
+  dismissTitle: "You haven't finished adding this project.",
+  dismissBody:
+    "Save it as a draft and pick it up later, discard it, or keep going.",
+  saveDraft: "Save Draft",
+  discard: "Discard",
+  keepEditing: "Cancel",
+  /** The terminal state after the project exists. */
+  successTitle: "Project added",
+  successBody: (projectName: string) =>
+    `${projectName} is ready. Open it to see its repositories and settings.`,
+  openProject: "Open Project",
+  done: "Done",
+} as const;
+
+/** Copy for the add-project assistant's first step (#268, story 112). */
+export const REPOSITORY_STEP_COPY = {
+  title: "Add a repository",
+  subtitle: "Paste the repository's URL. It is the easiest place to start.",
+  urlLabel: "Repository URL",
+  urlDescription:
+    "A link like https://github.com/owner/repository. The provider is matched from it.",
+  urlRequired: "Paste a repository URL.",
+  urlInvalid: "That does not look like a URL. Paste the repository's link.",
+  /** Parsed, but no registered provider claims the URL. Informational, never a block. */
+  urlUnmatched:
+    "No provider recognises this URL. Connect one in the next step.",
+  parseFailed:
+    "The URL could not be checked. Connect a provider in the next step.",
+  detailsTitle: "Project",
+  nameLabel: "Project Name",
+  nameRequired: "Project name is required.",
+  identifierLabel: "Identifier",
+  identifierHint: "Used in commands, configuration and branch names.",
+  identifierRequired: "Identifier is required.",
+  descriptionLabel: "Description",
+  workspaceLabel: "Workspace Folder",
+  workspaceHint:
+    "Folder where X-Factory keeps this project's checkouts. Leave empty for the default.",
+} as const;
+
+/**
+ * Copy for the first-run welcome and its checklist (#269, spec #241 stories
+ * 109–111). The step titles use the same words as the actions the rest of the
+ * app offers (CONTEXT.md "UI wording"): Add Project, Connect a Model, Start
+ * Run. Every tick the screen shows comes from real state, so the copy can name
+ * a step as finished only when `deriveSetupChecklist` says it is.
+ */
+export const WELCOME_COPY = {
+  title: "Welcome",
+  subtitle: "Three steps to your first run",
+  /** One line above the steps, counted from the ticks that are really there. */
+  progress: (done: number, total: number) => `${done} of ${total} steps done`,
+  /** A step's state word, on its badge. */
+  done: "Done",
+  todo: "To do",
+  stepTitle: {
+    project: "Add Project",
+    model: "Connect a Model",
+    run: "Start Run",
+  },
+  stepBody: {
+    project: "Add a repository so there are tickets to work on.",
+    model:
+      "A connection must pass Check Connection, and Builder and Reviewer each need a model before a run can start.",
+    run: "Pick a ticket and start your first run.",
+  },
+  /** What a step still needs, one plain sentence per gap. */
+  gap: {
+    "no-project": "No projects yet.",
+    "no-verified-connection": "No connection has passed Check Connection yet.",
+    "roles-not-set": "Builder and Reviewer each need a model.",
+    "no-run": "No runs yet.",
+  },
+  /** The one action that takes the user to where the step is finished. */
+  stepAction: {
+    /** Opens the add-project assistant (#268) through the modal context. */
+    project: "Add Project",
+    /** The same action once a project exists: a quieter way to add another. */
+    projectAgain: "Add Another Project",
+    /** The pane that owns Check Connection, the models and the roles (#274). */
+    model: "Open Settings › Models",
+    run: "Open Tickets",
+  },
+  /** Where the steps that navigate are finished. */
+  stepPath: {
+    model: "/settings?tab=models",
+    run: "/tickets",
+  },
+} as const;

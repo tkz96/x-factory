@@ -8,7 +8,12 @@ button {
   border-radius: var(--radius-pill);
   padding: 0.55rem 1.3rem;
   cursor: pointer;
-  transition: all var(--transition);
+  transition:
+    background-color var(--transition),
+    color var(--transition),
+    border-color var(--transition),
+    transform var(--transition),
+    box-shadow var(--transition);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -24,7 +29,7 @@ button:active,
 .btn-sm:active,
 .btn-circle:active {
   transform: scale(0.95);
-  transition-duration: 90ms;
+  transition-duration: var(--duration-instant);
 }
 
 .btn-primary {
@@ -36,12 +41,12 @@ button:active,
   color: var(--text-on-accent);
   font-weight: 550;
   border-radius: var(--radius-pill);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
-  box-shadow: 0 4px 14px var(--accent-dim);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-primary:disabled {
@@ -56,7 +61,7 @@ button:active,
   justify-content: center;
   background: var(--bg-card);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-pill);
 }
 
@@ -73,7 +78,7 @@ button:active,
   justify-content: center;
   background: var(--red-dim);
   color: var(--red);
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-pill);
 }
 
@@ -88,7 +93,7 @@ button.btn.btn-danger-hover:hover,
 }
 
 .btn-sm {
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 0.5rem 1rem;
   font-size: var(--text-subhead);
   font-weight: 500;
@@ -99,10 +104,10 @@ button.btn.btn-danger-hover:hover,
 }
 
 .btn-circle {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
   border-radius: 50%;
   padding: 0;
   display: inline-flex;
@@ -110,9 +115,13 @@ button.btn.btn-danger-hover:hover,
   justify-content: center;
   background: var(--bg-circle-btn);
   color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
   flex-shrink: 0;
 }
 
@@ -129,24 +138,28 @@ button.btn.btn-danger-hover:hover,
 }
 
 .btn-circle svg {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-md);
+  height: var(--icon-md);
 }
 
 .btn-close {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
   border-radius: 50%;
   background: var(--bg-circle-btn);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
   padding: 0;
 }
 

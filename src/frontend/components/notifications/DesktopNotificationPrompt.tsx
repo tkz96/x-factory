@@ -1,0 +1,54 @@
+// src/frontend/components/notifications/DesktopNotificationPrompt.tsx — The bell's one-time
+// row offering desktop notifications (#265, spec #241). It appears once while permission is
+// undecided, and never asks for permission on its own: Enable is the user action.
+
+import { useState } from "react";
+import { useDesktopNotifications } from "../../hooks/useDesktopNotifications.js";
+import {
+  markPromptAnswered,
+  promptAnswered,
+  shouldOfferDesktopPrompt,
+} from "../../lib/desktop-notifications.js";
+import { Button } from "../ui/Button.js";
+
+export function DesktopNotificationPrompt() {
+  const { ready, enabled, support, enable } = useDesktopNotifications();
+  const [answered, setAnswered] = useState(() => promptAnswered());
+
+  const visible =
+    ready &&
+    shouldOfferDesktopPrompt({
+      enabled,
+      support,
+      alreadyOffered: answered,
+    });
+  if (!visible) return null;
+
+  const answer = () => {
+    markPromptAnswered();
+    setAnswered(true);
+  };
+
+  return (
+    <section className="notification-prompt" aria-label="Desktop notifications">
+      <p className="notification-prompt-text">
+        Get desktop notifications when a run needs you
+      </p>
+      <div className="notification-prompt-actions">
+        <Button
+          variant="primary"
+          size="sm"
+          onPress={() => {
+            answer();
+            void enable();
+          }}
+        >
+          Enable
+        </Button>
+        <Button variant="secondary" size="sm" onPress={answer}>
+          Not Now
+        </Button>
+      </div>
+    </section>
+  );
+}

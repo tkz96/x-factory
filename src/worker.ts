@@ -1,9 +1,5 @@
 // src/worker.ts — Independent Bun background worker process for durable job execution and stage orchestration.
 
-import { bootstrapLLMEnv } from "./env-bootstrap.js";
-
-bootstrapLLMEnv();
-
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
@@ -22,6 +18,11 @@ import {
   type WorkerLogRecord,
 } from "./lease.js";
 import { ProviderError } from "./providers/errors.js";
+import type { ProviderRegistry } from "./providers/registry.js";
+import {
+  PullRequestChecker,
+  type PullRequestCheckResult,
+} from "./pull-request-checker.js";
 import type { Project } from "./shared/types.js";
 import {
   deliverCommandWork,
@@ -39,6 +40,10 @@ export interface WorkerOptions {
   leasePolicy?: Partial<LeasePolicy> | undefined;
   pollIntervalMs?: number | undefined;
   commandPollIntervalMs?: number | undefined;
+  prPollIntervalMs?: number | undefined;
+  prCheckIntervalMs?: number | undefined;
+  prChecker?: PullRequestChecker | undefined;
+  registry?: ProviderRegistry | undefined;
   leaseDurationMs?: number | undefined;
   commandLeaseDurationMs?: number | undefined;
   heartbeatIntervalMs?: number | undefined;
@@ -84,6 +89,8 @@ export class Worker {
   private commandAbortController: AbortController | null = null;
   /** The run whose deliver command is in flight, so a stop for that run can abort it. */
   private commandRunId: string | null = null;
+  readonly prChecker: PullRequestChecker;
+  private prPollIntervalMs: number;
 
   constructor(options?: WorkerOptions) {
     this.workerId =
@@ -97,8 +104,21 @@ export class Worker {
     this.stageExecutorResolver = options?.getStageExecutor ?? getStageExecutor;
     this.pollIntervalMs = options?.pollIntervalMs ?? 1000;
     this.commandPollIntervalMs = options?.commandPollIntervalMs ?? 500;
+    this.prPollIntervalMs = options?.prPollIntervalMs ?? 5000;
     this.shutdownTimeoutMs = options?.shutdownTimeoutMs ?? 5000;
     this.onLog = options?.onLog;
+
+    const workerClock = options?.clock;
+    this.prChecker =
+      options?.prChecker ??
+      new PullRequestChecker({
+        repos,
+        registry: options?.registry,
+        clock: workerClock ? { now: () => workerClock.now() } : undefined,
+        pollIntervalMs: options?.prCheckIntervalMs,
+        onLog: (msg) => this.log(msg),
+        onError: (msg, err) => this.error(msg, err),
+      });
 
     this.leaseManager = new LeaseManager(repos, {
       clock: options?.clock,
@@ -245,6 +265,7 @@ export class Worker {
     this.log("Worker started. Polling for pending jobs and commands...");
     this.pollLoop();
     this.commandPollingLoop();
+    this.prPollingLoop();
   }
 
   async stop(): Promise<void> {
@@ -327,6 +348,21 @@ export class Worker {
     }
   }
 
+  /**
+   * Background PR status polling loop running concurrently with job execution (#271).
+   */
+  private async prPollingLoop(): Promise<void> {
+    while (this.isRunning && !this.isStopping) {
+      try {
+        await this.prChecker.pollDueRuns(this.commandAbortController?.signal);
+      } catch (err: unknown) {
+        this.error("Unexpected error in worker PR polling loop", err);
+      }
+
+      await new Promise((r) => setTimeout(r, this.prPollIntervalMs));
+    }
+  }
+
   async processCommand(command: CommandRecord): Promise<void> {
     if (command.command === "stop") {
       const payload = command.payload as { jobId?: string } | null;
@@ -354,6 +390,8 @@ export class Worker {
       });
     } else if (command.command === "deliver") {
       await this.processDeliverCommand(command);
+    } else if (command.command === "check_pr") {
+      await this.processCheckPrCommand(command);
     } else {
       // Leftover command rows from versions that still had steering (#167)
       // are failed instead of crashing or silently retried.
@@ -362,6 +400,19 @@ export class Worker {
         this.workerId,
         `Unsupported command type "${command.command}"`,
       );
+    }
+  }
+
+  private async processCheckPrCommand(command: CommandRecord): Promise<void> {
+    try {
+      const result = await this.prChecker.checkRun(
+        command.runId,
+        this.commandAbortController?.signal,
+      );
+      this.leaseManager.completeCommand(command.id, this.workerId, result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.leaseManager.failCommand(command.id, this.workerId, message);
     }
   }
 
@@ -482,6 +533,13 @@ export class Worker {
       await this.processCommand(command);
     }
     return commands;
+  }
+
+  /**
+   * Performs one pass of PR polling across all eligible runs in pr_created (#271).
+   */
+  async stepPrCheckOnce(): Promise<PullRequestCheckResult[]> {
+    return this.prChecker.pollDueRuns(this.commandAbortController?.signal);
   }
 
   private async pollLoop(): Promise<void> {

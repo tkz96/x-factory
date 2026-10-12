@@ -1,0 +1,99 @@
+/* src/frontend/components/welcome/SetupChecklist.css — The first-run checklist
+   (#269, spec #241). Tokens only: the step surface, the ring mark and the type
+   scale all come from tokens.css, so every theme, appearance and contrast level
+   is covered by the token sets themselves. */
+
+.welcome-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--content-max-lg);
+}
+
+.welcome-progress {
+  margin: 0;
+  font-size: var(--text-subhead);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.setup-step-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* A ring while the step is open, the success tone once it is done. The fill is
+   a state change the user can follow; the reduced-motion tokens collapse it to
+   the one short crossfade (#252). */
+.setup-step-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-on-accent);
+  transition:
+    background-color var(--transition),
+    border-color var(--transition);
+}
+
+.setup-step-mark[data-done="true"] {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.setup-step-title {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-headline);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.setup-step-body {
+  margin: 0;
+  max-width: 56ch;
+  font-size: var(--text-body);
+  color: var(--text-muted);
+}
+
+/* What the step still needs. Full-contrast text: it is the part to act on. */
+.setup-step-gap {
+  margin: 0;
+  max-width: 56ch;
+  font-size: var(--text-subhead);
+  font-weight: 550;
+  color: var(--text);
+}
+
+.setup-step-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}

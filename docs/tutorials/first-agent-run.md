@@ -37,7 +37,7 @@ Open `.env` in your editor and paste your API key:
 LLM_API_KEY=your-api-key-here
 ```
 
-> **Tip**: X-Factory automatically detects the model provider based on key prefix (`sk-ant-*` for Anthropic Claude, `AIzaSy*` for Google Gemini, `sk-*` for OpenAI).
+> **Tip**: X-Factory automatically detects the model provider based on key prefix (`sk-ant-*` for Anthropic Claude, `AIzaSy*` or `AQ.*` for Google Gemini, `sk-*` for OpenAI). Set `LLM_PROVIDER` (`gemini`, `anthropic` or `openai`) when your key has another format. On first launch the key is also saved as a model connection; see `docs/reference/security.md`.
 
 ---
 
@@ -66,19 +66,20 @@ http://localhost:5173
 
 On first launch, X-Factory starts with an empty workspace.
 
-1. Navigate to **Projects** in the left sidebar (or click the **"Onboard Project"** button on the home view).
-2. Click **"+ Onboard Project"** to open the wizard modal.
+1. Open **Projects** in the section switcher at the top of the window (on a phone, the bottom tab bar).
+2. Click **"Add Project"** in the toolbar to open the assistant sheet.
 3. Provide a project name and select or input the absolute path to a local Git repository on your machine.
 4. Optionally configure your issue tracker connection (GitHub Issues, Azure DevOps, or Jira).
 5. Click **"Save Project"**.
 
-Your project card will appear in the workspace with repository readiness indicators.
+Your project appears in the Projects list, and its detail pane shows the
+repository, tracker and branch it is wired to.
 
 ---
 
 ## Step 4: Create and Observe a Run
 
-1. In the top navigation bar, click **"+ New Run"**.
+1. Open **Tickets** in the section switcher and click **"Start Run"** in the toolbar.
 2. Select your newly onboarded project and primary repository.
 3. Enter a ticket title and prompt or task description (for example: `"Add health check endpoint and test"`).
 4. Click **"Start Run"**.

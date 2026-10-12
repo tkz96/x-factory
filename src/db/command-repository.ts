@@ -4,7 +4,7 @@ import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
 
-export type CommandType = "stop" | "deliver";
+export type CommandType = "stop" | "deliver" | "check_pr";
 export type CommandStatus = "pending" | "claimed" | "completed" | "failed";
 
 export interface CommandRecord {
@@ -334,6 +334,18 @@ export class CommandRepository {
       )
       .get(runId, command);
     return row ? rowToRecord(row) : null;
+  }
+
+  /**
+   * Checks whether a pending or claimed command of a given type exists for a run.
+   */
+  hasActiveCommand(runId: string, command: CommandType): boolean {
+    const row = this.db
+      .prepare<{ count: number }, [string, string]>(
+        "SELECT COUNT(*) AS count FROM run_commands WHERE run_id = ? AND command = ? AND status IN ('pending', 'claimed');",
+      )
+      .get(runId, command);
+    return (row?.count ?? 0) > 0;
   }
 
   /**

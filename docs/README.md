@@ -35,6 +35,7 @@ Reference guides provide factual, objective technical specifications, schemas, m
 - **[Async State Coverage Contract](./reference/state-coverage.md)**: The five-state feedback taxonomy (loading/empty/partial/error/stale), derivation precedence, mutation and input state coverage requirements, and the feedback-family import rule.
 - **[Production Readiness Checklist and Evaluation Criteria](./reference/production-readiness-checklist.md)**: System verification standards across the twelve production pillars.
 - **[Provider API](./reference/provider-api.md)**: The provider-agnostic HTTP surface for provider discovery, configuration, credential verification and Quick-URL resolution.
+- **[App-wide Events API](./reference/events-api.md)**: The snapshot and the app-wide SSE stream, with their cursor, replay, polling and keepalive rules.
 - **[Security Model and Execution Boundary](./reference/security.md)**: The autonomous execution boundary, sandbox requirements, and credential management constraints.
 
 ---

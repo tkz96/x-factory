@@ -7,7 +7,11 @@ import { PlanExecutor } from "../src/executors/plan.js";
 import { buildRalphPrompt } from "../src/prompts.js";
 import type { Project } from "../src/shared/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
-import { tempArtifactsDirs } from "./helpers/scripted-review-session.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
+import {
+  scriptedReviewSession,
+  tempArtifactsDirs,
+} from "./helpers/scripted-review-session.js";
 import { executeStage } from "./helpers/stage-harness.js";
 
 describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
@@ -127,25 +131,27 @@ describe("Autonomous Ralph Loop Execution (Ticket 02)", () => {
     });
   });
 
-  describe("PlanExecutor & Default Plan Synthesis", () => {
-    it("generates structured execution plan when run.plan is missing", async () => {
+  describe("PlanExecutor with the Builder model (#282)", () => {
+    it("persists the plan the Builder writes, naming real files and tests", async () => {
       const { run, runRepo, repos } = setupTestContext({
         status: "planning",
         plan: "",
       });
-      const executor = new PlanExecutor();
+      const executor = new PlanExecutor({
+        resolveRole: stubResolveRole,
+        sessionFactory: async () =>
+          scriptedReviewSession(
+            "# Execution Plan for #T-200: Autonomous Ralph Ticket\n\n## Task 1: Failing test\n- Add `test/attempt-loop.test.ts` for the loop.\n\n## Task 2: Implementation\n- Change `src/attempt-loop.ts`.\n",
+          ),
+      });
 
       const result = await executeStage(repos, executor, run.id, "plan");
 
       expect(result.outcome).toBe("passed");
 
       const updatedRun = runRepo.get(run.id);
-      expect(updatedRun?.plan).toContain("Execution Plan for #T-200");
-      expect(updatedRun?.plan).toContain("Task 1: Setup & Tests");
-      expect(updatedRun?.plan).toContain("Task 2: Core Implementation");
-      expect(updatedRun?.plan).toContain(
-        "Task 3: Quality Verification & Refactor",
-      );
+      expect(updatedRun?.plan).toContain("test/attempt-loop.test.ts");
+      expect(updatedRun?.plan).toContain("src/attempt-loop.ts");
     });
   });
 });

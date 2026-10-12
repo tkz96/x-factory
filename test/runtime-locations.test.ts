@@ -9,8 +9,10 @@ import {
   getBackupsDir,
   getDatabasePath,
   getDataDir,
+  getPiAgentDir,
   getProjectsConfigPath,
   getRunDir,
+  getRunPiAgentDir,
   getSettingsPath,
   getWorktreePath,
 } from "../src/paths.js";
@@ -61,6 +63,10 @@ describe("Runtime locations derive from X_FACTORY_DATA_DIR (#175)", () => {
     expect(getWorktreePath("proj-1", "run-1")).toBe(
       path.join(dataDir, "projects", "proj-1", "worktrees", "run-1"),
     );
+    expect(getPiAgentDir()).toBe(path.join(dataDir, "pi-agent"));
+    expect(getRunPiAgentDir(getRunDir("proj-1", "run-1"))).toBe(
+      path.join(dataDir, "projects", "proj-1", "runs", "run-1", "pi-agent"),
+    );
   });
 
   test("saveSettings writes settings.json into the data dir, not the home directory", async () => {
@@ -78,14 +84,14 @@ describe("Runtime locations derive from X_FACTORY_DATA_DIR (#175)", () => {
   });
 
   test("loadSettings reads settings.json from the data dir", async () => {
-    await saveSettings({ theme: "light" });
+    await saveSettings({ appearance: "light" });
     await writeFile(
       path.join(dataDir, "settings.json"),
-      JSON.stringify({ theme: "dark" }),
+      JSON.stringify({ appearance: "dark" }),
     );
 
     const settings = await loadSettings();
-    expect(settings.theme).toBe("dark");
+    expect(settings.appearance).toBe("dark");
   });
 
   test("the projects configuration keeps its X_FACTORY_CONFIG_PATH override", () => {

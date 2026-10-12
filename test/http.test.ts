@@ -67,7 +67,7 @@ describe("HTTP Response Helpers", () => {
 
 describe("Static Asset Serving", () => {
   it("serves css file with text/css content type", async () => {
-    const res = await serveStatic("/styles.css", PUBLIC_DIR);
+    const res = await serveStatic("/assets/tokens.css", PUBLIC_DIR);
     assert.equal(res.status, 200);
     assert.ok(res.headers.get("Content-Type")?.includes("text/css"));
   });

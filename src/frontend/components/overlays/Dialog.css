@@ -1,0 +1,140 @@
+/* src/frontend/components/overlays/Dialog.css — Dialog and Sheet modal overlay styles (#250) */
+
+.xf-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal-backdrop);
+  padding: var(--space-4);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  transition: opacity var(--duration-fast) var(--ease-out);
+  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
+}
+
+.xf-dialog-modal {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: var(--z-modal);
+  outline: none;
+}
+
+/* The primitive is structure only: each dialog brings its own surface
+   (modal-dialog, xf-alert-dialog-modal, xf-sheet-modal), so one surface
+   never stacks on another. */
+.xf-dialog-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  outline: none;
+  animation: xfDialogFadeIn var(--duration-fast) var(--ease-out);
+}
+
+.xf-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-width) solid var(--border);
+  flex-shrink: 0;
+}
+
+.xf-dialog-title {
+  font-family: var(--font-display);
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.022em;
+  margin: 0;
+}
+
+.xf-dialog-body {
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.xf-dialog-footer {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: var(--border-width) solid var(--border-subtle);
+  background: var(--bg-modal);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* The dialog's close control is the icon-button block (#251): its surface, its
+   tap size and its focus ring come from controls.css, so nothing is redefined
+   here. */
+
+@keyframes xfDialogFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Closing (#250): React Aria keeps the overlay mounted, marks it `data-exiting`, waits
+   for these animations and only then unmounts it. Leaving takes the quicker rung of the
+   motion ladder (#252) than arriving, because a dismissal should get out of the way: the
+   backdrop and the surface crossfade, and the surface settles a hair smaller. */
+.xf-dialog-overlay[data-exiting] {
+  animation: xfDialogFadeOut var(--duration-instant) var(--ease-in);
+}
+
+.xf-dialog-modal[data-exiting] {
+  animation: xfDialogFadeOut var(--duration-instant) var(--ease-in);
+}
+
+.xf-dialog-overlay[data-exiting] .xf-dialog-content {
+  animation: xfDialogContentOut var(--duration-instant) var(--ease-in);
+}
+
+@keyframes xfDialogFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes xfDialogContentOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* Reduced motion (#252): the scale drops, the crossfade stays — the same keyframes
+   play as a plain fade. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfDialogContentOut {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}
+
+/* Opening is opacity-only, so the reduced-motion ladder in tokens.css (every
+   --duration-* collapses to one short beat) is the whole reduced path: the
+   overlay crossfades and never moves. */

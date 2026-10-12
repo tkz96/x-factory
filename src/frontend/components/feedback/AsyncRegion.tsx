@@ -10,6 +10,9 @@
 // valid→green, loading/stale→neutral.
 
 import type { ReactNode } from "react";
+import { Badge } from "../ui/Badge.js";
+import { PlaceholderRows } from "../ui/ListRow.js";
+import { Spinner } from "../ui/Spinner.js";
 import {
   formatRetryCountdown,
   resolveErrorCopy,
@@ -43,6 +46,13 @@ export interface AsyncRegionProps {
   emptyAction?: ReactNode | undefined;
   /** Region content — rendered in ready, partial, and stale. */
   children?: ReactNode | undefined;
+  /**
+   * Lists only: how many static placeholder rows to reserve while loading. The
+   * rows hold the height the loaded rows will have, so the list never jumps
+   * (docs/reference/state-coverage.md). Without it, loading is the standard
+   * inline spinner, for small waits.
+   */
+  placeholderRows?: number | undefined;
 }
 
 export function AsyncRegion({
@@ -54,6 +64,7 @@ export function AsyncRegion({
   emptyCopy,
   emptyAction,
   children,
+  placeholderRows,
 }: AsyncRegionProps) {
   const normalized = unwrapNormalizedError(derived.error);
   const retryAfterMs = normalized?.retryAfterMs;
@@ -64,11 +75,22 @@ export function AsyncRegion({
     derived.state === "partial" || derived.suppressed.includes("partial");
 
   if (derived.state === "loading") {
+    // Lists reserve their rows (static placeholders, no shimmer); everything
+    // else is the one standard spinner. Both announce the wait through the
+    // status role, so nothing here is silent.
+    if (placeholderRows !== undefined) {
+      return (
+        <div className="async-region async-region--loading async-region--rows">
+          <span className="sr-only" role="status">
+            {STATE_COPY.loading}
+          </span>
+          <PlaceholderRows count={placeholderRows} />
+        </div>
+      );
+    }
     return (
-      <div className="async-region async-region--loading" role="status">
-        <svg className="icon icon-lg icon-spin" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-loader-2" />
-        </svg>
+      <div className="async-region async-region--loading">
+        <Spinner label={STATE_COPY.loading} />
         <p className="async-region-hint">{STATE_COPY.loading}</p>
       </div>
     );
@@ -76,7 +98,7 @@ export function AsyncRegion({
 
   if (derived.state === "error") {
     return (
-      <div className="async-region async-region--error" role="status">
+      <div className="async-region async-region--error" role="alert">
         <svg className="icon icon-xl" aria-hidden="true">
           <use href="/assets/icons/sprite.svg#icon-alert-circle" />
         </svg>
@@ -122,7 +144,7 @@ export function AsyncRegion({
     <div className="async-region">
       {derived.state === "stale" && (
         <div className="async-region-stale">
-          <span className="async-region-stale-badge">{STATE_COPY.stale}</span>
+          <Badge className="async-region-stale-badge">{STATE_COPY.stale}</Badge>
           {onRetry !== undefined && (
             <RetryAction onRetry={onRetry} label={STATE_COPY.refresh} />
           )}

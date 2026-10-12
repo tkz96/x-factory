@@ -9,19 +9,30 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
+import { PROJECTS_COPY } from "../src/frontend/components/feedback/copy-map.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
+import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
-import { HistoryView } from "../src/frontend/views/HistoryView.js";
 import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
+import { RunsView } from "../src/frontend/views/RunsView.js";
+import type { Project, Run } from "../src/shared/types.js";
 
-type Project = Parameters<
-  typeof import("../src/frontend/components/projects/ProjectCard.js").ProjectCard
->[0]["project"];
+afterEach(() => {
+  // Each test starts from an empty document: the renders here are queries by
+  // role, and a screen left mounted by the previous test would answer them.
+  cleanup();
+});
 
 afterAll(async () => {
   cleanup();
@@ -34,7 +45,7 @@ function makeClient(): QueryClient {
   });
 }
 
-function renderView(ui: React.ReactElement, client: QueryClient) {
+function renderView(ui: React.ReactElement, client: QueryClient, path = "/") {
   return render(
     React.createElement(
       QueryClientProvider,
@@ -42,9 +53,21 @@ function renderView(ui: React.ReactElement, client: QueryClient) {
       React.createElement(
         ModalProvider,
         null,
-        React.createElement(MemoryRouter, null, ui),
+        React.createElement(MemoryRouter, { initialEntries: [path] }, ui),
       ),
     ),
+  );
+}
+
+/** Runs sits under the shared project scope (#260); an empty list keeps it idle. */
+function renderRuns(client: QueryClient, path = "/") {
+  if (client.getQueryData(queryKeys.projects()) === undefined) {
+    client.setQueryData(queryKeys.projects(), []);
+  }
+  return renderView(
+    React.createElement(ProjectProvider, null, React.createElement(RunsView)),
+    client,
+    path,
   );
 }
 
@@ -89,9 +112,7 @@ function makeRun(status: string) {
     repairAttempts: 0,
     artifactsDir: "/tmp/artifacts",
     worktreePath: "/tmp/worktree",
-  } as Parameters<
-    typeof import("../src/frontend/components/history/RunHistoryCard.js").RunHistoryCard
-  >[0]["run"];
+  } as Run;
 }
 
 describe("ProjectsView — feedback-family read region", () => {
@@ -129,38 +150,33 @@ describe("ProjectsView — feedback-family read region", () => {
     expect(container.querySelector("button.retry-action")).not.toBeNull();
   });
 
-  it("renders the empty active tab with guidance and the onboard call-to-action", () => {
+  it("renders the first run's empty state with guidance and the Add Project action", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.projects(), []);
-    const { container } = renderView(React.createElement(ProjectsView), client);
+    const view = renderView(React.createElement(ProjectsView), client);
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain(
-      "Click Onboard Project to connect a workspace repository.",
-    );
-    const cta = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.closest(".async-region--empty"),
-    );
-    expect(cta?.textContent).toContain("Onboard Project");
+    const empty = view.getByRole("status");
+    expect(empty.textContent).toContain(PROJECTS_COPY.empty);
+    expect(
+      view.getByRole("button", { name: PROJECTS_COPY.addProject }),
+    ).toBeTruthy();
   });
 
-  it("renders the empty archived tab with guidance and no call-to-action", () => {
+  it("renders the empty archived filter with guidance and no call-to-action", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.projects(), [
       makeProject({ id: "proj-active", archived: false }),
     ]);
-    const { container } = renderView(React.createElement(ProjectsView), client);
+    const view = renderView(React.createElement(ProjectsView), client);
 
-    const archivedTab = container.querySelector("#btn-toggle-archived");
-    if (!(archivedTab instanceof HTMLElement)) {
-      throw new Error("archived tab button missing");
-    }
-    fireEvent.click(archivedTab);
+    fireEvent.click(
+      view.getByRole("radio", { name: PROJECTS_COPY.filterArchived }),
+    );
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain("No archived projects found.");
+    const empty = view.getByRole("status");
+    expect(empty.textContent).toContain(PROJECTS_COPY.emptyArchived);
     expect(
-      container.querySelector(".async-region--empty .async-region-actions"),
+      view.queryByRole("button", { name: PROJECTS_COPY.addProject }),
     ).toBeNull();
   });
 
@@ -174,25 +190,30 @@ describe("ProjectsView — feedback-family read region", () => {
       }),
       makeProject({ id: "proj-archived", archived: true }),
     ]);
-    const { container } = renderView(React.createElement(ProjectsView), client);
+    const view = renderView(React.createElement(ProjectsView), client);
 
-    expect(container.querySelector("#projects-container")).not.toBeNull();
-    expect(container.textContent).toContain("Ready Project");
-    expect(container.querySelector(".async-region--empty")).toBeNull();
-    expect(container.querySelector(".async-region--loading")).toBeNull();
+    const row = view.getByRole("link", {
+      name: PROJECTS_COPY.openProject("Ready Project"),
+    });
+    expect(row.getAttribute("href")).toBe("/projects/proj-active");
+    expect(view.container.querySelector(".async-region--empty")).toBeNull();
+    expect(view.container.querySelector(".async-region--loading")).toBeNull();
   });
 });
 
-describe("HistoryView — feedback-family read region", () => {
-  it("renders loading as the reserved spinner region while the query is pending", () => {
+describe("Runs — feedback-family read region (#258, formerly History)", () => {
+  const DONE = "/runs?filter=done";
+
+  it("announces loading while the query is pending and shows no rows yet", () => {
     const client = makeClient();
     client.setQueryDefaults(queryKeys.runs(), {
       queryFn: () => new Promise(() => {}),
     });
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const view = renderRuns(client, DONE);
+    const s = within(view.container);
 
-    expect(container.querySelector(".async-region--loading")).not.toBeNull();
-    expect(container.textContent).toContain("Loading…");
+    expect(s.getByRole("status").textContent).toContain("Loading…");
+    expect(s.queryAllByRole("link")).toHaveLength(0);
   });
 
   it("renders a primary error with canonical copy, a retry, and never the raw payload", async () => {
@@ -202,66 +223,59 @@ describe("HistoryView — feedback-family read region", () => {
         throw new Error("raw provider body");
       },
     });
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const view = renderRuns(client, DONE);
+    const s = within(view.container);
 
     await waitFor(
       () => {
         if (
-          !container.textContent?.includes("The request failed. Try again.")
+          !s
+            .queryByRole("alert")
+            ?.textContent?.includes("The request failed. Try again.")
         ) {
           throw new Error("canonical error copy missing");
         }
       },
       { timeout: 4000, interval: 100 },
     );
-    expect(container.textContent).not.toContain("raw provider body");
-    expect(container.querySelector("button.retry-action")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("raw provider body");
+    expect(within(s.getByRole("alert")).getByRole("button")).toBeTruthy();
   });
 
-  it("renders true empty with launch guidance and a launch call-to-action", () => {
+  it("says a running list is empty and offers the way to start one from Tickets", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), []);
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const view = renderRuns(client, "/runs");
+    const s = within(view.container);
 
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain(
-      "No factory runs found. Launch your first run to populate history.",
-    );
-    const cta = container.querySelector(
-      ".async-region--empty .async-region-actions button",
-    );
-    expect(cta?.textContent).toContain("Launch New Run");
-  });
-
-  it("renders a filter that matches nothing with filter guidance and no CTA", () => {
-    const client = makeClient();
-    client.setQueryData(queryKeys.runs(), [makeRun("executing")]);
-    const { container } = renderView(React.createElement(HistoryView), client);
-
-    const deliveredFilter = Array.from(
-      container.querySelectorAll("button"),
-    ).find((b) => b.textContent === "Delivered (PR)");
-    if (!(deliveredFilter instanceof HTMLElement)) {
-      throw new Error("Delivered (PR) filter button missing");
-    }
-    fireEvent.click(deliveredFilter);
-
-    expect(container.querySelector(".async-region--empty")).not.toBeNull();
-    expect(container.textContent).toContain(
-      "No runs matching the “completed” filter.",
+    expect(s.getByRole("status").textContent).toContain(
+      "No runs are working right now. Start one from Tickets.",
     );
     expect(
-      container.querySelector(".async-region--empty .async-region-actions"),
-    ).toBeNull();
+      s.getByRole("link", { name: /Go to Tickets/ }).getAttribute("href"),
+    ).toBe("/tickets");
   });
 
-  it("renders ready content with no feedback chrome", () => {
+  it("says a filter that matches nothing, with no action to take", () => {
+    const client = makeClient();
+    client.setQueryData(queryKeys.runs(), [makeRun("executing")]);
+    const view = renderRuns(client, DONE);
+    const s = within(view.container);
+
+    expect(s.getByRole("status").textContent).toContain(
+      "No finished runs yet.",
+    );
+    expect(s.queryByRole("link", { name: /Go to Tickets/ })).toBeNull();
+  });
+
+  it("renders ready content with no loading or empty message", () => {
     const client = makeClient();
     client.setQueryData(queryKeys.runs(), [makeRun("pr_created")]);
-    const { container } = renderView(React.createElement(HistoryView), client);
+    const view = renderRuns(client, DONE);
+    const s = within(view.container);
 
-    expect(container.textContent).toContain("TICK-42");
-    expect(container.querySelector(".async-region--empty")).toBeNull();
-    expect(container.querySelector(".async-region--loading")).toBeNull();
+    expect(s.getByText(/TICK-42/)).toBeTruthy();
+    expect(s.queryByRole("status")).toBeNull();
+    expect(s.queryByRole("alert")).toBeNull();
   });
 });

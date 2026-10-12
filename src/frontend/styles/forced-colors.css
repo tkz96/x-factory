@@ -1,0 +1,280 @@
+/* X-Factory forced colours (#249): under Windows High Contrast and other forced-colors
+ * modes the browser replaces custom colours, so controls, borders, selection, status
+ * and focus rings are drawn with system colour keywords here. Widths come from tokens.
+ * Selectors are prefixed with :root so they outrank component stylesheets, which the
+ * bundle loads after this layer. */
+
+@media (forced-colors: active) {
+  /* Components drop their outline and draw a box-shadow ring instead; box-shadow is
+   * lost in forced colours, so the focus ring is an outline here, on every control. */
+  :root :is(button, a, input, textarea, select, [tabindex]):focus-visible {
+    outline: var(--border-width-thick) solid Highlight;
+    outline-offset: var(--space-0-5);
+  }
+
+  :root ::selection {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root a {
+    color: LinkText;
+  }
+
+  :root button,
+  :root .btn-primary,
+  :root .btn-secondary,
+  :root .btn-danger,
+  :root .btn-circle,
+  :root .btn-close,
+  :root .btn-sm,
+  :root .btn-danger-hover,
+  :root .btn-warning,
+  :root .settings-category,
+  :root .theme-toggle {
+    background: ButtonFace;
+    color: ButtonText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root button:disabled,
+  :root .btn-primary:disabled,
+  :root .btn-secondary:disabled,
+  :root .btn-danger:disabled {
+    color: GrayText;
+    border-color: GrayText;
+  }
+
+  /* Selected navigation rows paint Highlight themselves: without opting out,
+     the browser's Canvas backplate hides HighlightText (as on segments). */
+  :root .settings-category[aria-current="page"],
+  :root .settings-category[aria-current="page"] *,
+  :root .projects-list-row[aria-current="page"],
+  :root .projects-list-row[aria-current="page"] * {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root input,
+  :root textarea,
+  :root select,
+  :root .form-select,
+  :root .form-input,
+  :root .code-input {
+    background: Field;
+    color: FieldText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root .badge,
+  :root .badge-info,
+  :root .badge-warning,
+  :root .badge-error,
+  :root .badge-neutral,
+  :root .badge-status-active,
+  :root .badge-status-archived,
+  :root .status-pill.ready,
+  :root .status-pill.pending,
+  :root .status-pill.error,
+  :root .role-badge,
+  :root .primary-badge,
+  :root .knowledge-badge {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  /* Building blocks (#251): every control, field, badge and row keeps its
+   * boundary, selection and disabled state in system colours. */
+  :root .ui-button,
+  :root .ui-button--primary,
+  :root .ui-button--secondary,
+  :root .ui-button--danger,
+  :root .ui-button--quiet,
+  :root .ui-icon-button,
+  :root .ui-segmented,
+  :root .ui-segment {
+    background: ButtonFace;
+    color: ButtonText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  /* The browser paints a Canvas backplate behind text in forced colours, which
+     hid HighlightText on a selected segment. Opt the segment out of forced
+     adjustment and give it system colours itself, backplate and all. */
+  :root .ui-segment[data-selected],
+  :root .ui-segment[data-selected] * {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root .ui-segment-count,
+  :root .tab-count {
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  :root .ui-button[data-disabled],
+  :root .ui-icon-button[data-disabled],
+  :root .ui-segment[data-disabled],
+  :root .ui-switch[data-disabled] {
+    color: GrayText;
+    border-color: GrayText;
+  }
+
+  :root .ui-field,
+  :root .ui-field-input,
+  :root .ui-textarea,
+  :root .ui-select-trigger {
+    background: Field;
+    color: FieldText;
+    border: var(--border-width) solid ButtonBorder;
+  }
+
+  :root .ui-field-label {
+    color: FieldText;
+  }
+
+  :root .ui-select-popover,
+  :root .ui-select-listbox {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-select-item[data-focused] {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root .ui-switch {
+    color: CanvasText;
+  }
+
+  :root .ui-switch-track {
+    background: ButtonFace;
+    border-color: ButtonBorder;
+  }
+
+  :root .ui-switch[data-selected] .ui-switch-track {
+    background: Highlight;
+    border-color: Highlight;
+  }
+
+  :root .ui-switch-thumb {
+    background: CanvasText;
+  }
+
+  :root .ui-switch[data-selected] .ui-switch-thumb {
+    background: HighlightText;
+  }
+
+  :root .ui-badge,
+  :root .ui-badge--neutral,
+  :root .ui-badge--info,
+  :root .ui-badge--success,
+  :root .ui-badge--warning,
+  :root .ui-badge--error {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-list-row,
+  :root .ui-list-row--pressable,
+  :root .ui-list-row--placeholder {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-placeholder-line {
+    background: GrayText;
+  }
+
+  :root .card,
+  :root .metric-card,
+  :root .telemetry-card,
+  :root .integration-row {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  /* Component-local controls (#249): buttons, links and menu items keep a system
+     button face and border; fields take the system field colours; badges, pills,
+     tooltips and table frames take canvas text colours. */
+  :root .xf-alert-dialog-btn,
+  :root .xf-alert-dialog-btn-cancel,
+  :root .xf-alert-dialog-btn-danger,
+  :root .xf-alert-dialog-btn-primary,
+  :root .xf-dialog-close-btn,
+  :root .xf-menu-item,
+  :root .xf-menu-item-danger,
+  :root .flow-btn-tool,
+  :root .flow-modal-close-btn,
+  :root .diff-modal-close-btn,
+  :root .react-flow__controls-button,
+  :root .md-copy-btn,
+  :root .docs-nav-btn,
+  :root .docs-back-link,
+  :root .docs-toc-link,
+  :root .toolbar-select,
+  :root .toolbar-gear,
+  :root .mobile-tab-bar,
+  :root .command-palette-option {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonBorder;
+  }
+
+  :root .docs-search-field,
+  :root .docs-search-group,
+  :root .docs-search-group-header,
+  :root .docs-search-section-item,
+  :root .docs-search-highlight,
+  :root .docs-search-spinner,
+  :root .repo-settings-input,
+  :root .repositories-filter-input,
+  :root .run-chat-input,
+  :root .search-box {
+    background: Field;
+    color: FieldText;
+    border-color: ButtonBorder;
+  }
+
+  :root .xf-tooltip,
+  :root .tooltip-badge,
+  :root .tooltip-popover,
+  :root .flow-node-badge,
+  :root .flow-diagram-badge,
+  :root .badge-accent,
+  :root .badge-success,
+  :root .badge-danger,
+  :root .badge-success-subtle,
+  :root .badge-danger-subtle,
+  :root .nav-badge,
+  :root .notification-badge,
+  :root .async-region-stale-badge,
+  :root .chat-bubble-badge,
+  :root .run-chat-badge,
+  :root .model-badge,
+  :root .model-badge--verified,
+  :root .dual-role-badge,
+  :root .connection-status-pill,
+  :root .role-badge-archived,
+  :root .filter-pill,
+  :root .repos-table-container,
+  :root .repos-table,
+  :root .docs-meta-table {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .pill-dot {
+    background: CanvasText;
+  }
+}

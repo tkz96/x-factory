@@ -25,6 +25,13 @@
   text-align: center;
 }
 
+/* Lists reserve static placeholder rows instead of the spinner(#251): the region
+   holds the height the loaded rows will have, and the rows are never animated. */
+.async-region--rows {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
 .async-region--error .icon {
   color: var(--red);
 }
@@ -35,7 +42,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-6) var(--space-4);
-  border: 1px dashed var(--border);
+  border: var(--border-width) dashed var(--border);
   border-radius: var(--radius-sm);
   text-align: center;
 }
@@ -47,7 +54,10 @@
 .async-region-hint {
   font-size: var(--text-footnote);
   color: var(--text-muted);
-  max-width: var(--space-8);
+  /* Readable measure; centred inside the flex column. */
+  max-width: 36ch;
+  text-align: center;
+  text-wrap: balance;
   line-height: 1.5;
 }
 
@@ -68,7 +78,7 @@
 
 .async-region-stale-badge {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-pill);
   color: var(--text-muted);
   font-size: var(--text-caption-1);

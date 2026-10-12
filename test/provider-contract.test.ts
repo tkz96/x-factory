@@ -74,6 +74,17 @@ describe("provider contract", () => {
     expect(hasCapability(stubProvider, "listTickets")).toBe(false);
     expect(hasCapability(stubProvider, "createPullRequest")).toBe(false);
     expect(hasCapability(stubProvider, "findExistingPullRequest")).toBe(false);
+    expect(hasCapability(stubProvider, "getPullRequestState")).toBe(false);
+  });
+
+  test("GitHub and Azure providers expose getPullRequestState while preserving create-only invariant", () => {
+    const github = requireProvider("github");
+    const azure = requireProvider("azure");
+
+    expect(hasCapability(github, "getPullRequestState")).toBe(true);
+    expect(hasCapability(azure, "getPullRequestState")).toBe(true);
+    expect(assertCreateOnlyInvariant(github)).toBeUndefined();
+    expect(assertCreateOnlyInvariant(azure)).toBeUndefined();
   });
 
   test("type-guard narrows to the callable capability", () => {

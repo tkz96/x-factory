@@ -231,6 +231,36 @@ describe("Project Onboarding & Management APIs", () => {
     assert.equal(body.name, "Updated Product Name");
   });
 
+  it("PATCH /api/projects/:id saves an edited repository path and commands (#283)", async () => {
+    const current = (await (
+      await fetch(`${baseUrl}/api/projects/${testProjectId}`)
+    ).json()) as {
+      repositories: Array<Record<string, unknown> & { id: string }>;
+    };
+    const [first, ...rest] = current.repositories;
+    assert.ok(first, "the test project has a repository");
+    const edited = {
+      ...first,
+      path: path.join(tempDir, "edited-checkout"),
+      commands: { test: "bun test", lint: "bun run lint" },
+    };
+
+    const res = await fetch(`${baseUrl}/api/projects/${testProjectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repositories: [edited, ...rest] }),
+    });
+    assert.equal(res.status, 200);
+
+    const reread = (await (
+      await fetch(`${baseUrl}/api/projects/${testProjectId}`)
+    ).json()) as {
+      repositories: Array<{ path: string; commands?: Record<string, string> }>;
+    };
+    assert.equal(reread.repositories[0]?.path, edited.path);
+    assert.deepEqual(reread.repositories[0]?.commands, edited.commands);
+  });
+
   it("POST /api/projects/inspect-repository inspects a directory", async () => {
     const repoDir = path.join(tempDir, "sample-repo");
     await execStrict("git", ["init", repoDir], { envPolicy: "inherit" });

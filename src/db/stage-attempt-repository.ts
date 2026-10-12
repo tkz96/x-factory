@@ -2,7 +2,48 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { modelKey } from "../shared/model-key.js";
+import type {
+  ModelRoleName,
+  ModelUsage,
+  ModelUse,
+  StageModelUse,
+} from "../shared/types.js";
 import { parseJsonColumn, serializeJsonColumn } from "./row-codec.js";
+import { startOfUtcDay } from "./utc-day.js";
+
+/** The model columns of a stage attempt row (#279). */
+interface AttemptModelRow {
+  run_id: string;
+  stage: string;
+  attempt: number;
+  started_at: string;
+  model_role: string | null;
+  connection_id: string | null;
+  connection_name: string | null;
+  api_type: string | null;
+  model_id: string | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_usd: number | null;
+}
+
+function rowToModelUse(row: AttemptModelRow): StageModelUse {
+  const use: StageModelUse = {
+    role: (row.model_role ?? "builder") as ModelRoleName,
+    connectionId: row.connection_id ?? "",
+    connectionName: row.connection_name ?? "",
+    apiType: row.api_type ?? "",
+    modelId: row.model_id ?? "",
+    stage: row.stage,
+    attempt: row.attempt,
+    startedAt: row.started_at,
+  };
+  if (row.tokens_in !== null) use.tokensIn = row.tokens_in;
+  if (row.tokens_out !== null) use.tokensOut = row.tokens_out;
+  if (row.cost_usd !== null) use.costUsd = row.cost_usd;
+  return use;
+}
 
 export type StageAttemptStatus =
   | "running"
@@ -243,5 +284,146 @@ export class StageAttemptRepository {
     >(query);
     const row = stmt.get({ $runId: runId, $stage: stage });
     return row ? rowToRecord(row) : null;
+  }
+
+  /** Records the model an attempt runs on, as it is now (#279). */
+  recordModel(id: string, model: ModelUse): void {
+    this.db
+      .prepare(
+        `UPDATE stage_attempts
+         SET model_role = $role, connection_id = $connectionId,
+             connection_name = $connectionName, api_type = $apiType,
+             model_id = $modelId, updated_at = $now
+         WHERE id = $id`,
+      )
+      .run({
+        $id: id,
+        $role: model.role,
+        $connectionId: model.connectionId,
+        $connectionName: model.connectionName,
+        $apiType: model.apiType,
+        $modelId: model.modelId,
+        $now: new Date().toISOString(),
+      });
+  }
+
+  /** Adds reported tokens and cost to an attempt's running totals (#279). */
+  addUsage(id: string, usage: ModelUsage): void {
+    this.db
+      .prepare(
+        `UPDATE stage_attempts
+         SET tokens_in = CASE WHEN $tokensIn IS NULL THEN tokens_in ELSE COALESCE(tokens_in, 0) + $tokensIn END,
+             tokens_out = CASE WHEN $tokensOut IS NULL THEN tokens_out ELSE COALESCE(tokens_out, 0) + $tokensOut END,
+             cost_usd = CASE WHEN $costUsd IS NULL THEN cost_usd ELSE COALESCE(cost_usd, 0) + $costUsd END,
+             updated_at = $now
+         WHERE id = $id`,
+      )
+      .run({
+        $id: id,
+        $tokensIn: usage.tokensIn ?? null,
+        $tokensOut: usage.tokensOut ?? null,
+        $costUsd: usage.costUsd ?? null,
+        $now: new Date().toISOString(),
+      });
+  }
+
+  /** The models a run's attempts used, oldest first; attempts with no model are left out (#279). */
+  listModelsForRun(runId: string): StageModelUse[] {
+    return this.listModels("WHERE run_id = $runId AND model_id IS NOT NULL", {
+      $runId: runId,
+    });
+  }
+
+  /** Every run's attempt models, grouped by run ID, for listing runs (#279). */
+  listModelsByRun(): Map<string, StageModelUse[]> {
+    const byRun = new Map<string, StageModelUse[]>();
+    for (const row of this.modelRows("WHERE model_id IS NOT NULL", {})) {
+      const list = byRun.get(row.run_id) ?? [];
+      list.push(rowToModelUse(row));
+      byRun.set(row.run_id, list);
+    }
+    return byRun;
+  }
+
+  /**
+   * Today's cost for a specific model, summed from the attempts that reported it (#281).
+   * By default, sums attempts started since the beginning of the current UTC day.
+   * Call counts are not here: the requests/day budget counts `model_calls` (#281).
+   */
+  getDailyCostForModel(
+    connectionId: string,
+    modelId: string,
+    options?: { since?: string | undefined; now?: Date | undefined },
+  ): number {
+    const since = options?.since ?? startOfUtcDay(options?.now);
+    const row = this.db
+      .prepare<
+        { spend_usd: number | null },
+        { $connectionId: string; $modelId: string; $since: string }
+      >(
+        `SELECT SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
+         FROM stage_attempts
+         WHERE connection_id = $connectionId
+           AND model_id = $modelId
+           AND started_at >= $since`,
+      )
+      .get({
+        $connectionId: connectionId,
+        $modelId: modelId,
+        $since: since,
+      });
+    return row?.spend_usd ?? 0;
+  }
+
+  /**
+   * Today's cost for all models, keyed `${connection_id}:${model_id}` (#281).
+   */
+  getDailyCostByModel(options?: {
+    since?: string | undefined;
+    now?: Date | undefined;
+  }): Map<string, number> {
+    const since = options?.since ?? startOfUtcDay(options?.now);
+    const rows = this.db
+      .prepare<
+        { connection_id: string; model_id: string; spend_usd: number | null },
+        { $since: string }
+      >(
+        `SELECT connection_id,
+                model_id,
+                SUM(COALESCE(cost_usd, 0.0)) AS spend_usd
+         FROM stage_attempts
+         WHERE connection_id IS NOT NULL
+           AND model_id IS NOT NULL
+           AND started_at >= $since
+         GROUP BY connection_id, model_id`,
+      )
+      .all({ $since: since });
+
+    const costs = new Map<string, number>();
+    for (const row of rows) {
+      costs.set(modelKey(row.connection_id, row.model_id), row.spend_usd ?? 0);
+    }
+    return costs;
+  }
+
+  private listModels(
+    where: string,
+    params: Record<string, string>,
+  ): StageModelUse[] {
+    return this.modelRows(where, params).map(rowToModelUse);
+  }
+
+  private modelRows(
+    where: string,
+    params: Record<string, string>,
+  ): AttemptModelRow[] {
+    return this.db
+      .prepare<AttemptModelRow, Record<string, string>>(
+        `SELECT run_id, stage, attempt, started_at, model_role, connection_id,
+                connection_name, api_type, model_id, tokens_in, tokens_out, cost_usd
+         FROM stage_attempts ${where}
+         ORDER BY started_at ASC, rowid ASC`,
+      )
+      .all(params);
   }
 }

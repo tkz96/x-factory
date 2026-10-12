@@ -104,7 +104,7 @@ describe("migration 009: run_commands.run_id ON DELETE CASCADE (#188)", () => {
     );
 
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(9);
+    expect(getSchemaVersion(db)).toBe(12);
 
     const kept = db
       .query(
@@ -257,7 +257,7 @@ describe("migration 009 with orphan run_commands rows (#188 follow-up)", () => {
     db.exec("PRAGMA foreign_keys = ON;");
 
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(9);
+    expect(getSchemaVersion(db)).toBe(12);
 
     const rows = db
       .query("SELECT * FROM run_commands ORDER BY id;")

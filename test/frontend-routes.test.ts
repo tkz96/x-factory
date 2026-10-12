@@ -21,7 +21,8 @@ describe("React Router Configuration (XFM-39, XFM-44)", () => {
     expect(children.some((c) => c.index === true)).toBe(true);
 
     // Workbench paths (XFM-39)
-    expect(paths).toContain("queue");
+    expect(paths).toContain("tickets");
+    expect(paths).toContain("queue"); // redirects to tickets (#258)
     expect(paths).toContain("runs");
     expect(paths).toContain("runs/:runId"); // Canonical run route (XFM-44)
     expect(paths).toContain("history");

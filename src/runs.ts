@@ -4,7 +4,11 @@
 // root, #169). This module never opens a connection of its own.
 
 import { randomUUID } from "node:crypto";
-import { type ChatMessageInput, chatWithModel } from "./agents/pi.js";
+import {
+  type ChatMessageInput,
+  chatWithModel,
+  classifyModelError,
+} from "./agents/pi.js";
 import type { Repositories } from "./composition-root.js";
 import type { CommandRepository } from "./db/command-repository.js";
 import type { EventRecord } from "./db/event-repository.js";
@@ -12,12 +16,33 @@ import type { JobRecord, JobRepository } from "./db/job-repository.js";
 import type { OperationLedgerRecord } from "./db/operation-ledger-repository.js";
 import type { RunRecord, RunRepository } from "./db/run-repository.js";
 import type { StageAttemptRecord } from "./db/stage-attempt-repository.js";
-import { ConflictError, NotFoundError } from "./errors.js";
+import {
+  ActiveRunExistsError,
+  ConflictError,
+  DomainError,
+  NotFoundError,
+} from "./errors.js";
 import * as git from "./git.js";
+import { assertBudgetNotExceeded, modelRoleForStage } from "./model-budgets.js";
+import { ModelGateway, RateLimitedError } from "./model-gateway.js";
+import {
+  ModelUnavailableError,
+  modelUse,
+  type ResolvedModel,
+  resolveRole,
+  usageWithCost,
+} from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
-import { loadSettings } from "./settings.js";
+import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
-import { initializeRunArtifacts } from "./store.js";
+import type {
+  AppEventEnvelope,
+  EventsSnapshot,
+  ModelRoleName,
+  ModelUsage,
+  ModelUse,
+} from "./shared/types.js";
+import { initializeRunArtifacts, removeRunArtifacts } from "./store.js";
 import type { Project, PullRequest, Run, Ticket } from "./types.js";
 import {
   APPROVE_ROUTES,
@@ -36,6 +61,47 @@ export function getRunEvents(
   return repos.events.getEventsForRun(runId, options);
 }
 
+/**
+ * Returns a consistent snapshot of current run statuses, Needs-you trigger events (no age limit)
+ * and Finished history (last 7 days, max 100) with cursor inside one SQLite read transaction (#257, spec #241).
+ */
+export function getEventsSnapshot(
+  repos: Repositories,
+  options?: { sevenDaysAgo?: string | undefined },
+): EventsSnapshot {
+  const sevenDaysAgo =
+    options?.sevenDaysAgo ??
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  return repos.db.transaction(() => {
+    const cursor = repos.events.getHighestEventId();
+    const runsList = repos.runs.list();
+    const needsYou = repos.events.getNeedsYouTriggerEvents(cursor);
+    const finished = repos.events.getFinishedHistoryEvents(
+      cursor,
+      sevenDaysAgo,
+    );
+
+    return {
+      cursor,
+      runs: runsList,
+      needsYou,
+      finished,
+    };
+  })();
+}
+
+/**
+ * Retrieves notification-relevant events across all runs with global id strictly greater than sinceId (#257).
+ */
+export function getAppEvents(
+  repos: Repositories,
+  sinceId: number,
+  limit?: number,
+): AppEventEnvelope[] {
+  return repos.events.getAppEventsSince(sinceId, limit);
+}
+
 export function getStageAttempts(
   repos: Repositories,
   runId: string,
@@ -50,12 +116,79 @@ export function getOperationLedger(
   return repos.operationLedger.listForRun(runId);
 }
 
+/**
+ * Chat replies run inside an HTTP request, so a rate limit is waited out for
+ * at most a minute before the reply says so (#280).
+ */
+const chatGateway = new ModelGateway({ maxWaitMs: 60_000 });
+
 export function getRun(repos: Repositories, id: string): Run | null {
-  return repos.runs.get(id);
+  const run = repos.runs.get(id);
+  return run
+    ? {
+        ...run,
+        stageModels: repos.stageAttempts.listModelsForRun(id),
+        pullRequestOutcome: repos.events.getPullRequestOutcome(id) ?? undefined,
+      }
+    : null;
 }
 
 export function listRuns(repos: Repositories): Run[] {
-  return repos.runs.list();
+  const models = repos.stageAttempts.listModelsByRun();
+  const outcomes = repos.events.listPullRequestOutcomes();
+  return repos.runs.list().map((run) => ({
+    ...run,
+    stageModels: models.get(run.id) ?? [],
+    pullRequestOutcome: outcomes.get(run.id) ?? undefined,
+  }));
+}
+
+/**
+ * Asynchronously requests a pull request status check for a run in `pr_created`
+ * by enqueueing a `check_pr` command into SQLite (#271).
+ *
+ * Returns true if a check was queued, or false if the run is not eligible:
+ * - Run not found or not in `pr_created`
+ * - Outcome already recorded (`pr_merged` or `pr_closed`)
+ * - Run created more than 30 days ago
+ * - An active (`pending` or `claimed`) `check_pr` command is already queued
+ */
+export function requestPullRequestCheck(
+  repos: Repositories,
+  runId: string,
+  options?: { now?: Date | undefined },
+): boolean {
+  const { db, runs: runRepo, events: eventRepo, commands: commandRepo } = repos;
+
+  return db.transaction((): boolean => {
+    const run = runRepo.get(runId);
+    if (run?.status !== "pr_created") {
+      return false;
+    }
+
+    const outcome = eventRepo.getPullRequestOutcome(runId);
+    if (outcome) {
+      return false;
+    }
+
+    const now = options?.now ?? new Date();
+    const createdTime = new Date(run.createdAt).getTime();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    if (now.getTime() - createdTime > THIRTY_DAYS_MS) {
+      return false;
+    }
+
+    if (commandRepo.hasActiveCommand(runId, "check_pr")) {
+      return false;
+    }
+
+    commandRepo.insertOrRetryCommand({
+      runId,
+      command: "check_pr",
+    });
+
+    return true;
+  })();
 }
 
 export function generateBranchName(
@@ -109,18 +242,28 @@ export async function createRun(
     acceptanceCriteria: acceptanceCriteria.map((c) => c.trim()).filter(Boolean),
   };
 
-  // Create run artifacts before exposing pending job in database (Phase 1, Section 19)
-  await initializeRunArtifacts(artifactsDir, ticket, plan);
-
   const { db } = repos;
   const runRepo = repos.runs;
   const jobRepo = repos.jobs;
   const eventRepo = repos.events;
 
-  let createdRun: RunRecord | null = null;
+  // One active run per ticket (#255). A quick check refuses before any file
+  // is written. The run's files are then written before its pending job is
+  // visible to a worker (Phase 1, Section 19), and the guard runs again inside
+  // ONE immediate transaction with the insert: it takes the write lock before
+  // reading, so a concurrent create waits, then sees the winner and is refused
+  // with the winner's id. "Active" is the shared policy's set.
+  const refuseIfActive = () => {
+    const active = runRepo.findActiveRunForTicket(project.id, ticket.id);
+    if (active) throw new ActiveRunExistsError(active.id, ticket.id);
+  };
+  refuseIfActive();
+  await initializeRunArtifacts(artifactsDir, ticket, plan);
 
-  const atomicInit = db.transaction(() => {
-    createdRun = runRepo.create({
+  const insertActiveRun = db.transaction((): RunRecord => {
+    refuseIfActive();
+
+    const created = runRepo.create({
       id,
       projectId: project.id,
       projectName: project.name,
@@ -142,11 +285,17 @@ export async function createRun(
       status: "preparing",
       text: "Preparing run workspace…",
     });
-  });
-  atomicInit();
 
-  if (!createdRun) {
-    throw new Error("Failed to initialize run record");
+    return created;
+  });
+
+  // A run that lost the race (or failed to insert) leaves no files behind.
+  let createdRun: RunRecord;
+  try {
+    createdRun = insertActiveRun.immediate();
+  } catch (err) {
+    await removeRunArtifacts(artifactsDir);
+    throw err;
   }
 
   return createdRun;
@@ -310,19 +459,73 @@ export async function createPR(
   return tx();
 }
 
-export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
+/**
+ * Where a resume goes: the route out of recovery_required, the stage it
+ * re-enters and the model role that stage calls (null when it calls none).
+ * Resolved once before the model lookup and again inside the transaction,
+ * because the attempts can change between the two.
+ */
+function resolveResumeTarget(attempts: ReadonlyArray<{ stage: string }>) {
+  const stages = attempts.map((attempt) => attempt.stage);
+  const route = resumeRouteFor(stages);
+  const targetStage = resumeStageName(stages);
+  const targetRole =
+    modelRoleForStage(targetStage) ??
+    (route.jobStage ? modelRoleForStage(route.jobStage) : null);
+  return { route, targetStage, targetRole };
+}
+
+export async function resumeRun(
+  repos: Repositories,
+  id: string,
+  options?: {
+    resolveRole?: ((role: ModelRoleName) => Promise<ResolvedModel>) | undefined;
+    now?: Date | undefined;
+  },
+): Promise<Run> {
   const { db } = repos;
   const runRepo = repos.runs;
   const jobRepo = repos.jobs;
   const commandRepo = repos.commands;
   const stageAttemptRepo = repos.stageAttempts;
 
+  verifyRecoveryRequired(runRepo, id, "resume");
+
+  const preliminaryTargetRole = resolveResumeTarget(
+    stageAttemptRepo.listForRun(id),
+  ).targetRole;
+  let resolved: ResolvedModel | undefined;
+  if (preliminaryTargetRole) {
+    const resolver = options?.resolveRole ?? resolveRole;
+    try {
+      resolved = await resolver(preliminaryTargetRole);
+    } catch (err: unknown) {
+      if (err instanceof ModelUnavailableError) {
+        throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);
+      }
+      throw err;
+    }
+  }
+
   const tx = db.transaction((): RunRecord => {
     verifyRecoveryRequired(runRepo, id, "resume");
 
-    const attempts = stageAttemptRepo.listForRun(id);
-    const attemptStages = attempts.map((attempt) => attempt.stage);
-    const route = resumeRouteFor(attemptStages);
+    const { route, targetStage, targetRole } = resolveResumeTarget(
+      stageAttemptRepo.listForRun(id),
+    );
+
+    if (targetRole && resolved) {
+      try {
+        // The same rule the worker checks before a call: a spent budget (N of N
+        // calls today) refuses the resume, one call left allows it (#281).
+        assertBudgetNotExceeded(repos, resolved, options?.now);
+      } catch (err: unknown) {
+        if (err instanceof ModelUnavailableError) {
+          throw new ConflictError(`Cannot resume run ${id}: ${err.message}`);
+        }
+        throw err;
+      }
+    }
 
     if (route.command) {
       // A completed deliver command means the PR already exists. Resuming into
@@ -346,7 +549,7 @@ export async function resumeRun(repos: Repositories, id: string): Promise<Run> {
           type: "status",
           payload: {
             status: route.to,
-            text: `Run resumed by operator into stage ${resumeStageName(attemptStages)}.`,
+            text: `Run resumed by operator into stage ${targetStage}.`,
           },
         },
       },
@@ -400,6 +603,8 @@ export async function abandonRun(
           payload: {
             status: "failed",
             text: statusText,
+            // An abandoned run is a decision, not a crash: its structured reason says so (#256).
+            failure: OPERATOR_ABANDON_REASON,
           },
         },
       },
@@ -412,6 +617,11 @@ export async function abandonRun(
 
   return tx();
 }
+
+const EMPTY_REPLY_MESSAGE =
+  "The model sent an empty reply. Retry, or check Settings › Models.";
+const UNREACHABLE_MESSAGE =
+  "Couldn't reach the model. Check Settings › Models.";
 
 /**
  * Handle a chat message during an approval gate (understanding or plan).
@@ -444,12 +654,15 @@ export async function chatWithRun(
   // here.
   const ctx = run.implementationContext;
 
-  let agentResponse: string;
+  let agentResponse = "";
+  // Which model wrote the reply, and what it cost (#279); unset when none did.
+  let replyModel: { model: ModelUse; usage: ModelUsage } | undefined;
+  // A failed call is an error event with the reason, never an agent message (#263).
+  let failure: string | null = null;
 
   try {
-    const settings = await loadSettings();
-    const providerId = settings.models?.sessionA?.provider || "anthropic";
-    const modelId = settings.models?.sessionA?.model || "claude-3-7-sonnet";
+    // Chat uses the Builder role's model (#278); there is no fallback model.
+    const resolved = await resolveRole("builder");
 
     const events = eventRepo.getEventsForRun(id);
     const messages: ChatMessageInput[] = [];
@@ -480,21 +693,65 @@ Context:\n${JSON.stringify(ctx, null, 2)}`,
       }
     }
 
-    agentResponse = await chatWithModel(providerId, modelId, messages);
-    if (!agentResponse?.trim()) {
-      agentResponse =
-        "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+    const reply = await chatWithModel(resolved, messages, {
+      gateway: chatGateway,
+    });
+    if (reply.text?.trim()) {
+      agentResponse = reply.text;
+      replyModel = {
+        model: modelUse(resolved),
+        usage: usageWithCost(resolved, reply.usage),
+      };
+    } else {
+      failure = EMPTY_REPLY_MESSAGE;
     }
   } catch (err) {
     console.error("LLM Chat Error:", err);
-    agentResponse =
-      "I'm having trouble connecting to my brain. Please check your LLM configuration or approve/restart the phase manually.";
+    failure = chatFailureMessage(err);
+  }
+
+  if (failure !== null) {
+    eventRepo.appendEvent(id, "error", { message: failure });
+    return { ok: false, message: failure };
   }
 
   // Record agent response as an event
-  eventRepo.appendEvent(id, "chat_agent", { text: agentResponse });
+  eventRepo.appendEvent(id, "chat_agent", {
+    text: agentResponse,
+    ...(replyModel ?? {}),
+  });
 
   return { ok: true, message: agentResponse };
+}
+
+/**
+ * The plain line a chat failure shows (#263): what happened, and what to do next.
+ * A model error the provider adapter has not classified yet is read the same way it is in
+ * the stages, so a rejected key or a rate limit names itself.
+ */
+export function chatFailureMessage(err: unknown): string {
+  const classified =
+    err instanceof Error && !(err instanceof DomainError)
+      ? classifyModelError(err.message)
+      : err;
+  if (classified instanceof RateLimitedError) {
+    return "The model is rate limited. Wait a moment, then Retry.";
+  }
+  if (classified instanceof ModelUnavailableError) {
+    switch (classified.category) {
+      case "key rejected":
+        return "The model rejected the API key. Check the key in Settings › Models.";
+      case "rate limited":
+        return "The model is rate limited. Wait a moment, then Retry.";
+      case "budget reached":
+        return "The model budget is used up for now. Raise it in Settings › Models, then Retry.";
+      case "context too large":
+        return "This chat is too long for the model. Shorten your message, then Retry.";
+      case "model unavailable":
+        return `Couldn't reach the model: ${classified.message}`;
+    }
+  }
+  return UNREACHABLE_MESSAGE;
 }
 
 export async function handleTransition(

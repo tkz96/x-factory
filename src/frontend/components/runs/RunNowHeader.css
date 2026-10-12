@@ -1,0 +1,84 @@
+/* src/frontend/components/runs/RunNowHeader.css — The run page's now header (#262). */
+
+.run-now {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.run-now-title {
+  margin: 0;
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.run-now-sentence {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-body);
+}
+
+.run-now-plan {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+  font-size: var(--text-footnote);
+  max-height: 14rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.run-now-diff {
+  margin: 0;
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-now-pr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.run-now-link {
+  align-self: flex-start;
+  font-weight: 600;
+  font-size: var(--text-footnote);
+}
+
+.run-now-pr-time {
+  color: var(--text-muted);
+  font-size: var(--text-footnote);
+}
+
+.run-now-failure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-2);
+}
+
+.run-now-failure-message {
+  margin: 0;
+  font-weight: 600;
+}
+
+.run-now-failure-recovery {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-footnote);
+}
+
+/* The plan's Markdown headings sit at the panel's text size, not the page's display sizes (#262). */
+.run-now-plan .md-viewer h1,
+.run-now-plan .md-viewer h2,
+.run-now-plan .md-viewer h3 {
+  font-size: var(--text-footnote);
+  margin: var(--space-2) 0 var(--space-1);
+}

@@ -9,10 +9,10 @@
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
 
 .sidebar {
-  width: 250px;
+  width: var(--sidebar-width-narrow);
   flex-shrink: 0;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  border-right: var(--border-width) solid var(--border);
   display: flex;
   flex-direction: column;
   position: sticky;
@@ -24,7 +24,7 @@
 
 .sidebar-header {
   padding: 1.25rem 1rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--border-width) solid var(--border-subtle);
 }
 
 .brand {
@@ -38,29 +38,6 @@
   letter-spacing: -0.024em;
   color: var(--text);
   display: block;
-}
-
-.project-selector-wrapper {
-  margin-top: 0.5rem;
-}
-
-.sidebar-select {
-  width: 100%;
-  min-height: 44px;
-  padding: 0.6rem 0.8rem;
-  background: var(--bg-card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-subhead);
-  font-family: var(--font-sans);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-}
-
-.sidebar-select:focus {
-  outline: none;
-  border-color: var(--border-focus);
 }
 
 .sidebar-nav {
@@ -82,24 +59,26 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 0.65rem 0.85rem;
   color: var(--text-muted);
   text-decoration: none;
   border-radius: var(--radius-sm);
   font-size: var(--text-subhead);
   font-weight: 500;
-  transition: all var(--transition);
+  transition:
+    background-color var(--transition),
+    color var(--transition);
   position: relative;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   color: var(--text);
 }
 
 .nav-item.active {
-  background: rgba(10, 132, 255, 0.12);
+  background: var(--accent-subtle);
   color: var(--accent);
   font-weight: 600;
 }
@@ -117,26 +96,22 @@
   margin-left: auto;
   font-size: var(--text-caption-2);
   padding: 0.15rem 0.5rem;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-input);
+  background: var(--bg-hover);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-weight: 600;
 }
 
-[data-theme="light"] .nav-badge {
-  background: rgba(0, 0, 0, 0.06);
-}
-
 .nav-badge.pulse {
   background: var(--green-dim);
   color: var(--green);
-  border: 1px solid rgba(63, 185, 80, 0.3);
+  border: var(--border-width) solid var(--green);
 }
 
 .sidebar-footer {
   padding: 0.85rem 1rem;
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--border-width) solid var(--border-subtle);
   font-size: var(--text-footnote);
   color: var(--text-dim);
   display: flex;
@@ -144,50 +119,9 @@
   justify-content: space-between;
 }
 
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 50%;
-  background: var(--bg-circle-btn);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  padding: 0;
-}
-
-.theme-toggle:hover {
-  background: var(--bg-circle-btn-hover);
-  color: var(--text);
-  border-color: var(--border-hover);
-  transform: scale(1.05);
-}
-
-.theme-toggle:active {
-  transform: scale(0.92);
-  background: var(--bg-circle-btn-active);
-}
-
-.theme-toggle .sun-icon {
-  display: none;
-}
-
-.theme-toggle .moon-icon {
-  display: flex;
-}
-
-[data-theme="light"] .theme-toggle .sun-icon {
-  display: flex;
-}
-
-[data-theme="light"] .theme-toggle .moon-icon {
-  display: none;
-}
+/* The theme button is the icon-button block (#251): its size, shape, surface
+   and hover are the vocabulary's, so nothing is redefined here. The class stays
+   as the hook forced-colors.css uses to draw it in system colours. */
 
 .system-status {
   display: flex;
@@ -196,15 +130,15 @@
 }
 
 .status-dot {
-  width: 7px;
-  height: 7px;
+  width: var(--status-dot-md);
+  height: var(--status-dot-md);
   border-radius: 50%;
   background: var(--text-dim);
 }
 
 .status-dot.online {
   background: var(--green);
-  box-shadow: 0 0 6px rgba(48, 209, 88, 0.6);
+  box-shadow: 0 0 var(--space-1-5) var(--green-glow);
 }
 
 /* ── Main Content & Toolbar ──────────────────────────────────────────── */
@@ -219,28 +153,79 @@
 }
 
 .toolbar {
-  display: flex;
+  /* One row: title and project on the start, the section switch centred,
+     the actions at the end. The columns are equal, so the switch stays
+     centred whatever the title width (#258). */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 1rem;
   padding: 0.9rem 2rem;
   background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(var(--blur-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass));
+  border-bottom: var(--border-width) solid var(--border);
   position: sticky;
   top: 0;
   z-index: 5;
   transition:
-    background-color 280ms var(--spring),
-    border-color 280ms var(--spring);
+    background-color var(--duration-slow) var(--ease-spring),
+    border-color var(--duration-slow) var(--ease-spring);
 }
 
-.toolbar-left h1 {
+/* The toolbar title is the page title shrunk into the bar (#258): invisible
+   until the page scrolls, so the large title and the bar never both read as
+   the heading. A run page keeps it visible as its only heading. */
+.toolbar-left .toolbar-title {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-title-2);
+  font-size: var(--text-title-3);
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.024em;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.toolbar-left .toolbar-title.is-visible {
+  opacity: 1;
+}
+
+/* The large title (#258) scrolls with the page and is the screen's one h1. */
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-5);
+}
+
+.large-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-large-title);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.page-subtitle {
+  margin: 0;
+  font-size: var(--text-subhead);
+  color: var(--text-muted);
+}
+
+/* The full-window welcome (#269): the screen owns the window — no toolbar and
+   no tab bar — so nothing reserves room for either. */
+.app-shell--welcome .viewport-container {
+  padding-top: var(--space-8);
+}
+
+@media (max-width: 768px) {
+  .app-shell--welcome .main-content {
+    /* The tab bar's clearance is for a screen that has one. */
+    padding-bottom: var(--space-8);
+  }
 }
 
 .toolbar-breadcrumb {
@@ -279,7 +264,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 450px;
+  max-width: var(--content-max-md);
 }
 
 .toolbar-subtitle {
@@ -288,15 +273,94 @@
   display: block;
 }
 
-.toolbar-actions {
+.toolbar-left {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
+  grid-column: 1;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* The toolbar's section switch (#258): Tickets | Runs | Projects. */
+.toolbar-sections {
+  flex-shrink: 0;
+  grid-column: 2;
+}
+
+/* Between the phone and the wide desktop the bell (#264) takes the room the
+   Search label used to. The button keeps its accessible name without it. */
+@media (max-width: 1320px) {
+  .search-label {
+    display: none;
+  }
+}
+
+.toolbar-select {
+  min-height: var(--tap-min);
+  max-width: 14rem;
+  /* A long project name ends in an ellipsis, never a cut-off word (#260). */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.3rem 0.7rem;
+  background: var(--bg-card);
+  color: var(--text);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-subhead);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.toolbar-select:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-0-5);
+}
+
+/* The gear opens Settings and nothing else (#258). */
+.toolbar-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: 50%;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.toolbar-gear:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.toolbar-gear.active {
+  color: var(--accent);
+}
+
+.toolbar-gear:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-0-5);
 }
 
 .viewport-container {
   padding: 1.5rem 2rem 3rem;
-  max-width: 1280px;
+  max-width: var(--content-max-5xl);
   width: 100%;
   margin: 0 auto;
 }
@@ -327,17 +391,29 @@
 
 .area-view.active {
   display: block;
-  animation: appleViewIn 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: appleViewIn var(--duration-slow) var(--ease-spring);
 }
 
 @keyframes appleViewIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(var(--space-2));
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Reduced motion (#252): the view fades in where it lands instead of rising. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes appleViewIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 }
 
@@ -370,6 +446,44 @@
     display: none;
   }
 
+  /* Phone width has no segmented control and no status readout in the bar;
+     the bottom tab bar carries the sections (#258). */
+  .toolbar .desktop-only {
+    display: none;
+  }
+
+  /* Phone: the bar is project + actions on one row. Search drops its label
+     and keeps its accessible name (#258). */
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.6rem 1rem;
+  }
+
+  .toolbar-actions {
+    grid-column: 2;
+    gap: 0.25rem;
+  }
+
+  .toolbar-left {
+    gap: 0.5rem;
+  }
+
+  .toolbar-select {
+    max-width: 8rem;
+    min-width: 0;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .search-label {
+    display: none;
+  }
+
+  #btn-search {
+    width: var(--tap-min);
+    padding: 0;
+    justify-content: center;
+  }
+
   button.mobile-only {
     display: inline-flex;
   }
@@ -377,7 +491,10 @@
   .main-content {
     height: auto;
     min-height: 100vh;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(
+      var(--space-16) +
+      env(safe-area-inset-bottom, var(--space-0))
+    );
   }
 
   .mobile-tab-bar {
@@ -386,12 +503,15 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(54px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(
+      var(--tab-bar-height) +
+      env(safe-area-inset-bottom, var(--space-0))
+    );
+    padding-bottom: env(safe-area-inset-bottom, var(--space-0));
     background: var(--bg-glass);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
+    backdrop-filter: blur(var(--blur-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass));
+    border-top: var(--border-width) solid var(--border);
     z-index: 1000;
     justify-content: space-around;
     align-items: center;
@@ -399,14 +519,15 @@
   }
 
   .tab-item {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: var(--space-micro);
     flex: 1;
     height: 100%;
-    min-height: 44px;
+    min-height: var(--tap-min);
     color: var(--text-muted);
     text-decoration: none;
     font-size: var(--text-caption-2);
@@ -425,6 +546,22 @@
 
   .tab-item.active svg {
     opacity: 1;
+  }
+
+  /* The Needs-you count on the Runs tab (#259). */
+  .tab-count {
+    position: absolute;
+    top: var(--space-1);
+    left: calc(50% + var(--space-3));
+    min-width: var(--space-4);
+    padding: 0 var(--space-1);
+    font-size: var(--text-caption-2);
+    line-height: var(--space-4);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-on-accent);
+    background: var(--accent);
+    border-radius: var(--radius-full);
+    text-align: center;
   }
 
   .viewport-container {

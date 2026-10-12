@@ -150,7 +150,14 @@ describe("Shared wire contract (#182, HTTP API seam)", () => {
       const postRes = await handleApi(postReq, new URL(postReq.url), { repos });
       expect(postRes.status).toBe(200);
       const saved = (await postRes.json()) as WorkbenchSettings;
-      expect(saved).toEqual({ theme: "dark", models: payload.models });
+      expect(saved).toEqual({
+        theme: "default",
+        appearance: "automatic",
+        models: payload.models,
+        allowUnsandboxed: false,
+        // The desktop notifications preference (#265) is part of the saved object.
+        desktopNotifications: false,
+      });
 
       // The on-disk file parses as JSON and holds exactly {provider, model}
       // per session — never a string scalar, never spread characters.

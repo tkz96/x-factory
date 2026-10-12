@@ -1,75 +1,111 @@
 import "./AppShell.css";
+import "./AppShellDocsPhone.css";
 
+import { type UIEvent, useEffect, useState } from "react";
 import {
   NavLink,
   Outlet,
   useLocation,
+  useNavigate,
   useSearchParams,
 } from "react-router-dom";
-import {
-  ACTIVE_RUN_STATUSES,
-  STOPPABLE_RUN_STATUSES,
-} from "../../shared/run-status-policy.js";
-import type { Project } from "../../shared/types.js";
+import { STOPPABLE_RUN_STATUSES } from "../../shared/run-status-policy.js";
 import { ModalProvider, useModal } from "../context/ModalContext.js";
-import {
-  ProjectProvider,
-  useCurrentProject,
-} from "../context/ProjectContext.js";
+import { NotificationProvider } from "../context/NotificationContext.js";
+import { ProjectProvider } from "../context/ProjectContext.js";
 import {
   useReadiness,
   useRun,
   useRuns,
+  useSaveSettings,
+  useSettings,
   useStopRun,
-  useTickets,
 } from "../hooks/useQueries.js";
-import { useTheme } from "../hooks/useTheme.js";
+import { resolveInitialTheme, setTheme, useTheme } from "../hooks/useTheme.js";
+import { countRunsByFilter } from "../lib/runs-list.js";
+import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
+import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
+import { WELCOME_COPY } from "./feedback/copy-map.js";
 import { ModalContainer } from "./ModalContainer.js";
+import { DesktopBanners } from "./notifications/DesktopBanners.js";
+import { NotificationActivity } from "./notifications/NotificationActivity.js";
+import { NotificationBell } from "./notifications/NotificationBell.js";
+import {
+  AlertDialog,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+  Popover,
+} from "./overlays/index.js";
+import { CommandPalette } from "./palette/CommandPalette.js";
+import { ShortcutSheet } from "./palette/ShortcutSheet.js";
+import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
+import { Button } from "./ui/Button.js";
+import { IconButton } from "./ui/IconButton.js";
+import { SegmentedControl } from "./ui/SegmentedControl.js";
+
+/** Scrolling past this many pixels moves the page title into the toolbar. */
+const COMPACT_TITLE_SCROLL = 32;
+
+/** The three workbench sections, in toolbar and tab-bar order (#258). */
+const SECTIONS = [
+  { id: "tickets", label: "Tickets", icon: "icon-layers" },
+  { id: "runs", label: "Runs", icon: "icon-play" },
+  { id: "projects", label: "Projects", icon: "icon-folder" },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]["id"];
+
+/** The section a path belongs to, or "" on Settings and Docs. */
+function sectionFor(pathname: string): SectionId | "" {
+  if (pathname.startsWith("/tickets")) return "tickets";
+  if (pathname.startsWith("/runs")) return "runs";
+  if (pathname.startsWith("/projects")) return "projects";
+  return "";
+}
 
 function getActiveTitle(pathname: string): { title: string; subtitle: string } {
   if (pathname.startsWith("/runs/")) {
     return {
-      title: "Run Detail",
-      subtitle: "Live execution events and stage artifacts",
+      title: "Run",
+      subtitle: "What the run is doing and what it needs from you",
     };
   }
   if (pathname.startsWith("/projects/")) {
     return {
-      title: "Project Detail",
-      subtitle: "Repository workspace and tracker configuration",
+      title: "Project",
+      subtitle: "Repository and issue tracker for this project",
+    };
+  }
+  // The landing is the welcome gate (#269): while setup is incomplete the
+  // welcome is what the user is looking at, so the screen's words are its own.
+  if (pathname === "/" || pathname.startsWith("/welcome")) {
+    return {
+      title: WELCOME_COPY.title,
+      subtitle: WELCOME_COPY.subtitle,
     };
   }
   switch (pathname) {
     case "/runs":
       return {
-        title: "Active Runs",
-        subtitle: "In-flight agentic pipelines and verification",
-      };
-    case "/history":
-      return {
-        title: "Execution History",
-        subtitle: "Audit log of past ticket implementations",
+        title: "Runs",
+        subtitle: "Runs that are working or waiting for you",
       };
     case "/projects":
       return {
         title: "Projects",
-        subtitle: "Workspace repositories and issue tracker connections",
+        subtitle: "Repositories and issue trackers",
       };
     case "/settings":
       return {
         title: "Settings",
-        subtitle: "LLM model selection, API credentials, and runtime limits",
-      };
-    case "/docs":
-      return {
-        title: "Documentation",
-        subtitle: "Personal Access Token scopes, architecture & security guide",
+        subtitle: "Models, connections, appearance and diagnostics",
       };
     default:
       return {
-        title: "Work Queue",
-        subtitle: "Tickets ready for agentic implementation",
+        title: "Tickets",
+        subtitle: "Pick a ticket to start a run",
       };
   }
 }
@@ -85,212 +121,53 @@ export function ThemeToggleButton({
   className,
   onToggle,
 }: ThemeToggleButtonProps) {
+  // One accessible name, and it says what pressing the control does: the mode it
+  // switches to, which is also the mode that is not showing now. The icon draws
+  // the mode in force. There is no second name (a `title`) to disagree with it.
+  const { resolvedAppearance } = useTheme();
+  const next = resolvedAppearance === "dark" ? "Light" : "Dark";
   return (
-    <button
+    <IconButton
       id={id}
       className={className}
-      aria-label="Toggle Dark and Light Mode"
-      title="Toggle theme"
-      type="button"
-      onClick={onToggle}
-    >
-      <span className="theme-icon sun-icon">
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-sun" />
-        </svg>
-      </span>
-      <span className="theme-icon moon-icon">
-        <svg className="icon icon-sm" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-moon" />
-        </svg>
-      </span>
-    </button>
+      label={`Switch to ${next} Appearance`}
+      icon={resolvedAppearance === "dark" ? "icon-moon" : "icon-sun"}
+      onPress={onToggle}
+    />
   );
 }
 
-interface AppShellSidebarProps {
-  isDocs: boolean;
-  projects: Project[];
-  isProjectsLoading: boolean;
-  selectedProjectId: string;
-  onSelectProject: (id: string) => void;
-  queueCount: number;
-  activeRunsCount: number;
-  readiness: ReturnType<typeof useReadiness>["data"];
+const SECTIONS_LABEL = "Sections";
+
+interface DocsSidebarProps {
+  docsNavOpen: boolean;
+  onCloseDocsNav: () => void;
   onToggleTheme: () => void;
 }
 
-function AppShellSidebar({
-  isDocs,
-  projects,
-  isProjectsLoading,
-  selectedProjectId,
-  onSelectProject,
-  queueCount,
-  activeRunsCount,
-  readiness,
+/** The Docs document list. It is the Docs screen's own navigation, not the app's. */
+function DocsSidebar({
+  docsNavOpen,
+  onCloseDocsNav,
   onToggleTheme,
-}: AppShellSidebarProps) {
-  if (isDocs) {
-    return (
-      <aside id="app-sidebar" className="sidebar">
-        <DocsSidebarNav
-          onToggleTheme={onToggleTheme}
-          ThemeToggleButton={ThemeToggleButton}
-        />
-      </aside>
-    );
-  }
-
+}: DocsSidebarProps) {
   return (
-    <aside id="app-sidebar" className="sidebar">
-      <div className="sidebar-header">
-        <div className="brand">
-          <span className="brand-title">X-Factory</span>
-        </div>
-
-        <div className="project-selector-wrapper">
-          <label htmlFor="select-project" className="sr-only">
-            Target Project
-          </label>
-          <select
-            id="select-project"
-            className="sidebar-select"
-            value={selectedProjectId}
-            onChange={(e) => onSelectProject(e.target.value)}
-            disabled={isProjectsLoading || projects.length === 0}
-          >
-            {isProjectsLoading ? (
-              <option value="" disabled>
-                Loading projects…
-              </option>
-            ) : projects.length === 0 ? (
-              <option value="" disabled>
-                No projects configured
-              </option>
-            ) : (
-              projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-      </div>
-
-      <nav id="sidebar-nav" className="sidebar-nav">
-        <div className="nav-section-title">WORKBENCH</div>
-
-        <NavLink
-          to="/queue"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="queue"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-layers" />
-          </svg>
-          <span>Work Queue</span>
-          <span id="queue-badge" className="nav-badge">
-            {queueCount}
-          </span>
-        </NavLink>
-
-        <NavLink
-          to="/runs"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="runs"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-play" />
-          </svg>
-          <span>Active Runs</span>
-          {activeRunsCount > 0 && (
-            <span id="active-runs-badge" className="nav-badge pulse">
-              {activeRunsCount}
-            </span>
-          )}
-        </NavLink>
-
-        <NavLink
-          to="/history"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="history"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-clock" />
-          </svg>
-          <span>History</span>
-        </NavLink>
-
-        <div className="nav-section-title">CONFIGURATION</div>
-
-        <NavLink
-          to="/projects"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="projects"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-folder" />
-          </svg>
-          <span>Projects</span>
-        </NavLink>
-
-        <NavLink
-          to="/settings"
-          className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-          data-area="settings"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-settings" />
-          </svg>
-          <span>Settings</span>
-        </NavLink>
-
-        <a
-          href="/docs"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nav-item"
-          data-area="docs"
-          title="Open Documentation in New Tab"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-book-open" />
-          </svg>
-          <span>Documentation ↗</span>
-        </a>
-
-        <a
-          href="/reference"
-          target="_blank"
-          rel="noreferrer"
-          className="nav-item"
-          data-area="reference"
-          title="Open Interactive Scalar API Reference"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-code" />
-          </svg>
-          <span>API Reference ↗</span>
-        </a>
-      </nav>
-
-      <div className="sidebar-footer">
-        <div className="system-status">
-          <span
-            className={`status-dot ${readiness?.ready !== false ? "online" : "offline"}`}
-          />
-          <span className="status-label">
-            {readiness?.ready !== false ? "Factory Ready" : "Degraded"}
-          </span>
-        </div>
-        <ThemeToggleButton
-          id="theme-toggle"
-          className="theme-toggle"
-          onToggle={onToggleTheme}
-        />
-      </div>
+    <aside
+      id="app-sidebar"
+      className={`sidebar${docsNavOpen ? " docs-nav-open" : ""}`}
+    >
+      <Button
+        variant="secondary"
+        size="sm"
+        className="docs-nav-close mobile-only"
+        onPress={onCloseDocsNav}
+      >
+        Close document list
+      </Button>
+      <DocsSidebarNav
+        onToggleTheme={onToggleTheme}
+        ThemeToggleButton={ThemeToggleButton}
+      />
     </aside>
   );
 }
@@ -311,33 +188,141 @@ const CATEGORY_TITLES: Record<string, string> = {
   security: "Credentials & Scopes",
 };
 
+/** "Start Run (N)": a label with its registry shortcut, or the bare label when it has none. */
+function withShortcut(label: string, id: ShortcutId): string {
+  const keys = shortcutLabel(id);
+  return keys ? `${label} (${keys})` : label;
+}
+
+/** The registry keys on the right of a menu row; nothing when the action has no chord. */
+function MenuShortcut({ id }: { id: ShortcutId }) {
+  const keys = shortcutLabel(id);
+  return keys ? <kbd className="xf-menu-keys">{keys}</kbd> : null;
+}
+
+interface ContextActionProps {
+  section: SectionId | "";
+  isRunDetail: boolean;
+  activeRunId: string | undefined;
+  stopPending: boolean;
+  onStopRun: () => void;
+  onStartRun: () => void;
+  onAddProject: () => void;
+}
+
+/** The action that belongs to the screen in front of the user (#258). */
+function ContextAction({
+  section,
+  isRunDetail,
+  activeRunId,
+  stopPending,
+  onStopRun,
+  onStartRun,
+  onAddProject,
+}: ContextActionProps) {
+  if (isRunDetail) {
+    if (!activeRunId) return null;
+    // Stop Run lives in the "…" menu, not on the toolbar (#262). It asks first, in an alert.
+    return (
+      <MenuTrigger>
+        <Button
+          id="btn-run-menu"
+          variant="secondary"
+          size="sm"
+          aria-label="Run actions"
+          isDisabled={stopPending}
+        >
+          <span aria-hidden="true">…</span>
+        </Button>
+        <Popover placement="bottom end">
+          <Menu>
+            <MenuItem id="menu-stop-run" isDanger onAction={onStopRun}>
+              <span>Stop Run</span>
+              <MenuShortcut id="stopRun" />
+            </MenuItem>
+          </Menu>
+        </Popover>
+      </MenuTrigger>
+    );
+  }
+  if (section === "tickets") {
+    return (
+      <Button
+        id="btn-start-run"
+        variant="primary"
+        size="sm"
+        icon="icon-plus"
+        title={withShortcut("Start Run", "newRun")}
+        onPress={onStartRun}
+      >
+        Start Run
+      </Button>
+    );
+  }
+  if (section === "projects") {
+    return (
+      <Button
+        id="btn-add-project"
+        variant="primary"
+        size="sm"
+        icon="icon-plus"
+        onPress={onAddProject}
+      >
+        Add Project
+      </Button>
+    );
+  }
+  return null;
+}
+
 interface AppShellHeaderProps {
   isDocs: boolean;
+  isRunDetail: boolean;
+  docsNavOpen: boolean;
+  onToggleDocsNav: () => void;
   title: string;
   subtitle: string;
+  compact: boolean;
   docBreadcrumb?:
     | {
         category: string;
         item: string;
       }
     | undefined;
+  section: SectionId | "";
+  onSelectSection: (id: string) => void;
+  /** Runs in a Needs-you status: the Runs segment's count (#259). */
+  needsYouCount: number;
   onToggleTheme: () => void;
-  onOpenNewRun: () => void;
+  readyLabel: string;
   activeRunId: string | undefined;
   onStopRun: () => void;
   stopPending: boolean;
+  onStartRun: () => void;
+  onAddProject: () => void;
+  onOpenPalette: () => void;
 }
 
 function AppShellHeader({
   isDocs,
+  isRunDetail,
+  docsNavOpen,
+  onToggleDocsNav,
   title,
   subtitle,
+  compact,
   docBreadcrumb,
+  section,
+  onSelectSection,
+  needsYouCount,
   onToggleTheme,
-  onOpenNewRun,
+  readyLabel,
   activeRunId,
   onStopRun,
   stopPending,
+  onStartRun,
+  onAddProject,
+  onOpenPalette,
 }: AppShellHeaderProps) {
   return (
     <header id="content-toolbar" className="toolbar">
@@ -362,125 +347,180 @@ function AppShellHeader({
               {subtitle}
             </span>
           </nav>
-        ) : (
+        ) : isRunDetail ? (
+          // A run page is a locked layout with no large title, so its title
+          // lives here as the one h1.
           <>
-            <h1 id="toolbar-title">{title}</h1>
+            <h1 id="toolbar-title" className="toolbar-title is-visible">
+              {title}
+            </h1>
             <span id="toolbar-subtitle" className="toolbar-subtitle">
               {subtitle}
             </span>
           </>
+        ) : (
+          // The screen's large title is the one h1 here. This copy is for the
+          // eye only, and appears in the toolbar once the page has scrolled.
+          <span
+            className={`toolbar-title${compact ? " is-visible" : ""}`}
+            aria-hidden="true"
+          >
+            {compact ? title : ""}
+          </span>
         )}
+
+        {!isDocs &&
+          !isRunDetail &&
+          (section === "tickets" || section === "runs") && (
+            <ProjectScopePicker />
+          )}
+
+        {!isDocs && <NotificationActivity />}
       </div>
+
+      {!isDocs && (
+        <SegmentedControl
+          label={SECTIONS_LABEL}
+          value={section}
+          onChange={onSelectSection}
+          options={SECTIONS.map((s) => ({
+            id: s.id,
+            label: s.label,
+            count:
+              s.id === "runs" && needsYouCount > 0 ? needsYouCount : undefined,
+          }))}
+          className="toolbar-sections desktop-only"
+        />
+      )}
+
       <div className="toolbar-actions">
+        {isDocs && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mobile-only"
+            aria-expanded={docsNavOpen}
+            aria-controls="app-sidebar"
+            onPress={onToggleDocsNav}
+          >
+            Browse documents
+          </Button>
+        )}
+        {!isDocs && (
+          <ContextAction
+            section={section}
+            isRunDetail={isRunDetail}
+            activeRunId={activeRunId}
+            stopPending={stopPending}
+            onStopRun={onStopRun}
+            onStartRun={onStartRun}
+            onAddProject={onAddProject}
+          />
+        )}
+        {!isDocs && <NotificationBell />}
+        <Button
+          id="btn-search"
+          variant="secondary"
+          size="sm"
+          icon="icon-search"
+          aria-label="Search"
+          title={withShortcut("Search", "palette")}
+          aria-keyshortcuts="Control+K Meta+K"
+          onPress={onOpenPalette}
+        >
+          <span className="search-label">Search</span>
+        </Button>
+        <span
+          className="system-status desktop-only"
+          title={`X-Factory is ${readyLabel.toLowerCase()}`}
+        >
+          <span
+            className={`status-dot ${readyLabel === "Ready" ? "online" : "offline"}`}
+            aria-hidden="true"
+          />
+          <span className="status-label">{readyLabel}</span>
+        </span>
         <ThemeToggleButton
-          id="theme-toggle-mobile"
-          className="theme-toggle mobile-only"
+          id="theme-toggle"
+          className="theme-toggle"
           onToggle={onToggleTheme}
         />
-        {!isDocs &&
-          (activeRunId ? (
-            <button
-              id="btn-stop"
-              className="btn-danger btn-sm"
-              type="button"
-              onClick={onStopRun}
-              disabled={stopPending}
-            >
-              <svg className="icon icon-sm" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-square" />
-              </svg>
-              <span>{stopPending ? "Stopping…" : "Stop Run"}</span>
-            </button>
-          ) : (
-            <button
-              id="btn-open-new-run"
-              className="btn-primary btn-sm"
-              type="button"
-              onClick={onOpenNewRun}
-            >
-              <svg className="icon icon-sm" aria-hidden="true">
-                <use href="/assets/icons/sprite.svg#icon-plus" />
-              </svg>
-              <span>New Run</span>
-            </button>
-          ))}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            `toolbar-gear ${isActive ? "active" : ""}`
+          }
+          aria-label="Settings"
+          title="Settings"
+        >
+          <svg className="icon icon-md" aria-hidden="true">
+            <use href="/assets/icons/sprite.svg#icon-settings" />
+          </svg>
+        </NavLink>
       </div>
     </header>
   );
 }
 
-function AppShellMobileTabBar() {
+function AppShellMobileTabBar({ needsYouCount }: { needsYouCount: number }) {
   return (
     <nav
       id="mobile-tab-bar"
       className="mobile-tab-bar"
       aria-label="Mobile Navigation"
     >
-      <NavLink
-        to="/queue"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="queue"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-layers" />
-        </svg>
-        <span>Queue</span>
-      </NavLink>
-      <NavLink
-        to="/runs"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="runs"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-play" />
-        </svg>
-        <span>Runs</span>
-      </NavLink>
-      <NavLink
-        to="/history"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="history"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-clock" />
-        </svg>
-        <span>History</span>
-      </NavLink>
-      <NavLink
-        to="/projects"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="projects"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-folder" />
-        </svg>
-        <span>Projects</span>
-      </NavLink>
-      <NavLink
-        to="/settings"
-        className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
-        data-area="settings"
-      >
-        <svg className="icon icon-lg" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-settings" />
-        </svg>
-        <span>Settings</span>
-      </NavLink>
+      {SECTIONS.map((section) => (
+        <NavLink
+          key={section.id}
+          to={`/${section.id}`}
+          className={({ isActive }) => `tab-item ${isActive ? "active" : ""}`}
+        >
+          <svg className="icon icon-lg" aria-hidden="true">
+            <use href={`/assets/icons/sprite.svg#${section.icon}`} />
+          </svg>
+          <span>{section.label}</span>
+          {section.id === "runs" && needsYouCount > 0 && (
+            <span className="tab-count">{needsYouCount}</span>
+          )}
+        </NavLink>
+      ))}
     </nav>
   );
 }
 
 function AppShellContent() {
   const location = useLocation();
-  const {
-    projects,
-    isProjectsLoading,
-    selectedProjectId,
-    setSelectedProjectId,
-  } = useCurrentProject();
-  const { openNewRunModal } = useModal();
-  const { toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const { openNewRunModal, openOnboardingModal } = useModal();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const { toggleTheme, setAppearance } = useTheme();
+  const { data: settings } = useSettings();
+  const saveSettings = useSaveSettings();
+  // The settings object is the source of truth for Appearance (#248) and the
+  // Theme choice (#249); browser storage only lets the pre-paint script apply
+  // them before React loads.
+  const savedAppearance = settings?.appearance;
+  useEffect(() => {
+    if (savedAppearance) setAppearance(savedAppearance);
+  }, [savedAppearance, setAppearance]);
+  const savedTheme = settings?.theme;
+  useEffect(() => {
+    if (savedTheme) setTheme(resolveInitialTheme(savedTheme));
+  }, [savedTheme]);
+  const handleToggleTheme = () => {
+    saveSettings.mutate({ appearance: toggleTheme() });
+  };
   const stopRunMutation = useStopRun();
+  // The app-wide stream (#257) keeps the runs cache live on every screen, so the
+  // Runs badge and the tab title follow a run from any section (#259). It is
+  // opened once, by the NotificationProvider that wraps this shell (#264).
+  const { data: runsList } = useRuns();
+  const needsYouCount = countRunsByFilter(runsList ?? [])["needs-you"];
+  useEffect(() => {
+    document.title =
+      needsYouCount > 0 ? `(${needsYouCount}) X-Factory` : "X-Factory";
+  }, [needsYouCount]);
 
   const runIdMatch = location.pathname.match(/^\/runs\/([^/]+)/);
   const runId = runIdMatch ? runIdMatch[1] : undefined;
@@ -492,22 +532,34 @@ function AppShellContent() {
     runData != null && STOPPABLE_RUN_STATUSES.has(runData.status);
   const activeRunId = isActiveRun ? runData.id : undefined;
 
+  // Stop Run asks first, naming the branch; the palette and the toolbar menu share this (#262).
+  const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const handleStopRun = () => {
     if (!activeRunId) return;
-    if (!confirm("Are you sure you want to stop this run?")) return;
-    stopRunMutation.mutate(activeRunId);
+    setStopConfirmOpen(true);
+  };
+  const confirmStopRun = () => {
+    if (activeRunId) stopRunMutation.mutate(activeRunId);
   };
 
-  const { data: runs = [] } = useRuns();
-  const { data: tickets = [] } = useTickets(selectedProjectId);
+  useGlobalShortcuts({
+    togglePalette: () => setPaletteOpen((open) => !open),
+    openHelp: () => setShortcutsOpen(true),
+    newRun: () => openNewRunModal(),
+    navigate,
+  });
+
   const { data: readiness } = useReadiness();
+  const readyLabel = readiness?.ready !== false ? "Ready" : "Degraded";
 
-  const activeRunsCount = runs.filter((r) =>
-    ACTIVE_RUN_STATUSES.has(r.status),
-  ).length;
-
-  const queueCount = tickets.length;
   const isDocs = location.pathname.startsWith("/docs");
+  const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
+  // The welcome is a full-window screen (#269): it keeps the shell's providers
+  // and its own title, and loses the toolbar and the tab bar, which would
+  // otherwise frame a first-run screen with navigation for work that is not set
+  // up yet. Its checklist links are how the user moves on.
+  const isWelcome = location.pathname.startsWith("/welcome");
+  const section = sectionFor(location.pathname);
   const { title: genericTitle, subtitle: genericSubtitle } = getActiveTitle(
     location.pathname,
   );
@@ -539,48 +591,112 @@ function AppShellContent() {
       }
     : undefined;
 
-  const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
+  const [docsNavOpen, setDocsNavOpen] = useState(false);
+  // Choosing a document (the URL changes) dismisses the phone-width sheet.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the dependencies are the trigger, not read in the body
+  useEffect(() => {
+    setDocsNavOpen(false);
+  }, [docCategory, docSlug, isDocs]);
+
+  // The large title shrinks into the toolbar once the page scrolls. On desktop
+  // the scrolling element is <main>; at phone width the window scrolls.
+  const [compact, setCompact] = useState(false);
+  const onMainScroll = (event: UIEvent<HTMLElement>) => {
+    setCompact(event.currentTarget.scrollTop > COMPACT_TITLE_SCROLL);
+  };
+  useEffect(() => {
+    const onWindowScroll = () => {
+      setCompact(window.scrollY > COMPACT_TITLE_SCROLL);
+    };
+    window.addEventListener("scroll", onWindowScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onWindowScroll);
+  }, []);
 
   return (
-    <div id="app-shell" className="app-shell">
-      <AppShellSidebar
-        isDocs={isDocs}
-        projects={projects}
-        isProjectsLoading={isProjectsLoading}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={setSelectedProjectId}
-        queueCount={queueCount}
-        activeRunsCount={activeRunsCount}
-        readiness={readiness}
-        onToggleTheme={toggleTheme}
-      />
+    <div
+      id="app-shell"
+      className={`app-shell${isWelcome ? " app-shell--welcome" : ""}`}
+    >
+      {isDocs && (
+        <DocsSidebar
+          docsNavOpen={docsNavOpen}
+          onCloseDocsNav={() => setDocsNavOpen(false)}
+          onToggleTheme={handleToggleTheme}
+        />
+      )}
 
       <main
         id="app-main"
         className={`main-content ${isRunDetail ? "main-content-locked" : ""}`}
+        onScroll={onMainScroll}
       >
-        <AppShellHeader
-          isDocs={isDocs}
-          title={title}
-          subtitle={subtitle}
-          docBreadcrumb={docBreadcrumb}
-          onToggleTheme={toggleTheme}
-          onOpenNewRun={openNewRunModal}
-          activeRunId={activeRunId}
-          onStopRun={handleStopRun}
-          stopPending={stopRunMutation.isPending}
-        />
+        {!isWelcome && (
+          <AppShellHeader
+            isDocs={isDocs}
+            isRunDetail={isRunDetail}
+            docsNavOpen={docsNavOpen}
+            onToggleDocsNav={() => setDocsNavOpen((open) => !open)}
+            title={title}
+            subtitle={subtitle}
+            compact={compact}
+            docBreadcrumb={docBreadcrumb}
+            section={section}
+            onSelectSection={(id) => navigate(`/${id}`)}
+            needsYouCount={needsYouCount}
+            onToggleTheme={handleToggleTheme}
+            readyLabel={readyLabel}
+            activeRunId={activeRunId}
+            onStopRun={handleStopRun}
+            stopPending={stopRunMutation.isPending}
+            onStartRun={() => openNewRunModal()}
+            onAddProject={() => openOnboardingModal()}
+            onOpenPalette={() => setPaletteOpen(true)}
+          />
+        )}
 
         <div
           id="viewport-container"
           className={`viewport-container ${isRunDetail ? "viewport-container-locked" : ""}`}
         >
+          {!isDocs && !isRunDetail && (
+            <div className="page-heading">
+              <h1 id="page-title" className="large-title">
+                {genericTitle}
+              </h1>
+              <p className="page-subtitle">{genericSubtitle}</p>
+            </div>
+          )}
+
           <Outlet />
         </div>
       </main>
 
-      <AppShellMobileTabBar />
+      {!isWelcome && <AppShellMobileTabBar needsYouCount={needsYouCount} />}
       <ModalContainer />
+      {/* Desktop banners for live run events (#265). Renders nothing. */}
+      <DesktopBanners />
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        stopRunAvailable={activeRunId !== undefined}
+        onStopRun={handleStopRun}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+      />
+      <ShortcutSheet
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
+      <AlertDialog
+        id="alert-stop-run"
+        isOpen={stopConfirmOpen}
+        onClose={() => setStopConfirmOpen(false)}
+        title={`Stop run on ${runData?.branch ?? "this branch"}?`}
+        description="Stopping ends this run. It can't be undone."
+        confirmText="Stop Run"
+        cancelText="Keep Running"
+        variant="danger"
+        onConfirm={confirmStopRun}
+      />
     </div>
   );
 }
@@ -589,7 +705,9 @@ export function AppShell() {
   return (
     <ProjectProvider>
       <ModalProvider>
-        <AppShellContent />
+        <NotificationProvider>
+          <AppShellContent />
+        </NotificationProvider>
       </ModalProvider>
     </ProjectProvider>
   );

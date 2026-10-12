@@ -1,5 +1,5 @@
 /* X-Factory Design System — Single Import Entrypoint
- * IMPORT ORDER: tokens → base → shared → utilities (last for override specificity)
+ * IMPORT ORDER: tokens → base → shared → utilities → forced colours (last for override specificity)
  *
  * Component and view CSS files are imported directly by their TSX files
  * via: import './ComponentName.css'
@@ -13,6 +13,7 @@
 
 /* Layer 3: Shared Components */
 @import "./shared/buttons.css";
+@import "./shared/controls.css";
 @import "./shared/badges.css";
 @import "./shared/forms.css";
 @import "./shared/cards.css";
@@ -21,3 +22,6 @@
 
 /* Layer 4: Utilities (last for highest specificity) */
 @import "./utilities.css";
+
+/* Layer 5: Forced colours (#249): system colour keywords under forced-colors mode */
+@import "./forced-colors.css";

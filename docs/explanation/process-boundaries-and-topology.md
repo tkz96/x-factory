@@ -82,3 +82,14 @@ To prevent duplicate execution of the same job, X-Factory uses database-backed l
 5. Other active workers detect the expired lease, increment the attempt counter, and reclaim the job.
 
 This mechanism provides reliable fault tolerance without requiring complex distributed lock managers.
+
+## Pull Request Status Polling and Host Network Isolation
+
+The API process never performs host network calls (such as GitHub or Azure DevOps API calls).
+When a user opens a run in `pr_created` state (`GET /api/runs/:id`), the API process writes an idempotent `check_pr` intent command to SQLite and responds immediately.
+
+The worker process claims `check_pr` commands and runs a background polling loop:
+1. It queries `pr_created` runs that have had no outcome recorded (`pr_merged` or `pr_closed`) within the last 30 days.
+2. It polls provider status (`getPullRequestState`) every 5 minutes per run.
+3. If the host rate-limits or returns an error, the worker backs off exponentially with jitter (honoring `Retry-After` headers).
+4. When a PR is detected as merged or closed, the worker appends a durable `pr_merged` or `pr_closed` event to SQLite atomically and ceases polling for that run. The run's state-machine status remains `pr_created`.

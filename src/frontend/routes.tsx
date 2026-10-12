@@ -7,14 +7,15 @@ import {
   type RouteObject,
 } from "react-router-dom";
 import { AppShell } from "./components/AppShell.js";
+import { HomeRoute } from "./components/welcome/HomeRoute.js";
 import { DocsView } from "./views/DocsView.js";
-import { HistoryView } from "./views/HistoryView.js";
 import { ProjectDetailView } from "./views/ProjectDetailView.js";
 import { ProjectsView } from "./views/ProjectsView.js";
 import { QueueView } from "./views/QueueView.js";
 import { RunDetailView } from "./views/RunDetailView.js";
 import { RunsView } from "./views/RunsView.js";
 import { SettingsView } from "./views/SettingsView.js";
+import { WelcomeView } from "./views/WelcomeView.js";
 
 export const routeDefinitions: RouteObject[] = [
   {
@@ -22,12 +23,23 @@ export const routeDefinitions: RouteObject[] = [
     element: <AppShell />,
     children: [
       {
+        // The landing: the welcome while setup is incomplete, Tickets after
+        // every step is done (#269).
         index: true,
-        element: <Navigate to="/queue" replace />,
+        element: <HomeRoute />,
       },
       {
-        path: "queue",
+        path: "welcome",
+        element: <WelcomeView />,
+      },
+      {
+        path: "tickets",
         element: <QueueView />,
+      },
+      // The old Queue route moved to Tickets (#258).
+      {
+        path: "queue",
+        element: <Navigate to="/tickets" replace />,
       },
       {
         path: "runs",
@@ -37,9 +49,10 @@ export const routeDefinitions: RouteObject[] = [
         path: "runs/:runId",
         element: <RunDetailView />,
       },
+      // History is the Done filter of Runs (#258).
       {
         path: "history",
-        element: <HistoryView />,
+        element: <Navigate to="/runs?filter=done" replace />,
       },
       {
         path: "projects",
@@ -59,7 +72,7 @@ export const routeDefinitions: RouteObject[] = [
       },
       {
         path: "*",
-        element: <Navigate to="/queue" replace />,
+        element: <Navigate to="/tickets" replace />,
       },
     ],
   },

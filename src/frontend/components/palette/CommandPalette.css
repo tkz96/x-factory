@@ -1,0 +1,99 @@
+/* src/frontend/components/palette/CommandPalette.css — Command palette surface and list (#254) */
+
+.command-palette-overlay {
+  align-items: flex-start;
+  padding-top: var(--space-16);
+}
+
+.command-palette-content {
+  width: min(var(--modal-max-width), 100%);
+  max-height: min(var(--modal-max-height), 100%);
+  background: var(--bg-modal);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.command-palette {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: inherit;
+}
+
+.command-palette-search {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.command-palette-input {
+  width: 100%;
+  height: var(--input-height-sm);
+  padding: 0 var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.command-palette-input:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.command-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.command-palette-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.command-palette-option.is-active {
+  background: var(--bg-hover);
+}
+
+.command-palette-group {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}
+
+.command-palette-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-palette-detail {
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+}
+
+.command-palette-keys {
+  grid-column: 4;
+  justify-self: end;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.command-palette-empty {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-callout);
+}

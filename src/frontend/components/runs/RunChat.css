@@ -1,10 +1,10 @@
-/* src/frontend/components/runs/RunChat.css — Universal conversation view for run execution */
+/* src/frontend/components/runs/RunChat.css — The run chat timeline (#261). Every value is a token. */
 
 .run-chat {
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
   height: 100%;
@@ -12,65 +12,15 @@
   flex: 1;
 }
 
-/* ── Chat Header ────────────────────────────────────────────────────── */
+/* ── Timeline ───────────────────────────────────────────────────────── */
 
-.run-chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  flex-shrink: 0;
-}
-
-.run-chat-header-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.run-chat-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--purple));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.run-chat-avatar svg {
-  width: 16px;
-  height: 16px;
-  color: #fff;
-}
-
-.run-chat-meta {
+.run-chat-timeline {
+  position: relative;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
-
-.run-chat-meta strong {
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.run-chat-meta span {
-  font-size: var(--text-caption-2);
-  color: var(--text-dim);
-}
-
-.run-chat-actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-/* ── Message Thread ─────────────────────────────────────────────────── */
 
 .run-chat-messages {
   flex: 1;
@@ -79,443 +29,353 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  scroll-behavior: smooth;
 }
 
-/* ── System Dividers ─────────────────────────────────────────────────── */
-
-.imsg-system-divider {
+.run-chat-row {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-2) 0;
-  width: 100%;
-  animation: imsgBubbleIn 200ms var(--spring);
+  flex-direction: column;
+  min-width: 0;
 }
 
-.imsg-system-line {
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
-}
-
-.imsg-system-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 4px var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
-  font-size: var(--text-caption-2);
+.run-chat-empty {
+  margin: auto;
+  font-size: var(--text-footnote);
   color: var(--text-muted);
-  max-width: 85%;
   text-align: center;
 }
 
-.imsg-system-time {
-  font-size: 0.68rem;
+.run-chat-time {
+  font-size: var(--text-caption-2);
   color: var(--text-dim);
+  white-space: nowrap;
 }
 
-/* ── Individual Message Bubbles ─────────────────────────────────────── */
+/* Quiet status lines: the timeline reads like a story, not a chat. */
+.run-chat-system {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  text-align: center;
+}
 
-.imsg-row {
+.run-chat-system a {
+  color: var(--accent);
+}
+
+.run-chat-system-warning {
+  color: var(--orange);
+}
+
+.run-chat-system-error {
+  color: var(--red);
+}
+
+.run-chat-failure {
+  flex-basis: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--red-dim);
+  color: var(--text);
+  text-align: start;
+}
+
+.run-chat-failure p {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+}
+
+.run-chat-card {
   display: flex;
   flex-direction: column;
-  max-width: 82%;
-  animation: imsgBubbleIn 220ms var(--spring);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
 }
 
-.imsg-row.imsg-agent {
-  align-self: flex-start;
+.run-chat-card h3 {
+  margin: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text);
 }
 
-.imsg-row.imsg-user {
+.run-chat-card .run-chat-time {
   align-self: flex-end;
 }
 
-.imsg-bubble {
-  padding: var(--space-2) var(--space-3);
-  border-radius: 18px;
-  font-size: var(--text-footnote);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.imsg-agent .imsg-bubble {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  color: var(--text);
-  border-bottom-left-radius: 4px;
-}
-
-.imsg-user .imsg-bubble {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border-bottom-right-radius: 4px;
-}
-
-.imsg-timestamp {
-  font-size: var(--text-caption-2);
-  color: var(--text-dim);
-  margin-top: 2px;
-  padding: 0 var(--space-1);
-}
-
-.imsg-agent .imsg-timestamp {
-  text-align: left;
-}
-
-.imsg-user .imsg-timestamp {
-  text-align: right;
-}
-
-/* ── Context Card (agent's initial analysis) ────────────────────────── */
-
-.imsg-context-card {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  margin-top: var(--space-2);
-  font-size: var(--text-caption-1);
-  color: var(--text-muted);
-}
-
-.imsg-context-card h5 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-caption-1);
-  font-weight: 600;
-  color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.imsg-context-card ul {
+.run-chat-pre {
   margin: 0;
-  padding-left: 1.2em;
-  list-style: disc;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-footnote);
+  color: var(--text);
 }
 
-.imsg-context-card li {
-  margin-bottom: 2px;
-}
-
-.imsg-context-card code {
-  background: var(--bg-code);
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: var(--text-caption-2);
-}
-
-/* ── Gate Breathing Room Banner ─────────────────────────────────────── */
-
-.runchat-gate-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  gap: var(--space-3);
-}
-
-.runchat-gate-text {
+.run-chat-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
 }
 
-.runchat-gate-text strong {
-  font-size: var(--text-footnote);
-  font-weight: 600;
+.run-chat-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  background: transparent;
   color: var(--text);
+  font: inherit;
+  font-size: var(--text-footnote);
+  text-align: start;
+  cursor: pointer;
 }
 
-.runchat-gate-text span {
-  font-size: var(--text-caption-1);
+.run-chat-file:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: calc(var(--border-width-indicator) * -1);
+}
+
+.run-chat-file-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+}
+
+.run-chat-file-add {
+  color: var(--green);
+}
+
+.run-chat-file-remove {
+  color: var(--red);
+}
+
+.run-chat-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
-/* ── Typing Indicator ───────────────────────────────────────────────── */
+.run-chat-badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-badge);
+  background: var(--bg-hover);
+  font-size: var(--text-caption-2);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
 
-.imsg-typing {
+.run-chat-bubble {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 85%;
   padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.run-chat-bubble-user {
+  align-self: flex-end;
+  background: var(--accent-subtle);
+}
+
+.run-chat-bubble-agent,
+.run-chat-bubble-builder,
+.run-chat-bubble-reviewer {
   align-self: flex-start;
 }
 
-.imsg-typing-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  animation: imsgTyping 1.4s infinite ease-in-out;
+.run-chat-bubble .run-chat-time {
+  align-self: flex-end;
 }
 
-.imsg-typing-dot:nth-child(2) {
-  animation-delay: 0.16s;
-}
-
-.imsg-typing-dot:nth-child(3) {
-  animation-delay: 0.32s;
-}
-
-/* ── Chat Input ─────────────────────────────────────────────────────── */
-
-.run-chat-input {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-card);
-  flex-shrink: 0;
-}
-
-.run-chat-input input {
-  flex: 1;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-footnote);
-  color: var(--text);
-  outline: none;
-  transition: border-color var(--transition-fast);
-}
-
-.run-chat-input input:focus:not(:disabled) {
-  border-color: var(--border-focus);
-}
-
-.run-chat-input input:disabled {
+/* Long runs of progress lines fold into one group the reader can open. */
+.run-chat-group {
+  border-radius: var(--radius-md);
   background: var(--bg-secondary);
-  color: var(--text-dim);
-  cursor: not-allowed;
-  opacity: 0.8;
+  padding: var(--space-1) var(--space-3);
 }
 
-.run-chat-input input::placeholder {
-  color: var(--text-dim);
-}
-
-.imsg-send-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: none;
+.run-chat-group summary {
+  min-height: var(--tap-min);
   display: flex;
   align-items: center;
-  justify-content: center;
+  font-size: var(--text-footnote);
+  color: var(--text-secondary);
   cursor: pointer;
-  flex-shrink: 0;
-  transition:
-    background var(--transition-fast),
-    transform var(--transition-fast);
 }
 
-.imsg-send-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: scale(1.05);
+.run-chat-group summary:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
 }
 
-.imsg-send-btn:active:not(:disabled) {
-  background: var(--accent-pressed);
-  transform: scale(0.95);
+.run-chat-group > :not(summary) {
+  padding-bottom: var(--space-2);
 }
 
-.imsg-send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+/* ── Gate actions, above the message box ───────────────────────────── */
+
+/* The checkpoint bar sits directly above the message box (#263). */
+
+.run-chat-jump {
+  position: absolute;
+  inset-inline: 0;
+  bottom: var(--space-3);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.imsg-send-btn svg {
-  width: 16px;
-  height: 16px;
-  color: #fff;
+.run-chat-jump > * {
+  pointer-events: auto;
 }
 
-/* ── Animations ─────────────────────────────────────────────────────── */
+/* ── Typing ─────────────────────────────────────────────────────────── */
 
-@keyframes imsgBubbleIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.run-chat-typing {
+  display: flex;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-3);
 }
 
-@keyframes imsgTyping {
+.run-chat-typing-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-dot);
+  background: var(--text-muted);
+  animation: runChatTyping var(--duration-typing) var(--ease-in-out) infinite;
+}
+
+.run-chat-typing-dot:nth-child(2) {
+  animation-delay: var(--duration-stagger);
+}
+
+.run-chat-typing-dot:nth-child(3) {
+  animation-delay: calc(var(--duration-stagger) * 2);
+}
+
+@keyframes runChatTyping {
   0%,
   80%,
   100% {
     opacity: 0.3;
-    transform: scale(0.8);
   }
   40% {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
-/* ── Diff Summary in Chat ───────────────────────────────────────────── */
+/* Reduced motion (#252): the dots stop as a steady row of dots. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes runChatTyping {
+    0%,
+    100% {
+      opacity: 1;
+    }
+  }
 
-.imsg-diff-summary {
+  .run-chat-typing-dot {
+    animation-iteration-count: 1;
+  }
+}
+
+/* ── Message box ────────────────────────────────────────────────────── */
+
+.run-chat-input {
   display: flex;
-  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
-  margin-top: var(--space-2);
-  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
-.diff-file-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.diff-file-row:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-focus);
-}
-
-.diff-file-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.run-chat-input textarea {
+  flex: 1;
   min-width: 0;
-}
-
-.diff-file-icon {
-  font-size: var(--text-callout);
-  flex-shrink: 0;
-}
-
-.diff-file-name {
-  font-family: var(--font-mono);
-  font-size: var(--text-caption-1);
+  min-height: var(--tap-min);
+  max-height: 40vh;
+  field-sizing: content;
+  resize: none;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--bg-input);
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font: inherit;
+  font-size: var(--text-body);
 }
 
-.diff-file-stats {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption-2);
-  font-weight: 600;
-  flex-shrink: 0;
+.run-chat-input textarea:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: 0;
 }
 
-.diff-file-add {
-  color: var(--green);
+.run-chat-input textarea:disabled {
+  opacity: 0.5;
 }
 
-.diff-file-remove {
-  color: var(--red);
+.run-chat-input textarea::placeholder {
+  color: var(--text-dim);
 }
 
-/* ── Inline Chat Actions ────────────────────────────────────────────── */
-
-.imsg-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.imsg-action-btn {
+.run-chat-send {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-caption-1);
-  font-weight: 550;
-  padding: 0.35rem 0.85rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  border: 1px solid transparent;
-}
-
-.imsg-action-primary {
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border: 0;
+  border-radius: var(--radius-full);
   background: var(--accent);
   color: var(--text-on-accent);
+  cursor: pointer;
 }
 
-.imsg-action-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+.run-chat-send:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--border-width-indicator);
 }
 
-.imsg-action-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.imsg-action-secondary:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-
-.imsg-action-danger {
-  background: transparent;
-  color: var(--red);
-  border-color: var(--border);
-}
-
-.imsg-action-danger:hover:not(:disabled) {
-  background: rgba(248, 81, 73, 0.1);
-  border-color: var(--red);
-}
-
-.imsg-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.imsg-action-resolved {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-caption-1);
-  font-weight: 600;
+.run-chat-send:disabled {
+  background: var(--bg-surface-2);
   color: var(--text-muted);
-  padding: 0.25rem 0;
+  cursor: default;
 }
 
-.imsg-action-resolved-check {
-  color: var(--green);
+.run-chat-send .icon {
+  width: var(--icon-md);
+  height: var(--icon-md);
 }
 
-/* ── Inline Rework Prompt ───────────────────────────────────────────── */
+/* Forced colours: an enabled send is a system-coloured button, a disabled one is GrayText on a border (#262). */
+@media (forced-colors: active) {
+  .run-chat-send {
+    background: ButtonFace;
+    color: ButtonText;
+    border: var(--border-width) solid ButtonText;
+  }
 
-.imsg-rework-box {
-  margin-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  width: 100%;
+  .run-chat-send:disabled {
+    background: Canvas;
+    color: GrayText;
+    border-color: GrayText;
+  }
 }

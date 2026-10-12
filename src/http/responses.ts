@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import type { EventRecord } from "../db/event-repository.js";
 import {
+  ActiveRunExistsError,
   ConflictError,
   GitConfigError,
   NotFoundError,
@@ -105,6 +106,23 @@ function errorStatusOf(err: unknown, fallback: number): number {
 }
 
 /**
+ * The active run id a refused creation carries (#255), or `undefined`. Read
+ * defensively like the other field readers: an error that matched by family name
+ * alone may carry neither the class nor the field.
+ */
+function errorRunIdOf(err: unknown): string | undefined {
+  if (
+    err &&
+    typeof err === "object" &&
+    "runId" in err &&
+    typeof (err as { runId: unknown }).runId === "string"
+  ) {
+    return (err as { runId: string }).runId;
+  }
+  return undefined;
+}
+
+/**
  * The 409 envelope for a semantic validation error: codes only, never messages.
  *
  * The members are read defensively because matching is by family name as well
@@ -193,6 +211,20 @@ export function translateDomainErrorToHttpResponse(
     return jsonResponse(
       code ? { error: message, code } : { error: message },
       400,
+    );
+  }
+  if (inErrorFamily(err, ActiveRunExistsError)) {
+    // A refused run creation names the run to open instead (#255). The run id is
+    // the whole point of the answer, so it rides the envelope next to the code.
+    const runId = errorRunIdOf(err);
+    const code = errorCodeOf(err);
+    return jsonResponse(
+      {
+        error: message,
+        ...(code ? { code } : {}),
+        ...(runId ? { runId } : {}),
+      },
+      409,
     );
   }
   if (inErrorFamily(err, ConflictError)) {

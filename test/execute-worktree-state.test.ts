@@ -5,6 +5,8 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createDatabase } from "../src/db/connection.js";
+import type { EventRecord } from "../src/db/event-repository.js";
+import { EventRepository } from "../src/db/event-repository.js";
 import { JobRepository } from "../src/db/job-repository.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { RunRepository } from "../src/db/run-repository.js";
@@ -17,6 +19,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 
 const PROJECT_ID = "proj-exec-state";
 
@@ -122,11 +125,13 @@ async function execute(files: Array<[string, string]>): Promise<{
   status: string | undefined;
   diff: string | null | undefined;
   verification: VerificationResult | null | undefined;
+  events: EventRecord[];
 }> {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
   const runRepo = new RunRepository(db);
   const jobRepo = new JobRepository(db);
+  const eventRepo = new EventRepository(db);
   const run = runRepo.create({
     id: "run-exec-state",
     projectId: PROJECT_ID,
@@ -142,6 +147,7 @@ async function execute(files: Array<[string, string]>): Promise<{
 
   await installAgent(files);
   const executor = new ExecuteExecutor({
+    resolveRole: stubResolveRole,
     loadSettings: async () => ({}),
     reviewExecutor: {
       stage: "review",
@@ -165,6 +171,7 @@ async function execute(files: Array<[string, string]>): Promise<{
     status: after?.status,
     diff: after?.diff,
     verification: after?.verification,
+    events: eventRepo.getEventsForRun(run.id),
   };
 }
 
@@ -202,6 +209,20 @@ describe("Execute stage change classification", () => {
     expect(outcome.diff).toContain("+export const f = 1;");
     expect(outcome.diff).not.toContain(".agent/");
     expect(outcome.diff).not.toContain("ralph.sh");
+  });
+
+  it("emits a diff summary naming the changed files and their line counts (#256)", async () => {
+    const outcome = await execute([
+      ["src/app.ts", "export const app = 2;\nexport const extra = true;\n"],
+    ]);
+
+    expect(outcome.status).toBe("awaiting_review");
+    const summary = outcome.events.find((e) => e.type === "diff_summary");
+    expect(summary?.payload).toEqual({
+      files: [{ path: "src/app.ts", added: 2, removed: 1 }],
+      totalAdded: 2,
+      totalRemoved: 1,
+    });
   });
 
   it("fails verification when the agent modifies a tracked .env", async () => {

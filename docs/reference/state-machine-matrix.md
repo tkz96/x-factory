@@ -46,9 +46,9 @@ The finite state machine governs each run through discrete, sequential execution
 |---|---|---|
 | `queued` | Pending | Run is queued and waiting for a worker. |
 | `preparing` | Active | The worker creates the branch and initial Git worktree. |
-| `understanding` | Active | The worker (via Pi) inspects the codebase and extracts context. |
+| `understanding` | Active | The worker asks the Builder model, with the runtime's read-only repository tools, to summarise the ticket and name the files it concerns. A model failure fails the stage with its reason; no template understanding is written (#282). |
 | `awaiting_understanding_approval` | Checkpoint | Execution pauses for human review and chat regarding the extracted context. |
-| `planning` | Active | The worker generates the implementation plan and task list. |
+| `planning` | Active | The worker asks the Builder model for a concrete plan that names the files and tests it changes. A model failure fails the stage with its reason; no fallback plan is written (#282). |
 | `awaiting_plan_approval` | Checkpoint | Execution pauses for human review and chat regarding the plan. |
 | `executing` | Active | The Ralph Loop autonomously implements and verifies code, followed by an automated adversarial code review. |
 | `awaiting_review` | Checkpoint | Execution pauses for human code review of the execution results. |
@@ -114,3 +114,16 @@ A worker that releases a job on shutdown gives back the attempt the claim counte
 
 ### 7. One Repair Budget
 A stage's repair budget is its single attempt cap. An `execute` stage whose verification still fails after the budget is spent ends the run as `failed`, like a rejected review, with the verification evidence kept. The job is not retried.
+
+### 8. Budget-Exceeded Pauses and Resumption
+A model's daily budget has two halves, with different units, both counted per UTC day. **Requests are model calls, not stage attempts:** one row per call is written to `model_calls` as the call is sent, at the one place every call passes through (the model gateway's run wrapper), so a stage that prompts the model several times, and every retry after a `429`, each count. The exception is the coding loop, which runs Pi in a subprocess and cannot see its individual calls (`pi -p` reports no usage); there, each iteration the loop announces on its `ralph_progress` events counts as one call. The loop checks the budget as each iteration begins, before counting it, like an in-process call: a budget of N lets exactly N iterations run in full, and when the next would begin the loop is aborted and the run pauses with the `"budget reached"` reason, exactly like the in-process stages, so a loop never records more calls than the budget allows (`test/attempt-loop.test.ts` drives N=2 against a five-iteration script). **Cost** is unchanged: USD is summed from the `cost_usd` the `stage_attempts` reported. A budget of N requests allows exactly N calls: before a call, `checkModelBudget`/`assertBudgetNotExceeded` refuse it when N calls have already been made today (and it always refuses once the USD budget is reached).
+
+Starting a model call that would exceed the budget does not fail or retry the job; instead, it pauses the stage and transitions the run to `recovery_required` carrying a structured reason with category `"budget reached"` (#281). Resuming the run via `POST /api/runs/:id/resume` re-checks the daily budget for the model assigned to the target stage with the same rule. If the budget is spent (N of N calls made today), the resume request is rejected with `409 Conflict` (`ConflictError`) and the run remains in `recovery_required`; with even one call left, the resume is allowed. `test/model-call-budget.test.ts` and `test/model-budget-resume.test.ts` drive both.
+
+**Not covered:** chat spend is not budgeted or queued with stage calls. Run chat uses its own gateway queue and is not checked against daily budgets. Its tokens and cost are recorded only on the `chat_agent` event, not in `stage_attempts`, so they do not count toward budgets. This is an accepted gap.
+
+### 9. Why a Run Failed
+Every status event that moves a run to `failed` carries a structured `failure` alongside its technical `text` (#256): a `category` (`model`, `sandbox`, `timeout`, `verification`, `review`, `git`, `project`, `operator` or `unknown`), a plain-language `message`, and the `recovery` action to suggest. `src/shared/failure-reason.ts` derives it from the error text (the stage only names the fallback message), prefers the sandbox and model categories over the rest, and reports `unknown` rather than guessing. The three writers are the stage failure, the rejected stage and the operator's `abandon`.
+
+### 10. One Active Run per Ticket
+A ticket has at most one active run in a project. `POST /api/runs` checks for one and inserts the new run in a single immediate write transaction (`src/runs.ts`), and "active" is the shared policy's `ACTIVE_RUN_STATUSES` — every non-terminal status, `recovery_required` included — with no list of the guard's own. A request for a ticket that already has one is refused with `409 Conflict` carrying the code `RUN_ALREADY_ACTIVE` and the existing run's id as `runId`, which is the run the client opens. The run's artifact files are written only once the insert has won, so a refused or failed creation leaves no run files on disk (and a creation whose files cannot be written removes the run it inserted). Terminal runs do not block a new run: a ticket whose run is `failed` or `stopped` starts a fresh one, and the old run is left untouched. `test/one-active-run-per-ticket.test.ts` drives the HTTP API for every status.

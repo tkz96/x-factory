@@ -8,11 +8,13 @@ All async and input feedback renders through the presentation-only family at `sr
 
 - `AsyncRegion` — renders the five-state taxonomy from a derived state enum. It never sees the query.
 - `FieldFeedback` — inline input states: `valid | invalid | warning | indeterminate` (plus `default`, which renders nothing).
-- `FeedbackBanner` — inline partial/degraded warnings and rate-limit timed guidance, with `role="status"` semantics.
+- `FeedbackBanner` — inline partial/degraded warnings and rate-limit timed guidance. Errors are announced as `role="alert"`; informational and partial states stay `role="status"` (#251).
 - `RetryAction` — the uniform retry affordance.
 - `copy-map.ts` — THE canonical `(code, context) → message` map plus the five-state guidance strings. All canonical copy lives there, nowhere else. The provider error table itself is defined once in `src/shared/provider-error-copy.ts` and re-exported here, because the provider layer (`src/providers/errors.ts`) must resolve the same strings and the frontend may not import `src/providers/`.
 
-Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). All feedback renders inline in its region — there is no toast system, ever.
+The family is presentation-only and renders through the one control vocabulary in `src/frontend/components/ui/` (#251): the button, badge, list row, placeholder rows and spinner blocks, built on React Aria and styled with tokens.
+
+Import rule: any component may import `feedback/`; `feedback/` imports nothing screen-specific (enforced by the smoke gate). The one escape besides `src/shared` is `components/ui/`, which is screen-agnostic by construction and is itself held to the same rule. All feedback renders inline in its region — there is no toast system, ever. The one exception is the notification center (`src/frontend/components/notifications/`, #264): the toolbar bell opens a list the user chooses to read, and nothing floats over the page. Floating toasts stay banned everywhere else; the smoke gate's toast ban names the notification center as its only exception. Desktop banners (#265) are browser notifications, not in-page toasts.
 
 ## Read regions — loading / empty / partial / error / stale
 
@@ -20,7 +22,7 @@ State derivation is pure: `deriveAsyncState(query, { isEmpty, isPartial, isStale
 
 | State | Definition | Presentation |
 |---|---|---|
-| `loading` | No result yet — an initial fetch in flight (or paused/offline). A background refetch with data on screen is NOT loading. | Indeterminate spinner in a reserved region (`min-height` from spacing tokens, no layout shift). No skeleton or shimmer, ever. |
+| `loading` | No result yet — an initial fetch in flight (or paused/offline). A background refetch with data on screen is NOT loading. | Lists reserve **static placeholder rows** at the height the loaded rows will have (`--list-row-height`, from the row block in `src/frontend/components/ui/`); everything else shows the **one standard spinner** (`Spinner`) for small inline waits. The wait is announced once through `role="status"`. No shimmer, ever — placeholders are static and never animated (#251). |
 | `empty` | The region has results but none are usable (caller predicate `isEmpty`). | Guidance text from the copy map, overridable per region via props. |
 | `partial` | Some results loaded and others failed (caller predicate `isPartial`). | Content stays on screen plus a warning banner listing exactly which parts failed (`failedParts`), so the user knows what still works. |
 | `error` | The query failed AND the region has nothing to show. | Normalized message from the copy map + `RetryAction`. Never a raw provider body. |
@@ -29,7 +31,8 @@ State derivation is pure: `deriveAsyncState(query, { isEmpty, isPartial, isStale
 Two recorded refinements:
 
 1. **Error with data on screen is a suppressed diagnostic, not a primary state.** A failed refresh never hides working results; the error renders inline as a banner with a retry, carried in `suppressed`. The canonical case: stale + failed refresh → stale badge + error context + retry.
-2. **Loading means "no result yet."** An enabled-but-not-started query shows the reserved spinner region; consumers that gate a region (for example, a wizard step waiting on upstream inputs) simply do not render the region until it is live.
+2. **Loading means "no result yet."** An enabled-but-not-started query shows the reserved loading region; consumers that gate a region (for example, a wizard step waiting on upstream inputs) simply do not render the region until it is live.
+3. **Lists load as placeholder rows, everything else as the spinner (#251).** A list passes `placeholderRows` to `AsyncRegion`; its placeholder rows are the same row block as the real rows, so they reserve the same height and the list does not jump when data arrives. A small inline wait uses `Spinner`, the one wait indicator in the vocabulary. Neither is ever animated or shimmering, and neither is constructed by hand outside the blocks.
 
 Required test coverage for every read region: loading, empty, partial, error, stale.
 
@@ -42,7 +45,9 @@ Required test coverage for every read region: loading, empty, partial, error, st
 | Inspection — git identity (`#146`) | `wizard/steps/useInspection.ts` | loading = the identity read is in flight in the reserved region; empty = there is no directory to read a configuration in (nothing selected, or no local path at all — guidance names which); partial = the identity resolved for some selected repositories and not for others (the banner names each repository whose directory resolved none); error = the read failed (canonical copy + retry); stale = the record was resolved for a selection or workspace root that has since changed (badge + re-inspect). A record that resolved NO identity is not a failure of the region: the region renders normally and a banner states, with the directory named, that no `user.name`/`user.email` is configured and that none will be invented. |
 | Project detail (`#147`) | `views/ProjectDetailView.tsx`, `components/projects/TrackerSection.tsx` | loading = the projects catalog is in flight; error = the catalog failed (normalized copy + retry); empty = the catalog loaded without this id (not-found guidance + back action); ready = the project plus its combo line and tracker card. |
 | Settings — connections registry (`#147`) | `views/SettingsView.tsx` | The registry lists every project with its combo line. Its loading and empty rows are table rows, not regions: they carry copy only. |
-| Project cards (`#147`) | `components/projects/ProjectCard.tsx` | Not a region: each card renders its project's combo line and, on an integrity failure, the repair path. |
+| Projects list (`#267`) | `components/projects/ProjectList.tsx`, `components/projects/ProjectsSplit.tsx` | The list is one read region: loading = the catalog in flight, as static placeholder rows; error = the catalog failed (normalized copy + retry); empty = the filter the user is looking at has no projects (guidance, and Add Project only on the true first run); ready = one row per project, the current one marked. At phone width the detail pane pushes over the list. |
+| Project detail pane (`#267`) | `views/ProjectDetailView.tsx` | Not a region of its own: it shares the list's read region and renders the project's plain-word facts (repository, tracker, branch) with its combo line and tracker card. |
+| First-run welcome (`#269`) | `views/WelcomeView.tsx`, `components/welcome/SetupChecklist.tsx` | One read region over the four facts the checklist needs (projects, runs, the settings' roles, the model connections), combined in `hooks/useSetupChecklist.ts`. loading = any part still unanswered, as the one spinner (never a guessed tick); error = any part failed (normalized copy + retry, which re-asks all four); ready = the three steps with the ticks real state supports and the gaps that are left. The route stays reachable after setup finishes; the landing (`components/welcome/HomeRoute.tsx`, the index route) is what goes on to Tickets once every step is done. |
 | Work Queue (`#147`) | `views/QueueView.tsx` | loading = tickets in flight; error = the tickets call failed (normalized copy + retry, and the manual path stays open); empty = the tracker reports no tickets (guidance + the manual path) or the search matches none (guidance + clear filter); ready = the ticket cards. |
 
 **Repositories staleness (`#144`).** The step records the fingerprint of the
@@ -221,7 +226,8 @@ the wizard from the draft (`draftConnectionIdentityTargets`), and both project t
 configuration through the manifest's `secret` declarations first.
 
 **Repair path wiring.** The repair affordance is the copy-map `reconnect`
-label. On the project detail surface, the project cards, and the Work Queue it
+label. On the project detail pane, the settings connections registry and the Work
+Queue it
 navigates to the settings connections surface; on that surface it opens the
 connection flow (`openOnboardingModal`). Wizard re-entry / edit mode for an
 existing project is out of scope for this spec (#133 §Further notes), so the
@@ -296,7 +302,7 @@ Inputs render through `FieldFeedback`. The coverage contract requires testing `d
 
 ## Enforcement — honest scope
 
-- `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, and toast systems constructed outside `feedback/`. The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
+- `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, toast systems constructed outside `feedback/` and outside the notification center (#264, the named exception), and any shimmer animation (#251 — static placeholder rows are the approved loading shape, a shimmer is not, in markup or in CSS). The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
 - Three end-to-end provider journeys (`test/provider-journeys.test.tsx`) run the REAL wizard against a REAL server with a registry injected through the provider contract's own seam: GitHub-only, Azure dual-role, and Jira tracker-only (degraded evidence plus a git host from another provider). They are written provider-agnostically — the provider under test is DATA (`test/fixtures/journey-providers.ts`), and the api-client transport is the only boundary that stands in — and they assert the created project's persisted connections, its role-tagged repository, its `gitIdentity`, and that no secret appears in any response.
 - The #148 read/mutation/input audit closed two gaps the earlier tickets left: the Connect step's own manifest region (`test/connect-step.test.tsx`) and the project detail surface's catalog region (`test/post-creation-surfacing.test.tsx`) now assert loading, error and empty, not only their ready and failure-of-connection states.
 - The scan carries an explicit legacy allowlist (`LEGACY_ADHOC_FEEDBACK_FILES`) for files whose ad-hoc markup predates this contract and is scheduled for absorption by the wizard rebuild (spec #133). New files must never appear there, and entries leave the list when their absorbing ticket deletes them. `ProjectDetailView` and `QueueView` left it in #147.
@@ -304,7 +310,8 @@ Inputs render through `FieldFeedback`. The coverage contract requires testing `d
 
 ## Adding a new region
 
-1. Derive its state with `deriveAsyncState` and render through `AsyncRegion` — never construct loading/error markup by hand.
+1. Derive its state with `deriveAsyncState` and render through `AsyncRegion` — never construct loading/error markup by hand. A list passes `placeholderRows`; anything else keeps the standard spinner.
 2. Pull all copy from `copy-map.ts`; extend the map rather than inlining strings.
-3. Test all five read states (or the three mutation states, or the three input states) for the new region.
-4. If the region errors with a normalized envelope, route the payload through `resolveErrorCopy` — raw error messages are never rendered.
+3. Render controls from `src/frontend/components/ui/` — never a hand-rolled button, field, switch or badge.
+4. Test all five read states (or the three mutation states, or the three input states) for the new region.
+5. If the region errors with a normalized envelope, route the payload through `resolveErrorCopy` — raw error messages are never rendered.

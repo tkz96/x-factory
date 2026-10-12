@@ -110,6 +110,16 @@ Glass/blur is for chrome, never for primary content surfaces (cards, list rows, 
 HIG: `/design/human-interface-guidelines/motion`
 Apple's system animations are spring-based, not linear. Motion should be purposeful — it should *explain* a change (where did this view come from, where did it go), never decorate for its own sake. On the web, approximate the spring feel with an overshoot easing curve, and **always** respect `prefers-reduced-motion` — treat it as a hard requirement, not a nice-to-have.
 
+How that translates into this codebase (ticket #252):
+
+- **Durations and easings are tokens.** Every `transition`, `animation`, `animation-delay` and `transition-duration` takes its timing from `src/frontend/styles/tokens.css` (`--duration-*`, `--ease-*`, `--transition*`). No stylesheet writes a raw `180ms`, `1.4s` or `cubic-bezier()`. The smoke gate fails on one that does.
+- **The ladder collapses, it does not vanish.** Under `prefers-reduced-motion: reduce` the `--duration-*` tokens become one short crossfade (120 ms), `--duration-stagger` becomes `0ms`, and `--transition*` follow them. Reduced motion means gentler motion, not simply none.
+- **Every keyframe has a reduced-motion path beside it.** A keyframe that moves (`transform`, `translate`, `top`, `width`, …) declares the same keyframe again inside a `@media (prefers-reduced-motion: reduce)` block in the same file, with the movement removed and the fade kept. An infinite animation (a spinner, a pulse, a typing indicator) stops in that block — `animation-iteration-count: 1` — and reads as a static indicator. The smoke gate fails on a keyframe that moves without a reduced path, or on a loop that never stops.
+- **GPU properties only.** Animate `transform` and `opacity`. Resizing (`width`, `height`), offsets (`top`, `left`) and shadows that re-layout are findings; a progress bar scales with `transform: scaleX()`, it does not animate `width`.
+- **Never `transition: all`**, and never `scale(0)`: content arrives from `scale(0.9–0.97)` plus `opacity: 0`, so nothing appears from nothing.
+- **The `motion` library is mounted once and loaded on demand.** `MotionProvider` (`src/frontend/motion/MotionProvider.tsx`) wraps the app in `LazyMotion` with `MotionConfig reducedMotion="user"`, and reaches the feature pack through the dynamic import in `motion-features.ts`. Components use the `m` components, never `motion`, so the pack stays out of the entry chunk; only `motion-feature-pack.ts` may name one. Springs have no fixed duration, so they are parameterised in `src/frontend/motion/motion-springs.ts`.
+- **The vocabulary lives in `src/frontend/motion/`.** `MotionEntry` (a chat row arriving) and `MotionList` / `MotionListItem` (reordering) are what screens build their motion from, rather than each screen hand-rolling keyframes. Sheets rise with the CSS motion tokens, not a component, and no surface follows a drag: the motion library has no drag feature in use.
+
 ### Icons & Anti-Drift Architecture
 HIG: `/design/human-interface-guidelines/icons` + SF Symbols site
 SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's weight axis, and align to text baselines automatically. In this web app, we standardize on **Lucide 24×24 geometry** with strict anti-drift governance:
@@ -225,6 +235,17 @@ Before building any of the following, pull the matching component from the Figma
 
 For flows, check the Patterns section first: onboarding, search, feedback, data entry, notifications, undo/redo, settings. Apple has already solved most of the "how should this flow work" questions — use the solved version.
 
+### Building blocks (the control vocabulary)
+
+A screen composes blocks; it never hand-rolls a control. The vocabulary lives in `src/frontend/components/ui/` and is built on React Aria's unstyled primitives — React Aria owns behaviour (keyboard, press, focus visibility, disabled and touch semantics) and the tokens own every visual value. The one stylesheet is `src/frontend/styles/shared/controls.css`; see [docs/agents/frontend-styling.md](./docs/agents/frontend-styling.md) for the rules and the gate that enforces them.
+
+- button, icon button, text field, text area, select, segmented control, switch, badge, list row.
+- **Tap targets.** Every block a finger can hit is at least 44pt tall, taken from `--tap-min`.
+- **Focus.** One ring definition, drawn from `--border-width-indicator` and `--border-focus`, proved at 3:1 or better by the twelve-set contrast gate.
+- **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
+- **Loading.** A list reserves static placeholder rows at the height the loaded rows will have (`--list-row-height`) — no layout shift and no shimmer, ever. Every other wait is the one standard spinner, for small inline waits only.
+- **Icon-only controls** always carry an accessible name, and no status is ever an emoji.
+
 ## 8. Non-negotiables
 
 - MUST check the relevant HIG page and Figma kit before designing any new screen or component.
@@ -243,6 +264,9 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 - MUST NOT write inline `style={{...}}` blocks in TSX/JSX components. All styling must use semantic tokens, co-located component CSS (`./ComponentName.css`), or utility classes (`src/frontend/styles/utilities.css`).
 - MUST co-locate component and view stylesheets (`ComponentName.css` alongside `ComponentName.tsx`) and import them explicitly.
 - MUST adhere to the layered CSS architecture (`src/frontend/styles/index.css` = tokens → base → shared → utilities).
+- MUST build controls from the vocabulary in `src/frontend/components/ui/` (React Aria, tokens-only, `shared/controls.css`) instead of hand-rolling a button, field, switch or badge.
+- MUST keep lists' loading shape static: placeholder rows at the row height, never an animated shimmer. Small inline waits use the one spinner.
+- MUST announce errors as alerts, and MUST NOT exceed one wait indicator per view region.
 
 ## 9. Definition of done
 
@@ -261,6 +285,7 @@ Before calling any UI work finished, confirm:
 - [ ] Zero raw emojis used for status or diagnostics
 - [ ] Anti-drift & Design System tests pass (`bun test test/frontend-smoke.test.ts`)
 - [ ] Contrast checked — 4.5:1 minimum for body text
+- [ ] Loading states use the blocks: static placeholder rows for a list, the one spinner for an inline wait — no shimmer
 - [ ] Every icon-only control has an accessible label
 
 

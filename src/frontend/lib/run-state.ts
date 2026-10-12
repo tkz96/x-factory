@@ -32,6 +32,8 @@ const INVALIDATING_EVENT_TYPES = new Set<RunEventType>([
   "status",
   "verification",
   "review",
+  "pr_merged",
+  "pr_closed",
 ]);
 
 // ─── Pure reducer ────────────────────────────────────────────────────────────
@@ -83,6 +85,43 @@ export function reduceRun(run: Run, event: RunEvent): Run {
     }
     case "review":
       return { ...run, review: event.payload.result };
+    case "pr_merged":
+      return {
+        ...run,
+        pullRequestOutcome: {
+          status: "merged",
+          state: "merged",
+          url: event.payload.url,
+          mergedAt: event.payload.mergedAt,
+          mergedBy: event.payload.mergedBy,
+        },
+      };
+    case "pr_closed":
+      return {
+        ...run,
+        pullRequestOutcome: {
+          status: "closed",
+          state: "closed",
+          url: event.payload.url,
+          closedAt: event.payload.closedAt,
+        },
+      };
+    case "stage_started": {
+      // The model a stage attempt runs on (#279), shown live; a replay of the
+      // same attempt is not added twice.
+      const { stage, attempt, model } = event.payload;
+      const known = (run.stageModels ?? []).some(
+        (m) => m.stage === stage && m.attempt === attempt,
+      );
+      if (known) return run;
+      return {
+        ...run,
+        stageModels: [
+          ...(run.stageModels ?? []),
+          { ...model, stage, attempt, startedAt: event.timestamp },
+        ],
+      };
+    }
     case "stage_evidence":
     case "pr_step":
     case "chat_user":
@@ -90,6 +129,10 @@ export function reduceRun(run: Run, event: RunEvent): Run {
     case "user_feedback":
     case "pi_output_chunk":
     case "ralph_progress":
+    // #256 events carry their own surfaces; the chat timeline (a later ticket) renders them.
+    case "plan_ready":
+    case "diff_summary":
+    case "review_activity":
     case "info":
     case "error":
       return run;

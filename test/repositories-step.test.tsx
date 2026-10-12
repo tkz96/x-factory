@@ -201,7 +201,9 @@ function setupStep3Draft(
         workspacePath: "/work/rocket",
       },
       connect: {
-        quickUrl: "",
+        // Step 1's repository URL (#268): present, so the step that holds it
+        // still validates when navigation returns to it.
+        quickUrl: "https://git.example.com/acme/rocket",
         // Configuration is keyed by PROVIDER (correction 2, #133): the git-host
         // role's card and its discovery read this one entry.
         providerConfigs: {
@@ -241,7 +243,7 @@ function setupStep2Draft() {
       workspacePath: "/work/rocket",
     },
     connect: {
-      quickUrl: "",
+      quickUrl: "https://git.example.com/acme/rocket",
       providerConfigs: {},
       tracker: {
         providerId: null,
@@ -321,7 +323,11 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
 
-    // Step 1 — Basics
+    // Step 1 — the repository URL, the project's name and its workspace
+    await typeInput(
+      getEl("onboard-repo-url"),
+      "https://git.example.com/acme/rocket",
+    );
     await typeInput(getEl("onboard-proj-name"), "Rocket");
     await typeInput(getEl("onboard-workspace-path"), "/work/rocket");
     fireEvent.click(getEl("btn-step-1-next"));
@@ -404,7 +410,10 @@ describe("Repositories Step: discovery-sourced selection (spec #133, ticket #144
     const region = discoveryRegion();
     const loading = region.querySelector(".async-region--loading");
     expect(loading).not.toBeNull();
-    expect(loading?.getAttribute("role")).toBe("status");
+    // The wait is announced by the standard spinner block (#251).
+    expect(loading?.querySelector('[role="status"]')?.textContent).toContain(
+      "Loading…",
+    );
     expect(loading?.querySelector("use")?.getAttribute("href")).toContain(
       "icon-loader-2",
     );
@@ -761,28 +770,30 @@ describe("Repositories Step — stale selection & progression gate (spec #133, t
     expect(document.getElementById("onboard-step-4")).toBeNull();
   });
 
-  it("STEPNAV REGRESSION: forward jumps past unvalidated steps stay disabled while the gate is closed", async () => {
+  it("the gate keeps the assistant on Repositories until an application repository is selected (#144)", async () => {
     setupStep3Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
     await flushDiscovery();
 
-    expect(getEl<HTMLButtonElement>("step-nav-basics").disabled).toBe(false);
-    expect(getEl<HTMLButtonElement>("step-nav-connect").disabled).toBe(false);
-    expect(getEl<HTMLButtonElement>("step-nav-inspection").disabled).toBe(true);
-    expect(getEl<HTMLButtonElement>("step-nav-review").disabled).toBe(true);
-
-    // A disabled forward jump is inert.
-    fireEvent.click(getEl("step-nav-review"));
+    // With nothing selected the step does not advance, and Continue says so
+    // rather than leaving the user on a dead button.
+    expect(getEl<HTMLButtonElement>("btn-step-3-next").disabled).toBe(true);
+    fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-3")).not.toBeNull();
+    expect(getEl("wizard-progress-counter").textContent).toBe("Step 3 of 5");
 
-    // After the gate opens and the wizard advances, only visited steps unlock.
+    // With a selection the gate opens and the assistant moves on.
     act(() => {
       fireEvent.click(getEl("repo-select-repo-app"));
     });
     fireEvent.click(getEl("btn-step-3-next"));
     expect(document.getElementById("onboard-step-4")).not.toBeNull();
-    expect(getEl<HTMLButtonElement>("step-nav-review").disabled).toBe(true);
+    expect(getEl("wizard-progress-counter").textContent).toBe("Step 4 of 5");
+
+    // The assistant can still come back, and the selection is still there.
+    fireEvent.click(getEl("btn-step-4-back"));
+    expect(getEl("wizard-progress-counter").textContent).toBe("Step 3 of 5");
   });
 
   // ── Smoothness #2, #3, #6 (#148): selection, keying, and back-navigation ───
@@ -1652,6 +1663,75 @@ describe("Repositories Step — bulk selection: Select all / Deselect all (#160)
     const hint = document.getElementById("repositories-requirements-hint");
     expect(hint).not.toBeNull();
     expect(hint?.textContent).toContain(REPOSITORIES_COPY.requirementsHelp);
+  });
+});
+
+describe("Repositories Step — filter and entered repository first (#284)", () => {
+  beforeEach(() => {
+    clearWizardDraft();
+    api.providers.getManifest = mock(async () => manifestFixture);
+    api.providers.verify = mock(async () => ({
+      status: "ok" as const,
+      warnings: [],
+    }));
+    api.providers.parseUrl = mock(async () => ({
+      code: "UNKNOWN" as const,
+      context: "",
+      matched: false as const,
+      url: "",
+    }));
+    api.providers.listRepositories = mock(async () => discoveryEnvelope());
+  });
+
+  afterEach(() => {
+    cleanup();
+    clearWizardDraft();
+  });
+
+  function listedNames(): string[] {
+    return Array.from(
+      document.querySelectorAll("#repositories-list .repositories-list-name"),
+    ).map((el) => el.textContent ?? "");
+  }
+
+  it("FILTER: typing narrows the list by name, and clearing restores it", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    const filter = getEl<HTMLInputElement>("repositories-filter");
+    expect(listedNames()).toEqual(["rocket-app", "rocket-api"]);
+
+    typeInput(filter, "API");
+    expect(listedNames()).toEqual(["rocket-api"]);
+
+    typeInput(filter, "");
+    expect(listedNames()).toEqual(["rocket-app", "rocket-api"]);
+  });
+
+  it("FILTER (no match): says nothing matches instead of showing an empty list", async () => {
+    setupStep3Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    typeInput(getEl<HTMLInputElement>("repositories-filter"), "zzz");
+    expect(listedNames()).toEqual([]);
+    expect(discoveryRegion().textContent).toContain(
+      REPOSITORIES_COPY.noFilterMatches("zzz"),
+    );
+  });
+
+  it("ENTERED FIRST: the repository named in the git-host connection is listed first", async () => {
+    setupStep3Draft({
+      gitHost: { config: { ...GIT_HOST_CONFIG, repository: "rocket-api" } },
+    });
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+    await flushDiscovery();
+
+    expect(listedNames()).toEqual(["rocket-api", "rocket-app"]);
   });
 });
 

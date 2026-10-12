@@ -43,6 +43,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
   import "./MyComponent.css";
   ```
 - Use BEM or semantic component prefixing (`.my-component`, `.my-component-header`, `.my-component-title`).
+- **One exception, and it is the design system itself**: the building blocks in `src/frontend/components/ui/` (section 7) carry no co-located stylesheet. Their styles live in `src/frontend/styles/shared/controls.css`, the shared layer, exactly as `.btn-primary`, `.badge` and `.form-input` do. A block is a primitive of the system, not a component of a screen.
 
 ---
 
@@ -51,10 +52,57 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 - **No Hardcoded Hex/RGB**: Never write `#ffffff`, `#0071e3`, `rgb(...)` outside of `tokens.css`. Always use `var(--accent)`, `var(--text)`, `var(--bg-card)`, etc.
 - **No Arbitrary Spacing**: Spacing must use `--space-*` tokens or utility classes (`.mt-4`, `.mb-2`, etc.).
 - **No Arbitrary Font Sizes**: Font sizes must follow HIG typography tokens (`--text-caption-1`, `--text-footnote`, `--text-headline`, etc.).
+- **The Theme and Appearance are applied before first paint.** The server puts the saved values from `settings.json` on `<html>` (`data-saved-theme`, `data-saved-appearance`) when it serves `index.html` (`src/http/static.ts`, `injectSavedTheme`), so a fresh browser profile paints the saved choice. The pre-paint script in `index.html` prefers those attributes and falls back to localStorage. Vite dev serves no injected attributes, so there the localStorage values apply.
 
 ---
 
-## 5. Verification Gate
+## 5. Motion
+
+Motion explains a state change; it never decorates one. [`DESIGN.md`](../../DESIGN.md) (Foundations → Motion) holds the full contract; these are the rules every change under `src/frontend/` follows.
+
+- **Every duration and easing is a token.** `transition`, `animation`, `animation-delay` and `transition-duration` take their timing from `src/frontend/styles/tokens.css` (`--duration-*`, `--ease-*`, `--transition*`, `--duration-stagger`). A raw `180ms`, `1.4s` or `cubic-bezier()` anywhere but the token file fails `bun run test:frontend-smoke`.
+- **Never `transition: all`.** Name the properties, and animate `transform` and `opacity` rather than anything that re-lays-out.
+- **Every keyframe has a reduced-motion path beside it.** Declare the same `@keyframes` again inside a `@media (prefers-reduced-motion: reduce)` block in the same file, with the movement dropped and the fade kept; an infinite animation stops there (`animation-iteration-count: 1`) and becomes a static indicator. The smoke gate fails when a moving keyframe has no reduced path, when a reduced path still moves, or when a loop never stops.
+- **Use the motion library's vocabulary** instead of new keyframes. `src/frontend/motion/MotionProvider.tsx` mounts `LazyMotion` once, with `MotionConfig reducedMotion="user"`; `MotionEntry` and `MotionList` / `MotionListItem` cover entry and list reordering. Sheets animate with the CSS motion tokens, and no surface is dragged, so there is no drag component. Use the `m` components, never `motion`, so the lazily loaded feature pack stays out of the entry chunk — exactly one file, `src/frontend/motion/motion-feature-pack.ts`, may name a feature pack.
+- **Springs, not durations, for interruptible motion.** Keep bounce subtle (0.1–0.3) and parameterise springs in `src/frontend/motion/motion-springs.ts`.
+
+---
+
+## 6. Never load from a third party
+
+- Do not point `src`, `href` (except a plain navigation link on `<a>`), `srcset`, `poster`, `@import` or `url()` at another host, and do not `fetch` one. `bun run test:frontend-smoke` scans the pages, the stylesheets and the frontend sources for this, and drives a browser through every screen to catch requests made from JavaScript.
+- Vendored assets are served by X-Factory: the API Reference viewer is a pinned copy under `public/assets/api-reference/` (see [ci-checks.md](./ci-checks.md)).
+- Everything from a CDN is a bug, however convenient: an offline laptop is a supported way to run X-Factory.
+
+## 7. Building blocks (React Aria)
+
+Screens are built from one vocabulary of controls, in `src/frontend/components/ui/`:
+
+| Block | Module | Notes |
+|---|---|---|
+| Button | `Button.tsx` | `variant` (primary/secondary/danger/quiet), `size` (sm/md/lg), optional sprite `icon` |
+| Icon button | `IconButton.tsx` | icon-only, `label` is required — an icon-only control always has an accessible name |
+| Text field, text area | `TextField.tsx` | label, description, an inline `feedback` slot (a `FieldFeedback` node) |
+| Select | `SelectField.tsx` | options are data; the list opens in a popover as a listbox |
+| Segmented control | `SegmentedControl.tsx` | one control, mutually exclusive options; arrow keys move between segments |
+| Switch | `SwitchControl.tsx` | track and thumb are tokens; the platform keeps the switch semantics |
+| Badge | `Badge.tsx` | a short state word, never an emoji |
+| List row, placeholder rows | `ListRow.tsx` | `PlaceholderRows` is the static loading shape of a list |
+| Spinner | `Spinner.tsx` | the one inline wait indicator |
+
+Rules:
+
+- **React Aria owns behaviour, tokens own every visual value.** The blocks wrap React Aria's unstyled primitives and React Aria's own stylesheet is never imported. State comes from its data attributes (`data-hovered`, `data-pressed`, `data-selected`, `data-disabled`, `data-focus-visible`) — style those, not `:hover`.
+- **Style them in `src/frontend/styles/shared/controls.css`**, the shared layer (section 3). Never inline a style, and never over-define a block from a screen: a screen composes blocks, it does not repaint them.
+- **Every block a finger can hit is at least `--tap-min` (44pt) tall.** `test/ui-loading-states.test.tsx` fails if one drops below it.
+- **One focus ring, one definition.** `controls.css` draws it from `--border-width-indicator` and `--border-focus` for every interactive block; the twelve-set contrast gate proves that pair at 3:1 or better.
+- **Lists load as static placeholder rows; everything else waits behind the one spinner.** Placeholder rows reserve `--list-row-height`, so the loaded list cannot jump, and they never animate. A shimmer is banned, in markup and in CSS (`test/frontend-smoke.test.ts`).
+- **Errors are announced as alerts.** `AsyncRegion`'s error state, an error-tone `FeedbackBanner` and an invalid `FieldFeedback` use `role="alert"`; informational and partial states stay polite.
+- `src/frontend/components/feedback/` renders through these blocks. `components/ui` and `src/shared` are its only escapes, and the smoke gate holds `components/ui` to the same screen-agnostic rule.
+
+---
+
+## 8. Verification Gate
 
 Before submitting or completing any UI/frontend task, run:
 ```bash

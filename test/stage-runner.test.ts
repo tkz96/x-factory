@@ -388,7 +388,76 @@ describe("stage runner", () => {
     );
   });
 
-  it("gives executors only inputs, emit, ledger, signal and identity, never repositories", async () => {
+  it("records a structured reason on the failed status when a stage fails for good (#256)", async () => {
+    const { db, repos, run } = setup("understanding");
+    repos.jobs.createJob({
+      runId: run.id,
+      stage: "understand",
+      maxAttempts: 1,
+    });
+    const worker = new Worker({
+      db,
+      workerId: "worker-structured-failure",
+      getStageExecutor: () => ({
+        stage: "understand",
+        async execute(): Promise<StageOutcome> {
+          return {
+            outcome: "error",
+            error:
+              "Execution failed: Verification did not pass after bounded repairs.",
+          };
+        },
+      }),
+    });
+
+    await worker.stepOnce();
+
+    expect(repos.runs.get(run.id)?.status).toBe("failed");
+    const failedStatus = repos.events
+      .getEventsForRun(run.id)
+      .filter((e) => e.type === "status")
+      .find((e) => e.payload.status === "failed");
+    expect(failedStatus?.payload).toMatchObject({
+      status: "failed",
+      failure: {
+        category: "verification",
+        message: expect.any(String),
+        recovery: expect.any(String),
+      },
+    });
+  });
+
+  it("records a structured reason when a rejected stage ends the run (#256)", async () => {
+    const { db, repos, run } = setup("understanding");
+    repos.jobs.createJob({ runId: run.id, stage: "understand" });
+    const worker = new Worker({
+      db,
+      workerId: "worker-structured-rejection",
+      getStageExecutor: () => ({
+        stage: "understand",
+        async execute(): Promise<StageOutcome> {
+          return {
+            outcome: "rejected",
+            reason:
+              "Code review was not approved: Review failed: 1 blocking errors, 0 unmet criteria.",
+          };
+        },
+      }),
+    });
+
+    await worker.stepOnce();
+
+    expect(repos.runs.get(run.id)?.status).toBe("failed");
+    const failedStatus = repos.events
+      .getEventsForRun(run.id)
+      .filter((e) => e.type === "status")
+      .find((e) => e.payload.status === "failed");
+    expect(failedStatus?.payload).toMatchObject({
+      failure: { category: "review" },
+    });
+  });
+
+  it("gives executors only inputs, emit, ledger, signal, model reporting and identity, never repositories", async () => {
     const jobSetup = setup("understanding");
     jobSetup.repos.jobs.createJob({
       runId: jobSetup.run.id,
@@ -426,11 +495,17 @@ describe("stage runner", () => {
       deliverExecutor: deliverSpy,
     }).stepCommandOnce();
 
+    // recordModel, reportUsage and recordModelCall write to the attempt without
+    // exposing the repositories or the attempt id (#279, #281).
     const expected = [
+      "assertBudget",
       "attempt",
       "emit",
       "ledger",
       "project",
+      "recordModel",
+      "recordModelCall",
+      "reportUsage",
       "run",
       "signal",
       "stage",

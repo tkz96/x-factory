@@ -35,6 +35,7 @@ PRAGMA busy_timeout = 5000;
 - **`jobs`**: schedulable units of work for a stage. A worker claims a job with a lease (`worker_id`, `lease_until`) and renews it by heartbeat. Attempts are bounded by `max_attempts`. Only the lease module (`src/lease.ts`) claims, renews, releases, expires and exhausts a lease. When a lease expires with `attempts >= max_attempts`, the job becomes `failed` and its run moves to `recovery_required`, in one transaction together with closing the running stage attempt. This happens while the worker runs, not only at startup.
 - **`run_events`**: the append-only event log for a run, ordered by a per-run `sequence`. It backs the SSE stream and historical replay.
 - **`stage_attempts`**: telemetry for each execution attempt of a stage (status, output, timing).
+- **`model_calls`**: one row per model call the worker sends through the model gateway, so the requests/day half of a model's budget counts calls rather than stage attempts (#281). A stage may make several calls (and every `429` retry is another request); the coding loop, whose subprocess calls are invisible, records one row per loop iteration. Rows carry the connection and model they called and the stage attempt that made them, and are dropped with that attempt when a run is deleted. Cost is not here: the USD half of the budget keeps summing `stage_attempts`.
 - **`operation_ledger`**: idempotency for side-effecting external operations (for example PR creation). There is at most one row per `(run_id, operation)`.
 - **`run_commands`**: durable operator commands (`stop`, `deliver`) handed from the API process to a worker, with their own lease and attempt bounds. A claimed command whose lease expired with `attempts >= max_attempts` is marked `failed` (`Command lease expired; retries exhausted`) instead of staying claimed; with attempts left, another worker can claim it again. Deleting a run deletes its commands (`ON DELETE CASCADE`, migration 009). Upgrading to migration 009 drops orphan `run_commands` rows, those whose run was already gone, because the cascade would remove them anyway and copying them would fail the foreign key.
 - **`worker_heartbeats`**: liveness of worker processes, used for orphan recovery and diagnostics. A worker is live when `last_heartbeat` is within the policy's heartbeat TTL of the lease module's clock. It stores the worker's OS PID and hostname for diagnostics only. PIDs are never used to signal or control processes.
@@ -64,6 +65,9 @@ Large artifacts (logs, transcripts, diffs) live on disk under the data dir. SQLi
 - **v7** `007_run_commands.sql`
 - **v8** `008_worker_heartbeats.sql`
 - **v9** `009_run_commands_cascade.sql`
+- **v10** `010_stage_attempt_models.sql`
+- **v11** `011_model_calls.sql`
+- **v12** `012_pr_outcome_events_unique.sql`
 
 ### Table: `jobs`
 
@@ -87,6 +91,20 @@ Indexes and constraints:
 
 - INDEX `idx_jobs_run_id` on (run_id)
 - INDEX `idx_jobs_claimable` on (status, available_at, lease_until)
+
+### Table: `model_calls`
+
+| Column | Type | Null | Default | Key | References |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NULL |  | PK |  |
+| `connection_id` | TEXT | NOT NULL |  |  |  |
+| `model_id` | TEXT | NOT NULL |  |  |  |
+| `stage_attempt_id` | TEXT | NULL |  |  | stage_attempts(id) ON DELETE CASCADE |
+| `called_at` | TEXT | NOT NULL |  |  |  |
+
+Indexes and constraints:
+
+- INDEX `idx_model_calls_model_called_at` on (connection_id, model_id, called_at)
 
 ### Table: `operation_ledger`
 
@@ -145,6 +163,7 @@ Indexes and constraints:
 
 Indexes and constraints:
 
+- UNIQUE `idx_run_events_pr_outcome` on (run_id)
 - INDEX `idx_run_events_run_sequence` on (run_id, sequence)
 - UNIQUE (inline) on (run_id, sequence)
 
@@ -205,6 +224,14 @@ Indexes and constraints:
 | `error` | TEXT | NULL |  |  |  |
 | `created_at` | TEXT | NOT NULL |  |  |  |
 | `updated_at` | TEXT | NOT NULL |  |  |  |
+| `model_role` | TEXT | NULL |  |  |  |
+| `connection_id` | TEXT | NULL |  |  |  |
+| `connection_name` | TEXT | NULL |  |  |  |
+| `api_type` | TEXT | NULL |  |  |  |
+| `model_id` | TEXT | NULL |  |  |  |
+| `tokens_in` | INTEGER | NULL |  |  |  |
+| `tokens_out` | INTEGER | NULL |  |  |  |
+| `cost_usd` | REAL | NULL |  |  |  |
 
 Indexes and constraints:
 

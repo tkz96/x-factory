@@ -37,10 +37,12 @@ describe("Production Build UI QA (XFM-65)", () => {
 
     // Hashed Vite bundle script and stylesheet
     expect(indexHtml).toMatch(/src="\/assets\/index-[a-zA-Z0-9_-]+\.js"/);
-    expect(indexHtml).toContain('<link rel="stylesheet" href="/styles.css">');
+    // The stylesheet is the bundled design system; public/styles.css is retired (#248).
+    expect(indexHtml).toMatch(/href="\/assets\/index-[a-zA-Z0-9_-]+\.css"/);
+    expect(indexHtml).not.toContain("/styles.css");
 
     // Static assets
-    expect(existsSync(path.join(distPublicDir, "styles.css"))).toBe(true);
+    expect(existsSync(path.join(distPublicDir, "styles.css"))).toBe(false);
     expect(existsSync(path.join(distPublicDir, "reference.html"))).toBe(true);
     expect(existsSync(path.join(distPublicDir, "favicon.svg"))).toBe(true);
     expect(existsSync(path.join(distPublicDir, "fonts"))).toBe(true);

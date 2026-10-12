@@ -32,6 +32,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import {
   PASSING_REVIEW_OUTPUT,
   scriptedReviewSession,
@@ -55,6 +56,7 @@ const ENV_KEYS = [
   "AWS_SECRET_ACCESS_KEY",
   "HTTP_PROXY",
   "PI_API_KEY",
+  "X_FACTORY_ALLOW_UNSANDBOXED",
 ];
 
 async function write(relPath: string, content: string): Promise<void> {
@@ -71,6 +73,13 @@ async function installSbx(body: string): Promise<void> {
   const sbxPath = path.join(binDir, "sbx");
   await writeFile(sbxPath, `#!/usr/bin/env bash\n${body}\n`);
   await chmod(sbxPath, 0o755);
+}
+
+/** Installs a fake `pi` whose body runs once per agent invocation, inside the worktree. */
+async function installPi(body: string): Promise<void> {
+  const piPath = path.join(binDir, "pi");
+  await writeFile(piPath, `#!/usr/bin/env bash\n${body}\n`);
+  await chmod(piPath, 0o755);
 }
 
 const CHECK_OFF_FIRST_TASK = `awk '/- \\[ \\]/ && !done { sub(/- \\[ \\]/, "- [x]"); done=1 } 1' .agent/tasks.md > .agent/tasks.md.tmp && mv .agent/tasks.md.tmp .agent/tasks.md`;
@@ -104,6 +113,7 @@ type Settings = Awaited<ReturnType<typeof loadSettings>>;
 function setup(
   settings: Settings = {},
   reviewExecutor: StageExecutor = PASSING_REVIEW,
+  resolveRole: typeof stubResolveRole = stubResolveRole,
 ) {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
@@ -125,6 +135,7 @@ function setup(
   });
   jobRepo.createJob({ runId: run.id, stage: "execute", status: "pending" });
   const executor = new ExecuteExecutor({
+    resolveRole,
     loadSettings: async () => settings,
     reviewExecutor,
   });
@@ -222,6 +233,50 @@ afterEach(async () => {
 });
 
 describe("Attempt loop at the Worker seam", () => {
+  it("runs exactly N iterations, stops as the next would begin, and pauses the run (#281)", async () => {
+    await commitAndRecordBaseline();
+    // A scripted loop that would print five iterations if left alone.
+    await installSbx(`
+for i in 1 2 3 4 5; do
+  echo "Iteration $i of 5"
+  sleep 0.3
+done
+`);
+    await configureProject("true");
+    const { run, repos, runRepo, jobRepo, worker } = setup(
+      {},
+      PASSING_REVIEW,
+      async (role) => {
+        const model = await stubResolveRole(role);
+        return { ...model, budget: { perDay: { requests: 2 } } };
+      },
+    );
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    // N allows exactly N: iterations 1 and 2 run and count; iteration 3 is refused
+    // before it counts, the loop stops there and the run pauses.
+    expect(
+      repos.modelCalls.countForModel("test-connection", "test/model"),
+    ).toBe(2);
+    const announced = repos.events
+      .getEventsForRun(run.id)
+      .filter(
+        (e) =>
+          e.type === "ralph_progress" &&
+          (e.payload as { text: string }).text.includes("Iteration"),
+      );
+    expect(announced).toHaveLength(2);
+    expect(runRepo.get(run.id)?.status).toBe("recovery_required");
+    const lastError = repos.events
+      .getEventsForRun(run.id)
+      .filter((e) => e.type === "error")
+      .at(-1);
+    expect(JSON.stringify(lastError?.payload)).toContain("daily budget");
+  });
+
   it("runs X-Factory's own loop script even when the repository ships a ralph.sh", async () => {
     const marker = path.join(tempDir, "repo-ralph-ran");
     await write("ralph.sh", `#!/usr/bin/env bash\ntouch "${marker}"\nexit 1\n`);
@@ -361,7 +416,7 @@ ${CHECK_OFF_FIRST_TASK}
     expect(job?.attempts).toBe(1);
   });
 
-  it("gives the loop the implementation session's credentials only", async () => {
+  it("gives the loop the Builder role's key only, through its own variable (#278)", async () => {
     await commitAndRecordBaseline();
     const envFile = path.join(tempDir, "sbx-env.txt");
     process.env.OPENAI_API_KEY = "sk-session-a-openai";
@@ -371,7 +426,7 @@ ${CHECK_OFF_FIRST_TASK}
     process.env.HTTP_PROXY = "http://proxy:8080";
     process.env.PI_API_KEY = "pi-key-passthrough";
     await installSbx(`
-{ echo "openai=\${OPENAI_API_KEY:-}"; echo "gemini=\${GEMINI_API_KEY:-}"; echo "anthropic=\${ANTHROPIC_API_KEY:-}"; echo "aws=\${AWS_SECRET_ACCESS_KEY:-}"; echo "proxy=\${HTTP_PROXY:-}"; echo "pi=\${PI_API_KEY:-}"; } > "${envFile}"
+{ echo "openai=\${OPENAI_API_KEY:-}"; echo "gemini=\${GEMINI_API_KEY:-}"; echo "anthropic=\${ANTHROPIC_API_KEY:-}"; echo "aws=\${AWS_SECRET_ACCESS_KEY:-}"; echo "proxy=\${HTTP_PROXY:-}"; echo "pi=\${PI_API_KEY:-}"; echo "xf=\${XF_MODEL_API_KEY:-}"; echo "agentdir=\${PI_CODING_AGENT_DIR:+set}"; } > "${envFile}"
 echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
@@ -387,13 +442,17 @@ ${CHECK_OFF_FIRST_TASK}
     if (!claimed) throw new Error("Expected a claimed job");
     await worker.processJob(claimed);
 
+    // Provider env keys never reach the agent: the Builder's key arrives only
+    // as XF_MODEL_API_KEY, referenced by the run's own agent config.
     expect(await lines(envFile)).toEqual([
-      "openai=sk-session-a-openai",
+      "openai=",
       "gemini=",
       "anthropic=",
       "aws=",
       "proxy=",
       "pi=pi-key-passthrough",
+      "xf=test-key",
+      "agentdir=set",
     ]);
   });
 
@@ -418,13 +477,14 @@ ${CHECK_OFF_FIRST_TASK}
     await commitAndRecordBaseline();
     await installSbx(`
 echo "Iteration 1: Working on Task 1"
+echo "Iteration 2 of 25"
 echo "export const updated = true;" > src/app.ts
 ${CHECK_OFF_FIRST_TASK}
 `);
     await configureProject("true");
     const session = scriptedReviewSession(PASSING_REVIEW_OUTPUT);
     const review = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => session,
     });
     const { run, runRepo, jobRepo, eventRepo, worker } = setup({}, review);
@@ -451,11 +511,25 @@ ${CHECK_OFF_FIRST_TASK}
     ).toContain("Matt Pocock TDD Protocol");
 
     const events = eventRepo.getEventsForRun(run.id);
-    const progress = events
-      .filter((e) => e.type === "ralph_progress")
-      .map((e) => (e.payload as { text: string }).text);
+    const progressEvents = events.filter((e) => e.type === "ralph_progress");
+    const progress = progressEvents.map(
+      (e) => (e.payload as { text: string }).text,
+    );
     expect(progress).toContain("Ralph Loop started with 25 iterations");
     expect(progress).toContain("Iteration 1: Working on Task 1");
+
+    // Every progress event carries the loop iteration it belongs to (#256).
+    for (const event of progressEvents) {
+      const { iteration } = event.payload as { iteration?: unknown };
+      expect(typeof iteration).toBe("number");
+      expect(iteration as number).toBeGreaterThanOrEqual(1);
+    }
+    const secondIteration = progressEvents.find((e) =>
+      (e.payload as { text: string }).text.includes("Iteration 2 of 25"),
+    );
+    expect(
+      (secondIteration?.payload as { iteration?: number })?.iteration,
+    ).toBe(2);
     expect(events.filter((e) => e.type === "verification")).toHaveLength(1);
     expect(
       events.some(
@@ -464,6 +538,55 @@ ${CHECK_OFF_FIRST_TASK}
           JSON.stringify(e.payload).includes("Working on Task 1"),
       ),
     ).toBe(true);
+  });
+
+  it("counts one model call per coding-loop iteration for the daily budget (#281)", async () => {
+    await commitAndRecordBaseline();
+    // Two loop iterations: the first invocation adds one more unchecked task for
+    // the second to complete, so the loop runs exactly twice before it finds no
+    // unchecked task left.
+    const marker = path.join(tempDir, "loop-marker");
+    await installSbx(`
+echo "export const updated = true;" > src/app.ts
+if [ ! -f "${marker}" ]; then
+  touch "${marker}"
+  echo "- [ ] follow-up" >> .agent/tasks.md
+fi
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, repos, jobRepo, worker } = setup();
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    const iterations = repos.events
+      .getEventsForRun(run.id)
+      .filter(
+        (e) =>
+          e.type === "ralph_progress" &&
+          (e.payload as { text: string }).text.includes("Iteration"),
+      );
+    expect(iterations).toHaveLength(2);
+
+    // Pi's own calls in the subprocess cannot be seen, so each iteration the
+    // loop announced is one counted call, attributed to the execute attempt.
+    const attempt = repos.stageAttempts.listForRun(run.id)[0];
+    const counted = repos.modelCalls.countForModel(
+      "test-connection",
+      "test/model",
+    );
+    expect(counted).toBe(2);
+    const rows = repos.db
+      .prepare<{ stage_attempt_id: string | null }, []>(
+        "SELECT stage_attempt_id FROM model_calls ORDER BY id ASC",
+      )
+      .all();
+    expect(rows.map((row) => row.stage_attempt_id)).toEqual([
+      attempt?.id ?? null,
+      attempt?.id ?? null,
+    ]);
   });
 
   it("emits one verification event per attempt while repairing", async () => {
@@ -663,5 +786,227 @@ ${CHECK_OFF_FIRST_TASK}
       await processing.catch(() => {});
       if (agentPid > 0 && isAlive(agentPid)) process.kill(agentPid, "SIGKILL");
     }
+  });
+
+  it("passes the scaffolded prompt, --provider and --model to the agent CLI in non-interactive mode inside sbx", async () => {
+    await commitAndRecordBaseline();
+    const argsFile = path.join(tempDir, "sbx-args.txt");
+    await installSbx(`
+printf "%s\n" "$@" > "${argsFile}"
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup({
+      models: {
+        sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
+      },
+    } as Settings);
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    const argList = await lines(argsFile);
+    expect(argList).toContain("run");
+    expect(argList).toContain("pi");
+    expect(argList).toContain("-p");
+    expect(argList).toContain("--provider");
+    expect(argList).toContain("xfactory");
+    expect(argList).toContain("--model");
+    expect(argList).toContain("test/model");
+    expect(await readFile(argsFile, "utf-8")).toContain(
+      "Matt Pocock TDD Protocol",
+    );
+    // The attempt records the Builder model it ran on (#279).
+    const started = eventRepo
+      .getEventsForRun(run.id)
+      .filter((e) => e.type === "stage_started");
+    expect(started.map((e) => e.payload)).toEqual([
+      expect.objectContaining({
+        stage: "execute",
+        model: expect.objectContaining({
+          role: "builder",
+          modelId: "test/model",
+        }),
+      }),
+    ]);
+  });
+
+  it("passes the scaffolded prompt, --provider and --model to the agent CLI in non-interactive mode outside sbx", async () => {
+    await commitAndRecordBaseline();
+    const argsFile = path.join(tempDir, "pi-args.txt");
+    process.env.X_FACTORY_ALLOW_UNSANDBOXED = "1";
+    await installPi(`
+printf "%s\n" "$@" > "${argsFile}"
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, worker } = setup({
+      models: {
+        sessionA: { provider: "openai", model: "gpt-4o" },
+      },
+    } as Settings);
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    const argList = await lines(argsFile);
+    expect(argList).toContain("-p");
+    expect(argList).toContain("--provider");
+    expect(argList).toContain("xfactory");
+    expect(argList).toContain("--model");
+    expect(argList).toContain("test/model");
+    expect(await readFile(argsFile, "utf-8")).toContain(
+      "Matt Pocock TDD Protocol",
+    );
+  });
+
+  it("fails closed when sbx is not found and opt-in is not set", async () => {
+    await commitAndRecordBaseline();
+    delete process.env.X_FACTORY_ALLOW_UNSANDBOXED;
+    await configureProject("true");
+    const { jobRepo, worker } = setup({
+      allowUnsandboxed: false,
+    } as Settings);
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    const job = jobRepo.getJob(claimed.id);
+    expect(job?.error).toContain(
+      "Sandbox execution environment (sbx) is required but not found",
+    );
+  });
+
+  it("runs unsandboxed and emits an info event when sbx is missing but X_FACTORY_ALLOW_UNSANDBOXED=1 is set", async () => {
+    await commitAndRecordBaseline();
+    process.env.X_FACTORY_ALLOW_UNSANDBOXED = "1";
+    await installPi(`
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup({
+      allowUnsandboxed: false,
+    } as Settings);
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    const events = eventRepo.getEventsForRun(run.id);
+    const infoEvents = events.filter((e) => e.type === "info");
+    expect(
+      infoEvents.some(
+        (e) =>
+          (e.payload as { warning?: string }).warning === "unsandboxed" &&
+          (e.payload as { text: string }).text.includes("without a sandbox"),
+      ),
+    ).toBe(true);
+  });
+
+  it("runs unsandboxed and emits an info event when sbx is missing but settings.allowUnsandboxed is true", async () => {
+    await commitAndRecordBaseline();
+    delete process.env.X_FACTORY_ALLOW_UNSANDBOXED;
+    await installPi(`
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup({
+      allowUnsandboxed: true,
+    } as Settings);
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    const events = eventRepo.getEventsForRun(run.id);
+    const infoEvents = events.filter((e) => e.type === "info");
+    expect(
+      infoEvents.some(
+        (e) =>
+          (e.payload as { warning?: string }).warning === "unsandboxed" &&
+          (e.payload as { text: string }).text.includes("without a sandbox"),
+      ),
+    ).toBe(true);
+  });
+
+  it("stays sandboxed and emits no unsandboxed warning when sbx is installed, even with the opt-in set", async () => {
+    await commitAndRecordBaseline();
+    process.env.X_FACTORY_ALLOW_UNSANDBOXED = "1";
+    const sbxCalled = path.join(tempDir, "sbx-called.txt");
+    await installSbx(`
+echo yes > "${sbxCalled}"
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup({
+      allowUnsandboxed: true,
+    } as Settings);
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    expect(await readFile(sbxCalled, "utf-8")).toContain("yes");
+    const warnings = eventRepo
+      .getEventsForRun(run.id)
+      .filter(
+        (e) =>
+          e.type === "info" &&
+          (e.payload as { warning?: string }).warning === "unsandboxed",
+      );
+    expect(warnings).toEqual([]);
+  });
+
+  it("waits out a provider 429 and retries the same attempt without spending the repair budget (#280)", async () => {
+    await commitAndRecordBaseline();
+    const calls = path.join(tempDir, "sbx-calls.txt");
+    await installSbx(`
+echo call >> "${calls}"
+if [[ $(wc -l < "${calls}") -eq 1 ]]; then
+  echo '{"error":{"code":429,"message":"You exceeded your current quota. Please retry in 1s."}}' >&2
+  exit 1
+fi
+echo "export const updated = true;" > src/app.ts
+${CHECK_OFF_FIRST_TASK}
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup();
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("awaiting_review");
+    expect(await lines(calls)).toEqual(["call", "call"]);
+    const events = eventRepo.getEventsForRun(run.id);
+    expect(
+      events.some(
+        (e) =>
+          e.type === "ralph_progress" &&
+          (e.payload as { text: string }).text.includes("waiting 1 s"),
+      ),
+    ).toBe(true);
+    // Still the first attempt: the wait is not a repair.
+    const verifications = events.filter((e) => e.type === "verification");
+    expect(
+      verifications.map(
+        (e) =>
+          (e.payload as { result: { repairAttempt: number } }).result
+            .repairAttempt,
+      ),
+    ).toEqual([1]);
   });
 });

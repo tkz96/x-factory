@@ -1,6 +1,7 @@
 // src/frontend/connection/ConnectionVerifyButton.tsx — Action button for verifying connection.
 
 import type { ProjectConnectionRole } from "../../shared/types.js";
+import { Button } from "../components/ui/Button.js";
 import "./ConnectionCard.css";
 
 export interface ConnectionVerifyButtonProps {
@@ -20,12 +21,12 @@ export function ConnectionVerifyButton({
 
   return (
     <div className="connection-card-actions">
-      <button
-        type="button"
+      <Button
         id={`btn-verify-${connectionRole}`}
-        className="btn-secondary btn-sm"
-        onClick={onVerify}
-        disabled={disabled}
+        variant="secondary"
+        size="sm"
+        isDisabled={disabled}
+        onPress={onVerify}
       >
         {isPending ? (
           <>
@@ -39,7 +40,7 @@ export function ConnectionVerifyButton({
         ) : (
           "Verify Connection"
         )}
-      </button>
+      </Button>
     </div>
   );
 }

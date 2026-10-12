@@ -33,6 +33,7 @@ import {
   fireEvent,
   render,
   waitFor,
+  within,
 } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -42,7 +43,6 @@ import {
   CONNECTIONS_COPY,
   ERROR_COPY,
   formatRetryCountdown,
-  PROJECT_CARD_COPY,
   PROJECT_DETAIL_COPY,
   QUEUE_COPY,
 } from "../src/frontend/components/feedback/copy-map.js";
@@ -51,7 +51,7 @@ import {
   deriveConnectionIntegrity,
   REQUIRED_POST_CREATION_ROLES,
 } from "../src/frontend/components/projects/connection-integrity.js";
-import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
+import { ProjectList } from "../src/frontend/components/projects/ProjectList.js";
 import type { ProviderDescriptor } from "../src/frontend/connection/types.js";
 import {
   ModalProvider,
@@ -702,81 +702,76 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
   });
 });
 
-// ─── Project cards ──────────────────────────────────────────────────────────
+// ─── Projects list (#267: the list and its detail pane replaced the cards) ───
+//
+// The list is how a user finds a project. What a project is wired to — the
+// combo line, the warnings listed against it and the repair path — is reported
+// by the detail pane its row links to (behaviour asserted above, and in
+// test/projects-split.test.tsx). The list owes two things: every project is
+// reachable, and the project whose tracker connection is missing is marked as
+// needing attention rather than quietly listed as healthy.
 
-function renderCard(project: Project, isArchived = false) {
-  return renderUi(
-    React.createElement(ProjectCard, { project, isArchived }),
-    makeClient(),
-    ["/projects"],
-  );
+function renderList(projects: Project[], client: QueryClient = makeClient()) {
+  client.setQueryData(queryKeys.projects(), projects);
+  return renderUi(React.createElement(ProjectList), client, ["/projects"]);
 }
 
-describe("Project card — combo line and integrity failure", () => {
-  it("HEALTHY: renders the combo line with manifest display names", () => {
-    const { container } = renderCard(makeProject());
+describe("Projects list — marking the projects that need attention", () => {
+  it("HEALTHY: lists the project, with no integrity failure on it", () => {
+    const { container } = renderList([makeProject()]);
 
-    const combo = container.querySelector(".connection-combo-line");
-    expect(combo?.classList.contains("connection-combo-line--connected")).toBe(
-      true,
+    expect(container.textContent).toContain("Rocket");
+    expect(container.textContent).not.toContain(
+      CONNECTIONS_COPY.integrityFailure.title,
     );
-    expect(combo?.textContent).toContain("Tracker One");
-    expect(combo?.textContent).toContain("Git Host One");
-    // The provider id is never the label when the manifest names the provider.
-    expect(combo?.textContent).not.toContain("tracker-one");
-    expect(container.querySelector("button.retry-action")).toBeNull();
-    // Every string on the card comes from the copy map.
-    expect(container.textContent).toContain(PROJECT_CARD_COPY.viewDetails);
-    expect(container.textContent).toContain(PROJECT_CARD_COPY.id);
   });
 
-  it("DEGRADED: renders the warning tone and no repair path", () => {
-    const { container } = renderCard(
+  it("DEGRADED: lists the project without crying wolf", () => {
+    const { container } = renderList([
       makeProject({ connections: DEGRADED_CONNECTIONS }),
-    );
+    ]);
 
-    expect(
-      container
-        .querySelector(".connection-combo-line")
-        ?.classList.contains("connection-combo-line--warning"),
-    ).toBe(true);
-    expect(container.querySelector(".connection-combo-line--error")).toBeNull();
-    expect(container.querySelector(".async-region--error")).toBeNull();
+    expect(container.textContent).toContain("Rocket");
+    expect(container.textContent).not.toContain(
+      CONNECTIONS_COPY.integrityFailure.title,
+    );
+    expect(container.textContent).not.toContain(CONNECTIONS_COPY.reconnect);
   });
 
-  it("INTEGRITY FAILURE: renders the error tone with the repair path", () => {
-    const { container } = renderCard(
+  it("INTEGRITY FAILURE: marks the project, and still leaves it reachable", () => {
+    const { container } = renderList([
       makeProject({ connections: NO_TRACKER_CONNECTIONS }),
-    );
+    ]);
 
-    expect(
-      container
-        .querySelector(".connection-combo-line")
-        ?.classList.contains("connection-combo-line--error"),
-    ).toBe(true);
-    const repair = container.querySelector("button.retry-action");
-    expect(repair?.textContent).toContain(CONNECTIONS_COPY.reconnect);
-    expect(container.querySelector(".async-region--empty")).toBeNull();
+    expect(container.textContent).toContain(
+      CONNECTIONS_COPY.integrityFailure.title,
+    );
+    // The row stays the way in: the repair path is one click away, on the
+    // detail pane, and never a hidden project.
+    const row = container.querySelector('a[href="/projects/proj-1"]');
+    expect(row).not.toBeNull();
   });
 
-  it("INTEGRITY FAILURE: the repair path never nests inside the card's link", () => {
-    const { container } = renderCard(
+  it("INTEGRITY FAILURE: nothing interactive nests inside the row's link", () => {
+    const { container } = renderList([
       makeProject({ connections: NO_TRACKER_CONNECTIONS }),
-    );
+    ]);
 
-    const repair = container.querySelector("button.retry-action");
-    if (!(repair instanceof HTMLElement)) {
-      throw new Error("repair action missing");
+    const row = container.querySelector('a[href="/projects/proj-1"]');
+    if (!(row instanceof HTMLElement)) {
+      throw new Error("project row missing");
     }
-    // An interactive element inside the card's anchor would be invalid HTML.
-    expect(repair.closest("a")).toBeNull();
-    expect(
-      container.querySelector('a[href="/projects/proj-1"]'),
-    ).not.toBeNull();
+    // A button inside the row's anchor would be invalid HTML; the repair action
+    // lives on the detail pane the row opens.
+    expect(row.querySelector("a, button")).toBeNull();
   });
+});
 
-  it("LEGACY: a pre-#145 project still renders a combo line", () => {
-    const { container } = renderCard(
+// ─── Legacy projects (#147): the detail pane still renders their wiring ──────
+
+describe("Project detail pane — a pre-#145 project", () => {
+  it("LEGACY: renders a combo line from the recorded issue tracker", () => {
+    const { container } = renderDetail(
       makeProject({
         connections: undefined,
         issueTracker: {
@@ -784,9 +779,10 @@ describe("Project card — combo line and integrity failure", () => {
           "tracker-one": { host: "https://legacy.example" },
         } as unknown as Project["issueTracker"],
       }),
+      makeClient(),
     );
 
-    const combo = container.querySelector(".connection-combo-line");
+    const combo = container.querySelector("#project-connections-combo");
     expect(combo).not.toBeNull();
     // Git host unknown is shown as not recorded, never invented.
     expect(combo?.textContent).toContain(CONNECTIONS_COPY.notRecorded);
@@ -814,16 +810,19 @@ async function renderConnectionsRegistry(
     client,
   );
 
-  const tab = Array.from(container.querySelectorAll("button")).find(
-    (button) => button.dataset.tab === "trackers",
-  );
-  if (!(tab instanceof HTMLElement)) {
-    throw new Error("connections tab missing");
-  }
+  const tab = within(container).getByRole("link", { name: "Connections" });
   await act(async () => {
     fireEvent.click(tab);
   });
   return container;
+}
+
+/** The first project row of the Settings connections registry (#266). */
+function registryRow(container: HTMLElement): HTMLElement {
+  const table = within(container).getByRole("table");
+  const row = within(table).getAllByRole("row")[1];
+  if (!(row instanceof HTMLElement)) throw new Error("registry row missing");
+  return row;
 }
 
 describe("Settings connections registry — combo line per project", () => {
@@ -833,7 +832,7 @@ describe("Settings connections registry — combo line per project", () => {
       makeClient(),
     );
 
-    const row = container.querySelector("#connections-registry-tbody tr");
+    const row = registryRow(container);
     expect(row?.textContent).toContain("Tracker One");
     expect(row?.textContent).toContain("Git Host One");
     expect(row?.textContent).not.toContain("tracker-one");
@@ -848,7 +847,7 @@ describe("Settings connections registry — combo line per project", () => {
       makeClient(),
     );
 
-    const row = container.querySelector("#connections-registry-tbody tr");
+    const row = registryRow(container);
     expect(
       row?.querySelector(".connection-combo-line--warning"),
     ).not.toBeNull();
@@ -862,7 +861,7 @@ describe("Settings connections registry — combo line per project", () => {
       makeClient(),
     );
 
-    const row = container.querySelector("#connections-registry-tbody tr");
+    const row = registryRow(container);
     expect(row?.querySelector(".connection-combo-line--error")).not.toBeNull();
     const repair = row?.querySelector("button.retry-action");
     expect(repair?.textContent).toContain(CONNECTIONS_COPY.reconnect);
@@ -1121,11 +1120,7 @@ describe("Manifest-driven display names (#147)", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const { container } = renderUi(
-      React.createElement(ProjectCard, { project: makeProject() }),
-      client,
-      ["/projects"],
-    );
+    const { container } = renderDetail(makeProject(), client);
 
     await waitFor(() => {
       if (!container.textContent?.includes("Tracker One")) {
@@ -1206,14 +1201,14 @@ describe("Post-creation combo line — provider-owned identity (#133 story 34)",
     ).toEqual({ orgUrl: "https://git.example", repo: "rocket" });
   });
 
-  it("project card and settings registry: the SAME identity as the detail surface", async () => {
-    const card = renderCard(makeProject());
+  it("the detail pane and the settings registry: the SAME identity as the detail surface", async () => {
+    const detail = renderDetail(makeProject(), makeClient());
     await waitFor(() => {
-      expect(card.container.textContent).toContain(
+      expect(detail.container.textContent).toContain(
         "Tracker One (tracker.example/ROCK)",
       );
     });
-    expect(card.container.textContent).toContain(
+    expect(detail.container.textContent).toContain(
       "Git Host One (git.example/rocket)",
     );
 
@@ -1262,7 +1257,7 @@ describe("Post-creation combo line — provider-owned identity (#133 story 34)",
   });
 
   it("a legacy project with no recorded git host asks nothing for it, and still shows the tracker's identity", async () => {
-    const { container } = renderCard(
+    const { container } = renderDetail(
       makeProject({
         connections: undefined,
         issueTracker: {
@@ -1270,6 +1265,7 @@ describe("Post-creation combo line — provider-owned identity (#133 story 34)",
           "tracker-one": { host: "https://legacy.example" },
         } as unknown as Project["issueTracker"],
       }),
+      makeClient(),
     );
 
     await waitFor(() => {

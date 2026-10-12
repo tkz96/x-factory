@@ -1,6 +1,7 @@
 /* ── Run Detail Layout (Apple HIG 2/3 main + 1/3 sidebar) ─────────────── */
 
-.run-detail-container {
+/* .area-view.active sets display: block; this keeps the run page a column (#262). */
+.area-view.run-detail-container.active {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -12,6 +13,8 @@
 .run-detail-layout {
   display: grid;
   grid-template-columns: 2fr 1fr;
+  /* One row that fills the space left above the stepper, never taller (#262). */
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-4);
   flex: 1;
   min-height: 0;
@@ -43,10 +46,10 @@
 .workflow-stepper-footer {
   flex-shrink: 0;
   width: 100%;
-  border-top: 1px solid var(--border);
+  border-top: var(--border-width) solid var(--border);
   background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--blur-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass));
   padding: 0.6rem var(--space-6);
   z-index: 10;
 }
@@ -138,7 +141,7 @@
 .result-section {
   margin-bottom: 1.6rem;
   padding-bottom: 1.2rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: var(--border-width) solid var(--border-subtle);
 }
 
 .evidence-row {
@@ -157,14 +160,14 @@
 .test-output {
   margin-top: 0.5rem;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.75rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--text-muted);
-  max-height: 220px;
+  max-height: var(--sidebar-width-sm);
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -186,10 +189,10 @@
   gap: 0.5rem;
   font-size: 0.84rem;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: var(--border-width) solid var(--border-subtle);
 }
 
 .criteria-icon.pass {
@@ -217,7 +220,7 @@
   background: var(--bg);
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
-  border-left: 3px solid var(--border);
+  border-left: var(--border-width-indicator) solid var(--border);
 }
 
 .finding-item.finding-error {
@@ -234,8 +237,8 @@
   margin-top: 1rem;
   padding: 0.8rem 1rem;
   border-radius: var(--radius-sm);
-  background: var(--bg-danger-subtle);
-  border: 1px solid var(--danger);
+  background: var(--red-dim);
+  border: var(--border-width) solid var(--red);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -244,10 +247,56 @@
 }
 
 .btn-danger-text {
-  color: var(--danger);
+  color: var(--red);
 }
 
 .status-dot-sm {
-  width: 8px;
-  height: 8px;
+  width: var(--status-dot-md);
+  height: var(--status-dot-md);
+}
+
+.recovery-error {
+  color: var(--red);
+  font-weight: 500;
+}
+
+/* The phone-width toolbar above the chat: the inspector opens from here (#262). */
+.run-detail-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .workflow-stepper-footer {
+    padding: 0.5rem var(--space-3);
+  }
+}
+
+/* ── Empty and loading states of the run page (moved from public/styles.css) ──
+   The card (shared/cards.css) owns the box and the heading, as it did before; the
+   legacy padding, dashed border and heading size were already overridden there. */
+
+.empty-state {
+  text-align: center;
+}
+
+.empty-icon {
+  margin-bottom: 0.8rem;
+  color: var(--text-dim);
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 27.5rem;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.empty-state code {
+  font-family: var(--font-mono);
+  background: var(--code-chip-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.1875rem;
+  color: var(--accent);
 }

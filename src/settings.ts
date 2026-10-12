@@ -2,8 +2,48 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { migrateLegacyRoles } from "./legacy-roles.js";
 import { getSettingsPath } from "./paths.js";
-import type { WorkbenchSettings } from "./shared/types.js";
+import type { ModelRoles, WorkbenchSettings } from "./shared/types.js";
+
+/** A roles patch: a role set to `null` is cleared, an omitted role is kept. */
+type RolesPatch = {
+  [K in keyof ModelRoles]?: ModelRoles[K] | null;
+};
+
+/** The roles key as stored in settings.json, before any migration. */
+async function readStoredRoles(): Promise<ModelRoles | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(getSettingsPath(), "utf-8")) as {
+      roles?: ModelRoles;
+    };
+    return parsed.roles;
+  } catch {
+    return undefined;
+  }
+}
+
+async function rolesToSave(
+  effective: ModelRoles | undefined,
+  patch: RolesPatch | undefined,
+): Promise<{ roles?: ModelRoles }> {
+  const stored = await readStoredRoles();
+  if (patch === undefined) return stored === undefined ? {} : { roles: stored };
+  return { roles: mergeRoles(stored ?? effective, patch) };
+}
+
+function mergeRoles(
+  existing: ModelRoles | undefined,
+  patch: RolesPatch | undefined,
+): ModelRoles {
+  const merged: ModelRoles = { ...existing };
+  for (const role of ["builder", "reviewer"] as const) {
+    const value = patch?.[role];
+    if (value === null) delete merged[role];
+    else if (value !== undefined) merged[role] = value;
+  }
+  return merged;
+}
 
 // The file format and the wire format are one contract, declared once in the
 // shared module (#182): settings.json, GET /api/settings and POST /api/settings
@@ -12,12 +52,14 @@ export type FactorySettings = WorkbenchSettings;
 
 // Default settings applied on initial startup. Provider and model pairs
 // are fully user-configurable via the Settings UI or environment variables.
+// There is deliberately no default model (#278): a fresh install has none until
+// the user connects one and assigns it to the Builder and Reviewer roles.
 const DEFAULT_SETTINGS: FactorySettings = {
-  theme: "dark",
-  models: {
-    sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
-    sessionB: { provider: "anthropic", model: "claude-3-7-sonnet" },
-  },
+  theme: "default",
+  appearance: "automatic",
+  models: { sessionA: {}, sessionB: {} },
+  allowUnsandboxed: false,
+  desktopNotifications: false,
 };
 
 /** One session's model pair, as stored once normalized (#182). */
@@ -110,10 +152,33 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
   try {
     const raw = await readFile(filePath, "utf-8");
     const parsed = JSON.parse(raw) as Partial<FactorySettings>;
+    const models = normalizeModels(parsed.models);
+
+    // Settings saved before Appearance existed carry theme "dark" | "light".
+    // That was the old default, written for everyone, not a choice — so they
+    // start at Automatic, like a new install (#248).
+    const appearance = parsed.appearance ?? "automatic";
+    const theme =
+      !parsed.theme || parsed.theme === "dark" || parsed.theme === "light"
+        ? "default"
+        : parsed.theme;
+
     current = {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      models: normalizeModels(parsed.models),
+      theme,
+      appearance,
+      models,
+      allowUnsandboxed:
+        typeof parsed.allowUnsandboxed === "boolean"
+          ? parsed.allowUnsandboxed
+          : false,
+      desktopNotifications:
+        typeof parsed.desktopNotifications === "boolean"
+          ? parsed.desktopNotifications
+          : false,
+      // Settings saved before roles existed migrate from Session A / B (#278).
+      roles: parsed.roles ?? (await migrateLegacyRoles(models)),
     };
   } catch {
     // Return defaults when file doesn't exist
@@ -126,20 +191,38 @@ export async function loadSettings(masked = false): Promise<FactorySettings> {
  * Save settings to disk with safe file permissions (0600).
  */
 export async function saveSettings(
-  patch: Partial<FactorySettings>,
+  patch: Partial<Omit<FactorySettings, "roles">> & {
+    roles?: RolesPatch | undefined;
+  },
 ): Promise<FactorySettings> {
   const filePath = getSettingsPath();
   const existing = await loadSettings(false);
+
+  let appearance = patch.appearance || existing.appearance || "automatic";
+  if (appearance === "auto") appearance = "automatic";
+  const theme = patch.theme || existing.theme || "default";
 
   // The file format is the {provider, model} contract (#182): the merged entry
   // is normalized on the way out, so legacy index keys can never be re-spread
   // into a saved file.
   const updated: FactorySettings = {
-    theme: patch.theme || existing.theme || "dark",
+    theme,
+    appearance,
     models: normalizeModels({
       sessionA: { ...existing.models?.sessionA, ...patch.models?.sessionA },
       sessionB: { ...existing.models?.sessionB, ...patch.models?.sessionB },
     }),
+    allowUnsandboxed:
+      typeof patch.allowUnsandboxed === "boolean"
+        ? patch.allowUnsandboxed
+        : Boolean(existing.allowUnsandboxed),
+    desktopNotifications:
+      typeof patch.desktopNotifications === "boolean"
+        ? patch.desktopNotifications
+        : Boolean(existing.desktopNotifications),
+    // Roles are written only once they exist in the file or are set now, so
+    // a save before any role is chosen never blocks the Session A/B migration.
+    ...(await rolesToSave(existing.roles, patch.roles)),
   };
 
   await mkdir(path.dirname(filePath), { recursive: true });

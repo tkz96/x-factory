@@ -1,9 +1,5 @@
 // src/server.ts — Native Bun HTTP server entry point and lifecycle management (XFM-71).
 
-import { bootstrapLLMEnv } from "./env-bootstrap.js";
-
-bootstrapLLMEnv();
-
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -23,6 +19,7 @@ import { getOpenApiSpec } from "./http/route-table.js";
 import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
 import { serveStatic } from "./http/static.js";
+import { importLegacyModelKey } from "./model-connections.js";
 import type { ProviderRegistry } from "./providers/registry.js";
 import type { ProjectWriteStore } from "./services/connection-write-plan.js";
 import { emitStructuredLog } from "./shared/correlation.js";
@@ -234,4 +231,11 @@ export function startServer(
 // Only start automatically if executed directly
 if (import.meta.main) {
   startServer();
+  // First launch: an existing LLM_API_KEY becomes a model connection, once (#276).
+  void importLegacyModelKey().catch((err: unknown) => {
+    console.warn(
+      "[X-Factory] Could not import LLM_API_KEY as a model connection:",
+      err instanceof Error ? err.message : String(err),
+    );
+  });
 }

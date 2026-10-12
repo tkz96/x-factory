@@ -7,7 +7,7 @@ import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import type { RunRecord } from "../src/db/run-repository.js";
 import { ReviewExecutor } from "../src/executors/review.js";
-import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
+import { RunEvidence } from "../src/frontend/components/runs/RunEvidence.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { patchRunCache } from "../src/frontend/lib/query-client.js";
@@ -23,6 +23,7 @@ import type {
   VerificationResult,
 } from "../src/shared/types.js";
 import { createTestRepositories } from "./helpers/composition.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import {
   scriptedReviewSession,
   tempArtifactsDirs,
@@ -203,7 +204,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     runRepo.update(run.id, { verification: sampleVerification });
 
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => scriptedReviewSession(approvedOutput),
     });
 
@@ -229,7 +230,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     runRepo.update(run.id, { verification: sampleVerification });
 
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () =>
         scriptedReviewSession(
           "CRITERIA_CHECK:\n- [FAIL] AC 1: Must verify\n\nFINDINGS:\n- [ERROR] Critical bug detected\n\nVERDICT:\nFAILED - bug\n",
@@ -259,7 +260,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
     let sessionsCreated = 0;
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => {
         sessionsCreated++;
         return scriptedReviewSession(approvedOutput);
@@ -334,7 +335,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(cachedList?.[0]?.review).toEqual(sampleReview);
   });
 
-  it("HumanCheckpointSection renders real verification and review data", () => {
+  it("RunEvidence renders real verification and review data", () => {
     const fullRun: Run = {
       id: "run-render-test",
       project: { id: "test-proj", name: "Test Project" },
@@ -370,10 +371,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
             React.createElement(
               MemoryRouter,
               null,
-              React.createElement(HumanCheckpointSection, {
+              React.createElement(RunEvidence, {
                 run: fullRun,
-                onApprove: () => {},
-                onReject: () => {},
               }),
             ),
           ),
@@ -393,13 +392,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).toContain("AC 1: Must verify");
     expect(html).toContain("AC 2: Must review");
     expect(html).toContain("Clean implementation");
-
-    // Awaiting review buttons rendered
-    expect(html).toContain("btn-approve");
-    expect(html).toContain("btn-reject");
   });
 
-  it("HumanCheckpointSection renders meaningful empty states when results are genuinely unavailable", () => {
+  it("RunEvidence renders meaningful empty states when results are genuinely unavailable", () => {
     const emptyRun: Run = {
       id: "run-empty-test",
       project: { id: "test-proj", name: "Test Project" },
@@ -435,7 +430,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
             React.createElement(
               MemoryRouter,
               null,
-              React.createElement(HumanCheckpointSection, { run: emptyRun }),
+              React.createElement(RunEvidence, { run: emptyRun }),
             ),
           ),
         ),
@@ -450,7 +445,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).not.toContain("Deterministic checks passed");
   });
 
-  it("unit: patchRunCache updates cache and allows HumanCheckpointSection to re-render without refresh", () => {
+  it("unit: patchRunCache updates cache and allows RunEvidence to re-render without refresh", () => {
     const queryClient = new QueryClient();
     const runId = "run-live-ui";
 
@@ -477,9 +472,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
 
     queryClient.setQueryData(queryKeys.run(runId), initialRun);
 
-    const onApproveMock = () => {};
-    const onRejectMock = () => {};
-
     // Initial render: empty / awaiting states
     const render = () => {
       const currentRun = queryClient.getQueryData<Run>(queryKeys.run(runId));
@@ -497,10 +489,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
               React.createElement(
                 MemoryRouter,
                 null,
-                React.createElement(HumanCheckpointSection, {
+                React.createElement(RunEvidence, {
                   run: currentRun,
-                  onApprove: onApproveMock,
-                  onReject: onRejectMock,
                 }),
               ),
             ),
@@ -541,7 +531,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     const finalHtml = render();
     expect(finalHtml).toContain("PASSED");
     expect(finalHtml).toContain("All acceptance criteria verified");
-    expect(finalHtml).toContain("btn-approve");
   });
 
   it("end-to-end: the run-state subscriber applies canonical verification and review events and updates UI without hard refresh", () => {
@@ -658,7 +647,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         "TAMPERED DUPLICATE SHOULD BE IGNORED",
       );
 
-      // 5. Verify HumanCheckpointSection rendered from updated cache shows real data
+      // 5. Verify RunEvidence rendered from updated cache shows real data
       if (!cachedRun) throw new Error("cachedRun missing");
       const html = renderToString(
         React.createElement(
@@ -673,10 +662,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
               React.createElement(
                 MemoryRouter,
                 null,
-                React.createElement(HumanCheckpointSection, {
+                React.createElement(RunEvidence, {
                   run: cachedRun,
-                  onApprove: () => {},
-                  onReject: () => {},
                 }),
               ),
             ),
@@ -687,8 +674,6 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       expect(html).toContain("PASSED");
       expect(html).toContain("All 10 tests passed without pollution.");
       expect(html).toContain("All acceptance criteria verified");
-      expect(html).toContain("btn-approve");
-      expect(html).toContain("btn-reject");
     } finally {
       cleanup();
     }

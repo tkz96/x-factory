@@ -5,11 +5,11 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 0.75rem 0.95rem;
-  min-width: 190px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  min-width: var(--flow-node-min);
+  box-shadow: var(--shadow-sm);
   font-family: var(--font-sans);
   text-align: left;
   transition:
@@ -19,15 +19,15 @@
 
 .flow-node-card:hover {
   border-color: var(--border);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 [data-theme="light"] .flow-node-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="light"] .flow-node-card:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.07);
+  box-shadow: var(--shadow-md);
 }
 
 /* ── Node Header & Badges ──────────────────────────────────────────── */
@@ -40,7 +40,7 @@
 }
 
 .flow-node-tag {
-  font-size: 10px;
+  font-size: var(--text-badge);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -48,25 +48,25 @@
 }
 
 .flow-node-badge {
-  font-size: 10px;
+  font-size: var(--text-badge);
   font-weight: 600;
   padding: 0.1rem 0.45rem;
   border-radius: var(--radius-pill);
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   color: var(--text-dim);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
 }
 
 .flow-node-badge.badge-accent {
   background: var(--accent-dim);
   color: var(--accent);
-  border-color: rgba(88, 166, 255, 0.2);
+  border-color: var(--accent-dim);
 }
 
 .flow-node-badge.badge-success {
-  background: rgba(46, 160, 67, 0.12);
+  background: var(--green-dim);
   color: var(--green);
-  border-color: rgba(46, 160, 67, 0.2);
+  border-color: var(--green-dim);
 }
 
 .flow-node-badge.badge-warning {
@@ -78,7 +78,7 @@
 .flow-node-badge.badge-danger {
   background: var(--red-dim);
   color: var(--red);
-  border-color: rgba(248, 81, 73, 0.2);
+  border-color: var(--red-dim);
 }
 
 /* ── Node Title & Subtitle ─────────────────────────────────────────── */
@@ -89,14 +89,14 @@
 }
 
 .flow-node-icon {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-md);
+  height: var(--icon-md);
   flex-shrink: 0;
   color: var(--accent);
 }
 
 .flow-node-icon.icon-worker {
-  color: #a371f7;
+  color: var(--purple);
 }
 
 .flow-node-icon.icon-db {
@@ -104,11 +104,11 @@
 }
 
 .flow-node-icon.icon-client {
-  color: #58a6ff;
+  color: var(--accent);
 }
 
 .flow-node-icon.icon-agent {
-  color: #f0883e;
+  color: var(--orange);
 }
 
 .flow-node-title {
@@ -119,7 +119,7 @@
 }
 
 .flow-node-subtitle {
-  font-size: 11.5px;
+  font-size: var(--text-caption-2);
   color: var(--text-muted);
   line-height: 1.4;
   margin-top: 0.25rem;
@@ -127,14 +127,14 @@
 
 .flow-node-code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-tag);
   color: var(--text-muted);
-  background: var(--bg-subtle);
+  background: var(--bg-secondary);
   padding: 0.15rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--radius-badge);
   margin-top: 0.35rem;
   display: inline-block;
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
 }
 
 /* ── Node Sub-Items / List ─────────────────────────────────────────── */
@@ -144,20 +144,20 @@
   gap: 0.2rem;
   margin-top: 0.45rem;
   padding-top: 0.45rem;
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--border-width) solid var(--border-subtle);
 }
 
 .flow-node-item {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 11px;
+  font-size: var(--text-tag);
   color: var(--text-muted);
 }
 
 .flow-node-item-dot {
-  width: 5px;
-  height: 5px;
+  width: var(--status-dot-sm);
+  height: var(--status-dot-sm);
   border-radius: 50%;
   background: var(--accent);
   flex-shrink: 0;
@@ -165,20 +165,20 @@
 
 /* ── Node Sizing Variants ──────────────────────────────────────────── */
 .flow-node-db {
-  min-width: 220px;
+  min-width: var(--grid-card-sm);
 }
 
 .flow-node-state {
-  min-width: 170px;
+  min-width: var(--flow-node-state-min);
   padding: 0.65rem 0.85rem;
 }
 
 /* ── Seamless Invisible Handles (Lines terminate at card edges) ────── */
 .react-flow__handle.flow-handle {
-  width: 1px;
-  height: 1px;
-  min-width: 1px;
-  min-height: 1px;
+  width: var(--space-px);
+  height: var(--space-px);
+  min-width: var(--space-px);
+  min-height: var(--space-px);
   background: transparent;
   border: none;
   opacity: 0;
@@ -188,7 +188,7 @@
 /* ── React Flow Native Edge Labels (Apple HIG Pill Style) ─────────── */
 .react-flow__edge-text {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-tag);
   font-weight: 500;
   fill: var(--text);
   letter-spacing: 0.01em;
@@ -197,7 +197,7 @@
 .react-flow__edge-textbg {
   fill: var(--bg-card);
   stroke: var(--border-subtle);
-  stroke-width: 1px;
-  rx: 6px;
-  ry: 6px;
+  stroke-width: var(--border-width);
+  rx: var(--space-1-5);
+  ry: var(--space-1-5);
 }

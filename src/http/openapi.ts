@@ -58,6 +58,10 @@ function documentedSpec() {
         name: "Docs",
         description: "In-app Diátaxis documentation catalog and search",
       },
+      {
+        name: "Events",
+        description: "App-wide event stream and consistent snapshot",
+      },
     ],
     paths: {
       "/api/health": {
@@ -612,7 +616,7 @@ function documentedSpec() {
           tags: ["Runs"],
           summary: "Get Run Details",
           description:
-            "Retrieves full details, stage status, collected events, worktree information, and pull request links for a run.",
+            "Retrieves full details, stage status, collected events, worktree information, and pull request links for a run. For `pr_created` runs, opening the run enqueues an asynchronous `check_pr` command for the worker to poll pull request status without blocking the API process.",
           operationId: "getRun",
           parameters: [
             {
@@ -831,6 +835,72 @@ function documentedSpec() {
                   },
                 },
               },
+            },
+          },
+        },
+      },
+      "/api/events/snapshot": {
+        get: {
+          tags: ["Events"],
+          summary: "Get App-Wide Events Snapshot",
+          description:
+            "Returns a consistent snapshot of current run statuses, Needs-you triggering events (no age limit), and Finished history (last 7 days, max 100) with cursor inside one SQLite read transaction (#257).",
+          operationId: "getEventsSnapshot",
+          responses: {
+            "200": {
+              description: "App-wide events snapshot with cursor",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/EventsSnapshot",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/events": {
+        get: {
+          tags: ["Events"],
+          summary: "Stream App-Wide Events (SSE)",
+          description:
+            "Subscribes to live Server-Sent Events across all runs with own envelope. Resumes after last_event_id query parameter or Last-Event-ID header (lower wins). Invalid cursors count as absent; missing cursor returns 400 Bad Request.",
+          operationId: "streamAppEvents",
+          parameters: [
+            {
+              name: "last_event_id",
+              in: "query",
+              required: false,
+              description:
+                "Cursor specifying global run-events ID to resume after",
+              schema: { type: "integer", minimum: 0 },
+            },
+            {
+              name: "Last-Event-ID",
+              in: "header",
+              required: false,
+              description:
+                "Standard SSE cursor header specifying global run-events ID to resume after",
+              schema: { type: "integer", minimum: 0 },
+            },
+          ],
+          responses: {
+            "200": {
+              description:
+                "Server-Sent Events stream of app-wide event envelopes",
+              content: {
+                "text/event-stream": {
+                  schema: {
+                    type: "string",
+                    example:
+                      'id: 42\ndata: {"id":42,"runId":"run-1","sequence":1,"type":"status","payload":{"status":"awaiting_plan_approval"},"time":"2026-10-11T00:00:00.000Z","ticket":{"id":"T-1","title":"Ticket 1","acceptanceCriteria":[]},"project":{"id":"p1","name":"Project 1"}}\n\n',
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/BadRequestError",
             },
           },
         },
@@ -1658,6 +1728,27 @@ function documentedSpec() {
                 branch: { type: "string" },
                 worktreePath: { type: "string" },
                 updatedAt: { type: "string", format: "date-time" },
+                pullRequestOutcome: {
+                  type: "object",
+                  description:
+                    "Outcome of the pull request check once merged or closed without merging.",
+                  properties: {
+                    status: {
+                      type: "string",
+                      enum: ["merged", "closed"],
+                      description: "Outcome status.",
+                    },
+                    state: {
+                      type: "string",
+                      enum: ["merged", "closed"],
+                      description: "Outcome state alias.",
+                    },
+                    url: { type: "string", format: "uri" },
+                    mergedAt: { type: "string", format: "date-time" },
+                    mergedBy: { type: "string" },
+                    closedAt: { type: "string", format: "date-time" },
+                  },
+                },
               },
             },
           ],
@@ -1667,7 +1758,16 @@ function documentedSpec() {
           description:
             "Workbench settings: theme plus per-session {provider, model} pairs (#182).",
           properties: {
-            theme: { type: "string", enum: ["dark", "light"], example: "dark" },
+            theme: {
+              type: "string",
+              enum: ["default", "graphite", "sandstone", "dark", "light"],
+              example: "default",
+            },
+            appearance: {
+              type: "string",
+              enum: ["automatic", "auto", "light", "dark"],
+              example: "automatic",
+            },
             models: {
               type: "object",
               properties: {
@@ -1940,6 +2040,89 @@ function documentedSpec() {
             },
             matched: { type: "boolean", enum: [false] },
             url: { type: "string", example: "https://unrecognized.example" },
+          },
+        },
+        AppEventEnvelope: {
+          type: "object",
+          required: [
+            "id",
+            "runId",
+            "sequence",
+            "type",
+            "payload",
+            "createdAt",
+            "ticketId",
+            "ticketTitle",
+            "projectName",
+          ],
+          properties: {
+            id: { type: "integer", example: 42 },
+            runId: { type: "string", example: "run-1710900000000" },
+            sequence: { type: "integer", example: 5 },
+            type: { type: "string", example: "status" },
+            payload: { type: "object", additionalProperties: true },
+            createdAt: { type: "string", format: "date-time" },
+            ticketId: { type: "string", nullable: true, example: "XF-042" },
+            ticketTitle: {
+              type: "string",
+              nullable: true,
+              example: "Integrate Scalar",
+            },
+            projectName: {
+              type: "string",
+              nullable: true,
+              example: "x-factory",
+            },
+          },
+        },
+        EventsSnapshot: {
+          type: "object",
+          required: ["cursor", "runs", "needsYou", "finished"],
+          properties: {
+            cursor: { type: "integer", example: 42 },
+            runs: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["id", "status", "projectName", "ticketTitle"],
+                properties: {
+                  id: { type: "string", example: "run-1710900000000" },
+                  status: {
+                    type: "string",
+                    enum: [
+                      "pending",
+                      "queued",
+                      "running",
+                      "awaiting_review",
+                      "awaiting_fix",
+                      "recovery_required",
+                      "completed",
+                      "failed",
+                      "cancelled",
+                    ],
+                    example: "running",
+                  },
+                  projectName: {
+                    type: "string",
+                    nullable: true,
+                    example: "x-factory",
+                  },
+                  ticketTitle: {
+                    type: "string",
+                    nullable: true,
+                    example: "Integrate Scalar",
+                  },
+                },
+              },
+            },
+            needsYou: {
+              type: "array",
+              items: { $ref: "#/components/schemas/AppEventEnvelope" },
+            },
+            finished: {
+              type: "array",
+              items: { $ref: "#/components/schemas/AppEventEnvelope" },
+            },
           },
         },
       },

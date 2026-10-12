@@ -483,18 +483,22 @@ describe("chatWithRun consumes the codec-parsed implementationContext (#179)", (
       });
       const res = await handleApi(req, new URL(req.url), { repos });
       assert.equal(res.status, 200);
+      // No model is configured here, so the reply is refused (#263): the reason is recorded
+      // as an error event, and the context is read without a parse failure.
       const body = (await res.json()) as { ok: boolean; message: string };
-      assert.equal(body.ok, true);
+      assert.equal(body.ok, false);
+      assert.doesNotMatch(body.message, /JSON|parse/i);
 
       const events = repos.events.getEventsForRun("run-1");
       const userEvt = events.find((e) => e.type === "chat_user");
       assert.deepEqual(userEvt?.payload, { text: "What are the risks?" });
-      const agentEvt = events.find((e) => e.type === "chat_agent");
-      assert.ok(agentEvt);
       assert.equal(
-        typeof (agentEvt.payload as { text?: unknown }).text,
-        "string",
+        events.some((e) => e.type === "chat_agent"),
+        false,
       );
+      const errorEvt = events.find((e) => e.type === "error");
+      const failure = errorEvt?.payload as { message?: unknown } | undefined;
+      assert.equal(typeof failure?.message, "string");
     } finally {
       errSpy.mockRestore();
     }

@@ -52,7 +52,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
     expect(body.status).toBe("unavailable");
     expect(body.database.status).toBe("ready");
-    expect(body.database.version).toBe(9);
+    expect(body.database.version).toBe(12);
     expect(body.worker.status).toBe("unavailable");
     expect(body.worker.activeWorkers).toBe(0);
     expect(body.worker.reason).toContain("No active background worker");
@@ -74,7 +74,7 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
 
     expect(body.status).toBe("ready");
     expect(body.database.status).toBe("ready");
-    expect(body.database.version).toBe(9);
+    expect(body.database.version).toBe(12);
     expect(body.worker.status).toBe("ready");
     expect(body.worker.activeWorkers).toBe(1);
   });
@@ -127,6 +127,10 @@ describe("API Health & Readiness Probes (XFM-69)", () => {
     expect(body.checks.length).toBeGreaterThanOrEqual(2);
     expect(body.checks[0]?.name).toBe("Database");
     expect(body.checks[0]?.status).toBe("pass");
+    // The coding stage's sandbox is reported too (#283).
+    const sandbox = body.checks.find((c) => c.name === "Sandbox");
+    expect(sandbox).toBeDefined();
+    expect(["pass", "warn", "fail"]).toContain(sandbox?.status ?? "");
   });
 
   it("GET /api/readiness reports a degraded database by code, never the driver's raw text (#163 B3)", async () => {

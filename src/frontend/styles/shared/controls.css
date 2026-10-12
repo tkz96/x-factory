@@ -1,0 +1,617 @@
+/* ── Building blocks (#251) ────────────────────────────────────────────────
+ *
+ * The one control vocabulary. Behaviour lives in the React Aria wrappers under
+ * src/frontend/components/ui/; every visual value lives here and comes from
+ * tokens.css — React Aria ships unstyled controls and its own stylesheet is
+ * never imported. State comes from React Aria's data attributes
+ * (data-hovered, data-pressed, data-selected, data-disabled, data-focus-visible).
+ *
+ * Touchability: every control a finger can hit is at least --tap-min tall
+ * (DESIGN.md §8, 44pt).
+ */
+
+/* One focus ring for every interactive block. --border-focus is the pair the
+ * twelve-set contrast gate proves at 3:1 or better (test/theme-contrast.test.ts). */
+:is(
+  .ui-button,
+  .ui-icon-button,
+  .ui-field-input,
+  .ui-textarea,
+  .ui-select-trigger,
+  .ui-select-item,
+  .ui-segment,
+  .ui-switch,
+  .ui-list-row--pressable
+):focus-visible,
+:is(
+  .ui-button,
+  .ui-icon-button,
+  .ui-field-input,
+  .ui-textarea,
+  .ui-select-trigger,
+  .ui-select-item,
+  .ui-segment,
+  .ui-switch,
+  .ui-list-row--pressable
+)[data-focus-visible] {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-0-5);
+}
+
+/* ── Button ─────────────────────────────────────────────────────────────── */
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 550;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition),
+    color var(--transition),
+    transform var(--transition);
+}
+
+.ui-button[data-pressed] {
+  transform: scale(0.97);
+}
+
+.ui-button[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-button svg {
+  flex-shrink: 0;
+}
+
+.ui-button--primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-button--primary[data-hovered] {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.ui-button--secondary {
+  background: var(--bg-card);
+  color: var(--text);
+  border-color: var(--border-control);
+}
+
+.ui-button--secondary[data-hovered] {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+}
+
+.ui-button--danger {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: transparent;
+}
+
+.ui-button--danger[data-hovered] {
+  border-color: var(--red);
+}
+
+.ui-button--quiet {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.ui-button--quiet[data-hovered] {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ui-button--sm {
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--text-subhead);
+}
+
+.ui-button--lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-body);
+}
+
+/* ── Icon button ────────────────────────────────────────────────────────── */
+
+.ui-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-circle-btn);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ui-icon-button[data-hovered] {
+  background: var(--bg-circle-btn-hover);
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.ui-icon-button[data-pressed] {
+  background: var(--bg-circle-btn-active);
+}
+
+.ui-icon-button[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-icon-button svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+/* ── Text field, text area, select ──────────────────────────────────────── */
+
+.ui-field {
+  display: block;
+}
+
+.ui-field-label {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--space-1);
+}
+
+.ui-field-input,
+.ui-textarea {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--text);
+  background: var(--bg-input);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-input);
+  transition:
+    border-color var(--transition),
+    background-color var(--transition);
+}
+
+.ui-textarea {
+  min-height: calc(var(--tap-min) * 2);
+  font-family: var(--font-mono);
+  font-size: var(--text-callout);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.ui-field-input[data-hovered],
+.ui-textarea[data-hovered] {
+  border-color: var(--border-hover);
+}
+
+.ui-field-input[data-disabled],
+.ui-textarea[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-field-description {
+  display: block;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+.ui-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--text);
+  background: var(--bg-input);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-input);
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background-color var(--transition);
+}
+
+.ui-select-trigger[data-hovered] {
+  border-color: var(--border-hover);
+}
+
+.ui-select-trigger[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-select-value[data-placeholder] {
+  color: var(--text-muted);
+}
+
+/* A CSS caret: no arbitrary px, and no icon the sprite does not carry. */
+.ui-select-indicator {
+  width: 0;
+  height: 0;
+  border-left: var(--space-1) solid transparent;
+  border-right: var(--space-1) solid transparent;
+  border-top: var(--space-1-5) solid var(--text-muted);
+  flex-shrink: 0;
+}
+
+.ui-select-popover {
+  padding: var(--space-1);
+  background: var(--bg-modal);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.ui-select-listbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  max-height: calc(var(--tap-min) * 6);
+  overflow: auto;
+  outline: none;
+}
+
+.ui-select-item {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-callout);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.ui-select-item[data-focused] {
+  background: var(--bg-hover);
+}
+
+.ui-select-item[data-selected] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* The invalid field's boundary. Last in the field section, so its higher
+   specificity never descends over the rules that follow it. */
+.ui-field[data-invalid] .ui-field-input,
+.ui-field[data-invalid] .ui-textarea,
+.ui-field[data-invalid] .ui-select-trigger {
+  border-color: var(--red);
+}
+
+/* ── Segmented control ──────────────────────────────────────────────────── */
+
+.ui-segmented {
+  display: inline-flex;
+  gap: var(--space-micro);
+  padding: var(--space-micro);
+  background: var(--bg-tertiary);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-md);
+}
+
+.ui-segmented[data-disabled] {
+  opacity: 0.4;
+}
+
+.ui-segment {
+  display: inline-flex;
+  margin: 0; /* a segment is a <label>: the label margins do not apply (#266) */
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition),
+    color var(--transition),
+    box-shadow var(--transition);
+}
+
+.ui-segment[data-hovered] {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ui-segment[data-selected] {
+  background: var(--bg-card);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-segment[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* The count after a segment's label (#259): a quiet pill, not a second action. */
+.ui-segment-count {
+  min-width: var(--space-5);
+  padding: 0 var(--space-1-5);
+  font-size: var(--text-caption-1);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--space-5);
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+}
+
+.ui-segment[data-selected] .ui-segment-count {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+/* ── Switch ─────────────────────────────────────────────────────────────── */
+
+.ui-switch-group {
+  display: block;
+}
+
+.ui-switch {
+  display: inline-flex;
+  margin: 0;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+/* A switch and a segment are <label>s. These doubled selectors beat the legacy
+   `.setting-item label` rule in public/styles.css (#266). */
+.ui-switch-group .ui-switch {
+  display: inline-flex;
+  margin: 0;
+}
+
+.ui-segmented .ui-segment {
+  display: inline-flex;
+  margin: 0;
+}
+
+.ui-switch[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-switch-track {
+  display: inline-flex;
+  align-items: center;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  padding: var(--switch-thumb-inset);
+  background: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition);
+}
+
+.ui-switch-thumb {
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
+  background: var(--bg-card);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition);
+}
+
+.ui-switch[data-selected] .ui-switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ui-switch[data-selected] .ui-switch-thumb {
+  background: var(--text-on-accent);
+  transform: translateX(var(--switch-thumb-travel));
+}
+
+.ui-switch-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--text);
+}
+
+.ui-switch-description {
+  display: block;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* ── Badge ──────────────────────────────────────────────────────────────── */
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0-5) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-badge);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-badge);
+  text-transform: lowercase;
+}
+
+.ui-badge--neutral {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.ui-badge--info {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.ui-badge--success {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.ui-badge--warning {
+  background: var(--orange-dim);
+  color: var(--orange);
+}
+
+.ui-badge--error {
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+/* ── List row and its static placeholders ───────────────────────────────── */
+
+.ui-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The real row and its placeholder share this min-height, so a loading list
+ * already holds the height the loaded list will have — no jump when data
+ * arrives (docs/reference/state-coverage.md). */
+.ui-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--list-row-height);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  color: var(--text);
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-control);
+  border-radius: var(--radius-card);
+}
+
+.ui-list-row--pressable {
+  cursor: pointer;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition),
+    transform var(--transition);
+}
+
+.ui-list-row--pressable[data-hovered] {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+}
+
+.ui-list-row--pressable[data-pressed] {
+  transform: scale(0.99);
+}
+
+.ui-list-row--pressable[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Static, and never animated: the banned shimmer in any form. */
+.ui-list-row--placeholder {
+  pointer-events: none;
+}
+
+.ui-list-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-list-row-title {
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ui-list-row-subtitle {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.ui-list-row-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.ui-placeholder-line {
+  display: block;
+  height: var(--space-2);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xs);
+}
+
+.ui-placeholder-line--title {
+  width: 40%;
+}
+
+.ui-placeholder-line--subtitle {
+  width: 65%;
+}
+
+/* ── Spinner: the one wait indicator, for small inline waits ────────────── */
+
+.ui-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+}

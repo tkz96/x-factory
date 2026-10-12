@@ -144,7 +144,9 @@ function setupStepFourDraft(options: StepFourDraftOptions = {}) {
         workspacePath: options.workspacePath ?? WORKSPACE,
       },
       connect: {
-        quickUrl: "",
+        // Step 1's repository URL (#268): present, so returning to step 1 and
+        // continuing still validates.
+        quickUrl: "https://git.example.com/acme/rocket",
         providerConfigs: {
           "generic-tracker": {},
           "generic-githost": GIT_HOST_CONFIG,
@@ -187,6 +189,39 @@ function typeInput(input: HTMLElement, value: string) {
     fireEvent.change(input, { target: { value } });
     fireEvent.keyUp(input);
   });
+}
+
+/**
+ * Leaves a field the way the browser does. Not `fireEvent.blur`: happy-dom's
+ * synthetic blur leaves React's change bookkeeping for that node broken, so the
+ * next keystroke never reaches `onChange`.
+ */
+function leaveInput(input: HTMLElement) {
+  act(() => {
+    input.blur();
+  });
+}
+
+/**
+ * The scope control is the shared segmented control (#251), so its options are
+ * segments whose radio input carries the platform's checked/disabled state.
+ */
+function scopeSegment(value: "local" | "global"): HTMLInputElement {
+  const segment = document.querySelector(`[data-segment-value="${value}"]`);
+  const input = segment?.querySelector("input");
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error(`Scope segment ${value} not found`);
+  }
+  return input;
+}
+
+/** The visible text of a scope segment, radio input and hidden label aside. */
+function scopeSegmentText(value: "local" | "global"): string {
+  return (
+    document
+      .querySelector(`[data-segment-value="${value}"]`)
+      ?.textContent?.trim() ?? ""
+  );
 }
 
 function inspectionResponse(
@@ -273,7 +308,11 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
     const region = inspectionRegion();
     const loading = region.querySelector(".async-region--loading");
     expect(loading).not.toBeNull();
-    expect(loading?.getAttribute("role")).toBe("status");
+    // The region waits behind the one standard spinner block, which carries the
+    // status role and the canonical copy (#251).
+    const waiting = loading?.querySelector('[role="status"]');
+    expect(waiting).not.toBeNull();
+    expect(waiting?.textContent).toContain("Loading…");
     expect(loading?.querySelector("use")?.getAttribute("href")).toContain(
       "icon-loader-2",
     );
@@ -505,8 +544,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       expect(emailInput).not.toBeNull();
 
       // Clearly indicates directory/scope and provides scope options
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
       expect(localRadio).not.toBeNull();
       expect(globalRadio).not.toBeNull();
       expect(localRadio.checked).toBe(true);
@@ -635,8 +674,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
 
       const nameInput = getEl<HTMLInputElement>("git-identity-name-input");
       const emailInput = getEl<HTMLInputElement>("git-identity-email-input");
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
       const configureBtn = getEl<HTMLButtonElement>(
         "btn-configure-git-identity",
       );
@@ -871,14 +910,14 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       openInspectionStep();
       await flush();
 
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
 
       expect(globalRadio.checked).toBe(true);
       expect(localRadio.checked).toBe(false);
       expect(localRadio.disabled).toBe(true);
 
-      expect(localRadio.parentElement?.textContent).toContain(
+      expect(scopeSegmentText("local")).toContain(
         INSPECTION_COPY.scopeWorkspaceOption(WORKSPACE),
       );
 
@@ -906,8 +945,8 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       });
       await flush();
 
-      const localRadio = getEl<HTMLInputElement>("git-identity-scope-local");
-      const globalRadio = getEl<HTMLInputElement>("git-identity-scope-global");
+      const localRadio = scopeSegment("local");
+      const globalRadio = scopeSegment("global");
 
       expect(globalRadio.checked).toBe(true);
       expect(localRadio.checked).toBe(false);
@@ -1185,7 +1224,7 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       expect(errorBanner?.textContent).not.toContain("git config --local");
     });
 
-    it("validates fields inline: rejects control characters in name and invalid email format", async () => {
+    it("reports a problem when a field is left, and on Configure, never while typing (#268)", async () => {
       inspectRepository = mock(async () => ({
         path: WORKSPACE,
         exists: true,
@@ -1210,7 +1249,13 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       await typeInput(nameInput, "Ada Lovelace");
       await typeInput(emailInput, "invalid-email");
 
+      // The button already refuses the form, but nothing interrupts the typing:
+      // a half-written address is not an error yet.
       expect(configureBtn.disabled).toBe(true);
+      expect(document.getElementById("git-identity-email-error")).toBeNull();
+
+      // Leaving the field is a check point: now the address is reported.
+      leaveInput(emailInput);
       const emailError = getEl("git-identity-email-error");
       expect(emailError.textContent).toContain(
         INSPECTION_COPY.emailInvalidError,
@@ -1220,9 +1265,44 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       await typeInput(emailInput, "ada@example.com");
       await typeInput(nameInput, "Ada\x07Lovelace");
 
+      // Fixing the address cleared its problem; the name's arrives on leaving it.
+      expect(document.getElementById("git-identity-email-error")).toBeNull();
+      expect(document.getElementById("git-identity-name-error")).toBeNull();
       expect(configureBtn.disabled).toBe(true);
+
+      leaveInput(nameInput);
       const nameError = getEl("git-identity-name-error");
       expect(nameError.textContent).toContain(INSPECTION_COPY.nameInvalidError);
+    });
+
+    it("reports every problem on Configure, without waiting for a blur", async () => {
+      inspectRepository = mock(async () => ({
+        path: WORKSPACE,
+        exists: true,
+        isGitRepo: true,
+        isRepositoryRoot: true,
+        detectedCommands: {},
+        detectedTooling: [],
+        readiness: { status: "ready", message: "ready" },
+      }));
+      api.inspectRepository = inspectRepository as never;
+
+      openInspectionStep();
+      await flush();
+
+      const form = document.querySelector(".git-identity-form");
+      if (!(form instanceof HTMLFormElement)) throw new Error("form missing");
+      await act(async () => {
+        fireEvent.submit(form);
+      });
+
+      // Configure is the other check point: both fields report at once.
+      expect(getEl("git-identity-name-error").textContent).toContain(
+        INSPECTION_COPY.nameRequiredError,
+      );
+      expect(getEl("git-identity-email-error").textContent).toContain(
+        INSPECTION_COPY.emailRequiredError,
+      );
     });
   });
 
@@ -1245,8 +1325,10 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
     await flush();
     expect(getEl("inspection-identity-name").textContent).toBe("Repo Owner");
 
-    // Back to Basics and move the workspace root.
-    fireEvent.click(getEl("step-nav-basics"));
+    // Back to Basics and move the workspace root. (Step 4 → 1, three Backs.)
+    fireEvent.click(getEl("btn-step-4-back"));
+    fireEvent.click(getEl("btn-step-3-back"));
+    fireEvent.click(getEl("btn-step-2-back"));
     expect(document.getElementById("onboard-step-1")).not.toBeNull();
     await typeInput(getEl("onboard-workspace-path"), "/work/other");
     fireEvent.click(getEl("btn-step-1-next"));
@@ -1310,7 +1392,9 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
 
     /** Moves the workspace root, which makes the recorded identity stale. */
     async function moveWorkspaceRoot(to: string) {
-      fireEvent.click(getEl("step-nav-basics"));
+      fireEvent.click(getEl("btn-step-4-back"));
+      fireEvent.click(getEl("btn-step-3-back"));
+      fireEvent.click(getEl("btn-step-2-back"));
       await typeInput(getEl("onboard-workspace-path"), to);
       fireEvent.click(getEl("btn-step-1-next"));
       await act(async () => {
@@ -1402,7 +1486,7 @@ describe("Inspection Step: the git identity the agent commits with (#146)", () =
       // resolved for exactly the current inputs, so nothing is fetched again.
       fireEvent.click(getEl("btn-step-4-next"));
       expect(document.getElementById("onboard-step-5")).not.toBeNull();
-      fireEvent.click(getEl("step-nav-inspection"));
+      fireEvent.click(getEl("btn-step-5-back"));
       expect(document.getElementById("onboard-step-4")).not.toBeNull();
       await flush();
       expect(inspectRepository).toHaveBeenCalledTimes(1);

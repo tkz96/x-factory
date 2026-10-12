@@ -4,8 +4,11 @@
 // with the transition, or not at all.
 
 import type { RunRecord } from "../db/run-repository.js";
+import type { ResolvedModel } from "../model-roles.js";
 import type {
   ImplementationContext,
+  ModelUsage,
+  ModelUse,
   Project,
   PullRequest,
   ReviewResult,
@@ -48,6 +51,18 @@ export interface StageContext {
   emit: EmitEvent;
   ledger: StageLedger;
   signal: AbortSignal;
+  /** Records the model this attempt runs on and emits `stage_started` (#279). */
+  recordModel(model: ModelUse): void;
+  /** Adds tokens and cost a provider reported for this attempt (#279). */
+  reportUsage(usage: ModelUsage): void;
+  /** Asserts that calling the model does not exceed its daily budget (#281). */
+  assertBudget?(resolved: ResolvedModel): void;
+  /**
+   * Counts one model call. The requests/day budget counts calls, not attempts:
+   * one per prompt sent through the gateway, a 429 retry included, and one per
+   * coding-loop iteration (#281).
+   */
+  recordModelCall?(resolved: ResolvedModel): void;
 }
 
 /** The run fields a stage may write. */
@@ -92,6 +107,12 @@ export type StageOutcome =
   | {
       outcome: "error";
       error: string;
+      output?: unknown;
+      record?: StageRecord | undefined;
+    }
+  | {
+      outcome: "paused";
+      reason: string;
       output?: unknown;
       record?: StageRecord | undefined;
     };

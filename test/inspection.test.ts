@@ -393,6 +393,25 @@ describe("Deterministic Inspection", () => {
         assert.equal(pendingResult.ready, false);
         assert.equal(pendingResult.readyCount, 0);
         assert.ok(pendingResult.issues.length > 0);
+
+        // A checkout with no test command is not ready: verification would
+        // check nothing (#283).
+        const noTestProject = validateProject({
+          id: "no-test-proj",
+          name: "No Test Command",
+          issueTracker: { connectionId: "github" },
+          repositories: [
+            { id: "r1", name: "Repo 1", path: dir, defaultBranch: "main" },
+          ],
+        });
+        const noTestResult = await checkProjectReadiness(noTestProject);
+        assert.equal(noTestResult.ready, false);
+        assert.ok(
+          noTestResult.issues.some((issue) =>
+            issue.includes("no test command"),
+          ),
+          `expected a test-command issue, got: ${noTestResult.issues.join(" | ")}`,
+        );
       } finally {
         await rm(dir, { recursive: true, force: true });
       }

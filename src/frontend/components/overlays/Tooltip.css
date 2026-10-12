@@ -1,0 +1,41 @@
+/* src/frontend/components/overlays/Tooltip.css — Tooltip overlay styles (#250) */
+
+.xf-tooltip {
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-1);
+  color: var(--text);
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+  animation: xfTooltipFadeIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes xfTooltipFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Closing (#250): React Aria holds the tooltip while its exit animation runs, marked
+   `data-exiting`, and unmounts it when the animation ends. It fades only — a tooltip is
+   descriptive, so it should not pull the eye as it goes — on the quicker rung of the
+   ladder (#252) than arriving. A plain fade needs no reduced-motion path. */
+.xf-tooltip[data-exiting] {
+  animation: xfTooltipFadeOut var(--duration-instant) var(--ease-in);
+}
+
+@keyframes xfTooltipFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

@@ -21,6 +21,9 @@ import type {
   StageRunUpdate,
 } from "./executors/types.js";
 import type { LeaseManager, WorkerLogRecord } from "./lease.js";
+import { assertBudgetNotExceeded } from "./model-budgets.js";
+import { isBudgetReached } from "./model-roles.js";
+import { failureReasonFor } from "./shared/failure-reason.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
 import {
@@ -91,7 +94,12 @@ function logSubject(work: StageWork): { job_id?: string } {
 function isStageOutcome(value: unknown): value is StageOutcome {
   if (typeof value !== "object" || value === null) return false;
   const outcome = (value as { outcome?: unknown }).outcome;
-  return outcome === "passed" || outcome === "rejected" || outcome === "error";
+  return (
+    outcome === "passed" ||
+    outcome === "rejected" ||
+    outcome === "error" ||
+    outcome === "paused"
+  );
 }
 
 // Finalization runs inside the commit transaction, so it calls the repositories on the
@@ -182,14 +190,39 @@ export function buildStageContext(
   repos: Repositories,
   run: RunRecord,
   project: Project,
-  identity: Pick<StageContext, "stage" | "attempt" | "workerId" | "signal">,
+  identity: Pick<StageContext, "stage" | "attempt" | "workerId" | "signal"> & {
+    /** The recorded attempt this context belongs to, when there is one. */
+    attemptId?: string | undefined;
+  },
 ): StageContext {
+  const { attemptId, ...ids } = identity;
   return {
-    ...identity,
+    ...ids,
     run,
     project,
     emit: (type, payload) => {
       repos.events.appendEvent(run.id, type, payload);
+    },
+    recordModel: (model) => {
+      if (attemptId) repos.stageAttempts.recordModel(attemptId, model);
+      repos.events.appendEvent(run.id, "stage_started", {
+        stage: ids.stage,
+        attempt: ids.attempt,
+        model,
+      });
+    },
+    reportUsage: (usage) => {
+      if (attemptId) repos.stageAttempts.addUsage(attemptId, usage);
+    },
+    assertBudget: (resolved) => {
+      assertBudgetNotExceeded(repos, resolved);
+    },
+    recordModelCall: (resolved) => {
+      repos.modelCalls.record({
+        connectionId: resolved.connectionId,
+        modelId: resolved.modelId,
+        stageAttemptId: attemptId,
+      });
     },
     ledger: {
       execute: (operation, fn, reconcile, prepareContext) =>
@@ -284,6 +317,7 @@ export class StageRunner {
         attempt: work.attempt,
         workerId: this.host.workerId,
         signal,
+        attemptId: attempt.id,
       });
 
       let outcome: StageOutcome;
@@ -298,6 +332,16 @@ export class StageRunner {
       } catch (err: unknown) {
         if (this.host.isShuttingDown()) return;
         if (this.stoppedUnder(work, attempt, startTime)) return;
+        if (isBudgetReached(err)) {
+          this.pauseForBudget(
+            work,
+            attempt,
+            err.message,
+            elapsed(startTime),
+            run.status,
+          );
+          return;
+        }
         this.fail(
           work,
           attempt,
@@ -313,7 +357,16 @@ export class StageRunner {
       if (this.stoppedUnder(work, attempt, startTime)) return;
 
       const duration = elapsed(startTime);
-      if (outcome.outcome === "passed") {
+      if (outcome.outcome === "paused") {
+        this.pauseForBudget(
+          work,
+          attempt,
+          outcome.reason,
+          duration,
+          run.status,
+          outcome.record,
+        );
+      } else if (outcome.outcome === "passed") {
         const invalid = work.invalidPassed?.(outcome);
         if (invalid) {
           this.fail(work, attempt, invalid, duration, run.status);
@@ -481,6 +534,69 @@ export class StageRunner {
   }
 
   /**
+   * When a stage exceeds a model's daily budget, the stage attempt failure is recorded
+   * and the run pauses in `recovery_required` carrying the structured budget reason
+   * without retrying the job (docs/reference/state-machine-matrix.md §8, #281).
+   */
+  private pauseForBudget(
+    work: StageWork,
+    attempt: StageAttemptRecord,
+    reason: string,
+    duration: number,
+    expectedRunStatus: RunStatus,
+    record?: StageRecord,
+  ): void {
+    const { repos } = this.host;
+    this.host.error(`Stage '${work.stage}' paused: budget reached: ${reason}`);
+
+    try {
+      repos.db.transaction(() => {
+        work.reject(reason);
+        const latest = repos.runs.get(work.runId);
+        if (!latest || latest.status !== expectedRunStatus) return;
+        this.applyRecord(work.runId, record);
+        repos.stageAttempts.recordFailure(attempt.id, reason);
+        if (canTransition(latest.status, "recovery_required")) {
+          repos.runs.transitionRun(
+            work.runId,
+            latest.status,
+            "recovery_required",
+            {
+              event: {
+                type: "status",
+                payload: {
+                  status: "recovery_required",
+                  category: "budget reached",
+                  reason,
+                  text: `Run paused: budget reached. ${reason}`,
+                },
+              },
+            },
+          );
+        } else {
+          const text = `Budget pause not applied: run is in status "${latest.status}", which cannot transition to recovery_required.`;
+          repos.events.appendEvent(work.runId, "info", { text });
+          this.host.error(`Run ${work.runId}: ${text}`);
+        }
+      })();
+    } catch (err: unknown) {
+      this.host.error(`Failed to pause run ${work.runId} for budget`, err);
+      return;
+    }
+
+    this.host.emitLog({
+      ...logSubject(work),
+      run_id: work.runId,
+      stage: work.stage,
+      attempt: work.attempt,
+      duration_ms: duration,
+      result: "failure",
+      message: `Stage '${work.stage}' paused: budget reached. Run moved to recovery_required`,
+      error: reason,
+    });
+  }
+
+  /**
    * A rejected stage is a verdict: the work fails without a retry and the run ends in
    * `failed` carrying the rejection (#181).
    */
@@ -517,6 +633,10 @@ export class StageRunner {
                 payload: {
                   status: REJECTED_RUN_STATUS,
                   text: `Run failed during stage '${work.stage}': ${reason}`,
+                  failure: failureReasonFor({
+                    error: reason,
+                    stage: work.stage,
+                  }),
                 },
               },
             },
@@ -582,6 +702,10 @@ export class StageRunner {
               payload: {
                 status: "failed",
                 text: `Run failed during stage '${work.stage}': ${errorMsg}`,
+                failure: failureReasonFor({
+                  error: errorMsg,
+                  stage: work.stage,
+                }),
               },
             },
           });

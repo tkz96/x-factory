@@ -1,0 +1,68 @@
+/* ── Projects split: list + detail (#267) ────────────────────────────── */
+
+.projects-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.projects-detail-pane {
+  min-width: 0;
+}
+
+/* The way back to the list exists only where the detail pushes over it. */
+.projects-detail-back {
+  display: none;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-height: var(--tap-min);
+  color: var(--accent);
+  text-decoration: none;
+  font-size: var(--text-subhead);
+  font-weight: 500;
+}
+
+.projects-detail-back:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: var(--space-0-5);
+}
+
+.projects-detail-prompt {
+  margin: 0;
+  max-width: var(--content-max-md);
+  font-size: var(--text-subhead);
+  color: var(--text-muted);
+}
+
+/* Mail-like split: the list is a column beside the detail, and the detail is
+   separated from it the way a mail reader separates the message. */
+@media (min-width: 769px) {
+  .projects-split {
+    grid-template-columns:
+      minmax(var(--content-max-xs), var(--content-max-sm))
+      minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+
+  .projects-detail-pane {
+    border-left: var(--border-width) solid var(--border);
+    padding-left: var(--space-8);
+  }
+}
+
+/* Phone width pushes: one pane at a time, never side by side. The list route
+   shows the list, a project's route shows the project and how to go back. */
+@media (max-width: 768px) {
+  .projects-split[data-detail="project"] .projects-list-pane {
+    display: none;
+  }
+
+  .projects-split[data-detail="list"] .projects-detail-pane {
+    display: none;
+  }
+
+  .projects-detail-pane .projects-detail-back {
+    display: inline-flex;
+  }
+}

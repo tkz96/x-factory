@@ -1,4 +1,12 @@
 import type {
+  ModelApiType,
+  ModelConnectionView,
+  ModelListResult,
+  ModelRecord,
+  ModelRecordPatch,
+} from "../../shared/model-connection-types.js";
+import { isCreateRunConflict } from "../../shared/run-creation.js";
+import type {
   AbandonRunRequest,
   AbandonRunResponse,
   ChatWithRunRequest,
@@ -14,6 +22,7 @@ import type {
   GitIdentityScope,
   Project,
   ProjectConnectionRole,
+  ProjectRepository,
   PrRunResponse,
   ReadinessResponse,
   ResumeRunResponse,
@@ -117,6 +126,34 @@ export class ApiError extends Error {
         this.code = d.code;
       }
     }
+  }
+}
+
+/**
+ * A creation refused because the ticket already has an active run (#255). It
+ * carries the id of that run, so the caller opens it instead of showing the
+ * refusal as an error.
+ */
+export class ActiveRunConflictError extends ApiError {
+  readonly runId: string;
+  constructor(message: string, runId: string, data?: unknown) {
+    super(message, 409, data);
+    this.name = "ActiveRunConflictError";
+    this.runId = runId;
+  }
+}
+
+/** The refusal envelope, read from a response body without consuming it. */
+async function activeRunConflictOf(
+  res: Response,
+): Promise<{ message: string; runId: string } | null> {
+  try {
+    const body: unknown = await res.clone().json();
+    if (!isCreateRunConflict(body)) return null;
+    return { message: body.error, runId: body.runId };
+  } catch {
+    // Not the refusal envelope.
+    return null;
   }
 }
 
@@ -249,6 +286,22 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  /**
+   * Replaces a project's repositories (checkout path and commands) through the
+   * partial project update (#283).
+   */
+  async updateProjectRepositories(
+    id: string,
+    repositories: ProjectRepository[],
+  ): Promise<Project> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repositories }),
+    });
+    return handleResponse<Project>(res);
+  },
+
   async inspectRepository(payload: {
     path: string;
     remote?: string | undefined;
@@ -301,6 +354,16 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (res.status === 409) {
+      const conflict = await activeRunConflictOf(res);
+      if (conflict) {
+        throw new ActiveRunConflictError(
+          conflict.message,
+          conflict.runId,
+          conflict,
+        );
+      }
+    }
     return handleResponse<CreateRunResponse>(res);
   },
 
@@ -386,6 +449,103 @@ export const api = {
   },
 
   // Settings & Readiness
+  // ─── Model connections (#276/#277) ─────────────────────────────────────────
+
+  async listModelConnections(): Promise<ModelConnectionView[]> {
+    const res = await fetch("/api/model-connections");
+    return handleResponse<ModelConnectionView[]>(res);
+  },
+
+  async createModelConnection(payload: {
+    name: string;
+    apiType: ModelApiType;
+    baseUrl?: string | undefined;
+    apiKey?: string | undefined;
+  }): Promise<ModelConnectionView> {
+    const res = await fetch("/api/model-connections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<ModelConnectionView>(res);
+  },
+
+  async updateModelConnection(
+    id: string,
+    payload: {
+      name?: string | undefined;
+      baseUrl?: string | undefined;
+      apiKey?: string | undefined;
+    },
+  ): Promise<ModelConnectionView> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    return handleResponse<ModelConnectionView>(res);
+  },
+
+  async deleteModelConnection(id: string): Promise<{ ok: boolean }> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    );
+    return handleResponse<{ ok: boolean }>(res);
+  },
+
+  async checkModelConnection(id: string): Promise<ModelListResult> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/check`,
+      { method: "POST" },
+    );
+    return handleResponse<ModelListResult>(res);
+  },
+
+  async addConnectionModel(id: string, modelId: string): Promise<ModelRecord> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/models`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId }),
+      },
+    );
+    return handleResponse<ModelRecord>(res);
+  },
+
+  async updateConnectionModel(
+    id: string,
+    modelId: string,
+    patch: ModelRecordPatch,
+  ): Promise<ModelRecord> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/models?modelId=${encodeURIComponent(modelId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      },
+    );
+    return handleResponse<ModelRecord>(res);
+  },
+
+  async removeConnectionModel(
+    id: string,
+    modelId: string,
+  ): Promise<{ ok: boolean }> {
+    const res = await fetch(
+      `/api/model-connections/${encodeURIComponent(id)}/models?modelId=${encodeURIComponent(modelId)}`,
+      { method: "DELETE" },
+    );
+    return handleResponse<{ ok: boolean }>(res);
+  },
+
   async getSettings(): Promise<WorkbenchSettings> {
     const res = await fetch("/api/settings");
     return handleResponse<WorkbenchSettings>(res);

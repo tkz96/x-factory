@@ -1,0 +1,70 @@
+/* src/frontend/components/projects/RepositorySettings.css — repository
+   checkout and command editing (#283). */
+
+.repo-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.repo-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.repo-settings-name {
+  margin: 0;
+  font-size: var(--text-headline);
+}
+
+.repo-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.repo-settings-label {
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.repo-settings-input {
+  font: inherit;
+  font-size: var(--text-callout);
+  color: var(--text);
+  background: var(--bg-input);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+}
+
+.repo-settings-input--mono {
+  font-family: var(--font-mono);
+}
+
+.repo-settings-input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.repo-settings-help {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.repo-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.repo-settings-saved {
+  font-size: var(--text-footnote);
+  color: var(--green);
+}

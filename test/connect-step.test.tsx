@@ -150,6 +150,40 @@ function typeInput(input: HTMLElement, value: string) {
   });
 }
 
+/** Lets the async work a keystroke or a press started settle inside act. */
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/** Walks the assistant back to the step that collects the URL (#268). */
+function goToStepOne(): void {
+  fireEvent.click(getEl("btn-step-2-back"));
+  expect(document.getElementById("onboard-step-1")).not.toBeNull();
+}
+
+/**
+ * Pastes a repository URL on the first step and leaves the field, which is what
+ * asks the providers about it. The URL intake lives there now (#268); what the
+ * providers make of the URL is what the Connect step opens with.
+ */
+async function pasteRepositoryUrl(url: string): Promise<void> {
+  typeInput(getEl("onboard-repo-url"), url);
+  // Leaving the field is what asks the providers, exactly as it is for a user
+  // who pastes a link and moves on to the next field.
+  act(() => {
+    getEl("onboard-proj-name").focus();
+  });
+  await settle();
+}
+
+/** Continues from step 1 and lets whatever the parse started settle. */
+async function continueFromStepOne(): Promise<void> {
+  fireEvent.click(getEl("btn-step-1-next"));
+  await settle();
+}
+
 function Harness() {
   const { openOnboardingModal } = useModal();
   return (
@@ -198,7 +232,10 @@ function setupStep2Draft(overrides?: Record<string, unknown>) {
       workspacePath: "/workspace/test",
     },
     connect: {
-      quickUrl: "",
+      // The repository URL the assistant's first step collects (#268). A draft
+      // that has passed step 1 holds one, so returning to step 1 and continuing
+      // works the way it did for the user who entered it.
+      quickUrl: "https://git.example.com/acme/test-app",
       providerConfigs: {},
       tracker: {
         providerId: null,
@@ -346,16 +383,16 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
   });
 
   it("QUICK-URL SUCCESS ×3: three provider-shaped parse-url responses through API mock → correct provider selected, configDraft applied, inferred name applied", async () => {
-    // Start with empty basics name so inferredName applies
+    // Start with empty basics name so inferredName applies. The URL is pasted on
+    // the assistant's first step (#268); the Connect step opens with whatever
+    // the providers made of it.
     setupStep2Draft({
       basics: { name: "", id: "", description: "", workspacePath: "" },
     });
 
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
-
-    const quickUrlInput = getEl<HTMLInputElement>("connect-quick-url");
-    const submitBtn = getEl<HTMLButtonElement>("btn-quick-url-submit");
+    goToStepOne();
 
     // 1. Git Host URL shape
     api.providers.parseUrl = mock(async () => ({
@@ -368,22 +405,26 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       inferredName: "git-inferred-repo",
     }));
 
-    await typeInput(quickUrlInput, "https://git.example.com/org/repo");
-    await act(async () => {
-      fireEvent.click(submitBtn);
-    });
+    await pasteRepositoryUrl("https://git.example.com/org/repo");
+    // The match named the project, so the user can simply continue.
+    expect(getEl<HTMLInputElement>("onboard-proj-name").value).toBe(
+      "git-inferred-repo",
+    );
+    await continueFromStepOne();
 
     // Git host card has provider selected and config applied
-    const gitHostSelect = getEl<HTMLSelectElement>("select-gitHost-provider");
-    expect(gitHostSelect.value).toBe("generic-githost");
+    const gitHostSelect = () =>
+      getEl<HTMLSelectElement>("select-gitHost-provider");
+    const trackerSelect = () =>
+      getEl<HTMLSelectElement>("select-tracker-provider");
+    expect(gitHostSelect().value).toBe("generic-githost");
     expect(getEl<HTMLInputElement>("gitHost-gitUrl").value).toBe(
       "https://git.example.com/org/repo",
     );
     expect(getEl<HTMLInputElement>("gitHost-token").value).toBe("tok-git-123");
 
     // Tracker card remains unselected
-    const trackerSelect = getEl<HTMLSelectElement>("select-tracker-provider");
-    expect(trackerSelect.value).toBe("");
+    expect(trackerSelect().value).toBe("");
 
     // 2. Tracker URL shape
     api.providers.parseUrl = mock(async () => ({
@@ -396,13 +437,12 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       inferredName: "tracker-project",
     }));
 
-    await typeInput(quickUrlInput, "https://tracker.example.com/issues");
-    await act(async () => {
-      fireEvent.click(submitBtn);
-    });
+    goToStepOne();
+    await pasteRepositoryUrl("https://tracker.example.com/issues");
+    await continueFromStepOne();
 
     // Tracker card has provider selected and config applied
-    expect(trackerSelect.value).toBe("generic-tracker");
+    expect(trackerSelect().value).toBe("generic-tracker");
     expect(getEl<HTMLInputElement>("tracker-endpointHost").value).toBe(
       "https://tracker.example.com",
     );
@@ -421,14 +461,13 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       inferredName: "dual-project",
     }));
 
-    await typeInput(quickUrlInput, "https://dual.example.com/my-org");
-    await act(async () => {
-      fireEvent.keyDown(quickUrlInput, { key: "Enter" });
-    });
+    goToStepOne();
+    await pasteRepositoryUrl("https://dual.example.com/my-org");
+    await continueFromStepOne();
 
     // Both cards now have dual-service selected
-    expect(trackerSelect.value).toBe("dual-service");
-    expect(gitHostSelect.value).toBe("dual-service");
+    expect(trackerSelect().value).toBe("dual-service");
+    expect(gitHostSelect().value).toBe("dual-service");
     expect(getEl<HTMLInputElement>("tracker-serviceUrl").value).toBe(
       "https://dual.example.com/my-org",
     );
@@ -441,6 +480,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
+    goToStepOne();
 
     api.providers.parseUrl = mock(async () => ({
       code: "UNKNOWN" as const,
@@ -449,24 +489,23 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       url: "https://unsupported.example.com/unknown",
     }));
 
-    const quickUrlInput = getEl<HTMLInputElement>("connect-quick-url");
-    await typeInput(quickUrlInput, "https://unsupported.example.com/unknown");
-
-    await act(async () => {
-      fireEvent.click(getEl("btn-quick-url-submit"));
-    });
+    await pasteRepositoryUrl("https://unsupported.example.com/unknown");
 
     // Input value is preserved
-    expect(quickUrlInput.value).toBe("https://unsupported.example.com/unknown");
-
-    // Neither provider is selected
-    expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe("");
-    expect(getEl<HTMLSelectElement>("select-gitHost-provider").value).toBe("");
+    expect(getEl<HTMLInputElement>("onboard-repo-url").value).toBe(
+      "https://unsupported.example.com/unknown",
+    );
 
     // Feedback shows warning message
     expect(
       document.getElementById("quick-url-miss-feedback")?.textContent,
     ).toContain("not recognized");
+
+    // An unmatched URL is not a block: the journey continues, and neither
+    // provider has been selected on the user's behalf.
+    await continueFromStepOne();
+    expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe("");
+    expect(getEl<HTMLSelectElement>("select-gitHost-provider").value).toBe("");
   });
 
   it("QUICK-URL STALE CONFIG: changing provider via Quick-URL replaces config rather than leaking old provider keys", async () => {
@@ -487,7 +526,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     const patInput = getEl<HTMLInputElement>("tracker-pat");
     await typeInput(patInput, "secret-token-xyz");
 
-    // 2. Submit a Quick-URL that parses to provider B ("generic-tracker")
+    // 2. Paste a URL that parses to provider B ("generic-tracker") on step 1
     api.providers.parseUrl = mock(async () => ({
       matched: true as const,
       providerId: "generic-tracker",
@@ -498,12 +537,9 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       inferredName: "Project Core",
     }));
 
-    const quickInput = getEl<HTMLInputElement>("connect-quick-url");
-    await typeInput(quickInput, "https://jira.corp.internal/browse/PROJ-1");
-
-    await act(async () => {
-      fireEvent.click(getEl("btn-quick-url-submit"));
-    });
+    goToStepOne();
+    await pasteRepositoryUrl("https://jira.corp.internal/browse/PROJ-1");
+    await continueFromStepOne();
 
     // 3. Verify provider was updated to provider B
     const trackerSelect = getEl<HTMLSelectElement>("select-tracker-provider");
@@ -902,16 +938,13 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
     setupStep2Draft();
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));
+    goToStepOne();
 
-    const quickInput = getEl<HTMLInputElement>("connect-quick-url");
-    await typeInput(quickInput, "https://throw.example.com");
     api.providers.parseUrl = mock(async () => {
       throw new Error("Network down");
     });
 
-    await act(async () => {
-      fireEvent.click(getEl("btn-quick-url-submit"));
-    });
+    await pasteRepositoryUrl("https://throw.example.com");
 
     expect(
       document.getElementById("quick-url-miss-feedback")?.textContent,
@@ -1418,12 +1451,13 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
     });
 
-    it("P1 (b): Quick-URL race guard — stale parse result discarded if provider changed in flight & UI disabled while parsing", async () => {
+    it("P1 (b): a newer URL supersedes an in-flight parse — the stale result never lands", async () => {
       setupStep2Draft();
       renderWizard();
       fireEvent.click(getEl("btn-open-wizard"));
+      goToStepOne();
 
-      // Set up deferred parse promise
+      // The first parse is deferred: it answers only after the URL is replaced.
       let resolveParse!: (val: {
         matched: true;
         providerId: string;
@@ -1440,31 +1474,21 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       });
       api.providers.parseUrl = mock(async () => parseDeferred);
 
-      const quickInput = getEl<HTMLInputElement>("connect-quick-url");
-      await typeInput(quickInput, "https://github.com/myorg/myrepo");
+      await pasteRepositoryUrl("https://github.com/myorg/myrepo");
 
-      // Trigger parse
-      await act(async () => {
-        fireEvent.click(getEl("btn-quick-url-submit"));
-      });
+      // The URL is replaced before the first answer arrives.
+      api.providers.parseUrl = mock(async () => ({
+        matched: true as const,
+        providerId: "dual-service",
+        configDraft: {
+          serviceUrl: "https://dual.example.com/company",
+          pat: "dual-pat-1",
+        },
+        inferredName: "Newer Parse",
+      }));
+      await pasteRepositoryUrl("https://dual.example.com/company");
 
-      // UI guards: controls must be disabled while parse is in flight
-      const trackerSelect = getEl<HTMLSelectElement>("select-tracker-provider");
-      const gitHostSelect = getEl<HTMLSelectElement>("select-gitHost-provider");
-      const submitBtn = getEl<HTMLButtonElement>("btn-quick-url-submit");
-      expect(trackerSelect.disabled).toBe(true);
-      expect(gitHostSelect.disabled).toBe(true);
-      expect(submitBtn.disabled).toBe(true);
-
-      // Prove the guard: manual provider change happens while parse was in flight
-      act(() => {
-        fireEvent.change(trackerSelect, {
-          target: { value: "dual-service" },
-        });
-      });
-      expect(trackerSelect.value).toBe("dual-service");
-
-      // Now resolve the stale parse with a generic-tracker result
+      // Now the superseded parse answers, for a URL the user has replaced.
       await act(async () => {
         resolveParse({
           matched: true,
@@ -1474,12 +1498,14 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         });
       });
 
-      // Role must keep the newer manual selection and NOT be overwritten by the late parse result
-      expect(trackerSelect.value).toBe("dual-service");
+      await continueFromStepOne();
+
+      // The connection holds the NEWER result, and nothing of the stale one.
+      expect(getEl<HTMLSelectElement>("select-tracker-provider").value).toBe(
+        "dual-service",
+      );
       expect(getEl<HTMLInputElement>("tracker-serviceUrl")).not.toBeNull();
       expect(document.getElementById("tracker-endpointHost")).toBeNull();
-      expect(submitBtn.disabled).toBe(false);
-      expect(trackerSelect.disabled).toBe(false);
     });
 
     it("P2: Quick-URL invalidates ONLY the affected role, preserving untouched role's verification", async () => {
@@ -1517,7 +1543,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       );
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(false);
 
-      // Now submit a Quick-URL that matches ONLY generic-tracker (roles: ["tracker"])
+      // Now paste a URL that matches ONLY generic-tracker (roles: ["tracker"])
       api.providers.parseUrl = mock(async () => ({
         matched: true as const,
         providerId: "generic-tracker",
@@ -1525,12 +1551,9 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
         inferredName: "New Tracker",
       }));
 
-      const quickInput = getEl<HTMLInputElement>("connect-quick-url");
-      await typeInput(quickInput, "https://tracker.example.com/issue/123");
-
-      await act(async () => {
-        fireEvent.click(getEl("btn-quick-url-submit"));
-      });
+      goToStepOne();
+      await pasteRepositoryUrl("https://tracker.example.com/issue/123");
+      await continueFromStepOne();
 
       // Tracker verification was reset
       expect(getEl("connection-card-tracker").textContent).not.toContain(
@@ -1589,18 +1612,15 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(document.getElementById("onboard-step-3")).not.toBeNull();
 
       // Return to Connect
-      fireEvent.click(getEl("step-nav-connect"));
+      fireEvent.click(getEl("btn-step-3-back"));
       expect(document.getElementById("onboard-step-2")).not.toBeNull();
 
       // Change a provider config field
       const endpointInput = getEl<HTMLInputElement>("tracker-endpointHost");
       await typeInput(endpointInput, "https://changed.example.com");
 
-      // Verify StepNav cannot navigate to Repositories
-      const repoBtn = getEl<HTMLButtonElement>("step-nav-repositories");
-      expect(repoBtn.disabled).toBe(true);
-
-      // Verify Connect Next remains blocked
+      // The edited config invalidates the verification, so Continue is gated
+      // and the step cannot move on.
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
     });
 
@@ -1647,7 +1667,7 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(document.getElementById("onboard-step-3")).not.toBeNull();
 
       // Return to Connect
-      fireEvent.click(getEl("step-nav-connect"));
+      fireEvent.click(getEl("btn-step-3-back"));
       expect(document.getElementById("onboard-step-2")).not.toBeNull();
 
       // Change provider
@@ -1661,9 +1681,9 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       // Next blocks until the new provider is verified.
       expect(getEl<HTMLButtonElement>("btn-step-2-next").disabled).toBe(true);
 
-      // Confirm StepNav cannot navigate to Repositories
-      const repoBtn = getEl<HTMLButtonElement>("step-nav-repositories");
-      expect(repoBtn.disabled).toBe(true);
+      // The assistant cannot be pushed past a gated step: it stays on Connect.
+      fireEvent.click(getEl("btn-step-2-next"));
+      expect(document.getElementById("onboard-step-2")).not.toBeNull();
     });
 
     it("Backward navigation still works", async () => {
@@ -1691,17 +1711,12 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       fireEvent.click(getEl("btn-step-3-next"));
       expect(document.getElementById("onboard-step-4")).not.toBeNull();
 
-      // Ensure we can go back to Step 2 and Step 1 from Step 4
-      const step2Btn = getEl<HTMLButtonElement>("step-nav-connect");
-      expect(step2Btn.disabled).toBe(false);
-
-      fireEvent.click(step2Btn);
+      // The assistant's own Back walks all the way to step 2 and step 1.
+      fireEvent.click(getEl("btn-step-4-back"));
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+      fireEvent.click(getEl("btn-step-3-back"));
       expect(document.getElementById("onboard-step-2")).not.toBeNull();
-
-      const step1Btn = getEl<HTMLButtonElement>("step-nav-basics");
-      expect(step1Btn.disabled).toBe(false);
-
-      fireEvent.click(step1Btn);
+      fireEvent.click(getEl("btn-step-2-back"));
       expect(document.getElementById("onboard-step-1")).not.toBeNull();
     });
 
@@ -1728,15 +1743,15 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       expect(document.getElementById("onboard-step-4")).not.toBeNull();
 
       // Go back to Step 2
-      fireEvent.click(getEl("step-nav-connect"));
+      fireEvent.click(getEl("btn-step-4-back"));
+      fireEvent.click(getEl("btn-step-3-back"));
       expect(document.getElementById("onboard-step-2")).not.toBeNull();
 
-      // Try to jump forward to Step 3 or 4 using StepNav
-      const step3Btn = getEl<HTMLButtonElement>("step-nav-repositories");
-      const step4Btn = getEl<HTMLButtonElement>("step-nav-inspection");
-
-      expect(step3Btn.disabled).toBe(true);
-      expect(step4Btn.disabled).toBe(true);
+      // There is no jump: the only way forward is the step's own Continue, one
+      // step at a time, in the order the assistant presents them.
+      fireEvent.click(getEl("btn-step-2-next"));
+      expect(document.getElementById("onboard-step-3")).not.toBeNull();
+      expect(document.getElementById("onboard-step-4")).toBeNull();
 
       // MaxStepVisited semantics remain the same (still 4 in local storage or state)
       const raw = window.localStorage.getItem("xf_wizard_draft_v1");
@@ -1892,7 +1907,10 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
       const step = getEl("onboard-step-2");
       const loading = step.querySelector(".async-region--loading");
       expect(loading).not.toBeNull();
-      expect(loading?.getAttribute("role")).toBe("status");
+      // The wait is announced by the standard spinner block (#251).
+      expect(loading?.querySelector('[role="status"]')?.textContent).toContain(
+        "Loading…",
+      );
       expect(getManifest).toHaveBeenCalledTimes(1);
       // Nothing to configure yet: the cards are not rendered behind the region.
       expect(document.getElementById("connection-card-tracker")).toBeNull();
@@ -2181,13 +2199,10 @@ describe("Connect Step: Dual Connection Cards & Quick-URL (spec #133, ticket #14
           accessCredential: "sec-tracker-999",
         },
       }));
-      await typeInput(
-        getEl<HTMLInputElement>("connect-quick-url"),
-        "https://tracker.example.com/issues",
-      );
-      await act(async () => {
-        fireEvent.click(getEl("btn-quick-url-submit"));
-      });
+      // The URL is pasted on the assistant's first step (#268).
+      fireEvent.click(getEl("btn-step-2-back"));
+      await pasteRepositoryUrl("https://tracker.example.com/issues");
+      await continueFromStepOne();
       expect(getEl("connection-card-tracker").textContent).not.toContain(
         "Verified",
       );

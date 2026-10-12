@@ -1,41 +1,57 @@
 // test/styles.test.ts — Automated gate for CSS token consolidation and !important governance (XF-020).
+//
+// Scans the design system the app ships (src/frontend, every stylesheet) now that
+// the pre-redesign public/styles.css is retired (#248). The token files are the
+// only place a colour or a !important may be defined, apart from the one WHATWG
+// [hidden] rule.
 
 import { describe, expect, it } from "bun:test";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-const STYLES_PATH = path.join(import.meta.dir, "../public/styles.css");
+const FRONTEND_DIR = path.join(import.meta.dir, "../src/frontend");
+const TOKEN_FILE = path.join(FRONTEND_DIR, "styles/tokens.css");
 
-describe("CSS Token Consolidation & Style Governance (public/styles.css)", () => {
-  it("contains zero hex color literals outside :root and [data-theme] token definition blocks", async () => {
-    const cssText = await Bun.file(STYLES_PATH).text();
-    const lines = cssText.split("\n");
+function listStylesheets(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...listStylesheets(full));
+    else if (entry.endsWith(".css")) out.push(full);
+  }
+  return out;
+}
 
-    let inTokenBlock = false;
-    const violations: { line: number; text: string }[] = [];
+const STYLESHEETS = listStylesheets(FRONTEND_DIR);
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? "";
-      const trimmed = line.trim();
+function stripComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, (block) =>
+    block.replace(/[^\n]/g, " "),
+  );
+}
 
-      // Track token definition blocks
-      if (
-        trimmed.startsWith(":root") ||
-        trimmed.startsWith('[data-theme="dark"]') ||
-        trimmed.startsWith('[data-theme="light"]')
-      ) {
-        inTokenBlock = true;
-      }
+describe("CSS Token Consolidation & Style Governance (src/frontend stylesheets)", () => {
+  it("finds the design system stylesheets it governs", () => {
+    expect(STYLESHEETS).toContain(TOKEN_FILE);
+    expect(STYLESHEETS.length).toBeGreaterThan(50);
+  });
 
-      if (inTokenBlock && trimmed.endsWith("}") && !trimmed.includes("{")) {
-        inTokenBlock = false;
-        continue;
-      }
+  it("contains zero hex color literals outside the token file", () => {
+    const violations: { file: string; line: number; text: string }[] = [];
 
-      if (!inTokenBlock) {
+    for (const file of STYLESHEETS) {
+      if (file === TOKEN_FILE) continue;
+      // Comments cite issues (#268), so they are not styles.
+      const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
         // Look for hex color literals (#fff, #123456, etc.)
-        const match = line.match(/#[0-9a-fA-F]{3,8}\b/);
-        if (match) {
-          violations.push({ line: i + 1, text: line.trim() });
+        if (/#[0-9a-fA-F]{3,8}\b/.test(line)) {
+          violations.push({
+            file: path.relative(FRONTEND_DIR, file),
+            line: i + 1,
+            text: line.trim(),
+          });
         }
       }
     }
@@ -43,30 +59,32 @@ describe("CSS Token Consolidation & Style Governance (public/styles.css)", () =>
     expect(violations).toEqual([]);
   });
 
-  it("contains zero undocumented !important declarations and only allows [hidden]", async () => {
-    const cssText = await Bun.file(STYLES_PATH).text();
-    const lines = cssText.split("\n");
+  it("contains zero undocumented !important declarations and only allows [hidden]", () => {
+    const importantLines: { file: string; line: number; text: string }[] = [];
+    const precedingByFile = new Map<string, string>();
 
-    const importantLines: { line: number; text: string }[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i] ?? "";
-      if (line.includes("!important")) {
-        importantLines.push({ line: i + 1, text: line.trim() });
+    for (const file of STYLESHEETS) {
+      const lines = readFileSync(file, "utf8").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        if (line.includes("!important")) {
+          const rel = path.relative(FRONTEND_DIR, file);
+          importantLines.push({ file: rel, line: i + 1, text: line.trim() });
+          precedingByFile.set(
+            rel,
+            lines.slice(Math.max(0, i - 5), i).join("\n"),
+          );
+        }
       }
     }
 
     // Exactly one !important is allowed and must be the WHATWG HTML5 hidden spec rule
     expect(importantLines.length).toBe(1);
+    expect(importantLines[0]?.file).toBe(path.join("styles", "base.css"));
     expect(importantLines[0]?.text).toBe("display: none !important;");
 
     // Verify documentation preceding it
-    const precedingText = lines
-      .slice(
-        Math.max(0, (importantLines[0]?.line ?? 1) - 5),
-        importantLines[0]?.line ?? 1,
-      )
-      .join("\n");
-    expect(precedingText).toContain("WHATWG HTML5 Spec: [hidden]");
+    const preceding = precedingByFile.get(importantLines[0]?.file ?? "") ?? "";
+    expect(preceding).toContain("WHATWG HTML5 Spec: [hidden]");
   });
 });

@@ -1,7 +1,7 @@
 /* src/frontend/components/runs/DiffModal.css — Syntax-highlighted diff modal */
 
 .diff-modal-dialog {
-  max-width: 900px;
+  max-width: var(--modal-max-width-lg);
   width: 95%;
   max-height: 85vh;
   display: flex;
@@ -14,7 +14,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   background: var(--bg-secondary);
 }
 
@@ -54,12 +54,12 @@
 
 .diff-modal-add {
   color: var(--green);
-  background: rgba(46, 160, 67, 0.15);
+  background: var(--green-dim);
 }
 
 .diff-modal-remove {
   color: var(--red);
-  background: rgba(248, 81, 73, 0.15);
+  background: var(--red-dim);
 }
 
 .diff-modal-close-btn {
@@ -105,17 +105,17 @@
 }
 
 .diff-row-add {
-  background: rgba(46, 160, 67, 0.15);
+  background: var(--green-dim);
   color: var(--text);
 }
 
 .diff-row-del {
-  background: rgba(248, 81, 73, 0.15);
+  background: var(--red-dim);
   color: var(--text);
 }
 
 .diff-row-hunk {
-  background: rgba(188, 140, 255, 0.12);
+  background: var(--purple-dim);
   color: var(--purple);
   font-weight: 600;
 }

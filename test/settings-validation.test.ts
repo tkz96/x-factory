@@ -54,13 +54,40 @@ describe("POST /api/settings validation (#163 B4)", () => {
         sessionA: { provider: "anthropic", model: "claude-3-7-sonnet" },
         sessionB: { provider: "openai", model: "gpt-4o-mini" },
       },
+      allowUnsandboxed: true,
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       theme: string;
       models: { sessionA: { model: string } };
+      allowUnsandboxed: boolean;
     };
     expect(body.theme).toBe("light");
     expect(body.models.sessionA.model).toBe("claude-3-7-sonnet");
+    expect(body.allowUnsandboxed).toBe(true);
+  });
+
+  test("rejects a non-boolean allowUnsandboxed with 400 and field details", async () => {
+    const res = await postSettings({
+      allowUnsandboxed: "yes",
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; details: unknown[] };
+    expect(body.error).toBeDefined();
+    expect(Array.isArray(body.details)).toBe(true);
+  });
+});
+
+describe("POST /api/settings theme choice (#249)", () => {
+  test("accepts Graphite and Sandstone", async () => {
+    for (const theme of ["graphite", "sandstone", "default"]) {
+      const res = await postSettings({ theme });
+      expect(res.status).toBe(200);
+    }
+  });
+
+  test("rejects a theme that is not one of the three", async () => {
+    const res = await postSettings({ theme: "neon" });
+    expect(res.status).toBe(400);
   });
 });

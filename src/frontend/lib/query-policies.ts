@@ -13,11 +13,21 @@ export const queryKeys = {
       : (["projects", "list"] as const),
   project: (id: string) => ["projects", "detail", id] as const,
   tickets: (projectId: string) => ["tickets", projectId] as const,
+  /**
+   * Every project's tracker: the prefix the per-project keys live under. One
+   * invalidation asks each project's tracker again, whichever scope is showing
+   * (#260) — Tickets' Refresh reads it instead of writing the literal key.
+   */
+  allTickets: () => ["tickets"] as const,
   runs: () => ["runs"] as const,
   run: (runId: string) => ["runs", runId] as const,
   /** The per-run event log (#191). Outside the ["runs"] prefix so run invalidation never drops it. */
   runEvents: (runId: string) => ["run-events", runId] as const,
+  /** App-wide events snapshot (#257, spec #241). */
+  eventsSnapshot: () => ["events", "snapshot"] as const,
   settings: () => ["settings"] as const,
+  /** Model connections (#276/#277); keys are never in the cache, only last 4. */
+  modelConnections: () => ["model-connections"] as const,
   readiness: () => ["readiness"] as const,
   diagnostics: () => ["diagnostics"] as const,
   providers: () => ["providers", "manifest"] as const,
@@ -127,6 +137,13 @@ export const QUERY_POLICIES = {
     staleTime: 10 * 1000, // 10 seconds
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+  },
+
+  // Model connections: change only when the user edits or checks one
+  modelConnections: {
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   },
 
   // Readiness diagnostics

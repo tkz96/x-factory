@@ -1,20 +1,31 @@
-// src/frontend/views/SettingsView.tsx — Workbench Settings view (XFM-38, XFM-40, XFM-51).
+// src/frontend/views/SettingsView.tsx — Settings in the System Settings layout (#266, spec #241).
+//
+// A category list beside a detail pane. The open category is the URL's `?tab=`
+// so a link can open one directly. At phone width the list and the pane take
+// turns: a category pushes its pane, and the pane's "Settings" link goes back.
 
 import "./SettingsView.css";
 
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import type { Project, WorkbenchSettings } from "../../shared/types.js";
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
 import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
+import { Modal, ModalFooter } from "../components/Modal.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
   REQUIRED_POST_CREATION_ROLES,
   recordedConnectionIdentityTargets,
 } from "../components/projects/connection-integrity.js";
+import { DesktopNotificationsSetting } from "../components/settings/DesktopNotificationsSetting.js";
+import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
+import { RolesPanel } from "../components/settings/RolesPanel.js";
+import { Button } from "../components/ui/Button.js";
+import { SegmentedControl } from "../components/ui/SegmentedControl.js";
+import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
@@ -24,9 +35,44 @@ import {
   useSaveSettings,
   useSettings,
 } from "../hooks/useQueries.js";
-import { useTheme } from "../hooks/useTheme.js";
+import {
+  type AppearanceSetting,
+  resolveInitialTheme,
+  setTheme,
+  type ThemeName,
+  useTheme,
+} from "../hooks/useTheme.js";
 
-type SettingsTab = "general" | "trackers" | "models" | "git" | "diagnostics";
+type SettingsTab =
+  | "general"
+  | "trackers"
+  | "models"
+  | "git"
+  | "diagnostics"
+  | "help";
+
+/** The categories, in the order the list shows them (#266). */
+const SETTINGS_CATEGORIES: readonly {
+  id: SettingsTab;
+  label: string;
+  icon: string;
+}[] = [
+  { id: "general", label: "General", icon: "icon-settings" },
+  { id: "trackers", label: "Connections", icon: "icon-layers" },
+  { id: "models", label: "Models", icon: "icon-code" },
+  { id: "git", label: "Git", icon: "icon-git-branch" },
+  { id: "diagnostics", label: "Diagnostics", icon: "icon-check-circle-2" },
+  { id: "help", label: "Help", icon: "icon-book-open" },
+];
+
+/** The panes the `?tab=` query string may open (#278 links straight to Models). */
+const SETTINGS_TABS: readonly SettingsTab[] = SETTINGS_CATEGORIES.map(
+  (category) => category.id,
+);
+
+function settingsTabFromParam(value: string | null): SettingsTab {
+  return SETTINGS_TABS.find((tab) => tab === value) ?? "general";
+}
 
 interface DiagnosticMetricCardProps {
   title: string;
@@ -133,53 +179,107 @@ function DiagnosticsTabContent({
 }
 
 interface GeneralTabContentProps {
-  currentTheme: "light" | "dark";
-  onApplyTheme: (theme: "light" | "dark") => void;
+  currentTheme?: ThemeName | undefined;
+  onApplyTheme: (theme: ThemeName) => void;
+  currentAppearance?: AppearanceSetting | undefined;
+  onApplyAppearance: (appearance: AppearanceSetting) => void;
+  allowUnsandboxed: boolean;
+  onUpdateUnsandboxed: (enabled: boolean) => Promise<void>;
+  isSavingUnsandboxed?: boolean;
 }
 
+const THEME_CHOICES: { id: ThemeName; label: string }[] = [
+  { id: "default", label: "Default" },
+  { id: "graphite", label: "Graphite" },
+  { id: "sandstone", label: "Sandstone" },
+];
+
+/** The Appearance choices, in the order the segmented control shows them. */
+const APPEARANCE_CHOICES: {
+  id: AppearanceSetting;
+  label: string;
+  icon: string;
+}[] = [
+  { id: "automatic", label: "Automatic", icon: "icon-refresh-cw" },
+  { id: "light", label: "Light", icon: "icon-sun" },
+  { id: "dark", label: "Dark", icon: "icon-moon" },
+];
+
 function GeneralTabContent({
-  currentTheme,
+  currentTheme = "default",
   onApplyTheme,
+  currentAppearance = "automatic",
+  onApplyAppearance,
+  allowUnsandboxed,
+  onUpdateUnsandboxed,
+  isSavingUnsandboxed,
 }: GeneralTabContentProps) {
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Turning the opt-in on asks first; turning it off saves at once (#266).
+  const handleUnsandboxedChange = (next: boolean) => {
+    if (next) {
+      setShowConfirmModal(true);
+    } else {
+      void onUpdateUnsandboxed(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    await onUpdateUnsandboxed(true);
+    setShowConfirmModal(false);
+  };
+
+  const handleCancel = () => {
+    setShowConfirmModal(false);
+  };
+
   return (
-    <div id="tab-general" className="settings-pane active">
-      <h3>General Settings</h3>
-      <p className="text-muted">Workbench behavior and system defaults.</p>
+    <div className="settings-pane">
+      <h2>General</h2>
+      <p className="text-muted">
+        Appearance, notifications and the data folder.
+      </p>
+
+      <div className="setting-item mt-4">
+        <span className="setting-label">Theme</span>
+        {/* Theme and Appearance are the same control (#266): one segmented
+            block, so both render at one height, type size and icon gap. */}
+        <SegmentedControl
+          label="Theme"
+          value={currentTheme}
+          onChange={(id) => {
+            const choice = THEME_CHOICES.find((item) => item.id === id);
+            if (choice !== undefined) onApplyTheme(choice.id);
+          }}
+          options={THEME_CHOICES.map((choice) => ({
+            id: choice.id,
+            label: choice.label,
+            accessibleLabel: `${choice.label} Theme`,
+          }))}
+        />
+      </div>
 
       <div className="setting-item mt-4">
         <span className="setting-label">Appearance</span>
-        <div
-          className="theme-segmented-control"
-          role="radiogroup"
-          aria-label="Appearance Theme"
-        >
-          <button
-            type="button"
-            className={`theme-segment-btn ${currentTheme === "light" ? "active" : ""}`}
-            id="btn-theme-light"
-            data-theme-val="light"
-            aria-label="Light Theme"
-            onClick={() => onApplyTheme("light")}
-          >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-sun" />
-            </svg>
-            <span>Light</span>
-          </button>
-          <button
-            type="button"
-            className={`theme-segment-btn ${currentTheme === "dark" ? "active" : ""}`}
-            id="btn-theme-dark"
-            data-theme-val="dark"
-            aria-label="Dark Theme"
-            onClick={() => onApplyTheme("dark")}
-          >
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-moon" />
-            </svg>
-            <span>Dark</span>
-          </button>
-        </div>
+        <SegmentedControl
+          label="Appearance"
+          value={currentAppearance}
+          onChange={(id) => {
+            const choice = APPEARANCE_CHOICES.find((item) => item.id === id);
+            if (choice !== undefined) onApplyAppearance(choice.id);
+          }}
+          options={APPEARANCE_CHOICES.map((choice) => ({
+            id: choice.id,
+            label: choice.label,
+            icon: choice.icon,
+            accessibleLabel: `${choice.label} Appearance`,
+          }))}
+        />
+      </div>
+
+      <div className="setting-item mt-4">
+        <DesktopNotificationsSetting />
       </div>
 
       <div className="setting-item mt-4">
@@ -192,6 +292,60 @@ function GeneralTabContent({
           className="code-input"
         />
       </div>
+
+      <div className="setting-item mt-4">
+        <span className="setting-label">Security &amp; Sandboxing</span>
+        <div className="setting-switch">
+          <SwitchControl
+            label="Run agents without a sandbox"
+            description="Allows the coding loop to run directly on the host machine when sbx is unavailable."
+            isSelected={allowUnsandboxed}
+            isDisabled={isSavingUnsandboxed === true}
+            onChange={handleUnsandboxedChange}
+          />
+        </div>
+      </div>
+
+      {showConfirmModal && (
+        <Modal
+          id="modal-confirm-unsandboxed"
+          title="Run agents without a sandbox?"
+          onClose={handleCancel}
+          closeButtonId="btn-close-unsandboxed-modal"
+        >
+          <div className="unsandboxed-modal-content">
+            <p className="unsandboxed-modal-warning">
+              Coding agents will execute directly on this machine without
+              container isolation. The agent will have access to your local
+              filesystem, network, and environment.
+            </p>
+            <p className="text-muted text-footnote mt-2">
+              Only enable this if you trust the repository and model, or if you
+              do not have <code>sbx</code> installed. You can also enable this
+              per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
+            </p>
+          </div>
+          <ModalFooter>
+            <Button
+              id="btn-cancel-unsandboxed"
+              variant="secondary"
+              onPress={handleCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              id="btn-confirm-unsandboxed"
+              variant="danger"
+              isDisabled={isSavingUnsandboxed}
+              onPress={handleConfirm}
+            >
+              {isSavingUnsandboxed
+                ? "Enabling…"
+                : "Enable Unsandboxed Execution"}
+            </Button>
+          </ModalFooter>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -229,23 +383,20 @@ function ConnectionsTabContent({
   );
 
   return (
-    <div id="tab-trackers" className="settings-pane active">
+    <div className="settings-pane">
       <div className="connections-header">
         <div>
           <h3>{CONNECTIONS_COPY.registryTitle}</h3>
           <p className="text-muted">{CONNECTIONS_COPY.registrySubtitle}</p>
         </div>
-        <button
-          type="button"
-          id="btn-settings-onboard-project"
-          className="btn-primary btn-sm"
-          onClick={onOnboardProject}
+        <Button
+          variant="primary"
+          size="sm"
+          icon="icon-plus"
+          onPress={onOnboardProject}
         >
-          <svg className="icon icon-sm" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-plus" />
-          </svg>
-          <span>{CONNECTIONS_COPY.onboardProject}</span>
-        </button>
+          {CONNECTIONS_COPY.onboardProject}
+        </Button>
       </div>
 
       <div className="connections-registry-container">
@@ -322,153 +473,43 @@ function ConnectionsTabContent({
   );
 }
 
-interface ModelsTabContentProps {
-  settings: ReturnType<typeof useSettings>["data"];
-  saveSettingsMutation: ReturnType<typeof useSaveSettings>;
+/** Settings › Models (#277, #278): model connections, then the roles that use them. */
+function ModelsTabContent() {
+  return (
+    <div className="settings-pane">
+      <ModelConnectionsPanel />
+      <RolesPanel />
+    </div>
+  );
 }
 
-function ModelsTabContent({
-  settings,
-  saveSettingsMutation,
-}: ModelsTabContentProps) {
-  const [modelAProvider, setModelAProvider] = useState("");
-  const [modelAModel, setModelAModel] = useState("");
-  const [modelBProvider, setModelBProvider] = useState("");
-  const [modelBModel, setModelBModel] = useState("");
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (settings?.models) {
-      setModelAProvider(settings.models.sessionA?.provider || "");
-      setModelAModel(settings.models.sessionA?.model || "");
-      setModelBProvider(settings.models.sessionB?.provider || "");
-      setModelBModel(settings.models.sessionB?.model || "");
-    }
-  }, [settings]);
-
-  const handleSaveModels = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus("Saving…");
-    try {
-      // The model-settings wire contract is {provider, model} per session
-      // (#182) — never a bare model-name string, which the server would
-      // spread into the settings file. Empty fields are OMITTED, never sent
-      // as "": an empty value must not overwrite a stored provider or model.
-      const models: NonNullable<WorkbenchSettings["models"]> = {};
-      const sessionA: { provider?: string; model?: string } = {};
-      const providerA = modelAProvider.trim();
-      const modelA = modelAModel.trim();
-      if (providerA) sessionA.provider = providerA;
-      if (modelA) sessionA.model = modelA;
-      if (Object.keys(sessionA).length > 0) models.sessionA = sessionA;
-      const sessionB: { provider?: string; model?: string } = {};
-      const providerB = modelBProvider.trim();
-      const modelB = modelBModel.trim();
-      if (providerB) sessionB.provider = providerB;
-      if (modelB) sessionB.model = modelB;
-      if (Object.keys(sessionB).length > 0) models.sessionB = sessionB;
-
-      await saveSettingsMutation.mutateAsync({ models });
-      setSaveStatus("Settings saved successfully.");
-      setTimeout(() => setSaveStatus(null), 3000);
-    } catch (err) {
-      setSaveStatus(
-        `Failed to save: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  };
-
+/** Settings › Help (#266): the documentation and the API reference, at every width. */
+function HelpTabContent() {
   return (
-    <div id="tab-models" className="settings-pane active">
-      <h3>Pi &amp; Models</h3>
-      <p className="text-muted">
-        Configure LLM providers and models for Pi Agent sessions.
-      </p>
-
-      <form onSubmit={handleSaveModels} className="mt-4">
-        <div className="setting-item">
-          <label htmlFor="setting-model-a-provider">
-            Implementation Provider (Session A)
-          </label>
-          <input
-            type="text"
-            id="setting-model-a-provider"
-            placeholder="e.g. anthropic, ollama, openai"
-            className="form-input"
-            value={modelAProvider}
-            onChange={(e) => setModelAProvider(e.target.value)}
-          />
-        </div>
-
-        <div className="setting-item mt-3">
-          <label htmlFor="setting-model-a-model">
-            Implementation Model (Session A)
-          </label>
-          <input
-            type="text"
-            id="setting-model-a-model"
-            placeholder="e.g. claude-3-7-sonnet or qwen2.5-coder:32b"
-            className="form-input"
-            value={modelAModel}
-            onChange={(e) => setModelAModel(e.target.value)}
-          />
-        </div>
-
-        <div className="setting-item mt-3">
-          <label htmlFor="setting-model-b-provider">
-            Review Provider (Session B)
-          </label>
-          <input
-            type="text"
-            id="setting-model-b-provider"
-            placeholder="e.g. anthropic"
-            className="form-input"
-            value={modelBProvider}
-            onChange={(e) => setModelBProvider(e.target.value)}
-          />
-        </div>
-
-        <div className="setting-item mt-3">
-          <label htmlFor="setting-model-b-model">
-            Review Model (Session B)
-          </label>
-          <input
-            type="text"
-            id="setting-model-b-model"
-            placeholder="e.g. claude-3-7-sonnet"
-            className="form-input"
-            value={modelBModel}
-            onChange={(e) => setModelBModel(e.target.value)}
-          />
-        </div>
-
-        <div className="settings-actions-bar">
-          <button
-            type="submit"
-            id="btn-save-settings"
-            className="btn-primary"
-            disabled={saveSettingsMutation.isPending}
-          >
-            {saveSettingsMutation.isPending ? "Saving…" : "Save Model Settings"}
-          </button>
-          {saveStatus && (
-            <span id="settings-status" className="text-muted text-footnote">
-              {saveStatus}
-            </span>
-          )}
-        </div>
-      </form>
+    <div className="settings-pane">
+      <h2>Help</h2>
+      <p className="text-muted">Guides for X-Factory and its API.</p>
+      <ul className="settings-help-links">
+        <li>
+          <a href="/docs" target="_blank" rel="noopener noreferrer">
+            Documentation
+          </a>
+        </li>
+        <li>
+          <a href="/reference" target="_blank" rel="noopener noreferrer">
+            API Reference
+          </a>
+        </li>
+      </ul>
     </div>
   );
 }
 
 function GitTabContent() {
   return (
-    <div id="tab-git" className="settings-pane active">
-      <h3>Git &amp; Worktree Isolation</h3>
-      <p className="text-muted">
-        Worktree storage and baseline pollution rules.
-      </p>
+    <div className="settings-pane">
+      <h2>Git</h2>
+      <p className="text-muted">Where run worktrees are stored.</p>
       <div className="setting-item mt-4">
         <label htmlFor="setting-worktree-path">Worktree Path</label>
         <input
@@ -490,62 +531,75 @@ export function SettingsView() {
   const { openOnboardingModal } = useModal();
   const saveSettingsMutation = useSaveSettings();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
-  const { theme: currentTheme, applyTheme: handleApplyTheme } = useTheme();
+  // The open pane is the URL's `?tab=`, so a link can open one directly.
+  const [searchParams] = useSearchParams();
+  const activeTab = settingsTabFromParam(searchParams.get("tab"));
+  const {
+    theme: currentTheme,
+    appearance: currentAppearance,
+    setAppearance,
+  } = useTheme();
+
+  const handleUpdateAppearance = async (appearance: AppearanceSetting) => {
+    setAppearance(appearance);
+    await saveSettingsMutation.mutateAsync({ appearance });
+  };
+
+  // The Theme choice is separate from Appearance (#249): it changes colour and
+  // font tokens only, and only the theme is saved.
+  const handleUpdateTheme = async (theme: ThemeName) => {
+    setTheme(resolveInitialTheme(theme));
+    await saveSettingsMutation.mutateAsync({ theme });
+  };
+
+  const handleUpdateUnsandboxed = async (enabled: boolean) => {
+    await saveSettingsMutation.mutateAsync({ allowUnsandboxed: enabled });
+  };
+
+  const hasPushedPane = searchParams.has("tab");
 
   return (
     <section id="area-settings" className="area-view active">
-      <div className="settings-layout card">
-        {/* Settings Navigation Sidebar */}
-        <div className="settings-sidebar">
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "general" ? "active" : ""}`}
-            data-tab="general"
-            onClick={() => setActiveTab("general")}
-          >
-            General
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "trackers" ? "active" : ""}`}
-            data-tab="trackers"
-            onClick={() => setActiveTab("trackers")}
-          >
-            Connections
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "models" ? "active" : ""}`}
-            data-tab="models"
-            onClick={() => setActiveTab("models")}
-          >
-            Pi &amp; Models
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "git" ? "active" : ""}`}
-            data-tab="git"
-            onClick={() => setActiveTab("git")}
-          >
-            Git &amp; Worktrees
-          </button>
-          <button
-            type="button"
-            className={`settings-tab-btn ${activeTab === "diagnostics" ? "active" : ""}`}
-            data-tab="diagnostics"
-            onClick={() => setActiveTab("diagnostics")}
-          >
-            Diagnostics
-          </button>
-        </div>
+      <div className="settings-layout" data-pushed={String(hasPushedPane)}>
+        <nav aria-label="Settings categories" className="settings-categories">
+          <ul className="settings-category-list">
+            {SETTINGS_CATEGORIES.map((category) => {
+              const isCurrent = activeTab === category.id;
+              return (
+                <li key={category.id}>
+                  <Link
+                    to={`/settings?tab=${category.id}`}
+                    className="settings-category"
+                    aria-current={isCurrent ? "page" : undefined}
+                  >
+                    <svg className="icon icon-md" aria-hidden="true">
+                      <use href={`/assets/icons/sprite.svg#${category.icon}`} />
+                    </svg>
+                    <span>{category.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-        {/* Settings Content Area */}
-        <div className="settings-content">
+        <div className="settings-detail">
+          <Link to="/settings" className="settings-back">
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-arrow-left" />
+            </svg>
+            <span>Settings</span>
+          </Link>
+
           {activeTab === "general" && (
             <GeneralTabContent
               currentTheme={currentTheme}
-              onApplyTheme={handleApplyTheme}
+              onApplyTheme={handleUpdateTheme}
+              currentAppearance={currentAppearance}
+              onApplyAppearance={handleUpdateAppearance}
+              allowUnsandboxed={Boolean(settings?.allowUnsandboxed)}
+              onUpdateUnsandboxed={handleUpdateUnsandboxed}
+              isSavingUnsandboxed={saveSettingsMutation.isPending}
             />
           )}
 
@@ -557,18 +611,13 @@ export function SettingsView() {
             />
           )}
 
-          {activeTab === "models" && (
-            <ModelsTabContent
-              settings={settings}
-              saveSettingsMutation={saveSettingsMutation}
-            />
-          )}
+          {activeTab === "models" && <ModelsTabContent />}
 
           {activeTab === "git" && <GitTabContent />}
 
           {activeTab === "diagnostics" && (
-            <div id="tab-diagnostics" className="settings-pane active">
-              <h3>System &amp; Worker Diagnostics</h3>
+            <div className="settings-pane">
+              <h2>Diagnostics</h2>
               <p className="text-muted">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.
@@ -580,6 +629,8 @@ export function SettingsView() {
               />
             </div>
           )}
+
+          {activeTab === "help" && <HelpTabContent />}
         </div>
       </div>
     </section>

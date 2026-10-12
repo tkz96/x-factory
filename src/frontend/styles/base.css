@@ -10,30 +10,25 @@
 
 /* WHATWG HTML5 Spec: [hidden] attribute enforcement ensures hidden state cannot be overridden by display properties */
 [hidden] {
-  display: none;
+  /* biome-ignore lint/complexity/noImportantStyles: the one allowed override in the design system, the [hidden] spec rule (#248) */
+  display: none !important;
 }
 
 html {
-  font-size: 16px;
+  font-size: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition:
-    background-color 280ms var(--spring),
-    color 280ms var(--spring);
+    background-color var(--duration-slow) var(--ease-spring),
+    color var(--duration-slow) var(--ease-spring);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root {
-    --transition-fast: 0ms;
-    --transition: 0ms;
-    --transition-slow: 0ms;
-  }
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms;
-    animation-iteration-count: 1;
-    transition-duration: 0.001ms;
+  html {
+    /* The old global net here collapsed every animation with a universal
+       selector, which loses to any class and so never applied (#252). Reduced
+       motion is now carried by the tokens, by the reduced path beside each
+       keyframe, and by the smoke gate that requires those paths. */
     scroll-behavior: auto;
   }
 }
@@ -45,8 +40,8 @@ body {
   min-height: 100vh;
   line-height: 1.55;
   transition:
-    background-color 280ms var(--spring),
-    color 280ms var(--spring);
+    background-color var(--duration-slow) var(--ease-spring),
+    color var(--duration-slow) var(--ease-spring);
 }
 
 a {

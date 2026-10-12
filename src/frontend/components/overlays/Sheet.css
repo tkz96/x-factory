@@ -1,0 +1,230 @@
+/* src/frontend/components/overlays/Sheet.css — Sheet overlay styles (#250, #268) */
+
+.xf-sheet-modal {
+  background: var(--bg-modal);
+  border: var(--border-width) solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  z-index: var(--z-modal);
+  outline: none;
+}
+
+/* The assistant sheet: undocked, centred by its overlay, and as tall as the
+   step it shows — a short step never leaves empty space behind it, and a tall
+   one scrolls its own body rather than running past the window (#268, "the
+   sheet fits its content"). The overlay's gutter is its own padding, so the cap
+   is the window minus that gutter, and never more than a modal may be. */
+.xf-sheet-center {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: var(--content-max-md);
+  height: auto;
+  /* The overlay centres the wrapper, and the wrapper is as wide as the window:
+     the sheet centres itself inside it. */
+  margin-inline: auto;
+  max-height: min(calc(100dvh - 2 * var(--space-4)), var(--modal-max-height));
+  border-radius: var(--radius-card);
+  animation: xfSheetAppear var(--duration-fast) var(--spring);
+}
+
+@keyframes xfSheetAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion: the assistant sheet's own keyframe is declared again as a
+   fade, so the same animation name crossfades in place instead of settling. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfSheetAppear {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+.xf-sheet-bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: min(85vh, var(--modal-max-height));
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+  border-bottom: none;
+  border-left: none;
+  border-right: none;
+  animation: xfSheetSlideUp var(--duration-fast) var(--spring);
+}
+
+.xf-sheet-right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--content-max-md);
+  max-width: 100%;
+  border-top-left-radius: var(--radius-card);
+  border-bottom-left-radius: var(--radius-card);
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  animation: xfSheetSlideInRight var(--duration-fast) var(--spring);
+}
+
+.xf-sheet-left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--content-max-md);
+  max-width: 100%;
+  border-top-right-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+  border-left: none;
+  border-top: none;
+  border-bottom: none;
+  animation: xfSheetSlideInLeft var(--duration-fast) var(--spring);
+}
+
+@keyframes xfSheetSlideUp {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes xfSheetSlideInRight {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes xfSheetSlideInLeft {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+/* Closing (#250): the sheet slides back out along the edge it came from, on the quicker
+   rung of the ladder, while its surface crossfades. React Aria holds it in the DOM,
+   marked `data-exiting`, until these animations end. The rules are declared here, after
+   the surface's own exit in Dialog.css, so each position keeps its direction. */
+.xf-dialog-overlay[data-exiting] .xf-sheet-bottom {
+  animation: xfSheetSlideDown var(--duration-instant) var(--ease-in);
+}
+
+.xf-dialog-overlay[data-exiting] .xf-sheet-right {
+  animation: xfSheetSlideOutRight var(--duration-instant) var(--ease-in);
+}
+
+.xf-dialog-overlay[data-exiting] .xf-sheet-left {
+  animation: xfSheetSlideOutLeft var(--duration-instant) var(--ease-in);
+}
+
+@keyframes xfSheetSlideDown {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@keyframes xfSheetSlideOutRight {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes xfSheetSlideOutLeft {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+
+/* Reduced motion: each sheet keyframe is declared again as a fade, so the same
+   animation names crossfade in place instead of sliding. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfSheetSlideUp {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes xfSheetSlideInRight {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes xfSheetSlideInLeft {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes xfSheetSlideDown {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes xfSheetSlideOutRight {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes xfSheetSlideOutLeft {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}

@@ -15,9 +15,9 @@
 .stepper-progress-track {
   position: absolute;
   top: 50%;
-  left: 24px;
-  right: 24px;
-  height: 2px;
+  left: var(--space-6);
+  right: var(--space-6);
+  height: var(--border-width-thick);
   transform: translateY(-50%);
   pointer-events: none;
   z-index: 1;
@@ -30,36 +30,40 @@
   right: 0;
   bottom: 0;
   background: var(--border-subtle);
-  border-radius: 1px;
+  border-radius: var(--border-width);
 }
 
 .stepper-track-fill {
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
   bottom: 0;
   background: var(--green);
-  border-radius: 1px;
-  transition: width 350ms cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: var(--border-width);
+  transform-origin: left;
+  /* The fill scales rather than resizes, so progress stays on the compositor
+     (#252, .agents/skills/review-animations/STANDARDS.md). */
+  transition: transform var(--duration-slow) var(--ease-spring);
 }
 
 .stepper-track-fill.progress-step-0 {
-  width: 0%;
+  transform: scaleX(0);
 }
 .stepper-track-fill.progress-step-1 {
-  width: 20%;
+  transform: scaleX(0.2);
 }
 .stepper-track-fill.progress-step-2 {
-  width: 40%;
+  transform: scaleX(0.4);
 }
 .stepper-track-fill.progress-step-3 {
-  width: 60%;
+  transform: scaleX(0.6);
 }
 .stepper-track-fill.progress-step-4 {
-  width: 80%;
+  transform: scaleX(0.8);
 }
 .stepper-track-fill.progress-step-5 {
-  width: 100%;
+  transform: scaleX(1);
 }
 
 .stepper-steps-row {
@@ -73,20 +77,24 @@
 
 .step {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--space-2);
+  text-align: center;
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  border: var(--border-width) solid var(--border-subtle);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
   box-shadow: var(--shadow-sm);
 }
 
 .step-dot {
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
+  width: var(--space-6);
+  height: var(--space-6);
+  min-width: var(--space-6);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -96,8 +104,12 @@
   font-weight: 700;
   background: var(--bg-tertiary);
   color: var(--text-dim);
-  border: 1px solid var(--border);
-  transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  border: var(--border-width) solid var(--border);
+  margin-bottom: 0.35rem;
+  transition:
+    background-color var(--transition),
+    border-color var(--transition),
+    color var(--transition);
 }
 
 .step-info {
@@ -112,25 +124,44 @@
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: -0.01em;
-  transition: color 220ms ease;
+  margin-bottom: 0.2rem;
+  transition: color var(--duration-normal) var(--ease-in-out);
 }
 
 .step-evidence {
   font-family: var(--font-mono);
   font-size: var(--text-caption-2);
   color: var(--text-dim);
+  line-height: 1.25;
+  max-width: 100%;
+  word-break: break-word;
   display: none;
 }
 
 @keyframes stepPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(10, 132, 255, 0.7);
+    box-shadow: 0 0 0 0 var(--accent);
   }
   70% {
-    box-shadow: 0 0 0 8px rgba(10, 132, 255, 0);
+    box-shadow: 0 0 0 var(--space-2) transparent;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(10, 132, 255, 0);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* Reduced motion (#252): the active step keeps a steady ring instead of
+   pulsing for attention. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes stepPulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 var(--space-1) var(--accent-dim);
+    }
+  }
+
+  .step.active .step-dot {
+    animation-iteration-count: 1;
   }
 }
 
@@ -139,14 +170,14 @@
 .step.active {
   border-color: var(--accent);
   background: var(--bg-card);
-  box-shadow: 0 0 14px rgba(10, 132, 255, 0.28);
+  box-shadow: 0 0 var(--space-3) var(--accent-dim);
 }
 
 .step.active .step-dot {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
-  animation: stepPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  color: var(--text-on-accent);
+  animation: stepPulse var(--duration-pulse) var(--ease-pulse) infinite;
 }
 
 .step.active .step-label {
@@ -159,14 +190,14 @@
 }
 
 .step.completed {
-  border-color: rgba(52, 199, 89, 0.35);
+  border-color: var(--green);
   background: var(--bg-card);
 }
 
 .step.completed .step-dot {
   background: var(--green);
   border-color: var(--green);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .step.completed .step-label {
@@ -185,7 +216,7 @@
 .step.failed .step-dot {
   background: var(--red);
   border-color: var(--red);
-  color: #ffffff;
+  color: var(--text-on-accent);
 }
 
 .step.failed .step-label {
@@ -199,5 +230,38 @@
   .step {
     padding: var(--space-1) var(--space-2);
     gap: var(--space-1);
+  }
+}
+
+/* Phone width (#262): six steps fit one row. Each step is its number and its label; the evidence
+   line waits for the desktop, where there is room for it. */
+@media (max-width: 600px) {
+  .workflow-stepper .step {
+    flex: 0 1 auto;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--space-half);
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .workflow-stepper .step-info {
+    flex-direction: column;
+    align-items: center;
+    white-space: normal;
+  }
+
+  .workflow-stepper .step.active .step-evidence,
+  .workflow-stepper .step .step-evidence {
+    display: none;
+  }
+
+  .workflow-stepper .step-label {
+    font-size: var(--text-caption-2);
+    letter-spacing: 0;
+    text-align: center;
+    white-space: nowrap;
   }
 }

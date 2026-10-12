@@ -1,8 +1,9 @@
-// src/frontend/components/projects/ReadinessBanner.tsx — Tooling & Environment Readiness Banner (XFM-48).
+// src/frontend/components/projects/ReadinessBanner.tsx — Readiness banner (XFM-48): names exactly what was checked (#283).
 
 import "./ReadinessBanner.css";
 
 import { useReadiness } from "../../hooks/useQueries.js";
+import { Button } from "../ui/Button.js";
 
 export function ReadinessBanner() {
   const { data: readiness, isLoading, refetch, isRefetching } = useReadiness();
@@ -17,7 +18,10 @@ export function ReadinessBanner() {
     );
   }
 
-  const isReady = readiness?.ready !== false;
+  const checks = readiness?.checks ?? [];
+  const attention = checks.filter((check) => check.status !== "pass");
+  const isReady = readiness?.ready !== false && attention.length === 0;
+  const checkedNames = checks.map((check) => check.name).join(", ");
 
   return (
     <div className={`readiness-banner card ${isReady ? "ready" : "warning"}`}>
@@ -27,33 +31,44 @@ export function ReadinessBanner() {
         />
         <div>
           <strong className="readiness-title">
-            {isReady
-              ? "Tooling & Environment Ready"
-              : "Readiness Issues Detected"}
+            {isReady ? "Ready" : "Needs attention"}
           </strong>
-          <span className="text-muted readiness-desc">
-            {isReady
-              ? "All required CLI tools, Git worktree isolation, and credentials verified."
-              : "Some prerequisites or CLI tools are missing. Review below."}
-          </span>
+          {isReady ? (
+            <span className="text-muted readiness-desc">
+              {checkedNames
+                ? `Checked: ${checkedNames}.`
+                : "Database and background worker are running."}
+            </span>
+          ) : (
+            <ul className="readiness-issues">
+              {attention.map((check) => (
+                <li key={check.name}>
+                  <strong>{check.name}:</strong> {check.message}
+                </li>
+              ))}
+              {attention.length === 0 && (
+                <li>Database or background worker is unavailable.</li>
+              )}
+            </ul>
+          )}
         </div>
       </div>
 
-      <button
-        type="button"
+      <Button
         id="btn-recheck-readiness"
-        className="btn-secondary btn-sm"
-        onClick={() => refetch()}
-        disabled={isRefetching}
+        variant="secondary"
+        size="sm"
+        isDisabled={isRefetching}
+        onPress={() => refetch()}
       >
         <svg
-          className={`icon icon-sm ${isRefetching ? "spin" : ""}`}
+          className={`icon icon-sm ${isRefetching ? "icon-spin" : ""}`}
           aria-hidden="true"
         >
           <use href="/assets/icons/sprite.svg#icon-refresh-cw" />
         </svg>
         <span>{isRefetching ? "Re-checking…" : "Re-check Readiness"}</span>
-      </button>
+      </Button>
     </div>
   );
 }

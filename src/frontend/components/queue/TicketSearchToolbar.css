@@ -2,6 +2,7 @@
 
 .queue-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.85rem;
   margin-bottom: 1.5rem;
@@ -12,12 +13,14 @@
   align-items: center;
   gap: 0.65rem;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-pill);
   padding: 0 1rem;
-  height: 40px;
-  min-height: 40px;
-  flex: 1;
+  height: var(--search-bar-height);
+  min-height: var(--search-bar-height);
+  /* Grows to fill the row, but keeps a usable width when the bar wraps (#258). */
+  flex: 1 1 12rem;
+  min-width: 0;
   box-sizing: border-box;
   transition:
     border-color var(--transition-fast),
@@ -26,7 +29,7 @@
 
 .search-box:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  box-shadow: 0 0 0 var(--border-width-indicator) var(--accent-dim);
 }
 
 .search-box input {
@@ -44,32 +47,34 @@
 }
 
 .filter-pill {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  background: rgba(88, 166, 255, 0.12);
+  background: var(--accent-dim);
   color: var(--accent);
-  border: 1px solid rgba(88, 166, 255, 0.28);
+  border: var(--border-width) solid var(--accent-hover);
   border-radius: var(--radius-pill);
   padding: 0 0.9rem;
-  height: 40px;
-  min-height: 40px;
+  height: var(--search-bar-height);
+  min-height: var(--search-bar-height);
   white-space: nowrap;
   box-sizing: border-box;
 }
 
 .pill-dot {
-  width: 6px;
-  height: 6px;
+  width: var(--status-dot-sm);
+  height: var(--status-dot-sm);
   border-radius: 50%;
   background: var(--accent);
 }
 
 #btn-queue-refresh {
-  height: 40px;
-  min-height: 40px;
+  flex-shrink: 0;
+  height: var(--search-bar-height);
+  min-height: var(--search-bar-height);
   border-radius: var(--radius-pill);
   padding: 0 1.1rem;
   display: inline-flex;

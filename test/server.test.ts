@@ -39,8 +39,8 @@ describe("Native Bun HTTP Server & API Endpoints", () => {
     assert.ok(text.includes("Vite Dev Server"));
   });
 
-  it("serves static CSS on GET /styles.css", async () => {
-    const res = await fetch(`${baseUrl}/styles.css`);
+  it("serves static CSS on GET /assets/tokens.css", async () => {
+    const res = await fetch(`${baseUrl}/assets/tokens.css`);
     assert.equal(res.status, 200);
     assert.ok(res.headers.get("Content-Type")?.includes("text/css"));
   });

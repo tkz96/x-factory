@@ -1,80 +1,40 @@
-// test/env-bootstrap.test.ts — Unit tests for LLM_API_KEY auto-detection and resolution.
+// test/env-bootstrap.test.ts — Which provider a legacy LLM_API_KEY belongs to (#276).
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { bootstrapLLMEnv } from "../src/env-bootstrap.js";
+import { describe, expect, it } from "bun:test";
+import { detectLegacyKeyProvider } from "../src/env-bootstrap.js";
 
-describe("bootstrapLLMEnv", () => {
-  const originalEnv = { ...process.env };
-
-  beforeEach(() => {
-    delete process.env.LLM_API_KEY;
-    delete process.env.LLM_PROVIDER;
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.GEMINI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
-  });
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
-  });
-
-  it("does nothing when LLM_API_KEY is not set", () => {
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(process.env.GEMINI_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
-  });
-
+describe("detectLegacyKeyProvider", () => {
   it("detects Anthropic from sk-ant- prefix", () => {
-    process.env.LLM_API_KEY = "sk-ant-test-key-12345";
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBe("sk-ant-test-key-12345");
-    expect(process.env.GEMINI_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
+    expect(detectLegacyKeyProvider("sk-ant-test-key-12345")).toBe("anthropic");
   });
 
   it("detects Gemini from AIzaSy prefix", () => {
-    process.env.LLM_API_KEY = "AIzaSyTestGeminiKey";
-    bootstrapLLMEnv();
-    expect(process.env.GEMINI_API_KEY).toBe("AIzaSyTestGeminiKey");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(process.env.OPENAI_API_KEY).toBeUndefined();
+    expect(detectLegacyKeyProvider("AIzaSyTestGeminiKey")).toBe("gemini");
+  });
+
+  it("detects Gemini from Google's newer AQ. prefix (#276)", () => {
+    expect(detectLegacyKeyProvider("AQ.test-google-key-12345")).toBe("gemini");
+  });
+
+  it("treats LLM_PROVIDER=google as Gemini (#276)", () => {
+    expect(detectLegacyKeyProvider("opaque-key-12345", "google")).toBe(
+      "gemini",
+    );
   });
 
   it("detects OpenAI from sk- prefix", () => {
-    process.env.LLM_API_KEY = "sk-proj-test-openai-key";
-    bootstrapLLMEnv();
-    expect(process.env.OPENAI_API_KEY).toBe("sk-proj-test-openai-key");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(process.env.GEMINI_API_KEY).toBeUndefined();
+    expect(detectLegacyKeyProvider("sk-proj-test-openai-key")).toBe("openai");
   });
 
   it("respects explicit LLM_PROVIDER override for gemini", () => {
-    process.env.LLM_API_KEY = "custom-key";
-    process.env.LLM_PROVIDER = "gemini";
-    bootstrapLLMEnv();
-    expect(process.env.GEMINI_API_KEY).toBe("custom-key");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(detectLegacyKeyProvider("custom-key", "gemini")).toBe("gemini");
   });
 
   it("respects explicit LLM_PROVIDER override for openai", () => {
-    process.env.LLM_API_KEY = "custom-key";
-    process.env.LLM_PROVIDER = "openai";
-    bootstrapLLMEnv();
-    expect(process.env.OPENAI_API_KEY).toBe("custom-key");
-    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(detectLegacyKeyProvider("custom-key", "openai")).toBe("openai");
   });
 
-  it("falls back to Anthropic for unrecognized keys without explicit provider", () => {
-    process.env.LLM_API_KEY = "unrecognized-key-format";
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBe("unrecognized-key-format");
-  });
-
-  it("does not overwrite already set provider keys", () => {
-    process.env.ANTHROPIC_API_KEY = "existing-anthropic-key";
-    process.env.LLM_API_KEY = "sk-ant-new-key";
-    bootstrapLLMEnv();
-    expect(process.env.ANTHROPIC_API_KEY).toBe("existing-anthropic-key");
+  it("returns undefined for unrecognized keys without explicit provider", () => {
+    expect(detectLegacyKeyProvider("unrecognized-key-format")).toBeUndefined();
   });
 });

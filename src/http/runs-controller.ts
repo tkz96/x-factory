@@ -2,7 +2,9 @@
 
 import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
+import { assertRolesReady, ModelUnavailableError } from "../model-roles.js";
 import * as runs from "../runs.js";
+import { normalizeCriterion } from "../shared/normalization.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type {
   AbandonRunResponse,
@@ -32,16 +34,12 @@ import {
 import { defaultSSERegistry } from "./sse-registry.js";
 
 export function parseAcceptanceCriteria(raw: unknown): string[] {
-  if (Array.isArray(raw)) {
-    return raw as string[];
-  }
-  if (typeof raw === "string") {
-    return raw
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return [];
+  const lines = Array.isArray(raw)
+    ? raw.filter((c): c is string => typeof c === "string")
+    : typeof raw === "string"
+      ? raw.split("\n")
+      : [];
+  return lines.map(normalizeCriterion).filter(Boolean);
 }
 
 export async function handleCreateRun(
@@ -59,6 +57,17 @@ export async function handleCreateRun(
           `Project "${projectId}" not found or inaccessible.`,
           404,
         );
+      }
+
+      // A run needs working Builder and Reviewer models before it starts;
+      // the reason names each role to fix in Settings › Models (#278).
+      try {
+        await assertRolesReady();
+      } catch (err: unknown) {
+        if (err instanceof ModelUnavailableError) {
+          return errorResponse(err.message, 409);
+        }
+        throw err;
       }
 
       const ticketId = body.ticketId || "";
@@ -93,6 +102,9 @@ export function handleGetRuns(repos: Repositories): Response {
 export function handleGetRun(repos: Repositories, runId: string): Response {
   const run = runs.getRun(repos, runId);
   if (!run) return errorResponse("Run not found.", 404);
+  if (run.status === "pr_created") {
+    runs.requestPullRequestCheck(repos, run.id);
+  }
   return jsonResponse(run);
 }
 

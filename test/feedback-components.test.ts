@@ -53,6 +53,9 @@ describe("AsyncRegion — five-state taxonomy", () => {
       }),
     );
     expect(html).toContain("async-region--error");
+    // An error is announced as an alert (#251), so a screen reader hears it
+    // without being asked to look.
+    expect(html).toContain('role="alert"');
     expect(html).toContain("icon-alert-circle");
     expect(html).toContain(
       "The credentials were rejected. Check the token and try again.",
@@ -224,8 +227,8 @@ describe("AsyncRegion — five-state taxonomy", () => {
 });
 
 describe("FeedbackBanner — tones, partial items, timed guidance", () => {
-  it("renders each tone with its semantic class", () => {
-    for (const tone of ["info", "warning", "error"] as const) {
+  it("announces an error as an alert and keeps the polite tones as status (#251)", () => {
+    for (const tone of ["info", "warning"] as const) {
       const html = render(
         React.createElement(FeedbackBanner, { tone, message: "Copy." }),
       );
@@ -233,6 +236,14 @@ describe("FeedbackBanner — tones, partial items, timed guidance", () => {
       expect(html).toContain("Copy.");
       expect(html).toContain('role="status"');
     }
+    const errorHtml = render(
+      React.createElement(FeedbackBanner, {
+        tone: "error",
+        message: "Copy.",
+      }),
+    );
+    expect(errorHtml).toContain("feedback-banner--error");
+    expect(errorHtml).toContain('role="alert"');
   });
 
   it("lists partial items inline", () => {
@@ -291,12 +302,12 @@ describe("FieldFeedback — input states", () => {
 
   it("renders each non-default state with its icon and message", () => {
     const expectations = {
-      valid: "icon-check-circle-2",
-      invalid: "icon-x-circle",
-      warning: "icon-alert-circle",
-      indeterminate: "icon-info",
+      valid: { icon: "icon-check-circle-2", role: "status" },
+      invalid: { icon: "icon-x-circle", role: "alert" },
+      warning: { icon: "icon-alert-circle", role: "status" },
+      indeterminate: { icon: "icon-info", role: "status" },
     } as const;
-    for (const [state, icon] of Object.entries(expectations)) {
+    for (const [state, expected] of Object.entries(expectations)) {
       const html = render(
         React.createElement(FieldFeedback, {
           state: state as keyof typeof expectations,
@@ -305,10 +316,12 @@ describe("FieldFeedback — input states", () => {
         }),
       );
       expect(html).toContain(`field-feedback--${state}`);
-      expect(html).toContain(icon);
+      expect(html).toContain(expected.icon);
       expect(html).toContain("Field note.");
       expect(html).toContain('id="field-note"');
-      expect(html).toContain('role="status"');
+      // An invalid field is announced as an alert (#251); the other states stay
+      // polite so they never interrupt what is being read.
+      expect(html).toContain(`role="${expected.role}"`);
     }
   });
 });

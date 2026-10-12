@@ -25,6 +25,7 @@ import type {
   VerificationResult,
 } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
+import { stubResolveRole } from "./helpers/resolved-model.js";
 import { forceRunStatus } from "./helpers/run-status-fixture.js";
 import {
   PASSING_REVIEW_OUTPUT,
@@ -56,7 +57,7 @@ describe("Shared run-event union (#171)", () => {
       worktreePath: `/tmp/worktrees-${runId}`,
     });
 
-    // 1. chatWithRun producer via handleApi (emits chat_user and chat_agent)
+    // 1. chatWithRun producer via handleApi (emits chat_user, then an error event when no model replies)
     const errSpy = spyOn(console, "error").mockImplementation(() => {});
     try {
       const chatReq = new Request(
@@ -78,9 +79,11 @@ describe("Shared run-event union (#171)", () => {
     expect(chatUserEvt).toBeDefined();
     expect(chatUserEvt?.payload).toEqual({ text: "Can we verify edge cases?" });
 
-    const chatAgentEvt = eventsAfterChat.find((e) => e.type === "chat_agent");
-    expect(chatAgentEvt).toBeDefined();
-    expect(typeof chatAgentEvt?.payload.text).toBe("string");
+    // No model is configured in this run, so the failed reply is an error event (#263).
+    const chatErrorEvt = eventsAfterChat.find((e) => e.type === "error");
+    expect(chatErrorEvt).toBeDefined();
+    expect(typeof chatErrorEvt?.payload.message).toBe("string");
+    expect(eventsAfterChat.some((e) => e.type === "chat_agent")).toBe(false);
 
     // 2. handleTransition requeue producer via handleApi (emits user_feedback and status)
     forceRunStatus(db, runId, "awaiting_review");
@@ -258,8 +261,15 @@ describe("Shared run-event union (#171)", () => {
       worktreePath: `/tmp/worktrees-${runId}`,
     });
 
-    // 1. PlanExecutor producer (emits info and stage_evidence)
-    const planExecutor = new PlanExecutor();
+    // 1. PlanExecutor producer (emits info and stage_evidence); the plan is the
+    // Builder's own answer, so the stage runs on a stub model (#282).
+    const planExecutor = new PlanExecutor({
+      resolveRole: stubResolveRole,
+      sessionFactory: async () =>
+        scriptedReviewSession(
+          "# Execution Plan for #T-2: Ticket 2\n\n1. Add `test/plan.test.ts`.\n2. Change `src/plan.ts`.\n",
+        ),
+    });
     await executeStage(repos, planExecutor, runId, "plan");
 
     const eventsAfterPlan = eventRepo.getEventsForRun(runId);
@@ -297,7 +307,7 @@ describe("Shared run-event union (#171)", () => {
     runRepo.update(runId, { verification: mockVerification });
 
     const reviewExecutor = new ReviewExecutor({
-      loadSettings: async () => ({}),
+      resolveRole: stubResolveRole,
       sessionFactory: async () => scriptedReviewSession(PASSING_REVIEW_OUTPUT),
     });
     await executeStage(repos, reviewExecutor, runId, "review");

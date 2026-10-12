@@ -1,95 +1,174 @@
-// test/frontend-theme.test.ts — Unit tests for theme resolution, persistence, and state management.
+// test/frontend-theme.test.ts — One appearance for the whole app (#248): every
+// component reads the same value, a change reaches them all, storage only
+// mirrors the choice, and failing storage never breaks the theme.
 
-import { describe, expect, it } from "bun:test";
-import React from "react";
-import { renderToString } from "react-dom/server";
+/// <reference lib="dom" />
+import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
+
+registerHappyDom();
+
 import {
-  applyThemeToDocument,
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
+import { act, cleanup, render } from "@testing-library/react";
+import React from "react";
+import {
   resolveInitialTheme,
+  setAppearance,
+  setTheme,
   useTheme,
 } from "../src/frontend/hooks/useTheme.js";
 
-describe("Theme Architecture & Persistence (useTheme)", () => {
-  it("resolves stored theme when valid light/dark value is present", () => {
-    expect(resolveInitialTheme("light", false)).toBe("light");
-    expect(resolveInitialTheme("dark", true)).toBe("dark");
+function Probe({ id }: { id: string }) {
+  const { appearance, resolvedAppearance } = useTheme();
+  return React.createElement(
+    "span",
+    { "data-testid": id },
+    `${appearance}/${resolvedAppearance}`,
+  );
+}
+
+// The theme and appearance live in module stores shared across test files:
+// start every test from Default/Automatic whatever ran before it.
+beforeEach(() => {
+  act(() => {
+    setTheme("default");
+    setAppearance("automatic");
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  act(() => setAppearance("automatic"));
+});
+
+function ThemeProbe({ id }: { id: string }) {
+  const { theme } = useTheme();
+  return React.createElement("span", { "data-testid": id }, theme);
+}
+afterAll(async () => {
+  await unregisterHappyDom();
+});
+
+describe("shared appearance (#248)", () => {
+  it("a change made in one component reaches every other one and the document", () => {
+    const { getByTestId } = render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Probe, { id: "shell" }),
+        React.createElement(Probe, { id: "diagram" }),
+      ),
+    );
+
+    act(() => setAppearance("dark"));
+
+    expect(getByTestId("shell").textContent).toBe("dark/dark");
+    expect(getByTestId("diagram").textContent).toBe("dark/dark");
+    expect(document.documentElement.getAttribute("data-appearance")).toBe(
+      "dark",
+    );
+    expect(document.documentElement.getAttribute("data-theme")).toBe("default");
+    expect(localStorage.getItem("xf_appearance")).toBe("dark");
   });
 
-  it("falls back to media query preference when stored theme is absent or invalid", () => {
-    expect(resolveInitialTheme(null, true)).toBe("light");
-    expect(resolveInitialTheme(null, false)).toBe("dark");
-    expect(resolveInitialTheme(undefined, true)).toBe("light");
-    expect(resolveInitialTheme(undefined, false)).toBe("dark");
-    expect(resolveInitialTheme("invalid-theme", true)).toBe("light");
-    expect(resolveInitialTheme("invalid-theme", false)).toBe("dark");
+  it("toggling flips what is showing and returns the new choice", () => {
+    let toggle: (() => string) | undefined;
+    function Toggler() {
+      toggle = useTheme().toggleTheme;
+      return null;
+    }
+    const { getByTestId } = render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Toggler),
+        React.createElement(Probe, { id: "probe" }),
+      ),
+    );
+    act(() => setAppearance("light"));
+
+    let next: string | undefined;
+    act(() => {
+      next = toggle?.();
+    });
+    expect(next).toBe("dark");
+    expect(getByTestId("probe").textContent).toBe("dark/dark");
   });
 
-  it("applies theme to global document and localStorage if environments are present", () => {
-    // Mock minimal document and localStorage
-    const mockStorage: Record<string, string> = {};
-    const mockElement = {
-      attributes: {} as Record<string, string>,
-      setAttribute(key: string, val: string) {
-        this.attributes[key] = val;
-      },
+  it("storage that throws on every call never breaks applying the appearance", () => {
+    const realSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error("storage blocked");
     };
-
-    const originalDoc = (globalThis as Record<string, unknown>).document;
-    const originalStorage = (globalThis as Record<string, unknown>)
-      .localStorage;
-
     try {
-      (
-        globalThis as unknown as {
-          document: { documentElement: typeof mockElement };
-        }
-      ).document = {
-        documentElement: mockElement,
-      };
-      (
-        globalThis as unknown as {
-          localStorage: { setItem: (k: string, v: string) => void };
-        }
-      ).localStorage = {
-        setItem(k: string, v: string) {
-          mockStorage[k] = v;
-        },
-      };
-
-      applyThemeToDocument("light");
-      expect(mockElement.attributes["data-theme"]).toBe("light");
-      expect(mockStorage.xf_theme).toBe("light");
-
-      applyThemeToDocument("dark");
-      expect(mockElement.attributes["data-theme"]).toBe("dark");
-      expect(mockStorage.xf_theme).toBe("dark");
+      const { getByTestId } = render(React.createElement(Probe, { id: "p" }));
+      act(() => setAppearance("light"));
+      expect(getByTestId("p").textContent).toBe("light/light");
     } finally {
-      if (originalDoc === undefined) {
-        delete (globalThis as Record<string, unknown>).document;
-      } else {
-        (globalThis as Record<string, unknown>).document = originalDoc;
-      }
-      if (originalStorage === undefined) {
-        delete (globalThis as Record<string, unknown>).localStorage;
-      } else {
-        (globalThis as Record<string, unknown>).localStorage = originalStorage;
-      }
+      Storage.prototype.setItem = realSet;
     }
   });
+});
 
-  it("renders within a React component and initializes theme", () => {
-    let executed = false;
-    function Consumer() {
-      const { theme, toggleTheme, applyTheme } = useTheme();
-      if (!executed) {
-        executed = true;
-        applyTheme("light");
-        toggleTheme();
-      }
-      return React.createElement("div", { id: "theme-val" }, theme);
+describe("visual theme choice (#249)", () => {
+  afterEach(() => {
+    act(() => setTheme("default"));
+  });
+
+  it("a theme chosen in one component reaches every other one and the document", () => {
+    const { getByTestId } = render(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(ThemeProbe, { id: "shell" }),
+        React.createElement(ThemeProbe, { id: "settings" }),
+      ),
+    );
+
+    act(() => setTheme("sandstone"));
+
+    expect(getByTestId("shell").textContent).toBe("sandstone");
+    expect(getByTestId("settings").textContent).toBe("sandstone");
+    expect(document.documentElement.getAttribute("data-theme")).toBe(
+      "sandstone",
+    );
+    expect(localStorage.getItem("xf_theme_choice")).toBe("sandstone");
+    // Theme and Appearance are separate choices.
+    expect(
+      document.documentElement.getAttribute("data-appearance"),
+    ).toBeTruthy();
+  });
+
+  it("an unknown stored theme falls back to Default", () => {
+    localStorage.setItem("xf_theme_choice", "neon");
+    expect(resolveInitialTheme(localStorage.getItem("xf_theme_choice"))).toBe(
+      "default",
+    );
+    localStorage.removeItem("xf_theme_choice");
+  });
+
+  it("storage that throws on every call never breaks applying the theme", () => {
+    const realSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error("storage blocked");
+    };
+    try {
+      const { getByTestId } = render(
+        React.createElement(ThemeProbe, { id: "p" }),
+      );
+      act(() => setTheme("graphite"));
+      expect(getByTestId("p").textContent).toBe("graphite");
+      expect(document.documentElement.getAttribute("data-theme")).toBe(
+        "graphite",
+      );
+    } finally {
+      Storage.prototype.setItem = realSet;
     }
-
-    const html = renderToString(React.createElement(Consumer));
-    expect(html).toContain('id="theme-val"');
   });
 });

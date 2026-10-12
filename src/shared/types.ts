@@ -1,5 +1,8 @@
 // src/shared/types.ts — Shared domain types consumed by both backend and frontend.
 
+import type { DiffSummary } from "./diff-summary.js";
+import type { FailureReason } from "./failure-reason.js";
+
 /**
  * The 6 canonical workflow stages displayed in the UI and executed by the runtime.
  */
@@ -334,6 +337,9 @@ export interface StatusEventPayload {
   status: RunStatus;
   text?: string | undefined;
   reason?: string | undefined;
+  category?: string | undefined;
+  /** Present on a `failed` status: why it failed and what to do about it (#256). */
+  failure?: FailureReason | undefined;
   pullRequest?: PullRequest | undefined;
 }
 
@@ -360,6 +366,40 @@ export interface ChatUserPayload {
 
 export interface ChatAgentPayload {
   text: string;
+  /** The model that wrote the reply, when one did (#279). */
+  model?: ModelUse | undefined;
+  usage?: ModelUsage | undefined;
+}
+
+/** Which model did some work: a role's model on a connection, as it was then (#279). */
+export interface ModelUse {
+  role: ModelRoleName;
+  connectionId: string;
+  connectionName: string;
+  apiType: string;
+  modelId: string;
+}
+
+/** Tokens and cost a provider reported for some work (#279). */
+export interface ModelUsage {
+  tokensIn?: number | undefined;
+  tokensOut?: number | undefined;
+  /** USD, from the provider's report or the model's prices. */
+  costUsd?: number | undefined;
+}
+
+/** One stage attempt's model and usage, as recorded when it ran (#279). */
+export interface StageModelUse extends ModelUse, ModelUsage {
+  stage: string;
+  attempt: number;
+  startedAt: string;
+}
+
+/** A stage attempt started on a model (#279). */
+export interface StageStartedPayload {
+  stage: string;
+  attempt: number;
+  model: ModelUse;
 }
 
 export interface UserFeedbackPayload {
@@ -383,15 +423,44 @@ export interface ReviewEventPayload {
 
 export interface RalphProgressPayload {
   text: string;
-  iteration?: number | undefined;
+  /** 1-based loop iteration this line belongs to; every progress event carries one (#256). */
+  iteration: number;
 }
 
 export type InfoEventPayload = {
   text: string;
+  /** Set when the line is a warning the run page must show as one (#275). */
+  warning?: "unsandboxed" | undefined;
 };
 
 export interface ErrorEventPayload {
   message: string;
+}
+
+/** The plan a stage produced, streamed as it lands rather than only at the gate (#256). */
+export interface PlanReadyPayload {
+  plan: string;
+}
+
+/** What changed in one run's diff (#256), parsed by the module the run page also reads. */
+export type DiffSummaryPayload = DiffSummary;
+
+/** Activity from the read-only review session, forwarded instead of dropped (#256). */
+export interface ReviewActivityPayload {
+  /** The tool the reviewer ran, when the activity is a tool call. */
+  tool?: string | undefined;
+  text?: string | undefined;
+}
+
+export interface PrMergedPayload {
+  url: string;
+  mergedAt: string;
+  mergedBy?: string | undefined;
+}
+
+export interface PrClosedPayload {
+  url: string;
+  closedAt: string;
 }
 
 export type RunEventPayloadMap = {
@@ -405,8 +474,14 @@ export type RunEventPayloadMap = {
   verification: VerificationEventPayload;
   review: ReviewEventPayload;
   ralph_progress: RalphProgressPayload;
+  plan_ready: PlanReadyPayload;
+  diff_summary: DiffSummaryPayload;
+  review_activity: ReviewActivityPayload;
   info: InfoEventPayload;
   error: ErrorEventPayload;
+  stage_started: StageStartedPayload;
+  pr_merged: PrMergedPayload;
+  pr_closed: PrClosedPayload;
 };
 
 export type RunEventType = keyof RunEventPayloadMap;
@@ -436,6 +511,46 @@ export type RunEvent<T extends RunEventType = RunEventType> =
     : never;
 
 /**
+ * App-wide event stream envelope (#257, spec #241).
+ * Carries the global run-events ID as its envelope ID and SSE `id:`,
+ * plus run ID, per-run sequence, type, payload, creation time, ticket and project.
+ */
+export interface AppEventEnvelope<T extends RunEventType = RunEventType> {
+  id: number;
+  runId: string;
+  sequence: number;
+  type: T;
+  payload: RunEventPayloadMap[T];
+  time: string;
+  ticket: Ticket;
+  project: Pick<Project, "id" | "name">;
+}
+
+/**
+ * App-wide events snapshot (#257, spec #241).
+ * Consistent read of current run statuses, Needs-you trigger events (no age limit),
+ * and Finished history (7 days, max 100) with cursor inside one SQLite read transaction.
+ */
+export interface EventsSnapshot {
+  cursor: number;
+  runs: Run[];
+  needsYou: AppEventEnvelope[];
+  finished: AppEventEnvelope[];
+}
+
+/**
+ * Pull request outcome recorded when a PR is merged or closed.
+ */
+export interface PullRequestOutcome {
+  status: "merged" | "closed";
+  state?: "merged" | "closed" | undefined;
+  url: string;
+  mergedAt?: string | undefined;
+  mergedBy?: string | undefined;
+  closedAt?: string | undefined;
+}
+
+/**
  * Public run shape exposed via API.
  */
 export interface Run {
@@ -454,9 +569,13 @@ export interface Run {
   artifacts: Artifact[];
   diff: string | null;
   pullRequest: PullRequest | null;
+  /** PR outcome when known (merged or closed without merging) (#271). */
+  pullRequestOutcome?: PullRequestOutcome | undefined;
   repairAttempts: number;
   artifactsDir: string;
   worktreePath: string;
+  /** Which model each stage attempt used, oldest first (#279). */
+  stageModels?: StageModelUse[] | undefined;
 }
 
 /**
@@ -488,12 +607,21 @@ export interface AzureConnectionResult {
 // annotated against these types, so changing a response shape on either side
 // fails the typecheck. The route table (#192) consumes them later.
 
+export type ThemeName = "default" | "graphite" | "sandstone";
+export type AppearanceSetting = "automatic" | "auto" | "light" | "dark";
+export type ResolvedAppearance = "light" | "dark";
+export type ContrastSetting = "standard" | "more";
+
 /**
  * Workbench settings shape — the body of `GET /api/settings`, the response of
  * `POST /api/settings`, and the on-disk `settings.json` contract.
  */
 export interface WorkbenchSettings {
-  theme?: "dark" | "light" | undefined;
+  /** Visual theme (#248, #249): Default, Graphite, Sandstone. */
+  theme?: ThemeName | "dark" | "light" | undefined;
+  /** Appearance (#248): Automatic (follows OS), Light, Dark. */
+  appearance?: AppearanceSetting | undefined;
+
   models?:
     | {
         sessionA?:
@@ -504,10 +632,34 @@ export interface WorkbenchSettings {
           | undefined;
       }
     | undefined;
+  allowUnsandboxed?: boolean | undefined;
+  /** Desktop notifications for runs that need you (#265). Off by default. */
+  desktopNotifications?: boolean | undefined;
+  /** Which model each role uses (#278); replaces models.sessionA/sessionB. */
+  roles?: ModelRoles | undefined;
 }
 
+/** A role's model: a model ID on a model connection (#278). */
+export interface RoleAssignment {
+  connectionId: string;
+  modelId: string;
+}
+
+/** Builder: understand, plan, code, chat. Reviewer: review (#278). */
+export interface ModelRoles {
+  builder?: RoleAssignment | undefined;
+  reviewer?: RoleAssignment | undefined;
+}
+
+export type ModelRoleName = keyof ModelRoles;
+
 /** Request body of `POST /api/settings`: a patch merged into stored settings. */
-export type SettingsUpdateRequest = Partial<WorkbenchSettings>;
+/** Request body of `POST /api/settings`: a patch merged into stored settings; a role set to `null` is cleared (#278). */
+export type SettingsUpdateRequest = Partial<
+  Omit<WorkbenchSettings, "roles">
+> & {
+  roles?: { [K in keyof ModelRoles]?: ModelRoles[K] | null } | undefined;
+};
 
 /** One named check inside a readiness response. */
 export interface ReadinessCheck {
@@ -615,7 +767,10 @@ export interface ChatWithRunRequest {
   message: string;
 }
 
-/** Response body of `POST /api/runs/:id/chat`: the agent's reply, also stored as a chat_agent event. */
+/**
+ * Response body of `POST /api/runs/:id/chat`. `ok: true` carries the agent's reply (stored as a chat_agent event).
+ * `ok: false` carries the plain reason the model could not reply (stored as an error event, never an agent message, #263).
+ */
 export interface ChatWithRunResponse {
   ok: boolean;
   message: string;

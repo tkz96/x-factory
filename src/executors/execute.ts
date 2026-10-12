@@ -1,7 +1,18 @@
 // src/executors/execute.ts — ExecuteExecutor: events and persistence around the attempt loop (Ticket 02).
 
+import { writeRunAgentConfig } from "../agents/pi.js";
 import { runAttemptLoop } from "../attempt-loop.js";
+import { gatewayKeyFor, modelGateway } from "../model-gateway.js";
+import {
+  isBudgetReached,
+  ModelUnavailableError,
+  modelFailureReason,
+  modelUse,
+  type ResolvedModel,
+  resolveRole,
+} from "../model-roles.js";
 import { loadSettings } from "../settings.js";
+import { summarizeDiff } from "../shared/diff-summary.js";
 import type { VerificationResult } from "../shared/types.js";
 import { baselinePathFor, loadRecordedBaseline } from "../worktree-state.js";
 import { ReviewExecutor } from "./review.js";
@@ -14,11 +25,14 @@ import type {
 
 export interface ExecuteDependencies {
   loadSettings: typeof loadSettings;
+  /** Resolves the Builder role's model (#278); a test seam. */
+  resolveRole: typeof resolveRole;
   reviewExecutor: StageExecutor;
 }
 
 export const defaultExecuteDeps: ExecuteDependencies = {
   loadSettings,
+  resolveRole,
   get reviewExecutor() {
     return new ReviewExecutor();
   },
@@ -53,7 +67,38 @@ export class ExecuteExecutor implements StageExecutor {
     }
 
     const settings = await this.deps.loadSettings();
-    const provider = settings.models?.sessionA?.provider || "anthropic";
+    const allowUnsandboxed = settings.allowUnsandboxed;
+
+    // The Builder role's model, handed to the agent CLI through a per-run
+    // config that never touches ~/.pi; no fallback model (#278).
+    let agent: Awaited<ReturnType<typeof writeRunAgentConfig>>;
+    let gateKey: ReturnType<typeof gatewayKeyFor>;
+    let builderModel: ResolvedModel;
+    try {
+      const resolved = await this.deps.resolveRole("builder");
+      builderModel = resolved;
+      context.assertBudget?.(resolved);
+      agent = await writeRunAgentConfig(run.artifactsDir, resolved);
+      const assertBudget = context.assertBudget;
+      // The loop is counted per iteration, not per gateway run: one `pi` call per
+      // iteration is what the daily budget counts here (#281), so this key only
+      // checks the budget.
+      gateKey = gatewayKeyFor(resolved, {
+        checkBudget: assertBudget ? () => assertBudget(resolved) : undefined,
+      });
+      context.recordModel(modelUse(resolved));
+    } catch (err: unknown) {
+      if (isBudgetReached(err)) {
+        return {
+          outcome: "paused",
+          reason: err.message,
+        };
+      }
+      if (err instanceof ModelUnavailableError) {
+        return { outcome: "error", error: modelFailureReason(err) };
+      }
+      throw err;
+    }
 
     // The latest verification is the stage's output; each one is also emitted as it happens.
     let latest: VerificationResult | undefined;
@@ -70,8 +115,14 @@ export class ExecuteExecutor implements StageExecutor {
         project,
         understanding: run.implementationContext,
         baseline,
-        provider,
+        provider: agent.provider,
+        model: agent.model,
+        agentEnv: agent.env,
+        gate: { gateway: modelGateway, key: gateKey },
+        allowUnsandboxed,
         signal,
+        recordModelCall: () => context.recordModelCall?.(builderModel),
+        checkBudget: () => context.assertBudget?.(builderModel),
         emit: context.emit,
         onVerification: (verification) => {
           latest = verification;
@@ -91,6 +142,13 @@ export class ExecuteExecutor implements StageExecutor {
       return {
         outcome: "error",
         error: "Execution stopped",
+        record: verificationRecord(),
+      };
+    }
+    if (result.outcome === "budget_exceeded") {
+      return {
+        outcome: "paused",
+        reason: result.error,
         record: verificationRecord(),
       };
     }
@@ -115,6 +173,9 @@ export class ExecuteExecutor implements StageExecutor {
       stage: "execute",
       evidence: `Ralph Loop completed and verified; ${result.verification.filesChanged.length} files modified.`,
     });
+
+    // What changed, with line counts, so the timeline never has to re-parse the diff (#256).
+    context.emit("diff_summary", summarizeDiff(result.verification.diff));
 
     // Delegate to ReviewExecutor now that execution is verified. It reads the verification
     // from the run it is given, so hand it the run as this stage has updated it.

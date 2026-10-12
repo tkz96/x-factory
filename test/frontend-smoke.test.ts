@@ -8,28 +8,28 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/frontend/App.js";
-import { AppShell } from "../src/frontend/components/AppShell.js";
 import { DocsSidebarNav } from "../src/frontend/components/docs/DocsSidebarNav.js";
-import { RunHistoryCard } from "../src/frontend/components/history/RunHistoryCard.js";
 import { ModalContainer } from "../src/frontend/components/ModalContainer.js";
-import { ProjectCard } from "../src/frontend/components/projects/ProjectCard.js";
 import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBanner.js";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
-import { HumanCheckpointSection } from "../src/frontend/components/runs/HumanCheckpointSection.js";
-import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
+import { RunEvidence } from "../src/frontend/components/runs/RunEvidence.js";
 import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
-import { HistoryView } from "../src/frontend/views/HistoryView.js";
-import { ProjectDetailView } from "../src/frontend/views/ProjectDetailView.js";
-import { ProjectsView } from "../src/frontend/views/ProjectsView.js";
-import { QueueView } from "../src/frontend/views/QueueView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
 import { RunsView } from "../src/frontend/views/RunsView.js";
 import { SettingsView } from "../src/frontend/views/SettingsView.js";
+import {
+  defaultSources,
+  type OffOriginReference,
+  type SourceKind,
+  scanSource,
+  scanSources,
+} from "./helpers/off-origin-scan.js";
 
 const ROOT_DIR = path.resolve(import.meta.dir, "..");
 
@@ -68,7 +68,9 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain('src="/src/frontend/main.tsx"');
       expect(html).toContain('type="module"');
       expect(html).toContain("<title>X-Factory</title>");
-      expect(html).toContain('href="/styles.css"');
+      // The pre-redesign public/styles.css is retired (#248): the bundled
+      // design system is the only stylesheet the shell loads.
+      expect(html).not.toContain('href="/styles.css"');
       expect(html).toContain('href="/favicon.svg"');
     });
 
@@ -113,6 +115,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       const paths = children.map((c) => c.path ?? (c.index ? "index" : ""));
 
       expect(paths).toContain("index");
+      expect(paths).toContain("tickets");
       expect(paths).toContain("queue");
       expect(paths).toContain("runs");
       expect(paths).toContain("runs/:runId");
@@ -131,25 +134,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
   });
 
   describe("Critical Views", () => {
-    it("QueueView renders search bar, refresh button, and tickets section", () => {
-      const html = renderWithProviders(React.createElement(QueueView));
-
-      expect(html).toContain('id="area-queue"');
-      expect(html).toContain('id="queue-search"');
-      expect(html).toContain('id="btn-queue-refresh"');
-      expect(html).toContain('id="queue-tickets-list"');
-      expect(html).toContain("agentic-workflow");
-    });
-
-    it("ProjectsView renders segmented tabs and project catalog layout", () => {
-      const html = renderWithProviders(React.createElement(ProjectsView));
-
-      expect(html).toContain("Projects");
-      expect(html).toContain("Active Projects");
-      expect(html).toContain("Archived");
-      expect(html).toContain("Onboard Project");
-    });
-
     it("SettingsView renders tab navigation and settings sections", () => {
       const html = renderWithProviders(React.createElement(SettingsView));
 
@@ -166,48 +150,18 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("Security Guardrail");
     });
 
-    it("HistoryView, RunsView, RunDetailView, and ProjectDetailView export functional components", () => {
-      expect(typeof HistoryView).toBe("function");
+    it("RunsView and RunDetailView export functional components", () => {
       expect(typeof RunsView).toBe("function");
       expect(typeof RunDetailView).toBe("function");
-      expect(typeof ProjectDetailView).toBe("function");
     });
   });
 
   describe("Critical Components", () => {
-    it("AppShell renders navigation sidebar, header, and route outlets", () => {
-      const html = renderWithProviders(React.createElement(AppShell));
-
-      expect(html).toContain('id="app-shell"');
-      expect(html).toContain("X-Factory");
-      expect(html).toContain('href="/queue"');
-      expect(html).toContain('href="/runs"');
-      expect(html).toContain('href="/projects"');
-      expect(html).toContain('href="/settings"');
-      expect(html).toContain('href="/docs"');
-    });
-
-    it("AppShell renders Documentation ↗ link targeting new tab in workbench mode", () => {
-      const html = renderWithProviders(React.createElement(AppShell), [
-        "/queue",
-      ]);
-
-      expect(html).toContain('href="/docs"');
-      expect(html).toContain('target="_blank"');
-      expect(html).toContain("Documentation ↗");
-    });
-
-    it("AppShell renders DocsSidebarNav when viewing documentation route", () => {
-      const html = renderWithProviders(React.createElement(AppShell), [
-        "/docs",
-      ]);
-
-      expect(html).toContain("X-Factory Docs");
-      expect(html).toContain("Documentation");
-      expect(html).toContain('href="/queue"');
-      expect(html).toContain("Back to Workbench");
-      expect(html).not.toContain("btn-open-new-run");
-    });
+    // The shell's toolbar, sections, Help and one-h1 behaviour are asserted by
+    // behaviour in test/app-shell.test.tsx (#258). The Projects screens — the
+    // list, its rows and the detail pane — are asserted by behaviour in
+    // test/projects-split.test.tsx (#267); the markup assertions that used to
+    // stand here pinned class names and ids the ticket replaced.
 
     it("DocsSidebarNav exports functional component", () => {
       expect(typeof DocsSidebarNav).toBe("function");
@@ -217,8 +171,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(typeof ChatThread).toBe("function");
     });
 
-    it("RunChat and DiffModal export functional components and render cleanly", () => {
-      expect(typeof RunChat).toBe("function");
+    it("DiffModal renders its file and line counts (the run chat's behaviour is in run-chat-view)", () => {
       expect(typeof DiffModal).toBe("function");
 
       const diffModalHtml = renderToString(
@@ -238,69 +191,6 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(diffModalHtml).toContain("diff-row-del");
     });
 
-    it("ProjectCard renders project name, tracker badge, and action links", () => {
-      const html = renderWithProviders(
-        React.createElement(ProjectCard, {
-          project: {
-            id: "proj-1",
-            name: "X-Factory Core",
-            repositoryPath: "/path/to/repo",
-            defaultBranch: "main",
-            testCommand: "bun test",
-            repositories: [],
-            issueTracker: {
-              provider: "azure",
-              azure: {
-                orgUrl: "https://dev.azure.com/org",
-                project: "proj",
-              },
-            },
-          },
-        }),
-      );
-
-      expect(html).toContain("X-Factory Core");
-      expect(html).toContain("proj-1");
-      expect(html).toContain("azure");
-      expect(html).toContain("View Details →");
-    });
-
-    it("RunHistoryCard renders run ticket details, status, and duration", () => {
-      const html = renderWithProviders(
-        React.createElement(RunHistoryCard, {
-          run: {
-            id: "run-123",
-            project: { id: "proj-1", name: "X-Factory Core" },
-            ticket: {
-              id: "TICK-42",
-              title: "Fix frontend smoke test",
-              url: "https://ticket.url",
-              acceptanceCriteria: ["All tests pass"],
-            },
-            branch: "xf-tick-42",
-            status: "ready_for_pr",
-            plan: "Implementation plan",
-            startedAt: "2026-09-20T12:00:00.000Z",
-            finishedAt: "2026-09-20T12:05:00.000Z",
-            updatedAt: "2026-09-20T12:05:00.000Z",
-            implementationContext: null,
-            verification: null,
-            review: null,
-            artifacts: [],
-            diff: null,
-            pullRequest: null,
-            repairAttempts: 0,
-            artifactsDir: "/tmp/artifacts",
-            worktreePath: "/tmp/worktree",
-          },
-        }),
-      );
-
-      expect(html).toContain("TICK-42");
-      expect(html).toContain("Fix frontend smoke test");
-      expect(html).toContain("ready_for_pr");
-    });
-
     it("WorkflowStepper renders workflow stages and active progression", () => {
       const html = renderToString(
         React.createElement(WorkflowStepper, {
@@ -312,7 +202,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toContain("Prepare");
       expect(html).toContain("Understand");
       expect(html).toContain("Plan");
-      expect(html).toContain("Execute");
+      // The step is named for what it does: Code, not Execute (#262).
+      expect(html).toContain("Code");
       expect(html).toContain("Review");
       expect(html).toContain("Deliver");
     });
@@ -327,14 +218,14 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toBeDefined();
     });
 
-    it("HumanCheckpointSection renders checkpoint heading and evidence sections cleanly", () => {
+    it("RunEvidence renders the verification and review evidence the inspector shows", () => {
       const mockRun = {
         id: "run-smoke-1",
         project: { id: "p1", name: "Smoke Proj" },
         ticket: { id: "T-1", title: "Smoke Ticket", acceptanceCriteria: [] },
         plan: "plan",
         branch: "factory/smoke",
-        status: "ready_for_pr" as const,
+        status: "awaiting_review" as const,
         startedAt: new Date().toISOString(),
         finishedAt: null,
         updatedAt: new Date().toISOString(),
@@ -349,11 +240,30 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
         worktreePath: "/tmp",
       };
       const html = renderWithProviders(
-        React.createElement(HumanCheckpointSection, { run: mockRun }),
+        React.createElement(RunEvidence, { run: mockRun }),
       );
-      expect(html).toContain("Human Checkpoint &amp; Evidence");
-      expect(html).toContain("Deterministic Verification");
-      expect(html).toContain("Independent Review");
+      // The sections name what they check; the reviewer is named, not "Session B" (#278).
+      expect(html).toContain("Verification");
+      expect(html).toContain("Review");
+      expect(html).toContain("AWAITING VERIFICATION");
+    });
+
+    it("the checkpoint bar offers the policy's actions by name, and Create Pull Request only at delivery", () => {
+      const bar = (status: "awaiting_review" | "ready_for_pr" | "pr_created") =>
+        renderWithProviders(
+          React.createElement(RunCheckpointBar, {
+            status,
+            pending: null,
+            conflict: false,
+            onAction: () => {},
+          }),
+        );
+      expect(bar("awaiting_review")).toContain("Approve Changes");
+      expect(bar("awaiting_review")).toContain("Request Changes");
+      expect(bar("awaiting_review")).not.toContain("Create Pull Request");
+      expect(bar("ready_for_pr")).toContain("Create Pull Request");
+      expect(bar("pr_created")).not.toContain("Create Pull Request");
+      expect(bar("pr_created")).toContain("Start New Run");
     });
   });
 
@@ -424,6 +334,8 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
 describe("Frontend Smoke — Feedback System Enforcement", () => {
   const FRONTEND_DIR = path.join(ROOT_DIR, "src/frontend");
   const FEEDBACK_DIR = path.join(FRONTEND_DIR, "components", "feedback");
+  /** The one control vocabulary (#251) the feedback family renders through. */
+  const BLOCKS_DIR = path.join(FRONTEND_DIR, "components", "ui");
 
   function getSourceFiles(dir: string, extensions: string[]): string[] {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -444,10 +356,17 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
    * docs/reference/state-coverage.md: this scan DETECTS known anti-patterns,
    * it does not PROVE coverage — behavioral tests are the real enforcement.
    */
+  const TOAST_PATTERN_NAME = "toast system";
+  /** The one exception to the toast ban: the notification center (#264). */
+  const NOTIFICATION_CENTER_DIR_RELATIVE =
+    "src/frontend/components/notifications/";
   const ANTI_PATTERNS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
     { name: "ad-hoc spinner markup", pattern: /className="[^"]*spinner/i },
     { name: "ad-hoc generic error copy", pattern: /something went wrong/i },
-    { name: "toast system", pattern: /\btoast\b/i },
+    { name: TOAST_PATTERN_NAME, pattern: /\btoast\b/i },
+    // Static placeholder rows are the approved loading shape (#251); an
+    // animated shimmer is not, in markup or in CSS.
+    { name: "shimmer animation", pattern: /\bshimmer\b/i },
   ];
 
   /**
@@ -481,9 +400,15 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
       }
       const content = fs.readFileSync(filePath, "utf-8");
       const lines = content.split("\n");
+      const inNotificationCenter = relative.startsWith(
+        NOTIFICATION_CENTER_DIR_RELATIVE,
+      );
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? "";
         for (const { name, pattern } of ANTI_PATTERNS) {
+          // The notification center is the one named exception to the toast ban
+          // (#264, spec #241): it is a list the user opens, not a floating message.
+          if (inNotificationCenter && name === TOAST_PATTERN_NAME) continue;
           if (pattern.test(line)) {
             violations.push({
               file: relative,
@@ -503,10 +428,15 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
     const feedbackFiles = getSourceFiles(FEEDBACK_DIR, [".ts", ".tsx"]);
     expect(feedbackFiles.length).toBeGreaterThan(0);
 
-    // The shared layer is the one family escape the architecture boundaries
-    // allow (`frontend` may import `shared`; `.fallowrc.json`), and the
-    // canonical provider error copy table lives there. Every other
-    // escape lands in screen- or app-specific wiring and stays a violation.
+    // Two escapes are allowed, because neither is screen- or app-specific:
+    //   - `src/shared`, the layer the architecture boundaries allow (`frontend`
+    //     may import `shared`; `.fallowrc.json`) — the canonical provider error
+    //     copy table lives there;
+    //   - `components/ui`, the one control vocabulary (#251) the family renders
+    //     through: buttons, badges, list rows, the spinner. It is as
+    //     screen-agnostic as the family itself.
+    // Every other escape lands in screen- or app-specific wiring and stays a
+    // violation.
     const SHARED_DIR = path.join(ROOT_DIR, "src", "shared");
 
     const importPattern = /from\s+"(\.[^"]*)"/g;
@@ -519,6 +449,48 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
         const line = lines[i] ?? "";
         for (const match of line.matchAll(importPattern)) {
           // A relative import starting with "../" escapes the feedback family.
+          const specifier = match[1] ?? "";
+          if (!specifier.startsWith("..")) {
+            continue;
+          }
+          const resolved = path.resolve(path.dirname(filePath), specifier);
+          if (
+            resolved === SHARED_DIR ||
+            resolved.startsWith(`${SHARED_DIR}${path.sep}`) ||
+            resolved === BLOCKS_DIR ||
+            resolved.startsWith(`${BLOCKS_DIR}${path.sep}`)
+          ) {
+            continue;
+          }
+          violations.push({
+            file: path.relative(ROOT_DIR, filePath),
+            line: i + 1,
+            text: line.trim(),
+          });
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("enforces the building-block import rule: components/ui imports nothing screen-specific", () => {
+    // The blocks are the shared vocabulary every screen renders through, so
+    // they may reach themselves, `src/shared` and the design tokens — nothing
+    // else. A screen-specific import here would make the vocabulary app-bound.
+    const blockFiles = getSourceFiles(BLOCKS_DIR, [".ts", ".tsx"]);
+    expect(blockFiles.length).toBeGreaterThan(0);
+
+    const SHARED_DIR = path.join(ROOT_DIR, "src", "shared");
+    const importPattern = /from\s+"(\.[^"]*)"/g;
+    const violations: Array<{ file: string; line: number; text: string }> = [];
+
+    for (const filePath of blockFiles) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        for (const match of line.matchAll(importPattern)) {
           const specifier = match[1] ?? "";
           if (!specifier.startsWith("..")) {
             continue;
@@ -559,5 +531,481 @@ describe("Frontend Smoke — Feedback System Enforcement", () => {
     // Input staleness is the caller's predicate — never TanStack's own
     // cache-freshness flag.
     expect(deriveSource).not.toContain("isStale: boolean");
+  });
+});
+
+describe("Frontend Smoke — CSS variable resolution", () => {
+  function listFiles(dir: string, ext: string[]): string[] {
+    const out: string[] = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...listFiles(full, ext));
+      else if (ext.some((e) => entry.name.endsWith(e))) out.push(full);
+    }
+    return out;
+  }
+
+  const frontendDir = path.join(ROOT_DIR, "src/frontend");
+  const sources = listFiles(frontendDir, [".css", ".tsx"]).map((file) => ({
+    file: path.relative(ROOT_DIR, file),
+    css: file.endsWith(".css"),
+    text: fs.readFileSync(file, "utf-8"),
+  }));
+
+  it("every var(--x) used in frontend CSS resolves to a defined custom property", () => {
+    const defined = new Set<string>();
+    for (const { text, css } of sources) {
+      const declaration = css
+        ? /(?:^|[;{\s])(--[a-zA-Z0-9_-]+)\s*:/g
+        : /["'](--[a-zA-Z0-9_-]+)["']\s*:/g;
+      for (const m of text.matchAll(declaration)) defined.add(m[1] as string);
+    }
+    const undefinedUses: string[] = [];
+    for (const { file, text } of sources) {
+      for (const m of text.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)/g)) {
+        if (!defined.has(m[1] as string)) {
+          undefinedUses.push(`${file}: ${m[1]}`);
+        }
+      }
+    }
+    expect(undefinedUses).toEqual([]);
+  });
+
+  it("no var() carries a hard-coded colour fallback", () => {
+    const offenders: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      for (const m of text.matchAll(
+        /var\(\s*--[a-zA-Z0-9_-]+\s*,\s*(?:#|rgba?\(|hsla?\()[^)]*\)?/g,
+      )) {
+        offenders.push(`${file}: ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("no transition: all used in frontend CSS (#248)", () => {
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        if (/transition:\s*all\b/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("no shimmer keyframes or shimmer animation in frontend CSS (#251)", () => {
+    // Static placeholder rows are the approved loading shape (#251); an
+    // animated shimmer stays banned, in any name.
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        if (/@keyframes\s+[^{]*shimmer/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+        if (/animation(?:-name)?\s*:[^;]*\bshimmer\b/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("no hex, rgb, or rgba literals outside token files in frontend CSS (#248)", () => {
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      if (file.endsWith("tokens.css") || file.includes("tokens/")) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        // Check for hex or rgb/rgba literals
+        if (/#[0-9a-fA-F]{3,8}\b/.test(line) || /rgba?\([^)]+\)/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("no px literals outside token files in frontend CSS (#248)", () => {
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      if (file.endsWith("tokens.css") || file.includes("tokens/")) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = stripped.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? "";
+        // Media queries define viewport breakpoints, not component values
+        if (line.trim().startsWith("@media")) continue;
+        if (/\b\d+px\b/i.test(line)) {
+          violations.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+});
+
+// ─── Motion system (spec #241, ticket #252) ────────────────────────────────
+
+describe("Frontend Smoke — Motion (#252)", () => {
+  function listFiles(dir: string, ext: string[]): string[] {
+    const out: string[] = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...listFiles(full, ext));
+      else if (ext.some((e) => entry.name.endsWith(e))) out.push(full);
+    }
+    return out;
+  }
+
+  const frontendDir = path.join(ROOT_DIR, "src/frontend");
+  const sources = listFiles(frontendDir, [".css", ".ts", ".tsx"]).map(
+    (file) => ({
+      file: path.relative(ROOT_DIR, file),
+      css: file.endsWith(".css"),
+      text: fs.readFileSync(file, "utf-8").replace(/\/\*[\s\S]*?\*\//g, ""),
+    }),
+  );
+
+  /** The index of the `}` that closes the block whose `{` is at `openBrace`. */
+  function blockEnd(text: string, openBrace: number): number {
+    let depth = 1;
+    for (let i = openBrace + 1; i < text.length; i++) {
+      if (text[i] === "{") depth++;
+      else if (text[i] === "}") {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return text.length;
+  }
+
+  /** Character ranges of every `@media (prefers-reduced-motion: reduce)` block. */
+  function reducedMotionBlocks(text: string): { start: number; end: number }[] {
+    const blocks: { start: number; end: number }[] = [];
+    const media = /@media[^{]*prefers-reduced-motion\s*:\s*reduce[^{]*\{/gi;
+    for (const match of text.matchAll(media)) {
+      const openBrace = (match.index ?? 0) + match[0].length - 1;
+      blocks.push({ start: openBrace, end: blockEnd(text, openBrace) });
+    }
+    return blocks;
+  }
+
+  function insideAny(
+    blocks: { start: number; end: number }[],
+    index: number,
+  ): boolean {
+    return blocks.some((block) => index > block.start && index < block.end);
+  }
+
+  function keyframes(text: string) {
+    const blocks = reducedMotionBlocks(text);
+    return text
+      .matchAll(/@keyframes\s+([\w-]+)\s*\{/g)
+      .map((match) => {
+        const openBrace = (match.index ?? 0) + match[0].length - 1;
+        return {
+          name: match[1] ?? "",
+          body: text.slice(openBrace + 1, blockEnd(text, openBrace)),
+          reduced: insideAny(blocks, match.index ?? 0),
+        };
+      })
+      .toArray();
+  }
+
+  function styleRules(text: string) {
+    const blocks = reducedMotionBlocks(text);
+    return text
+      .matchAll(/([^{}]*)\{/g)
+      .map((match) => {
+        const prelude = (match[1] ?? "").trim().replace(/\s+/g, " ");
+        const openBrace = (match.index ?? 0) + match[0].length - 1;
+        return {
+          selector: prelude,
+          body: text.slice(openBrace + 1, blockEnd(text, openBrace)),
+          reduced: insideAny(blocks, match.index ?? 0),
+        };
+      })
+      .filter((rule) => rule.selector !== "" && !rule.selector.startsWith("@"))
+      .toArray();
+  }
+
+  /**
+   * Properties that make something travel, resize or shift. `transform: none`
+   * is the identity, so a reduced path may state it; anything else moves.
+   */
+  const MOVEMENT_DECLARATION =
+    /(?:^|[;{}])\s*(?:transform|translate|rotate|scale|top|right|bottom|left|inset|width|height|margin|padding)(?:-[\w-]+)?\s*:\s*([^;}]*)/g;
+
+  function animatesMovement(body: string): boolean {
+    for (const match of body.matchAll(MOVEMENT_DECLARATION)) {
+      const value = (match[1] ?? "").trim();
+      if (value === "none" || value === "0") continue;
+      return true;
+    }
+    return false;
+  }
+
+  it("every keyframe that moves has a reduced-motion path that does not", () => {
+    const problems: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const frames = keyframes(text);
+      const reducedFrames = frames.filter((frame) => frame.reduced);
+      for (const frame of frames) {
+        if (frame.reduced) {
+          if (animatesMovement(frame.body)) {
+            problems.push(
+              `${file}: @keyframes ${frame.name} still moves in its reduced path`,
+            );
+          }
+          continue;
+        }
+        if (!animatesMovement(frame.body)) continue;
+        if (!reducedFrames.some((reduced) => reduced.name === frame.name)) {
+          problems.push(
+            `${file}: @keyframes ${frame.name} moves and has no reduced-motion path`,
+          );
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("every infinite animation stops under reduced motion (#252)", () => {
+    const problems: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const rules = styleRules(text);
+      const stopped = new Set(
+        rules
+          .filter(
+            (rule) =>
+              rule.reduced &&
+              /animation-iteration-count\s*:\s*1\b|animation\s*:\s*none\b/.test(
+                rule.body,
+              ),
+          )
+          .map((rule) => rule.selector),
+      );
+      for (const rule of rules) {
+        if (rule.reduced) continue;
+        if (!/animation[^;}]*\binfinite\b/.test(rule.body)) continue;
+        if (!stopped.has(rule.selector)) {
+          problems.push(
+            `${file}: ${rule.selector} loops forever with no reduced-motion path`,
+          );
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it("no raw duration or easing literal outside token files (#252)", () => {
+    const MOTION_DECLARATION =
+      /(?:^|[;{}])\s*(transition|animation)(-duration|-timing-function|-delay)?\s*:\s*([^;{}]*)/g;
+    const TIME_LITERAL = /\b\d*\.?\d+(?:ms|s)\b/;
+    const EASING_LITERAL =
+      /(?:^|[\s,(])(?:ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end|steps|cubic-bezier)\b(?!-)/;
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      if (file.endsWith("tokens.css") || file.includes("tokens/")) continue;
+      for (const match of text.matchAll(MOTION_DECLARATION)) {
+        const value = (match[3] ?? "").trim();
+        if (!TIME_LITERAL.test(value) && !EASING_LITERAL.test(value)) continue;
+        violations.push(`${file}: ${match[0].trim().replace(/\s+/g, " ")}`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("loads the motion library lazily, and only the features in use (#252)", () => {
+    const motionDir = path.join(frontendDir, "motion");
+    const motionSources = listFiles(motionDir, [".ts", ".tsx"]).map((file) => ({
+      file: path.relative(ROOT_DIR, file),
+      text: fs.readFileSync(file, "utf-8"),
+    }));
+
+    // The feature pack must reach the browser through a dynamic import: a
+    // static one would put it in the entry chunk on every page load.
+    const features = motionSources.find((source) =>
+      source.file.endsWith("motion-features.ts"),
+    );
+    expect(features).toBeDefined();
+    expect(features?.text).toMatch(
+      /import\(\s*["']\.\/motion-feature-pack\.js["']\s*\)/,
+    );
+
+    // One file, and only that file, may name a feature pack. Everything else
+    // uses `m` components, which is what keeps the pack out of the entry chunk.
+    const namingPacks = motionSources
+      .filter((source) => /\bdom(?:Max|Animation|Min)\b/.test(source.text))
+      .map((source) => source.file);
+    expect(namingPacks).toEqual(["src/frontend/motion/motion-feature-pack.ts"]);
+
+    // The library is a local dependency, resolved from the repository, so the
+    // app never asks another host for it.
+    const resolved = import.meta.resolve("motion/react");
+    expect(resolved.startsWith("file://")).toBe(true);
+    expect(resolved).toContain("/node_modules/motion/");
+  });
+});
+
+// ─── No third-party requests (spec #241, ticket #247) ──────────────────────
+
+describe("Frontend Smoke — No third-party requests", () => {
+  function synthetic(kind: SourceKind, text: string) {
+    return { file: `synthetic.${kind}`, kind, text };
+  }
+
+  function described(findings: readonly OffOriginReference[]): string[] {
+    return findings.map((f) => `${f.reason} ${f.url}`);
+  }
+
+  it("flags a script, stylesheet, image, font or sprite that names another host", () => {
+    const findings = scanSource(
+      synthetic(
+        "html",
+        [
+          '<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>',
+          '<link rel="stylesheet" href="//fonts.example.com/inter.css">',
+          '<img src="https://images.example.com/a.png">',
+          '<img srcset="/a.png 1x, https://images.example.com/a2x.png 2x">',
+          '<video poster="https://images.example.com/p.jpg"></video>',
+          '<use href="https://icons.example.com/sprite.svg#play"></use>',
+        ].join("\n"),
+      ),
+    );
+
+    expect(described(findings)).toEqual([
+      "<script src> https://cdn.jsdelivr.net/npm/@scalar/api-reference",
+      "<link href> //fonts.example.com/inter.css",
+      "<img src> https://images.example.com/a.png",
+      "<img srcset> https://images.example.com/a2x.png",
+      "<video poster> https://images.example.com/p.jpg",
+      "<use href> https://icons.example.com/sprite.svg#play",
+    ]);
+    expect(findings[1]?.line).toBe(2);
+  });
+
+  it("flags @import, url() and a JavaScript request that names another host", () => {
+    const css = scanSource(
+      synthetic(
+        "css",
+        [
+          '@import "https://fonts.example.com/inter.css";',
+          '@import url("https://fonts.example.com/other.css");',
+          ".a { background: url(//images.example.com/bg.png); }",
+          '.b { background: url("/a.png"); }',
+          '.c { background: url("/fonts/Inter-Regular.woff2") format("woff2"); }',
+        ].join("\n"),
+      ),
+    );
+    expect(described(css)).toEqual([
+      "@import https://fonts.example.com/inter.css",
+      "url() https://fonts.example.com/other.css",
+      "url() //images.example.com/bg.png",
+    ]);
+
+    const script = scanSource(
+      synthetic(
+        "script",
+        'fetch("https://api.example.com/v1");\nnew EventSource("/api/runs/1/events");',
+      ),
+    );
+    expect(described(script)).toEqual(["fetch() https://api.example.com/v1"]);
+  });
+
+  it("allows plain navigation links, inline data and this origin's own paths", () => {
+    const html = scanSource(
+      synthetic(
+        "html",
+        [
+          '<a href="https://github.com/tkz96/x-factory/pull/12">Pull request 12</a>',
+          '<a href="https://dev.azure.com/org/project">Tracker</a>',
+          '<a href="/reference">API Reference</a>',
+          '<link rel="icon" href="/favicon.svg">',
+          '<script src="/assets/api-reference/scalar-api-reference.min.js"></script>',
+          "<img src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E\">",
+          '<use href="/assets/icons/sprite.svg#icon-play"></use>',
+        ].join("\n"),
+      ),
+    );
+    expect(html).toEqual([]);
+
+    const tsx = scanSource(
+      synthetic(
+        "script",
+        '<a href="https://example.invalid/run/1" rel="noreferrer">the pull request</a>',
+      ),
+    );
+    expect(tsx).toEqual([]);
+  });
+
+  it("finds no such reference in any page, stylesheet or frontend module", () => {
+    const sources = defaultSources(ROOT_DIR);
+    expect(sources.map((s) => s.file)).toContain("index.html");
+    expect(sources.map((s) => s.file)).toContain("public/reference.html");
+    expect(sources.map((s) => s.file)).toContain(
+      "src/frontend/styles/base.css",
+    );
+    expect(sources.length).toBeGreaterThan(50);
+
+    const findings = scanSources(sources);
+    expect(
+      findings.map((f) => `${f.file}:${f.line} ${f.reason} ${f.url}`),
+    ).toEqual([]);
+  });
+
+  it("serves the API Reference from a pinned viewer in this repository", async () => {
+    const assetDir = path.join(ROOT_DIR, "public", "assets", "api-reference");
+    const reference = await Bun.file(
+      path.join(ROOT_DIR, "public/reference.html"),
+    ).text();
+
+    expect(reference).toContain(
+      'src="/assets/api-reference/scalar-api-reference.min.js"',
+    );
+    expect(reference).not.toMatch(/https?:\/\//);
+    // The pinned Scalar build would otherwise fetch its web fonts from
+    // fonts.scalar.com, which is a third-party host.
+    expect(reference).toContain('"withDefaultFonts": false');
+
+    // The bytes we serve are the bytes the pin names, so this and `bun run
+    // vendor:api-reference --check` agree about what is on disk.
+    const provenance = (await Bun.file(
+      path.join(assetDir, "provenance.json"),
+    ).json()) as {
+      package: string;
+      version: string;
+      integrity: string;
+      vendoredSha256: string;
+    };
+    const vendored = new Uint8Array(
+      await Bun.file(
+        path.join(assetDir, "scalar-api-reference.min.js"),
+      ).arrayBuffer(),
+    );
+    expect(provenance.package).toBe("@scalar/api-reference");
+    expect(provenance.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(provenance.integrity.startsWith("sha512-")).toBe(true);
+    expect(new Bun.CryptoHasher("sha256").update(vendored).digest("hex")).toBe(
+      provenance.vendoredSha256,
+    );
   });
 });

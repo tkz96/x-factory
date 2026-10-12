@@ -1,7 +1,7 @@
 /* src/frontend/connection/ConnectionCard.css — Role-based connection card styling */
 
 .connection-card {
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   padding: 1.25rem;
@@ -33,9 +33,9 @@
   padding: 0.125rem 0.375rem;
   font-weight: 500;
   border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  background: var(--bg-card);
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
 }
 
 .connection-card-header-status {
@@ -54,23 +54,23 @@
 }
 
 .connection-status-pill.status-ok {
-  background: rgba(52, 199, 89, 0.12);
-  color: var(--color-success, #34c759);
+  background: var(--green-dim);
+  color: var(--green);
 }
 
 .connection-status-pill.status-degraded {
-  background: var(--color-warning-dim, rgba(255, 149, 0, 0.14));
-  color: var(--color-warning, #ff9500);
+  background: var(--orange-dim);
+  color: var(--orange);
 }
 
 .connection-status-pill.status-pending {
-  background: var(--bg-surface);
+  background: var(--bg-card);
   color: var(--text-muted);
 }
 
 .connection-status-pill.status-error {
-  background: rgba(255, 59, 48, 0.12);
-  color: var(--color-destructive, #ff3b30);
+  background: var(--red-dim);
+  color: var(--red);
 }
 
 .connection-card-body {
@@ -96,8 +96,8 @@
 }
 
 .connection-required-scopes {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   margin-bottom: var(--space-3);

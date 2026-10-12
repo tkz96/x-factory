@@ -23,7 +23,9 @@ export interface ReviewSubmit {
   submit: (payload: ProjectCreationPayload) => void;
 }
 
-export function useReviewSubmit(onCreated: () => void): ReviewSubmit {
+export function useReviewSubmit(
+  onCreated: (project: Project) => void,
+): ReviewSubmit {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (payload: ProjectCreationPayload) => api.createProject(payload),
@@ -36,7 +38,7 @@ export function useReviewSubmit(onCreated: () => void): ReviewSubmit {
       ]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
       clearWizardDraft();
-      onCreated();
+      onCreated(project);
     },
   });
 

@@ -12,8 +12,18 @@ import {
 import { hasControlCharacters } from "../shared/validation.js";
 
 /** Request body schema for POST /api/settings (#163 B4). */
+/** A role's model (#278); `null` in a settings patch clears the role. */
+const RoleAssignmentSchema = z.object({
+  connectionId: z.string().trim().min(1),
+  modelId: z.string().trim().min(1),
+});
+
 export const WorkbenchSettingsSchema = z.object({
-  theme: z.enum(["dark", "light"]).optional(),
+  theme: z
+    .enum(["default", "graphite", "sandstone", "dark", "light"])
+    .optional(),
+  appearance: z.enum(["automatic", "auto", "light", "dark"]).optional(),
+
   models: z
     .object({
       sessionA: z
@@ -28,6 +38,14 @@ export const WorkbenchSettingsSchema = z.object({
           model: z.string().optional(),
         })
         .optional(),
+    })
+    .optional(),
+  allowUnsandboxed: z.boolean().optional(),
+  desktopNotifications: z.boolean().optional(),
+  roles: z
+    .object({
+      builder: RoleAssignmentSchema.nullable().optional(),
+      reviewer: RoleAssignmentSchema.nullable().optional(),
     })
     .optional(),
 });
@@ -134,3 +152,72 @@ export const ConfigureGitIdentityBodySchema = z.looseObject({
   email: z.email(),
   scope: z.enum(["local", "global"]).optional(),
 });
+
+// ─── Model connections (#276) ────────────────────────────────────────────────
+
+const ModelApiTypeSchema = z.enum(
+  ["openai-compatible", "gemini", "anthropic"],
+  {
+    error: "API type must be openai-compatible, gemini or anthropic.",
+  },
+);
+
+export const CreateModelConnectionBodySchema = z.object({
+  name: z
+    .string({ error: "A connection needs a name." })
+    .trim()
+    .min(1, "A connection needs a name."),
+  apiType: ModelApiTypeSchema,
+  baseUrl: z.string().trim().optional(),
+  apiKey: z.string().optional(),
+});
+export type CreateModelConnectionBody = z.infer<
+  typeof CreateModelConnectionBodySchema
+>;
+
+export const UpdateModelConnectionBodySchema = z.object({
+  name: z.string().trim().min(1, "A connection needs a name.").optional(),
+  baseUrl: z.string().trim().optional(),
+  apiKey: z.string().optional(),
+});
+export type UpdateModelConnectionBody = z.infer<
+  typeof UpdateModelConnectionBodySchema
+>;
+
+// ─── Model records on a connection (#277) ────────────────────────────────────
+
+export const AddConnectionModelBodySchema = z.object({
+  modelId: z
+    .string({ error: "A model needs an ID." })
+    .trim()
+    .min(1, "A model needs an ID."),
+});
+export type AddConnectionModelBody = z.infer<
+  typeof AddConnectionModelBodySchema
+>;
+
+const PositiveOrNull = z.number().positive().nullable().optional();
+const NonNegative = z.number().nonnegative().optional();
+
+export const UpdateConnectionModelBodySchema = z.object({
+  contextWindow: PositiveOrNull,
+  maxOutputTokens: PositiveOrNull,
+  inputPricePerMTok: z.number().nonnegative().nullable().optional(),
+  outputPricePerMTok: z.number().nonnegative().nullable().optional(),
+  limits: z
+    .object({
+      rpm: NonNegative,
+      tpm: NonNegative,
+      rpd: NonNegative,
+      tpd: NonNegative,
+    })
+    .optional(),
+  budget: z
+    .object({
+      perDay: z.object({ usd: NonNegative, requests: NonNegative }),
+    })
+    .optional(),
+});
+export type UpdateConnectionModelBody = z.infer<
+  typeof UpdateConnectionModelBodySchema
+>;

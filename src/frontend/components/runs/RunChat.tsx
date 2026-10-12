@@ -1,759 +1,494 @@
-// src/frontend/components/runs/RunChat.tsx — Universal conversation view across all run stages.
+// src/frontend/components/runs/RunChat.tsx — The run chat: real run events, one clock, one status map (#261).
 
 import "./RunChat.css";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  canRunAction,
-  DELIVERY_RUN_STATUSES,
-  runStatusLabel,
-  STATUS_TO_STAGE,
-  UNSUCCESSFUL_TERMINAL_RUN_STATUSES,
-} from "../../../shared/run-status-policy.js";
-import type {
-  ImplementationContext,
-  Run,
-  RunEvent,
-} from "../../../shared/types.js";
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link } from "react-router-dom";
+import type { DiffFileSummary } from "../../../shared/diff-summary.js";
+import { canRunAction } from "../../../shared/run-status-policy.js";
+import type { Run, RunEvent, RunStatus } from "../../../shared/types.js";
+import { useNow } from "../../hooks/useNow.js";
 import { api } from "../../lib/api-client.js";
 import {
   type ParsedDiffFile,
   parseDiffToFiles,
 } from "../../lib/diff-parser.js";
+import {
+  type ChatItem,
+  mapEventsToChatItems,
+} from "../../lib/run-chat-items.js";
+import { runNow } from "../../lib/run-now.js";
+import { runStatusUi } from "../../lib/run-status-ui.js";
+import { AlertDialog } from "../overlays/AlertDialog.js";
+import { Button } from "../ui/Button.js";
 import { DiffModal } from "./DiffModal.js";
-
-export interface ChatAction {
-  label: string;
-  action:
-    | "approve"
-    | "restart"
-    | "abort"
-    | "requeue"
-    | "confirm_rework"
-    | string;
-  variant: "primary" | "secondary" | "danger";
-  notes?: string;
-}
-
-export interface DiffSummaryItem {
-  file: string;
-  added: number;
-  removed: number;
-}
-
-export interface ChatMessage {
-  id: string;
-  role: "agent" | "user" | "system";
-  text: string;
-  timestamp: string;
-  contextCard?: {
-    title: string;
-    items: string[];
-  };
-  actions?: ChatAction[];
-  diffSummary?: DiffSummaryItem[];
-}
+import { RunChatRow } from "./RunChatItem.js";
+import { type CheckpointAction, RunCheckpointBar } from "./RunCheckpointBar.js";
+import { RunNowHeader } from "./RunNowHeader.js";
 
 export interface RunChatProps {
   run: Run;
   events: RunEvent[];
-  onApprove?: () => void;
-  onRestart?: () => void;
-  onAbort?: () => void;
-  onRequeue?: (notes?: string) => void;
-  isTransitioning?: boolean;
+  /** Called with the checkpoint action; a rework carries the reader's notes. */
+  onAction?: (action: CheckpointAction, notes?: string) => void;
+  /** The checkpoint action in flight, if any (optimistic pending label). */
+  pending?: CheckpointAction | null;
+  /** True when the last checkpoint action raced with the run and lost. */
+  conflict?: boolean;
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** Runs of progress lines this long fold into one group the reader can open (#261). */
+const GROUP_MIN = 3;
+/** How close to the bottom still counts as following the chat. */
+const AT_BOTTOM_PX = 48;
+
+type Row =
+  | { kind: "item"; item: ChatItem }
+  | { kind: "group"; id: string; items: ChatItem[] };
+
+/** Folds consecutive progress and output lines into groups; every other item is its own row. */
+export function groupRows(items: readonly ChatItem[]): Row[] {
+  const rows: Row[] = [];
+  let run: ChatItem[] = [];
+  const flush = () => {
+    if (run.length >= GROUP_MIN) {
+      rows.push({ kind: "group", id: `group-${run[0]?.id ?? ""}`, items: run });
+    } else {
+      for (const item of run) rows.push({ kind: "item", item });
+    }
+    run = [];
+  };
+  for (const item of items) {
+    if (item.kind === "progress" || item.kind === "output") {
+      run.push(item);
+    } else {
+      flush();
+      rows.push({ kind: "item", item });
+    }
+  }
+  flush();
+  return rows;
 }
 
-function statusToSystemText(status: string, eventText?: string): string {
-  if (eventText?.trim()) return eventText.trim();
-  switch (status) {
-    case "preparing":
-      return "Preparing workspace and environment...";
-    case "understanding":
-      return "🔍 Analyzing codebase and requirements...";
-    case "planning":
-      return "🔄 Moving to planning phase...";
-    case "executing":
-      return "⚙️ Execution started — Ralph loop active";
-    case "awaiting_understanding_approval":
-      return "📋 Codebase analysis complete — review required";
-    case "awaiting_plan_approval":
-      return "📋 Implementation plan ready — review required";
-    case "awaiting_review":
-      return "🔍 Implementation finished — review changes";
-    case "ready_for_pr":
-      return "✅ Verification passed — ready for pull request";
-    case "pr_created":
-      return "🎉 Pull request created";
-    case "stopped":
-      return "⏹️ Run stopped by operator";
-    case "failed":
-      return "❌ Run execution failed";
-    default:
-      return `Status changed to ${status}`;
+/** The line the chat shows once a button has been pressed, before the run moves on. */
+function resolvedTextFor(
+  action: CheckpointAction,
+  status: RunStatus,
+): string | null {
+  switch (action) {
+    case "approve":
+      return status === "awaiting_review"
+        ? "Changes approved — opening a pull request"
+        : "Approved";
+    case "restart":
+      return "Changes requested";
+    case "deliver":
+      return "Opening a pull request";
+    case "resume":
+      return "Resuming the run";
+    case "abandon":
+      return "Abandoned";
+    case "start-new-run":
+    case "requeue":
+    case "confirm-rework":
+      return null;
   }
 }
 
-function buildInitialMessages(run: Run): ChatMessage[] {
-  const messages: ChatMessage[] = [];
-  const now = run.startedAt || new Date().toISOString();
-  const ctx: ImplementationContext | null = run.implementationContext;
+/** Keeps the scroll position while the reader is up the chat, and offers Jump to latest. */
+function useScrollFollow(itemCount: number) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true);
+  const [unseen, setUnseen] = useState(false);
 
-  // Run start greeting
-  messages.push({
-    id: "system-run-start",
-    role: "system",
-    text: `Starting run for #${run.ticket.id} — ${run.ticket.title}`,
-    timestamp: now,
-  });
+  const scrollToBottom = () => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  };
 
-  if (STATUS_TO_STAGE[run.status] === "prepare") {
-    messages.push({
-      id: "agent-preparing",
-      role: "agent",
-      text: `I'm setting up the workspace and initializing branch factory/${run.ticket.id.toLowerCase()}. Give me a moment to prepare the environment.`,
-      timestamp: now,
-    });
-    return messages;
-  }
-
-  if (run.status === "understanding") {
-    messages.push({
-      id: "agent-understanding",
-      role: "agent",
-      text: "I'm setting up the workspace and analyzing the codebase. I'll walk you through what I find when I'm done.",
-      timestamp: now,
-    });
-    return messages;
-  }
-
-  if (run.status === "planning") {
-    messages.push({
-      id: "agent-planning",
-      role: "agent",
-      text: "I'm synthesizing our context analysis into a concrete implementation plan.",
-      timestamp: now,
-    });
-    return messages;
-  }
-
-  if (run.status === "executing") {
-    messages.push({
-      id: "system-executing",
-      role: "system",
-      text: "⚙️ Execution started — Ralph loop running",
-      timestamp: now,
-    });
-    messages.push({
-      id: "agent-executing",
-      role: "agent",
-      text: "I'm actively implementing the changes in the worktree. I'll let you know as soon as the test suite verifies the work.",
-      timestamp: now,
-    });
-    return messages;
-  }
-
-  if (run.status === "awaiting_plan_approval") {
-    messages.push({
-      id: "agent-intro-plan",
-      role: "agent",
-      text: "I've drafted a plan based on our context analysis. Let me know if the steps make sense or if you want to tweak the approach before I start coding.",
-      timestamp: now,
-    });
-    if (run.plan) {
-      messages.push({
-        id: "agent-plan",
-        role: "agent",
-        text: run.plan,
-        timestamp: now,
-      });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: follow new items when the count changes
+  useEffect(() => {
+    if (atBottomRef.current) {
+      scrollToBottom();
+    } else {
+      setUnseen(true);
     }
-    messages.push({
-      id: "agent-grill-plan",
-      role: "agent",
-      text: "Does this plan look correct? Are there any missing steps or edge cases?\n\nWhen you're satisfied, approve to move to execution.",
-      timestamp: now,
-      actions: [
-        { label: "Approve Plan", action: "approve", variant: "primary" },
-        { label: "Revise Plan", action: "restart", variant: "secondary" },
-        { label: "Abort", action: "abort", variant: "danger" },
-      ],
-    });
-    return messages;
+  }, [itemCount]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    atBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_PX;
+    if (atBottomRef.current) setUnseen(false);
+  };
+
+  const jumpToLatest = () => {
+    atBottomRef.current = true;
+    setUnseen(false);
+    scrollToBottom();
+  };
+
+  return { scrollRef, onScroll, unseen, jumpToLatest };
+}
+
+/** The line the reader sees when the model could not be reached at all (no event was recorded). */
+const UNREACHABLE_LINE = "Couldn't reach the model. Check Settings › Models.";
+
+const SETTINGS_MODELS = "Settings › Models";
+
+/** The message with its "Settings › Models" pointer made a link to that pane (#263). */
+function withSettingsLink(message: string): ReactNode {
+  const at = message.indexOf(SETTINGS_MODELS);
+  if (at === -1) return message;
+  return (
+    <>
+      {message.slice(0, at)}
+      <Link to="/settings?tab=models">{SETTINGS_MODELS}</Link>
+      {message.slice(at + SETTINGS_MODELS.length)}
+    </>
+  );
+}
+
+/** A failed send, kept until it is retried or the server records its own failure event (#263). */
+interface SendFailure {
+  /** The message to re-send on Retry. */
+  text: string;
+  message: string;
+  /** How many error events the run had when the send started. */
+  errorsBefore: number;
+}
+
+/** The text of the nearest message the reader sent before `index`, or null. */
+function messageBefore(
+  items: readonly ChatItem[],
+  index: number,
+): string | null {
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (item?.kind === "message" && item.role === "user") return item.text;
   }
-
-  if (run.status === "awaiting_review") {
-    messages.push({
-      id: "agent-intro-review",
-      role: "agent",
-      text: "I've finished implementing the changes and test verification passed. Let's review the changes before opening a pull request.",
-      timestamp: now,
-    });
-
-    const parsedDiff = parseDiffToFiles(run.diff);
-    if (parsedDiff.length > 0) {
-      messages.push({
-        id: "agent-diff-summary",
-        role: "agent",
-        text: `Here is a summary of ${parsedDiff.length} modified file${parsedDiff.length === 1 ? "" : "s"}. Click any file to view line-by-line diffs:`,
-        timestamp: now,
-        diffSummary: parsedDiff.map((f) => ({
-          file: f.file,
-          added: f.added,
-          removed: f.removed,
-        })),
-      });
-    }
-
-    messages.push({
-      id: "agent-review-actions",
-      role: "agent",
-      text: "Does the implementation look ready to open a pull request, or does anything need rework?",
-      timestamp: now,
-      actions: [
-        { label: "Approve → PR", action: "approve", variant: "primary" },
-        { label: "Request Rework", action: "requeue", variant: "secondary" },
-      ],
-    });
-    return messages;
-  }
-
-  // Default: understanding approval gate messages
-  messages.push({
-    id: "agent-intro",
-    role: "agent",
-    text: "I've finished analyzing the codebase for this ticket. Let me walk you through what I found — feel free to ask questions or challenge anything before we move forward.",
-    timestamp: now,
-  });
-
-  if (ctx) {
-    if (ctx.relevantFiles && ctx.relevantFiles.length > 0) {
-      messages.push({
-        id: "agent-files",
-        role: "agent",
-        text: `I identified ${ctx.relevantFiles.length} relevant file${ctx.relevantFiles.length === 1 ? "" : "s"} that will likely need changes:`,
-        timestamp: now,
-        contextCard: {
-          title: "Relevant Files",
-          items: ctx.relevantFiles.slice(0, 12),
-        },
-      });
-    }
-
-    if (ctx.constraints && ctx.constraints.length > 0) {
-      const filteredConstraints = ctx.constraints.filter((c) => {
-        if (!c?.trim()) return false;
-        const trimmed = c.trim();
-        if (/^Criterion:\s*[-–—]?\s*$/.test(trimmed)) return false;
-        if (/^Test command must pass:\s*["']\s*["']$/.test(trimmed))
-          return false;
-        if (/^Typecheck command must pass:\s*["']\s*["']$/.test(trimmed))
-          return false;
-        if (/^Lint command must pass:\s*["']\s*["']$/.test(trimmed))
-          return false;
-        return true;
-      });
-
-      if (filteredConstraints.length > 0) {
-        messages.push({
-          id: "agent-constraints",
-          role: "agent",
-          text: "I also found some constraints and patterns to respect:",
-          timestamp: now,
-          contextCard: {
-            title: "Constraints",
-            items: filteredConstraints,
-          },
-        });
-      }
-    }
-
-    if (ctx.risks && ctx.risks.length > 0) {
-      messages.push({
-        id: "agent-risks",
-        role: "agent",
-        text: "A few risks I want to flag:",
-        timestamp: now,
-        contextCard: {
-          title: "Risks",
-          items: ctx.risks,
-        },
-      });
-    }
-
-    if (ctx.architecturalNotes) {
-      messages.push({
-        id: "agent-arch",
-        role: "agent",
-        text: ctx.architecturalNotes,
-        timestamp: now,
-      });
-    }
-  }
-
-  messages.push({
-    id: "agent-grill",
-    role: "agent",
-    text: "Does this analysis match your understanding? Is there anything I'm missing, any edge cases I should watch for, or any constraints I haven't accounted for?\n\nWhen you're satisfied, approve to move to planning.",
-    timestamp: now,
-    actions: [
-      { label: "Approve & Continue", action: "approve", variant: "primary" },
-      { label: "Restart Analysis", action: "restart", variant: "secondary" },
-      { label: "Abort", action: "abort", variant: "danger" },
-    ],
-  });
-
-  return messages;
+  return null;
 }
 
 export function RunChat({
   run,
   events,
-  onApprove,
-  onRestart,
-  onAbort,
-  onRequeue,
-  isTransitioning,
+  onAction,
+  pending = null,
+  conflict = false,
 }: RunChatProps) {
-  const [initialMessages, setInitialMessages] = useState<ChatMessage[]>(() =>
-    buildInitialMessages(run),
-  );
+  const now = useNow();
+  const realItems = useMemo(() => mapEventsToChatItems(events), [events]);
+  const errorCount = realItems.filter((i) => i.kind === "error").length;
+  const errorCountRef = useRef(errorCount);
+  errorCountRef.current = errorCount;
+
+  // Lines the reader made in this view, before the worker's own events arrive.
+  const [localItems, setLocalItems] = useState<ChatItem[]>([]);
+  const localCount = useRef(0);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [hasStartedChat, setHasStartedChat] = useState(false);
-  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>(
-    [],
-  );
-  const [resolvedActions, setResolvedActions] = useState<
-    Record<string, string>
-  >({});
+  const [failure, setFailure] = useState<SendFailure | null>(null);
+  const [abandonOpen, setAbandonOpen] = useState(false);
+  const [reworkPrompt, setReworkPrompt] = useState(false);
+  const [pendingRework, setPendingRework] = useState<string | null>(null);
+  const [resolved, setResolved] = useState<string | null>(null);
   const [activeDiffFile, setActiveDiffFile] = useState<ParsedDiffFile | null>(
     null,
   );
-  const [reworkPromptActive, setReworkPromptActive] = useState(false);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // The last message sent from this view: what Retry re-sends when no earlier message is in the chat.
+  const lastSentRef = useRef<string | null>(null);
 
   const parsedDiffFiles = useMemo(() => parseDiffToFiles(run.diff), [run.diff]);
 
-  // Update initial messages when run status advances
+  // A new status starts the chat's pending steps over: they answered the old status.
   const lastStatusRef = useRef(run.status);
   useEffect(() => {
     if (lastStatusRef.current !== run.status) {
       lastStatusRef.current = run.status;
-      setInitialMessages(buildInitialMessages(run));
-      setHasStartedChat(false);
-      setReworkPromptActive(false);
+      setReworkPrompt(false);
+      setPendingRework(null);
+      setResolved(null);
     }
-  }, [run]);
+  }, [run.status]);
 
-  // The server only accepts chat during approval gates; the shared policy
-  // gates the input on the same action guard.
   const isApprovalGate = canRunAction(run.status, "chat");
 
-  // Conversation turns and status transitions, read straight from the typed event union.
-  const historyMessages: ChatMessage[] = events.flatMap((e): ChatMessage[] => {
-    switch (e.type) {
-      case "status":
-        return [
-          {
-            id: `status-${e.id}`,
-            role: "system",
-            text: statusToSystemText(e.payload.status, e.payload.text),
-            timestamp: e.timestamp,
-          },
-        ];
-      case "chat_user":
-      case "chat_agent":
-        return [
-          {
-            id: String(e.id),
-            role: e.type === "chat_user" ? "user" : "agent",
-            text: e.payload.text,
-            timestamp: e.timestamp,
-          },
-        ];
-      default:
-        return [];
-    }
-  });
-
-  // Combine static intro + db history + optimistic
-  const combinedMessages = [...initialMessages, ...historyMessages];
-  const historyTexts = new Set(historyMessages.map((m) => m.text));
-  const finalMessages = [
-    ...combinedMessages,
-    ...optimisticMessages.filter((m) => !historyTexts.has(m.text)),
-  ];
-
-  // Auto-scroll on new messages
-  // biome-ignore lint/correctness/useExhaustiveDependencies: auto-scroll on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [finalMessages.length]);
-
-  const handleActionClick = (msgId: string, actionItem: ChatAction) => {
-    if (actionItem.action === "approve") {
-      setResolvedActions((prev) => ({
-        ...prev,
-        [msgId]: actionItem.label.includes("PR")
-          ? "Implementation approved → PR"
-          : "Approved",
-      }));
-      onApprove?.();
-    } else if (actionItem.action === "restart") {
-      setResolvedActions((prev) => ({
-        ...prev,
-        [msgId]: "Restart requested",
-      }));
-      onRestart?.();
-    } else if (actionItem.action === "abort") {
-      setResolvedActions((prev) => ({
-        ...prev,
-        [msgId]: "Aborted",
-      }));
-      onAbort?.();
-    } else if (actionItem.action === "requeue") {
-      setReworkPromptActive(true);
-      const reworkMsg: ChatMessage = {
-        id: `agent-rework-ask-${Date.now()}`,
-        role: "agent",
-        text: "What specifically needs to change? Type your notes below and submit to confirm rework.",
-        timestamp: new Date().toISOString(),
-      };
-      setOptimisticMessages((prev) => [...prev, reworkMsg]);
-      setHasStartedChat(true);
-      setTimeout(() => {
-        inputRef.current?.focus();
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      }, 50);
-    } else if (actionItem.action === "confirm_rework") {
-      setResolvedActions((prev) => ({
-        ...prev,
-        [msgId]: "Rework confirmed",
-      }));
-      onRequeue?.(actionItem.notes);
-    }
+  const addLocal = (make: (id: string, at: string) => ChatItem) => {
+    localCount.current += 1;
+    const item = make(`local-${localCount.current}`, new Date().toISOString());
+    setLocalItems((prev) => [...prev, item]);
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || sending || !isApprovalGate) return;
+  // A reader's own message stays here only until the worker's copy of it arrives.
+  const realUserTexts = new Set(
+    realItems.flatMap((i) =>
+      i.kind === "message" && i.role === "user" ? [i.text] : [],
+    ),
+  );
+  const items: ChatItem[] = [
+    ...realItems,
+    ...localItems.filter(
+      (i) => !(i.kind === "message" && realUserTexts.has(i.text)),
+    ),
+  ];
+  const rows = groupRows(items);
 
-    setHasStartedChat(true);
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      text,
-      timestamp: new Date().toISOString(),
-    };
-    setOptimisticMessages((prev) => [...prev, userMsg]);
-    setInput("");
+  const scroll = useScrollFollow(items.length);
 
-    // If rework prompt was active, offer confirmation button
-    if (reworkPromptActive) {
-      setReworkPromptActive(false);
-      const confirmMsg: ChatMessage = {
-        id: `agent-confirm-rework-${Date.now()}`,
-        role: "agent",
-        text: `I've noted your rework feedback:\n\n"${text}"\n\nReady to send this run back to planning?`,
-        timestamp: new Date().toISOString(),
-        actions: [
-          {
-            label: "Confirm Rework",
-            action: "confirm_rework",
-            variant: "primary",
-            notes: text,
-          },
-        ],
-      };
-      setOptimisticMessages((prev) => [...prev, confirmMsg]);
-      return;
-    }
-
+  // Sends a message to the Builder. A refused or unreachable reply stays a system line with Retry.
+  const send = async (text: string, echo: boolean) => {
+    lastSentRef.current = text;
+    if (echo)
+      addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
+    setFailure(null);
+    const errorsBefore = errorCountRef.current;
     setSending(true);
     try {
-      await api.chatWithRun(run.id, text);
+      const reply = await api.chatWithRun(run.id, text);
+      if (!reply.ok) {
+        setFailure({ text, message: reply.message, errorsBefore });
+      }
     } catch {
-      const errorMsg: ChatMessage = {
-        id: `error-${Date.now()}`,
-        role: "agent",
-        text: "Sorry, I couldn't process that message. Please try again or approve to continue.",
-        timestamp: new Date().toISOString(),
-      };
-      setOptimisticMessages((prev) => [...prev, errorMsg]);
+      setFailure({ text, message: UNREACHABLE_LINE, errorsBefore });
     } finally {
       setSending(false);
     }
   };
 
-  const getPlaceholderText = () => {
-    if (reworkPromptActive) {
-      return "Describe the changes needed before replanning…";
+  const handleAction = (action: CheckpointAction) => {
+    // Abandoning cannot be undone: ask first, naming the branch (#262).
+    if (action === "abandon") {
+      setAbandonOpen(true);
+      return;
     }
-    if (run.status === "awaiting_understanding_approval") {
-      return "Ask about the analysis, challenge assumptions…";
+    if (action === "requeue") {
+      setReworkPrompt(true);
+      addLocal((id, at) => ({
+        id,
+        at,
+        kind: "notice",
+        text: "Describe the changes needed. Your next message goes back to planning.",
+        warning: false,
+      }));
+      setTimeout(() => inputRef.current?.focus(), 50);
+      return;
     }
-    if (run.status === "awaiting_plan_approval") {
-      return "Ask about the plan, challenge steps…";
+    if (action === "confirm-rework") {
+      onAction?.("requeue", pendingRework ?? undefined);
+      setPendingRework(null);
+      setResolved(resolvedTextFor("requeue", run.status));
+      return;
     }
-    if (run.status === "awaiting_review") {
-      return "Ask about modified files or request rework…";
-    }
-    if (run.status === "executing") {
-      return "Waiting for agent to finish executing changes…";
-    }
-    if (run.status === "planning") {
-      return "Waiting for agent to finish drafting plan…";
-    }
-    if (run.status === "understanding") {
-      return "Waiting for agent to finish codebase analysis…";
-    }
-
-    if (DELIVERY_RUN_STATUSES.has(run.status)) {
-      return "Pull request stage reached.";
-    }
-    if (UNSUCCESSFUL_TERMINAL_RUN_STATUSES.has(run.status)) {
-      return "Run execution ended.";
-    }
-    return `Waiting for agent (${run.status})…`;
+    onAction?.(action);
+    setResolved(resolvedTextFor(action, run.status));
   };
 
-  const getHeaderTitle = () => {
-    if (run.status === "awaiting_plan_approval") return "Plan Review";
-    if (run.status === "awaiting_understanding_approval")
-      return "Context Synthesis";
-    if (run.status === "awaiting_review") return "Implementation Review";
-    if (run.status === "executing") return "Implementation Execution";
-    if (run.status === "planning") return "Plan Drafting";
-    if (run.status === "understanding") return "Codebase Understanding";
+  // Return and Mod-Enter send; Shift-Return is a new line.
+  const submitInput = () => {
+    const text = input.trim();
+    if (!text || sending || !isApprovalGate || pending !== null) return;
+    setInput("");
 
-    return "Agent Workspace";
+    if (reworkPrompt) {
+      addLocal((id, at) => ({ id, at, kind: "message", role: "user", text }));
+      setReworkPrompt(false);
+      setPendingRework(text);
+      return;
+    }
+
+    void send(text, true);
   };
 
-  const getHeaderSubtitle = () => {
-    if (isApprovalGate) return "Approval gate · input active";
-    return `Phase: ${runStatusLabel(run.status)}`;
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    submitInput();
   };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    const withMod = e.metaKey || e.ctrlKey;
+    if (e.shiftKey && !withMod) return;
+    e.preventDefault();
+    submitInput();
+  };
+
+  const ui = runStatusUi(run.status);
+  const nowFacts = runNow(run, events);
+  const placeholderText = reworkPrompt
+    ? "Describe the changes needed before replanning…"
+    : ui.placeholder;
+  // The failure line shows until the run records its own error for it, which then takes its place.
+  const showFailure = failure !== null && errorCount <= failure.errorsBefore;
+  const canRetry = isApprovalGate && !sending && pending === null;
+
+  const openDiffFile = (file: DiffFileSummary) => {
+    const found = parsedDiffFiles.find((f) => f.file === file.path);
+    setActiveDiffFile(
+      found ?? {
+        file: file.path,
+        added: file.added,
+        removed: file.removed,
+        hunks: "",
+      },
+    );
+  };
+
+  // A trailing error can be retried. Lines the reader just made here do not count as coming
+  // after it (the worker's own copy has not arrived yet), and when no earlier message is in the
+  // chat the message sent from this view goes again.
+  const lastRealIndex = realItems.length - 1;
+  const retryTextFor = (item: ChatItem): string | null =>
+    canRetry && item.kind === "error" && item.id === items[lastRealIndex]?.id
+      ? (messageBefore(items, lastRealIndex) ?? lastSentRef.current)
+      : null;
 
   return (
     <div className="run-chat" id="understanding-chat">
-      {/* Header — Clean, title and status only */}
-      <div className="run-chat-header" id="understanding-chat-header">
-        <div className="run-chat-header-info">
-          <div className="run-chat-avatar">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 2a5 5 0 0 1 5 5v3a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5Z" />
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            </svg>
-          </div>
-          <div className="run-chat-meta">
-            <strong>{getHeaderTitle()}</strong>
-            <span>{getHeaderSubtitle()}</span>
-          </div>
-        </div>
-      </div>
+      <RunNowHeader run={run} now={nowFacts} />
 
-      {/* Messages */}
-      <div className="run-chat-messages" ref={scrollRef}>
-        {finalMessages.map((msg) => {
-          if (msg.role === "system") {
+      <div className="run-chat-timeline">
+        <div
+          className="run-chat-messages"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          ref={scroll.scrollRef}
+          onScroll={scroll.onScroll}
+        >
+          {rows.length === 0 && (
+            <p className="run-chat-empty">Waiting for the first update…</p>
+          )}
+          {rows.map((row) => {
+            if (row.kind === "item") {
+              const retryText = retryTextFor(row.item);
+              return (
+                <RunChatRow
+                  key={row.item.id}
+                  item={row.item}
+                  now={now}
+                  onOpenFile={openDiffFile}
+                  onRetry={
+                    retryText === null
+                      ? undefined
+                      : () => void send(retryText, false)
+                  }
+                />
+              );
+            }
             return (
-              <div key={msg.id} className="imsg-system-divider">
-                <div className="imsg-system-line" />
-                <div className="imsg-system-pill">
-                  <span>{msg.text}</span>
-                  <span className="imsg-system-time">
-                    {formatTime(msg.timestamp)}
-                  </span>
-                </div>
-                <div className="imsg-system-line" />
-              </div>
+              <details key={row.id} className="run-chat-group">
+                <summary>{`${row.items.length} progress updates`}</summary>
+                {row.items.map((item) => (
+                  <RunChatRow
+                    key={item.id}
+                    item={item}
+                    now={now}
+                    onOpenFile={openDiffFile}
+                  />
+                ))}
+              </details>
             );
-          }
-
-          return (
-            <div
-              key={msg.id}
-              className={`imsg-row ${msg.role === "agent" ? "imsg-agent" : "imsg-user"}`}
-            >
-              <div className="imsg-bubble">
-                {msg.text}
-
-                {/* Context Card */}
-                {msg.contextCard && (
-                  <div className="imsg-context-card">
-                    <h5>{msg.contextCard.title}</h5>
-                    <ul>
-                      {msg.contextCard.items.map((item) => (
-                        <li key={item}>
-                          <code>{item}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Diff Summary File List */}
-                {msg.diffSummary && msg.diffSummary.length > 0 && (
-                  <div className="imsg-diff-summary">
-                    {msg.diffSummary.map((item) => (
-                      <button
-                        key={item.file}
-                        type="button"
-                        className="diff-file-row"
-                        onClick={() => {
-                          const found = parsedDiffFiles.find(
-                            (f) => f.file === item.file,
-                          );
-                          setActiveDiffFile(
-                            found || {
-                              file: item.file,
-                              added: item.added,
-                              removed: item.removed,
-                              hunks: "",
-                            },
-                          );
-                        }}
-                      >
-                        <div className="diff-file-info">
-                          <span className="diff-file-icon">📄</span>
-                          <span className="diff-file-name">{item.file}</span>
-                        </div>
-                        <div className="diff-file-stats">
-                          <span className="diff-file-add">{`+${item.added}`}</span>
-                          <span className="diff-file-remove">{`−${item.removed}`}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Inline Actions */}
-                {msg.actions && msg.actions.length > 0 && (
-                  <div className="imsg-actions">
-                    {resolvedActions[msg.id] ? (
-                      <div className="imsg-action-resolved">
-                        <span className="imsg-action-resolved-check">✓</span>
-                        <span>{resolvedActions[msg.id]}</span>
-                      </div>
-                    ) : (
-                      msg.actions.map((act) => (
-                        <button
-                          key={act.action}
-                          type="button"
-                          className={`imsg-action-btn imsg-action-${act.variant}`}
-                          disabled={isTransitioning}
-                          onClick={() => handleActionClick(msg.id, act)}
-                        >
-                          {act.label}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-              <span className="imsg-timestamp">
-                {formatTime(msg.timestamp)}
-              </span>
+          })}
+          {showFailure && failure && (
+            <div className="run-chat-system run-chat-system-error" role="alert">
+              <span>{withSettingsLink(failure.message)}</span>
+              {canRetry && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => void send(failure.text, false)}
+                >
+                  Retry
+                </Button>
+              )}
             </div>
-          );
-        })}
-        {sending && (
-          <div className="imsg-typing">
-            <span className="imsg-typing-dot" />
-            <span className="imsg-typing-dot" />
-            <span className="imsg-typing-dot" />
+          )}
+          {resolved && (
+            <div className="run-chat-system" data-kind="resolved">
+              <span>{resolved}</span>
+            </div>
+          )}
+          {sending && (
+            <div
+              className="run-chat-typing"
+              role="status"
+              aria-label="The agent is replying"
+            >
+              <span className="run-chat-typing-dot" />
+              <span className="run-chat-typing-dot" />
+              <span className="run-chat-typing-dot" />
+            </div>
+          )}
+        </div>
+        {scroll.unseen && (
+          <div className="run-chat-jump">
+            <Button variant="secondary" size="sm" onPress={scroll.jumpToLatest}>
+              Jump to latest
+            </Button>
           </div>
         )}
       </div>
 
-      {/* Breathing room "Start Chat" banner when gate first arrives */}
-      {isApprovalGate && !hasStartedChat && (
-        <div className="runchat-gate-banner" id="runchat-gate-banner">
-          <div className="runchat-gate-text">
-            <strong>Stage ready for review</strong>
-            <span>
-              Take your time to review. When ready, click Start Chat to drill
-              in.
-            </span>
-          </div>
-          <button
-            type="button"
-            id="btn-start-chat"
-            className="btn-primary btn-sm"
-            onClick={() => {
-              setHasStartedChat(true);
-              setTimeout(() => {
-                inputRef.current?.focus();
-                if (scrollRef.current) {
-                  scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                }
-              }, 50);
-            }}
-          >
-            Start Chat
-          </button>
-        </div>
-      )}
+      <RunCheckpointBar
+        status={run.status}
+        pending={pending}
+        conflict={conflict}
+        reworkReady={pendingRework !== null}
+        onAction={handleAction}
+      />
 
-      {/* Chat Input */}
-      <form className="run-chat-input" onSubmit={handleSend}>
-        <input
+      <form className="run-chat-input" onSubmit={handleSubmit}>
+        <textarea
           ref={inputRef}
           id="input-understanding-chat"
-          type="text"
-          placeholder={getPlaceholderText()}
+          aria-label="Message"
+          rows={1}
+          placeholder={placeholderText}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={!isApprovalGate || sending || isTransitioning}
+          onKeyDown={handleKeyDown}
+          disabled={!isApprovalGate || pending !== null}
         />
         <button
           type="submit"
-          className="imsg-send-btn"
+          className="run-chat-send"
           disabled={
-            !isApprovalGate || !input.trim() || sending || isTransitioning
+            !isApprovalGate || !input.trim() || sending || pending !== null
           }
-          aria-label="Send message"
+          aria-label="Send"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M22 2 11 13" />
-            <path d="M22 2 15 22 11 13 2 9l20-7Z" />
+          <svg className="icon icon-md" aria-hidden="true">
+            <use href="/assets/icons/sprite.svg#icon-send" />
           </svg>
         </button>
       </form>
 
-      {/* Diff Modal */}
+      <AlertDialog
+        id="alert-abandon-run"
+        isOpen={abandonOpen}
+        onClose={() => setAbandonOpen(false)}
+        title={`Abandon run on ${run.branch || "this branch"}?`}
+        description="Abandoning ends this run. It can't be undone."
+        confirmText="Abandon Run"
+        cancelText="Keep Run"
+        variant="danger"
+        onConfirm={() => {
+          onAction?.("abandon");
+          setResolved(resolvedTextFor("abandon", run.status));
+        }}
+      />
+
       <DiffModal
         isOpen={activeDiffFile !== null}
         file={activeDiffFile?.file || null}

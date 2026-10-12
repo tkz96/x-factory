@@ -1,19 +1,34 @@
-// src/frontend/components/queue/TicketCard.tsx — Ticket card component with prefill action (XFM-47).
+// src/frontend/components/queue/TicketCard.tsx — A ticket in the Tickets list
+// (XFM-47, #260). Its action follows the ticket's run: Open Run when a run is
+// active, Start New Run when every run has finished, Start Run otherwise.
 
 import "./TicketCard.css";
 
+import { Link, useNavigate } from "react-router-dom";
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
+import type { TicketRunLink } from "../../lib/ticket-runs.js";
+import { Button } from "../ui/Button.js";
 
 interface TicketCardProps {
   ticket: Ticket;
+  /** The project the ticket belongs to: its run starts there (#260). */
+  projectId: string;
+  runLink: TicketRunLink;
 }
 
-export function TicketCard({ ticket }: TicketCardProps) {
+export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
   const { openNewRunModal } = useModal();
+  const navigate = useNavigate();
+  const activeRunId = runLink.kind === "active" ? runLink.runId : null;
 
   const handleSelect = () => {
+    if (activeRunId) {
+      navigate(`/runs/${activeRunId}`);
+      return;
+    }
     openNewRunModal({
+      projectId,
       ticketId: ticket.id,
       ticketTitle: ticket.title,
       criteria: ticket.acceptanceCriteria,
@@ -27,6 +42,7 @@ export function TicketCard({ ticket }: TicketCardProps) {
     // biome-ignore lint/a11y/useSemanticElements: Composite card contains nested action buttons
     <div
       className="ticket-card"
+      data-list-row
       onClick={handleSelect}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -45,17 +61,29 @@ export function TicketCard({ ticket }: TicketCardProps) {
             <span className="ticket-provider">{ticket.provider}</span>
           )}
         </div>
-        <button
-          type="button"
-          className="btn-primary btn-sm btn-start-ticket"
-          data-id={ticket.id}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSelect();
-          }}
-        >
-          Start Run
-        </button>
+        {activeRunId ? (
+          <Link
+            to={`/runs/${activeRunId}`}
+            className="ui-button ui-button--secondary ui-button--sm btn-start-ticket"
+            data-id={ticket.id}
+            onClick={(e) => e.stopPropagation()}
+          >
+            Open Run
+          </Link>
+        ) : (
+          <Button
+            variant="primary"
+            size="sm"
+            className="btn-start-ticket"
+            data-id={ticket.id}
+            onPress={handleSelect}
+            // The card around it is a press target too (#260): the button's own
+            // click must not reach it, or the run would open twice.
+            onClick={(event) => event.stopPropagation()}
+          >
+            {runLink.kind === "finished" ? "Start New Run" : "Start Run"}
+          </Button>
+        )}
       </div>
 
       <h3 className="ticket-title">{ticket.title}</h3>

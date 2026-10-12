@@ -39,6 +39,34 @@ The user receives the full execution history first, followed immediately by live
 
 Finished runs use the same endpoint rather than a REST events endpoint. The replay already carries the full history, so a second read path would only duplicate it. The client subscribes to a finished run in replay-only mode: the server closes the stream after the history, and the client closes it on error instead of letting `EventSource` reconnect and replay the same history forever.
 
+## App-Wide Event Stream and Consistent Snapshot
+
+For cross-run telemetry, live counts, runs filtering, and notifications (spec #241, #257), the API process serves a read-only app-wide stream and snapshot backed by SQLite.
+
+### 1. App-Wide Envelope
+The app-wide stream defines its own envelope rather than reusing the per-run wire event:
+- Envelope ID and SSE `id:` field use the global `run_events.id` integer primary key.
+- The envelope carries: `id` (global event ID), `runId`, `sequence` (per-run sequence number), `type`, `payload`, `time` (creation timestamp), `ticket` (`{ id, title, description, acceptanceCriteria }`), and `project` (`{ id, name }`).
+- The per-run stream (`GET /api/runs/:id/events`) remains unchanged with its per-run sequence numbers.
+
+### 2. Consistent Snapshot (`GET /api/events/snapshot`)
+A client on initial page load or full reload fetches a fresh snapshot in one SQLite read transaction:
+- **Cursor**: The highest global `run_events.id` included in the snapshot.
+- **Current Run Statuses**: Full list of current runs and their statuses.
+- **Needs-you Trigger Events**: For every run currently in a Needs-you status (`awaiting_understanding_approval`, `awaiting_plan_approval`, `awaiting_review`, `ready_for_pr`, `recovery_required`), the snapshot includes the event that transitioned it into that status with **no age limit**. A run waiting 30 days retains its original triggering event ID.
+- **Finished History**: Limited to eligible finished events (`pr_created`, `pr_merged`, `failed`, `stopped`) committed at or below the cursor within a 7-day window, capped at 100 events. Older finished events are deliberately omitted.
+- **Pull Request Outcomes**: Pull request outcome events (`pr_merged` and `pr_closed`) are appended durably when detected by the worker, recording the PR URL, timestamp, and optional author. They do not alter the run's state-machine status (`pr_created`), but stream through the app-wide channel and update `pullRequestOutcome` directly in the client cache.
+- **No Gap**: Subscribing to `GET /api/events?last_event_id=<cursor>` guarantees that no event committed after the snapshot is missed.
+
+### 3. Cursor & Reconnection Rules (`GET /api/events`)
+All connections share one poller in the API process, and a stale cursor is replayed in pages of 500 events, so many open tabs cost one query per tick.
+
+- **Precedence**: The server resumes after the query-parameter cursor (`?last_event_id=<id>`) when present, otherwise after the `Last-Event-ID` header. `last_event_id` is the only query name; the endpoint reference is [`events-api.md`](../reference/events-api.md).
+- **Lower Wins**: When both query cursor and `Last-Event-ID` header are present and valid, the server resumes after the lower value.
+- **Validation**: Only non-negative integers are valid cursors. Malformed or negative cursors count as absent.
+- **Snapshot Required**: If neither cursor is valid (or both absent), the request is rejected with HTTP 400 instructing the client to take a fresh snapshot.
+- **At-Least-Once Delivery**: All events strictly above the chosen cursor are delivered. Clients deduplicate events by global ID.
+
 ## Frontend State Synchronization
 
 The frontend single page application uses TanStack Query to manage server state in the browser.
@@ -119,6 +147,29 @@ user navigates backwards — is recorded with its enforcing test in
 provider journeys (GitHub-only, Azure dual-role, Jira tracker-only) drive the
 real wizard against a real server, so the contract is proved against the
 shipped stack rather than a fixture-shaped stand-in.
+
+## Event vocabulary
+
+Every event type in `RunEventPayloadMap` is the one shared description of the run's events.
+The worker produces the lifecycle and stage-detail events (`status`, `stage_evidence`,
+`verification`, `review`, `pr_step`), while `chat_user`, `chat_agent` and `user_feedback` are
+written by the API process on the user's behalf. Alongside the lifecycle events, a run emits
+events that describe what the stages did (#256):
+
+- **`plan_ready`** carries the plan text the `plan` stage produced, streamed before the
+  approval gate.
+- **`diff_summary`** carries the changed files with their added and removed line counts,
+  parsed once by `src/shared/diff-summary.ts` — the same parse the run page renders hunks
+  from.
+- **`review_activity`** carries the read-only review session's tool calls and answer text,
+  which used to be dropped. A review error is emitted as an `error` event instead.
+- **`ralph_progress`** always carries the loop `iteration` its line belongs to.
+
+Detail events never move the run: the reducer in `run-state.ts` ignores them, and only
+`status`, `verification` and `review` change run fields. A `failed` status additionally
+carries the structured `failure` reason described in
+[`state-machine-matrix.md`](../reference/state-machine-matrix.md) §8.
+
 
 ## Optimistic Concurrency Control
 

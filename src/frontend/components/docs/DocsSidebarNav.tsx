@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
 import { api } from "../../lib/api-client.js";
+import { Button } from "../ui/Button.js";
 
 const SECURITY_ITEMS = [
   { id: "least-privilege", label: "Least Privilege" },
@@ -269,13 +270,13 @@ export function DocsSidebarNav({
                   &ldquo;lease&rdquo;, &ldquo;implementing&rdquo;, or
                   &ldquo;azure&rdquo;.
                 </p>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm"
-                  onClick={handleClearSearch}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={handleClearSearch}
                 >
                   Reset search
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="docs-search-results-list">
@@ -427,15 +428,11 @@ export function DocsSidebarNav({
       </nav>
 
       <div className="sidebar-footer">
-        <NavLink
-          to="/queue"
-          className="docs-back-link"
-          title="Return to Factory Workbench"
-        >
+        <NavLink to="/tickets" className="docs-back-link" title="Go to Tickets">
           <svg className="icon icon-sm" aria-hidden="true">
             <use href="/assets/icons/sprite.svg#icon-arrow-left" />
           </svg>
-          <span>Back to Workbench</span>
+          <span>Back to Tickets</span>
         </NavLink>
         <ThemeToggleButton
           id="docs-theme-toggle"
