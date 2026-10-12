@@ -751,6 +751,9 @@ describe("GitHub Provider Module (Ticket #138)", () => {
             },
           );
         }
+        if (urlStr.endsWith("/user")) {
+          return jsonResponse({ login: "someone-else" }, { status: 200 });
+        }
         if (urlStr.includes("/users/")) {
           return jsonResponse(
             [
@@ -774,11 +777,55 @@ describe("GitHub Provider Module (Ticket #138)", () => {
         repoOwner: "octocat",
       });
 
-      expect(calls.length).toBe(2);
+      expect(calls.length).toBe(3);
       expect(calls[0]).toContain("/orgs/octocat/repos");
-      expect(calls[1]).toContain("/users/octocat/repos");
+      expect(calls[1]).toMatch(/\/user$/);
+      expect(calls[2]).toContain("/users/octocat/repos");
       expect(repos).toHaveLength(1);
       expect(repos?.[0]?.name).toBe("personal-portfolio");
+    });
+
+    it("lists the token owner's private repositories when the owner is the token's own account", async () => {
+      // GitHub's /users/{owner}/repos never returns private repositories, even
+      // to their owner, so a personal account must be listed via /user/repos.
+      const calls: string[] = [];
+      const fakeFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const urlStr = String(url);
+        calls.push(urlStr);
+        if (urlStr.includes("/orgs/")) {
+          return jsonResponse({ message: "Not Found" }, { status: 404 });
+        }
+        if (urlStr.endsWith("/user")) {
+          return jsonResponse({ login: "OctoCat" }, { status: 200 });
+        }
+        if (urlStr.includes("/user/repos")) {
+          return jsonResponse(
+            [
+              {
+                id: 202,
+                name: "private-app",
+                full_name: "octocat/private-app",
+                clone_url: "https://github.com/octocat/private-app.git",
+                default_branch: "main",
+              },
+            ],
+            { status: 200 },
+          );
+        }
+        return jsonResponse([], { status: 200 });
+      }) as typeof fetch;
+
+      const provider = createGithubProvider({ fetchFn: fakeFetch });
+      const repos = await provider.listRepositories?.({
+        token: "ghp_token",
+        repoOwner: "octocat",
+      });
+
+      expect(calls.some((c) => c.includes("/users/octocat/repos"))).toBe(false);
+      expect(calls.at(-1)).toContain(
+        "/user/repos?per_page=100&affiliation=owner",
+      );
+      expect(repos?.map((r) => r.name)).toEqual(["private-app"]);
     });
 
     it("fetches authenticated user repos when no owner is configured", async () => {

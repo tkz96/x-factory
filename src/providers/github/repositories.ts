@@ -40,6 +40,29 @@ function mapToProviderRepo(item: RawGitHubRepo): ProviderRepository | null {
 }
 
 /**
+ * Whether `owner` is the account the token belongs to. GitHub's
+ * /users/{owner}/repos never returns private repositories, even to their
+ * owner, so that account's repositories must come from /user/repos instead.
+ */
+async function isTokenOwner(
+  root: string,
+  owner: string,
+  headers: Headers,
+  fetchFn: typeof fetch | HttpTransport | undefined,
+): Promise<boolean> {
+  if (!headers.has("authorization")) return false;
+  try {
+    const res = await githubFetch(`${root}/user`, { headers, fetchFn });
+    const login = (res.data as { login?: unknown } | null)?.login;
+    return (
+      typeof login === "string" && login.toLowerCase() === owner.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Lists repositories for an organization or authenticated user with pagination.
  */
 export async function listGitHubRepositories(
@@ -77,14 +100,16 @@ export async function listGitHubRepositories(
     try {
       res = await githubFetch(nextUrl, { headers, fetchFn });
     } catch (err) {
-      // If org probe failed with 404 on page 1, fallback to user endpoint
+      // If org probe failed with 404 on page 1, the owner is a user account.
       if (
         visitedUrls.size === 1 &&
         owner &&
         err instanceof GitHubHttpError &&
         err.status === 404
       ) {
-        const userUrl = `${root}/users/${encodeURIComponent(owner)}/repos?per_page=100&type=all`;
+        const userUrl = (await isTokenOwner(root, owner, headers, fetchFn))
+          ? `${root}/user/repos?per_page=100&affiliation=owner`
+          : `${root}/users/${encodeURIComponent(owner)}/repos?per_page=100&type=all`;
         res = await githubFetch(userUrl, { headers, fetchFn });
       } else {
         throw err;
