@@ -2,7 +2,7 @@
 
 Welcome to the X-Factory documentation suite.
 This documentation follows the **Diátaxis documentation framework** and **ASD-STE100 Simplified Technical English (STE)**.
-The content is partitioned into four distinct quadrants based on user needs.
+The content is partitioned into four distinct quadrants based on user needs, followed by a research archive.
 
 To work on the codebase, as a person or an agent, start with [`AGENTS.md`](../AGENTS.md). It holds the rules that must never break and links to the working guides in [`docs/agents/`](./agents/): quality gates, architecture invariants, frontend styling, the code graph, in-app verification and agent setup.
 
