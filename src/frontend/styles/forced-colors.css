@@ -246,6 +246,8 @@
   }
 
   :root .xf-tooltip,
+  :root .field-help-tooltip,
+  :root .field-help-tooltip code,
   :root .flow-node-badge,
   :root .flow-diagram-badge,
   :root .badge-accent,
