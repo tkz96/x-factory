@@ -42,8 +42,10 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
 
       {now.pullRequestUrl && (
         <div className="run-now-pr">
+          {/* An external link stays a link, dressed as the secondary button it
+              reads as (D1): the arrow says it leaves the app. */}
           <a
-            className="run-now-link"
+            className="run-now-link ui-button ui-button--secondary ui-button--sm"
             href={now.pullRequestUrl}
             target="_blank"
             rel="noopener noreferrer"
@@ -53,7 +55,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
           {now.pullRequestOutcome?.status === "merged" &&
             now.pullRequestOutcome.mergedAt && (
               <time
-                className="run-now-pr-time code-sub"
+                className="run-now-pr-time"
                 dateTime={now.pullRequestOutcome.mergedAt}
               >
                 {`Merged ${formatRelativeTime(now.pullRequestOutcome.mergedAt, Date.now())}`}
@@ -62,7 +64,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
           {now.pullRequestOutcome?.status === "closed" &&
             now.pullRequestOutcome.closedAt && (
               <time
-                className="run-now-pr-time code-sub"
+                className="run-now-pr-time"
                 dateTime={now.pullRequestOutcome.closedAt}
               >
                 {`Closed ${formatRelativeTime(now.pullRequestOutcome.closedAt, Date.now())}`}

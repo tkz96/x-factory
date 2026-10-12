@@ -1,11 +1,13 @@
 /* src/frontend/components/runs/RunChat.css — The run chat timeline (#261). Every value is a token. */
 
+/* The chat is one panel, like the inspector beside it (C2): a --radius-card
+   border, no shadow. */
 .run-chat {
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
   overflow: hidden;
   height: 100%;
   min-height: 0;
@@ -89,13 +91,13 @@
   color: var(--text-secondary);
 }
 
+/* An inner fill inside the panel: --bg-secondary, no border, --radius-sm (C3). */
 .run-chat-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--bg-secondary);
 }
 
@@ -279,11 +281,11 @@
 }
 
 .run-chat-typing-dot:nth-child(2) {
-  animation-delay: var(--duration-stagger);
+  animation-delay: var(--duration-typing-offset);
 }
 
 .run-chat-typing-dot:nth-child(3) {
-  animation-delay: calc(var(--duration-stagger) * 2);
+  animation-delay: calc(var(--duration-typing-offset) * 2);
 }
 
 @keyframes runChatTyping {

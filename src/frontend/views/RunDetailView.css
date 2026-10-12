@@ -79,8 +79,12 @@
 
   .workflow-stepper-footer {
     position: sticky;
-    bottom: 0;
-    padding: 0.5rem var(--space-3);
+    /* Above the fixed tab bar, so the strip is never hidden under it (F1). */
+    bottom: calc(
+      var(--tab-bar-height) +
+      env(safe-area-inset-bottom, var(--space-0))
+    );
+    padding: var(--space-2) var(--space-3);
   }
 }
 

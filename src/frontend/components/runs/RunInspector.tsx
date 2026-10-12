@@ -8,7 +8,7 @@ import { useState } from "react";
 import { summarizeDiff } from "../../../shared/diff-summary.js";
 import type { Run, RunEvent } from "../../../shared/types.js";
 import { Sheet } from "../overlays/index.js";
-import { Button } from "../ui/Button.js";
+import { IconButton } from "../ui/IconButton.js";
 import { ChatThread } from "./ChatThread.js";
 import { RunEvidence } from "./RunEvidence.js";
 
@@ -97,14 +97,17 @@ export function RunInspector(props: RunInspectorProps) {
   );
 }
 
-/** The inspector at phone width: a button that opens it as a sheet. */
+/** The inspector at phone width: an icon button that opens it as a sheet (D2). */
 export function RunInspectorSheet(props: RunInspectorProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="secondary" size="sm" onPress={() => setOpen(true)}>
-        Inspector
-      </Button>
+      <IconButton
+        variant="plain"
+        icon="icon-info"
+        label="Inspector"
+        onPress={() => setOpen(true)}
+      />
       <Sheet
         isOpen={open}
         onClose={() => setOpen(false)}

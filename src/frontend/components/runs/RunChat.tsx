@@ -2,6 +2,7 @@
 
 import "./RunChat.css";
 
+import { AnimatePresence } from "motion/react";
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -335,9 +336,13 @@ export function RunChat({
 
   const ui = runStatusUi(run.status);
   const nowFacts = runNow(run, events);
+  // The placeholder says what to write, never what the status already says
+  // above (F6): the status's own line only guides a run that is waiting on you.
   const placeholderText = reworkPrompt
     ? "Describe the changes needed before replanning…"
-    : ui.placeholder;
+    : isApprovalGate
+      ? ui.placeholder
+      : "Message the Builder…";
   // The failure line shows until the run records its own error for it, which then takes its place.
   const showFailure = failure !== null && errorCount <= failure.errorsBefore;
   const canRetry = isApprovalGate && !sending && pending === null;
@@ -379,37 +384,41 @@ export function RunChat({
           {rows.length === 0 && (
             <p className="run-chat-empty">Waiting for the first update…</p>
           )}
-          {rows.map((row) => {
-            if (row.kind === "item") {
-              const retryText = retryTextFor(row.item);
-              return (
-                <RunChatRow
-                  key={row.item.id}
-                  item={row.item}
-                  now={now}
-                  onOpenFile={openDiffFile}
-                  onRetry={
-                    retryText === null
-                      ? undefined
-                      : () => void send(retryText, false)
-                  }
-                />
-              );
-            }
-            return (
-              <details key={row.id} className="run-chat-group">
-                <summary>{`${row.items.length} progress updates`}</summary>
-                {row.items.map((item) => (
+          {/* initial={false}: rows already on the timeline never replay their
+              arrival when the page mounts (M9); a row that arrives later does. */}
+          <AnimatePresence initial={false}>
+            {rows.map((row) => {
+              if (row.kind === "item") {
+                const retryText = retryTextFor(row.item);
+                return (
                   <RunChatRow
-                    key={item.id}
-                    item={item}
+                    key={row.item.id}
+                    item={row.item}
                     now={now}
                     onOpenFile={openDiffFile}
+                    onRetry={
+                      retryText === null
+                        ? undefined
+                        : () => void send(retryText, false)
+                    }
                   />
-                ))}
-              </details>
-            );
-          })}
+                );
+              }
+              return (
+                <details key={row.id} className="run-chat-group">
+                  <summary>{`${row.items.length} progress updates`}</summary>
+                  {row.items.map((item) => (
+                    <RunChatRow
+                      key={item.id}
+                      item={item}
+                      now={now}
+                      onOpenFile={openDiffFile}
+                    />
+                  ))}
+                </details>
+              );
+            })}
+          </AnimatePresence>
           {showFailure && failure && (
             <div className="run-chat-system run-chat-system-error" role="alert">
               <span>{withSettingsLink(failure.message)}</span>

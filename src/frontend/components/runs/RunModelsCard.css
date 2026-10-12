@@ -13,12 +13,12 @@
   font-size: var(--text-callout);
   font-weight: 600;
   color: var(--text);
-}
-
-.run-models-summary {
-  margin: 0;
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
+  /* A disclosure's summary is a control: it takes a finger's target and it is
+     one line, whatever the row inside says. */
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
 }
 
 /* One grid for every row (rows are subgrids), so the stage, model and usage
@@ -43,6 +43,7 @@
 
 .run-models-usage {
   grid-column: 3;
+  font-variant-numeric: tabular-nums;
 }
 
 /* A narrow card (a phone) has no room for three columns: each row stacks its
