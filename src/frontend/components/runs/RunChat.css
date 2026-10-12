@@ -118,6 +118,30 @@
   color: var(--text);
 }
 
+/* A Builder reply in Markdown, at the bubble's text size rather than a
+   document's: headings stay small and the first and last blocks sit flush. */
+.run-chat-markdown .md-viewer {
+  font-size: var(--text-footnote);
+  line-height: 1.5;
+}
+
+.run-chat-markdown .md-viewer h1,
+.run-chat-markdown .md-viewer h2,
+.run-chat-markdown .md-viewer h3 {
+  font-size: var(--text-footnote);
+  margin: var(--space-2) 0 var(--space-1);
+  padding: 0;
+  border: 0;
+}
+
+.run-chat-markdown .md-viewer > :first-child {
+  margin-top: 0;
+}
+
+.run-chat-markdown .md-viewer > :last-child {
+  margin-bottom: 0;
+}
+
 .run-chat-files {
   list-style: none;
   margin: 0;

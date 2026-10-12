@@ -462,6 +462,34 @@ describe("every kind of run event reads as its own line", () => {
     expect(chat.getByText("Because it is small.")).toBeTruthy();
   });
 
+  it("renders the Builder's chat reply as Markdown, never raw HTML", () => {
+    const events = [
+      ev(1, "chat_user", { text: "Which `files`?" }),
+      ev(2, "chat_agent", {
+        text: "`calc.ts` and **`calc.test.ts`**.\n\n<img src=x onerror=alert(1)>",
+      }),
+    ];
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_understanding_approval")}
+        events={events}
+      />,
+    );
+    const reply = log(container).querySelectorAll('[data-kind="message"]')[1];
+    if (!reply) throw new Error("the reply is missing");
+    const codes = Array.from(reply.querySelectorAll("code")).map(
+      (c) => c.textContent,
+    );
+    expect(codes).toContain("calc.ts");
+    expect(reply.textContent).not.toContain("`calc.ts`");
+    // Raw HTML stays text: no element is made from it.
+    expect(reply.querySelector("img")).toBeNull();
+    expect(reply.textContent).toContain("<img src=x onerror=alert(1)>");
+    // The reader's own message is shown as typed.
+    const own = log(container).querySelectorAll('[data-kind="message"]')[0];
+    expect(own?.textContent).toContain("Which `files`?");
+  });
+
   it("shows the unsandboxed warning as a notice", () => {
     const { container } = render(
       <RunChat
