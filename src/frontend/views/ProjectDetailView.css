@@ -17,16 +17,7 @@
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-}
-
-.projects-detail-name {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-title-1);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  overflow-wrap: anywhere;
+  margin-bottom: var(--space-2);
 }
 
 /* The three plain-word facts (#267): repository, tracker, branch. A three-up
@@ -88,29 +79,28 @@
 
 /* ── Project Detail View ─────────────────────────────────────────────── */
 
+/* The tracker card's meta, inside the card: a grid with hairlines and no box of
+   its own (C3) — the card owns the border, not its contents. */
 .project-detail-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-sm), 1fr));
-  gap: 1.25rem;
-  margin: 1.25rem 0;
-  padding: 1.25rem 1.5rem;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  gap: var(--space-3) var(--space-6);
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-subtle);
 }
 
 .project-meta-item {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
+/* A meta label reads as a sentence, not as a small-caps stamp (B1). */
 .project-meta-item strong {
   font-size: var(--text-caption-1);
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   font-weight: 600;
 }
 
@@ -129,33 +119,29 @@
 
 .repos-table-container {
   overflow-x: auto;
-  border-radius: var(--radius-md);
-  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-card);
+  border: var(--border-width) solid var(--border-subtle);
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
 }
 
 .repos-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--text-footnote);
 }
 
 .repos-table th {
   text-align: left;
-  padding: 0.75rem 1rem;
+  padding: var(--space-3) var(--space-4);
   color: var(--text-muted);
   font-weight: 600;
   font-size: var(--text-caption-1);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-bottom: var(--border-width) solid var(--border);
-  background: var(--bg-hover);
+  border-bottom: var(--border-width) solid var(--border-subtle);
   white-space: nowrap;
 }
 
 .repos-table td {
-  padding: 0.8rem 1rem;
+  padding: var(--space-3) var(--space-4);
   border-bottom: var(--border-width) solid var(--border-subtle);
   vertical-align: middle;
 }

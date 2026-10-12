@@ -26,9 +26,15 @@ export function ReadinessBanner() {
   return (
     <div className={`readiness-banner card ${isReady ? "ready" : "warning"}`}>
       <div className="readiness-content">
-        <span
-          className={`status-dot status-dot-sm ${isReady ? "online" : "offline"}`}
-        />
+        {/* A glyph, not a floating dot (G2): the state has a shape as well as a
+            colour, so it survives a monochrome look. */}
+        <svg className="icon icon-lg readiness-icon" aria-hidden="true">
+          <use
+            href={`/assets/icons/sprite.svg#${
+              isReady ? "icon-shield-check" : "icon-alert-circle"
+            }`}
+          />
+        </svg>
         <div>
           <strong className="readiness-title">
             {isReady ? "Ready" : "Needs attention"}

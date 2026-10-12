@@ -731,3 +731,24 @@
   border-end-start-radius: var(--radius-card);
   border-end-end-radius: var(--radius-card);
 }
+
+/* A row inside a group is a link (its own element, so it carries no
+   data-hovered): the hover fill is gated on a real pointer, like every other
+   hover motion (M8). */
+@media (hover: hover) and (pointer: fine) {
+  .ui-list-group .ui-list-row--pressable:hover {
+    background: var(--bg-hover);
+  }
+}
+
+/* The row the URL names reads as chosen: one filled row, no border (G4). */
+.ui-list-group .ui-list-row[aria-current="page"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-title,
+.ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-subtitle,
+.ui-list-group .ui-list-row[aria-current="page"] > .icon {
+  color: var(--text-on-accent);
+}

@@ -203,7 +203,7 @@ describe("Project facts — repository, tracker, branch in plain words (#267)", 
     });
 
     expect(projectRepository(project)).toEqual({
-      value: "rocket — https://git.example/acme/rocket",
+      value: "rocket — acme/rocket",
       isPath: false,
     });
   });
@@ -368,9 +368,14 @@ describe("The Projects list (#267)", () => {
     expect(
       view.getByRole("link", { name: PROJECTS_COPY.openProject("Other App") }),
     ).toBeTruthy();
+    // One title per screen (G1): the page heading names the project, so the
+    // pane holds no second heading and the chosen row says which one is open.
     expect(
-      view.getByRole("heading", { level: 2, name: "Demo App" }),
-    ).toBeTruthy();
+      view
+        .getByRole("link", { name: PROJECTS_COPY.openProject("Demo App") })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(view.container.querySelector(".projects-detail h2")).toBeNull();
   });
 
   it("offers the way back to the list from a project's pane", () => {
@@ -386,9 +391,9 @@ describe("The project detail pane (#267)", () => {
     const view = renderProjects("/projects/demo-app", [makeProject()]);
     const facts = factsOf(view.container);
 
-    expect(
-      view.getByRole("heading", { level: 2, name: "Demo App" }),
-    ).toBeTruthy();
+    // The pane names no title of its own (G1): the page heading names the
+    // project, and this pane answers the three plain-word questions.
+    expect(view.container.querySelector(".projects-detail h2")).toBeNull();
     expect(facts.get(PROJECTS_COPY.repositoryFact)).toBe("Demo App");
     expect(facts.get(PROJECTS_COPY.trackerFact)).toBe("Tracker One");
     expect(facts.get(PROJECTS_COPY.branchFact)).toBe("main");
