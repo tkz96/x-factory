@@ -631,6 +631,8 @@ export const MODEL_CONNECTIONS_COPY = {
     count === 1 ? "1 model found" : `${count} models found`,
   addModel: "Add",
   added: "Added",
+  addModelLabel: (model: string) => `Add ${model}`,
+  addedModelLabel: (model: string) => `Added ${model}`,
   chosenModels: "Chosen models",
   contextWindow: "Context window (tokens)",
   maxOutputTokens: "Max output (tokens)",

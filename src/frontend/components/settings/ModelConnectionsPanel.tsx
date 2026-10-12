@@ -447,6 +447,11 @@ function ConnectionCard({
                   variant="secondary"
                   size="sm"
                   isDisabled={chosen.has(model.id)}
+                  aria-label={
+                    chosen.has(model.id)
+                      ? COPY.addedModelLabel(model.name ?? model.id)
+                      : COPY.addModelLabel(model.name ?? model.id)
+                  }
                   onPress={() =>
                     mutations.addModel.mutate({ id, modelId: model.id })
                   }
