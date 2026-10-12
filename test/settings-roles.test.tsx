@@ -115,23 +115,38 @@ async function openModelsTab(container: HTMLElement) {
   await flush();
 }
 
-function picker(role: "builder" | "reviewer"): HTMLSelectElement {
-  const el = document.getElementById(`setting-role-${role}`);
-  if (!el) throw new Error(`missing role picker ${role}`);
-  return el as HTMLSelectElement;
+/** The role's select trigger: the shared select block, named by the row (S-07). */
+function picker(role: "builder" | "reviewer"): HTMLElement {
+  return within(document.body).getByRole("button", {
+    name: new RegExp(role, "i"),
+  });
 }
 
-function optionLabels(select: HTMLSelectElement): string[] {
-  return Array.from(select.options).map((o) => o.textContent ?? "");
-}
-
-async function choose(select: HTMLSelectElement, label: string) {
-  const option = Array.from(select.options).find(
-    (o) => o.textContent === label,
-  );
-  if (!option) throw new Error(`no option "${label}"`);
+/** Opens the picker's listbox and reads the labels it offers. */
+async function optionLabels(role: "builder" | "reviewer"): Promise<string[]> {
   await act(async () => {
-    fireEvent.change(select, { target: { value: option.value } });
+    fireEvent.click(picker(role));
+  });
+  const labels = within(document.body)
+    .getAllByRole("option")
+    .map((option) => option.textContent ?? "");
+  // Close the listbox from itself: while it is open React Aria hides the rest
+  // of the page from assistive technology, the trigger included.
+  await act(async () => {
+    fireEvent.keyDown(within(document.body).getByRole("listbox"), {
+      key: "Escape",
+    });
+  });
+  return labels;
+}
+
+async function choose(role: "builder" | "reviewer", label: string) {
+  await act(async () => {
+    fireEvent.click(picker(role));
+  });
+  const option = within(document.body).getByRole("option", { name: label });
+  await act(async () => {
+    fireEvent.click(option);
   });
   await flush();
 }
@@ -175,15 +190,15 @@ describe("Settings › Models roles (#278)", () => {
     const { container } = renderSettings();
     await openModelsTab(container);
 
-    expect(optionLabels(picker("builder"))).toEqual([
+    expect(await optionLabels("builder")).toEqual([
       "Not set",
       "gemini-flash-lite-latest — Gemini",
       "gemini-pro — Gemini",
     ]);
-    expect(picker("builder").selectedOptions[0]?.textContent).toBe(
+    expect(picker("builder").textContent).toContain(
       "gemini-flash-lite-latest — Gemini",
     );
-    expect(picker("reviewer").selectedOptions[0]?.textContent).toBe("Not set");
+    expect(picker("reviewer").textContent).toContain("Not set");
   });
 
   it("labels each model by its display name, and by its id when it has none", async () => {
@@ -209,7 +224,7 @@ describe("Settings › Models roles (#278)", () => {
     const { container } = renderSettings();
     await openModelsTab(container);
 
-    expect(optionLabels(picker("reviewer"))).toEqual([
+    expect(await optionLabels("reviewer")).toEqual([
       "Not set",
       "Mistral Large 3 — FreeLLMAPI",
       "plain-model — FreeLLMAPI",
@@ -220,7 +235,7 @@ describe("Settings › Models roles (#278)", () => {
     const { container } = renderSettings();
     await openModelsTab(container);
 
-    await choose(picker("reviewer"), "gemini-pro — Gemini");
+    await choose("reviewer", "gemini-pro — Gemini");
     expect(postedBodies).toEqual([
       { roles: { reviewer: { connectionId: "c1", modelId: "gemini-pro" } } },
     ]);
@@ -230,7 +245,7 @@ describe("Settings › Models roles (#278)", () => {
     const { container } = renderSettings();
     await openModelsTab(container);
 
-    await choose(picker("builder"), "Not set");
+    await choose("builder", "Not set");
     expect(postedBodies).toEqual([{ roles: { builder: null } }]);
   });
 
@@ -249,10 +264,20 @@ describe("Settings › Models roles (#278)", () => {
     );
   });
 
-  it("no longer shows the free-text Session A / Session B fields", async () => {
+  it("offers each role as a row of the shared select block, never a native select", async () => {
     const { container } = renderSettings();
     await openModelsTab(container);
+
+    // The free-text Session A / Session B fields are gone, and so is the
+    // native <select> (S-07): each role is a row whose words lead and whose
+    // select trails.
     expect(container.querySelector("#setting-model-a-provider")).toBeNull();
     expect(container.querySelector("#setting-model-b-model")).toBeNull();
+    const control = picker("builder");
+    const builderRow = control.closest("li");
+    expect(control.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(builderRow?.textContent).toContain("Builder");
+    // The only <select> in the row is the block's hidden form-integration node:
+    // what the user sees and reaches is the listbox.
   });
 });
