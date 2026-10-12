@@ -14,6 +14,7 @@ import { GOOGLE_MODELS } from "@earendil-works/pi-ai/providers/google.models";
 import { OPENAI_MODELS } from "@earendil-works/pi-ai/providers/openai.models";
 import { OPENROUTER_MODELS } from "@earendil-works/pi-ai/providers/openrouter.models";
 
+import { parseDurationSeconds } from "./retry-delay.js";
 import type {
   DiscoveredModel,
   ModelApiType,
@@ -160,9 +161,9 @@ function retryAfterSeconds(res: Response, body: unknown): number | undefined {
   const details = (body as { error?: { details?: unknown[] } })?.error?.details;
   for (const detail of Array.isArray(details) ? details : []) {
     const delay = (detail as { retryDelay?: unknown }).retryDelay;
-    if (typeof delay === "string" && /^[\d.]+s$/.test(delay)) {
-      return Math.ceil(Number(delay.slice(0, -1)));
-    }
+    const seconds =
+      typeof delay === "string" ? parseDurationSeconds(delay) : undefined;
+    if (seconds !== undefined) return Math.ceil(seconds);
   }
   return undefined;
 }

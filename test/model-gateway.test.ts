@@ -12,6 +12,8 @@ import {
   RateLimitedError,
 } from "../src/model-gateway.js";
 import { ModelUnavailableError } from "../src/model-roles.js";
+import { parseDurationSeconds } from "../src/retry-delay.js";
+import { providerErrorText } from "./helpers/provider-error-fixture.js";
 
 /** A clock whose sleeps complete instantly but advance `now`. */
 function fakeClock() {
@@ -36,8 +38,41 @@ describe("parseRetryDelayMs", () => {
     ["Retry-After: 12", 12_000],
     ["rate limited, retry after 7 seconds", 7_000],
     ["429 Too Many Requests", undefined],
+    // A daily quota: hours, minutes and seconds, any part present or absent.
+    ["Please retry in 22h59m36.48s.", 82_777_000],
+    ["Please retry in 23h36.213857287s.", 82_837_000],
+    ["Please retry in 59m2s.", 3_542_000],
+    ["Please retry in 41.5s.", 42_000],
+    ["Please retry in 2h.", 7_200_000],
+    // RetryInfo inside an error body embedded as an escaped JSON string.
+    ['\\"retryDelay\\": \\"82776s\\"', 82_776_000],
   ])("%s → %s", (text, expected) => {
     expect(parseRetryDelayMs(text)).toBe(expected);
+  });
+
+  it("reads the wait from the real Gemini daily-quota error", () => {
+    expect(
+      parseRetryDelayMs(providerErrorText("gemini-429-daily-quota-event")),
+    ).toBe(82_837_000);
+  });
+});
+
+describe("parseDurationSeconds", () => {
+  it.each([
+    ["22h59m36.48s", 82_776.48],
+    ["23h36.2s", 82_836.2],
+    ["59m2s", 3_542],
+    ["41.5s", 41.5],
+    ["82776s", 82_776],
+    ["500ms", 0.5],
+    ["", undefined],
+    ["soon", undefined],
+    ["0s", undefined],
+    ["5s later", undefined],
+  ])("%s → %s", (text, expected) => {
+    const seconds = parseDurationSeconds(text);
+    if (expected === undefined) expect(seconds).toBeUndefined();
+    else expect(seconds).toBeCloseTo(expected, 6);
   });
 });
 
@@ -101,15 +136,46 @@ describe("ModelGateway.run", () => {
   });
 
   it("gives up past the wait ceiling with 'rate limited'", async () => {
-    const { clock } = fakeClock();
+    const { clock, sleeps } = fakeClock();
     const gateway = new ModelGateway({ clock, maxWaitMs: 60_000 });
     const err = await gateway
       .run({ key: "c1:m", limit: 1 }, async () => {
-        throw new RateLimitedError("429", 90_000);
+        throw new RateLimitedError("429 raw provider body", 40_000);
       })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ModelUnavailableError);
     expect((err as ModelUnavailableError).category).toBe("rate limited");
+    // One 40 s wait fits under the ceiling; a second would pass it.
+    expect(sleeps).toEqual([40_000]);
+    // The reason is a sentence; the provider's text is kept apart for diagnostics.
+    expect((err as ModelUnavailableError).message).not.toContain("raw");
+    expect((err as ModelUnavailableError).raw).toBe("429 raw provider body");
+  });
+
+  it("fails at once with 'quota exhausted' when the provider asks for a wait past the ceiling", async () => {
+    const { clock, sleeps } = fakeClock();
+    const gateway = new ModelGateway({ clock, maxWaitMs: 10 * 60_000 });
+    let calls = 0;
+    const raw = providerErrorText("gemini-429-daily-quota-event");
+    const err = await gateway
+      .run(
+        { key: "c1:gemini-3.8-flash", label: "gemini-3.8-flash", limit: 1 },
+        async () => {
+          calls++;
+          throw new RateLimitedError(raw, parseRetryDelayMs(raw));
+        },
+      )
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ModelUnavailableError);
+    const quota = err as ModelUnavailableError;
+    expect(quota.category).toBe("quota exhausted");
+    expect(quota.message).toBe(
+      "The provider's quota for gemini-3.8-flash is used up. It resets in about 23 h.",
+    );
+    expect(quota.retryAfterMs).toBe(82_837_000);
+    expect(quota.raw).toBe(raw);
+    expect(calls).toBe(1);
+    expect(sleeps).toEqual([]);
   });
 
   it("passes other errors straight through, without retrying", async () => {
