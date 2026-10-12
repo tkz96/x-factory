@@ -89,6 +89,7 @@
   :root .ui-button--danger,
   :root .ui-button--quiet,
   :root .ui-icon-button,
+  :root .ui-icon-button--plain,
   :root .ui-segmented,
   :root .ui-segment {
     background: ButtonFace;
@@ -167,17 +168,6 @@
     background: HighlightText;
   }
 
-  :root .ui-badge,
-  :root .ui-badge--neutral,
-  :root .ui-badge--info,
-  :root .ui-badge--success,
-  :root .ui-badge--warning,
-  :root .ui-badge--error {
-    background: Canvas;
-    color: CanvasText;
-    border: var(--border-width) solid CanvasText;
-  }
-
   :root .ui-list-row,
   :root .ui-list-row--pressable,
   :root .ui-list-row--placeholder {
@@ -218,6 +208,9 @@
   :root .docs-back-link,
   :root .docs-toc-link,
   :root .toolbar-select,
+  :root .toolbar-search,
+  :root .toolbar-settings,
+  :root .toolbar-readiness,
   :root .mobile-tab-bar,
   :root .command-palette-option {
     background: ButtonFace;
