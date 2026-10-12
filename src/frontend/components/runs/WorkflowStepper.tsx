@@ -4,6 +4,7 @@ import "./WorkflowStepper.css";
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AWAITING_HUMAN_RUN_STATUSES,
   STATUS_TO_STAGE,
   TERMINAL_RUN_STATUSES,
 } from "../../../shared/run-status-policy.js";
@@ -74,6 +75,24 @@ export interface WorkflowStepperProps {
   stepperId?: string;
 }
 
+/**
+ * The stage a run that left the stages behind (failed) was last in: the stage of
+ * the latest status event that names one.
+ */
+function lastStageIn(
+  events: readonly RunEvent[] | undefined,
+): WorkflowStage | null {
+  if (!events) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (event?.type !== "status") continue;
+    const status = (event.payload as { status?: RunStatus }).status;
+    const stage = status ? STATUS_TO_STAGE[status] : null;
+    if (stage) return stage;
+  }
+  return null;
+}
+
 function formatDuration(ms: number): string {
   if (ms <= 0) return "0s";
   const totalSec = Math.floor(ms / 1000);
@@ -91,17 +110,22 @@ export function WorkflowStepper({
   stepperId = "workflow-stepper",
 }: WorkflowStepperProps) {
   const currentStage = STATUS_TO_STAGE[status];
-  const currentIdx = currentStage ? STAGE_ORDER.indexOf(currentStage) : -1;
+  // A failed run has no stage of its own; the strip marks the one it stopped at.
+  const failedStage = status === "failed" ? lastStageIn(events) : null;
+  const shownStage = currentStage ?? failedStage;
+  const currentIdx = shownStage ? STAGE_ORDER.indexOf(shownStage) : -1;
+  // At a checkpoint the run is not working: it waits for the reader.
+  const isWaiting = AWAITING_HUMAN_RUN_STATUSES.has(status);
 
-  // Live timer for active stage elapsed duration
+  // Live timer for active stage elapsed duration; nothing runs while it waits.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!startedAt || TERMINAL_RUN_STATUSES.has(status)) {
+    if (!startedAt || TERMINAL_RUN_STATUSES.has(status) || isWaiting) {
       return;
     }
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [startedAt, status]);
+  }, [startedAt, status, isWaiting]);
 
   // Extract Ralph iteration count during execution
   const ralphIteration = useMemo(() => {
@@ -116,7 +140,7 @@ export function WorkflowStepper({
   }, [events]);
 
   const getStepClass = (idx: number) => {
-    if (currentStage === null && idx === currentIdx) {
+    if (failedStage !== null && idx === currentIdx) {
       return "failed";
     }
     if (status === "pr_created" || (currentIdx !== -1 && idx < currentIdx)) {
@@ -151,7 +175,11 @@ export function WorkflowStepper({
           let evidenceText = evidenceByStage[stage] || defaultEvidence;
 
           // Stage-specific enhancements
-          if (isActive) {
+          if (stepCls === "failed") {
+            evidenceText = "Failed";
+          } else if (isActive && isWaiting) {
+            evidenceText = "Waiting for you";
+          } else if (isActive) {
             const elapsedMs = startedAt
               ? Math.max(0, now - new Date(startedAt).getTime())
               : null;
