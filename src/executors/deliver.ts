@@ -19,15 +19,63 @@ export interface PrMetadata {
   prBody: string;
 }
 
-export function buildPrMetadata(ticket: {
-  id: string;
-  title: string;
-  acceptanceCriteria: string[];
-}): PrMetadata {
+export function buildPrMetadata(
+  ticket: {
+    id: string;
+    title: string;
+    acceptanceCriteria: string[];
+  },
+  project?: Project,
+): PrMetadata {
   const commitMsg = `[X-Factory] ${ticket.id}: ${ticket.title}`;
   const prTitle = commitMsg;
-  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}`;
+  const closing = project ? githubClosingLine(ticket.id, project) : undefined;
+  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}${closing ? `\n\n${closing}` : ""}`;
   return { commitMsg, prTitle, prBody };
+}
+
+/** `owner/repo` from a GitHub connection's config, or "" when it names none. */
+function githubCoordinate(config: Record<string, unknown>): string {
+  const owner = typeof config.repoOwner === "string" ? config.repoOwner : "";
+  const repo = typeof config.repository === "string" ? config.repository : "";
+  return owner.trim() && repo.trim() ? `${owner.trim()}/${repo.trim()}` : "";
+}
+
+/** `owner/repo` from a git remote URL (HTTPS or SSH), or "". */
+function remoteCoordinate(remote: string | undefined): string {
+  const match = /[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/.exec(remote ?? "");
+  return match ? `${match[1]}/${match[2]}` : "";
+}
+
+/**
+ * The line that makes GitHub close the ticket's issue when the pull request
+ * merges: `Closes #1` for an issue in the pull request's repository, or
+ * `Closes owner/repo#1` for one in another. Only a GitHub issue (`GH-<n>`)
+ * tracked by a GitHub connection, delivered to GitHub, gets one.
+ */
+function githubClosingLine(
+  ticketId: string,
+  project: Project,
+): string | undefined {
+  const issue = /^GH-(\d+)$/.exec(ticketId)?.[1];
+  if (!issue) return undefined;
+  const connections = project.connections ?? [];
+  const tracker = connections.find((c) => c.roles.includes("tracker"));
+  const gitHost = connections.find((c) => c.roles.includes("gitHost"));
+  if (tracker?.providerId !== "github" || gitHost?.providerId !== "github") {
+    return undefined;
+  }
+  if (tracker === gitHost) return `Closes #${issue}`;
+  const issueRepo = githubCoordinate(tracker.config);
+  const primary =
+    project.repositories.find((r) => r.path === project.repositoryPath) ??
+    project.repositories[0];
+  const prRepo =
+    githubCoordinate(gitHost.config) || remoteCoordinate(primary?.remote);
+  if (!issueRepo || issueRepo.toLowerCase() === prRepo.toLowerCase()) {
+    return `Closes #${issue}`;
+  }
+  return `Closes ${issueRepo}#${issue}`;
 }
 
 /** The project's git host connection, with its saved secrets merged in (#172). */
@@ -239,7 +287,7 @@ export class DeliverExecutor implements StageExecutor {
     const { run, project, ledger, signal } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
-    const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket);
+    const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket, project);
 
     // 1. Idempotent Git commit (XFM-32, XFM-33)
     await ledger.execute(

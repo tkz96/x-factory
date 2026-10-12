@@ -427,6 +427,12 @@ Azure adapters thread the signal into `githubFetch` / `azureFetch`, and the
 registry wrapper forwards it unchanged. The contract types `signal?` on
 `createPullRequest` and `findExistingPullRequest` in `src/providers/contract.ts`.
 
+**Closing the issue.** When the run's ticket is a GitHub issue (`GH-<n>`), the
+project's tracker and git host are both GitHub connections, the pull request
+body ends with a closing line so merging it closes the issue: `Closes #<n>` when
+the issue lives in the pull request's repository, `Closes owner/repo#<n>` when
+it lives in another (`buildPrMetadata` in `src/executors/deliver.ts`).
+
 ### Registry error contract (#184)
 
 `getProvider`, `requireProvider` and `listProviders` return a wrapper around the
