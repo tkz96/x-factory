@@ -585,7 +585,7 @@ export function SettingsView() {
                 <li key={category.id}>
                   <Link
                     to={`/settings?tab=${category.id}`}
-                    className="settings-category"
+                    className="ui-nav-item"
                     aria-current={isCurrent ? "page" : undefined}
                   >
                     <svg className="icon icon-md" aria-hidden="true">

@@ -43,7 +43,6 @@ import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
 import { Button } from "./ui/Button.js";
-import { IconButton } from "./ui/IconButton.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
@@ -126,47 +125,15 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
   }
 }
 
-interface ThemeToggleButtonProps {
-  id: string;
-  className: string;
-  onToggle: () => void;
-}
-
-export function ThemeToggleButton({
-  id,
-  className,
-  onToggle,
-}: ThemeToggleButtonProps) {
-  // One accessible name, and it says what pressing the control does: the mode it
-  // switches to, which is also the mode that is not showing now. The icon draws
-  // the mode in force. There is no second name (a `title`) to disagree with it.
-  const { resolvedAppearance } = useTheme();
-  const next = resolvedAppearance === "dark" ? "Light" : "Dark";
-  return (
-    <IconButton
-      id={id}
-      className={className}
-      label={`Switch to ${next} Appearance`}
-      icon={resolvedAppearance === "dark" ? "icon-moon" : "icon-sun"}
-      onPress={onToggle}
-    />
-  );
-}
-
 const SECTIONS_LABEL = "Sections";
 
 interface DocsSidebarProps {
   docsNavOpen: boolean;
   onCloseDocsNav: () => void;
-  onToggleTheme: () => void;
 }
 
 /** The Docs document list. It is the Docs screen's own navigation, not the app's. */
-function DocsSidebar({
-  docsNavOpen,
-  onCloseDocsNav,
-  onToggleTheme,
-}: DocsSidebarProps) {
+function DocsSidebar({ docsNavOpen, onCloseDocsNav }: DocsSidebarProps) {
   return (
     <aside
       id="app-sidebar"
@@ -180,10 +147,7 @@ function DocsSidebar({
       >
         Close document list
       </Button>
-      <DocsSidebarNav
-        onToggleTheme={onToggleTheme}
-        ThemeToggleButton={ThemeToggleButton}
-      />
+      <DocsSidebarNav />
     </aside>
   );
 }
@@ -647,7 +611,6 @@ function AppShellContent() {
         <DocsSidebar
           docsNavOpen={docsNavOpen}
           onCloseDocsNav={() => setDocsNavOpen(false)}
-          onToggleTheme={handleToggleTheme}
         />
       )}
 

@@ -30,8 +30,7 @@
   :root .btn-sm,
   :root .btn-danger-hover,
   :root .btn-warning,
-  :root .settings-category,
-  :root .theme-toggle {
+  :root .ui-nav-item {
     background: ButtonFace;
     color: ButtonText;
     border: var(--border-width) solid ButtonBorder;
@@ -47,8 +46,8 @@
 
   /* Selected navigation rows paint Highlight themselves: without opting out,
      the browser's Canvas backplate hides HighlightText (as on segments). */
-  :root .settings-category[aria-current="page"],
-  :root .settings-category[aria-current="page"] *,
+  :root .ui-nav-item[aria-current],
+  :root .ui-nav-item[aria-current] *,
   :root .projects-list-row[aria-current="page"],
   :root .projects-list-row[aria-current="page"] * {
     forced-color-adjust: none;
@@ -212,7 +211,6 @@
   :root .diff-modal-close-btn,
   :root .react-flow__controls-button,
   :root .md-copy-btn,
-  :root .docs-nav-btn,
   :root .docs-back-link,
   :root .docs-toc-link,
   :root .toolbar-select,
