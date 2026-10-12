@@ -14,6 +14,8 @@ import {
   expect,
   it,
 } from "bun:test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -21,6 +23,7 @@ import {
   fireEvent,
   render,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "../src/frontend/components/AppShell.js";
@@ -181,6 +184,38 @@ describe("Runs rows", () => {
     expect(time?.getAttribute("title")).toMatch(
       /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
     );
+  });
+
+  it("lead with the ticket title as a heading and show the status as a toned badge", () => {
+    const view = renderRuns(
+      makeClient([
+        run("a", "awaiting_plan_approval", "Add login"),
+        run("b", "executing", "Add logout"),
+        run("f", "failed", "Add signup"),
+      ]),
+      "/runs?filter=all",
+    );
+    const row = view.getByRole("link", { name: /T-a/ });
+    expect(
+      within(row).getByRole("heading", { name: "Add login" }).className,
+    ).toContain("run-card-title");
+    const badgeOf = (key: RegExp) =>
+      view.getByRole("link", { name: key }).querySelector(".ui-badge");
+    expect(badgeOf(/T-a/)?.textContent).toBe("Review the plan");
+    expect(badgeOf(/T-a/)?.className).toContain("ui-badge--warning");
+    expect(badgeOf(/T-b/)?.className).toContain("ui-badge--info");
+    expect(badgeOf(/T-f/)?.className).toContain("ui-badge--error");
+  });
+
+  it("keep the title in the case it was written, not the card's small caps heading", () => {
+    const css = readFileSync(
+      path.join(import.meta.dir, "../src/frontend/views/RunsView.css"),
+      "utf8",
+    );
+    const rule = /\.run-card-title\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/text-transform:\s*none/);
+    expect(rule).toMatch(/letter-spacing:\s*normal/);
+    expect(rule).toMatch(/color:\s*var\(--text\)/);
   });
 
   it("shows Merged and Closed without merging badges when pullRequestOutcome is present", () => {

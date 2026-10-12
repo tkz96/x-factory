@@ -232,6 +232,23 @@ export function runStatusText(status: RunStatus): string {
   return runStatusUi(status).label;
 }
 
+/** The badge tone for a status: waiting on you, working, or how it ended. */
+export type RunStatusTone =
+  | "neutral"
+  | "info"
+  | "success"
+  | "warning"
+  | "error";
+
+export function runStatusTone(status: RunStatus): RunStatusTone {
+  if (status === "failed") return "error";
+  if (status === "pr_created") return "success";
+  const filter = runStatusUi(status).filter;
+  if (filter === "Needs you") return "warning";
+  if (filter === "Running") return "info";
+  return "neutral";
+}
+
 /** Statuses in the "Needs you" filter group. */
 export const NEEDS_YOU_STATUSES: ReadonlySet<RunStatus> = new Set(
   (Object.keys(RUN_STATUS_UI) as RunStatus[]).filter(
