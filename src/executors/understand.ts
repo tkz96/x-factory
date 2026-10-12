@@ -5,9 +5,14 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { modelStageFailureReason } from "../agent-stage.js";
+import { modelStageOutcome } from "../agent-stage.js";
 import type { ReadOnlySessionFactory } from "../agents/pi.js";
-import { modelUse, resolveRole, usageWithCost } from "../model-roles.js";
+import {
+  modelUse,
+  type ResolvedModel,
+  resolveRole,
+  usageWithCost,
+} from "../model-roles.js";
 import { understandRun } from "../understand.js";
 import type { StageContext, StageExecutor, StageOutcome } from "./types.js";
 
@@ -43,29 +48,31 @@ export class UnderstandExecutor implements StageExecutor {
     // The Builder role's model; a model that can't be used fails the stage with
     // its reason instead of falling back (#278, #282).
     let understanding: Awaited<ReturnType<typeof understandRun>>;
+    let resolved: ResolvedModel | undefined;
     try {
-      const resolved = await this.deps.resolveRole("builder");
-      context.recordModel(modelUse(resolved));
+      const model = await this.deps.resolveRole("builder");
+      resolved = model;
+      context.recordModel(modelUse(model));
       understanding = await understandRun({
         worktreePath,
         ticket: run.ticket,
         project,
         plan: run.plan,
-        resolved,
+        resolved: model,
         sessionFactory: this.deps.sessionFactory,
         emit: context.emit,
         onWait: (ms) =>
           context.emit("info", {
-            text: `The provider is rate limiting ${resolved.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
+            text: `The provider is rate limiting ${model.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
           }),
-        onUsage: (usage) => context.reportUsage(usageWithCost(resolved, usage)),
+        onUsage: (usage) => context.reportUsage(usageWithCost(model, usage)),
         signal: context.signal,
-        checkBudget: () => context.assertBudget?.(resolved),
-        recordCall: () => context.recordModelCall?.(resolved),
+        checkBudget: () => context.assertBudget?.(model),
+        recordCall: () => context.recordModelCall?.(model),
       });
     } catch (err: unknown) {
-      const reason = modelStageFailureReason(err);
-      if (reason) return { outcome: "error", error: reason };
+      const failed = modelStageOutcome(err, resolved);
+      if (failed) return failed;
       throw err;
     }
 

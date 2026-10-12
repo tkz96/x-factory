@@ -23,7 +23,10 @@ import type {
 import type { LeaseManager, WorkerLogRecord } from "./lease.js";
 import { assertBudgetNotExceeded } from "./model-budgets.js";
 import { isBudgetReached } from "./model-roles.js";
-import { failureReasonFor } from "./shared/failure-reason.js";
+import {
+  type FailureReason,
+  failureReasonFor,
+} from "./shared/failure-reason.js";
 import { canTransition } from "./shared/run-status-policy.js";
 import type { Project, RunStatus } from "./shared/types.js";
 import {
@@ -57,9 +60,13 @@ export interface StageWork {
   reject(reason: string): void;
   /**
    * Finishes a failed unit of work. Returns whether it will be tried again; when not, the
-   * run is failed if `failsRunWhenExhausted`.
+   * run is failed if `failsRunWhenExhausted`. `retry: false` spends no further attempt:
+   * the failure would only repeat.
    */
-  fail(error: string): { willRetry: boolean; attempts: number };
+  fail(
+    error: string,
+    options?: { retry?: boolean },
+  ): { willRetry: boolean; attempts: number };
   readonly failsRunWhenExhausted: boolean;
   /** Called when the run was stopped under the work. */
   cancel(reason: string): void;
@@ -133,7 +140,13 @@ export function jobWork(
     reject: (reason) => {
       repos.jobs.rejectJob(job.id, workerId, reason);
     },
-    fail: (error) => repos.jobs.failJob(job.id, workerId, error),
+    fail: (error, options) => {
+      if (options?.retry === false) {
+        repos.jobs.rejectJob(job.id, workerId, error);
+        return { willRetry: false, attempts: job.attempts };
+      }
+      return repos.jobs.failJob(job.id, workerId, error);
+    },
     cancel: () => {},
   };
 }
@@ -383,6 +396,7 @@ export class StageRunner {
           duration,
           run.status,
           outcome.record,
+          { failure: outcome.failure, retryable: outcome.retryable },
         );
       }
     } finally {
@@ -677,6 +691,10 @@ export class StageRunner {
     durationMs: number,
     expectedRunStatus: RunStatus,
     record?: StageRecord,
+    how: {
+      failure?: FailureReason | undefined;
+      retryable?: false | undefined;
+    } = {},
   ): void {
     const { repos } = this.host;
     this.host.error(`Stage '${work.stage}' execution failed: ${errorMsg}`);
@@ -690,7 +708,10 @@ export class StageRunner {
         }
         this.applyRecord(work.runId, record);
         repos.stageAttempts.recordFailure(attempt.id, errorMsg);
-        const outcome = work.fail(errorMsg);
+        const outcome = work.fail(
+          errorMsg,
+          how.retryable === false ? { retry: false } : undefined,
+        );
         if (
           !outcome.willRetry &&
           work.failsRunWhenExhausted &&
@@ -702,10 +723,12 @@ export class StageRunner {
               payload: {
                 status: "failed",
                 text: `Run failed during stage '${work.stage}': ${errorMsg}`,
-                failure: failureReasonFor({
-                  error: errorMsg,
-                  stage: work.stage,
-                }),
+                failure:
+                  how.failure ??
+                  failureReasonFor({
+                    error: errorMsg,
+                    stage: work.stage,
+                  }),
               },
             },
           });

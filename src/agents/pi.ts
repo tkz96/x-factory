@@ -9,6 +9,7 @@ import {
   ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import { isModelNotFoundMessage, providerSentence } from "../model-failures.js";
 import {
   gatewayKeyFor,
   isRateLimitMessage,
@@ -102,15 +103,33 @@ async function isolatedRuntime(resolved: ResolvedModel) {
 const KEY_REJECTED =
   /\b(401|403)\b|unauthori[sz]ed|forbidden|invalid[ _-]?api[ _-]?key|api key not valid|permission denied|incorrect api key/i;
 
-/** A model error as X-Factory reports it: a rejected key is never retried as something else. */
+/**
+ * A model error as X-Factory reports it: a rejected key or a model the provider does not
+ * offer is never retried as something else.
+ */
 export function classifyModelError(message: string): Error {
   if (isRateLimitMessage(message)) {
     // The gateway waits and retries these (#280).
     return new RateLimitedError(message, parseRetryDelayMs(message));
   }
-  return KEY_REJECTED.test(message)
-    ? new ModelUnavailableError(`Key rejected: ${message}`, "key rejected")
-    : new Error(message);
+  if (KEY_REJECTED.test(message)) {
+    return new ModelUnavailableError(
+      `Key rejected: ${message}`,
+      "key rejected",
+      {
+        raw: message,
+      },
+    );
+  }
+  // A model the provider does not offer is not transient: retrying repeats it.
+  if (isModelNotFoundMessage(message)) {
+    return new ModelUnavailableError(
+      `Model not available: ${providerSentence(message)}`,
+      "model not found",
+      { raw: message },
+    );
+  }
+  return new Error(message);
 }
 
 /**

@@ -32,6 +32,7 @@ import {
   recordBaseline,
   saveRecordedBaseline,
 } from "../src/worktree-state.js";
+import { providerErrorText } from "./helpers/provider-error-fixture.js";
 import { stubResolveRole } from "./helpers/resolved-model.js";
 import {
   PASSING_REVIEW_OUTPUT,
@@ -1008,5 +1009,46 @@ ${CHECK_OFF_FIRST_TASK}
             .repairAttempt,
       ),
     ).toEqual([1]);
+  });
+
+  it("fails without a job retry when the provider no longer offers the model (Gemini 404)", async () => {
+    await commitAndRecordBaseline();
+    const calls = path.join(tempDir, "sbx-calls.txt");
+    const providerError = path.join(tempDir, "provider-error.txt");
+    await writeFile(providerError, providerErrorText("gemini-404-event"));
+    await installSbx(`
+echo call >> "${calls}"
+cat "${providerError}" >&2
+exit 1
+`);
+    await configureProject("true");
+    const { run, runRepo, jobRepo, eventRepo, worker } = setup();
+
+    const claimed = jobRepo.claimNextJob("worker-attempt-loop", 30_000);
+    if (!claimed) throw new Error("Expected a claimed job");
+    await worker.processJob(claimed);
+
+    expect(runRepo.get(run.id)?.status).toBe("failed");
+    expect(await lines(calls)).toEqual(["call"]);
+    expect(
+      jobRepo.listJobsForRun(run.id).map((j) => [j.status, j.attempts]),
+    ).toEqual([["failed", 1]]);
+    const failed = eventRepo
+      .getEventsForRun(run.id)
+      .find(
+        (e) =>
+          e.type === "status" &&
+          (e.payload as { status: string }).status === "failed",
+      );
+    const failure = (
+      failed?.payload as
+        | { failure?: { message: string; recovery: string } }
+        | undefined
+    )?.failure;
+    expect(failure?.message).toContain("test/model");
+    expect(failure?.message).toMatch(/isn't available/);
+    expect(failure?.recovery).toBe(
+      "Choose another model for the Builder in Settings › Models, then start a new run.",
+    );
   });
 });

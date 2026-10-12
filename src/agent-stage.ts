@@ -20,7 +20,8 @@ import {
   type ReadOnlySessionFactory,
 } from "./agents/pi.js";
 import { DomainError } from "./errors.js";
-import type { EmitEvent } from "./executors/types.js";
+import type { EmitEvent, StageOutcome } from "./executors/types.js";
+import { modelErrorSentence, modelStageFailure } from "./model-failures.js";
 import {
   gatewayKeyFor,
   type ModelGateway,
@@ -29,7 +30,6 @@ import {
 import {
   isBudgetReached,
   ModelUnavailableError,
-  modelFailureReason,
   type ResolvedModel,
 } from "./model-roles.js";
 
@@ -85,9 +85,10 @@ function attachStageListeners(
       output += event.text;
     } else if (event.type === "tool") {
       emit?.("info", { text: `Running tool ${event.tool}` });
-    } else if (event.type === "error" && event.error) {
-      emit?.("error", { message: event.error });
     }
+    // A session error is not emitted as it happens: its text is the provider's raw
+    // body, and a rate-limited call reports one per retry. The call's failure is
+    // told once, as a sentence, when the stage gives up (see runReadOnlyStage).
   });
   return () => output;
 }
@@ -153,8 +154,18 @@ export async function runReadOnlyStage(
     );
   } catch (err: unknown) {
     if (aborted) throw abortError();
-    if (err instanceof ModelUnavailableError) throw err;
-    throw classifyModelError(err instanceof Error ? err.message : String(err));
+    const failure =
+      err instanceof ModelUnavailableError
+        ? err
+        : classifyModelError(err instanceof Error ? err.message : String(err));
+    // One short sentence for the timeline; the raw text stays on the error, which the
+    // stage records on its attempt. A spent budget pauses the run and says so itself.
+    if (!isBudgetReached(failure)) {
+      run.emit?.("error", {
+        message: modelErrorSentence(failure, run.resolved),
+      });
+    }
+    throw failure;
   } finally {
     run.signal?.removeEventListener("abort", onAbort);
     const usage = session.usage?.();
@@ -167,13 +178,21 @@ export async function runReadOnlyStage(
 }
 
 /**
- * The reason a stage failed for its model, or null when the error is not a
- * model failure and the stage runner should handle it (#282).
+ * The outcome of a stage that failed for its model, or null when the error is not a
+ * model failure and the stage runner should handle it (#282). `resolved` is the role's
+ * model when it resolved, so the failure can name it.
  */
-export function modelStageFailureReason(err: unknown): string | null {
+export function modelStageOutcome(
+  err: unknown,
+  resolved: ResolvedModel | undefined,
+): Extract<StageOutcome, { outcome: "error" }> | null {
   // A spent budget is not a failure: the stage runner pauses the run (#281).
   if (isBudgetReached(err)) return null;
-  if (err instanceof ModelUnavailableError) return modelFailureReason(err);
-  if (err instanceof ModelOutputError) return err.message;
+  if (err instanceof ModelUnavailableError) {
+    return modelStageFailure(err, resolved);
+  }
+  if (err instanceof ModelOutputError) {
+    return { outcome: "error", error: err.message };
+  }
   return null;
 }

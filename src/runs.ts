@@ -35,6 +35,7 @@ import {
 } from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
 import { buildChatSystemPrompt } from "./prompts.js";
+import { formatApproxWait } from "./retry-delay.js";
 import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import type {
@@ -756,6 +757,12 @@ export function chatFailureMessage(err: unknown): string {
         return "The model budget is used up for now. Raise it in Settings › Models, then Retry.";
       case "context too large":
         return "This chat is too long for the model. Shorten your message, then Retry.";
+      case "model not found":
+        return "The Builder's model isn't available from its provider. Choose another model in Settings › Models.";
+      case "quota exhausted":
+        return classified.retryAfterMs === undefined
+          ? "The model's provider quota is used up. Choose another model in Settings › Models, or wait for it to reset."
+          : `The model's provider quota is used up; it resets in ${formatApproxWait(classified.retryAfterMs)}. Choose another model in Settings › Models, or wait.`;
       case "model unavailable":
         return `Couldn't reach the model: ${classified.message}`;
     }

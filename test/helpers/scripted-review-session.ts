@@ -15,6 +15,11 @@ export interface ScriptedReviewSession extends PiAgentSession {
 export interface ScriptOptions {
   /** Throw this from prompt() after emitting the output. */
   promptError?: Error;
+  /**
+   * Before throwing `promptError`, report it as a session error event, as the real
+   * Pi session wrapper does.
+   */
+  emitErrorEvent?: boolean;
   /** prompt() stays pending until abort() is called, then rejects. */
   hangUntilAborted?: boolean;
   /** dispose() counts the call, then throws this. */
@@ -47,7 +52,13 @@ export function scriptedReviewSession(
         for (const cb of listeners) cb({ type: "text", text: output });
       for (const tool of options.tools ?? [])
         for (const cb of listeners) cb({ type: "tool", tool });
-      if (options.promptError) throw options.promptError;
+      if (options.promptError) {
+        if (options.emitErrorEvent) {
+          for (const cb of listeners)
+            cb({ type: "error", error: options.promptError.message });
+        }
+        throw options.promptError;
+      }
     },
     abort: async () => {
       state.abortCalls++;

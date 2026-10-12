@@ -3,6 +3,10 @@
 // A run that ends in `failed` records why, in words an operator can act on: a category, a
 // plain-language message and the recovery the UI can suggest. The raw error text stays on the
 // status event's `text`, so this module never has to guess at diagnostic detail.
+//
+// A stage that can name its failure exactly (a model the provider does not offer, a used-up
+// quota) hands the stage runner its own FailureReason; this module is the fallback that
+// reads the category out of the error text.
 
 /** What kind of failure ended the run. */
 export type FailureCategory =
@@ -53,7 +57,7 @@ const CATEGORY_COPY: Record<
   model: {
     message: "The model call failed.",
     recovery:
-      "Check the model connection and its key in Settings, then restart the run.",
+      "Read the provider's reason in the run log, check the model and its connection in Settings › Models, then restart the run.",
   },
   sandbox: {
     message: "The coding agent could not start because the sandbox is missing.",

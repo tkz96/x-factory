@@ -1,11 +1,12 @@
 // src/executors/review.ts — ReviewExecutor: Automated code review and PR readiness gate (XFM-28).
 
 import type { ReadOnlySessionFactory } from "../agents/pi.js";
+import { modelErrorSentence, modelStageFailure } from "../model-failures.js";
 import {
   isBudgetReached,
   ModelUnavailableError,
-  modelFailureReason,
   modelUse,
+  type ResolvedModel,
   resolveRole,
   usageWithCost,
 } from "../model-roles.js";
@@ -52,8 +53,10 @@ export class ReviewExecutor implements StageExecutor {
     // The Reviewer role's model; a model that can't be used fails the stage
     // with its reason instead of falling back (#278).
     let rResult: Awaited<ReturnType<typeof reviewRun>>;
+    let reviewer: ResolvedModel | undefined;
     try {
       const resolved = await this.deps.resolveRole("reviewer");
+      reviewer = resolved;
       context.assertBudget?.(resolved);
       context.recordModel(modelUse(resolved));
       // reviewRun owns review.json; this executor only records the result.
@@ -71,12 +74,9 @@ export class ReviewExecutor implements StageExecutor {
         recordCall: () => context.recordModelCall?.(resolved),
         // Session activity is forwarded as run events so the review is not a black box (#256).
         onEvent: (event) => {
-          if (event.type === "error") {
-            context.emit("error", {
-              message: event.error ?? "The review session reported an error.",
-            });
-            return;
-          }
+          // A session error is the provider's raw text, once per retry; a model
+          // failure is told once below, as a sentence.
+          if (event.type === "error") return;
           // Tool calls are forwarded as they happen; the streamed answer is
           // collected and recorded once, not one event per fragment.
           if (event.tool) {
@@ -103,7 +103,10 @@ export class ReviewExecutor implements StageExecutor {
         return { outcome: "paused", reason: err.message };
       }
       if (err instanceof ModelUnavailableError) {
-        return { outcome: "error", error: modelFailureReason(err) };
+        if (reviewer) {
+          context.emit("error", { message: modelErrorSentence(err, reviewer) });
+        }
+        return modelStageFailure(err, reviewer);
       }
       throw err;
     }
