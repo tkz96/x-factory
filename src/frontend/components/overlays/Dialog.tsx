@@ -172,7 +172,7 @@ export function DialogHeader({
   children: ReactNode;
 }) {
   return (
-    <div className={`xf-dialog-header modal-header ${className ?? ""}`.trim()}>
+    <div className={`xf-dialog-header ${className ?? ""}`.trim()}>
       {children}
     </div>
   );
@@ -209,10 +209,7 @@ export function DialogBody({
   children: ReactNode;
 }) {
   return (
-    <div
-      id={id}
-      className={`xf-dialog-body modal-body ${className ?? ""}`.trim()}
-    >
+    <div id={id} className={`xf-dialog-body ${className ?? ""}`.trim()}>
       {children}
     </div>
   );
@@ -228,10 +225,7 @@ export function DialogFooter({
   children: ReactNode;
 }) {
   return (
-    <div
-      id={id}
-      className={`xf-dialog-footer modal-footer ${className ?? ""}`.trim()}
-    >
+    <div id={id} className={`xf-dialog-footer ${className ?? ""}`.trim()}>
       {children}
     </div>
   );

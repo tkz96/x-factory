@@ -7,8 +7,12 @@
 // each step's body in `steps/`. The created project is the sheet's terminal
 // state: the Review step reports it, and the sheet shows success instead of the
 // step it came from.
+//
+// The sheet stays mounted while it closes (#250), so the provider does too: the
+// session key changes on the opening edge, which gives every opening a fresh
+// draft without interrupting the exit of the one before it.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { useModal } from "../context/ModalContext.js";
@@ -22,11 +26,32 @@ import { ReviewStep } from "./steps/ReviewStep.js";
 import { SuccessStep } from "./steps/SuccessStep.js";
 import { WizardSheet } from "./WizardSheet.js";
 
-function WizardContent() {
+/**
+ * A counter that moves once per opening. Adjusting state during render is the
+ * documented way to derive from a prop change: the render that sees the opening
+ * edge is discarded, so the sheet commits once, already on the fresh session.
+ */
+function useOpenSession(isOpen: boolean): number {
+  const [session, setSession] = useState(0);
+  const [wasOpen, setWasOpen] = useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setSession((count) => count + 1);
+  }
+  return session;
+}
+
+function WizardContent({ isOpen }: { isOpen: boolean }) {
   const { closeOnboardingModal } = useModal();
   const { state } = useWizard();
   const navigate = useNavigate();
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
+
+  // The sheet stays mounted while it closes, so the terminal state is dropped
+  // when the assistant is dismissed rather than carried into the next opening.
+  useEffect(() => {
+    if (!isOpen) setCreatedProject(null);
+  }, [isOpen]);
 
   const openCreatedProject = () => {
     if (createdProject === null) return;
@@ -53,6 +78,7 @@ function WizardContent() {
 
   return (
     <WizardSheet
+      isOpen={isOpen}
       onClose={closeOnboardingModal}
       success={
         createdProject === null
@@ -72,14 +98,11 @@ function WizardContent() {
 export function WizardModal() {
   const { isOnboardingOpen } = useModal();
   const { data: descriptors } = useProviderDescriptors();
-
-  if (!isOnboardingOpen) {
-    return null;
-  }
+  const session = useOpenSession(isOnboardingOpen);
 
   return (
-    <WizardProvider descriptors={descriptors}>
-      <WizardContent />
+    <WizardProvider key={session} descriptors={descriptors}>
+      <WizardContent isOpen={isOnboardingOpen} />
     </WizardProvider>
   );
 }

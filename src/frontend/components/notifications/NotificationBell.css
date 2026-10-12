@@ -4,27 +4,45 @@
   position: relative;
 }
 
-/* The unread count rides inside the circle as a capsule, so the circle never
-   grows and the count reads as a badge (the block's tokens: capsule, accent
-   fill, 600, no border). */
+/* The unread count rides inside the circle as the one Badge block, so the
+   circle never grows and the count reads as a badge. It only animates as it
+   arrives: a count that ticks up does not jump (O6, SYSTEM.md "badge arrival
+   only"). */
 .notification-badge {
   position: absolute;
   top: 0;
   right: 0;
-  min-width: var(--space-4);
-  height: var(--space-4);
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-full);
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-family: var(--font-sans);
-  font-size: var(--text-caption-2);
-  font-weight: 600;
-  line-height: var(--space-4);
-  text-align: center;
+  line-height: 1;
+  animation: notificationBadgeIn var(--duration-fast) var(--ease-out);
 }
 
-.notification-popover {
+@keyframes notificationBadgeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion: the scale drops, the crossfade stays. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes notificationBadgeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+/* The popover pads nothing of its own: its head and its rows each carry their
+   own inset, so the two paddings stop stacking (SYS-16). */
+.xf-popover.notification-popover {
+  padding: 0;
   width: min(22rem, calc(100vw - var(--space-8)));
   max-height: min(30rem, 70vh);
   overflow: auto;

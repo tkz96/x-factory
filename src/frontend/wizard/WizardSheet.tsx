@@ -40,16 +40,37 @@ export interface WizardSuccess {
 }
 
 export interface WizardSheetProps {
+  /** The sheet stays mounted while it is false, so it can play its exit (#250). */
+  isOpen: boolean;
   onClose: () => void;
   /** Set once the project exists: the assistant's terminal state. */
   success?: WizardSuccess | undefined;
   children: ReactNode;
 }
 
-export function WizardSheet({ onClose, success, children }: WizardSheetProps) {
+export function WizardSheet({
+  isOpen,
+  onClose,
+  success,
+  children,
+}: WizardSheetProps) {
   const { state, descriptors } = useWizard();
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
+
+  // Which way the last step change went (O3): forward slides in from the right,
+  // Back from the left. Kept as a pair so the direction is right on the frame
+  // the new pane mounts, never a frame late.
+  const [nav, setNav] = useState<{
+    step: number;
+    direction: "forward" | "back";
+  }>({ step: state.step, direction: "forward" });
+  if (nav.step !== state.step) {
+    setNav({
+      step: state.step,
+      direction: state.step < nav.step ? "back" : "forward",
+    });
+  }
 
   // Derived from the state the sheet is showing, never stored (#268 story 116):
   // there is work to lose exactly when the draft holds something.
@@ -78,7 +99,7 @@ export function WizardSheet({ onClose, success, children }: WizardSheetProps) {
   return (
     <>
       <Sheet
-        isOpen
+        isOpen={isOpen}
         onClose={requestClose}
         id="onboarding-wizard-modal"
         position="center"
@@ -95,7 +116,15 @@ export function WizardSheet({ onClose, success, children }: WizardSheetProps) {
         <DialogBody className="wizard-sheet-body">
           <WizardUrlIntakeProvider>
             <WizardFooterSlot.Provider value={actionsSlot}>
-              {children}
+              {/* Keyed on the step: a new pane mounts per step and plays its
+                  own arrival (O3). */}
+              <div
+                key={state.step}
+                className="wizard-step-swap"
+                data-direction={nav.direction}
+              >
+                {children}
+              </div>
             </WizardFooterSlot.Provider>
           </WizardUrlIntakeProvider>
         </DialogBody>

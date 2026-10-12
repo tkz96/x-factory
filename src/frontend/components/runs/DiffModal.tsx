@@ -1,9 +1,17 @@
-// src/frontend/components/runs/DiffModal.tsx — Full-screen modal for per-file syntax-highlighted diffs.
+// src/frontend/components/runs/DiffModal.tsx — Full-screen modal for per-file
+// syntax-highlighted diffs (SYS-13/SYS-14: the shared window).
 
 import "./DiffModal.css";
 
 import { useMemo } from "react";
-import { Dialog } from "../overlays/Dialog.js";
+import {
+  Dialog,
+  DialogBody,
+  DialogCloseButton,
+  DialogFooter,
+  DialogHeader,
+} from "../overlays/Dialog.js";
+import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 
 export interface DiffModalProps {
@@ -37,46 +45,29 @@ export function DiffModal({
       onClose={onClose}
       id="diff-modal"
       overlayId="diff-modal-backdrop"
-      overlayClassName="modal-backdrop"
       ariaLabel={file ? `Diff for ${file}` : undefined}
-      className="modal-dialog diff-modal-dialog"
+      className="xf-dialog-window diff-modal-dialog"
     >
       {file !== null && (
         <>
-          <header className="diff-modal-header">
+          <DialogHeader>
             <div className="diff-modal-title-wrap">
               <span className="diff-modal-filename" id="diff-modal-filename">
                 {file}
               </span>
               <div className="diff-modal-stats">
-                <span className="diff-modal-badge diff-modal-add">{`+${added}`}</span>
-                <span className="diff-modal-badge diff-modal-remove">{`−${removed}`}</span>
+                <Badge tone="success">{`+${added}`}</Badge>
+                <Badge tone="error">{`−${removed}`}</Badge>
               </div>
             </div>
-            <button
-              type="button"
-              className="diff-modal-close-btn"
+            <DialogCloseButton
               id="diff-modal-close"
-              onClick={onClose}
-              aria-label="Close diff modal"
-            >
-              <svg
-                className="icon icon-sm"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </header>
+              ariaLabel="Close diff modal"
+              onClose={onClose}
+            />
+          </DialogHeader>
 
-          <div className="diff-modal-body">
+          <DialogBody className="diff-modal-body">
             <pre className="diff-modal-content">
               {diffRows.map((row) => {
                 let lineClass = "diff-row diff-row-context";
@@ -103,13 +94,13 @@ export function DiffModal({
                 );
               })}
             </pre>
-          </div>
+          </DialogBody>
 
-          <div className="modal-actions">
-            <Button variant="secondary" size="sm" onPress={onClose}>
+          <DialogFooter>
+            <Button variant="secondary" onPress={onClose}>
               Close
             </Button>
-          </div>
+          </DialogFooter>
         </>
       )}
     </Dialog>

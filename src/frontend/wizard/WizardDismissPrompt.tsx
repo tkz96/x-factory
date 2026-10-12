@@ -33,7 +33,7 @@ export function WizardDismissPrompt({
       id="wizard-dismiss-prompt"
       role="alertdialog"
       title={WIZARD_COPY.dismissTitle}
-      className="wizard-dismiss-dialog"
+      className="xf-dialog-window wizard-dismiss-dialog"
     >
       <h2 id="wizard-dismiss-prompt-title" className="wizard-dismiss-title">
         {WIZARD_COPY.dismissTitle}

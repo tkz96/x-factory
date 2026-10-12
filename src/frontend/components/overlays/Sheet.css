@@ -21,38 +21,16 @@
   position: relative;
   inset: auto;
   width: 100%;
-  max-width: var(--content-max-md);
+  max-width: var(--sheet-width);
   height: auto;
   /* The overlay centres the wrapper, and the wrapper is as wide as the window:
      the sheet centres itself inside it. */
   margin-inline: auto;
   max-height: min(calc(100dvh - 2 * var(--space-4)), var(--modal-max-height));
-  border-radius: var(--radius-card);
-  animation: xfSheetAppear var(--duration-fast) var(--spring);
-}
-
-@keyframes xfSheetAppear {
-  0% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Reduced motion: the assistant sheet's own keyframe is declared again as a
-   fade, so the same animation name crossfades in place instead of settling. */
-@media (prefers-reduced-motion: reduce) {
-  @keyframes xfSheetAppear {
-    0% {
-      opacity: 0;
-    }
-    100% {
-      opacity: 1;
-    }
-  }
+  border-radius: var(--radius-lg);
+  /* A centred sheet is a window: it arrives the way every other window does
+     (M5, SYS-13), from a hair small rather than a hair narrower. */
+  animation: xfDialogWindowIn var(--duration-modal) var(--ease-spring);
 }
 
 .xf-sheet-bottom {
@@ -60,8 +38,8 @@
   left: 0;
   right: 0;
   max-height: min(85vh, var(--modal-max-height));
-  border-top-left-radius: var(--radius-card);
-  border-top-right-radius: var(--radius-card);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
   border-bottom: none;
   border-left: none;
   border-right: none;
@@ -74,8 +52,8 @@
   right: 0;
   width: var(--content-max-md);
   max-width: 100%;
-  border-top-left-radius: var(--radius-card);
-  border-bottom-left-radius: var(--radius-card);
+  border-top-left-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-lg);
   border-right: none;
   border-top: none;
   border-bottom: none;
@@ -88,8 +66,8 @@
   left: 0;
   width: var(--content-max-md);
   max-width: 100%;
-  border-top-right-radius: var(--radius-card);
-  border-bottom-right-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
   border-left: none;
   border-top: none;
   border-bottom: none;

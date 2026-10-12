@@ -1,6 +1,35 @@
 /* src/frontend/wizard/steps/SuccessStep.css — the terminal state's summary
    (#268). Tokens only. */
 
+/* The card settles in (O4): scale(0.97) and a fade, over the window's own
+   arrival beat, so the project appearing is something the reader sees happen. */
+.success-step-pane {
+  animation: successStepIn var(--duration-modal) var(--ease-spring);
+}
+
+@keyframes successStepIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion: the scale drops, the crossfade stays. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes successStepIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
 .success-step-summary {
   display: flex;
   flex-direction: column;

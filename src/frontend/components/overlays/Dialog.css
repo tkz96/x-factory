@@ -27,7 +27,7 @@
 }
 
 /* The primitive is structure only: each dialog brings its own surface
-   (modal-dialog, xf-alert-dialog-modal, xf-sheet-modal), so one surface
+   (xf-dialog-window, xf-alert-dialog-modal, xf-sheet-modal), so one surface
    never stacks on another. The content is not animated on top of the
    overlay's own fade — one crossfade per arrival (M18). */
 .xf-dialog-content {
@@ -43,7 +43,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-5);
-  border-bottom: var(--border-width) solid var(--border);
+  border-bottom: var(--border-width) solid var(--border-subtle);
   flex-shrink: 0;
 }
 
@@ -73,6 +73,71 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* A window whose body supplies no actions shows no empty footer bar. */
+.xf-dialog-footer:empty {
+  display: none;
+}
+
+/* The one centred window (SYS-13, SYS-14): New Run, the add-project assistant,
+   the diff view and the Settings confirmation are the same sheet. Its width,
+   its radius and its height cap come from the system — a screen never brings a
+   window shape of its own. Every window is --radius-lg, at every width (SYS-6). */
+.xf-dialog-window {
+  background: var(--bg-modal);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: var(--sheet-width);
+  max-height: min(90dvh, var(--modal-max-height));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: var(--z-modal);
+  outline: none;
+  animation: xfDialogWindowIn var(--duration-modal) var(--ease-spring);
+}
+
+/* Arriving (M5): the window settles in from a hair small over 280ms. Nothing
+   animates the backdrop's filter (M3) — the overlay's own opacity fade is the
+   whole backdrop motion, because animating a blur is the one effect this
+   system bans. */
+@keyframes xfDialogWindowIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(var(--space-2));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Reduced motion: the settle drops, the crossfade stays. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes xfDialogWindowIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+/* The action row of a window's footer. The divider, the background and the
+   pinning belong to the footer; this only arranges the buttons in it. */
+.xf-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  row-gap: var(--space-2);
+  width: 100%;
 }
 
 /* The dialog's close control is the icon-button block (#251): its surface, its

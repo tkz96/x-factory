@@ -117,6 +117,7 @@ How that translates into this codebase (ticket #252):
 - **Every keyframe has a reduced-motion path beside it.** A keyframe that moves (`transform`, `translate`, `top`, `width`, …) declares the same keyframe again inside a `@media (prefers-reduced-motion: reduce)` block in the same file, with the movement removed and the fade kept. An infinite animation (a spinner, a pulse, a typing indicator) stops in that block — `animation-iteration-count: 1` — and reads as a static indicator. The smoke gate fails on a keyframe that moves without a reduced path, or on a loop that never stops.
 - **GPU properties only.** Animate `transform` and `opacity`. Resizing (`width`, `height`), offsets (`top`, `left`) and shadows that re-layout are findings; a progress bar scales with `transform: scaleX()`, it does not animate `width`.
 - **Never `transition: all`**, and never `scale(0)`: content arrives from `scale(0.9–0.97)` plus `opacity: 0`, so nothing appears from nothing.
+- **Windows settle; side and bottom sheets travel.** Every centred window — a sheet, a dialog, an alert — is one surface (`--sheet-width`, `--radius-lg`) and arrives from `scale(0.96)` with a fade over `--duration-modal` (280 ms) on `--ease-spring`. Nothing animates `backdrop-filter`: a blurred backdrop that sharpens is the one effect this system bans. A side or bottom sheet travels along the edge it is docked to on `--ease-drawer` (`cubic-bezier(0.32, 0.72, 0, 1)`), which leaves the edge at once because a sheet is leaving the screen. The step inside the assistant's sheet arrives from the side the reader moved towards — enter only, never animating height.
 - **The `motion` library is mounted once and loaded on demand.** `MotionProvider` (`src/frontend/motion/MotionProvider.tsx`) wraps the app in `LazyMotion` with `MotionConfig reducedMotion="user"`, and reaches the feature pack through the dynamic import in `motion-features.ts`. Components use the `m` components, never `motion`, so the pack stays out of the entry chunk; only `motion-feature-pack.ts` may name one. Springs have no fixed duration, so they are parameterised in `src/frontend/motion/motion-springs.ts`.
 - **The vocabulary lives in `src/frontend/motion/`.** `MotionEntry` (a chat row arriving) and `MotionList` / `MotionListItem` (reordering) are what screens build their motion from, rather than each screen hand-rolling keyframes. Sheets rise with the CSS motion tokens, not a component, and no surface follows a drag: the motion library has no drag feature in use.
 
@@ -201,12 +202,20 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --radius-card: 16px; --radius-lg: 20px; --radius-full: 9999px;
 
   /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve,
-     which decelerates and settles without overshooting */
+     which decelerates and settles without overshooting. A window arrives over
+     --duration-modal; a side or bottom sheet travels on the drawer curve */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --spring: var(--ease-spring);
   --transition-fast: 160ms var(--spring);
   --transition: 220ms var(--spring);
   --transition-slow: 300ms var(--spring);
+  --duration-modal: 280ms;
+
+  /* The one window (SYS-13): every sheet and dialog — New Run, the add-project
+     assistant, the diff and the Settings confirmation — is this wide and
+     --radius-lg at every width */
+  --sheet-width: 560px;
 
   /* Fonts — web path; see Section 3 for the licensing reasoning */
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;

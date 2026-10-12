@@ -227,6 +227,35 @@ describe("closing an overlay animates in chromium (#250)", () => {
   }, 60_000);
 });
 
+describe("the New Run window animates when it closes (#250, SYS-13)", () => {
+  test("plays its exit, and only then leaves the DOM", async () => {
+    const { page, close } = await openQueue();
+    await page.goto(`${instance.url}/tickets`, { waitUntil: "load" });
+    await page.evaluate(watchOverlayExit);
+
+    await page.locator("#btn-start-run").click();
+    await page.locator("#modal-new-run").waitFor();
+    // The exit is measured on its own, so the entry animation must be over first.
+    await page.waitForFunction(
+      () => !document.querySelector(".xf-dialog-overlay[data-entering]"),
+    );
+
+    await page.keyboard.press("Escape");
+    await page.locator("#modal-new-run").waitFor({ state: "detached" });
+    const record = await readRecord(page);
+
+    // The window stayed in the DOM, marked `data-exiting`, for the whole exit:
+    // the same contract the building blocks keep, now on a real screen.
+    expect(record.exitingAt).not.toBeNull();
+    expect(record.removedAt).not.toBeNull();
+    expect(exitWindow(record)).toBeGreaterThan(0);
+    expect(cssTime(record.exitingDuration)).toBe(
+      cssTime(await readToken(page, "--duration-instant")),
+    );
+    await close();
+  }, 60_000);
+});
+
 /** How far a dialog's surface sits from the window's horizontal centre, in px. */
 async function offCentre(page: Page, selector: string): Promise<number> {
   return page.evaluate((sel) => {
@@ -250,7 +279,8 @@ describe("a dialog sits in the middle of the window, not at its left edge", () =
     await page.goto(`${instance.url}/tickets`, { waitUntil: "load" });
     await page.locator("#btn-start-run").click();
     await page.getByRole("dialog").waitFor();
-    expect(await offCentre(page, ".modal-dialog")).toBeLessThan(2);
+    // The New Run window is the shared centred sheet (SYS-13).
+    expect(await offCentre(page, "#modal-new-run")).toBeLessThan(2);
     await close();
   }, 60_000);
 });

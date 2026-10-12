@@ -1,21 +1,11 @@
-/* src/frontend/components/runs/DiffModal.css — Syntax-highlighted diff modal */
+/* src/frontend/components/runs/DiffModal.css — The diff view inside the shared
+ * window (SYS-13): only the diff's own geometry lives here. The surface, the
+ * header, the body and the footer come from the Sheet/Dialog structure.
+ */
 
 .diff-modal-dialog {
   max-width: var(--modal-max-width-lg);
-  width: 95%;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.diff-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: 1rem 1.25rem;
-  border-bottom: var(--border-width) solid var(--border);
-  background: var(--bg-secondary);
+  max-height: 85dvh;
 }
 
 .diff-modal-title-wrap {
@@ -35,57 +25,15 @@
   text-overflow: ellipsis;
 }
 
-.diff-modal-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-caption-1);
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-}
-
 .diff-modal-stats {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.diff-modal-add {
-  color: var(--green);
-  background: var(--green-dim);
-}
-
-.diff-modal-remove {
-  color: var(--red);
-  background: var(--red-dim);
-}
-
-.diff-modal-close-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    color var(--transition),
-    background var(--transition);
-}
-
-.diff-modal-close-btn:hover {
-  color: var(--text);
-  background: var(--bg-hover);
-}
-
+/* The body is the diff itself: no padding, and the code's own fill. */
 .diff-modal-body {
   padding: 0;
-  overflow: auto;
-  flex: 1 1 auto;
   background: var(--bg-tertiary);
 }
 

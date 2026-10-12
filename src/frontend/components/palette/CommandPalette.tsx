@@ -22,6 +22,7 @@ import { Dialog } from "../overlays/Dialog.js";
 import {
   buildPaletteItems,
   filterPaletteItems,
+  type PaletteGroup,
   type PaletteItem,
 } from "./palette-items.js";
 
@@ -123,9 +124,33 @@ function PaletteBody({
   const current = Math.min(activeIndex, Math.max(items.length - 1, 0));
   const optionId = (index: number) => `${listId}-option-${index}`;
 
+  // The list keeps the build order (actions, sections, projects, runs, help) and
+  // carries one header per group instead of the group word in every row (SYS-15).
+  const groups = useMemo(() => {
+    const order: PaletteGroup[] = [
+      "Actions",
+      "Sections",
+      "Projects",
+      "Runs",
+      "Help",
+    ];
+    return order
+      .map((name) => ({
+        name,
+        headerId: `${listId}-group-${name.toLowerCase()}`,
+        entries: items
+          .map((item, index) => ({ item, index }))
+          .filter((entry) => entry.item.group === name),
+      }))
+      .filter((group) => group.entries.length > 0);
+  }, [items, listId]);
+
   return (
     <div className="command-palette">
       <div className="command-palette-search">
+        <svg className="icon icon-md" aria-hidden="true">
+          <use href="/assets/icons/sprite.svg#icon-search" />
+        </svg>
         <input
           ref={inputRef}
           type="text"
@@ -153,32 +178,44 @@ function PaletteBody({
         </p>
       ) : (
         <div id={listId} role="listbox" className="command-palette-list">
-          {items.map((item, index) => (
-            <div
-              key={item.id}
-              id={optionId(index)}
-              role="option"
-              tabIndex={-1}
-              aria-selected={index === current}
-              className={`command-palette-option${index === current ? " is-active" : ""}`}
-              data-group={item.group}
-              onMouseMove={() => setActiveIndex(index)}
-              onClick={() => activate(item)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") activate(item);
-              }}
+          {groups.map((group) => (
+            <fieldset
+              key={group.name}
+              aria-labelledby={group.headerId}
+              className="command-palette-group"
             >
-              <span className="command-palette-group">{item.group}</span>
-              <span className="command-palette-label">{item.label}</span>
-              {item.detail ? (
-                <span className="command-palette-detail">{item.detail}</span>
-              ) : null}
-              {item.shortcutId && shortcutLabel(item.shortcutId, isMac) ? (
-                <kbd className="command-palette-keys">
-                  {shortcutLabel(item.shortcutId, isMac)}
-                </kbd>
-              ) : null}
-            </div>
+              <div id={group.headerId} className="command-palette-group-header">
+                {group.name}
+              </div>
+              {group.entries.map(({ item, index }) => (
+                <div
+                  key={item.id}
+                  id={optionId(index)}
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={index === current}
+                  className={`command-palette-option${index === current ? " is-active" : ""}`}
+                  data-group={item.group}
+                  onMouseMove={() => setActiveIndex(index)}
+                  onClick={() => activate(item)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") activate(item);
+                  }}
+                >
+                  <span className="command-palette-label">{item.label}</span>
+                  {item.detail ? (
+                    <span className="command-palette-detail">
+                      {item.detail}
+                    </span>
+                  ) : null}
+                  {item.shortcutId && shortcutLabel(item.shortcutId, isMac) ? (
+                    <kbd className="command-palette-keys">
+                      {shortcutLabel(item.shortcutId, isMac)}
+                    </kbd>
+                  ) : null}
+                </div>
+              ))}
+            </fieldset>
           ))}
         </div>
       )}

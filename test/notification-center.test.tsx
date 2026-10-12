@@ -197,7 +197,7 @@ describe("notification bell (#264)", () => {
     expect(bellLabel()).toBe("Notifications");
   });
 
-  it("Mark All as Read clears the unread count", async () => {
+  it("Mark all as read clears the unread count", async () => {
     renderCenter(
       snapshot({
         runs: [run("r1", "awaiting_plan_approval"), run("r2", "ready_for_pr")],
@@ -210,7 +210,7 @@ describe("notification bell (#264)", () => {
     expect(bellLabel()).toBe("Notifications, 2 unread");
     fireEvent.click(bell());
     fireEvent.click(
-      await view().findByRole("button", { name: "Mark All as Read" }),
+      await view().findByRole("button", { name: "Mark all as read" }),
     );
     expect(bellLabel()).toBe("Notifications");
   });
@@ -223,7 +223,7 @@ describe("notification bell (#264)", () => {
     const first = renderCenter(seed);
     expect(bellLabel()).toBe("Notifications, 1 unread");
     fireEvent.click(bell());
-    fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
+    fireEvent.click(view().getByRole("button", { name: "Mark all as read" }));
     first.unmount();
 
     expect(globalThis.localStorage?.getItem(READ_STATE_STORAGE_KEY)).toContain(
@@ -257,7 +257,7 @@ describe("notification bell (#264)", () => {
     try {
       renderCenter(seed, liveStream(), { strict: true });
       fireEvent.click(bell());
-      fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
+      fireEvent.click(view().getByRole("button", { name: "Mark all as read" }));
     } finally {
       if (original) Object.defineProperty(globalThis, "localStorage", original);
     }
@@ -283,7 +283,7 @@ describe("notification bell (#264)", () => {
       const { push, unmount } = renderCenter(seed);
       expect(bellLabel()).toBe("Notifications, 1 unread");
       fireEvent.click(bell());
-      fireEvent.click(view().getByRole("button", { name: "Mark All as Read" }));
+      fireEvent.click(view().getByRole("button", { name: "Mark all as read" }));
       expect(bellLabel()).toBe("Notifications");
 
       push(envelope(141, "r1", "recovery_required"));

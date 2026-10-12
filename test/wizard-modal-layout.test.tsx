@@ -193,6 +193,35 @@ describe("Setup modal layout contract (#159)", () => {
     expect(getEl("onboard-step-1").contains(cancel)).toBe(false);
   });
 
+  it("marks which way a step moved, so the pane can arrive from that side (O3)", async () => {
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    // Step 1 is the pane the sheet opened on.
+    const first = getEl("onboard-step-1").closest(".wizard-step-swap");
+    expect(first?.getAttribute("data-direction")).toBe("forward");
+
+    typeInput(getEl("onboard-repo-url"), "https://git.example.com/acme/titan");
+    typeInput(getEl("onboard-proj-name"), "Titan");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    fireEvent.click(getEl<HTMLButtonElement>("btn-step-1-next"));
+
+    const second = document
+      .getElementById("onboard-step-2")
+      ?.closest(".wizard-step-swap");
+    expect(second?.getAttribute("data-direction")).toBe("forward");
+    // A new pane per step: the swap element is not the one step 1 was in.
+    expect(second).not.toBe(first);
+
+    fireEvent.click(getEl<HTMLButtonElement>("btn-step-2-back"));
+    const back = document
+      .getElementById("onboard-step-1")
+      ?.closest(".wizard-step-swap");
+    expect(back?.getAttribute("data-direction")).toBe("back");
+  });
+
   it("closes on Escape through the shared modal", () => {
     renderWizard();
     fireEvent.click(getEl("btn-open-wizard"));

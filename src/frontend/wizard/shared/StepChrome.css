@@ -7,8 +7,10 @@
   margin-bottom: var(--space-5);
 }
 
+/* The step's own title: a headline, not a section title — 17px at 600
+   (SYS-13), one rung below the window's title. */
 .wizard-step-title {
-  font-size: var(--text-title-3);
+  font-size: var(--text-headline);
   font-weight: 600;
   color: var(--text);
   margin: 0 0 var(--space-2) 0;
