@@ -28,7 +28,7 @@
 
 /* The ticket title is the row's primary text, in the case it was written —
    not the small-caps section heading a card's h3 gets by default. */
-.run-card-title {
+.run-card .run-card-title {
   margin: 0 0 var(--space-1);
   font-size: var(--text-headline);
   font-weight: 600;

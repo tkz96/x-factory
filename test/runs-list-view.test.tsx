@@ -212,7 +212,13 @@ describe("Runs rows", () => {
       path.join(import.meta.dir, "../src/frontend/views/RunsView.css"),
       "utf8",
     );
-    const rule = /\.run-card-title\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    const match = /([^{}]*\.run-card-title)\s*\{([^}]*)\}/.exec(css);
+    const selector = match?.[1]?.trim() ?? "";
+    const rule = match?.[2] ?? "";
+    // It must out-rank the shared `.card h3` (one class, one element).
+    expect((selector.match(/\.[\w-]+/g) ?? []).length).toBeGreaterThanOrEqual(
+      2,
+    );
     expect(rule).toMatch(/text-transform:\s*none/);
     expect(rule).toMatch(/letter-spacing:\s*normal/);
     expect(rule).toMatch(/color:\s*var\(--text\)/);
