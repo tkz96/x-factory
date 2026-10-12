@@ -28,6 +28,13 @@ This document serves as the persistent domain glossary and architectural context
 | **App-wide Event Stream** | Server-Sent Events stream (`GET /api/events`) of the `status` and `pr_step` events of every run, resumed from a global event id cursor. One shared poller in the API process feeds all connections. See `docs/reference/events-api.md`. |
 | **Events Snapshot** | The consistent read (`GET /api/events/snapshot`) a client takes before it subscribes to the app-wide stream: current runs, Needs-you trigger events, recent finished events, and the cursor to resume from. |
 | **Reticle** | In-app verification layer executing real interactions against the running web application to produce evidence-backed verdicts. |
+| **Model Connection** | A saved provider endpoint, its API key, and the models it offers. It is managed in **Settings › Models**, and it counts as usable only after **Check Connection** passes. Definitions are in `model-connections.json`; keys are owner-only (0600) in `model-secrets.json`. |
+| **Builder / Reviewer Role** | The two model roles. The **Builder** runs `understand`, `plan` and `execute`. The **Reviewer** reviews the diff inside `execute`. Each role resolves its own connection and model, and there is no fallback to another model (`src/model-roles.ts`). |
+| **Provider** | A registered integration module (`src/providers/registry.ts`) that serves one or more roles. The roles are `tracker` (tickets) and `gitHost` (repositories and pull requests) — `ProjectConnectionRole` in `src/shared/types.ts`. GitHub and Azure DevOps serve both roles; Jira serves `tracker` only, so it has no pull request delivery. |
+| **Checkpoint** | A run status where the worker waits for a human decision: `awaiting_understanding_approval`, `awaiting_plan_approval`, `awaiting_review`, and `ready_for_pr`. |
+| **Repair Attempt** | One pass of the verify → diagnose → repair loop inside the coding stage. `MAX_REPAIR_ATTEMPTS` is 3, and it counts the first attempt (`src/verification.ts`). |
+| **Sandbox (sbx)** | The CLI the coding stage runs the agent inside. The stage fails closed when `sbx` is missing, unless running without a sandbox is allowed in Settings or by `X_FACTORY_ALLOW_UNSANDBOXED=1`. See `docs/how-to/install-and-check-sbx.md`. |
+| **PR Outcome** | The result the worker records for a run in `pr_created`: a `pr_merged` or `pr_closed` event (`src/pull-request-checker.ts`). The run's FSM status stays `pr_created`; the UI shows **Merged** for a merged pull request. |
 
 ---
 
@@ -48,8 +55,8 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Runs list filters | Needs you / Running / Done / All, each with its count. The Runs badge and the tab title show the Needs-you count, not notifications |
 | Start a run, add a project | Start Run, Add Project |
 | Start a new run for a terminal ticket (pull request opened, failed or stopped) | Start New Run, on the run page (a ticket command, not a run action; the Tickets list's own card says Start Run, or Open Run while a run is active) |
-| Notification list in the toolbar | Notifications (the bell); unread count on the bell, "Mark All as Read" |
-| Runs in progress, shown quietly in the toolbar | Activity (never stored, never announced as a popup) |
+| Notification list in the toolbar | Notifications (the bell); the unread count is on the bell, and the list has "Mark All as Read" |
+| Runs in progress, shown quietly in the toolbar | The activity link: the ticket id and its plain status for one run, or "N runs in progress" for several. Never stored, never announced as a popup |
 | A run that needs you, kind by kind | Understanding ready, Plan ready, Changes ready, Ready for a pull request, Needs recovery |
 | A run that finished, kind by kind | Pull request opened, Run failed (with its reason), Run stopped |
 | The first-run welcome and its checklist (#269) | Welcome — steps: Add Project, Connect a Model, Start Run |

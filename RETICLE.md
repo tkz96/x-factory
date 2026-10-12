@@ -1,6 +1,6 @@
 # Reticle: the full rules
 
-The short version lives in your agent instruction file (`CLAUDE.md` / `AGENTS.md` / `.cursor/rules/reticle.mdc`) and loads every turn. This file is the reference: read the section that matches the situation you are in.
+The short version lives in [`docs/agents/reticle.md`](./docs/agents/reticle.md), which your agent instruction file (`AGENTS.md`, with `CLAUDE.md` and `GEMINI.md` as symlinks to it) links to, and loads every turn. This file is the reference: read the section that matches the situation you are in.
 
 ## The tools are missing entirely
 
