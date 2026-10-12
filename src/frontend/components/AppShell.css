@@ -367,14 +367,26 @@
 }
 
 /* Between the phone and the wide desktop the search field gives up its label
-   and its keys and becomes the plain icon button (#SYS-2). The accessible name
-   stays, so nothing about it is lost to the eye or to a screen reader. */
+   and its keys and becomes the plain icon button (#SYS-2, SYS-8): transparent
+   until hovered or pressed, exactly like the bell and the gear beside it. The
+   accessible name stays, so nothing about it is lost to the eye or to a screen
+   reader. */
 @media (max-width: 1320px) {
   .toolbar-search {
     min-width: 0;
     width: var(--tap-min);
     padding: 0;
     justify-content: center;
+    background: transparent;
+  }
+
+  .toolbar-search[data-hovered] {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  .toolbar-search[data-pressed] {
+    background: var(--bg-secondary);
   }
 
   .toolbar-search-label,
