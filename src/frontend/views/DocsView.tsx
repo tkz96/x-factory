@@ -2,12 +2,11 @@
 
 import "./DocsView.css";
 
-import { Badge } from "../components/ui/Badge.js";
-
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MarkdownViewer } from "../components/MarkdownViewer.js";
+import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
 import { api } from "../lib/api-client.js";
 

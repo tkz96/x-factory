@@ -140,7 +140,9 @@ describe("App shell toolbar (#258)", () => {
 
   it("offers Start Run in the page heading on Tickets and Add Project on Projects, and neither in the toolbar", () => {
     const tickets = renderShell("/tickets");
-    const ticketsSlot = tickets.container.querySelector(".page-heading-actions");
+    const ticketsSlot = tickets.container.querySelector(
+      ".page-heading-actions",
+    );
     expect(ticketsSlot).not.toBeNull();
     expect(
       within(ticketsSlot as HTMLElement).getByRole("button", {
@@ -161,8 +163,9 @@ describe("App shell toolbar (#258)", () => {
     cleanup();
 
     const projects = renderShell("/projects");
-    const projectsSlot =
-      projects.container.querySelector(".page-heading-actions");
+    const projectsSlot = projects.container.querySelector(
+      ".page-heading-actions",
+    );
     expect(projectsSlot).not.toBeNull();
     expect(
       within(projectsSlot as HTMLElement).getByRole("button", {
@@ -227,9 +230,9 @@ describe("App shell toolbar (#258)", () => {
       within(palette).getByRole("option", { name: /Toggle Appearance/ }),
     );
     await waitFor(() =>
-      expect(
-        document.documentElement.getAttribute("data-appearance"),
-      ).not.toBe(before),
+      expect(document.documentElement.getAttribute("data-appearance")).not.toBe(
+        before,
+      ),
     );
   });
 

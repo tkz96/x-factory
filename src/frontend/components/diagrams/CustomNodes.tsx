@@ -2,9 +2,8 @@
 
 import "./CustomNodes.css";
 
-import { Badge, type BadgeTone } from "../ui/Badge.js";
-
 import { Handle, type NodeProps, Position } from "@xyflow/react";
+import { Badge, type BadgeTone } from "../ui/Badge.js";
 
 export interface CustomNodeData extends Record<string, unknown> {
   tag?: string;

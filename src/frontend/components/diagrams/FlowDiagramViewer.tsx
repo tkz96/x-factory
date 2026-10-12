@@ -2,8 +2,6 @@
 
 import "./FlowDiagramViewer.css";
 
-import { Badge } from "../ui/Badge.js";
-
 import {
   Background,
   BackgroundVariant,
@@ -14,6 +12,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useState } from "react";
 import { useTheme } from "../../hooks/useTheme.js";
+import { Badge } from "../ui/Badge.js";
 import { customNodeTypes } from "./CustomNodes.js";
 import { DiagramModal } from "./DiagramModal.js";
 import { DIAGRAM_REGISTRY, type DiagramDefinition } from "./registry.js";

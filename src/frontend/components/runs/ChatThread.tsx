@@ -4,11 +4,10 @@ import { stageLabel, stageStartedText } from "../../lib/run-models.js";
 import { runStatusText } from "../../lib/run-status-ui.js";
 import "./ChatThread.css";
 
-import { Badge } from "../ui/Badge.js";
-
 import { useEffect, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
 import { formatTimestamp } from "../../lib/format-timestamp.js";
+import { Badge } from "../ui/Badge.js";
 
 export interface ChatThreadProps {
   events: RunEvent[];
@@ -51,7 +50,9 @@ function renderRalphBubble(item: RunEvent<"ralph_progress">) {
   return (
     <div key={item.id} className="chat-bubble bubble-ralph">
       <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge" tone="accent">Progress</Badge>
+        <Badge className="chat-bubble-badge" tone="accent">
+          Progress
+        </Badge>
         {iteration ? <span>Iteration #{String(iteration)}</span> : null}
       </div>
       <div className="chat-bubble-body">{text}</div>
@@ -128,7 +129,9 @@ function renderErrorBubble(item: RunEvent<"error">) {
   return (
     <div key={item.id} className="chat-bubble bubble-error">
       <div className="chat-bubble-header">
-        <Badge className="chat-bubble-badge" tone="error">Error</Badge>
+        <Badge className="chat-bubble-badge" tone="error">
+          Error
+        </Badge>
       </div>
       <div className="chat-bubble-body">{item.payload.message}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
@@ -144,7 +147,9 @@ function renderInfoBubble(item: RunEvent<"info">) {
     return (
       <div key={item.id} className="chat-bubble bubble-warning">
         <div className="chat-bubble-header">
-          <Badge className="chat-bubble-badge" tone="warning">Warning</Badge>
+          <Badge className="chat-bubble-badge" tone="warning">
+            Warning
+          </Badge>
         </div>
         <div className="chat-bubble-body">{text}</div>
         <time className="chat-bubble-time" dateTime={item.timestamp}>

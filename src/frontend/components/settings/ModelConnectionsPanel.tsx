@@ -6,8 +6,6 @@
 
 import "./ModelConnectionsPanel.css";
 
-import { Badge } from "../ui/Badge.js";
-
 import { useState } from "react";
 import {
   MODEL_API_TYPES,
@@ -28,6 +26,7 @@ import { MODEL_CONNECTIONS_COPY as COPY } from "../feedback/copy-map.js";
 import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { AlertDialog } from "../overlays/index.js";
+import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 
 type Mutations = ReturnType<typeof useModelConnectionMutations>;

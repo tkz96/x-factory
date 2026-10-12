@@ -10,8 +10,6 @@
 
 import "./ProjectDetailView.css";
 
-import { Badge } from "../components/ui/Badge.js";
-
 import { useNavigate, useParams } from "react-router-dom";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
@@ -29,6 +27,7 @@ import { projectFacts } from "../components/projects/project-facts.js";
 import { ReadinessBanner } from "../components/projects/ReadinessBanner.js";
 import { RepositorySettings } from "../components/projects/RepositorySettings.js";
 import { TrackerSection } from "../components/projects/TrackerSection.js";
+import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
 import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";

@@ -1,6 +1,5 @@
 // src/frontend/components/diagrams/DiagramModal.tsx — Expanded Fullscreen Modal for technical diagram inspection.
 
-import { Badge } from "../ui/Badge.js";
 import {
   Background,
   BackgroundVariant,
@@ -9,6 +8,7 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import { Dialog } from "../overlays/Dialog.js";
+import { Badge } from "../ui/Badge.js";
 import { customNodeTypes } from "./CustomNodes.js";
 import type { DiagramDefinition } from "./registry.js";
 

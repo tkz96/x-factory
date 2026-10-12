@@ -4,12 +4,11 @@
 
 import "./TicketCard.css";
 
-import { Badge } from "../ui/Badge.js";
-
 import { Link, useNavigate } from "react-router-dom";
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
 import type { TicketRunLink } from "../../lib/ticket-runs.js";
+import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 
 interface TicketCardProps {
