@@ -23,6 +23,7 @@ How-to guides help competent operators solve specific real-world tasks and opera
 
 - **[How to Verify Worker Leases and Agent Sessions](./how-to/verify-worker-and-pi-session.md)**: Step-by-step verification procedure for worker claiming, database inspection, and Server-Sent Events.
 - **[How to Back Up and Restore the Database](./how-to/backup-and-restore-database.md)**: Procedures for non-blocking SQLite snapshots, artifact archives, cron automation, and disaster recovery.
+- **[How to Check the Sandbox (sbx), or Run Without One](./how-to/install-and-check-sbx.md)**: How to check whether the coding stage can run inside `sbx`, and how to explicitly allow running without one.
 
 ---
 
@@ -46,3 +47,13 @@ Explanation documents clarify architecture, system mechanics, design trade-offs,
 
 - **[Process Boundaries and System Topology](./explanation/process-boundaries-and-topology.md)**: Conceptual analysis of API and Worker separation, SQLite Write-Ahead Logging, and worker lease lifecycles.
 - **[UI State Management and Real-Time Event Streaming](./explanation/ui-state-and-event-streaming.md)**: Technical rationale for Server-Sent Events, durable event streaming, historical replay, and optimistic concurrency.
+
+---
+
+## 5. Research Archive
+
+These documents are archived. Each one cites code or provider behaviour from the commit it was written against, so it records what was found then, not how the app works now. They are kept for history.
+
+- **[Onboarding Defect & Provider-Seam Inventory](./research/onboarding-defect-seam-inventory.md)**
+- **[Project Setup UX Hardening — Blocker Ledger](./research/project-setup-ux-hardening.md)**
+- **[Provider Capability Matrix](./research/provider-capability-matrix.md)**

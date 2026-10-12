@@ -1,5 +1,7 @@
 # Onboarding defect & provider-seam inventory
 
+> **Archived — 2026-10-13, superseded; kept for history.** This inventory cites code at commit `0cc27f6`, which has since changed. Read it as a record of what was found then, not as a description of the app today.
+
 - **Ticket:** tkz96/x-factory#124
 - **Branch:** `research/onboarding-defect-seam-inventory` (worktree at `main` @ `0cc27f6`)
 - **Method:** Every claim below was verified against the source at commit `0cc27f6` with file:line evidence. Nothing is listed on speculation.

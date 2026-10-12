@@ -1,5 +1,7 @@
 # Provider capability matrix: GitHub, Azure DevOps, Jira Cloud
 
+> **Archived — 2026-10-13, superseded; kept for history.** This matrix cites code and provider documentation as they were at commit `0cc27f6`. It is kept as research, not as a description of the provider contract today.
+
 Research for issue `tkz96/x-factory#125`.
 Grounds a future provider contract in what the three providers' REST APIs **verifiably offer today**. Every claim cites either an official documentation URL or a repo file:line at commit `0cc27f6` (branch `research/provider-capability-matrix`). No capability is asserted beyond what is documented or already implemented.
 

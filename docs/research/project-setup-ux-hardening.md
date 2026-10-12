@@ -1,5 +1,7 @@
 # Project Setup UX Hardening — Blocker Ledger & Ticket Records
 
+> **Archived — 2026-10-13, superseded; kept for history.** This ledger records work on tickets #159–#162 as it happened. The code it cites has since changed, so read it as history, not as a description of the app today.
+
 Running record of blockers encountered and per-ticket outcomes while working through
 project setup UX tickets #159 → #160 → #161 → #162.
 
