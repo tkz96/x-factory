@@ -128,7 +128,7 @@ SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's
 1. **Centralized SVG Sprite Sheet**:
    - All icons are served from a single, centralized sprite sheet at `/assets/icons/sprite.svg` via `<svg class="icon icon-{size}"><use href="/assets/icons/sprite.svg#icon-{name}"></use></svg>`.
    - Individual standalone SVGs live cleanly in `public/assets/icons/ui/` and `public/assets/icons/brands/` for documentation, asset inspection, and maintenance.
-   - **Zero Inline SVGs**: Views, HTML files, and TypeScript UI generators MUST NOT inline raw SVG `<path>` or `<polygon>` tags. All icons MUST reference the sprite sheet or use the TypeScript helper functions.
+   - **Zero Inline SVGs**: Views, HTML files, and TypeScript UI generators MUST NOT inline raw SVG `<path>` or `<polygon>` tags. All icons MUST reference the sprite sheet through a block in `src/frontend/components/ui/`.
 
 2. **Strict Geometry & Geometry Spec**:
    - ViewBox: `0 0 24 24`.
@@ -148,10 +148,10 @@ SF Symbols ship in 3 scales (small/medium/large) and 9 weights matching SF Pro's
    - **Zero Raw Emojis**: Raw emojis (e.g. `✅`, `❌`, `⏳`, `⚠️`) MUST NOT be used for status indicators, badges, or connection diagnostics.
    - Use semantic status classes: `.icon-status-passed` (`var(--green)`), `.icon-status-failed` (`var(--red)`), `.icon-status-warning` (`var(--orange)`), `.icon-status-pending` (`var(--text-muted)`).
 
-5. **TypeScript Helpers**:
-   - In HTML string templates: `renderIcon(name: IconName, size?: IconSize, extraClass?: string): string`
-   - In DOM building code: `createIconSvg(name: IconName, size?: IconSize, extraClass?: string): SVGSVGElement`
-   - All icon names are strictly type-checked against `IconName`.
+5. **Draw icons through the blocks**:
+   - A control that shows an icon takes the icon id as a prop: `icon` on `Button` and `IconButton`, `leadingIcon` on `ListRow` (`src/frontend/components/ui/`).
+   - The block draws `<svg class="icon icon-{size}"><use href="/assets/icons/sprite.svg#icon-{name}"></use></svg>`. There is no `renderIcon` or `createIconSvg` helper to call: a screen passes the id, and the block draws it.
+   - To add an icon, add its symbol to `public/assets/icons/sprite.svg` and pass the new id. The smoke gate checks that every referenced id exists as an `icon-*` symbol.
 
 6. **Anti-Drift Automated CI Gates**:
    - `test/frontend-smoke.test.ts` enforces zero inline SVGs in HTML files, valid sprite `#icon-*` symbol IDs, zero raw emojis in UI code, and presence of all size modifier classes.
@@ -164,9 +164,11 @@ HIG: `/design/human-interface-guidelines/accessibility`
 - Every icon-only control needs an accessible label — `aria-label` on the web, not just a `title` attribute.
 - Respect reduced-motion and (where relevant) reduced-transparency preferences.
 
-## 6. Starter tokens
+## 6. Starter tokens (illustrative)
 
 Drop-in baseline for a web implementation — adjust values only against the HIG pages above, not by eye.
+
+**These names are illustrative, not the app's names.** The tokens this app ships are in `src/frontend/styles/tokens.css`, which groups them by `[data-theme]`, `[data-appearance]` and `[data-contrast]` and names colors by role (`--text`, `--bg-card`, `--border`, `--accent`). Read this section for the shape of each scale, and `tokens.css` for the real names. Under `prefers-reduced-motion: reduce`, every duration collapses to 120 ms.
 
 ```css
 :root {
@@ -310,7 +312,7 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
 - MUST use the defined type scale (Section 5, Typography) — no arbitrary font sizes.
 - MUST give every icon-only control an accessible label.
 - MUST follow the licensing path from Section 3 — no shipping literal SF Symbols/SF Pro assets in a non-Apple-platform build.
-- MUST use the centralized SVG sprite sheet (`/assets/icons/sprite.svg`) or TypeScript icon helpers (`renderIcon` / `createIconSvg`).
+- MUST use the centralized SVG sprite sheet (`/assets/icons/sprite.svg`) through the blocks in `src/frontend/components/ui/` — never new icon helper functions.
 - MUST NOT write inline SVG shapes (`<path>`, `<polygon>`, `<polyline>`) in HTML, templates, or view modules.
 - MUST NOT use raw emojis (e.g. `✅`, `❌`, `⏳`) for status badges, test results, or diagnostic states.
 - MUST NOT write inline `style={{...}}` blocks in TSX/JSX components. All styling must use semantic tokens, co-located component CSS (`./ComponentName.css`), or utility classes (`src/frontend/styles/utilities.css`).
@@ -333,7 +335,7 @@ Before calling any UI work finished, confirm:
 - [ ] Tap targets ≥ 44×44pt
 - [ ] Motion respects `prefers-reduced-motion`
 - [ ] Icons are one consistent weight/style, baseline-aligned with text
-- [ ] Icons use `/assets/icons/sprite.svg` or `renderIcon` / `createIconSvg` (zero inline SVGs)
+- [ ] Icons use `/assets/icons/sprite.svg` through a block in `src/frontend/components/ui/` (zero inline SVGs)
 - [ ] Zero raw emojis used for status or diagnostics
 - [ ] Anti-drift & Design System tests pass (`bun test test/frontend-smoke.test.ts`)
 - [ ] Contrast checked — 4.5:1 minimum for body text
