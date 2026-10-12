@@ -5,6 +5,7 @@ graphify-out/
 .graphify*
 .env
 .env.*
+!.env.example
 *.local
 .cursor/
 *.db
