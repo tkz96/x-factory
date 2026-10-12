@@ -6,6 +6,7 @@ import type {
   StageModelUse,
   StageStartedPayload,
 } from "../../shared/types.js";
+import { formatUsd } from "./format-money.js";
 
 /** The latest attempt a role ran on, if any. */
 export function latestModelFor(
@@ -21,10 +22,6 @@ function compactCount(n: number): string {
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
-function formatCost(usd: number): string {
-  return usd >= 1 ? `$${usd.toFixed(2)}` : `$${usd.toPrecision(2)}`;
-}
-
 /** "12.4K in · 2.1K out · $0.0062", or "" when nothing was reported. */
 export function formatUsage(usage: ModelUsage): string {
   const parts: string[] = [];
@@ -32,7 +29,7 @@ export function formatUsage(usage: ModelUsage): string {
     parts.push(`${compactCount(usage.tokensIn)} in`);
   if (usage.tokensOut !== undefined)
     parts.push(`${compactCount(usage.tokensOut)} out`);
-  if (usage.costUsd !== undefined) parts.push(formatCost(usage.costUsd));
+  if (usage.costUsd !== undefined) parts.push(formatUsd(usage.costUsd));
   return parts.join(" · ");
 }
 

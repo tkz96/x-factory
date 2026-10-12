@@ -214,3 +214,31 @@ describe("closing an overlay animates in chromium (#250)", () => {
     await close();
   }, 60_000);
 });
+
+/** How far a dialog's surface sits from the window's horizontal centre, in px. */
+async function offCentre(page: Page, selector: string): Promise<number> {
+  return page.evaluate((sel) => {
+    const surface = document.querySelector(sel);
+    if (!surface) throw new Error(`missing ${sel}`);
+    const box = surface.getBoundingClientRect();
+    return Math.abs(box.left + box.width / 2 - window.innerWidth / 2);
+  }, selector);
+}
+
+describe("a dialog sits in the middle of the window, not at its left edge", () => {
+  test("the command palette is centred", async () => {
+    const { page, close } = await openQueue();
+    await openPalette(page);
+    expect(await offCentre(page, ".command-palette-content")).toBeLessThan(2);
+    await close();
+  }, 60_000);
+
+  test("the New Run sheet is centred", async () => {
+    const { page, close } = await openQueue();
+    await page.goto(`${instance.url}/tickets`, { waitUntil: "load" });
+    await page.locator("#btn-start-run").click();
+    await page.getByRole("dialog").waitFor();
+    expect(await offCentre(page, ".modal-dialog")).toBeLessThan(2);
+    await close();
+  }, 60_000);
+});

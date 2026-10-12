@@ -135,6 +135,34 @@ describe("the run chat shows real events and nothing invented", () => {
         events={[ev(1, "status", { status: "failed", failure })]}
       />,
     );
+    // The header above the log says it, so the log does not say it again.
+    const page = within(container);
+    expect(page.getAllByText("The model call failed.")).toHaveLength(1);
+    expect(page.getAllByText(failure.recovery)).toHaveLength(1);
+    expect(
+      within(log(container)).queryByText("The model call failed."),
+    ).toBeNull();
+    // The log still records the moment the run failed.
+    expect(
+      log(container).querySelector('[data-kind="status"]')?.textContent,
+    ).toContain("Failed");
+  });
+
+  it("keeps an earlier failure in the log once the run has moved on", () => {
+    const failure = {
+      category: "model",
+      message: "The model call failed.",
+      recovery: "Check the model connection in Settings, then restart the run.",
+    };
+    const { container } = render(
+      <RunChat
+        run={makeRun("understanding")}
+        events={[
+          ev(1, "status", { status: "failed", failure }),
+          ev(2, "status", { status: "understanding" }),
+        ]}
+      />,
+    );
     const chat = within(log(container));
     expect(chat.getByText("The model call failed.")).toBeTruthy();
     expect(chat.getByText(failure.recovery)).toBeTruthy();
@@ -432,6 +460,34 @@ describe("every kind of run event reads as its own line", () => {
     expect(chat.getByText("Writing the parser")).toBeTruthy();
     expect(chat.getByText("Why this plan?")).toBeTruthy();
     expect(chat.getByText("Because it is small.")).toBeTruthy();
+  });
+
+  it("renders the Builder's chat reply as Markdown, never raw HTML", () => {
+    const events = [
+      ev(1, "chat_user", { text: "Which `files`?" }),
+      ev(2, "chat_agent", {
+        text: "`calc.ts` and **`calc.test.ts`**.\n\n<img src=x onerror=alert(1)>",
+      }),
+    ];
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_understanding_approval")}
+        events={events}
+      />,
+    );
+    const reply = log(container).querySelectorAll('[data-kind="message"]')[1];
+    if (!reply) throw new Error("the reply is missing");
+    const codes = Array.from(reply.querySelectorAll("code")).map(
+      (c) => c.textContent,
+    );
+    expect(codes).toContain("calc.ts");
+    expect(reply.textContent).not.toContain("`calc.ts`");
+    // Raw HTML stays text: no element is made from it.
+    expect(reply.querySelector("img")).toBeNull();
+    expect(reply.textContent).toContain("<img src=x onerror=alert(1)>");
+    // The reader's own message is shown as typed.
+    const own = log(container).querySelectorAll('[data-kind="message"]')[0];
+    expect(own?.textContent).toContain("Which `files`?");
   });
 
   it("shows the unsandboxed warning as a notice", () => {

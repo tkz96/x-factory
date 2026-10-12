@@ -1,126 +1,35 @@
-/* ── New Run modal: the help tooltips on each field label (moved from public/styles.css) ── */
+/* ── New Run modal: each field label with its help button ── */
 
 .label-with-tooltip {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.35rem;
-  position: relative;
-  z-index: 1;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
 }
 
-.tooltip-badge {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.0625rem;
-  height: 1.0625rem;
-  border-radius: 50%;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  color: var(--text-dim);
-  font-size: 0.72rem;
-  font-family: var(--font-sans);
-  font-weight: 700;
-  cursor: help;
-  transition:
-    background-color var(--duration-fast) var(--spring),
-    border-color var(--duration-fast) var(--spring),
-    color var(--duration-fast) var(--spring),
-    transform var(--duration-fast) var(--spring);
-  user-select: none;
-  flex-shrink: 0;
-  z-index: 2;
+.label-with-tooltip label {
+  margin: 0;
 }
 
-.tooltip-badge:hover,
-.tooltip-badge:focus,
-.tooltip-badge:focus-within {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text-on-accent);
-  outline: none;
-  transform: scale(1.12);
-  z-index: 10000;
-}
-
-/* Elevate the active field so its tooltip popover floats above the inputs and badges below it. */
-.form-group:has(.tooltip-badge:hover),
-.form-group:has(.tooltip-badge:focus),
-.form-group:has(.tooltip-badge:focus-within),
-.label-with-tooltip:has(.tooltip-badge:hover),
-.label-with-tooltip:has(.tooltip-badge:focus),
-.label-with-tooltip:has(.tooltip-badge:focus-within) {
-  z-index: 10000;
-}
-
-.tooltip-popover {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  left: -0.25rem;
-  width: 18.75rem;
-  max-width: min(20rem, calc(100vw - 3rem));
-  padding: 0.85rem 1rem;
-  background: var(--tooltip-bg);
-  -webkit-backdrop-filter: blur(1.75rem);
-  backdrop-filter: blur(1.75rem);
-  border: var(--border-width) solid var(--tooltip-border);
-  border-radius: var(--radius-md);
-  color: var(--text-main);
-  font-size: 0.82rem;
-  font-weight: 400;
+/* The help tooltip carries a heading and a sentence or two, so it is wider and
+   looser than the one-line tooltip the primitive draws. */
+.field-help-tooltip {
+  max-width: min(20rem, calc(100vw - 2 * var(--space-6)));
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-footnote);
   line-height: 1.5;
-  text-align: left;
-  white-space: normal;
-  box-shadow: var(--tooltip-shadow);
-  z-index: 10001;
-  transform: translateY(0.375rem);
-  transition:
-    opacity var(--duration-fast) var(--spring),
-    transform var(--duration-fast) var(--spring),
-    visibility var(--duration-fast);
 }
 
-/* Caret indicator pointing to the ? badge */
-.tooltip-popover::before {
-  content: "";
-  position: absolute;
-  top: -0.3125rem;
-  left: 0.625rem;
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--tooltip-bg);
-  border-left: var(--border-width) solid var(--tooltip-border);
-  border-top: var(--border-width) solid var(--tooltip-border);
-  transform: rotate(45deg);
-}
-
-.tooltip-popover strong {
+.field-help-tooltip strong {
   display: block;
-  font-size: 0.86rem;
+  margin-bottom: var(--space-1);
   font-weight: 600;
-  color: var(--text-main);
-  margin-bottom: 0.3rem;
 }
 
-.tooltip-popover code {
+.field-help-tooltip code {
   font-family: var(--font-mono);
-  font-size: 0.76rem;
-  padding: 0.12rem 0.35rem;
+  padding: 0 var(--space-1);
   border-radius: var(--radius-xs);
-  background: var(--tooltip-code-bg);
+  background: var(--bg-secondary);
   color: var(--accent);
-}
-
-.tooltip-badge:hover .tooltip-popover,
-.tooltip-badge:focus .tooltip-popover,
-.tooltip-badge:focus-within .tooltip-popover {
-  visibility: visible;
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
 }

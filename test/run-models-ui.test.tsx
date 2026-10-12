@@ -62,6 +62,13 @@ describe("run model helpers (#279)", () => {
     expect(formatUsage({ ...REVIEWER, tokensIn: 900 })).toBe("900 in");
   });
 
+  it("writes cost with two decimals, and more only below a cent", () => {
+    expect(formatUsage({ ...REVIEWER, costUsd: 0 })).toBe("$0.00");
+    expect(formatUsage({ ...REVIEWER, costUsd: 0.047 })).toBe("$0.05");
+    expect(formatUsage({ ...REVIEWER, costUsd: 0.0047 })).toBe("$0.0047");
+    expect(formatUsage({ ...REVIEWER, costUsd: 3.5 })).toBe("$3.50");
+  });
+
   it("describes a stage start in words", () => {
     expect(
       stageStartedText({ stage: "execute", attempt: 1, model: BUILDER }),

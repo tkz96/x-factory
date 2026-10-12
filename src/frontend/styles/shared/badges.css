@@ -11,55 +11,6 @@
   letter-spacing: 0.02em;
 }
 
-.badge[data-status="preparing"] {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-}
-.badge[data-status="understanding"] {
-  background: var(--purple-dim);
-  color: var(--purple);
-}
-.badge[data-status="implementing"] {
-  background: var(--purple-dim);
-  color: var(--purple);
-}
-.badge[data-status="verifying"] {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-}
-.badge[data-status="reviewing"] {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-}
-.badge[data-status="ready_for_pr"] {
-  background: var(--green-dim);
-  color: var(--green);
-}
-.badge[data-status="pr_created"] {
-  background: var(--green-dim);
-  color: var(--green);
-}
-.badge[data-status="merged"] {
-  background: var(--purple-dim);
-  color: var(--purple);
-}
-.badge[data-status="closed"] {
-  background: var(--red-dim);
-  color: var(--red);
-}
-.badge[data-status="failed"] {
-  background: var(--red-dim);
-  color: var(--red);
-}
-.badge[data-status="stopped"] {
-  background: var(--red-dim);
-  color: var(--red);
-}
-.badge[data-status="passed"] {
-  background: var(--green-dim);
-  color: var(--green);
-}
-
 .badge-info {
   background: var(--accent-dim);
   color: var(--accent);
