@@ -756,6 +756,8 @@ export const REPOSITORY_STEP_COPY = {
 export const WELCOME_COPY = {
   title: "Welcome",
   subtitle: "Three steps to your first run",
+  /** Leaves the welcome for Tickets; the landing remembers it (lib/setup-later). */
+  setUpLater: "I'll set up later",
   /** One line above the steps, counted from the ticks that are really there. */
   progress: (done: number, total: number) => `${done} of ${total} steps done`,
   /** A step's state word, on its badge. */

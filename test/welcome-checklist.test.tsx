@@ -555,6 +555,35 @@ describe("the app's landing (#269)", () => {
     );
   });
 
+  it("lets the user leave the welcome and set up later", async () => {
+    const view = renderLanding();
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe("/welcome"),
+    );
+    fireEvent.click(
+      await view.findByRole("button", { name: WELCOME_COPY.setUpLater }),
+    );
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe("/tickets"),
+    );
+  });
+
+  it("remembers set up later: the next visit lands on Tickets though setup is incomplete", async () => {
+    const first = renderLanding();
+    fireEvent.click(
+      await first.findByRole("button", { name: WELCOME_COPY.setUpLater }),
+    );
+    await waitFor(() =>
+      expect(first.router.state.location.pathname).toBe("/tickets"),
+    );
+    cleanup();
+
+    const next = renderLanding();
+    await waitFor(() =>
+      expect(next.router.state.location.pathname).toBe("/tickets"),
+    );
+  });
+
   it("waits, announced once, while the setup is still unknown", () => {
     globalThis.fetch = (() =>
       new Promise<Response>(() => {})) as unknown as typeof fetch;
