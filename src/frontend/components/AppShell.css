@@ -594,10 +594,4 @@
   .viewport-container {
     padding: 1rem 1rem 2rem;
   }
-
-  .modal-dialog {
-    max-height: 95vh;
-    width: 96%;
-    border-radius: var(--radius-md);
-  }
 }

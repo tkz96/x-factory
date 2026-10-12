@@ -1,14 +1,14 @@
-/* ── New Run modal: each field label with its help button ── */
+/* ── New Run: the fields of the shared window (SYS-13) ──
+ *
+ * The window's surface, header, body and footer come from the Sheet/Dialog
+ * structure and the fields from the control vocabulary; only the stack of the
+ * form is this screen's. Tokens only (docs/agents/frontend-styling.md).
+ */
 
-.label-with-tooltip {
+.new-run-form {
   display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-bottom: var(--space-1);
-}
-
-.label-with-tooltip label {
-  margin: 0;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 /* The help tooltip carries a heading and a sentence or two, so it is wider and

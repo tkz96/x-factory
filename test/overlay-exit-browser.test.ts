@@ -250,7 +250,8 @@ describe("a dialog sits in the middle of the window, not at its left edge", () =
     await page.goto(`${instance.url}/tickets`, { waitUntil: "load" });
     await page.locator("#btn-start-run").click();
     await page.getByRole("dialog").waitFor();
-    expect(await offCentre(page, ".modal-dialog")).toBeLessThan(2);
+    // The New Run window is the shared centred sheet (SYS-13).
+    expect(await offCentre(page, "#modal-new-run")).toBeLessThan(2);
     await close();
   }, 60_000);
 });

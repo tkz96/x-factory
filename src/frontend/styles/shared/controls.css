@@ -229,6 +229,19 @@
   margin-bottom: var(--space-1);
 }
 
+/* A control beside the label — a field's help button. The row owns the gap to
+   the input, so the label's own margin steps aside. */
+.ui-field-label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.ui-field-label-row .ui-field-label {
+  margin-bottom: 0;
+}
+
 .ui-field-input,
 .ui-textarea {
   display: block;

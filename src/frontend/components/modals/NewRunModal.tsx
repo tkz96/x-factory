@@ -1,4 +1,11 @@
-// src/frontend/components/modals/NewRunModal.tsx — New Run modal dialog (XFM-46, XFM-47).
+// src/frontend/components/modals/NewRunModal.tsx — New Run window (XFM-46,
+// XFM-47, SYS-13).
+//
+// New Run is the add-project assistant's window (SYSTEM.md): the same Sheet,
+// the same DialogHeader/DialogBody/DialogFooter structure, the same
+// --sheet-width, and the control vocabulary's fields instead of raw inputs.
+// It stays mounted and is told whether it is open, so closing plays the shared
+// exit instead of vanishing with the mount (#250).
 
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -6,10 +13,18 @@ import { useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { ActiveRunConflictError } from "../../lib/api-client.js";
-import { Dialog, DialogCloseButton, DialogTitle } from "../overlays/Dialog.js";
+import {
+  DialogBody,
+  DialogCloseButton,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../overlays/Dialog.js";
+import { Sheet } from "../overlays/Sheet.js";
 import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
 import { Button } from "../ui/Button.js";
 import { IconButton } from "../ui/IconButton.js";
+import { TextAreaField, TextField } from "../ui/TextField.js";
 import "./NewRunModal.css";
 
 /**
@@ -92,10 +107,7 @@ export function NewRunModal() {
     }
   }, [isNewRunOpen, newRunPrefill]);
 
-  if (!isNewRunOpen) return null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
     if (!targetProjectId) {
       setError("Please select a target project before starting a run.");
       return;
@@ -138,6 +150,13 @@ export function NewRunModal() {
     }
   };
 
+  // The form still submits on Enter; the footer's Start Run sits outside it, so
+  // it calls the same routine directly.
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
+  };
+
   // The server refuses a run without a plan, so the form asks for one up
   // front, exactly as it does for the ticket ID and title.
   const isSubmitDisabled =
@@ -147,80 +166,70 @@ export function NewRunModal() {
     createRunMutation.isPending;
 
   return (
-    <Dialog
-      isOpen
+    <Sheet
+      isOpen={isNewRunOpen}
       onClose={closeNewRunModal}
       id="modal-new-run"
-      overlayClassName="modal-backdrop"
-      className="modal-dialog"
+      position="center"
+      title="New Run"
+      className="new-run-sheet"
     >
-      <div className="modal-header">
+      <DialogHeader>
         <DialogTitle id="modal-new-run-title">New Run</DialogTitle>
         <DialogCloseButton id="btn-close-modal" onClose={closeNewRunModal} />
-      </div>
+      </DialogHeader>
 
-      <div className="modal-body">
-        <form id="view-setup" className="view active" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <div className="label-with-tooltip">
-              <label htmlFor="input-ticket-id">Ticket ID</label>
+      <DialogBody>
+        <form id="view-setup" className="new-run-form" onSubmit={handleSubmit}>
+          <TextField
+            label="Ticket ID"
+            inputId="input-ticket-id"
+            placeholder="e.g. PROJ-101"
+            value={ticketId}
+            onChange={setTicketId}
+            isRequired
+            labelAccessory={
               <FieldHelp field="Ticket ID" title="Ticket Identifier">
                 Unique identifier of the ticket in your issue tracker (e.g.{" "}
                 <code>VEND-101</code>, <code>#42</code>, or <code>AB#1234</code>
                 ).
               </FieldHelp>
-            </div>
-            <input
-              id="input-ticket-id"
-              type="text"
-              placeholder="e.g. PROJ-101"
-              value={ticketId}
-              onChange={(e) => setTicketId(e.target.value)}
-              required
-            />
-          </div>
+            }
+          />
 
-          <div className="form-group">
-            <div className="label-with-tooltip">
-              <label htmlFor="input-ticket-title">Ticket Title</label>
+          <TextField
+            label="Ticket Title"
+            inputId="input-ticket-title"
+            placeholder="e.g. Implement password reset rate limiting"
+            value={ticketTitle}
+            onChange={setTicketTitle}
+            isRequired
+            labelAccessory={
               <FieldHelp field="Ticket Title" title="Ticket Title">
                 Summary description of the task or feature to implement.
               </FieldHelp>
-            </div>
-            <input
-              id="input-ticket-title"
-              type="text"
-              placeholder="e.g. Implement password reset rate limiting"
-              value={ticketTitle}
-              onChange={(e) => setTicketTitle(e.target.value)}
-              required
-            />
-          </div>
+            }
+          />
 
-          <div className="form-group">
-            <div className="label-with-tooltip">
-              <label htmlFor="input-branch">
-                Custom Branch (Optional — auto-generated if blank)
-              </label>
-              <FieldHelp field="Custom Branch" title="Git Branch">
-                Branch name created across all repository worktrees. If left
-                blank, X-Factory generates one from the ticket ID and slug.
-              </FieldHelp>
-            </div>
-            <input
-              id="input-branch"
-              type="text"
-              placeholder="auto-generated from the ticket ID"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-            />
-          </div>
+          <TextField
+            label="Branch (optional)"
+            inputId="input-branch"
+            placeholder="auto-generated from the ticket ID"
+            description="Created across every repository worktree. Leave it blank and X-Factory names it from the ticket ID and slug."
+            value={branch}
+            onChange={setBranch}
+          />
 
-          <div className="form-group">
-            <div className="label-with-tooltip">
-              <label htmlFor="input-criteria">
-                Acceptance Criteria (one per line)
-              </label>
+          <TextAreaField
+            label="Acceptance criteria"
+            inputId="input-criteria"
+            rows={4}
+            placeholder={
+              "- Return 429 after 5 failed attempts\n- Reset counter after 15 minutes\n- Add unit tests for window expiration"
+            }
+            value={criteria}
+            onChange={setCriteria}
+            labelAccessory={
               <FieldHelp
                 field="Acceptance Criteria"
                 title="Acceptance Criteria"
@@ -228,19 +237,18 @@ export function NewRunModal() {
                 List each testable condition or requirement on its own line. The
                 coding agent checks these criteria as it works.
               </FieldHelp>
-            </div>
-            <textarea
-              id="input-criteria"
-              rows={4}
-              placeholder="- Return 429 after 5 failed attempts&#10;- Reset counter after 15 minutes&#10;- Add unit tests for window expiration"
-              value={criteria}
-              onChange={(e) => setCriteria(e.target.value)}
-            />
-          </div>
+            }
+          />
 
-          <div className="form-group">
-            <div className="label-with-tooltip">
-              <label htmlFor="input-plan">Implementation Plan</label>
+          <TextAreaField
+            label="Implementation plan"
+            inputId="input-plan"
+            rows={7}
+            placeholder="Paste the step-by-step implementation plan here…"
+            value={plan}
+            onChange={setPlan}
+            isRequired
+            labelAccessory={
               <FieldHelp
                 field="Implementation Plan"
                 title="Implementation Plan"
@@ -248,16 +256,8 @@ export function NewRunModal() {
                 Step-by-step instructions or architectural guidance for the
                 coding agent.
               </FieldHelp>
-            </div>
-            <textarea
-              id="input-plan"
-              rows={7}
-              placeholder="Paste the step-by-step implementation plan here…"
-              value={plan}
-              onChange={(e) => setPlan(e.target.value)}
-              required
-            />
-          </div>
+            }
+          />
 
           {error && (
             <div id="setup-error" className="error-message">
@@ -276,27 +276,27 @@ export function NewRunModal() {
               )}
             </div>
           )}
-
-          <div className="modal-actions">
-            <Button
-              id="btn-cancel-modal"
-              variant="secondary"
-              isDisabled={createRunMutation.isPending}
-              onPress={closeNewRunModal}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              id="btn-start"
-              variant="primary"
-              isDisabled={isSubmitDisabled}
-            >
-              {createRunMutation.isPending ? "Starting…" : "Start Run"}
-            </Button>
-          </div>
         </form>
-      </div>
-    </Dialog>
+      </DialogBody>
+
+      <DialogFooter>
+        <Button
+          id="btn-cancel-modal"
+          variant="secondary"
+          isDisabled={createRunMutation.isPending}
+          onPress={closeNewRunModal}
+        >
+          Cancel
+        </Button>
+        <Button
+          id="btn-start"
+          variant="primary"
+          isDisabled={isSubmitDisabled}
+          onPress={submit}
+        >
+          {createRunMutation.isPending ? "Starting…" : "Start Run"}
+        </Button>
+      </DialogFooter>
+    </Sheet>
   );
 }

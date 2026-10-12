@@ -307,46 +307,43 @@ function GeneralTabContent({
         </div>
       </div>
 
-      {showConfirmModal && (
-        <Modal
-          id="modal-confirm-unsandboxed"
-          title="Run agents without a sandbox?"
-          onClose={handleCancel}
-          closeButtonId="btn-close-unsandboxed-modal"
-        >
-          <div className="unsandboxed-modal-content">
-            <p className="unsandboxed-modal-warning">
-              Coding agents will execute directly on this machine without
-              container isolation. The agent will have access to your local
-              filesystem, network, and environment.
-            </p>
-            <p className="text-muted text-footnote mt-2">
-              Only enable this if you trust the repository and model, or if you
-              do not have <code>sbx</code> installed. You can also enable this
-              per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
-            </p>
-          </div>
-          <ModalFooter>
-            <Button
-              id="btn-cancel-unsandboxed"
-              variant="secondary"
-              onPress={handleCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              id="btn-confirm-unsandboxed"
-              variant="danger"
-              isDisabled={isSavingUnsandboxed}
-              onPress={handleConfirm}
-            >
-              {isSavingUnsandboxed
-                ? "Enabling…"
-                : "Enable Unsandboxed Execution"}
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
+      <Modal
+        id="modal-confirm-unsandboxed"
+        title="Run agents without a sandbox?"
+        isOpen={showConfirmModal}
+        onClose={handleCancel}
+        closeButtonId="btn-close-unsandboxed-modal"
+      >
+        <div className="unsandboxed-modal-content">
+          <p className="unsandboxed-modal-warning">
+            Coding agents will execute directly on this machine without
+            container isolation. The agent will have access to your local
+            filesystem, network, and environment.
+          </p>
+          <p className="text-muted text-footnote mt-2">
+            Only enable this if you trust the repository and model, or if you do
+            not have <code>sbx</code> installed. You can also enable this
+            per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
+          </p>
+        </div>
+        <ModalFooter>
+          <Button
+            id="btn-cancel-unsandboxed"
+            variant="secondary"
+            onPress={handleCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            id="btn-confirm-unsandboxed"
+            variant="danger"
+            isDisabled={isSavingUnsandboxed}
+            onPress={handleConfirm}
+          >
+            {isSavingUnsandboxed ? "Enabling…" : "Enable Unsandboxed Execution"}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }

@@ -164,7 +164,6 @@ describe("New Run form fields", () => {
     for (const field of [
       "Ticket ID",
       "Ticket Title",
-      "Custom Branch",
       "Acceptance Criteria",
       "Implementation Plan",
     ]) {
@@ -174,6 +173,21 @@ describe("New Run form fields", () => {
       expect(help.tagName).toBe("BUTTON");
       expect(help.getAttribute("role")).toBeNull();
     }
+  });
+
+  it("labels the branch field optional, and explains it in help text beside the input", async () => {
+    await openModal();
+    // SYS-13: "Branch (optional)", with the explanation as the field's own
+    // description rather than a tooltip — the label says all it needs to.
+    expect(
+      within(document.body).getByLabelText("Branch (optional)"),
+    ).toBeTruthy();
+    expect(
+      within(document.body).queryByRole("button", { name: "Help: Branch" }),
+    ).toBeNull();
+    expect(
+      document.querySelector(".ui-field-description")?.textContent,
+    ).toContain("Leave it blank");
   });
 
   it("focusing a help button opens its tooltip and describes the button with it", async () => {

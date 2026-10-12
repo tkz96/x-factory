@@ -272,6 +272,10 @@
   --modal-height: 720px;
   --modal-max-width: 720px;
   --modal-max-width-lg: 900px;
+  /* The one width every window shares (SYS-13): New Run, the add-project
+     assistant, the diff view and the Settings confirmation are the same sheet,
+     so a screen never brings a width of its own. */
+  --sheet-width: 560px;
   --chat-thread-max-height: 480px;
   --docs-min-height: 600px;
   --settings-layout-min-height: 380px;
@@ -323,8 +327,7 @@
   --duration-fast: 160ms;
   --duration-normal: 220ms;
   --duration-slow: 300ms;
-  --duration-modal: 380ms;
-  --duration-backdrop: 340ms;
+  --duration-modal: 280ms;
   --duration-loader: 1000ms;
   --duration-loader-slow: 600ms;
   --duration-pulse: 2000ms;

@@ -3,7 +3,7 @@
 .xf-alert-dialog-modal {
   background: var(--bg-modal);
   border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: var(--content-max-sm);
@@ -14,6 +14,9 @@
   position: relative;
   z-index: var(--z-modal);
   outline: none;
+  /* An alert is a window too (SYS-6): it arrives the way the window behind it
+     did, so a confirmation does not pop into place. */
+  animation: xfDialogWindowIn var(--duration-modal) var(--ease-spring);
 }
 
 .xf-alert-dialog-header {

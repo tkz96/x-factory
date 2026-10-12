@@ -18,12 +18,33 @@ import {
 } from "react-aria-components";
 import { withoutUndefined } from "./aria-props.js";
 
+/**
+ * The label, and the accessory that rides in its row. A field without one
+ * renders exactly the label it always did, so nothing else on a screen moves.
+ */
+function labelWithAccessory(label: string, accessory: ReactNode): ReactNode {
+  const labelNode = <Label className="ui-field-label">{label}</Label>;
+  if (accessory === undefined) return labelNode;
+  return (
+    <div className="ui-field-label-row">
+      {labelNode}
+      {accessory}
+    </div>
+  );
+}
+
 export interface TextFieldProps
   extends Omit<AriaTextFieldProps, "className" | "children"> {
   label: string;
   description?: string | undefined;
   /** Inline state feedback — a `FieldFeedback` node from the feedback family. */
   feedback?: ReactNode;
+  /**
+   * A control that belongs beside the label, in the label's own row — a field's
+   * help button. It carries no layout of its own, so a field without one is
+   * unchanged.
+   */
+  labelAccessory?: ReactNode;
   /** The input's id, and the label's `htmlFor`. */
   inputId?: string | undefined;
   inputType?: string | undefined;
@@ -35,6 +56,7 @@ export function TextField({
   label,
   description,
   feedback,
+  labelAccessory,
   inputId,
   inputType = "text",
   placeholder,
@@ -45,7 +67,7 @@ export function TextField({
   if (className !== undefined) classes.push(className);
   return (
     <AriaTextField {...withoutUndefined(props)} className={classes.join(" ")}>
-      <Label className="ui-field-label">{label}</Label>
+      {labelWithAccessory(label, labelAccessory)}
       <Input
         {...withoutUndefined({
           id: inputId,
@@ -64,16 +86,20 @@ export function TextField({
   );
 }
 
-export type TextAreaFieldProps = Omit<
-  TextFieldProps,
-  "inputType" | "placeholder"
->;
+export type TextAreaFieldProps = Omit<TextFieldProps, "inputType"> & {
+  /** The textarea's own `rows`, when a screen needs a taller field than the
+   *  block's default of two tap targets. */
+  rows?: number | undefined;
+};
 
 export function TextAreaField({
   label,
   description,
   feedback,
+  labelAccessory,
   inputId,
+  rows,
+  placeholder,
   className,
   ...props
 }: TextAreaFieldProps) {
@@ -81,9 +107,9 @@ export function TextAreaField({
   if (className !== undefined) classes.push(className);
   return (
     <AriaTextField {...withoutUndefined(props)} className={classes.join(" ")}>
-      <Label className="ui-field-label">{label}</Label>
+      {labelWithAccessory(label, labelAccessory)}
       <TextArea
-        {...withoutUndefined({ id: inputId })}
+        {...withoutUndefined({ id: inputId, rows, placeholder })}
         className="ui-textarea"
       />
       {description !== undefined && (
