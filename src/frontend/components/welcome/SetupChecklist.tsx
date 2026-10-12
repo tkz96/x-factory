@@ -17,10 +17,14 @@ import type {
   SetupStepId,
 } from "../../lib/setup-checklist.js";
 import { WELCOME_COPY } from "../feedback/copy-map.js";
-import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { SettingsGroup, SettingsRow } from "../ui/SettingsGroup.js";
 
-/** The step's leading mark: a filled tick when it is done, a ring while not. */
+/**
+ * The step's leading mark: a filled tick when it is done, a ring while not. It
+ * is decorative — the state word is its sibling, so a screen reader hears it
+ * (S-09: the capsule badge that used to repeat it is gone).
+ */
 function StepMark({ done }: { done: boolean }) {
   return (
     <span
@@ -111,25 +115,35 @@ export function SetupChecklist({
         )}
       </div>
 
-      <ol className="setup-steps">
+      {/* One inset group (S-15): a row per step — the ring leads, the title and
+          body carry the words, and the one action trails. */}
+      <SettingsGroup>
         {checklist.steps.map((step) => (
-          <li key={step.id} className="setup-step">
-            <div className="setup-step-head">
-              <StepMark done={step.done} />
-              <h2 className="setup-step-title">
-                {WELCOME_COPY.stepTitle[step.id]}
-              </h2>
-              <Badge tone={step.done ? "success" : "neutral"}>
-                {step.done ? WELCOME_COPY.done : WELCOME_COPY.todo}
-              </Badge>
-            </div>
-            <p className="setup-step-body">{WELCOME_COPY.stepBody[step.id]}</p>
-            {step.gaps.length > 0 && (
-              <p className="setup-step-gap">
-                {step.gaps.map((gap) => WELCOME_COPY.gap[gap]).join(" ")}
-              </p>
-            )}
-            <div className="setup-step-action">
+          <SettingsRow
+            key={step.id}
+            titleHeadingLevel={2}
+            title={WELCOME_COPY.stepTitle[step.id]}
+            leading={
+              <>
+                <StepMark done={step.done} />
+                {step.done && (
+                  <span className="sr-only">{WELCOME_COPY.done}</span>
+                )}
+              </>
+            }
+            subtitle={
+              <>
+                <span className="setup-step-body">
+                  {WELCOME_COPY.stepBody[step.id]}
+                </span>
+                {step.gaps.length > 0 && (
+                  <span className="setup-step-gap">
+                    {step.gaps.map((gap) => WELCOME_COPY.gap[gap]).join(" ")}
+                  </span>
+                )}
+              </>
+            }
+            trailing={
               <StepAction
                 stepId={step.id}
                 done={step.done}
@@ -142,10 +156,10 @@ export function SetupChecklist({
                 }
                 openAddProject={openOnboardingModal}
               />
-            </div>
-          </li>
+            }
+          />
         ))}
-      </ol>
+      </SettingsGroup>
     </div>
   );
 }

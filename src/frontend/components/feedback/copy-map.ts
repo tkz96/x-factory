@@ -754,9 +754,8 @@ export const WELCOME_COPY = {
   setUpLater: "I'll set up later",
   /** One line above the steps, counted from the ticks that are really there. */
   progress: (done: number, total: number) => `${done} of ${total} steps done`,
-  /** A step's state word, on its badge. */
+  /** The step's state word, announced with the drawn tick (S-09). */
   done: "Done",
-  todo: "To do",
   stepTitle: {
     project: "Add Project",
     model: "Connect a Model",

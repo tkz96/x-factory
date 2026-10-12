@@ -52,6 +52,9 @@ export function SettingsGroup({
 export interface SettingsRowContentProps {
   /** The row's title, on the leading edge. */
   title: string;
+  /** A checklist's rows are the screen's sections: render the title as this
+   *  heading level instead of a plain span. */
+  titleHeadingLevel?: 2 | 3 | undefined;
   /** A second line under the title, or a node (a combo line, a set of notes). */
   subtitle?: ReactNode;
   /** A mark before the title — the welcome checklist's ring. */
@@ -63,15 +66,18 @@ export interface SettingsRowContentProps {
 /** The row's box without the list item around it. */
 export function SettingsRowContent({
   title,
+  titleHeadingLevel,
   subtitle,
   leading,
   trailing,
 }: SettingsRowContentProps) {
+  const Title =
+    titleHeadingLevel === 2 ? "h2" : titleHeadingLevel === 3 ? "h3" : "span";
   return (
     <>
       {leading}
       <span className="ui-settings-row-main">
-        <span className="ui-settings-row-title">{title}</span>
+        <Title className="ui-settings-row-title">{title}</Title>
         {subtitle !== undefined && (
           <span className="ui-settings-row-subtitle">{subtitle}</span>
         )}
