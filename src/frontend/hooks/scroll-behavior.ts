@@ -1,7 +1,8 @@
 // src/frontend/hooks/scroll-behavior.ts — The scroll behaviour a programmatic
 // scroll should use. A reader who asked for reduced motion gets an instant
-// jump; everyone else gets the smooth scroll. Falls back to the instant
-// behaviour where matchMedia is missing, so nothing depends on the API.
+// jump; everyone else gets the smooth scroll. Where matchMedia is missing the
+// preference is simply not asked for — the guard keeps the call off an API that
+// is not there, and the smooth answer stands.
 
 function prefersReducedMotion(): boolean {
   return (
