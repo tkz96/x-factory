@@ -161,6 +161,22 @@
   cursor: not-allowed;
 }
 
+/* Inline: an icon button that sits in a line of text, such as a field's help
+   button beside its label. It draws no circle and keeps the full tap area, and
+   its negative block margin stops that area from pushing the line apart. */
+.ui-icon-button--inline {
+  border-color: transparent;
+  background: transparent;
+  margin-block: calc((var(--icon-md) - var(--tap-min)) / 2);
+}
+
+.ui-icon-button--inline[data-hovered],
+.ui-icon-button--inline[data-pressed] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+}
+
 .ui-icon-button svg {
   width: var(--icon-md);
   height: var(--icon-md);
