@@ -817,12 +817,14 @@ async function renderConnectionsRegistry(
   return container;
 }
 
-/** The first project row of the Settings connections registry (#266). */
+/** The first project row of the Settings connections registry: the row's own
+ *  name is the link to the project's page (S-04). */
 function registryRow(container: HTMLElement): HTMLElement {
-  const table = within(container).getByRole("table");
-  const row = within(table).getAllByRole("row")[1];
-  if (!(row instanceof HTMLElement)) throw new Error("registry row missing");
-  return row;
+  const link = within(container)
+    .getAllByRole("link")
+    .find((element) => element.getAttribute("href")?.startsWith("/projects/"));
+  if (!(link instanceof HTMLElement)) throw new Error("registry row missing");
+  return link.closest("li") ?? link;
 }
 
 describe("Settings connections registry — combo line per project", () => {
@@ -882,17 +884,22 @@ describe("Settings connections registry — combo line per project", () => {
 });
 
 describe("Settings connections registry — canonical copy", () => {
-  it("renders the registry title and its columns from the copy map", async () => {
+  it("renders the pane's rows from real state, under the group's own header", async () => {
     const container = await renderConnectionsRegistry(
       [makeProject()],
       makeClient(),
     );
 
-    expect(container.textContent).toContain(CONNECTIONS_COPY.registryTitle);
-    expect(container.textContent).toContain(
-      CONNECTIONS_COPY.registryColumnConnections,
-    );
-    expect(container.textContent).toContain(CONNECTIONS_COPY.registryAction);
+    expect(
+      within(container).getByRole("heading", { level: 2, name: "Connections" }),
+    ).toBeTruthy();
+    expect(container.textContent).toContain(CONNECTIONS_COPY.registrySubtitle);
+    // The project is one row of the group, marked with its status badge.
+    const row = registryRow(container);
+    expect(row.textContent).toContain("Rocket");
+    expect(row.textContent).toContain(CONNECTIONS_COPY.registryStatusActive);
+    // The table is gone: the project's name is a link inside the row (S-04).
+    expect(within(container).queryByRole("table")).toBeNull();
   });
 });
 

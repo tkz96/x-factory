@@ -113,211 +113,35 @@
   }
 }
 
-.setting-item {
-  margin-top: 1rem;
-}
+/* ── Pane chrome ────────────────────────────────────────────────────────
+   One h2 per pane (S-11) with its one-line subtitle, and the pane's action
+   beside it when it has one. */
 
-/* A segment's own label keeps the size and weight the settings rows gave it
-   before the legacy rule was retired (#248). The specificity (0,1,1) is the old
-   rule's: it sits above the base segment and under a selected segment. */
-:where(.setting-item) label.ui-segment {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-/* Only a field's own label (a direct child): a label inside a control, such as
-   a segment, keeps the control's box (#266). */
-.setting-item > label,
-.setting-item > .setting-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
-}
-
-/* ── Diagnostics & Telemetry (new classes for migrated inline styles) ── */
-
-.diagnostics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--grid-min-col), 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.metric-card {
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1rem 1.2rem;
+.settings-pane-head {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.metric-card-label {
-  font-size: var(--text-caption-1);
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-
-.metric-card-value {
-  font-size: var(--text-title-2);
-  font-weight: 700;
-  color: var(--text);
-  font-family: var(--font-mono);
-}
-
-.telemetry-card {
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1rem 1.2rem;
-  margin-bottom: 1rem;
-}
-
-.telemetry-stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.4rem 0;
-  font-size: 0.84rem;
-}
-
-.telemetry-stat-label {
-  color: var(--text-muted);
-}
-
-.telemetry-stat-value {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.integration-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.8rem 1rem;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-sm);
-  margin-bottom: 0.6rem;
-}
-
-.integration-row-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.88rem;
-  font-weight: 500;
-}
-
-.integration-row-status {
-  font-size: var(--text-caption-1);
-  font-family: var(--font-mono);
-}
-
-.status-dot-sm {
-  width: var(--status-dot-md);
-  height: var(--status-dot-md);
-}
-
-.metric-value-lg {
-  font-size: var(--text-title-3);
-  display: block;
-  margin-top: var(--space-2);
-}
-
-.telemetry-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-xs), 1fr));
-  gap: var(--space-4);
-}
-
-.telemetry-num {
-  display: block;
-  font-size: var(--text-title-3);
-}
-
-.connections-header {
-  display: flex;
-  justify-content: space-between;
   align-items: flex-start;
+  justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
 }
 
-.connections-registry-container {
-  margin-top: var(--space-4);
-  overflow-x: auto;
+.settings-pane-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title-2);
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: var(--text);
 }
 
-.connections-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.connections-table th {
-  padding: 0.5rem;
-  text-align: left;
-  border-bottom: var(--border-width) solid var(--border);
+.settings-pane-subtitle {
+  margin: var(--space-1) 0 var(--space-6);
+  max-width: 60ch;
   font-size: var(--text-footnote);
-}
-
-.connections-table th.align-right {
-  text-align: right;
-}
-
-.connections-table td {
-  padding: 0.75rem 0.5rem;
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  font-size: var(--text-footnote);
-}
-
-.connections-table td.align-right {
-  text-align: right;
-}
-
-.connections-target {
-  font-family: var(--font-mono);
-  font-size: var(--text-footnote);
-}
-
-.project-link {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.project-link:hover {
-  text-decoration: underline;
-}
-
-.settings-actions-bar {
-  margin-top: var(--space-6);
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-/* Connections cell (#147) — the combo line plus, when the project has no
-   tracker, the integrity failure's repair path. */
-.connections-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+  color: var(--text-muted);
 }
 
 /* ── Unsandboxed Execution Opt-In & Confirmation Modal (#275, #266) ─── */
-
-.setting-switch {
-  margin-top: var(--space-2);
-}
 
 .unsandboxed-modal-content {
   line-height: 1.5;
@@ -325,34 +149,4 @@
 
 .unsandboxed-modal-warning {
   color: var(--text);
-}
-
-.btn-warning {
-  background: var(--orange-dim);
-  color: var(--orange);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-md);
-}
-
-.btn-warning:hover:not(:disabled) {
-  border-color: var(--orange);
-}
-
-.btn-warning:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Help links (#266): a plain list of links, one per line. */
-.settings-help-links {
-  list-style: none;
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.settings-help-links a {
-  color: var(--accent);
 }

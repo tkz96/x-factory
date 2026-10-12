@@ -19,13 +19,16 @@ describe("hard-coded values are tokens", () => {
     expect(tokens).toMatch(/--scrim:\s*rgba\(0, 0, 0, 0\.4\);/);
   });
 
-  it("the settings sandbox switch offset uses a spacing token", () => {
-    // The opt-in is a switch block now (#266): its offset is the wrapper's.
+  it("the settings panes space their rows from tokens", () => {
+    // The sandbox switch is a Settings row now (S-01): its offset is the
+    // settings group's, so the pane itself holds no `.setting-switch` and no
+    // literal spacing.
     const css = readFileSync("src/frontend/views/SettingsView.css", "utf8");
+    expect(css).not.toContain(".setting-switch");
     expect(css).toMatch(
-      /\.setting-switch\s*\{[^}]*margin-top:\s*var\(--space-/,
+      /\.settings-pane-subtitle\s*\{[^}]*margin:\s*var\(--space-/,
     );
-    expect(css).not.toMatch(/\.setting-switch\s*\{[^}]*margin-top:\s*\d/);
+    expect(css).not.toMatch(/\.settings-pane-subtitle\s*\{[^}]*margin:\s*\d/);
   });
 
   it("the repository settings inputs reuse the shared form-input focus ring", () => {

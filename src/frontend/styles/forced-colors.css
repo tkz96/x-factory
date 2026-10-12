@@ -180,12 +180,6 @@
     background: GrayText;
   }
 
-  :root .ui-settings-list {
-    background: Canvas;
-    color: CanvasText;
-    border: var(--border-width) solid CanvasText;
-  }
-
   :root .ui-settings-list > li + li::before {
     border-top-color: CanvasText;
   }
@@ -197,9 +191,7 @@
   }
 
   :root .card,
-  :root .metric-card,
-  :root .telemetry-card,
-  :root .integration-row {
+  :root .ui-settings-list {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;

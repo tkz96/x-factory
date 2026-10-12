@@ -25,7 +25,14 @@ import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPa
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { PlaceholderRows } from "../components/ui/ListRow.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
+import {
+  SettingsGroup,
+  SettingsRow,
+  SettingsRowContent,
+  SettingsValue,
+} from "../components/ui/SettingsGroup.js";
 import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
@@ -66,39 +73,31 @@ const SETTINGS_CATEGORIES: readonly {
   { id: "help", label: "Help", icon: "icon-book-open" },
 ];
 
-/** The panes the `?tab=` query string may open (#278 links straight to Models). */
+/** The settings tabs the `?tab=` query string may open (#278 links straight to Models). */
 const SETTINGS_TABS: readonly SettingsTab[] = SETTINGS_CATEGORIES.map(
   (category) => category.id,
 );
+
+/** Where the app keeps everything on disk (src/paths.ts); shown, never edited. */
+const DATA_DIRECTORY_DISPLAY = "~/.x-factory";
+
+/** Where a run's worktree lives, as a path pattern; shown, never edited. */
+const WORKTREE_PATH_DISPLAY = "~/.x-factory/projects/:id/worktrees/:runId";
 
 function settingsTabFromParam(value: string | null): SettingsTab {
   return SETTINGS_TABS.find((tab) => tab === value) ?? "general";
 }
 
-interface DiagnosticMetricCardProps {
-  title: string;
-  isOnline: boolean;
-  value: string;
-  detail: string;
+interface DiagnosticStatusProps {
+  status: "healthy" | "unavailable";
 }
 
-function DiagnosticMetricCard({
-  title,
-  isOnline,
-  value,
-  detail,
-}: DiagnosticMetricCardProps) {
+/** The health of one diagnostic service, as a badge in the row's trailing slot. */
+function DiagnosticStatus({ status }: DiagnosticStatusProps) {
   return (
-    <div className="card p-4">
-      <div className="flex-between">
-        <span className="text-muted">{title}</span>
-        <span
-          className={`status-dot status-dot-sm ${isOnline ? "online" : "offline"}`}
-        />
-      </div>
-      <strong className="metric-value-lg">{value}</strong>
-      <span className="text-muted text-footnote">{detail}</span>
-    </div>
+    <Badge tone={status === "healthy" ? "success" : "error"}>
+      {status === "healthy" ? "Healthy" : "Unavailable"}
+    </Badge>
   );
 }
 
@@ -107,75 +106,70 @@ interface DiagnosticsTabContentProps {
   diagnostics: ReturnType<typeof useDiagnostics>["data"];
 }
 
+/**
+ * Diagnostics, as two inset groups (S-14): the services, then the job queue,
+ * each row trailing the value it reports.
+ */
 function DiagnosticsTabContent({
   isLoading,
   diagnostics,
 }: DiagnosticsTabContentProps) {
   if (isLoading) {
-    return (
-      <div className="card p-4">
-        <span className="text-muted">Loading diagnostics…</span>
-      </div>
-    );
+    return <PlaceholderRows count={3} />;
   }
 
-  return (
-    <div className="stack mt-4">
-      <div className="diagnostics-grid">
-        <DiagnosticMetricCard
-          title="API Status"
-          isOnline={true}
-          value="Healthy"
-          detail={`Uptime: ${diagnostics?.system.uptime ?? 0}s`}
-        />
-        <DiagnosticMetricCard
-          title="Database"
-          isOnline={true}
-          value={`Healthy (v${diagnostics?.database.version ?? 6})`}
-          detail={`WAL Mode • ${diagnostics?.database.runs.total ?? 0} Runs`}
-        />
-        <DiagnosticMetricCard
-          title="Worker Fleet"
-          isOnline={diagnostics?.worker.status === "healthy"}
-          value={
-            diagnostics?.worker.status === "healthy" ? "Healthy" : "Unavailable"
-          }
-          detail={`${diagnostics?.worker.activeCount ?? 0} Active Worker(s)`}
-        />
-      </div>
+  const workerHealthy = diagnostics?.worker.status === "healthy";
+  const staleJobs = diagnostics?.database.jobs.stale ?? 0;
 
-      <div className="card p-5">
-        <h4 className="mb-4">Job Queue Telemetry</h4>
-        <div className="telemetry-grid">
-          <div>
-            <span className="text-muted text-footnote">Active Jobs</span>
-            <strong className="telemetry-num">
-              {diagnostics?.database.jobs.claimed ?? 0}
-            </strong>
-          </div>
-          <div>
-            <span className="text-muted text-footnote">Pending Jobs</span>
-            <strong className="telemetry-num">
-              {diagnostics?.database.jobs.pending ?? 0}
-            </strong>
-          </div>
-          <div>
-            <span className="text-muted text-footnote">Stale Jobs</span>
-            <strong
-              className={`telemetry-num ${(diagnostics?.database.jobs.stale ?? 0) > 0 ? "text-warning" : ""}`}
-            >
-              {diagnostics?.database.jobs.stale ?? 0}
-            </strong>
-          </div>
-          <div>
-            <span className="text-muted text-footnote">Completed Jobs</span>
-            <strong className="telemetry-num">
-              {diagnostics?.database.jobs.completed ?? 0}
-            </strong>
-          </div>
-        </div>
-      </div>
-    </div>
+  return (
+    <>
+      <SettingsGroup title="Services">
+        <SettingsRow
+          title="API"
+          subtitle={`Uptime ${diagnostics?.system.uptime ?? 0}s`}
+          trailing={<DiagnosticStatus status="healthy" />}
+        />
+        <SettingsRow
+          title="Database"
+          subtitle={`WAL mode · ${diagnostics?.database.runs.total ?? 0} runs`}
+          trailing={<DiagnosticStatus status="healthy" />}
+        />
+        <SettingsRow
+          title="Worker fleet"
+          subtitle={`${diagnostics?.worker.activeCount ?? 0} active worker(s)`}
+          trailing={
+            <DiagnosticStatus
+              status={workerHealthy ? "healthy" : "unavailable"}
+            />
+          }
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="Job queue">
+        <SettingsRow
+          title="Active jobs"
+          trailing={diagnostics?.database.jobs.claimed ?? 0}
+        />
+        <SettingsRow
+          title="Pending jobs"
+          trailing={diagnostics?.database.jobs.pending ?? 0}
+        />
+        <SettingsRow
+          title="Stale jobs"
+          trailing={
+            staleJobs > 0 ? (
+              <span className="text-warning">{staleJobs}</span>
+            ) : (
+              staleJobs
+            )
+          }
+        />
+        <SettingsRow
+          title="Completed jobs"
+          trailing={diagnostics?.database.jobs.completed ?? 0}
+        />
+      </SettingsGroup>
+    </>
   );
 }
 
@@ -237,75 +231,86 @@ function GeneralTabContent({
 
   return (
     <div className="settings-pane">
-      <h2>General</h2>
-      <p className="text-muted">
+      <h2 className="settings-pane-title">General</h2>
+      <p className="settings-pane-subtitle">
         Appearance, notifications and the data folder.
       </p>
 
-      <div className="setting-item mt-4">
-        <span className="setting-label">Theme</span>
-        {/* Theme and Appearance are the same control (#266): one segmented
-            block, so both render at one height, type size and icon gap. */}
-        <SegmentedControl
-          label="Theme"
-          value={currentTheme}
-          onChange={(id) => {
-            const choice = THEME_CHOICES.find((item) => item.id === id);
-            if (choice !== undefined) onApplyTheme(choice.id);
-          }}
-          options={THEME_CHOICES.map((choice) => ({
-            id: choice.id,
-            label: choice.label,
-            accessibleLabel: `${choice.label} Theme`,
-          }))}
+      {/* Theme and Appearance are the same control (#266): one segmented block,
+          so both render at one height, type size and icon gap. Each trails its
+          row's label (S-01). */}
+      <SettingsGroup title="Appearance">
+        <SettingsRow
+          title="Appearance"
+          trailing={
+            <SegmentedControl
+              label="Appearance"
+              value={currentAppearance}
+              onChange={(id) => {
+                const choice = APPEARANCE_CHOICES.find(
+                  (item) => item.id === id,
+                );
+                if (choice !== undefined) onApplyAppearance(choice.id);
+              }}
+              options={APPEARANCE_CHOICES.map((choice) => ({
+                id: choice.id,
+                label: choice.label,
+                icon: choice.icon,
+                accessibleLabel: `${choice.label} Appearance`,
+              }))}
+            />
+          }
         />
-      </div>
-
-      <div className="setting-item mt-4">
-        <span className="setting-label">Appearance</span>
-        <SegmentedControl
-          label="Appearance"
-          value={currentAppearance}
-          onChange={(id) => {
-            const choice = APPEARANCE_CHOICES.find((item) => item.id === id);
-            if (choice !== undefined) onApplyAppearance(choice.id);
-          }}
-          options={APPEARANCE_CHOICES.map((choice) => ({
-            id: choice.id,
-            label: choice.label,
-            icon: choice.icon,
-            accessibleLabel: `${choice.label} Appearance`,
-          }))}
+        <SettingsRow
+          title="Theme"
+          trailing={
+            <SegmentedControl
+              label="Theme"
+              value={currentTheme}
+              onChange={(id) => {
+                const choice = THEME_CHOICES.find((item) => item.id === id);
+                if (choice !== undefined) onApplyTheme(choice.id);
+              }}
+              options={THEME_CHOICES.map((choice) => ({
+                id: choice.id,
+                label: choice.label,
+                accessibleLabel: `${choice.label} Theme`,
+              }))}
+            />
+          }
         />
-      </div>
+      </SettingsGroup>
 
-      <div className="setting-item mt-4">
-        <DesktopNotificationsSetting />
-      </div>
+      <DesktopNotificationsSetting />
 
-      <div className="setting-item mt-4">
-        <label htmlFor="setting-data-dir">Data Directory</label>
-        <input
-          id="setting-data-dir"
-          type="text"
-          value="~/.x-factory"
-          readOnly
-          className="code-input"
+      <SettingsGroup
+        title="Storage"
+        footer="Runs, logs, settings and worktrees live under this folder."
+      >
+        <SettingsRow
+          title="Data folder"
+          trailing={<SettingsValue>{DATA_DIRECTORY_DISPLAY}</SettingsValue>}
         />
-      </div>
+      </SettingsGroup>
 
-      <div className="setting-item mt-4">
-        <span className="setting-label">Security &amp; Sandboxing</span>
-        <div className="setting-switch">
-          <SwitchControl
-            label="Run agents without a sandbox"
-            description="Allows the coding loop to run directly on the host machine when sbx is unavailable."
-            isSelected={allowUnsandboxed}
-            isDisabled={isSavingUnsandboxed === true}
-            onChange={handleUnsandboxedChange}
-          />
-        </div>
-      </div>
+      <SettingsGroup
+        title="Security"
+        footer="Only enable this if you trust the repository and model, or if you do not have sbx installed. X_FACTORY_ALLOW_UNSANDBOXED=1 enables it for one process."
+      >
+        <SettingsRow
+          title="Run agents without a sandbox"
+          subtitle="Runs the coding loop directly on the host machine when sbx is unavailable."
+          trailing={
+            <SwitchControl
+              label="Run agents without a sandbox"
+              hideLabel
+              isSelected={allowUnsandboxed}
+              isDisabled={isSavingUnsandboxed === true}
+              onChange={handleUnsandboxedChange}
+            />
+          }
+        />
+      </SettingsGroup>
 
       {showConfirmModal && (
         <Modal
@@ -385,10 +390,12 @@ function ConnectionsTabContent({
 
   return (
     <div className="settings-pane">
-      <div className="connections-header">
+      <div className="settings-pane-head">
         <div>
-          <h3>{CONNECTIONS_COPY.registryTitle}</h3>
-          <p className="text-muted">{CONNECTIONS_COPY.registrySubtitle}</p>
+          <h2 className="settings-pane-title">Connections</h2>
+          <p className="settings-pane-subtitle">
+            {CONNECTIONS_COPY.registrySubtitle}
+          </p>
         </div>
         <Button
           variant="primary"
@@ -400,74 +407,56 @@ function ConnectionsTabContent({
         </Button>
       </div>
 
-      <div className="connections-registry-container">
-        <table className="connections-table">
-          <thead>
-            <tr>
-              <th>{CONNECTIONS_COPY.registryColumnProject}</th>
-              <th>{CONNECTIONS_COPY.registryColumnConnections}</th>
-              <th>{CONNECTIONS_COPY.registryColumnStatus}</th>
-              <th className="align-right">
-                {CONNECTIONS_COPY.registryColumnAction}
-              </th>
-            </tr>
-          </thead>
-          <tbody id="connections-registry-tbody">
-            {isLoading ? (
-              <tr>
-                <td colSpan={4} className="text-muted text-center p-4">
-                  {CONNECTIONS_COPY.registryLoading}
-                </td>
-              </tr>
-            ) : projects.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="text-muted text-center p-4">
-                  {CONNECTIONS_COPY.registryEmpty}
-                </td>
-              </tr>
-            ) : (
-              rows.map(({ project: p, integrity }, index) => {
-                const slots = slotsByRow[index] ?? [];
-
-                return (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td className="connections-cell">
-                      <ConnectionComboLine
-                        slots={slots}
-                        tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
-                        descriptors={descriptors}
-                        className="connection-combo-line--compact"
-                      />
-                      {integrity.hasIntegrityFailure && (
-                        <RetryAction
-                          label={CONNECTIONS_COPY.reconnect}
-                          onRetry={onOnboardProject}
-                        />
-                      )}
-                    </td>
-                    <td>
-                      <Badge tone={p.archived ? "neutral" : "success"}>
-                        {p.archived
-                          ? CONNECTIONS_COPY.registryStatusArchived
-                          : CONNECTIONS_COPY.registryStatusActive}
-                      </Badge>
-                    </td>
-                    <td className="align-right">
-                      <Link
-                        to={`/projects/${encodeURIComponent(p.id)}`}
-                        className="project-link"
-                      >
-                        {CONNECTIONS_COPY.registryAction}
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {isLoading ? (
+        <PlaceholderRows count={3} />
+      ) : projects.length === 0 ? (
+        <p className="text-muted">{CONNECTIONS_COPY.registryEmpty}</p>
+      ) : (
+        /* One inset group, one row per project (S-04): the project's name and
+           its combo line lead, the status and the way in trail — no column
+           headers and no horizontally scrolling table. The row's own name is
+           the link, so the repair action a broken project needs can sit beside
+           it without nesting a button inside an anchor. */
+        <SettingsGroup title="Projects">
+          {rows.map(({ project: p, integrity }, index) => {
+            const slots = slotsByRow[index] ?? [];
+            return (
+              <li key={p.id} className="ui-settings-row">
+                <Link
+                  className="ui-settings-row-main ui-settings-row-main--link"
+                  to={`/projects/${encodeURIComponent(p.id)}`}
+                >
+                  <span className="ui-settings-row-title">{p.name}</span>
+                  <span className="ui-settings-row-subtitle">
+                    <ConnectionComboLine
+                      slots={slots}
+                      tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
+                      descriptors={descriptors}
+                      className="connection-combo-line--compact"
+                    />
+                  </span>
+                </Link>
+                <span className="ui-settings-row-trailing">
+                  {integrity.hasIntegrityFailure && (
+                    <RetryAction
+                      label={CONNECTIONS_COPY.reconnect}
+                      onRetry={onOnboardProject}
+                    />
+                  )}
+                  <Badge tone={p.archived ? "neutral" : "success"}>
+                    {p.archived
+                      ? CONNECTIONS_COPY.registryStatusArchived
+                      : CONNECTIONS_COPY.registryStatusActive}
+                  </Badge>
+                  <svg className="icon icon-sm" aria-hidden="true">
+                    <use href="/assets/icons/sprite.svg#icon-chevron-right" />
+                  </svg>
+                </span>
+              </li>
+            );
+          })}
+        </SettingsGroup>
+      )}
     </div>
   );
 }
@@ -476,6 +465,10 @@ function ConnectionsTabContent({
 function ModelsTabContent() {
   return (
     <div className="settings-pane">
+      <h2 className="settings-pane-title">Models</h2>
+      <p className="settings-pane-subtitle">
+        The connections that serve models, and the model each role uses.
+      </p>
       <ModelConnectionsPanel />
       <RolesPanel />
     </div>
@@ -486,20 +479,48 @@ function ModelsTabContent() {
 function HelpTabContent() {
   return (
     <div className="settings-pane">
-      <h2>Help</h2>
-      <p className="text-muted">Guides for X-Factory and its API.</p>
-      <ul className="settings-help-links">
+      <h2 className="settings-pane-title">Help</h2>
+      <p className="settings-pane-subtitle">
+        Guides for X-Factory and its API.
+      </p>
+      {/* Two rows, each an anchor with the same box (S-01), trailing the
+          "opens elsewhere" mark. */}
+      <SettingsGroup title="Guides">
         <li>
-          <a href="/docs" target="_blank" rel="noopener noreferrer">
-            Documentation
+          <a
+            className="ui-settings-row ui-settings-row--pressable"
+            href="/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <SettingsRowContent
+              title="Documentation"
+              trailing={
+                <svg className="icon icon-sm" aria-hidden="true">
+                  <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
+                </svg>
+              }
+            />
           </a>
         </li>
         <li>
-          <a href="/reference" target="_blank" rel="noopener noreferrer">
-            API Reference
+          <a
+            className="ui-settings-row ui-settings-row--pressable"
+            href="/reference"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <SettingsRowContent
+              title="API Reference"
+              trailing={
+                <svg className="icon icon-sm" aria-hidden="true">
+                  <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
+                </svg>
+              }
+            />
           </a>
         </li>
-      </ul>
+      </SettingsGroup>
     </div>
   );
 }
@@ -507,18 +528,14 @@ function HelpTabContent() {
 function GitTabContent() {
   return (
     <div className="settings-pane">
-      <h2>Git</h2>
-      <p className="text-muted">Where run worktrees are stored.</p>
-      <div className="setting-item mt-4">
-        <label htmlFor="setting-worktree-path">Worktree Path</label>
-        <input
-          id="setting-worktree-path"
-          type="text"
-          value="~/.x-factory/projects/:id/worktrees/:runId"
-          readOnly
-          className="code-input"
+      <h2 className="settings-pane-title">Git</h2>
+      <p className="settings-pane-subtitle">Where run worktrees are stored.</p>
+      <SettingsGroup title="Worktrees">
+        <SettingsRow
+          title="Worktree path"
+          trailing={<SettingsValue>{WORKTREE_PATH_DISPLAY}</SettingsValue>}
         />
-      </div>
+      </SettingsGroup>
     </div>
   );
 }
@@ -616,8 +633,8 @@ export function SettingsView() {
 
           {activeTab === "diagnostics" && (
             <div className="settings-pane">
-              <h2>Diagnostics</h2>
-              <p className="text-muted">
+              <h2 className="settings-pane-title">Diagnostics</h2>
+              <p className="settings-pane-subtitle">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.
               </p>
