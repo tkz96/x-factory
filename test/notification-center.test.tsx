@@ -224,8 +224,7 @@ describe("notification bell (#264)", () => {
     );
     // The bell, even while its popover hides the page.
     const bellClass = () =>
-      view()
-        .getByRole("button", { name: /^Notifications/, hidden: true })
+      view().getByRole("button", { name: /^Notifications/, hidden: true })
         .className;
 
     // The page opened with a count already on the bell: it is simply shown, so

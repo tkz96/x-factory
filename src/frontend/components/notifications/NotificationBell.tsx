@@ -65,7 +65,9 @@ export function NotificationBell() {
         icon="icon-bell"
         label={label}
         className={
-          arriving ? "notification-bell notification-bell--arriving" : "notification-bell"
+          arriving
+            ? "notification-bell notification-bell--arriving"
+            : "notification-bell"
         }
       >
         {unreadCount > 0 && (

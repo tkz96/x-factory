@@ -16,17 +16,17 @@ import { Badge } from "../src/frontend/components/ui/Badge.js";
 import { Button } from "../src/frontend/components/ui/Button.js";
 import { IconButton } from "../src/frontend/components/ui/IconButton.js";
 import {
+  ListGroup,
+  ListGroupRow,
+  ListGroupValue,
+} from "../src/frontend/components/ui/ListGroup.js";
+import {
   ListRow,
   ListRowContent,
   PlaceholderRows,
 } from "../src/frontend/components/ui/ListRow.js";
 import { SegmentedControl } from "../src/frontend/components/ui/SegmentedControl.js";
 import { SelectField } from "../src/frontend/components/ui/SelectField.js";
-import {
-  ListGroup,
-  ListGroupRow,
-  ListGroupValue,
-} from "../src/frontend/components/ui/ListGroup.js";
 import { Spinner } from "../src/frontend/components/ui/Spinner.js";
 import { SwitchControl } from "../src/frontend/components/ui/SwitchControl.js";
 import {
@@ -462,9 +462,7 @@ describe("ListGroup / ListGroupRow — the one inset grouped list", () => {
     expect(getByRole("heading", { level: 3, name: "Appearance" })).toBeTruthy();
     expect(getByText("Applies at once.")).toBeTruthy();
     expect(getByRole("list").children).toHaveLength(2);
-    expect(classesOf(container.querySelector("ul"))).toContain(
-      "ui-list-group",
-    );
+    expect(classesOf(container.querySelector("ul"))).toContain("ui-list-group");
     expect(classesOf(container.firstElementChild)).toContain(
       "ui-list-group-block",
     );
@@ -538,9 +536,7 @@ describe("ListGroup / ListGroupRow — the one inset grouped list", () => {
 
   it("shows a read-only value in mono", () => {
     const { getByText } = render(<ListGroupValue>~/.x-factory</ListGroupValue>);
-    expect(classesOf(getByText("~/.x-factory"))).toContain(
-      "ui-list-row-value",
-    );
+    expect(classesOf(getByText("~/.x-factory"))).toContain("ui-list-row-value");
   });
 });
 

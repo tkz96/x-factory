@@ -7,8 +7,8 @@ import "./RunInspector.css";
 import { useState } from "react";
 import { summarizeDiff } from "../../../shared/diff-summary.js";
 import type { Run, RunEvent } from "../../../shared/types.js";
-import { Button } from "../ui/Button.js";
 import { Sheet } from "../overlays/index.js";
+import { Button } from "../ui/Button.js";
 import { ChatThread } from "./ChatThread.js";
 import { RunEvidence } from "./RunEvidence.js";
 
