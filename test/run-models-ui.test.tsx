@@ -95,6 +95,15 @@ describe("RunModelsCard (#279)", () => {
     expect(text).toContain("gemini-flash-lite-latest");
     expect(text).toContain("gemini-pro");
     expect(text).toContain("12.4K in · 2.1K out · $0.0062");
+    // The role each row belongs to is named by the work it did: the Builder's
+    // row is the coding one, the Reviewer's the review one.
+    const rows = [...container.querySelectorAll(".run-models-row")].map(
+      (row) => row.textContent ?? "",
+    );
+    expect(rows[0]).toContain("Coding");
+    expect(rows[0]).toContain("gemini-flash-lite-latest");
+    expect(rows[1]).toContain("Reviewing");
+    expect(rows[1]).toContain("gemini-pro");
     // F7: the rows say it once, so nothing repeats them above.
     expect(container.querySelector(".run-models-summary")).toBeNull();
   });

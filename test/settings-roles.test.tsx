@@ -279,5 +279,11 @@ describe("Settings › Models roles (#278)", () => {
     expect(builderRow?.textContent).toContain("Builder");
     // The only <select> in the row is the block's hidden form-integration node:
     // what the user sees and reaches is the listbox.
+    // The row's only <select> is the block's hidden form-integration node: it
+    // is out of the tab order and never the control the user reaches — that is
+    // the listbox behind the trigger asserted above.
+    const nativeSelects = builderRow?.querySelectorAll("select") ?? [];
+    expect(nativeSelects).toHaveLength(1);
+    expect(nativeSelects[0]?.getAttribute("tabindex")).toBe("-1");
   });
 });
