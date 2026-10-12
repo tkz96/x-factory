@@ -5,7 +5,7 @@ button {
   font-size: 0.88rem;
   font-weight: 500;
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   padding: 0.55rem 1.3rem;
   cursor: pointer;
   transition:
@@ -40,7 +40,7 @@ button:active,
   background: var(--accent);
   color: var(--text-on-accent);
   font-weight: 550;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
 
@@ -62,7 +62,7 @@ button:active,
   background: var(--bg-card);
   color: var(--text);
   border: var(--border-width) solid var(--border-control);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
 }
 
 .btn-secondary:hover {
@@ -79,7 +79,7 @@ button:active,
   background: var(--red-dim);
   color: var(--red);
   border: var(--border-width) solid transparent;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
 }
 
 .btn-danger:hover {
@@ -100,7 +100,7 @@ button.btn.btn-danger-hover:hover,
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
 }
 
 .btn-circle {
@@ -108,7 +108,7 @@ button.btn.btn-danger-hover:hover,
   height: var(--tap-min);
   min-width: var(--tap-min);
   min-height: var(--tap-min);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -147,7 +147,7 @@ button.btn.btn-danger-hover:hover,
   height: var(--tap-min);
   min-width: var(--tap-min);
   min-height: var(--tap-min);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--bg-circle-btn);
   border: var(--border-width) solid var(--border-subtle);
   color: var(--text-muted);

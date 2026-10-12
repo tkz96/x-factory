@@ -349,7 +349,7 @@
   background: var(--orange-dim);
   color: var(--orange);
   border: var(--border-width) solid transparent;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
 }
 
 .btn-warning:hover:not(:disabled) {

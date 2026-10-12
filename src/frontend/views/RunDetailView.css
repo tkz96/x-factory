@@ -297,6 +297,6 @@
   font-family: var(--font-mono);
   background: var(--code-chip-bg);
   padding: 0.1rem 0.3rem;
-  border-radius: 0.1875rem;
+  border-radius: var(--radius-xs);
   color: var(--accent);
 }

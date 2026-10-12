@@ -96,7 +96,7 @@
   margin-left: auto;
   font-size: var(--text-caption-2);
   padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-input);
+  border-radius: var(--radius-full);
   background: var(--bg-hover);
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -132,7 +132,7 @@
 .status-dot {
   width: var(--status-dot-md);
   height: var(--status-dot-md);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--text-dim);
 }
 
@@ -336,7 +336,7 @@
   justify-content: center;
   width: var(--tap-min);
   height: var(--tap-min);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   color: var(--text-muted);
   text-decoration: none;
   transition:

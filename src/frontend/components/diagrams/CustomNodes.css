@@ -51,7 +51,7 @@
   font-size: var(--text-badge);
   font-weight: 600;
   padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-full);
   background: var(--bg-secondary);
   color: var(--text-dim);
   border: var(--border-width) solid var(--border-subtle);
@@ -131,7 +131,7 @@
   color: var(--text-muted);
   background: var(--bg-secondary);
   padding: 0.15rem 0.4rem;
-  border-radius: var(--radius-badge);
+  border-radius: var(--radius-xs);
   margin-top: 0.35rem;
   display: inline-block;
   border: var(--border-width) solid var(--border-subtle);
@@ -158,7 +158,7 @@
 .flow-node-item-dot {
   width: var(--status-dot-sm);
   height: var(--status-dot-sm);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--accent);
   flex-shrink: 0;
 }

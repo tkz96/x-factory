@@ -82,7 +82,7 @@
   gap: var(--space-2);
   text-align: center;
   padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   border: var(--border-width) solid var(--border-subtle);
   transition:
@@ -95,7 +95,7 @@
   width: var(--space-6);
   height: var(--space-6);
   min-width: var(--space-6);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;

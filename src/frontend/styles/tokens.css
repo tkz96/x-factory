@@ -211,19 +211,17 @@
   --border-width-indicator: 3px;
   --border-width-indicator-thick: 4px;
 
-  /* Radii Scale (Apple squircle standard) */
-  --radius-none: 0;
-  --radius-badge: 3px;
+  /* Radii — one ladder, six rungs (SYSTEM.md). A control's radius comes from its
+     size rather than from the screen it sits on, and an inner shape's radius is
+     the outer radius minus the inset between them (12/4/8): segmented thumb,
+     menu and select items, code blocks inside a card. Capsules are reserved for
+     tags, status and count badges and progress tracks — everything else is a
+     rounded rect or a circle. */
   --radius-xs: 4px;
   --radius-sm: 8px;
-  --radius-input: 10px;
   --radius-md: 12px;
   --radius-card: 16px;
-  --radius: 16px;
   --radius-lg: 20px;
-  --radius-xl: 24px;
-  --radius-dot: 99px;
-  --radius-pill: 980px;
   --radius-full: 9999px;
 
   /* Apple HIG Type Scale */

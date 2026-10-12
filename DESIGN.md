@@ -108,7 +108,7 @@ Glass/blur is for chrome, never for primary content surfaces (cards, list rows, 
 
 ### Motion
 HIG: `/design/human-interface-guidelines/motion`
-Apple's system animations are spring-based, not linear. Motion should be purposeful — it should *explain* a change (where did this view come from, where did it go), never decorate for its own sake. On the web, approximate the spring feel with an overshoot easing curve, and **always** respect `prefers-reduced-motion` — treat it as a hard requirement, not a nice-to-have.
+Apple's system animations are spring-based, not linear. Motion should be purposeful — it should *explain* a change (where did this view come from, where did it go), never decorate for its own sake. On the web, approximate the spring feel with a decelerating curve that settles — `--ease-spring`, `cubic-bezier(0.16, 1, 0.3, 1)` — which reaches its target without overshooting, and **always** respect `prefers-reduced-motion` — treat it as a hard requirement, not a nice-to-have.
 
 How that translates into this codebase (ticket #252):
 
@@ -192,11 +192,18 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --text-callout: 16px; --text-subhead: 15px; --text-footnote: 13px;
   --text-caption-1: 12px; --text-caption-2: 11px;
 
-  /* Radius */
-  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 20px;
+  /* Radius — one ladder, six rungs. A control's radius comes from its size, not
+     from the screen it sits on; an inner shape's radius is the outer radius
+     minus the inset between them (segmented thumb 12/4/8, menu items 12/4/8,
+     code inside a card 16/4/12). Capsules are for tags, status and count badges
+     and progress tracks only; circles stay circles. */
+  --radius-xs: 4px; --radius-sm: 8px; --radius-md: 12px;
+  --radius-card: 16px; --radius-lg: 20px; --radius-full: 9999px;
 
-  /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve */
-  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve,
+     which decelerates and settles without overshooting */
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: var(--ease-spring);
   --transition-fast: 160ms var(--spring);
   --transition: 220ms var(--spring);
   --transition-slow: 300ms var(--spring);
@@ -221,7 +228,10 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
 
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --transition-fast: 0ms; --transition: 0ms; --transition-slow: 0ms;
+    /* Reduced motion is gentler motion, not none: every duration collapses to
+       one short 120 ms crossfade and each keyframe's reduced path keeps its
+       opacity change. Nothing travels, resizes or loops. */
+    --transition-fast: 120ms; --transition: 120ms; --transition-slow: 120ms;
   }
 }
 ```

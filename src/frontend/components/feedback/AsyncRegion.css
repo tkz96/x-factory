@@ -79,7 +79,7 @@
 .async-region-stale-badge {
   background: var(--bg-secondary);
   border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-full);
   color: var(--text-muted);
   font-size: var(--text-caption-1);
   font-weight: 600;

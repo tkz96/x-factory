@@ -6,7 +6,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-dot);
+  border-radius: var(--radius-full);
   text-transform: lowercase;
   letter-spacing: 0.02em;
 }

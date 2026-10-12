@@ -56,7 +56,7 @@
   color: var(--accent);
   background: var(--accent-dim);
   padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-full);
 }
 
 .flow-diagram-title {

@@ -40,7 +40,7 @@
   height: var(--input-height-sm);
   min-height: var(--input-height-sm);
   padding: 0 0.75rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   border: var(--border-width) solid var(--border);
   box-sizing: border-box;
@@ -109,7 +109,7 @@
   height: var(--icon-sm);
   border: var(--border-width-thick) solid var(--border-subtle);
   border-top-color: var(--accent);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: docsSpin var(--duration-loader-slow) var(--ease-linear) infinite;
 }
 
@@ -146,7 +146,7 @@
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   padding: 0;
   transition: color var(--transition-fast);
 }
@@ -361,7 +361,7 @@
   background: var(--accent-dim);
   color: var(--accent);
   font-weight: 600;
-  border-radius: var(--radius-badge);
+  border-radius: var(--radius-xs);
   padding: 0.05rem 0.25rem;
 }
 

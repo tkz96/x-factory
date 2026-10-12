@@ -89,6 +89,6 @@
   font-weight: 600;
   color: var(--green);
   border: var(--border-width) solid var(--green);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-full);
   padding: 0 var(--space-2);
 }
