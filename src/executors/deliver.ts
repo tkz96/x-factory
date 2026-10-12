@@ -3,7 +3,10 @@
 import * as git from "../git.js";
 import { loadProjectEnv } from "../project-env.js";
 import { renderAcceptanceCriteria, renderTicketHeading } from "../prompts.js";
-import type { ProviderPullRequest } from "../providers/contract.js";
+import {
+  hasCapability,
+  type ProviderPullRequest,
+} from "../providers/contract.js";
 import { resolveProjectConnection } from "../providers/project-connections.js";
 import {
   PROVIDER_REGISTRY,
@@ -25,57 +28,42 @@ export function buildPrMetadata(
     title: string;
     acceptanceCriteria: string[];
   },
-  project?: Project,
+  closingLine?: string | undefined,
 ): PrMetadata {
   const commitMsg = `[X-Factory] ${ticket.id}: ${ticket.title}`;
   const prTitle = commitMsg;
-  const closing = project ? githubClosingLine(ticket.id, project) : undefined;
-  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}${closing ? `\n\n${closing}` : ""}`;
+  const prBody = `Implemented by X-Factory.\n\nTicket: ${renderTicketHeading(ticket, { hash: false })}\n\nAcceptance Criteria:\n${renderAcceptanceCriteria(ticket, { fallback: "None specified" })}${closingLine ? `\n\n${closingLine}` : ""}`;
   return { commitMsg, prTitle, prBody };
 }
 
-/** `owner/repo` from a GitHub connection's config, or "" when it names none. */
-function githubCoordinate(config: Record<string, unknown>): string {
-  const owner = typeof config.repoOwner === "string" ? config.repoOwner : "";
-  const repo = typeof config.repository === "string" ? config.repository : "";
-  return owner.trim() && repo.trim() ? `${owner.trim()}/${repo.trim()}` : "";
-}
-
-/** `owner/repo` from a git remote URL (HTTPS or SSH), or "". */
-function remoteCoordinate(remote: string | undefined): string {
-  const match = /[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/.exec(remote ?? "");
-  return match ? `${match[1]}/${match[2]}` : "";
-}
-
 /**
- * The line that makes GitHub close the ticket's issue when the pull request
- * merges: `Closes #1` for an issue in the pull request's repository, or
- * `Closes owner/repo#1` for one in another. Only a GitHub issue (`GH-<n>`)
- * tracked by a GitHub connection, delivered to GitHub, gets one.
+ * The line that makes merging the pull request close the run's ticket, when
+ * the tracker and the git host are the same provider and it can say one
+ * (`closingReference`). Reads only the connections' non-secret coordinates;
+ * anything it cannot resolve yields no line rather than a failed delivery.
  */
-function githubClosingLine(
-  ticketId: string,
+export function pullRequestClosingLine(
   project: Project,
+  ticketId: string,
+  registry: ProviderRegistry = PROVIDER_REGISTRY,
 ): string | undefined {
-  const issue = /^GH-(\d+)$/.exec(ticketId)?.[1];
-  if (!issue) return undefined;
-  const connections = project.connections ?? [];
-  const tracker = connections.find((c) => c.roles.includes("tracker"));
-  const gitHost = connections.find((c) => c.roles.includes("gitHost"));
-  if (tracker?.providerId !== "github" || gitHost?.providerId !== "github") {
+  try {
+    const tracker = resolveProjectConnection(project, "tracker", {}, registry);
+    const gitHost = resolveProjectConnection(project, "gitHost", {}, registry);
+    if (!tracker || !gitHost || tracker.providerId !== gitHost.providerId) {
+      return undefined;
+    }
+    if (!hasCapability(gitHost.provider, "closingReference")) return undefined;
+    return (
+      gitHost.provider.closingReference({
+        ticketId,
+        tracker: { config: tracker.config, repository: tracker.repository },
+        gitHost: { config: gitHost.config, repository: gitHost.repository },
+      }) ?? undefined
+    );
+  } catch {
     return undefined;
   }
-  if (tracker === gitHost) return `Closes #${issue}`;
-  const issueRepo = githubCoordinate(tracker.config);
-  const primary =
-    project.repositories.find((r) => r.path === project.repositoryPath) ??
-    project.repositories[0];
-  const prRepo =
-    githubCoordinate(gitHost.config) || remoteCoordinate(primary?.remote);
-  if (!issueRepo || issueRepo.toLowerCase() === prRepo.toLowerCase()) {
-    return `Closes #${issue}`;
-  }
-  return `Closes ${issueRepo}#${issue}`;
 }
 
 /** The project's git host connection, with its saved secrets merged in (#172). */
@@ -287,7 +275,10 @@ export class DeliverExecutor implements StageExecutor {
     const { run, project, ledger, signal } = context;
     const worktree = run.worktreePath || run.artifactsDir;
 
-    const { commitMsg, prTitle, prBody } = buildPrMetadata(run.ticket, project);
+    const { commitMsg, prTitle, prBody } = buildPrMetadata(
+      run.ticket,
+      pullRequestClosingLine(project, run.ticket.id),
+    );
 
     // 1. Idempotent Git commit (XFM-32, XFM-33)
     await ledger.execute(

@@ -427,11 +427,15 @@ Azure adapters thread the signal into `githubFetch` / `azureFetch`, and the
 registry wrapper forwards it unchanged. The contract types `signal?` on
 `createPullRequest` and `findExistingPullRequest` in `src/providers/contract.ts`.
 
-**Closing the issue.** When the run's ticket is a GitHub issue (`GH-<n>`), the
-project's tracker and git host are both GitHub connections, the pull request
-body ends with a closing line so merging it closes the issue: `Closes #<n>` when
-the issue lives in the pull request's repository, `Closes owner/repo#<n>` when
-it lives in another (`buildPrMetadata` in `src/executors/deliver.ts`).
+**Closing the issue.** When the project's tracker and git host are the same
+provider, delivery asks that provider's optional `closingReference` capability
+for a line to end the pull request body with, so that merging it closes the
+ticket (`pullRequestClosingLine` in `src/executors/deliver.ts`). It is
+synchronous, reads only non-secret coordinates, and an unresolvable connection
+yields no line rather than a failed delivery. GitHub answers for a `GH-<n>`
+ticket: `Closes #<n>` when the issue lives in the pull request's repository,
+`Closes owner/repo#<n>` when it lives in another
+(`src/providers/github/closing-reference.ts`).
 
 ### Registry error contract (#184)
 

@@ -297,6 +297,21 @@ export interface GetPullRequestStateInput {
 
 export type PullRequestStateStatus = "open" | "merged" | "closed";
 
+/** One side of `closingReference`: a connection and its repository coordinate. */
+export interface ClosingReferenceSide {
+  config: ProviderConfig;
+  repository: string;
+}
+
+export interface ClosingReferenceInput {
+  /** The run's ticket id, as the tracker listed it (e.g. `GH-1`). */
+  ticketId: string;
+  /** The connection the ticket came from. */
+  tracker: ClosingReferenceSide;
+  /** The connection the pull request is opened on. */
+  gitHost: ClosingReferenceSide;
+}
+
 export interface PullRequestState {
   status: PullRequestStateStatus;
   url: string;
@@ -319,6 +334,7 @@ const OPTIONAL_CAPABILITIES = [
   "findExistingPullRequest",
   "getPullRequestState",
   "describeConnection",
+  "closingReference",
 ] as const;
 
 export type ProviderCapability = (typeof OPTIONAL_CAPABILITIES)[number];
@@ -403,6 +419,13 @@ export interface Provider<Id extends string = string> {
    * partial configuration yields the part that IS recorded.
    */
   describeConnection?(config: ProviderConfig): string | null;
+  /**
+   * The line a pull request body ends with so that merging it closes the
+   * ticket (GitHub: `Closes #1`), or `null` when this ticket cannot be closed
+   * that way. Called only when the tracker and the git host are the same
+   * provider. Synchronous, no I/O, never reads a secret field.
+   */
+  closingReference?(input: ClosingReferenceInput): string | null;
 }
 
 /**
