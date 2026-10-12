@@ -6,13 +6,13 @@
   gap: var(--space-5);
 }
 
+/* The section header of SYSTEM.md: footnote, 600, secondary, sentence case —
+   no uppercase, no letter-spacing. */
 .shortcut-group-title {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-caption-1);
+  font-size: var(--text-footnote);
   font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--text-secondary);
 }
 
 .shortcut-list {
@@ -43,12 +43,13 @@
   text-align: right;
 }
 
+/* A keycap (SYS-7): mono, quiet fill, hairline, --radius-xs. */
 .shortcut-keys {
   font-family: var(--font-mono);
   font-size: var(--text-caption-1);
   padding: var(--space-0-5) var(--space-1-5);
   border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--bg-surface-2);
   color: var(--text);
 }

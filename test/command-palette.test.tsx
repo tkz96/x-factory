@@ -197,7 +197,7 @@ describe("command palette (#254)", () => {
         .find((o) => name.test(o.textContent ?? ""))
         ?.querySelector("kbd")?.textContent ?? null;
     expect(keysOf(/Start Run/)).toBe(shortcutLabel("newRun"));
-    expect(keysOf(/^SectionsTickets/)).toBe(shortcutLabel("goQueue"));
+    expect(keysOf(/^Tickets/)).toBe(shortcutLabel("goQueue"));
     expect(keysOf(/Keyboard Shortcuts/)).toBe(shortcutLabel("help"));
     expect(keysOf(/Add Project/)).toBeNull();
   });

@@ -20,6 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../overlays/index.js";
+import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { IconButton } from "../ui/IconButton.js";
 import { DesktopNotificationPrompt } from "./DesktopNotificationPrompt.js";
@@ -48,9 +49,9 @@ export function NotificationBell() {
         className="notification-bell"
       >
         {unreadCount > 0 && (
-          <span className="notification-badge" aria-hidden="true">
+          <Badge tone="accent" className="notification-badge">
             {unreadCount}
-          </span>
+          </Badge>
         )}
       </IconButton>
       <Popover placement="bottom end" className="notification-popover">
@@ -64,7 +65,7 @@ export function NotificationBell() {
               isDisabled={unreadCount === 0}
               onPress={markAllRead}
             >
-              Mark All as Read
+              Mark all as read
             </Button>
           </div>
           {notifications.length === 0 ? (
