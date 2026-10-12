@@ -10,6 +10,14 @@
   max-width: var(--content-max-lg);
 }
 
+.welcome-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .welcome-progress {
   margin: 0;
   font-size: var(--text-subhead);

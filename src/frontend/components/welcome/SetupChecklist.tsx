@@ -85,9 +85,14 @@ function StepAction({
 export interface SetupChecklistProps {
   /** From `deriveSetupChecklist` — real state, never a guess (#269). */
   checklist: SetupChecklistModel;
+  /** "I'll set up later": leaves the welcome while steps are still to do. */
+  onSetUpLater: () => void;
 }
 
-export function SetupChecklist({ checklist }: SetupChecklistProps) {
+export function SetupChecklist({
+  checklist,
+  onSetUpLater,
+}: SetupChecklistProps) {
   const { openOnboardingModal } = useModal();
   // The first step still to do is the one the screen asks for: the only primary
   // action. Once every step is done there is none.
@@ -95,9 +100,16 @@ export function SetupChecklist({ checklist }: SetupChecklistProps) {
 
   return (
     <div className="welcome-checklist">
-      <p className="welcome-progress">
-        {WELCOME_COPY.progress(checklist.doneCount, checklist.steps.length)}
-      </p>
+      <div className="welcome-progress-row">
+        <p className="welcome-progress">
+          {WELCOME_COPY.progress(checklist.doneCount, checklist.steps.length)}
+        </p>
+        {!checklist.complete && (
+          <Button variant="quiet" size="sm" onPress={onSetUpLater}>
+            {WELCOME_COPY.setUpLater}
+          </Button>
+        )}
+      </div>
 
       <ol className="setup-steps">
         {checklist.steps.map((step) => (
