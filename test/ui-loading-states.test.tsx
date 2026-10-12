@@ -75,6 +75,10 @@ describe("touch targets and the row height come from tokens", () => {
     expect(declarationsFor(CONTROLS, ".ui-list-row")).toContain(
       "min-height: var(--list-row-height)",
     );
+    // A settings row is a finger's target too (SYSTEM.md "Surfaces").
+    expect(declarationsFor(CONTROLS, ".ui-settings-row")).toContain(
+      "min-height: var(--tap-min)",
+    );
     expect(
       Number.parseFloat(rootToken("--list-row-height")),
     ).toBeGreaterThanOrEqual(Number.parseFloat(rootToken("--tap-min")));

@@ -180,6 +180,22 @@
     background: GrayText;
   }
 
+  :root .ui-settings-list {
+    background: Canvas;
+    color: CanvasText;
+    border: var(--border-width) solid CanvasText;
+  }
+
+  :root .ui-settings-list > li + li::before {
+    border-top-color: CanvasText;
+  }
+
+  :root .ui-settings-row--pressable:hover,
+  :root .ui-settings-row--pressable[data-hovered] {
+    background: Highlight;
+    color: HighlightText;
+  }
+
   :root .card,
   :root .metric-card,
   :root .telemetry-card,

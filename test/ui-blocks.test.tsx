@@ -20,6 +20,12 @@ import {
 } from "../src/frontend/components/ui/ListRow.js";
 import { SegmentedControl } from "../src/frontend/components/ui/SegmentedControl.js";
 import { SelectField } from "../src/frontend/components/ui/SelectField.js";
+import {
+  SettingsGroup,
+  SettingsRow,
+  SettingsRowContent,
+  SettingsValue,
+} from "../src/frontend/components/ui/SettingsGroup.js";
 import { Spinner } from "../src/frontend/components/ui/Spinner.js";
 import { SwitchControl } from "../src/frontend/components/ui/SwitchControl.js";
 import {
@@ -437,6 +443,74 @@ describe("ListRow — the row block", () => {
     expect(row.getAttribute("data-disabled")).toBe("true");
     fireEvent.click(row);
     expect(presses).toBe(0);
+  });
+});
+
+describe("SettingsGroup / SettingsRow — the inset grouped list", () => {
+  it("renders a header, a list of rows and a footer", () => {
+    const { getByRole, getByText, container } = render(
+      <SettingsGroup title="Appearance" footer="Applies at once.">
+        <SettingsRow title="Theme" trailing="Default" />
+        <SettingsRow
+          title="Accent colour"
+          subtitle="Follows the system by default"
+        />
+      </SettingsGroup>,
+    );
+
+    expect(getByRole("heading", { level: 3, name: "Appearance" })).toBeTruthy();
+    expect(getByText("Applies at once.")).toBeTruthy();
+    expect(getByRole("list").children).toHaveLength(2);
+    expect(classesOf(container.querySelector("ul"))).toContain(
+      "ui-settings-list",
+    );
+    expect(classesOf(container.firstElementChild)).toContain(
+      "ui-settings-group",
+    );
+  });
+
+  it("keeps the title leading and the accessory trailing", () => {
+    const { container, getByText } = render(
+      <SettingsGroup title="Notifications">
+        <SettingsRow
+          title="Desktop notifications"
+          subtitle="Show a banner when a run needs you"
+          trailing="On"
+        />
+      </SettingsGroup>,
+    );
+    const row = container.querySelector(".ui-settings-row");
+
+    expect(row?.firstElementChild?.className).toBe("ui-settings-row-main");
+    expect(classesOf(row?.lastElementChild ?? null)).toContain(
+      "ui-settings-row-trailing",
+    );
+    expect(getByText("On").closest(".ui-settings-row-trailing")).not.toBeNull();
+  });
+
+  it("renders a navigating row with the same box on its own anchor", () => {
+    const { getByRole, container } = render(
+      <SettingsGroup title="Help">
+        <li>
+          <a
+            className="ui-settings-row ui-settings-row--pressable"
+            href="/docs"
+          >
+            <SettingsRowContent title="Documentation" />
+          </a>
+        </li>
+      </SettingsGroup>,
+    );
+
+    expect(getByRole("link", { name: "Documentation" })).toBeTruthy();
+    expect(container.querySelectorAll(".ui-settings-row")).toHaveLength(1);
+  });
+
+  it("shows a read-only value in mono", () => {
+    const { getByText } = render(<SettingsValue>~/.x-factory</SettingsValue>);
+    expect(classesOf(getByText("~/.x-factory"))).toContain(
+      "ui-settings-row-value",
+    );
   });
 });
 
