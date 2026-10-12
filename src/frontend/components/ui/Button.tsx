@@ -14,6 +14,9 @@ import {
 import { withoutUndefined } from "./aria-props.js";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "quiet";
+/** `sm` is a row accessory: 32px tall, --radius-sm, --text-footnote. Under a
+ *  coarse pointer it grows back to --tap-min, so a finger never gets a
+ *  smaller target. `md` and `lg` are --tap-min tall. */
 export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps

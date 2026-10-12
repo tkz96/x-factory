@@ -13,10 +13,10 @@ label:first-of-type {
   margin-top: 0;
 }
 
-select,
-input[type="text"],
-input[type="password"],
-textarea {
+/* The bare-element baseline is :where()-wrapped, so it carries no specificity:
+   a component's own selector (.command-palette-input, .docs-search-field, …)
+   always wins over it (SYS-15). */
+:where(select, input[type="text"], input[type="password"], textarea) {
   width: 100%;
   font-family: var(--font-sans);
   font-size: 0.9rem;
@@ -31,10 +31,12 @@ textarea {
     box-shadow var(--transition);
 }
 
-select:focus,
-input[type="text"]:focus,
-input[type="password"]:focus,
-textarea:focus {
+:where(
+  select:focus,
+  input[type="text"]:focus,
+  input[type="password"]:focus,
+  textarea:focus
+) {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 var(--border-width-indicator) var(--accent-dim);
 }

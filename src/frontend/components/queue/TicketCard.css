@@ -48,11 +48,15 @@
   }
 }
 
-.ticket-card:hover {
-  border-color: var(--border-hover);
-  background: var(--bg-card-hover);
-  transform: translateY(calc(var(--space-micro) * -1));
-  box-shadow: var(--shadow-lg);
+/* The lift is a hover affordance for a real pointer (M8): a touch device has no
+   hover, and a nudge under the finger only makes the target move. */
+@media (hover: hover) and (pointer: fine) {
+  .ticket-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    transform: translateY(calc(var(--space-micro) * -1));
+    box-shadow: var(--shadow-lg);
+  }
 }
 
 .ticket-card:active {

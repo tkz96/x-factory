@@ -281,7 +281,9 @@
   --status-dot-lg: 10px;
   --status-dot-size: 6px;
 
-  --button-height-sm: 28px;
+  /* A small control is 32px on a pointer device and still 44px under a coarse
+     pointer: size="sm" shrinks a row accessory, never a finger's target. */
+  --control-height-sm: 32px;
   --input-height-sm: 34px;
   --button-height: 36px;
   --button-height-lg: 44px;
@@ -295,7 +297,6 @@
   --switch-thumb-inset: 2px;
   --switch-thumb-travel: 20px;
   --stepper-node-size: 32px;
-  --search-bar-height: 40px;
 
   --grid-min-col: 200px;
   --grid-card-min: 360px;

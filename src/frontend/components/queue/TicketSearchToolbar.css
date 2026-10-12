@@ -16,8 +16,8 @@
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   padding: 0 1rem;
-  height: var(--search-bar-height);
-  min-height: var(--search-bar-height);
+  height: var(--tap-min);
+  min-height: var(--tap-min);
   /* Grows to fill the row, but keeps a usable width when the bar wraps (#258). */
   flex: 1 1 12rem;
   min-width: 0;
@@ -58,8 +58,8 @@
   border: var(--border-width) solid var(--accent-hover);
   border-radius: var(--radius-full);
   padding: 0 0.9rem;
-  height: var(--search-bar-height);
-  min-height: var(--search-bar-height);
+  height: var(--tap-min);
+  min-height: var(--tap-min);
   white-space: nowrap;
   box-sizing: border-box;
 }
@@ -73,8 +73,8 @@
 
 #btn-queue-refresh {
   flex-shrink: 0;
-  height: var(--search-bar-height);
-  min-height: var(--search-bar-height);
+  height: var(--tap-min);
+  min-height: var(--tap-min);
   border-radius: var(--radius-md);
   padding: 0 1.1rem;
   display: inline-flex;

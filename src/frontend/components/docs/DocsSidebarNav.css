@@ -329,10 +329,14 @@
     color var(--transition-fast);
 }
 
-.docs-search-section-item:hover .docs-search-section-bullet {
-  transform: translateX(var(--space-half));
-  color: var(--accent);
-  opacity: 1;
+/* The nudge needs a pointer that hovers (M8); without one the bullet simply
+   takes the accent colour. */
+@media (hover: hover) and (pointer: fine) {
+  .docs-search-section-item:hover .docs-search-section-bullet {
+    transform: translateX(var(--space-half));
+    color: var(--accent);
+    opacity: 1;
+  }
 }
 
 .docs-search-section-title {
