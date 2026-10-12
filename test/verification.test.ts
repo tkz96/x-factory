@@ -74,6 +74,48 @@ describe("Deterministic Verification Pipeline", () => {
     await rm(path.join(fixtureRepo, "feature.ts"));
   });
 
+  it("records the tests as not run, without failing, when the project has no test command", async () => {
+    const noTests = validateProject({
+      id: "no-tests",
+      name: "No Tests",
+      repositoryPath: "/mock",
+      defaultBranch: "main",
+      testCommand: "",
+    });
+    const baseline = await recordBaseline(fixtureRepo);
+    await writeFile(
+      path.join(fixtureRepo, "feature.ts"),
+      "export const x = 42;\n",
+    );
+
+    const result = await runVerification(fixtureRepo, noTests, baseline, 1);
+    assert.equal(result.tests.skipped, true);
+    assert.equal(result.tests.passed, false);
+    assert.equal(
+      result.tests.skipReason,
+      "No tests ran. This project has no test command.",
+    );
+    // Not running tests is not a failure: the other checks decide.
+    assert.equal(result.passed, true);
+    assert.ok(
+      result.summary.includes(
+        "No tests ran. This project has no test command.",
+      ),
+    );
+    assert.ok(!result.summary.includes("Tests passed"));
+
+    // The repair prompt never reports skipped tests as a test failure.
+    const repair = buildRepairPrompt(
+      { id: "T-1", title: "T", acceptanceCriteria: [] },
+      "plan",
+      { ...result, passed: false, filesChanged: [] },
+      1,
+    );
+    assert.ok(!repair.includes("### Test Failure"));
+
+    await rm(path.join(fixtureRepo, "feature.ts"));
+  });
+
   it("fails when tests exit non-zero", async () => {
     const baseline = await recordBaseline(fixtureRepo);
     await writeFile(

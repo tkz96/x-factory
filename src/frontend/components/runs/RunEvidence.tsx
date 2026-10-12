@@ -8,6 +8,7 @@ import type {
   Run,
   VerificationResult,
 } from "../../../shared/types.js";
+import { RUN_EVIDENCE_COPY } from "../feedback/copy-map.js";
 
 function VerificationEvidenceSection({
   verification,
@@ -15,6 +16,14 @@ function VerificationEvidenceSection({
   verification?: VerificationResult | null;
 }) {
   const testOutput = verification?.tests?.stdout || verification?.tests?.stderr;
+  // No test command: the tests did not run, so the checks are never shown as
+  // a pass — only as failed (another check failed) or as "no tests ran".
+  const testsNotRun = verification?.tests?.skipped === true;
+  const badge = !verification?.passed
+    ? { label: "FAILED", tone: "badge-danger" }
+    : testsNotRun
+      ? { label: RUN_EVIDENCE_COPY.noTestsBadge, tone: "badge-neutral" }
+      : { label: "PASSED", tone: "badge-success" };
 
   return (
     <div className="result-section" id="verification-section">
@@ -22,11 +31,8 @@ function VerificationEvidenceSection({
       {verification ? (
         <>
           <div className="evidence-row flex-center gap-2 m-0 my-2">
-            <span
-              id="result-tests"
-              className={`badge ${verification.passed ? "badge-success" : "badge-danger"}`}
-            >
-              {verification.passed ? "PASSED" : "FAILED"}
+            <span id="result-tests" className={`badge ${badge.tone}`}>
+              {badge.label}
             </span>
             <span id="result-repair-count" className="badge badge-neutral">
               {verification.summary ||
@@ -45,6 +51,14 @@ function VerificationEvidenceSection({
               </span>
             )}
           </div>
+          {testsNotRun && (
+            <p
+              id="result-tests-not-run"
+              className="text-footnote text-muted my-1"
+            >
+              {RUN_EVIDENCE_COPY.noTestCommand}
+            </p>
+          )}
           {verification.filesChanged &&
             verification.filesChanged.length > 0 && (
               <div

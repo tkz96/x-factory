@@ -394,6 +394,54 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).toContain("Clean implementation");
   });
 
+  it("RunEvidence says no tests ran, never that they passed, when the project has no test command", () => {
+    const noTests: VerificationResult = {
+      passed: true,
+      repairAttempt: 1,
+      tests: {
+        command: "",
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        passed: false,
+        durationMs: 0,
+        skipped: true,
+        skipReason: "No tests ran. This project has no test command.",
+      },
+      diff: "",
+      filesChanged: ["src/app.ts"],
+      hasPollution: false,
+      summary: "No tests ran. This project has no test command.",
+    };
+    const run: Run = {
+      id: "run-no-tests",
+      project: { id: "test-proj", name: "Test Project" },
+      ticket: { id: "T-1", title: "Test Ticket", acceptanceCriteria: [] },
+      plan: "plan",
+      branch: "factory/test",
+      status: "awaiting_review",
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      updatedAt: new Date().toISOString(),
+      implementationContext: null,
+      verification: noTests,
+      review: null,
+      artifacts: [],
+      diff: null,
+      pullRequest: null,
+      repairAttempts: 1,
+      artifactsDir: "/tmp",
+      worktreePath: "/tmp",
+    };
+
+    const html = renderToString(React.createElement(RunEvidence, { run }));
+
+    expect(html).toContain('id="result-tests-not-run"');
+    expect(html).toContain("No tests ran. This project has no test command.");
+    expect(html).not.toContain("Tests passed");
+    expect(html).not.toContain("PASSED");
+  });
+
   it("RunEvidence renders meaningful empty states when results are genuinely unavailable", () => {
     const emptyRun: Run = {
       id: "run-empty-test",

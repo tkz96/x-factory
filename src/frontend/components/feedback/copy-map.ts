@@ -322,14 +322,20 @@ export const PROJECTS_COPY = {
   noRepository: "Not recorded",
 } as const;
 
+/** Copy for a run's verification evidence. */
+export const RUN_EVIDENCE_COPY = {
+  /** The badge when the checks passed but no tests ran. */
+  noTestsBadge: "NO TESTS RAN",
+  noTestCommand: "No tests ran. This project has no test command.",
+} as const;
+
 /** Copy for editing a repository's checkout and commands (#283). */
 export const REPOSITORY_SETTINGS_COPY = {
   title: "Repository settings",
   path: "Checkout folder",
   pathHelp: "The local folder where this repository is checked out.",
   test: "Test command",
-  testHelp:
-    "Run to verify a run's changes. Without one, verification checks nothing.",
+  testHelp: "Run to verify a run's changes. Without one, no tests run.",
   typecheck: "Typecheck command",
   lint: "Lint command",
   optional: "Optional",
@@ -722,6 +728,9 @@ export const REPOSITORY_STEP_COPY = {
   workspaceLabel: "Workspace Folder",
   workspaceHint:
     "Folder where X-Factory keeps this project's checkouts. Leave empty for the default.",
+  testCommandLabel: "Test Command",
+  testCommandHint:
+    "The command that runs your tests, like bun test or npm test. Leave empty if there are none.",
 } as const;
 
 /**

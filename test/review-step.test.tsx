@@ -242,6 +242,8 @@ function renderWizard() {
  */
 interface ConnectChoice {
   sameProvider?: boolean;
+  /** Typed into step 1's optional test command field when given. */
+  testCommand?: string;
 }
 
 /** Drives Basics → Connect with both cards verified, stopping at step 2. */
@@ -253,6 +255,9 @@ async function runToConnect(choice: ConnectChoice = {}) {
   await typeInput(getEl("onboard-proj-name"), "Rocket");
   await typeInput(getEl("onboard-proj-description"), "Rocket app");
   await typeInput(getEl("onboard-workspace-path"), "/work/rocket");
+  if (choice.testCommand !== undefined) {
+    await typeInput(getEl("onboard-test-command"), choice.testCommand);
+  }
   fireEvent.click(getEl("btn-step-1-next"));
 
   if (choice.sameProvider) {
@@ -539,6 +544,33 @@ describe("Review Step: the gate and the creation submit (#146)", () => {
     // Nothing blocks, and nothing is dismissed either: submit is live.
     expect(document.getElementById("review-blocked")).toBeNull();
     expect(getEl<HTMLButtonElement>("btn-step-5-submit").disabled).toBe(false);
+  });
+
+  it("TEST COMMAND: the test command typed at step 1 travels in the creation payload", async () => {
+    await runToReview(["repo-app"], { testCommand: "  bun test  " });
+    await act(async () => {
+      fireEvent.click(getEl("btn-step-5-submit"));
+    });
+    await flush();
+
+    expect(createProject).toHaveBeenCalledTimes(1);
+    const payload = createProject.mock.calls[0]?.[0] as Record<string, unknown>;
+    const onTheWire = JSON.parse(JSON.stringify(payload));
+    expect(onTheWire.testCommand).toBe("bun test");
+    expect(ConnectionsProjectInputSchema.safeParse(onTheWire).success).toBe(
+      true,
+    );
+  });
+
+  it("TEST COMMAND: a blank test command is left out of the payload", async () => {
+    await runToReview(["repo-app"], { testCommand: "   " });
+    await act(async () => {
+      fireEvent.click(getEl("btn-step-5-submit"));
+    });
+    await flush();
+
+    const payload = createProject.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect("testCommand" in JSON.parse(JSON.stringify(payload))).toBe(false);
   });
 
   it("BLOCKED ×2: a step-5 draft restores with its verification and identity stripped, so Review refuses to submit and explains why", async () => {

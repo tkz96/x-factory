@@ -106,6 +106,8 @@ export interface ProjectCreationPayload {
   name: string;
   description?: string | undefined;
   workspacePath?: string | undefined;
+  /** Saved as the primary repository's test command; absent means none. */
+  testCommand?: string | undefined;
   gitIdentity: GitIdentity;
   connections: ProjectCreationConnectionPayload[];
   repositories: ProjectCreationRepositoryPayload[];

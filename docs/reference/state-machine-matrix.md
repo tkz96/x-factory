@@ -92,6 +92,7 @@ Runs only return to earlier stages when a human explicitly sends them back from 
 ### 2. Autonomous Execution Phase (Phase 2)
 The `executing` state collapses the formerly separate `implementing`, `verifying`, and `reviewing` FSM states into a single active FSM state.
 - **Deterministic Verification**: This is not an FSM state. It is an internal stage within the Ralph Loop that runs repeatedly during execution.
+  - A project with no test command (the primary repository's `commands.test` is blank) runs no tests. Verification records them as not run (`tests.skipped: true` with a `skipReason`, and `tests.passed: false`), never as passed, and does not fail the run for it: the typecheck, lint, pollution and change checks decide. The run page says "No tests ran. This project has no test command." and the coding prompt names no test command. The Add Project assistant asks for the command (optional), and Repository settings can set it later. `test/verification.test.ts` drives it.
 - **Automated Review**: This is not an FSM state. It is an internal stage executed by the `ReviewExecutor` immediately after the Ralph Loop completes, but before transitioning the FSM to `awaiting_review`.
 
 ### 3. Concurrency Protection
