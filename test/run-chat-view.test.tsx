@@ -135,6 +135,34 @@ describe("the run chat shows real events and nothing invented", () => {
         events={[ev(1, "status", { status: "failed", failure })]}
       />,
     );
+    // The header above the log says it, so the log does not say it again.
+    const page = within(container);
+    expect(page.getAllByText("The model call failed.")).toHaveLength(1);
+    expect(page.getAllByText(failure.recovery)).toHaveLength(1);
+    expect(
+      within(log(container)).queryByText("The model call failed."),
+    ).toBeNull();
+    // The log still records the moment the run failed.
+    expect(
+      log(container).querySelector('[data-kind="status"]')?.textContent,
+    ).toContain("Failed");
+  });
+
+  it("keeps an earlier failure in the log once the run has moved on", () => {
+    const failure = {
+      category: "model",
+      message: "The model call failed.",
+      recovery: "Check the model connection in Settings, then restart the run.",
+    };
+    const { container } = render(
+      <RunChat
+        run={makeRun("understanding")}
+        events={[
+          ev(1, "status", { status: "failed", failure }),
+          ev(2, "status", { status: "understanding" }),
+        ]}
+      />,
+    );
     const chat = within(log(container));
     expect(chat.getByText("The model call failed.")).toBeTruthy();
     expect(chat.getByText(failure.recovery)).toBeTruthy();
