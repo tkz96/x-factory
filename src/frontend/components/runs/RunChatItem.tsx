@@ -11,6 +11,7 @@ import {
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
 import { MarkdownViewer } from "../MarkdownViewer.js";
+import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 
 export function RunTime({ at, now }: { at: string; now: number }) {
@@ -181,7 +182,7 @@ export function RunChatItemView({
     case "progress":
       return (
         <div className="run-chat-progress" data-kind="progress">
-          <span className="run-chat-badge">Iteration {item.iteration}</span>
+          <Badge className="run-chat-badge">Iteration {item.iteration}</Badge>
           <span>{item.text}</span>
           <RunTime at={item.at} now={now} />
         </div>
@@ -192,9 +193,9 @@ export function RunChatItemView({
           className={`run-chat-bubble run-chat-bubble-${item.speaker}`}
           data-kind="output"
         >
-          <span className="run-chat-badge">
+          <Badge className="run-chat-badge">
             {item.speaker === "reviewer" ? "Reviewer" : "Builder"}
-          </span>
+          </Badge>
           <p className="run-chat-pre">{item.text}</p>
           <RunTime at={item.at} now={now} />
         </div>

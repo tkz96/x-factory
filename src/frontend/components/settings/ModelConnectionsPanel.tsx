@@ -6,6 +6,8 @@
 
 import "./ModelConnectionsPanel.css";
 
+import { Badge } from "../ui/Badge.js";
+
 import { useState } from "react";
 import {
   MODEL_API_TYPES,
@@ -376,15 +378,9 @@ function ConnectionCard({
               ` (${COPY.fromEnvironment})`}
           </span>
         </div>
-        <span
-          className={
-            connection.verifiedAt
-              ? "model-badge model-badge--verified"
-              : "model-badge"
-          }
-        >
+        <Badge tone={connection.verifiedAt ? "success" : "neutral"}>
           {connection.verifiedAt ? COPY.verified : COPY.notChecked}
-        </span>
+        </Badge>
       </div>
 
       <div className="model-actions model-actions--start">

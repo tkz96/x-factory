@@ -4,6 +4,9 @@
   position: relative;
 }
 
+/* The unread count rides inside the circle as a capsule, so the circle never
+   grows and the count reads as a badge (the block's tokens: capsule, accent
+   fill, 600, no border). */
 .notification-badge {
   position: absolute;
   top: 0;
@@ -14,7 +17,9 @@
   border-radius: var(--radius-full);
   background: var(--accent);
   color: var(--text-on-accent);
-  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-2);
+  font-weight: 600;
   line-height: var(--space-4);
   text-align: center;
 }

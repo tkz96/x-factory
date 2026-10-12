@@ -21,6 +21,7 @@ import {
   PopoverTrigger,
 } from "../overlays/index.js";
 import { Button } from "../ui/Button.js";
+import { IconButton } from "../ui/IconButton.js";
 import { DesktopNotificationPrompt } from "./DesktopNotificationPrompt.js";
 
 export function NotificationBell() {
@@ -40,28 +41,25 @@ export function NotificationBell() {
 
   return (
     <PopoverTrigger isOpen={open} onOpenChange={setOpen}>
-      <Button
-        variant="secondary"
-        size="sm"
+      <IconButton
+        variant="plain"
+        icon="icon-bell"
+        label={label}
         className="notification-bell"
-        aria-label={label}
       >
-        <svg className="icon icon-md" aria-hidden="true">
-          <use href="/assets/icons/sprite.svg#icon-bell" />
-        </svg>
         {unreadCount > 0 && (
           <span className="notification-badge" aria-hidden="true">
             {unreadCount}
           </span>
         )}
-      </Button>
+      </IconButton>
       <Popover placement="bottom end" className="notification-popover">
         <PopoverContent aria-label="Notifications">
           <DesktopNotificationPrompt />
           <div className="notification-popover-head">
             <h2 className="notification-popover-title">Notifications</h2>
             <Button
-              variant="secondary"
+              variant="quiet"
               size="sm"
               isDisabled={unreadCount === 0}
               onPress={markAllRead}

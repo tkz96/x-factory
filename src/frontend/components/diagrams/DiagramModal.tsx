@@ -1,5 +1,6 @@
 // src/frontend/components/diagrams/DiagramModal.tsx — Expanded Fullscreen Modal for technical diagram inspection.
 
+import { Badge } from "../ui/Badge.js";
 import {
   Background,
   BackgroundVariant,
@@ -34,7 +35,9 @@ export function DiagramModal({
     >
       <div className="flow-modal-header">
         <div>
-          <span className="flow-diagram-badge">Detailed Inspection</span>
+          <Badge tone="accent" className="flow-diagram-badge">
+            Detailed Inspection
+          </Badge>
           <h3 id="flow-modal-heading" className="flow-diagram-title">
             {diagram.title}
           </h3>

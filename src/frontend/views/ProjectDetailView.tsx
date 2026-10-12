@@ -10,6 +10,8 @@
 
 import "./ProjectDetailView.css";
 
+import { Badge } from "../components/ui/Badge.js";
+
 import { useNavigate, useParams } from "react-router-dom";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
@@ -93,11 +95,7 @@ export function ProjectDetailView() {
           <h2 id="project-detail-name" className="projects-detail-name">
             {project.name}
           </h2>
-          {project.archived && (
-            <span className="role-badge role-badge-archived">
-              {PROJECT_DETAIL_COPY.archived}
-            </span>
-          )}
+          {project.archived && <Badge>{PROJECT_DETAIL_COPY.archived}</Badge>}
         </header>
 
         <dl className="projects-detail-facts">
@@ -140,9 +138,7 @@ export function ProjectDetailView() {
         <div className="project-repos-section mt-6">
           <div className="section-header-flex mb-3">
             <h3>{PROJECT_DETAIL_COPY.repositories}</h3>
-            <span id="project-detail-repo-count" className="nav-badge">
-              {repos.length}
-            </span>
+            <Badge id="project-detail-repo-count">{repos.length}</Badge>
           </div>
 
           <div

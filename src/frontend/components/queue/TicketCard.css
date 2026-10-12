@@ -76,17 +76,6 @@
   gap: 0.5rem;
 }
 
-.ticket-key {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: var(--border-width) solid var(--accent-hover);
-}
-
 .ticket-provider {
   font-size: 0.7rem;
   text-transform: uppercase;

@@ -9,6 +9,7 @@ import type {
   VerificationResult,
 } from "../../../shared/types.js";
 import { RUN_EVIDENCE_COPY } from "../feedback/copy-map.js";
+import { Badge, type BadgeTone } from "../ui/Badge.js";
 
 function VerificationEvidenceSection({
   verification,
@@ -19,11 +20,11 @@ function VerificationEvidenceSection({
   // No test command: the tests did not run, so the checks are never shown as
   // a pass — only as failed (another check failed) or as "no tests ran".
   const testsNotRun = verification?.tests?.skipped === true;
-  const badge = !verification?.passed
-    ? { label: "FAILED", tone: "badge-danger" }
+  const badge: { label: string; tone: BadgeTone } = !verification?.passed
+    ? { label: "Failed", tone: "error" }
     : testsNotRun
-      ? { label: RUN_EVIDENCE_COPY.noTestsBadge, tone: "badge-neutral" }
-      : { label: "PASSED", tone: "badge-success" };
+      ? { label: RUN_EVIDENCE_COPY.noTestsBadge, tone: "neutral" }
+      : { label: "Passed", tone: "success" };
 
   return (
     <div className="result-section" id="verification-section">
@@ -31,24 +32,24 @@ function VerificationEvidenceSection({
       {verification ? (
         <>
           <div className="evidence-row flex-center gap-2 m-0 my-2">
-            <span id="result-tests" className={`badge ${badge.tone}`}>
+            <Badge id="result-tests" tone={badge.tone}>
               {badge.label}
-            </span>
-            <span id="result-repair-count" className="badge badge-neutral">
+            </Badge>
+            <Badge id="result-repair-count">
               {verification.summary ||
                 (verification.passed
                   ? "Deterministic checks passed"
                   : "Deterministic checks failed")}
-            </span>
+            </Badge>
             {verification.repairAttempt > 1 && (
-              <span id="result-attempt-badge" className="badge badge-neutral">
+              <Badge id="result-attempt-badge">
                 Attempt {verification.repairAttempt}
-              </span>
+              </Badge>
             )}
             {verification.hasPollution && (
-              <span id="result-pollution-badge" className="badge badge-danger">
+              <Badge id="result-pollution-badge" tone="error">
                 Repository Pollution Detected
-              </span>
+              </Badge>
             )}
           </div>
           {testsNotRun && (
@@ -79,9 +80,7 @@ function VerificationEvidenceSection({
           className="evidence-row flex-center gap-2 m-0 my-2"
           id="verification-empty-state"
         >
-          <span id="result-tests" className="badge badge-neutral">
-            AWAITING VERIFICATION
-          </span>
+          <Badge id="result-tests">Awaiting verification</Badge>
           <span id="result-repair-count" className="text-muted text-footnote">
             No verification results available yet.
           </span>
@@ -98,12 +97,12 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
       {review ? (
         <>
           <div className="evidence-row flex-center gap-2 m-0 my-2">
-            <span
+            <Badge
               id="result-review-badge"
-              className={`badge ${review.passed ? "badge-success" : "badge-danger"}`}
+              tone={review.passed ? "success" : "error"}
             >
-              {review.passed ? "PASSED" : "FAILED"}
-            </span>
+              {review.passed ? "Passed" : "Failed"}
+            </Badge>
             <span id="result-review-summary" className="evidence-text">
               {review.summary}
             </span>
@@ -117,15 +116,12 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
               <ul className="list-none">
                 {review.criteriaChecked.map((c) => (
                   <li key={c.criterion} className="my-1">
-                    <span
-                      className={`badge badge-xs mr-2 ${
-                        c.satisfied
-                          ? "badge-success-subtle"
-                          : "badge-danger-subtle"
-                      }`}
+                    <Badge
+                      className="mr-2"
+                      tone={c.satisfied ? "success" : "error"}
                     >
-                      {c.satisfied ? "✓ PASS" : "✗ FAIL"}
-                    </span>
+                      {c.satisfied ? "✓ Pass" : "✗ Fail"}
+                    </Badge>
                     <span>{c.criterion}</span>
                   </li>
                 ))}
@@ -142,17 +138,18 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
                     key={`${f.file ?? ""}:${f.line ?? ""}:${f.message}`}
                     className="my-1 text-footnote"
                   >
-                    <span
-                      className={`badge badge-xs mr-2 ${
+                    <Badge
+                      className="mr-2"
+                      tone={
                         f.severity === "error"
-                          ? "badge-danger"
+                          ? "error"
                           : f.severity === "warning"
-                            ? "badge-warning"
-                            : "badge-neutral"
-                      }`}
+                            ? "warning"
+                            : "neutral"
+                      }
                     >
-                      {f.severity.toUpperCase()}
-                    </span>
+                      {f.severity}
+                    </Badge>
                     {f.file ? (
                       <span className="font-mono">
                         {f.file}
@@ -171,9 +168,7 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
           className="evidence-row flex-center gap-2 m-0 my-2"
           id="review-empty-state"
         >
-          <span id="result-review-badge" className="badge badge-neutral">
-            AWAITING REVIEW
-          </span>
+          <Badge id="result-review-badge">Awaiting review</Badge>
           <span id="result-review-summary" className="text-muted text-footnote">
             No review results available yet.
           </span>

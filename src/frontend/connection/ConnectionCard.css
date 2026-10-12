@@ -33,36 +33,6 @@
   align-items: center;
 }
 
-.connection-status-pill {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.connection-status-pill.status-ok {
-  background: var(--green-dim);
-  color: var(--green);
-}
-
-.connection-status-pill.status-degraded {
-  background: var(--orange-dim);
-  color: var(--orange);
-}
-
-.connection-status-pill.status-pending {
-  background: var(--bg-card);
-  color: var(--text-muted);
-}
-
-.connection-status-pill.status-error {
-  background: var(--red-dim);
-  color: var(--red);
-}
-
 .connection-card-body {
   font-size: 0.875rem;
   color: var(--text);

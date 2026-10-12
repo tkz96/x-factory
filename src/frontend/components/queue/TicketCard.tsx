@@ -4,6 +4,8 @@
 
 import "./TicketCard.css";
 
+import { Badge } from "../ui/Badge.js";
+
 import { Link, useNavigate } from "react-router-dom";
 import type { Ticket } from "../../../shared/types.js";
 import { useModal } from "../../context/ModalContext.js";
@@ -56,7 +58,9 @@ export function TicketCard({ ticket, projectId, runLink }: TicketCardProps) {
     >
       <div className="ticket-card-header">
         <div className="ticket-badges">
-          <span className="ticket-key">{ticket.id}</span>
+          <Badge variant="id" className="ticket-key">
+            {ticket.id}
+          </Badge>
           {ticket.provider && (
             <span className="ticket-provider">{ticket.provider}</span>
           )}

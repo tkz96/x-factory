@@ -46,31 +46,6 @@
   outline: none;
 }
 
-.filter-pill {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: var(--border-width) solid var(--accent-hover);
-  border-radius: var(--radius-full);
-  padding: 0 0.9rem;
-  height: var(--tap-min);
-  min-height: var(--tap-min);
-  white-space: nowrap;
-  box-sizing: border-box;
-}
-
-.pill-dot {
-  width: var(--status-dot-sm);
-  height: var(--status-dot-sm);
-  border-radius: var(--radius-full);
-  background: var(--accent);
-}
-
 #btn-queue-refresh {
   flex-shrink: 0;
   height: var(--tap-min);

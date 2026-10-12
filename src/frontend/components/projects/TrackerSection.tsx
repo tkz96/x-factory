@@ -26,6 +26,7 @@ import {
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import type { DerivedAsyncState } from "../feedback/types.js";
 import { useRetryCountdown } from "../feedback/use-retry-countdown.js";
+import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
@@ -130,7 +131,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
             {CONNECTIONS_COPY.trackerCardSubtitle}
           </p>
         </div>
-        <span className="role-badge">{providerLabel}</span>
+        <Badge>{providerLabel}</Badge>
       </div>
 
       <ConnectionComboLine

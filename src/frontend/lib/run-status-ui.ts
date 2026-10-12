@@ -235,7 +235,7 @@ export function runStatusText(status: RunStatus): string {
 /** The badge tone for a status: waiting on you, working, or how it ended. */
 export type RunStatusTone =
   | "neutral"
-  | "info"
+  | "accent"
   | "success"
   | "warning"
   | "error";
@@ -245,7 +245,7 @@ export function runStatusTone(status: RunStatus): RunStatusTone {
   if (status === "pr_created") return "success";
   const filter = runStatusUi(status).filter;
   if (filter === "Needs you") return "warning";
-  if (filter === "Running") return "info";
+  if (filter === "Running") return "accent";
   return "neutral";
 }
 

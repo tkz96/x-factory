@@ -4,6 +4,8 @@ import { stageLabel, stageStartedText } from "../../lib/run-models.js";
 import { runStatusText } from "../../lib/run-status-ui.js";
 import "./ChatThread.css";
 
+import { Badge } from "../ui/Badge.js";
+
 import { useEffect, useRef } from "react";
 import type { RunEvent } from "../../../shared/types.js";
 import { formatTimestamp } from "../../lib/format-timestamp.js";
@@ -17,7 +19,7 @@ function renderStatusBubble(item: RunEvent<"status">) {
   return (
     <div key={item.id} className="chat-bubble bubble-system">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Status</span>
+        <Badge className="chat-bubble-badge">Status</Badge>
         <span>{runStatusText(status)}</span>
       </div>
       <div className="chat-bubble-body">{text ?? ""}</div>
@@ -33,7 +35,7 @@ function renderEvidenceBubble(item: RunEvent<"stage_evidence">) {
   return (
     <div key={item.id} className="chat-bubble bubble-evidence">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Evidence</span>
+        <Badge className="chat-bubble-badge">Evidence</Badge>
         {stage && <strong>{stageLabel(stage)}</strong>}
       </div>
       <div className="chat-bubble-body">✓ {evidence}</div>
@@ -49,7 +51,7 @@ function renderRalphBubble(item: RunEvent<"ralph_progress">) {
   return (
     <div key={item.id} className="chat-bubble bubble-ralph">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Progress</span>
+        <Badge className="chat-bubble-badge" tone="accent">Progress</Badge>
         {iteration ? <span>Iteration #{String(iteration)}</span> : null}
       </div>
       <div className="chat-bubble-body">{text}</div>
@@ -72,7 +74,7 @@ function renderPiChunkBubble(item: RunEvent<"pi_output_chunk">) {
   return (
     <div key={item.id} className={bubbleClass}>
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">{badgeLabel}</span>
+        <Badge className="chat-bubble-badge">{badgeLabel}</Badge>
       </div>
       <div className="chat-bubble-body">{text}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
@@ -91,7 +93,7 @@ function renderChatUserBubble(item: RunEvent<"chat_user">) {
   return (
     <div key={item.id} className="chat-bubble bubble-chat-user">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Chat</span>
+        <Badge className="chat-bubble-badge">Chat</Badge>
         <strong>User Message Sent</strong>
       </div>
       <div className="chat-bubble-body">
@@ -109,7 +111,7 @@ function renderChatAgentBubble(item: RunEvent<"chat_agent">) {
   return (
     <div key={item.id} className="chat-bubble bubble-chat-agent">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Chat</span>
+        <Badge className="chat-bubble-badge">Chat</Badge>
         <strong>Agent Response Received</strong>
       </div>
       <div className="chat-bubble-body">
@@ -126,7 +128,7 @@ function renderErrorBubble(item: RunEvent<"error">) {
   return (
     <div key={item.id} className="chat-bubble bubble-error">
       <div className="chat-bubble-header">
-        <span className="chat-bubble-badge">Error</span>
+        <Badge className="chat-bubble-badge" tone="error">Error</Badge>
       </div>
       <div className="chat-bubble-body">{item.payload.message}</div>
       <time className="chat-bubble-time" dateTime={item.timestamp}>
@@ -142,7 +144,7 @@ function renderInfoBubble(item: RunEvent<"info">) {
     return (
       <div key={item.id} className="chat-bubble bubble-warning">
         <div className="chat-bubble-header">
-          <span className="chat-bubble-badge">Warning</span>
+          <Badge className="chat-bubble-badge" tone="warning">Warning</Badge>
         </div>
         <div className="chat-bubble-body">{text}</div>
         <time className="chat-bubble-time" dateTime={item.timestamp}>

@@ -107,27 +107,6 @@
   margin-bottom: var(--space-1);
 }
 
-.chat-bubble-badge {
-  font-size: var(--text-badge);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: var(--space-px) var(--space-1);
-  border-radius: var(--radius-xs);
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
-}
-
-.bubble-ralph .chat-bubble-badge {
-  background: var(--accent);
-  color: var(--text-on-accent);
-}
-
-.bubble-warning .chat-bubble-badge {
-  background: var(--orange-dim);
-  color: var(--orange);
-}
-
 .chat-bubble-body {
   white-space: pre-wrap;
   word-break: break-word;

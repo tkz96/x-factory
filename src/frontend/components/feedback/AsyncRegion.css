@@ -76,19 +76,6 @@
   margin-bottom: var(--space-3);
 }
 
-.async-region-stale-badge {
-  background: var(--bg-secondary);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-full);
-  color: var(--text-muted);
-  font-size: var(--text-caption-1);
-  font-weight: 600;
-  padding: var(--space-1) var(--space-3);
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
-}
-
 /* Suppressed diagnostics render inline below the content they belong to. */
 .async-region-suppressed {
   margin-top: var(--space-3);

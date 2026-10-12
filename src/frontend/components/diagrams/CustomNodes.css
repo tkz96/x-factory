@@ -47,40 +47,6 @@
   color: var(--text-dim);
 }
 
-.flow-node-badge {
-  font-size: var(--text-badge);
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-full);
-  background: var(--bg-secondary);
-  color: var(--text-dim);
-  border: var(--border-width) solid var(--border-subtle);
-}
-
-.flow-node-badge.badge-accent {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent-dim);
-}
-
-.flow-node-badge.badge-success {
-  background: var(--green-dim);
-  color: var(--green);
-  border-color: var(--green-dim);
-}
-
-.flow-node-badge.badge-warning {
-  background: var(--orange-dim);
-  color: var(--orange);
-  border-color: var(--orange);
-}
-
-.flow-node-badge.badge-danger {
-  background: var(--red-dim);
-  color: var(--red);
-  border-color: var(--red-dim);
-}
-
 /* ── Node Title & Subtitle ─────────────────────────────────────────── */
 .flow-node-title-row {
   display: flex;

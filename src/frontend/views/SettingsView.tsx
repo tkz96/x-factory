@@ -23,6 +23,7 @@ import {
 import { DesktopNotificationsSetting } from "../components/settings/DesktopNotificationsSetting.js";
 import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPanel.js";
 import { RolesPanel } from "../components/settings/RolesPanel.js";
+import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { SwitchControl } from "../components/ui/SwitchControl.js";
@@ -446,13 +447,11 @@ function ConnectionsTabContent({
                       )}
                     </td>
                     <td>
-                      <span
-                        className={`badge ${p.archived ? "badge-status-archived" : "badge-status-active"}`}
-                      >
+                      <Badge tone={p.archived ? "neutral" : "success"}>
                         {p.archived
                           ? CONNECTIONS_COPY.registryStatusArchived
                           : CONNECTIONS_COPY.registryStatusActive}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="align-right">
                       <Link

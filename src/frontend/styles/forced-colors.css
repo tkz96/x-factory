@@ -67,19 +67,15 @@
     border: var(--border-width) solid ButtonBorder;
   }
 
-  :root .badge,
-  :root .badge-info,
-  :root .badge-warning,
-  :root .badge-error,
-  :root .badge-neutral,
-  :root .badge-status-active,
-  :root .badge-status-archived,
-  :root .status-pill.ready,
-  :root .status-pill.pending,
-  :root .status-pill.error,
-  :root .role-badge,
-  :root .primary-badge,
-  :root .knowledge-badge {
+  /* One badge, one set of system colours (the block owns the look). */
+  :root .ui-badge,
+  :root .ui-badge--neutral,
+  :root .ui-badge--accent,
+  :root .ui-badge--success,
+  :root .ui-badge--warning,
+  :root .ui-badge--error,
+  :root .ui-badge--id,
+  :root .filter-pill {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
@@ -250,21 +246,7 @@
   :root .field-help-tooltip code,
   :root .flow-node-badge,
   :root .flow-diagram-badge,
-  :root .badge-accent,
-  :root .badge-success,
-  :root .badge-danger,
-  :root .badge-success-subtle,
-  :root .badge-danger-subtle,
-  :root .nav-badge,
   :root .notification-badge,
-  :root .async-region-stale-badge,
-  :root .chat-bubble-badge,
-  :root .run-chat-badge,
-  :root .model-badge,
-  :root .model-badge--verified,
-  :root .connection-status-pill,
-  :root .role-badge-archived,
-  :root .filter-pill,
   :root .repos-table-container,
   :root .repos-table,
   :root .docs-meta-table {

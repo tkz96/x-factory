@@ -245,7 +245,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       // The sections name what they check; the reviewer is named, not "Session B" (#278).
       expect(html).toContain("Verification");
       expect(html).toContain("Review");
-      expect(html).toContain("AWAITING VERIFICATION");
+      expect(html).toContain("Awaiting verification");
     });
 
     it("the checkpoint bar offers the policy's actions by name, and Create Pull Request only at delivery", () => {

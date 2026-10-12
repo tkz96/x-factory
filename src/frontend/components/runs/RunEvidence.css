@@ -1,14 +1,5 @@
-/* src/frontend/components/runs/RunEvidence.css — Verification and review evidence in the inspector (#262). */
-
-.badge-success-subtle {
-  background: var(--green-dim);
-  color: var(--green);
-}
-
-.badge-danger-subtle {
-  background: var(--red-dim);
-  color: var(--red);
-}
+/* src/frontend/components/runs/RunEvidence.css — Spacing for the evidence rows in the inspector (#262).
+   The badges themselves are the badge block (styles/shared/controls.css). */
 
 .mr-2 {
   margin-right: var(--space-2);

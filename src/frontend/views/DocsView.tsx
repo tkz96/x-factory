@@ -2,6 +2,8 @@
 
 import "./DocsView.css";
 
+import { Badge } from "../components/ui/Badge.js";
+
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -263,7 +265,7 @@ export function DocsView() {
               {docData && (
                 <div className="docs-article-body">
                   <div className="mb-4">
-                    <span className="docs-tag">{docData.category}</span>
+                    <Badge>{docData.category}</Badge>
                   </div>
 
                   <MarkdownViewer

@@ -2,6 +2,8 @@
 
 import "./FlowDiagramViewer.css";
 
+import { Badge } from "../ui/Badge.js";
+
 import {
   Background,
   BackgroundVariant,
@@ -83,7 +85,9 @@ function InnerFlowCanvas({
       <div className="flow-diagram-header">
         <div className="flow-diagram-info">
           <div className="flow-diagram-title-row">
-            <span className="flow-diagram-badge">Architecture</span>
+            <Badge tone="accent" className="flow-diagram-badge">
+              Architecture
+            </Badge>
             <span className="flow-diagram-title">{diagram.title}</span>
           </div>
           <span className="flow-diagram-subtitle">{diagram.subtitle}</span>

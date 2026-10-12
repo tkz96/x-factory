@@ -69,11 +69,6 @@
   padding: var(--space-1) var(--space-2);
 }
 
-.run-inspector .chat-bubble-badge {
-  font-size: var(--text-micro);
-  padding: 0 var(--space-1);
-}
-
 .run-inspector .chat-bubble-header {
   margin-bottom: var(--space-half);
 }

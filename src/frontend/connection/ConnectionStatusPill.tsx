@@ -2,26 +2,24 @@
 
 import "./ConnectionCard.css";
 
+import { Badge } from "../components/ui/Badge.js";
+
 export interface ConnectionStatusPillProps {
   status: "idle" | "pending" | "ok" | "degraded" | "error";
 }
 
 export function ConnectionStatusPill({ status }: ConnectionStatusPillProps) {
   if (status === "ok") {
-    return <span className="connection-status-pill status-ok">Verified</span>;
+    return <Badge tone="success">Verified</Badge>;
   }
   if (status === "degraded") {
-    return (
-      <span className="connection-status-pill status-degraded">Degraded</span>
-    );
+    return <Badge tone="warning">Degraded</Badge>;
   }
   if (status === "pending") {
-    return (
-      <span className="connection-status-pill status-pending">Verifying…</span>
-    );
+    return <Badge>Verifying…</Badge>;
   }
   if (status === "error") {
-    return <span className="connection-status-pill status-error">Error</span>;
+    return <Badge tone="error">Error</Badge>;
   }
   return null;
 }

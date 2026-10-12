@@ -139,18 +139,6 @@
   margin-bottom: var(--space-4);
 }
 
-.docs-tag {
-  font-size: var(--text-caption-1);
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent-dim);
-  color: var(--accent);
-  letter-spacing: 0.04em;
-  display: inline-block;
-}
-
 /* The pane title is the screen's one h1 (#258): every security pane uses it,
    so the heading level and its look always agree. */
 .docs-pane-title {

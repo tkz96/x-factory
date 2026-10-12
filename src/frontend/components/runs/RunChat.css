@@ -195,15 +195,6 @@
   color: var(--text-muted);
 }
 
-.run-chat-badge {
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-xs);
-  background: var(--bg-hover);
-  font-size: var(--text-caption-2);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
 .run-chat-bubble {
   display: flex;
   flex-direction: column;

@@ -144,7 +144,9 @@ export function AsyncRegion({
     <div className="async-region">
       {derived.state === "stale" && (
         <div className="async-region-stale">
-          <Badge className="async-region-stale-badge">{STATE_COPY.stale}</Badge>
+          <Badge className="async-region-stale-badge" tone="neutral">
+            {STATE_COPY.stale}
+          </Badge>
           {onRetry !== undefined && (
             <RetryAction onRetry={onRetry} label={STATE_COPY.refresh} />
           )}

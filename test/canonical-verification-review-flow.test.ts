@@ -381,7 +381,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     // Real verification data rendered
-    expect(html).toContain("PASSED");
+    expect(html).toContain("Passed");
     expect(html).toContain("All 10 tests passed without pollution.");
     expect(html).toContain("10 pass, 0 fail");
     expect(html).toContain("Files modified:");
@@ -439,7 +439,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(html).toContain('id="result-tests-not-run"');
     expect(html).toContain("No tests ran. This project has no test command.");
     expect(html).not.toContain("Tests passed");
-    expect(html).not.toContain("PASSED");
+    expect(html).not.toContain("Passed");
   });
 
   it("RunEvidence renders meaningful empty states when results are genuinely unavailable", () => {
@@ -486,9 +486,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     // Empty state badges rendered without fabricating pass
-    expect(html).toContain("AWAITING VERIFICATION");
+    expect(html).toContain("Awaiting verification");
     expect(html).toContain("No verification results available yet.");
-    expect(html).toContain("AWAITING REVIEW");
+    expect(html).toContain("Awaiting review");
     expect(html).toContain("No review results available yet.");
     expect(html).not.toContain("Deterministic checks passed");
   });
@@ -548,8 +548,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     };
 
     const initialHtml = render();
-    expect(initialHtml).toContain("AWAITING VERIFICATION");
-    expect(initialHtml).toContain("AWAITING REVIEW");
+    expect(initialHtml).toContain("Awaiting verification");
+    expect(initialHtml).toContain("Awaiting review");
 
     // Backend produces and emits verification event
     patchRunCache(
@@ -562,9 +562,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     const midHtml = render();
-    expect(midHtml).toContain("PASSED");
+    expect(midHtml).toContain("Passed");
     expect(midHtml).toContain("All 10 tests passed without pollution.");
-    expect(midHtml).toContain("AWAITING REVIEW");
+    expect(midHtml).toContain("Awaiting review");
 
     // Backend produces and emits review event + status transition to awaiting_review
     patchRunCache(
@@ -577,7 +577,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     const finalHtml = render();
-    expect(finalHtml).toContain("PASSED");
+    expect(finalHtml).toContain("Passed");
     expect(finalHtml).toContain("All acceptance criteria verified");
   });
 
@@ -719,7 +719,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         ),
       );
 
-      expect(html).toContain("PASSED");
+      expect(html).toContain("Passed");
       expect(html).toContain("All 10 tests passed without pollution.");
       expect(html).toContain("All acceptance criteria verified");
     } finally {

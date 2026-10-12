@@ -1,88 +1,42 @@
-/* ── Badge ───────────────────────────────────────────────────────────── */
+/* ── Badge ─────────────────────────────────────────────────────────────
+ *
+ * One badge for the whole app, and it is the block in
+ * src/frontend/components/ui/Badge.tsx, styled in the shared layer
+ * (styles/shared/controls.css) exactly as .btn-primary and .form-input are.
+ * A screen composes a badge, it never repaints one.
+ *
+ * The legacy names are gone with their callers: .badge / .badge-info /
+ * .badge-warning / .badge-error / .badge-neutral, .role-badge, .primary-badge,
+ * .knowledge-badge, .status-pill, .badge-status-*, .badge-success(-subtle) /
+ * .badge-danger(-subtle), .model-badge, .connection-status-pill, .docs-tag,
+ * .run-chat-badge, .chat-bubble-badge, .nav-badge, .async-region-stale-badge.
+ * A status or tag badge is a capsule; a literal id, keycap or command is the
+ * mono `variant="id"` badge at --radius-xs.
+ * ------------------------------------------------------------------------- */
 
-.badge {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 500;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-full);
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
-}
-
-.badge-info {
-  background: var(--accent-dim);
-  color: var(--accent);
-}
-.badge-warning {
-  background: var(--orange-dim);
-  color: var(--orange);
-}
-.badge-error {
-  background: var(--red-dim);
-  color: var(--red);
-}
-.badge-neutral {
-  background: var(--bg-hover);
-  color: var(--text-muted);
-}
-
-/* ── Role, Primary, Knowledge Badges ────────────────────────────────── */
-
-.role-badge {
-  font-size: 0.72rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: var(--radius-full);
-  background: var(--bg-hover);
-  border: var(--border-width) solid var(--border);
-  color: var(--text-dim);
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.primary-badge {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-}
-
-.knowledge-badge {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--purple-dim);
-  color: var(--purple);
-  border: var(--border-width) solid var(--purple);
-  font-weight: 600;
-}
-
-/* ── Status Pill ─────────────────────────────────────────────────────── */
-
-.status-pill {
+/* A tag chip: the quiet, second role a badge plays on a card or in a list —
+   a label, a branch, a category. A capsule with no border, so it reads as a
+   word rather than a control. */
+.filter-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.65rem;
-  border-radius: var(--radius-full);
+  gap: var(--space-1);
+  min-height: var(--space-5);
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-1);
   font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
 }
 
-.status-pill.ready {
-  background: var(--green-dim);
-  color: var(--green);
-}
-
-.status-pill.pending {
-  background: var(--yellow-dim);
-  color: var(--yellow);
-}
-
-.status-pill.error {
-  background: var(--red-dim);
-  color: var(--red);
+/* The dot that marks a live filter: a circle stays a circle. */
+.pill-dot {
+  width: var(--status-dot-sm);
+  height: var(--status-dot-sm);
+  border-radius: var(--radius-full);
+  background: var(--accent);
 }

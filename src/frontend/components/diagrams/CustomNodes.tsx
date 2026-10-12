@@ -2,6 +2,8 @@
 
 import "./CustomNodes.css";
 
+import { Badge, type BadgeTone } from "../ui/Badge.js";
+
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 
 export interface CustomNodeData extends Record<string, unknown> {
@@ -33,9 +35,11 @@ export interface CustomNodeData extends Record<string, unknown> {
 export function StandardNode({ data }: NodeProps) {
   const nodeData = data as unknown as CustomNodeData;
   const variantClass = nodeData.variant ? `flow-node-${nodeData.variant}` : "";
-  const badgeClass = nodeData.badgeVariant
-    ? `badge-${nodeData.badgeVariant}`
-    : "";
+  // The node's badge is the badge block; its variants are the block's tones.
+  const badgeTone: BadgeTone =
+    nodeData.badgeVariant === "danger"
+      ? "error"
+      : (nodeData.badgeVariant ?? "neutral");
 
   const iconVariantClass = nodeData.variant ? `icon-${nodeData.variant}` : "";
 
@@ -64,9 +68,9 @@ export function StandardNode({ data }: NodeProps) {
             <span className="flow-node-tag">{nodeData.tag}</span>
           )}
           {nodeData.badge && (
-            <span className={`flow-node-badge ${badgeClass}`}>
+            <Badge tone={badgeTone} className="flow-node-badge">
               {nodeData.badge}
-            </span>
+            </Badge>
           )}
         </div>
       )}

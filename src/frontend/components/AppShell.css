@@ -92,23 +92,6 @@
   opacity: 1;
 }
 
-.nav-badge {
-  margin-left: auto;
-  font-size: var(--text-caption-2);
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--bg-hover);
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.nav-badge.pulse {
-  background: var(--green-dim);
-  color: var(--green);
-  border: var(--border-width) solid var(--green);
-}
-
 .sidebar-footer {
   padding: 0.85rem 1rem;
   border-top: var(--border-width) solid var(--border-subtle);

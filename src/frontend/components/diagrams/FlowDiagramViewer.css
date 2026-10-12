@@ -48,17 +48,6 @@
   gap: 0.45rem;
 }
 
-.flow-diagram-badge {
-  font-size: var(--text-badge);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--accent);
-  background: var(--accent-dim);
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-full);
-}
-
 .flow-diagram-title {
   font-size: var(--text-subhead);
   font-weight: 600;
