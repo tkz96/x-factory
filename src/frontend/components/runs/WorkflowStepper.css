@@ -1,8 +1,8 @@
-/* ── Workflow Stepper (Apple HIG Compact Progress Strip) ─────────────── */
+/* ── Workflow Stepper (six steps on one line) ─────────────────────────── */
 
 .workflow-stepper {
-  width: 100%;
   position: relative;
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -12,11 +12,14 @@
   border: none;
 }
 
+/* The track runs through the dots' centres (C1): with six equal columns the
+   centres sit at 1/12, 3/12 … 11/12 of the width, so the line starts and ends
+   half a column in, and sits half a dot down. */
 .stepper-progress-track {
   position: absolute;
-  top: 50%;
-  left: var(--space-6);
-  right: var(--space-6);
+  top: calc(var(--space-6) / 2);
+  left: calc(100% / 12);
+  right: calc(100% / 12);
   height: var(--border-width-thick);
   transform: translateY(-50%);
   pointer-events: none;
@@ -66,12 +69,13 @@
   transform: scaleX(1);
 }
 
+/* Six equal columns: every dot sits on the one line, whatever its label says. */
 .stepper-steps-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   position: relative;
   z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: start;
   width: 100%;
 }
 
@@ -79,105 +83,127 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  min-width: 0;
   text-align: center;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  transition:
-    border-color var(--transition),
-    box-shadow var(--transition);
-  box-shadow: var(--shadow-sm);
+  padding: 0;
+  background: none;
+  border: none;
 }
 
+/* A dot is a true circle (SYSTEM.md): half its own edge, whatever the ladder
+   gives it — never a squashed oval with a label beside it. */
 .step-dot {
+  position: relative;
   width: var(--space-6);
-  height: var(--space-6);
-  min-width: var(--space-6);
+  aspect-ratio: 1;
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
   font-size: var(--text-caption-1);
-  font-weight: 700;
+  font-weight: 600;
   background: var(--bg-tertiary);
   color: var(--text-dim);
   border: var(--border-width) solid var(--border);
-  margin-bottom: 0.35rem;
   transition:
     background-color var(--transition),
     border-color var(--transition),
     color var(--transition);
 }
 
+/* The check arrives when the step completes (O2): a short fade and settle, so
+   the glyph does not pop in. */
+.step.completed .step-dot .icon {
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+@starting-style {
+  .step.completed .step-dot .icon {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
 .step-info {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-1);
-  white-space: nowrap;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-half);
+  min-width: 0;
 }
 
 .step-label {
   font-size: var(--text-footnote);
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: -0.01em;
-  margin-bottom: 0.2rem;
-  transition: color var(--duration-normal) var(--ease-in-out);
+  transition: color var(--transition);
 }
 
 .step-evidence {
   font-family: var(--font-mono);
   font-size: var(--text-caption-2);
-  color: var(--text-dim);
+  color: var(--text-muted);
   line-height: 1.25;
   max-width: 100%;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   display: none;
 }
 
+/* The active step's ring: a border that grows and fades on its own layer,
+   rather than an animated box-shadow (M11). */
 @keyframes stepPulse {
   0% {
-    box-shadow: 0 0 0 0 var(--accent);
+    opacity: 0.8;
+    transform: scale(1);
   }
-  70% {
-    box-shadow: 0 0 0 var(--space-2) transparent;
-  }
+  70%,
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    opacity: 0;
+    transform: scale(1.6);
   }
 }
 
-/* Reduced motion (#252): the active step keeps a steady ring instead of
-   pulsing for attention. */
+.step.active .step-dot::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--border-width) * -1);
+  border-radius: inherit;
+  border: var(--border-width-indicator) solid var(--accent);
+  pointer-events: none;
+  animation: stepPulse var(--duration-pulse) var(--ease-pulse) infinite;
+}
+
+/* Reduced motion (#252): the ring stays, steady, instead of pulsing. */
 @media (prefers-reduced-motion: reduce) {
   @keyframes stepPulse {
     0%,
     100% {
-      box-shadow: 0 0 0 var(--space-1) var(--accent-dim);
+      opacity: 0.5;
     }
   }
 
-  .step.active .step-dot {
+  .step.active .step-dot::after {
     animation-iteration-count: 1;
+  }
+
+  @starting-style {
+    .step.completed .step-dot .icon {
+      opacity: 0;
+      transform: none;
+    }
   }
 }
 
-/* ── Step States (HIG Compliant) ─────────────────────────────────────── */
-
-.step.active {
-  border-color: var(--accent);
-  background: var(--bg-card);
-  box-shadow: 0 0 var(--space-3) var(--accent-dim);
-}
+/* ── Step states: the dot and the label carry it ──────────────────────── */
 
 .step.active .step-dot {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--text-on-accent);
-  animation: stepPulse var(--duration-pulse) var(--ease-pulse) infinite;
 }
 
 .step.active .step-label {
@@ -186,12 +212,6 @@
 
 .step.active .step-evidence {
   display: inline-block;
-  color: var(--text-muted);
-}
-
-.step.completed {
-  border-color: var(--green);
-  background: var(--bg-card);
 }
 
 .step.completed .step-dot {
@@ -204,15 +224,6 @@
   color: var(--text);
 }
 
-.step.pending {
-  opacity: 0.72;
-}
-
-.step.failed {
-  border-color: var(--red);
-  background: var(--bg-card);
-}
-
 .step.failed .step-dot {
   background: var(--red);
   border-color: var(--red);
@@ -223,45 +234,25 @@
   color: var(--red);
 }
 
+.step.pending {
+  opacity: 1;
+}
+
+.step.pending .step-label {
+  color: var(--text-dim);
+}
+
+/* A narrow strip has no room for a line of evidence under the active label. */
 @media (max-width: 960px) {
-  .step-info .step-evidence {
+  .step.active .step-evidence {
     display: none;
-  }
-  .step {
-    padding: var(--space-1) var(--space-2);
-    gap: var(--space-1);
   }
 }
 
-/* Phone width (#262): six steps fit one row. Each step is its number and its label; the evidence
-   line waits for the desktop, where there is room for it. */
+/* Phone width (#262): six steps fit one row; each is its dot and its label. */
 @media (max-width: 600px) {
-  .workflow-stepper .step {
-    flex: 0 1 auto;
-    min-width: 0;
-    flex-direction: column;
-    gap: var(--space-half);
-    padding: 0;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-  }
-
-  .workflow-stepper .step-info {
-    flex-direction: column;
-    align-items: center;
-    white-space: normal;
-  }
-
-  .workflow-stepper .step.active .step-evidence,
-  .workflow-stepper .step .step-evidence {
-    display: none;
-  }
-
-  .workflow-stepper .step-label {
+  .step-label {
     font-size: var(--text-caption-2);
-    letter-spacing: 0;
-    text-align: center;
     white-space: nowrap;
   }
 }

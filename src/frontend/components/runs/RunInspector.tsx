@@ -68,7 +68,7 @@ function InspectorBody({ run, events, connected }: RunInspectorProps) {
           Raw log
           {connected && (
             <span
-              className="status-dot status-dot-sm online run-inspector-dot"
+              className="run-inspector-stream-dot"
               title="Live stream connected"
             />
           )}

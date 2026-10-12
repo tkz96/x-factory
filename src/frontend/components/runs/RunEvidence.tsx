@@ -3,6 +3,7 @@
 
 import "./RunEvidence.css";
 
+import { summarizeDiff } from "../../../shared/diff-summary.js";
 import type {
   ReviewResult,
   Run,
@@ -11,10 +12,25 @@ import type {
 import { RUN_EVIDENCE_COPY } from "../feedback/copy-map.js";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
 
+/** The one glyph a criterion leads with: decorative, named in words beside it. */
+function EvidenceIcon({ icon, tone }: { icon: string; tone: "pass" | "fail" }) {
+  return (
+    <svg
+      className={`icon icon-sm evidence-icon evidence-icon--${tone}`}
+      aria-hidden="true"
+    >
+      <use href={`/assets/icons/sprite.svg#${icon}`} />
+    </svg>
+  );
+}
+
 function VerificationEvidenceSection({
   verification,
+  filesListedElsewhere,
 }: {
   verification?: VerificationResult | null;
+  /** The inspector's Files section already lists this run's files (F5). */
+  filesListedElsewhere: boolean;
 }) {
   const testOutput = verification?.tests?.stdout || verification?.tests?.stderr;
   // No test command: the tests did not run, so the checks are never shown as
@@ -25,13 +41,15 @@ function VerificationEvidenceSection({
     : testsNotRun
       ? { label: RUN_EVIDENCE_COPY.noTestsBadge, tone: "neutral" }
       : { label: "Passed", tone: "success" };
+  const filesChanged = verification?.filesChanged ?? [];
+  const showFiles = filesChanged.length > 0 && !filesListedElsewhere;
 
   return (
-    <div className="result-section" id="verification-section">
+    <section className="result-section" id="verification-section">
       <h3>Verification</h3>
       {verification ? (
         <>
-          <div className="evidence-row flex-center gap-2 m-0 my-2">
+          <div className="evidence-row">
             <Badge id="result-tests" tone={badge.tone}>
               {badge.label}
             </Badge>
@@ -53,22 +71,15 @@ function VerificationEvidenceSection({
             )}
           </div>
           {testsNotRun && (
-            <p
-              id="result-tests-not-run"
-              className="text-footnote text-muted my-1"
-            >
+            <p id="result-tests-not-run" className="evidence-note">
               {RUN_EVIDENCE_COPY.noTestCommand}
             </p>
           )}
-          {verification.filesChanged &&
-            verification.filesChanged.length > 0 && (
-              <div
-                className="text-footnote text-muted my-1"
-                id="verification-files"
-              >
-                Files modified: {verification.filesChanged.join(", ")}
-              </div>
-            )}
+          {showFiles && (
+            <p className="evidence-note" id="verification-files">
+              Files modified: {filesChanged.join(", ")}
+            </p>
+          )}
           {testOutput && (
             <pre id="result-test-output" className="test-output">
               {testOutput}
@@ -76,53 +87,50 @@ function VerificationEvidenceSection({
           )}
         </>
       ) : (
-        <div
-          className="evidence-row flex-center gap-2 m-0 my-2"
-          id="verification-empty-state"
-        >
+        <div className="evidence-row" id="verification-empty-state">
           <Badge id="result-tests">Awaiting verification</Badge>
-          <span id="result-repair-count" className="text-muted text-footnote">
+          <span id="result-repair-count" className="evidence-note">
             No verification results available yet.
           </span>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
   return (
-    <div className="result-section" id="review-section">
+    <section className="result-section" id="review-section">
       <h3>Review</h3>
       {review ? (
         <>
-          <div className="evidence-row flex-center gap-2 m-0 my-2">
+          <div className="evidence-row">
             <Badge
               id="result-review-badge"
               tone={review.passed ? "success" : "error"}
             >
               {review.passed ? "Passed" : "Failed"}
             </Badge>
-            <span id="result-review-summary" className="evidence-text">
+            <span id="result-review-summary" className="evidence-note">
               {review.summary}
             </span>
           </div>
 
           {review.criteriaChecked && review.criteriaChecked.length > 0 && (
             <div id="criteria-checklist" className="criteria-list">
-              <h4 className="text-footnote mt-3">
-                Acceptance Criteria Verified:
-              </h4>
-              <ul className="list-none">
+              {/* A section header (SYSTEM.md): sentence case, and no colon. */}
+              <h4 className="evidence-subheading">Acceptance criteria</h4>
+              <ul className="evidence-rows">
                 {review.criteriaChecked.map((c) => (
-                  <li key={c.criterion} className="my-1">
-                    <Badge
-                      className="mr-2"
-                      tone={c.satisfied ? "success" : "error"}
-                    >
-                      {c.satisfied ? "✓ Pass" : "✗ Fail"}
-                    </Badge>
-                    <span>{c.criterion}</span>
+                  <li key={c.criterion} className="evidence-grid-row">
+                    <EvidenceIcon
+                      icon={c.satisfied ? "icon-check" : "icon-x-circle"}
+                      tone={c.satisfied ? "pass" : "fail"}
+                    />
+                    <span className="sr-only">
+                      {c.satisfied ? "Passed: " : "Failed: "}
+                    </span>
+                    <span className="evidence-text">{c.criterion}</span>
                   </li>
                 ))}
               </ul>
@@ -130,16 +138,15 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
           )}
 
           {review.findings && review.findings.length > 0 && (
-            <div id="review-findings" className="findings-list mt-3">
-              <h4 className="text-footnote">Findings:</h4>
-              <ul className="list-none">
+            <div id="review-findings" className="criteria-list">
+              <h4 className="evidence-subheading">Findings</h4>
+              <ul className="evidence-rows">
                 {review.findings.map((f) => (
                   <li
                     key={`${f.file ?? ""}:${f.line ?? ""}:${f.message}`}
-                    className="my-1 text-footnote"
+                    className="evidence-grid-row evidence-grid-row--badge"
                   >
                     <Badge
-                      className="mr-2"
                       tone={
                         f.severity === "error"
                           ? "error"
@@ -150,13 +157,14 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
                     >
                       {f.severity}
                     </Badge>
-                    {f.file ? (
-                      <span className="font-mono">
-                        {f.file}
-                        {f.line ? `:${f.line}` : ""}:{" "}
-                      </span>
-                    ) : null}
-                    <span>{f.message}</span>
+                    <span className="evidence-text">
+                      {f.file ? (
+                        <span className="evidence-file">
+                          {`${f.file}${f.line ? `:${f.line}` : ""} `}
+                        </span>
+                      ) : null}
+                      {f.message}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -164,24 +172,27 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
           )}
         </>
       ) : (
-        <div
-          className="evidence-row flex-center gap-2 m-0 my-2"
-          id="review-empty-state"
-        >
+        <div className="evidence-row" id="review-empty-state">
           <Badge id="result-review-badge">Awaiting review</Badge>
-          <span id="result-review-summary" className="text-muted text-footnote">
+          <span id="result-review-summary" className="evidence-note">
             No review results available yet.
           </span>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 export function RunEvidence({ run }: { run: Run }) {
+  // The inspector lists a run's files in its own Files section once the run has
+  // recorded a diff; the verification's own list would only repeat it (F5).
+  const filesListedElsewhere = summarizeDiff(run.diff).files.length > 0;
   return (
     <div className="run-evidence" id="run-evidence">
-      <VerificationEvidenceSection verification={run.verification} />
+      <VerificationEvidenceSection
+        verification={run.verification}
+        filesListedElsewhere={filesListedElsewhere}
+      />
       <ReviewEvidenceSection review={run.review} />
     </div>
   );

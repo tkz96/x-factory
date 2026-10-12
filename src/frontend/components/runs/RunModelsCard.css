@@ -11,6 +11,8 @@
 .run-models-title {
   margin: 0;
   font-size: var(--text-callout);
+  font-weight: 600;
+  color: var(--text);
 }
 
 .run-models-summary {

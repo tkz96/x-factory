@@ -1,18 +1,109 @@
-/* src/frontend/components/runs/RunEvidence.css — Spacing for the evidence rows in the inspector (#262).
-   The badges themselves are the badge block (styles/shared/controls.css). */
+/* src/frontend/components/runs/RunEvidence.css — The evidence blocks in the inspector (#262).
+   The badges themselves are the badge block (styles/shared/controls.css); every
+   section header is the system's (footnote, 600, secondary, sentence case). */
 
-.mr-2 {
-  margin-right: var(--space-2);
+.run-evidence {
+  display: flex;
+  flex-direction: column;
 }
 
-.my-1 {
-  margin: var(--space-1) 0;
+.result-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.my-2 {
-  margin: var(--space-2) 0;
+/* One hairline between two sections, never a box inside a box (C3, F5). */
+.result-section + .result-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-subtle);
 }
 
-.m-0 {
+.result-section h3,
+.evidence-subheading {
   margin: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* The badge row: the badges lead, they are never centred (A2). */
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.evidence-note {
+  margin: 0;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* A criterion or a finding: the glyph, then the text, hanging off its own
+   column so a wrapped line never tucks under the icon (F4). */
+.evidence-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.evidence-grid-row {
+  display: grid;
+  grid-template-columns: var(--icon-md) minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--text-footnote);
+  color: var(--text);
+}
+
+.evidence-grid-row--badge {
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+}
+
+.evidence-icon {
+  align-self: baseline;
+}
+
+.evidence-icon--pass {
+  color: var(--green);
+}
+
+.evidence-icon--fail {
+  color: var(--red);
+}
+
+.evidence-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A path the finding names, in the one mono face the system reserves for it. */
+.evidence-file {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* Test output is a fill inside the panel, not a box of its own (C3): no
+   border, --bg-secondary, --radius-sm — never the black --bg of the page. */
+.test-output {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-1);
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-height: var(--sidebar-width-sm);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
