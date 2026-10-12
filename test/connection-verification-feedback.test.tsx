@@ -515,6 +515,47 @@ describe("Issue #162: Connection Verification and Scope Feedback", () => {
     expect(updatedBanner?.textContent).not.toContain("insufficient_scope");
   });
 
+  it("names the scopes the token is missing when verification is refused for them", async () => {
+    setupStep2Draft();
+    renderWizard();
+    fireEvent.click(getEl("btn-open-wizard"));
+
+    act(() => {
+      fireEvent.change(getEl("select-gitHost-provider"), {
+        target: { value: "github" },
+      });
+    });
+
+    const message = () =>
+      getEl("connection-card-gitHost").querySelector(
+        ".feedback-banner--error .feedback-banner-message",
+      )?.textContent;
+
+    api.providers.verify = mock(async () => ({
+      code: "PERMISSION" as const,
+      context: "VERIFY" as const,
+      missingScopes: ["workflow"],
+    }));
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-gitHost"));
+    });
+    expect(message()).toBe(
+      "The token is missing the workflow scope. Add it, then verify again.",
+    );
+
+    api.providers.verify = mock(async () => ({
+      code: "PERMISSION" as const,
+      context: "VERIFY" as const,
+      missingScopes: ["repo", "workflow"],
+    }));
+    await act(async () => {
+      fireEvent.click(getEl("btn-verify-gitHost"));
+    });
+    expect(message()).toBe(
+      "The token is missing the repo and workflow scopes. Add them, then verify again.",
+    );
+  });
+
   it("AC4: unwraps normalized AUTH_LOCKED from ApiError.data and shows specific canonical copy", async () => {
     setupStep2Draft();
     renderWizard();

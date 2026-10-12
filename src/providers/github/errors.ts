@@ -5,7 +5,7 @@ import type {
   ProviderErrorContext,
   ProviderErrorEnvelope,
 } from "../contract.js";
-import { normalizeRawObjectGuard } from "../errors.js";
+import { missingScopesField, normalizeRawObjectGuard } from "../errors.js";
 import { ProviderHttpError, parseRetryAfter } from "../http.js";
 
 /**
@@ -23,6 +23,8 @@ export class GitHubHttpError extends ProviderHttpError {
       data?: unknown | undefined;
       isHtml?: boolean | undefined;
       isTimeout?: boolean | undefined;
+      /** Classic-token scopes found missing during verification. */
+      missingScopes?: readonly string[] | undefined;
       cause?: unknown;
     },
   ) {
@@ -44,7 +46,10 @@ export class GitHubHttpError extends ProviderHttpError {
       cause: options.cause,
     });
     this.name = "GitHubHttpError";
+    this.missingScopes = options.missingScopes;
   }
+
+  readonly missingScopes?: readonly string[] | undefined;
 }
 
 /**
@@ -175,6 +180,7 @@ function extractFromGitHubHttpError(
     code,
     context,
     ...(retryAfterMs !== undefined && retryAfterMs > 0 ? { retryAfterMs } : {}),
+    ...missingScopesField(code, error.missingScopes),
   };
 }
 

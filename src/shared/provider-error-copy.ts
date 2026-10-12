@@ -98,3 +98,16 @@ export function getProviderErrorCopy(
 ): string {
   return PROVIDER_ERROR_COPY[code][context];
 }
+
+/**
+ * Copy for a `PERMISSION` error that names the token scopes the provider found
+ * missing, e.g. "The token is missing the workflow scope. Add it, then verify
+ * again."
+ */
+export function getMissingScopesCopy(scopes: readonly string[]): string {
+  if (scopes.length === 1) {
+    return `The token is missing the ${scopes[0]} scope. Add it, then verify again.`;
+  }
+  const list = `${scopes.slice(0, -1).join(", ")} and ${scopes[scopes.length - 1]}`;
+  return `The token is missing the ${list} scopes. Add them, then verify again.`;
+}

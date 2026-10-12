@@ -64,12 +64,14 @@ function normalizeFailure(
   if (err instanceof ProviderError) {
     return new ProviderError(err.code, context, {
       retryAfterMs: err.retryAfterMs,
+      missingScopes: err.missingScopes,
       cause: err.cause,
     });
   }
   const normalized = provider.toUserError(err, context);
   return new ProviderError(normalized.code, context, {
     retryAfterMs: normalized.retryAfterMs,
+    missingScopes: normalized.missingScopes,
     cause: err,
   });
 }

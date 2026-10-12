@@ -15,6 +15,7 @@
 // "never a raw provider body").
 
 import {
+  getMissingScopesCopy,
   getProviderErrorCopy,
   PROVIDER_ERROR_COPY,
 } from "../../../shared/provider-error-copy.js";
@@ -260,7 +261,9 @@ export const DEGRADED_CAPABILITY_FALLBACK = {
 
 /** Copy for the Work Queue read region (#147), including its integrity failure. */
 export const QUEUE_COPY = {
-  empty: "No tickets are waiting in this queue.",
+  /** Only issues carrying the tracker's workflow label are listed. */
+  empty: (label: string) =>
+    `No tickets yet. Only issues labelled “${label}” appear here.`,
   noMatches: (query: string) => `No tickets matched “${query}”.`,
   clearFilter: "Clear Filter",
   /** No project exists yet, so there is no queue to show. */
@@ -586,9 +589,17 @@ export function getErrorCopy(
  */
 export function resolveErrorCopy(error: unknown): string {
   const normalized = unwrapNormalizedError(error);
-  return normalized
-    ? getErrorCopy(normalized.code, normalized.context)
-    : STATE_COPY.errorFallback;
+  if (!normalized) return STATE_COPY.errorFallback;
+  const scopes = normalized.missingScopes;
+  if (
+    normalized.code === "PERMISSION" &&
+    Array.isArray(scopes) &&
+    scopes.length > 0 &&
+    scopes.every((s) => typeof s === "string")
+  ) {
+    return getMissingScopesCopy(scopes);
+  }
+  return getErrorCopy(normalized.code, normalized.context);
 }
 
 /**
@@ -637,6 +648,8 @@ export const MODEL_CONNECTIONS_COPY = {
     count === 1 ? "1 model found" : `${count} models found`,
   addModel: "Add",
   added: "Added",
+  addModelLabel: (model: string) => `Add ${model}`,
+  addedModelLabel: (model: string) => `Added ${model}`,
   chosenModels: "Chosen models",
   contextWindow: "Context window (tokens)",
   maxOutputTokens: "Max output (tokens)",
@@ -665,8 +678,8 @@ export const MODEL_ROLES_COPY = {
   reviewerHelp:
     "Reviews the changes. A different model gives a stronger second opinion.",
   notSet: "Not set",
-  option: (modelId: string, connectionName: string) =>
-    `${modelId} — ${connectionName}`,
+  option: (modelName: string, connectionName: string) =>
+    `${modelName} — ${connectionName}`,
   unavailable: (modelId: string) => `${modelId} (unavailable)`,
   noModels:
     "No models to choose yet. Check a connection above and add a model to it.",

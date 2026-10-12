@@ -192,6 +192,32 @@ describe("ModelConnectionsPanel (#277)", () => {
     ).not.toBeNull();
   });
 
+  it("names the model in each Add and Added button", async () => {
+    connections = [
+      connection({
+        verifiedAt: "2026-10-11T01:00:00.000Z",
+        availableModels: [
+          { id: "mistral-large-3", name: "Mistral Large 3" },
+          { id: "plain-model" },
+        ],
+        models: [
+          { modelId: "plain-model", limits: {}, budget: { perDay: {} } },
+        ],
+      }),
+    ];
+    renderPanel();
+    await flush();
+
+    const list = document.querySelector(".model-found-list") as HTMLElement;
+    expect(
+      within(list).getByRole("button", { name: "Add Mistral Large 3" }),
+    ).toBeDefined();
+    expect(
+      within(list).getByRole("button", { name: "Added plain-model" }),
+    ).toBeDefined();
+    expect(within(list).queryByRole("button", { name: "Add" })).toBeNull();
+  });
+
   it("a fresh check's models replace the persisted list", async () => {
     connections = [
       connection({ availableModels: [{ id: "old-model", name: "Old" }] }),

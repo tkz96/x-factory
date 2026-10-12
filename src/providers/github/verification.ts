@@ -116,6 +116,7 @@ function checkScopeWarnings(headers: Headers): VerificationWarning[] {
         {
           status: 403,
           headers,
+          missingScopes,
         },
       );
     }

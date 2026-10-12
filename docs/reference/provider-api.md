@@ -427,6 +427,16 @@ Azure adapters thread the signal into `githubFetch` / `azureFetch`, and the
 registry wrapper forwards it unchanged. The contract types `signal?` on
 `createPullRequest` and `findExistingPullRequest` in `src/providers/contract.ts`.
 
+**Closing the issue.** When the project's tracker and git host are the same
+provider, delivery asks that provider's optional `closingReference` capability
+for a line to end the pull request body with, so that merging it closes the
+ticket (`pullRequestClosingLine` in `src/executors/deliver.ts`). It is
+synchronous, reads only non-secret coordinates, and an unresolvable connection
+yields no line rather than a failed delivery. GitHub answers for a `GH-<n>`
+ticket: `Closes #<n>` when the issue lives in the pull request's repository,
+`Closes owner/repo#<n>` when it lives in another
+(`src/providers/github/closing-reference.ts`).
+
 ### Registry error contract (#184)
 
 `getProvider`, `requireProvider` and `listProviders` return a wrapper around the
@@ -444,6 +454,9 @@ with:
 - `message` set to the canonical copy for that `(code, context)` pair
   (`PROVIDER_ERROR_MESSAGES` in `src/providers/errors.ts`), never provider text;
 - `retryAfterMs` only when the provider supplied a positive wait;
+- `missingScopes` only on a `PERMISSION` error whose provider knows which token
+  scopes are missing (a list of short scope names, checked by `isScopeList` in
+  `src/providers/contract.ts`);
 - the raw failure only as `cause`.
 
 A `ProviderError` thrown by a provider is re-tagged with the capability's
@@ -452,7 +465,10 @@ raw failure through `provider.toUserError(err, context)` and re-throws a
 `ProviderError`. A route that must answer a raw throw itself —
 `/api/providers/verify`, `/api/providers/repositories` and the project ticket
 probe — calls the provider's own `toUserError(err, context)` to build the wire
-`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs? }`).
+`ProviderErrorEnvelope` (`{ code, context, message, retryAfterMs?, missingScopes? }`).
+The UI shows a `PERMISSION` envelope that carries `missingScopes` as "The token
+is missing the workflow scope. Add it, then verify again." (`getMissingScopesCopy`
+in `src/shared/provider-error-copy.ts`) instead of the generic permission copy.
 
 ### `parseQuickUrl` accepted URL shapes (GitHub reference)
 - `https://github.com/owner/repo` — full HTTPS URL → git-host config draft
@@ -472,6 +488,8 @@ probe — calls the provider's own `toUserError(err, context)` to build the wire
 - A `401` with a `retry-after` header is strictly an auth error (`AUTH_INVALID`),
   never rate-limiting.
 - `403` without rate-limit evidence → `PERMISSION`, distinct from `AUTH_INVALID`.
+- A classic token whose `x-oauth-scopes` lacks `repo` or `workflow` fails
+  verification with `PERMISSION` and `missingScopes` naming the absent ones.
 
 ### Ticket listing
 `listTickets` filters by the contract-required `requiredLabel` and lists **open**
