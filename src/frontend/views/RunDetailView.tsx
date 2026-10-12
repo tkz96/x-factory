@@ -108,6 +108,12 @@ export function RunDetailView() {
         ticketId: run.ticket.id,
         ticketTitle: run.ticket.title,
         acceptanceCriteria: run.ticket.acceptanceCriteria,
+        // The server refuses a run without a plan: the new run starts from
+        // the same plan and ticket description this one had.
+        plan: run.plan,
+        ...(run.ticket.description
+          ? { description: run.ticket.description }
+          : {}),
       });
       navigate(`/runs/${next.id}`);
     } catch (err: unknown) {
