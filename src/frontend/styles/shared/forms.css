@@ -15,7 +15,7 @@ label:first-of-type {
 
 /* The bare-element baseline is :where()-wrapped, so it carries no specificity:
    a component's own selector (.command-palette-input, .docs-search-field, …)
-   always wins over it (SYS-15). */
+   always wins over it. */
 :where(select, input[type="text"], input[type="password"], textarea) {
   width: 100%;
   font-family: var(--font-sans);

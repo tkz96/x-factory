@@ -6,7 +6,7 @@
    the same specificity so no selector can silently outrank another. No inline
    styles anywhere. */
 
-/* A line inside a card, not a box of its own (C3): the card owns the border.
+/* A line inside a card, not a box of its own: the card owns the border.
    A degraded or missing connection still reads as a state, in its own tint. */
 .connection-combo-line {
   display: flex;
@@ -76,7 +76,7 @@
   color: var(--text-dim);
 }
 
-/* Phone width (G3): the roles stack, so the "·" separator cannot end up alone
+/* Phone width: the roles stack, so the "·" separator cannot end up alone
    at the start of a wrapped line. */
 @media (max-width: 600px) {
   .connection-combo-line {

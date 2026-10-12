@@ -16,7 +16,7 @@
   min-width: 0;
 }
 
-/* The reading pane is the screen's own column, not a card inside it (S-17): no
+/* The reading pane is the screen's own column, not a card inside it: no
    background, border or radius of its own. */
 .docs-reading-pane {
   padding: 0;
@@ -63,7 +63,7 @@
   gap: 0.2rem;
 }
 
-/* The rows themselves are the shared navigation item (S-13); what stays is the
+/* The rows themselves are the shared navigation item; what stays is the
    heading indent and the one-line truncation. */
 .docs-toc-link.level-3 {
   padding-inline-start: var(--space-5);

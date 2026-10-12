@@ -23,7 +23,7 @@
   gap: var(--space-1);
 }
 
-/* The row itself is the shared navigation item (S-13). */
+/* The row itself is the shared navigation item. */
 
 .settings-detail {
   min-width: 0;
@@ -87,7 +87,7 @@
 }
 
 /* ── Pane chrome ────────────────────────────────────────────────────────
-   One h2 per pane (S-11) with its one-line subtitle, and the pane's action
+   One h2 per pane with its one-line subtitle, and the pane's action
    beside it when it has one. */
 
 .settings-pane-head {

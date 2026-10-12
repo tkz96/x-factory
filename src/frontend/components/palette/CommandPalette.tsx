@@ -33,7 +33,7 @@ export interface CommandPaletteProps {
   stopRunAvailable: boolean;
   onStopRun: () => void;
   onOpenShortcuts: () => void;
-  /** Switches Light ⇄ Dark: the theme toggle's new home (SYS-10). */
+  /** Switches Light ⇄ Dark: the theme toggle's new home. */
   onToggleAppearance: () => void;
 }
 
@@ -125,7 +125,7 @@ function PaletteBody({
   const optionId = (index: number) => `${listId}-option-${index}`;
 
   // The list keeps the build order (actions, sections, projects, runs, help) and
-  // carries one header per group instead of the group word in every row (SYS-15).
+  // carries one header per group instead of the group word in every row.
   const groups = useMemo(() => {
     const order: PaletteGroup[] = [
       "Actions",

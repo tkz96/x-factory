@@ -54,7 +54,7 @@
   font-size: var(--text-footnote);
 }
 
-/* What the run has just produced arrives rather than appearing (O1): the plan,
+/* What the run has just produced arrives rather than appearing: the plan,
    the change summary, the pull request and a failure each settle into place. */
 .run-now-plan,
 .run-now-diff,

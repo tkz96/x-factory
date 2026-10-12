@@ -337,7 +337,7 @@ export function RunChat({
   const ui = runStatusUi(run.status);
   const nowFacts = runNow(run, events);
   // The placeholder says what to write, never what the status already says
-  // above (F6): the status's own line only guides a run that is waiting on you.
+  // above: the status's own line only guides a run that is waiting on you.
   const placeholderText = reworkPrompt
     ? "Describe the changes needed before replanning…"
     : isApprovalGate
@@ -385,7 +385,7 @@ export function RunChat({
             <p className="run-chat-empty">Waiting for the first update…</p>
           )}
           {/* initial={false}: rows already on the timeline never replay their
-              arrival when the page mounts (M9); a row that arrives later does. */}
+              arrival when the page mounts; a row that arrives later does. */}
           <AnimatePresence initial={false}>
             {rows.map((row) => {
               if (row.kind === "item") {

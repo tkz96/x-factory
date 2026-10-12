@@ -1,5 +1,5 @@
 /* src/frontend/components/welcome/SetupChecklist.css — The first-run checklist
-   (#269, spec #241). The steps are one inset group of the shared block (S-15);
+   (#269, spec #241). The steps are one inset group of the shared block;
    what lives here is the progress line, the mark and the two body lines. Tokens
    only, so every theme, appearance and contrast level is covered by the token
    sets themselves. */
@@ -47,7 +47,7 @@
   border-color: var(--green);
 }
 
-/* The tick arrives the way the state changed (O2): it grows the last tenth into
+/* The tick arrives the way the state changed: it grows the last tenth into
    place, at the fast duration. A reduced-motion reader keeps the fade and loses
    the scale. */
 .setup-step-mark .icon {

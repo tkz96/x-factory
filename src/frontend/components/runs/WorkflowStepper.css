@@ -12,7 +12,7 @@
   border: none;
 }
 
-/* The track runs through the dots' centres (C1): with six equal columns the
+/* The track runs through the dots' centres: with six equal columns the
    centres sit at 1/12, 3/12 … 11/12 of the width, so the line starts and ends
    half a column in, and sits half a dot down. */
 .stepper-progress-track {
@@ -91,7 +91,7 @@
   border: none;
 }
 
-/* A dot is a true circle (SYSTEM.md): half its own edge, whatever the ladder
+/* A dot is a true circle: half its own edge, whatever the ladder
    gives it — never a squashed oval with a label beside it. */
 .step-dot {
   position: relative;
@@ -113,7 +113,7 @@
     color var(--transition);
 }
 
-/* The check arrives when the step completes (O2): a short fade and settle, so
+/* The check arrives when the step completes: a short fade and settle, so
    the glyph does not pop in. */
 .step.completed .step-dot .icon {
   transition:
@@ -154,7 +154,7 @@
 }
 
 /* The active step's ring: a border that grows and fades on its own layer,
-   rather than an animated box-shadow (M11). */
+   rather than an animated box-shadow. */
 @keyframes stepPulse {
   0% {
     opacity: 0.8;

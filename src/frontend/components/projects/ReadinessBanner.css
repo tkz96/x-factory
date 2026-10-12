@@ -11,7 +11,7 @@
   font-size: var(--text-callout);
 }
 
-/* A quiet tint, no border of its own (G2): the card's own border already holds
+/* A quiet tint, no border of its own: the card's own border already holds
    it, and the title stays readable text on the tint. */
 .readiness-banner.ready {
   background: var(--green-dim);

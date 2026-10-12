@@ -118,7 +118,7 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
       target: { kind: "route", path: "/settings" },
     },
     {
-      // Appearance left the toolbar with the theme toggle (SYS-10): this is how
+      // Appearance left the toolbar with the theme toggle: this is how
       // it is switched without going to Settings › General.
       id: "action-toggle-appearance",
       group: "Actions",

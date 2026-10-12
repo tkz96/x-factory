@@ -160,7 +160,7 @@
   color: var(--text-muted);
   cursor: pointer;
   /* The press scale is in the transition, so the circle shrinks and grows back
-     instead of jumping (M7). */
+     instead of jumping. */
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
@@ -391,7 +391,7 @@
 /* ── Segmented control ──────────────────────────────────────────────────── */
 
 /* One tap target tall, with the ring drawn inside it: a border would add two
-   pixels to the track and leave the segments a pixel short of 44 (SYS-3). */
+   pixels to the track and leave the segments a pixel short of 44. */
 .ui-segmented {
   display: inline-flex;
   gap: 0;
@@ -471,7 +471,7 @@
 
 /* ── Switch ─────────────────────────────────────────────────────────────── */
 
-/* The words first, the track trailing (S-02): one row, so a switch inside a
+/* The words first, the track trailing: one row, so a switch inside a
    Settings row reads as the row's own accessory. */
 .ui-switch {
   display: flex;
@@ -551,10 +551,11 @@
 }
 
 /* ── Badge ───────────────────────────────────────────────────────────────
- * One badge (SYSTEM.md): a capsule the height of a line of caption text, sans,
- * sentence case (the copy is written that way — never text-transform), a tint
- * fill and no border. Tones are the system's five. `variant="id"` is the mono
- * literal variant for an id (GH-3), a keycap or a command. */
+ * One badge (DESIGN.md §7 "Badges"): a capsule the height of a line of caption
+ * text, sans, sentence case (the copy is written that way — never
+ * text-transform), a tint fill and no border. Tones are the system's five.
+ * `variant="id"` is the mono literal variant for an id (GH-3), a keycap or a
+ * command. */
 
 .ui-badge {
   display: inline-flex;
@@ -828,12 +829,11 @@
   }
 }
 
-/* ── Navigation item: one row for every sidebar (S-13) ───────────────────
+/* ── Navigation item: one row for every sidebar ──────────────────────────
  * The Settings categories, the Docs document list and the Docs page's table of
- * contents are the same row: 36px tall (SYSTEM.md), --radius-sm and
- * --text-subhead, with one selection token — `aria-current`. A nav row is not
- * prose, so it fills on hover instead of underlining, and a finger grows it back
- * to --tap-min. */
+ * contents are the same row: 36px tall, --radius-sm and --text-subhead, with one
+ * selection token — `aria-current`. A nav row is not prose, so it fills on hover
+ * instead of underlining, and a finger grows it back to --tap-min. */
 
 .ui-nav-item {
   display: flex;

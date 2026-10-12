@@ -74,7 +74,10 @@ export function ListRowContent({
       {titleHref === undefined ? (
         <span className="ui-list-row-main">{body}</span>
       ) : (
-        <Link to={titleHref} className="ui-list-row-main ui-list-row-main--link">
+        <Link
+          to={titleHref}
+          className="ui-list-row-main ui-list-row-main--link"
+        >
           {body}
         </Link>
       )}

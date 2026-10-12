@@ -1,4 +1,4 @@
-/* ── New Run: the fields of the shared window (SYS-13) ──
+/* ── New Run: the fields of the shared window ──
  *
  * The window's surface, header, body and footer come from the Sheet/Dialog
  * structure and the fields from the control vocabulary; only the stack of the

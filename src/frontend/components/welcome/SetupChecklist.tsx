@@ -115,7 +115,7 @@ export function SetupChecklist({
         )}
       </div>
 
-      {/* One inset group (S-15): a row per step — the ring leads, the title and
+      {/* One inset group: a row per step — the ring leads, the title and
           body carry the words, and the one action trails. */}
       <ListGroup>
         {checklist.steps.map((step) => (

@@ -1,9 +1,10 @@
 // src/frontend/components/modals/NewRunModal.tsx — New Run window (XFM-46,
 // XFM-47, SYS-13).
 //
-// New Run is the add-project assistant's window (SYSTEM.md): the same Sheet,
-// the same DialogHeader/DialogBody/DialogFooter structure, the same
-// --sheet-width, and the control vocabulary's fields instead of raw inputs.
+// New Run is the add-project assistant's window: the same Sheet, the same
+// DialogHeader/DialogBody/DialogFooter structure, the same --sheet-width
+// (DESIGN.md §6 "the one window"), and the control vocabulary's fields instead
+// of raw inputs.
 // It stays mounted and is told whether it is open, so closing plays the shared
 // exit instead of vanishing with the mount (#250).
 

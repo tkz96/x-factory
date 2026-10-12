@@ -2,7 +2,7 @@
 // switch in Settings (#265, spec #241). Off by default; disabled with one line of reason when
 // the browser lacks the API or has blocked permission.
 //
-// It is the Notifications group of Settings › General (S-01): the switch trails
+// It is the Notifications group of Settings › General: the switch trails
 // the row's title, and the reason a switch is blocked is the group's footer.
 
 import { useDesktopNotifications } from "../../hooks/useDesktopNotifications.js";

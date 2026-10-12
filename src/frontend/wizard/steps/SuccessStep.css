@@ -1,7 +1,7 @@
 /* src/frontend/wizard/steps/SuccessStep.css — the terminal state's summary
    (#268). Tokens only. */
 
-/* The card settles in (O4): scale(0.97) and a fade, over the window's own
+/* The card settles in: scale(0.97) and a fade, over the window's own
    arrival beat, so the project appearing is something the reader sees happen. */
 .success-step-pane {
   animation: successStepIn var(--duration-modal) var(--ease-spring);

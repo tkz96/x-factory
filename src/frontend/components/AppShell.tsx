@@ -110,14 +110,14 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
         subtitle: "Models, connections, appearance and diagnostics",
       };
     // The Docs screen's own header is its breadcrumb; this is the subtitle
-    // under it (S-16), not the Tickets copy the default used to give.
+    // under it, not the Tickets copy the default used to give.
     case "/docs":
       return {
         title: "Documentation",
         subtitle: "Tutorials, how-to guides and reference",
       };
     default:
-      // An address no screen claims renders the not-found screen (S-12); the
+      // An address no screen claims renders the not-found screen; the
       // header says so too.
       return {
         title: NOT_FOUND_COPY.title,
@@ -189,8 +189,8 @@ interface RunActionsMenuProps {
 
 /**
  * The run page's own menu. Stop Run lives in the "…" menu, not as a toolbar
- * button (#262); every other screen's action belongs to the page heading
- * (SYSTEM.md "Header": the toolbar carries no Start Run or Add Project).
+ * button (#262); a screen's own action belongs to the page heading, never to
+ * the toolbar (DESIGN.md §7).
  */
 function RunActionsMenu({
   activeRunId,
@@ -227,7 +227,7 @@ interface PageActionProps {
 }
 
 /**
- * The screen's one action, in the large-title row (SYSTEM.md "Header"): Tickets
+ * The screen's one action, in the large-title row (DESIGN.md §7): Tickets
  * offers a secondary Start Run, Projects the primary Add Project. The label
  * collapses to the icon at phone width, so the accessible name is explicit and
  * never depends on the text that is hidden.
@@ -420,7 +420,7 @@ function AppShellHeader({
         )}
         {!isDocs && <NotificationBell />}
         {/* Nothing at all when the workbench is ready; one orange item that
-            links to the screen that can act on it when it is not (SYS-10). */}
+            links to the screen that can act on it when it is not. */}
         {!isDocs && isDegraded && (
           <Link
             to="/settings?tab=diagnostics"
@@ -538,7 +538,7 @@ function AppShellContent() {
 
   const { data: readiness } = useReadiness();
   // The toolbar says nothing while the workbench is ready; a degraded one gets
-  // one orange link to Settings › Diagnostics (SYS-10).
+  // one orange link to Settings › Diagnostics.
   const isDegraded = readiness?.ready === false;
 
   const isDocs = location.pathname.startsWith("/docs");
@@ -552,7 +552,7 @@ function AppShellContent() {
   const { title: genericTitle, subtitle: genericSubtitle } = getActiveTitle(
     location.pathname,
   );
-  // A project's page is named by the project (G1), so the detail pane below the
+  // A project's page is named by the project, so the detail pane below the
   // heading carries no second title of its own.
   const projectIdMatch = location.pathname.match(/^\/projects\/([^/]+)/);
   const { data: projectsForHeading } = useProjects();
@@ -661,7 +661,7 @@ function AppShellContent() {
                 <p className="page-subtitle">{genericSubtitle}</p>
               </div>
               {/* The screen's own action: the toolbar does not carry one
-                  (SYS-11). The slot is empty on a screen without one. */}
+                   The slot is empty on a screen without one. */}
               <div className="page-heading-actions">
                 <PageAction
                   section={section}

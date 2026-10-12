@@ -29,7 +29,7 @@
 /* The primitive is structure only: each dialog brings its own surface
    (xf-dialog-window, xf-alert-dialog-modal, xf-sheet-modal), so one surface
    never stacks on another. The content is not animated on top of the
-   overlay's own fade — one crossfade per arrival (M18). */
+   overlay's own fade — one crossfade per arrival. */
 .xf-dialog-content {
   display: flex;
   flex-direction: column;
@@ -80,10 +80,10 @@
   display: none;
 }
 
-/* The one centred window (SYS-13, SYS-14): New Run, the add-project assistant,
+/* The one centred window: New Run, the add-project assistant,
    the diff view and the Settings confirmation are the same sheet. Its width,
    its radius and its height cap come from the system — a screen never brings a
-   window shape of its own. Every window is --radius-lg, at every width (SYS-6). */
+   window shape of its own. Every window is --radius-lg, at every width. */
 .xf-dialog-window {
   background: var(--bg-modal);
   border: var(--border-width) solid var(--border);
@@ -101,8 +101,8 @@
   animation: xfDialogWindowIn var(--duration-modal) var(--ease-spring);
 }
 
-/* Arriving (M5): the window settles in from a hair small over 280ms. Nothing
-   animates the backdrop's filter (M3) — the overlay's own opacity fade is the
+/* Arriving: the window settles in from a hair small over 280ms. Nothing
+   animates the backdrop's filter — the overlay's own opacity fade is the
    whole backdrop motion, because animating a blur is the one effect this
    system bans. */
 @keyframes xfDialogWindowIn {

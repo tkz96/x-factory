@@ -4,8 +4,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { Badge } from "../components/ui/Badge.js";
-import { ListRow } from "../components/ui/ListRow.js";
 import { ListGroup } from "../components/ui/ListGroup.js";
+import { ListRow } from "../components/ui/ListRow.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useNow } from "../hooks/useNow.js";
@@ -81,7 +81,7 @@ const EMPTY_COPY: Record<RunsFilterId, string> = {
   all: "Start one from Tickets, and it appears here.",
 };
 
-/** The empty list's headline per filter (E3): what is missing, in a few words. */
+/** The empty list's headline per filter: what is missing, in a few words. */
 const EMPTY_TITLE: Record<RunsFilterId, string> = {
   "needs-you": "Nothing needs you right now",
   running: "No runs are working",

@@ -12,7 +12,7 @@
   margin-bottom: var(--space-4);
 }
 
-/* The row is the shared list row (E2): only the badges it trails need a look,
+/* The row is the shared list row: only the badges it trails need a look,
    and the row keeps a link's own text decoration off. */
 .projects-list-row {
   text-decoration: none;

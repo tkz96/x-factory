@@ -2,7 +2,7 @@
  *
  * One badge for the whole app, and it is the block in
  * src/frontend/components/ui/Badge.tsx, styled in the shared layer
- * (styles/shared/controls.css) exactly as .btn-primary and .form-input are.
+ * (styles/shared/controls.css) exactly as .form-input and .card are.
  * A screen composes a badge, it never repaints one.
  *
  * The legacy names are gone with their callers: .badge / .badge-info /

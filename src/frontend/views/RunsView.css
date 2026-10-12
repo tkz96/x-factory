@@ -7,7 +7,7 @@
   margin-bottom: var(--space-5);
 }
 
-/* A run's row is the shared list row (E2). It is a link, so it drops the
+/* A run's row is the shared list row. It is a link, so it drops the
    underline, and it reserves the height its static placeholders hold. */
 .run-row-link {
   min-height: var(--list-row-height);

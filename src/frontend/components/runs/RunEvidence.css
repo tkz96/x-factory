@@ -13,7 +13,7 @@
   gap: var(--space-2);
 }
 
-/* One hairline between two sections, never a box inside a box (C3, F5). */
+/* One hairline between two sections, never a box inside a box. */
 .result-section + .result-section {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
@@ -28,7 +28,7 @@
   color: var(--text-muted);
 }
 
-/* The badge row: the badges lead, they are never centred (A2). */
+/* The badge row: the badges lead, they are never centred. */
 .evidence-row {
   display: flex;
   flex-wrap: wrap;
@@ -44,7 +44,7 @@
 }
 
 /* A criterion or a finding: the glyph, then the text, hanging off its own
-   column so a wrapped line never tucks under the icon (F4). */
+   column so a wrapped line never tucks under the icon. */
 .evidence-rows {
   list-style: none;
   margin: 0;
@@ -91,7 +91,7 @@
   color: var(--text-muted);
 }
 
-/* Test output is a fill inside the panel, not a box of its own (C3): no
+/* Test output is a fill inside the panel, not a box of its own: no
    border, --bg-secondary, --radius-sm — never the black --bg of the page. */
 .test-output {
   margin: var(--space-1) 0 0;

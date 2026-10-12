@@ -5,9 +5,8 @@
 }
 
 /* The unread count rides inside the circle as the one Badge block, so the
-   circle never grows and the count reads as a badge. It only animates as it
-   arrives: a count that ticks up does not jump (O6, SYSTEM.md "badge arrival
-   only"). */
+   circle never grows and the count reads as a badge. It animates only as it
+   arrives while the page is open — a count that ticks up does not jump. */
 .notification-badge {
   position: absolute;
   top: 0;
@@ -40,7 +39,7 @@
 }
 
 /* The popover pads nothing of its own: its head and its rows each carry their
-   own inset, so the two paddings stop stacking (SYS-16). */
+   own inset, so the two paddings stop stacking. */
 .xf-popover.notification-popover {
   padding: 0;
   width: min(22rem, calc(100vw - var(--space-8)));

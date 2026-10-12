@@ -97,7 +97,7 @@ function ProjectTickets({
   const searching = searchQuery.trim().length > 0;
   const headingId = `tickets-group-${project.id}`;
   // The label this tracker requires: the tag a ticket with no labels of its own
-  // shows, and the name the search field's guidance carries (A4).
+  // shows, and the name the search field's guidance carries.
   const workflowLabel = workflowLabelOf(project);
 
   const integrity = deriveConnectionIntegrity(project, descriptors);
@@ -161,7 +161,7 @@ function ProjectTickets({
         }
       >
         {/* The list is inside the region, so the cards keep the list's own gap
-            whether the region is ready, stale or partial (E1). */}
+            whether the region is ready, stale or partial. */}
         <div className="tickets-grid" data-list>
           {filtered.map((ticket) => (
             <TicketCard
@@ -219,7 +219,7 @@ export function QueueView() {
   // not a load, so say how to add one.
   const noProjects = !isProjectsLoading && projects.length === 0;
   // The toolbar names the label the search filters by: the one selected project's
-  // label, or the default when the scope is every project (A4).
+  // label, or the default when the scope is every project.
   const toolbarWorkflowLabel = selectedProject
     ? workflowLabelOf(selectedProject)
     : CONNECTIONS_COPY.workflowLabel;

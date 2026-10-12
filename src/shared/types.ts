@@ -239,7 +239,7 @@ export interface Ticket {
   /**
    * The ticket's own labels, as the tracker reported them (`TrackerTicket`
    * carries them; a provider that does not map labels simply omits the field).
-   * The Tickets list renders them as tags (A4).
+   * The Tickets list renders them as tags.
    */
   labels?: string[] | undefined;
   provider?: string | undefined;

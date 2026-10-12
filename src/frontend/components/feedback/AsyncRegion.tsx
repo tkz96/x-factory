@@ -41,13 +41,13 @@ export interface AsyncRegionProps {
   /** Overrides the error region's retry label (e.g. the repair path, #147). */
   retryLabel?: string | undefined;
   /**
-   * The empty state's headline: what is not here, in a few words (E3). A region
+   * The empty state's headline: what is not here, in a few words. A region
    * without one falls back to the canonical line as its own headline.
    */
   emptyTitle?: string | undefined;
   /** Overrides the canonical empty guidance for this region. */
   emptyCopy?: string | undefined;
-  /** The empty state's glyph — a sprite icon that fits what is missing (E3). */
+  /** The empty state's glyph — a sprite icon that fits what is missing. */
   emptyIcon?: string | undefined;
   /** The empty state's optional call-to-action (e.g. the onboard button). */
   emptyAction?: ReactNode | undefined;
@@ -142,7 +142,7 @@ export function AsyncRegion({
   }
 
   if (derived.state === "empty") {
-    // The content-unavailable pattern (SYSTEM.md): a fitting glyph, a headline
+    // The content-unavailable pattern (DESIGN.md §7): a fitting glyph, a headline
     // naming what is missing, one guidance line, then the action. No dashed box.
     // A region with its own copy names the headline itself; a region without one
     // falls back to the canonical line, which then IS the headline.

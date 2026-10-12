@@ -57,7 +57,7 @@ export const STATE_COPY = {
 } as const;
 
 /**
- * The not-found screen (S-12): an address no screen claims. It says so in place
+ * The not-found screen: an address no screen claims. It says so in place
  * instead of silently redirecting, and offers the one way back into the app.
  */
 export const NOT_FOUND_COPY = {
@@ -271,7 +271,7 @@ export const DEGRADED_CAPABILITY_FALLBACK = {
 export const QUEUE_COPY = {
   /**
    * Only issues carrying the tracker's workflow label are listed.
-   * `emptyTitle` headlines it; this line is the guidance beneath (E3).
+   * `emptyTitle` headlines it; this line is the guidance beneath.
    */
   emptyTitle: "No tickets yet",
   empty: (label: string) => `Only issues labelled “${label}” appear here.`,
@@ -777,7 +777,7 @@ export const WELCOME_COPY = {
   setUpLater: "I'll set up later",
   /** One line above the steps, counted from the ticks that are really there. */
   progress: (done: number, total: number) => `${done} of ${total} steps done`,
-  /** The step's state word, announced with the drawn tick (S-09). */
+  /** The step's state word, announced with the drawn tick. */
   done: "Done",
   stepTitle: {
     project: "Add Project",

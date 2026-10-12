@@ -72,7 +72,7 @@ export const routeDefinitions: RouteObject[] = [
         element: <DocsView />,
       },
       {
-        // An address no screen claims says so, in place (S-12), rather than
+        // An address no screen claims says so, in place, rather than
         // silently redirecting to Tickets.
         path: "*",
         element: <NotFoundView />,

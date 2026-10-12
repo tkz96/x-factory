@@ -211,7 +211,7 @@
   --border-width-indicator: 3px;
   --border-width-indicator-thick: 4px;
 
-  /* Radii — one ladder, six rungs (SYSTEM.md). A control's radius comes from its
+  /* Radii — one ladder, six rungs (DESIGN.md §6). A control's radius comes from its
      size rather than from the screen it sits on, and an inner shape's radius is
      the outer radius minus the inset between them (12/4/8): segmented thumb,
      menu and select items, code blocks inside a card. Capsules are reserved for
@@ -278,7 +278,7 @@
   --modal-height: 720px;
   --modal-max-width: 720px;
   --modal-max-width-lg: 900px;
-  /* The one width every window shares (SYS-13): New Run, the add-project
+  /* The one width every window shares: New Run, the add-project
      assistant, the diff view and the Settings confirmation are the same sheet,
      so a screen never brings a width of its own. */
   --sheet-width: 560px;
@@ -341,13 +341,13 @@
   --duration-typing-offset: 160ms;
 
   /* One spring, two names: `--ease-spring` is the name new code uses, `--spring`
-     is the alias a screen may still reach for (M14). The curve decelerates and
+     is the alias a screen may still reach for. The curve decelerates and
      settles — it never overshoots. */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --spring: var(--ease-spring);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* Side and bottom sheets travel along an edge, so they get the drawer curve
-     rather than the spring (M13). */
+     rather than the spring. */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-linear: linear;
@@ -357,7 +357,7 @@
   --transition-slow: var(--duration-slow) var(--ease-spring);
 
   /* React Aria writes --trigger-anchor-point inline on each popover, so the
-     surface grows from the point of its trigger (M6). This is the fallback for
+     surface grows from the point of its trigger. This is the fallback for
      any surface that reads it without one: its own centre. */
   --trigger-anchor-point: 50% 50%;
 

@@ -80,7 +80,7 @@
 /* ── Project Detail View ─────────────────────────────────────────────── */
 
 /* The tracker card's meta, inside the card: a grid with hairlines and no box of
-   its own (C3) — the card owns the border, not its contents. */
+   its own — the card owns the border, not its contents. */
 .project-detail-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-sm), 1fr));
@@ -97,7 +97,7 @@
   min-width: 0;
 }
 
-/* A meta label reads as a sentence, not as a small-caps stamp (B1). */
+/* A meta label reads as a sentence, not as a small-caps stamp. */
 .project-meta-item strong {
   font-size: var(--text-caption-1);
   color: var(--text-muted);

@@ -26,7 +26,8 @@
   gap: var(--space-8);
 }
 
-/* A list's group header (SYSTEM.md): footnote, 600, secondary, sentence case. */
+/* A list's group header: footnote, 600, --text-secondary, sentence case
+   (DESIGN.md §7). */
 .ticket-group-title {
   margin: 0 0 var(--space-3);
   font-size: var(--text-footnote);

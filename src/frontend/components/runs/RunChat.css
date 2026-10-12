@@ -1,6 +1,6 @@
 /* src/frontend/components/runs/RunChat.css — The run chat timeline (#261). Every value is a token. */
 
-/* The chat is one panel, like the inspector beside it (C2): a --radius-card
+/* The chat is one panel, like the inspector beside it: a --radius-card
    border, no shadow. */
 .run-chat {
   display: flex;
@@ -91,7 +91,7 @@
   color: var(--text-secondary);
 }
 
-/* An inner fill inside the panel: --bg-secondary, no border, --radius-sm (C3). */
+/* An inner fill inside the panel: --bg-secondary, no border, --radius-sm. */
 .run-chat-card {
   display: flex;
   flex-direction: column;

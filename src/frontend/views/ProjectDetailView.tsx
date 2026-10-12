@@ -90,7 +90,7 @@ export function ProjectDetailView() {
   return (
     <ProjectsSplit selectedId={project.id}>
       <article className="projects-detail">
-        {/* No second title (G1): the page heading above the split names the
+        {/* No second title: the page heading above the split names the
             project, so this pane starts with what the project is wired to. */}
         {project.archived && (
           <header className="projects-detail-header">
@@ -142,7 +142,7 @@ export function ProjectDetailView() {
           </div>
 
           {/* A table is not a card: one --radius-card border and hairlines
-              between its rows, never a box inside the pane (C3). */}
+              between its rows, never a box inside the pane. */}
           <div
             id="project-detail-repos-table"
             className="repos-table-container"

@@ -12,7 +12,7 @@
   padding: var(--space-1);
   outline: none;
   /* A popover grows from the point of its trigger rather than from its own
-     middle (M6): React Aria hands the anchor point down as a custom property. */
+     middle: React Aria hands the anchor point down as a custom property. */
   transform-origin: var(--trigger-anchor-point);
   animation: xfPopoverIn var(--duration-fast) var(--ease-out);
 }

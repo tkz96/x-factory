@@ -1,5 +1,5 @@
 /* src/frontend/components/runs/DiffModal.css — The diff view inside the shared
- * window (SYS-13): only the diff's own geometry lives here. The surface, the
+ * window: only the diff's own geometry lives here. The surface, the
  * header, the body and the footer come from the Sheet/Dialog structure.
  */
 

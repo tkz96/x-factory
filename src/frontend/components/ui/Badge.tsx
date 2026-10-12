@@ -6,8 +6,8 @@
 //
 // One badge for the whole app: a capsule, sans, sentence case (the copy is
 // written sentence-case, never text-transformed), a tint fill and no border
-// (SYSTEM.md). `variant="id"` is the mono literal variant for an id (GH-3), a
-// keycap or a command.
+// (DESIGN.md §7 "Badges"). `variant="id"` is the mono literal variant for an id
+// (GH-3), a keycap or a command.
 
 import type { ReactNode } from "react";
 

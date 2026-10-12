@@ -97,7 +97,7 @@ export function RunInspector(props: RunInspectorProps) {
   );
 }
 
-/** The inspector at phone width: an icon button that opens it as a sheet (D2). */
+/** The inspector at phone width: an icon button that opens it as a sheet. */
 export function RunInspectorSheet(props: RunInspectorProps) {
   const [open, setOpen] = useState(false);
   return (

@@ -6,7 +6,8 @@
   margin-bottom: var(--space-4);
 }
 
-/* The section header of SYSTEM.md: footnote, 600, secondary, sentence case. */
+/* A section header: footnote, 600, --text-secondary, in the case it was written
+   in (DESIGN.md §7 "Lists, headers and sizes"). */
 .repository-step-section {
   margin: var(--space-6) 0 var(--space-3);
   font-size: var(--text-footnote);

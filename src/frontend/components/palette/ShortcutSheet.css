@@ -6,7 +6,7 @@
   gap: var(--space-5);
 }
 
-/* The section header of SYSTEM.md: footnote, 600, secondary, sentence case —
+/* A section header: footnote, 600, --text-secondary, sentence case —
    no uppercase, no letter-spacing. */
 .shortcut-group-title {
   margin: 0 0 var(--space-2);
@@ -43,7 +43,7 @@
   text-align: right;
 }
 
-/* A keycap (SYS-7): mono, quiet fill, hairline, --radius-xs. */
+/* A keycap: mono, quiet fill, hairline, --radius-xs. */
 .shortcut-keys {
   font-family: var(--font-mono);
   font-size: var(--text-caption-1);
@@ -59,7 +59,7 @@
   color: var(--text-muted);
 }
 
-/* The ? sheet is a keyboard surface too (M1): it appears in answer to a
+/* The ? sheet is a keyboard surface too: it appears in answer to a
    keystroke, so it does not slide in or out. React Aria's presence window
    collapses because nothing on the overlay is animating. */
 .xf-dialog-overlay .xf-sheet-right.shortcut-sheet,

@@ -43,7 +43,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
       {now.pullRequestUrl && (
         <div className="run-now-pr">
           {/* An external link stays a link, dressed as the secondary button it
-              reads as (D1): the arrow says it leaves the app. */}
+              reads as: the arrow says it leaves the app. */}
           <a
             className="run-now-link ui-button ui-button--secondary ui-button--sm"
             href={now.pullRequestUrl}

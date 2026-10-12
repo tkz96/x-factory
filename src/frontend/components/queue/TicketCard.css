@@ -1,6 +1,6 @@
 /* ── Tickets List & Cards ────────────────────────────────────────────── */
 
-/* The one list gap (SYSTEM.md): --space-3, whatever the list holds. */
+/* The list gap is one value — --space-3 — whatever the list holds. */
 .tickets-grid {
   display: flex;
   flex-direction: column;

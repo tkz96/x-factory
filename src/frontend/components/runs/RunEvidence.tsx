@@ -29,7 +29,7 @@ function VerificationEvidenceSection({
   filesListedElsewhere,
 }: {
   verification?: VerificationResult | null;
-  /** The inspector's Files section already lists this run's files (F5). */
+  /** The inspector's Files section already lists this run's files. */
   filesListedElsewhere: boolean;
 }) {
   const testOutput = verification?.tests?.stdout || verification?.tests?.stderr;
@@ -118,7 +118,7 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
 
           {review.criteriaChecked && review.criteriaChecked.length > 0 && (
             <div id="criteria-checklist" className="criteria-list">
-              {/* A section header (SYSTEM.md): sentence case, and no colon. */}
+              {/* A section header: the case it was written in, and no colon. */}
               <h4 className="evidence-subheading">Acceptance criteria</h4>
               <ul className="evidence-rows">
                 {review.criteriaChecked.map((c) => (
@@ -185,7 +185,7 @@ function ReviewEvidenceSection({ review }: { review?: ReviewResult | null }) {
 
 export function RunEvidence({ run }: { run: Run }) {
   // The inspector lists a run's files in its own Files section once the run has
-  // recorded a diff; the verification's own list would only repeat it (F5).
+  // recorded a diff; the verification's own list would only repeat it.
   const filesListedElsewhere = summarizeDiff(run.diff).files.length > 0;
   return (
     <div className="run-evidence" id="run-evidence">

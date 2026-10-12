@@ -36,7 +36,7 @@
   color: var(--red);
 }
 
-/* The content-unavailable pattern (SYSTEM.md): a glyph, a headline, one line of
+/* The content-unavailable pattern (DESIGN.md §7): a glyph, a headline, one line of
    guidance and the action. No box of its own, and no dashes. */
 .async-region--empty {
   display: flex;

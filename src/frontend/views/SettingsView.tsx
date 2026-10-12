@@ -25,13 +25,13 @@ import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPa
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
-import { PlaceholderRows } from "../components/ui/ListRow.js";
-import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import {
   ListGroup,
   ListGroupRow,
   ListGroupValue,
 } from "../components/ui/ListGroup.js";
+import { PlaceholderRows } from "../components/ui/ListRow.js";
+import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
@@ -106,7 +106,7 @@ interface DiagnosticsTabContentProps {
 }
 
 /**
- * Diagnostics, as two inset groups (S-14): the services, then the job queue,
+ * Diagnostics, as two inset groups: the services, then the job queue,
  * each row trailing the value it reports.
  */
 function DiagnosticsTabContent({
@@ -237,7 +237,7 @@ function GeneralTabContent({
 
       {/* Theme and Appearance are the same control (#266): one segmented block,
           so both render at one height, type size and icon gap. Each trails its
-          row's label (S-01). */}
+          row's label. */}
       <ListGroup title="Appearance">
         <ListGroupRow
           title="Appearance"
@@ -408,7 +408,7 @@ function ConnectionsTabContent({
       ) : projects.length === 0 ? (
         <p className="text-muted">{CONNECTIONS_COPY.registryEmpty}</p>
       ) : (
-        /* One inset group, one row per project (S-04): the project's name and
+        /* One inset group, one row per project: the project's name and
            its combo line lead, the status and the way in trail — no column
            headers and no horizontally scrolling table. The row's own name is
            the link, so the repair action a broken project needs can sit beside
@@ -478,7 +478,7 @@ function HelpTabContent() {
       <p className="settings-pane-subtitle">
         Guides for X-Factory and its API.
       </p>
-      {/* Two rows, each an anchor with the same box (S-01), trailing the
+      {/* Two rows, each an anchor with the same box, trailing the
           "opens elsewhere" mark. */}
       <ListGroup title="Guides">
         <ListGroupRow

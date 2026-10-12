@@ -1,4 +1,4 @@
-// src/frontend/views/NotFoundView.tsx — The not-found screen (S-12).
+// src/frontend/views/NotFoundView.tsx — The not-found screen.
 //
 // An address no screen claims says so where the user is, instead of silently
 // redirecting: the "content unavailable" empty state — a glyph, the headline,

@@ -1,6 +1,6 @@
 // src/frontend/components/queue/TicketCard.tsx — A ticket in the Tickets list
 // (XFM-47, #260). Its action follows the ticket's run: Open Run when a run is
-// active, Start Run otherwise — one label, always those two words (D1) — and it
+// active, Start Run otherwise — one label, always those two words — and it
 // is a row accessory, never the region's filled button.
 
 import "./TicketCard.css";
@@ -20,7 +20,7 @@ interface TicketCardProps {
   /**
    * The tracker's workflow label. A ticket that carries its own labels shows
    * those; a provider that maps none falls back to the label the tracker
-   * requires, never a hard-coded one (A4).
+   * requires, never a hard-coded one.
    */
   workflowLabel: string;
 }

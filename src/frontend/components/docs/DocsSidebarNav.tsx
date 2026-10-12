@@ -18,7 +18,7 @@ const SECURITY_ITEMS = [
   { id: "jira", label: "Jira Software" },
 ] as const;
 
-// The document list carries no theme toggle of its own (S-17): appearance
+// The document list carries no theme toggle of its own: appearance
 // belongs to Settings › General and the palette, and the header no longer holds
 // one either.
 

@@ -2,10 +2,10 @@
 // spec #241): a React Aria Switch — role="switch", Space and Enter toggle it,
 // and the state is announced. The track and thumb are tokens, not images.
 //
-// The words come first and the track trails (SYSTEM.md "Surfaces": a switch
-// trails its label inside a row), which is the shape a Settings row wants. When
-// a row already shows the title, `hideLabel` draws the track alone and keeps
-// `label` as the accessible name.
+// The words come first and the track trails: a switch trails its label inside a
+// row, which is the shape a Settings row wants (DESIGN.md §7). When a row
+// already shows the title, `hideLabel` draws the track alone and keeps `label`
+// as the accessible name.
 
 import {
   Switch as AriaSwitch,

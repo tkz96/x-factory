@@ -35,7 +35,7 @@ export interface ProjectRepositoryValue {
 }
 
 /**
- * `owner/repository` from a remote URL (G3): a project row names the
+ * `owner/repository` from a remote URL: a project row names the
  * repository, not the whole URL. A remote that names no repository — a bare
  * folder, say — is shown exactly as it was recorded.
  */

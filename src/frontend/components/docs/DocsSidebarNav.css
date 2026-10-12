@@ -32,7 +32,7 @@
   user-select: none;
 }
 
-/* One search field, at the toolbar's own height and fill (S-17). */
+/* One search field, at the toolbar's own height and fill. */
 .docs-search-field {
   position: relative;
   display: flex;
@@ -312,7 +312,7 @@
     color var(--transition-fast);
 }
 
-/* The nudge needs a pointer that hovers (M8); without one the bullet simply
+/* The nudge needs a pointer that hovers; without one the bullet simply
    takes the accent colour. */
 @media (hover: hover) and (pointer: fine) {
   .docs-search-section-item:hover .docs-search-section-bullet {
@@ -423,7 +423,7 @@
   opacity: 0.75;
 }
 
-/* The row itself is the shared navigation item (S-13). */
+/* The row itself is the shared navigation item. */
 
 .docs-nav-label {
   display: block;

@@ -29,7 +29,7 @@
   max-height: min(calc(100dvh - 2 * var(--space-4)), var(--modal-max-height));
   border-radius: var(--radius-lg);
   /* A centred sheet is a window: it arrives the way every other window does
-     (M5, SYS-13), from a hair small rather than a hair narrower. */
+      from a hair small rather than a hair narrower. */
   animation: xfDialogWindowIn var(--duration-modal) var(--ease-spring);
 }
 

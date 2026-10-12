@@ -45,7 +45,7 @@
 
   /* The Docs breadcrumb takes the full row and the Browse button gets its own
      row beneath it, so the two never paint over each other (spec #241, #270).
-     These rules are scoped to the Docs toolbar (SYS-8): every other screen
+     These rules are scoped to the Docs toolbar: every other screen
      keeps the single-row bar AppShell.css gives it. */
   .toolbar--docs {
     grid-template-columns: minmax(0, 1fr) auto;

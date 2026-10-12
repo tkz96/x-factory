@@ -1,5 +1,5 @@
 // src/frontend/hooks/scroll-behavior.ts — The scroll behaviour a programmatic
-// scroll should use (M12). A reader who asked for reduced motion gets an instant
+// scroll should use. A reader who asked for reduced motion gets an instant
 // jump; everyone else gets the smooth scroll. Falls back to the instant
 // behaviour where matchMedia is missing, so nothing depends on the API.
 

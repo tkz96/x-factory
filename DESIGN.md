@@ -265,6 +265,39 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
 - **Loading.** A list reserves static placeholder rows at the height the loaded rows will have (`--list-row-height`) — no layout shift and no shimmer, ever. Every other wait is the one standard spinner, for small inline waits only.
 - **Icon-only controls** always carry an accessible name, and no status is ever an emoji.
 
+### Lists, headers and sizes
+
+- **Grouped inset lists.** Settings panes, the Welcome checklist, the Runs list,
+  the Projects list and the Connections registry are one shape: a `--radius-card`
+  group on `--bg-card`, rows at least 44pt tall with the title on the leading
+  edge and the accessory trailing, and an inset hairline between rows that
+  starts where the row's content starts — never a bordered box per row. The
+  block is `ListGroup` (`components/ui/ListGroup.tsx`); a screen composes it and
+  never names its classes.
+- **A row's height follows the list it is in.** A record row (Runs, Projects)
+  reserves `--list-row-height` so its static placeholders match; a compact row
+  (Settings, Welcome) is `--tap-min`. The compact row is
+  `.ui-list-row--compact`.
+- **Control sizes.** A regular control is `--tap-min` (44pt) tall. `size="sm"`
+  is 32pt — a row accessory (Add, Copy, Mark all as read) — and grows back to
+  `--tap-min` under a coarse pointer or at phone width. An icon-only control is
+  a 44×44 circle that never stretches; `plain` draws no circle of its own.
+- **Badges.** A status or tag badge is a capsule (`--radius-full`), sans,
+  caption 1, weight 600, sentence case (the copy is written that way — never
+  `text-transform`), a tint fill and no border, about a line of caption tall. A
+  literal id, keycap or command is the mono `variant="id"` badge at
+  `--radius-xs`. One badge block, five tones.
+- **Section headers.** A header inside a card, panel or list group is footnote
+  sized, weight 600, `--text-secondary`, in the case it was written in — no
+  small caps, no `text-transform`, no letter-spacing, no colon.
+- **Page actions live in the page heading.** The toolbar carries the project
+  picker, the section switch, search, the bell and the gear — never the screen's
+  own action. A screen's one action (Start Run, Add Project) sits in the
+  large-title row, and at phone width it drops its label and keeps its
+  accessible name.
+- **Empty states name what is missing.** A fitting glyph, a headline, one
+  guidance line (max 48ch) and the action that ends the state — no dashed box.
+
 ## 8. Non-negotiables
 
 - MUST check the relevant HIG page and Figma kit before designing any new screen or component.

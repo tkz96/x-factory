@@ -22,7 +22,7 @@
   max-height: inherit;
 }
 
-/* The field is the Spotlight one (SYS-15): no box of its own, a magnifier, and
+/* The field is the Spotlight one: no box of its own, a magnifier, and
    a query set at title size, so the palette reads as one surface with a search
    line rather than a form with a list under it. */
 .command-palette-search {
@@ -85,8 +85,8 @@
   min-inline-size: 0;
 }
 
-/* Group headers, not a group word repeated in every row (SYS-15): the section
-   header of SYSTEM.md — footnote, 600, secondary, sentence case. */
+/* Group headers, not a group word repeated in every row: the section header of
+   DESIGN.md §7 — footnote, 600, --text-secondary, sentence case. */
 .command-palette-group-header {
   padding: var(--space-2) var(--space-3) var(--space-1);
   font-size: var(--text-footnote);
@@ -119,7 +119,7 @@
   color: var(--text-muted);
 }
 
-/* A keycap (SYS-7): quiet fill, hairline, --radius-xs. */
+/* A keycap: quiet fill, hairline, --radius-xs. */
 .command-palette-keys {
   flex: none;
   padding: var(--space-0-5) var(--space-1-5);
@@ -133,7 +133,7 @@
 }
 
 /* The active row is the accent row the menus use, so "where Return will go" is
-   the same signal everywhere (SYS-15). Its own detail and keycap follow it, so
+   the same signal everywhere. Its own detail and keycap follow it, so
    both stay readable on the fill. */
 .command-palette-option.is-active {
   background: var(--accent);
@@ -172,9 +172,9 @@
 
 /* The palette is opened from the keyboard, so it does not animate: a surface
    that appears in answer to a keystroke must be there on the next frame, not
-   rise into place (M1, SYSTEM.md "never animate a keyboard-opened surface").
-   With nothing animating on the overlay, the presence hook unmounts it at
-   once on close instead of waiting for an animation that never runs. */
+   rise into place (DESIGN.md §5 Motion: never animate a keyboard-opened
+   surface). With nothing animating on the overlay, the presence hook unmounts it
+   at once on close instead of waiting for an animation that never runs. */
 .xf-dialog-overlay.command-palette-overlay,
 .xf-dialog-overlay.command-palette-overlay[data-exiting],
 .xf-dialog-overlay.command-palette-overlay .xf-dialog-modal,

@@ -2,8 +2,8 @@
 // (#278): choose the Builder and Reviewer models from models on verified
 // connections. A choice is saved as soon as it is made.
 //
-// Each role is a Settings row (S-01): the words lead, the select trails, and
-// the select is the shared block rather than a native one (S-07) — so it opens
+// Each role is a Settings row: the words lead, the select trails, and
+// the select is the shared block rather than a native one — so it opens
 // a listbox and each option is a real option.
 
 import type { ModelConnectionView } from "../../../shared/model-connection-types.js";
@@ -12,8 +12,8 @@ import { useModelConnections } from "../../hooks/useModelConnections.js";
 import { useSaveSettings, useSettings } from "../../hooks/useQueries.js";
 import { MODEL_ROLES_COPY as COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
-import { SelectField } from "../ui/SelectField.js";
 import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
+import { SelectField } from "../ui/SelectField.js";
 
 interface Choice {
   key: string;

@@ -21,7 +21,7 @@
   overflow-x: hidden;
 }
 
-/* The step's pane arrives from the side the reader moved towards (O3): forward
+/* The step's pane arrives from the side the reader moved towards: forward
    slides in from the right, Back from the left. Enter only — the pane that
    leaves is replaced in the same frame, and animating height would make the
    sheet jump. */

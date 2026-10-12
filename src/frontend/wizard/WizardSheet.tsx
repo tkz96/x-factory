@@ -58,7 +58,7 @@ export function WizardSheet({
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
 
-  // Which way the last step change went (O3): forward slides in from the right,
+  // Which way the last step change went: forward slides in from the right,
   // Back from the left. Kept as a pair so the direction is right on the frame
   // the new pane mounts, never a frame late.
   const [nav, setNav] = useState<{
@@ -117,7 +117,7 @@ export function WizardSheet({
           <WizardUrlIntakeProvider>
             <WizardFooterSlot.Provider value={actionsSlot}>
               {/* Keyed on the step: a new pane mounts per step and plays its
-                  own arrival (O3). */}
+                  own arrival. */}
               <div
                 key={state.step}
                 className="wizard-step-swap"

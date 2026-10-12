@@ -1,7 +1,7 @@
 // src/frontend/components/queue/TicketSearchToolbar.tsx — Filter & Search controls for Work Queue (XFM-47).
 //
 // The label the search filters by is a fact about the connection, not a control:
-// it reads inside the field's own placeholder (A4), so nothing here looks like a
+// it reads inside the field's own placeholder, so nothing here looks like a
 // toggle that is not one.
 
 import { Button } from "../ui/Button.js";

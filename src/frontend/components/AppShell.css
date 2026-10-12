@@ -117,7 +117,7 @@
   /* One row: title and project on the start, the section switch centred,
      the actions at the end. The columns are equal, so the switch stays
      centred whatever the title width (#258). Spacing is on the 4px grid:
-     --space-3 by --space-8, 8px inside a group, 16px between them (SYS-9). */
+     --space-3 by --space-8, 8px inside a group, 16px between them. */
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
@@ -154,7 +154,7 @@
 }
 
 /* The large title (#258) scrolls with the page and is the screen's one h1.
-   The page's action sits in the same row, trailing (SYS-11). */
+   The page's action sits in the same row, trailing. */
 .page-heading {
   display: flex;
   align-items: flex-start;
@@ -276,7 +276,7 @@
 }
 
 /* The run page's heading: the ticket id and title on one line with an ellipsis,
-   the project and branch as a caption under it (F3). */
+   the project and branch as a caption under it. */
 .toolbar-run-heading {
   display: flex;
   flex-direction: column;
@@ -449,7 +449,7 @@
   display: none;
 }
 
-/* Area navigation does not animate (M2): switching a workbench area is a
+/* Area navigation does not animate: switching a workbench area is a
    destination change, not a transition, so the new view is simply there. */
 .area-view.active {
   display: block;
@@ -492,7 +492,7 @@
 
   /* Phone: the bar is one row — the project picker on the start, the search,
      bell and gear at the end — with the sections in the tab bar below (#258,
-     SYS-8). Spacing stays on the 4px grid (SYS-9). */
+     SYS-8). Spacing stays on the 4px grid. */
   .toolbar {
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--space-2) var(--space-4);
@@ -513,7 +513,7 @@
   }
 
   /* The page's action keeps its accessible name and drops its label: the
-     trailing slot is an icon-only button on a phone (SYS-11). */
+     trailing slot is an icon-only button on a phone. */
   .page-action-label {
     display: none;
   }

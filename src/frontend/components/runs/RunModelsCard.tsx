@@ -14,7 +14,7 @@ export function RunModelsCard({
 }) {
   if (stageModels.length === 0) return null;
   return (
-    // A disclosure (F2): the rows are a detail of the run, and a phone can fold
+    // A disclosure: the rows are a detail of the run, and a phone can fold
     // them away. Open by default, so nothing is hidden from a first look.
     <details className="card run-models" open>
       <summary className="run-models-title" id="run-models-title">

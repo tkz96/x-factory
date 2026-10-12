@@ -1,5 +1,5 @@
 /* src/frontend/wizard/WizardDismissPrompt.css — the "you haven't finished"
-   prompt (#268). It wears the shared window surface (SYS-13): only its width
+   prompt (#268). It wears the shared window surface: only its width
    and its own contents live here. The backdrop, focus and Escape come from the
    Dialog primitive. Tokens only. */
 

@@ -14,7 +14,7 @@
   position: relative;
   z-index: var(--z-modal);
   outline: none;
-  /* An alert is a window too (SYS-6): it arrives the way the window behind it
+  /* An alert is a window too: it arrives the way the window behind it
      did, so a confirmation does not pop into place. */
   animation: xfDialogWindowIn var(--duration-modal) var(--ease-spring);
 }
