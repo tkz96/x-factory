@@ -29,7 +29,6 @@
   :root .btn-close,
   :root .btn-sm,
   :root .btn-danger-hover,
-  :root .btn-warning,
   :root .ui-nav-item {
     background: ButtonFace;
     color: ButtonText;
