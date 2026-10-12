@@ -56,7 +56,7 @@ export const PROVIDER_ERROR_COPY: Readonly<
   },
   NOT_FOUND: {
     VERIFY:
-      "The account or workspace is not visible to this token. Check the address and token.",
+      "The account, workspace or repository could not be found, or this token cannot see it. Check the addresses and token.",
     DISCOVERY:
       "The organization, project, or workspace could not be found. Check the URL.",
     TICKETS:

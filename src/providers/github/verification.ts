@@ -157,13 +157,30 @@ async function probePublicOwner(
 }
 
 /**
+ * Throws (404 → NOT_FOUND) when a configured repository does not exist or the
+ * token cannot see it, so a tracker pointing at a wrong repository fails here
+ * rather than later on the Tickets screen.
+ */
+async function probeRepository(
+  transport: GitHubTransport,
+  owner: string,
+  repo: string,
+): Promise<void> {
+  const { root, token, fetchFn } = transport;
+  await githubFetch(
+    `${root}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+    { headers: resolveGitHubHeaders(token), fetchFn },
+  );
+}
+
+/**
  * Verifies credentials and probes repository access without mutating PRs.
  */
 export async function verifyGitHubCredentials(
   config: ProviderConfig,
   fetchFn?: typeof fetch | HttpTransport | undefined,
 ): Promise<VerificationResult> {
-  const { token, owner, baseUrl } = resolveGitHubConfig(config);
+  const { token, owner, repo, baseUrl } = resolveGitHubConfig(config);
   const root = baseUrl || DEFAULT_GITHUB_API_ROOT;
   const transport: GitHubTransport = { root, token, fetchFn };
 
@@ -193,6 +210,8 @@ export async function verifyGitHubCredentials(
       warnings.push(repoWarning);
     }
 
+    if (owner && repo) await probeRepository(transport, owner, repo);
+
     warnings.push(...checkScopeWarnings(userRes.headers));
 
     const scopes = parseOAuthScopes(userRes.headers);
@@ -205,6 +224,7 @@ export async function verifyGitHubCredentials(
     };
   } else if (owner) {
     await probePublicOwner(transport, owner);
+    if (repo) await probeRepository(transport, owner, repo);
     warnings.push({
       kind: "CAPABILITY_UNCONFIRMED",
       capability: "createPullRequest",
