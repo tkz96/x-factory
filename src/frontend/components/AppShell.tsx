@@ -27,7 +27,7 @@ import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
-import { WELCOME_COPY } from "./feedback/copy-map.js";
+import { NOT_FOUND_COPY, WELCOME_COPY } from "./feedback/copy-map.js";
 import { ModalContainer } from "./ModalContainer.js";
 import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
@@ -88,6 +88,12 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
     };
   }
   switch (pathname) {
+    case "/tickets":
+    case "/queue":
+      return {
+        title: "Tickets",
+        subtitle: "Pick a ticket to start a run",
+      };
     case "/runs":
       return {
         title: "Runs",
@@ -103,10 +109,19 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
         title: "Settings",
         subtitle: "Models, connections, appearance and diagnostics",
       };
-    default:
+    // The Docs screen's own header is its breadcrumb; this is the subtitle
+    // under it (S-16), not the Tickets copy the default used to give.
+    case "/docs":
       return {
-        title: "Tickets",
-        subtitle: "Pick a ticket to start a run",
+        title: "Documentation",
+        subtitle: "Tutorials, how-to guides and reference",
+      };
+    default:
+      // An address no screen claims renders the not-found screen (S-12); the
+      // header says so too.
+      return {
+        title: NOT_FOUND_COPY.title,
+        subtitle: NOT_FOUND_COPY.subtitle,
       };
   }
 }

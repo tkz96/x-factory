@@ -57,6 +57,21 @@ export const STATE_COPY = {
 } as const;
 
 /**
+ * The not-found screen (S-12): an address no screen claims. It says so in place
+ * instead of silently redirecting, and offers the one way back into the app.
+ */
+export const NOT_FOUND_COPY = {
+  /** The large title in the header row, over the screen. */
+  title: "Not found",
+  /** The header row's one-line summary (the screen says more below it). */
+  subtitle: "That address doesn't lead to a screen.",
+  /** The screen's own headline. */
+  headline: "This page doesn't exist",
+  hint: "Check the address, or go back to Tickets and start again from there.",
+  action: "Go to Tickets",
+} as const;
+
+/**
  * Repositories step copy (#144). Feedback strings CANNOT be inlined in the
  * step: the partial banner names the capability in contract terms, the empty
  * state gives guidance, and the stale state explains that a connection change
