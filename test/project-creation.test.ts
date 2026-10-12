@@ -439,6 +439,36 @@ describe("POST /api/projects with a connections payload", () => {
     expect(loaded?.testCommand).toBe("bun test");
   });
 
+  it("keeps the primary repository primary after a reload when it was not listed first", async () => {
+    const projectId = `rocket-${Date.now()}-primary-second`;
+    const payload = jiraAndGithubPayload(projectId);
+    const [web] = payload.repositories;
+    const { status } = await createProject({
+      ...payload,
+      testCommand: "bun test",
+      repositories: [
+        {
+          ...web,
+          id: `${projectId}-docs`,
+          name: "docs",
+          remote: "https://github.com/acme/docs.git",
+          localPath: path.join(tempDir, "docs"),
+          role: "other",
+          primary: false,
+        },
+        web,
+      ],
+    });
+    expect(status).toBe(201);
+
+    const loaded = (await loadProjects(configPath)).find(
+      (p) => p.id === projectId,
+    );
+    expect(loaded?.repositories[0]?.name).toBe("web");
+    expect(loaded?.repositoryPath).toBe(path.join(tempDir, "web"));
+    expect(loaded?.testCommand).toBe("bun test");
+  });
+
   it("saves no test command when none is given", async () => {
     const projectId = `rocket-${Date.now()}-no-test-cmd`;
     const { status, body } = await createProject({
