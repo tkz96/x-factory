@@ -261,7 +261,9 @@ export const DEGRADED_CAPABILITY_FALLBACK = {
 
 /** Copy for the Work Queue read region (#147), including its integrity failure. */
 export const QUEUE_COPY = {
-  empty: "No tickets are waiting in this queue.",
+  /** Only issues carrying the tracker's workflow label are listed. */
+  empty: (label: string) =>
+    `No tickets yet. Only issues labelled “${label}” appear here.`,
   noMatches: (query: string) => `No tickets matched “${query}”.`,
   clearFilter: "Clear Filter",
   /** No project exists yet, so there is no queue to show. */

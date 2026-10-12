@@ -999,7 +999,9 @@ describe("Work Queue — combo state matrix", () => {
     ).toContain(CONNECTIONS_COPY.reconnect);
     // Never a successfully-empty queue, and never the dead-end copy.
     expect(container.querySelector(".async-region--empty")).toBeNull();
-    expect(container.textContent).not.toContain(QUEUE_COPY.empty);
+    expect(container.textContent).not.toContain(
+      QUEUE_COPY.empty("agentic-workflow"),
+    );
     // The manual path stays open.
     expect(container.textContent).toContain(QUEUE_COPY.manualRun);
   });
@@ -1034,9 +1036,47 @@ describe("Work Queue — combo state matrix", () => {
       }
     });
 
-    expect(container.textContent).toContain(QUEUE_COPY.empty);
+    expect(container.textContent).toContain(
+      QUEUE_COPY.empty("agentic-workflow"),
+    );
     expect(container.textContent).not.toContain(
       CONNECTIONS_COPY.integrityFailure.message,
+    );
+  });
+
+  it("empty queue says only issues with the workflow label appear", async () => {
+    const { container } = await renderQueue(makeProject(), []);
+    await waitFor(() => {
+      if (container.querySelector(".async-region--empty") === null) {
+        throw new Error("empty region missing");
+      }
+    });
+    expect(container.textContent).toContain(
+      "No tickets yet. Only issues labelled “agentic-workflow” appear here.",
+    );
+  });
+
+  it("empty queue names the tracker's own workflow label when one is set", async () => {
+    const [tracker, gitHost] = HEALTHY_CONNECTIONS;
+    const { container } = await renderQueue(
+      makeProject({
+        connections: [
+          {
+            ...tracker,
+            config: { ...tracker?.config, requiredLabel: "x-factory" },
+          },
+          gitHost,
+        ] as Project["connections"],
+      }),
+      [],
+    );
+    await waitFor(() => {
+      if (container.querySelector(".async-region--empty") === null) {
+        throw new Error("empty region missing");
+      }
+    });
+    expect(container.textContent).toContain(
+      "Only issues labelled “x-factory” appear here.",
     );
   });
 
