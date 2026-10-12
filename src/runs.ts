@@ -34,6 +34,7 @@ import {
   usageWithCost,
 } from "./model-roles.js";
 import { getRunDir, getWorktreePath } from "./paths.js";
+import { buildChatSystemPrompt } from "./prompts.js";
 import { OPERATOR_ABANDON_REASON } from "./shared/failure-reason.js";
 import { canRunAction, type RunAction } from "./shared/run-status-policy.js";
 import type {
@@ -673,16 +674,20 @@ export async function chatWithRun(
 
     const phase =
       run.status === "awaiting_understanding_approval"
-        ? "Understanding/Analysis phase"
+        ? "understanding"
         : run.status === "awaiting_plan_approval"
-          ? "Planning phase"
-          : "Review phase";
+          ? "plan"
+          : "review";
 
+    // The Builder answers the operator about its own work (see buildChatSystemPrompt).
     messages.push({
       role: "system",
-      content: `You are a senior software engineer grilling the user about their ticket implementation. You follow Matt Pocock's "grill-me" skill persona: be relentless, question their plan, look for edge cases, ask hard questions, ensure they have fully thought through constraints.
-We are currently in the ${phase}. Keep your responses concise (like an iMessage chat).
-Context:\n${JSON.stringify(ctx, null, 2)}`,
+      content: buildChatSystemPrompt({
+        ticket: run.ticket,
+        phase,
+        plan: run.plan,
+        understanding: ctx,
+      }),
     });
 
     for (const e of events) {

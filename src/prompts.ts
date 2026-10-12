@@ -418,3 +418,47 @@ Rules:
 - Keep the intent of the plan so far, and make every step concrete.
 - Name the test file each change is proven by; a step without a test file is incomplete.`;
 }
+
+export interface ChatPromptInput {
+  ticket: Ticket;
+  /** The run's status: which approval gate the operator is at. */
+  phase: "understanding" | "plan" | "review";
+  plan?: string | undefined;
+  understanding?: ImplementationContext | null | undefined;
+}
+
+const CHAT_PHASE_LABELS: Readonly<Record<ChatPromptInput["phase"], string>> = {
+  understanding:
+    "the understanding checkpoint: you have analysed the ticket and are waiting for the operator to approve your understanding",
+  plan: "the plan checkpoint: you have written the implementation plan and are waiting for the operator to approve it",
+  review:
+    "the review checkpoint: you have made the change and it is waiting for the operator's review",
+};
+
+/**
+ * The run chat system prompt: the Builder, who is doing the work on this run,
+ * answering the operator who reviews it at an approval gate. The operator asks;
+ * the Builder answers about its own understanding, plan and change.
+ */
+export function buildChatSystemPrompt(input: ChatPromptInput): string {
+  const { ticket, phase, plan, understanding } = input;
+  const criteria = renderAcceptanceCriteria(ticket, { fallback: "(none)" });
+  const planBlock = plan?.trim() ? `## Plan so far\n${plan.trim()}\n\n` : "";
+  return `You are the Builder: the engineer who is implementing this ticket on this run. You did the analysis, you write the plan and you will make the change.
+You are talking with the operator, the person who reviews your work and approves each step. The operator does not write the code; you do.
+The run is at ${CHAT_PHASE_LABELS[phase]}.
+
+How to reply:
+- Answer the operator's question directly, in the first person, about your own understanding, plan or change ("I will change…").
+- Do not quiz the operator or ask them how they would implement it. Ask a question only when you need a decision from them, and say why.
+- If you are not sure, say so and say what you would check.
+- Keep replies short and concrete: name files, functions and tests.
+
+## Ticket
+${renderTicketHeading(ticket)}
+${ticket.description ? `Description: ${ticket.description}\n` : ""}
+### Acceptance Criteria:
+${criteria}
+
+${renderUnderstanding(understanding)}${planBlock}`.trimEnd();
+}
