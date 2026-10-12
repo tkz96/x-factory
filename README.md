@@ -39,8 +39,8 @@ graph TD
     User -->|"HTTP Commands / Queries"| API
     API -->|"Real-Time SSE Streams"| User
     API -->|"Atomic Transactions"| DB
-    Worker -->|"Poll & Atomic Lease Claim (30s)"| DB
-    Worker -->|"Heartbeats (10s) & State Updates"| DB
+    Worker -->|"Poll & Atomic Lease Claim"| DB
+    Worker -->|"Heartbeats & State Updates"| DB
     Worker -->|"Spawns & Monitors"| Pi
     Pi -->|"Direct File Changes & Tests"| Worktree
     Worker -->|"Persists Telemetry & Diffs"| Artifacts
@@ -49,7 +49,7 @@ graph TD
 ### Core Invariants
 
 1. **API Invariant**: `src/server.ts` handles HTTP routing, payload validation, and SQLite persistence. It **never** executes workflow stages, spawns agents, or runs git commands. Each command writes its intent to SQLite and returns at once.
-2. **Worker Invariant**: `src/worker.ts` is an independent background Bun process. It polls SQLite, atomically claims jobs with 30-second leases, emits 10-second heartbeats, drives Pi agent sessions, and records execution telemetry.
+2. **Worker Invariant**: `src/worker.ts` is an independent background Bun process. It polls SQLite, atomically claims jobs with a lease, renews the lease by heartbeat, drives Pi agent sessions, and records execution telemetry. The lease and heartbeat timings have one owner, `DEFAULT_LEASE_POLICY` in `src/lease.ts`, and are explained in [process boundaries and topology](./docs/explanation/process-boundaries-and-topology.md).
 3. **Database Invariant**: SQLite operating in Write-Ahead Logging (`PRAGMA journal_mode = WAL;`) is the single source of truth for runtime state. Mutations enforce optimistic concurrency control via a monotonic `revision` counter.
 4. **Filesystem Invariant**: Large blobs, logs, and Git worktrees live on disk under `~/.x-factory/`. SQLite stores metadata and path references, never raw file blobs.
 
