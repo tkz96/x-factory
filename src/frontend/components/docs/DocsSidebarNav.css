@@ -44,7 +44,6 @@
   background: var(--bg-tertiary);
   border: none;
   box-sizing: border-box;
-  transition: box-shadow var(--transition-fast);
 }
 
 .docs-search-field:focus-within {

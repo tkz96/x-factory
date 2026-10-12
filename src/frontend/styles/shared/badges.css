@@ -32,11 +32,3 @@
   border-radius: var(--radius-full);
   white-space: nowrap;
 }
-
-/* The dot that marks a live filter: a circle stays a circle. */
-.pill-dot {
-  width: var(--status-dot-sm);
-  height: var(--status-dot-sm);
-  border-radius: var(--radius-full);
-  background: var(--accent);
-}

@@ -22,23 +22,13 @@
   }
 
   :root button,
-  :root .btn-primary,
-  :root .btn-secondary,
-  :root .btn-danger,
-  :root .btn-circle,
-  :root .btn-close,
-  :root .btn-sm,
-  :root .btn-danger-hover,
   :root .ui-nav-item {
     background: ButtonFace;
     color: ButtonText;
     border: var(--border-width) solid ButtonBorder;
   }
 
-  :root button:disabled,
-  :root .btn-primary:disabled,
-  :root .btn-secondary:disabled,
-  :root .btn-danger:disabled {
+  :root button:disabled {
     color: GrayText;
     border-color: GrayText;
   }
@@ -250,9 +240,5 @@
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;
-  }
-
-  :root .pill-dot {
-    background: CanvasText;
   }
 }

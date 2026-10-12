@@ -128,7 +128,7 @@ describe("AsyncRegion — five-state taxonomy", () => {
         emptyCopy: "No projects yet.",
         emptyAction: React.createElement(
           "button",
-          { type: "button", className: "btn-primary btn-sm" },
+          { type: "button", className: "ui-button ui-button--primary" },
           "Onboard Project",
         ),
       }),

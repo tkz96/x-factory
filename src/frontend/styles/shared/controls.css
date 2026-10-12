@@ -62,6 +62,9 @@
     transform var(--transition);
 }
 
+/* One press, one scale: a button shrinks slightly (an icon button a touch more,
+   below) and a row, a segment or a card never does — a container that moved
+   under the finger would drag everything inside it. */
 .ui-button[data-pressed] {
   transform: scale(0.97);
 }
@@ -633,17 +636,12 @@
   cursor: pointer;
   transition:
     background-color var(--transition),
-    border-color var(--transition),
-    transform var(--transition);
+    border-color var(--transition);
 }
 
 .ui-list-row--pressable[data-hovered] {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
-}
-
-.ui-list-row--pressable[data-pressed] {
-  transform: scale(0.99);
 }
 
 .ui-list-row--pressable[data-disabled] {
@@ -754,15 +752,15 @@
 }
 
 /* A row inside a group is a link (its own element, so it carries no
-   data-hovered): the hover fill is gated on a real pointer, like every other
-   hover motion (M8). */
+   data-hovered): its hover fill is gated on a real pointer, like every other
+   hover motion. */
 @media (hover: hover) and (pointer: fine) {
   .ui-list-group .ui-list-row--pressable:hover {
     background: var(--bg-hover);
   }
 }
 
-/* The row the URL names reads as chosen: one filled row, no border (G4). */
+/* The row the URL names reads as chosen: one filled row, no border. */
 .ui-list-group .ui-list-row[aria-current="page"] {
   background: var(--accent);
   color: var(--text-on-accent);
@@ -804,11 +802,15 @@
     color var(--transition-fast);
 }
 
-.ui-nav-item:hover,
-.ui-nav-item[data-hovered] {
-  background: var(--bg-hover);
-  color: var(--text);
-  text-decoration: none;
+/* React Aria's data attribute is the primary state; a nav row is usually a plain
+   <a>, which has none, so its hover fill is gated on a real pointer. */
+@media (hover: hover) and (pointer: fine) {
+  .ui-nav-item:hover,
+  .ui-nav-item[data-hovered] {
+    background: var(--bg-hover);
+    color: var(--text);
+    text-decoration: none;
+  }
 }
 
 .ui-nav-item[aria-current] {
@@ -899,9 +901,13 @@
   transition: background-color var(--transition);
 }
 
-.ui-settings-row--pressable:hover,
-.ui-settings-row--pressable[data-hovered] {
-  background: var(--bg-hover);
+/* A settings row that navigates is a plain <a>, so its hover is gated on a real
+   pointer. */
+@media (hover: hover) and (pointer: fine) {
+  .ui-settings-row--pressable:hover,
+  .ui-settings-row--pressable[data-hovered] {
+    background: var(--bg-hover);
+  }
 }
 
 .ui-settings-row-main {
@@ -949,8 +955,10 @@
   text-decoration: none;
 }
 
-.ui-settings-row-main--link:hover .ui-settings-row-title {
-  color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .ui-settings-row-main--link:hover .ui-settings-row-title {
+    color: var(--accent);
+  }
 }
 
 /* Phone width: a control that cannot shrink (the segmented appearance picker)

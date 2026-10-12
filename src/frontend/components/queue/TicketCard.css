@@ -16,24 +16,20 @@
   flex-direction: column;
   gap: var(--space-3);
   transition:
-    transform var(--transition),
     border-color var(--transition),
     background-color var(--transition);
   cursor: pointer;
 }
 
-/* The lift is a hover affordance for a real pointer (M8): a touch device has no
-   hover, and a nudge under the finger only makes the target move. The row never
-   rises and never grows a shadow — a card has no shadow at rest (SYSTEM.md). */
+/* The lift is a hover affordance for a real pointer: a touch device has no
+   hover, and a nudge under the finger only makes the target move. The card
+   never scales on press and never rises — a card has no shadow at rest, and a
+   card that moved would drag every row inside it. */
 @media (hover: hover) and (pointer: fine) {
   .ticket-card:hover {
     border-color: var(--border-hover);
     background: var(--bg-card-hover);
   }
-}
-
-.ticket-card:active {
-  transform: scale(0.99);
 }
 
 .ticket-card-header {

@@ -294,7 +294,6 @@
   /* A small control is 32px on a pointer device and still 44px under a coarse
      pointer: size="sm" shrinks a row accessory, never a finger's target. */
   --control-height-sm: 32px;
-  --input-height-sm: 34px;
   --button-height: 36px;
   --button-height-lg: 44px;
   --checkbox-size: 18px;
