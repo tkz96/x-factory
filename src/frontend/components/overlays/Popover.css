@@ -7,8 +7,8 @@
   box-shadow: var(--shadow-md);
   z-index: var(--z-popover);
   /* The inset a menu's items sit in: outer 12 minus inset 4 leaves the items
-     their own 8 (SYS-6, concentric rule). A popover holding something else
-     pads its own content. */
+     their own 8, so their corners stay concentric with the popover's. A
+     popover holding something else pads its own content. */
   padding: var(--space-1);
   outline: none;
   /* A popover grows from the point of its trigger rather than from its own

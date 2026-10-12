@@ -295,7 +295,7 @@
 }
 
 /* The toolbar's search field: it reads as the field the palette opens, so the
-   two are obviously the same thing (#SYS-2). */
+   two are obviously the same thing. */
 .toolbar-search {
   justify-content: flex-start;
   min-width: 12rem;
@@ -367,7 +367,7 @@
 }
 
 /* Between the phone and the wide desktop the search field gives up its label
-   and its keys and becomes the plain icon button (#SYS-2, SYS-8): transparent
+   and its keys and becomes the plain icon button: transparent
    until hovered or pressed, exactly like the bell and the gear beside it. The
    accessible name stays, so nothing about it is lost to the eye or to a screen
    reader. */
@@ -491,8 +491,8 @@
   }
 
   /* Phone: the bar is one row — the project picker on the start, the search,
-     bell and gear at the end — with the sections in the tab bar below (#258,
-     SYS-8). Spacing stays on the 4px grid. */
+     bell and gear at the end — with the sections in the tab bar below (#258).
+     Spacing stays on the 4px grid. */
   .toolbar {
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--space-2) var(--space-4);

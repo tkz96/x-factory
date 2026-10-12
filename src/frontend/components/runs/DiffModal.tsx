@@ -1,5 +1,6 @@
 // src/frontend/components/runs/DiffModal.tsx — Full-screen modal for per-file
-// syntax-highlighted diffs (SYS-13/SYS-14: the shared window).
+// syntax-highlighted diffs. It wears the shared window surface from
+// `components/overlays`, so its chrome matches every other overlay.
 
 import "./DiffModal.css";
 

@@ -349,7 +349,7 @@ function AppShellHeader({
           // The screen's large title is the one h1 here. This copy is for the
           // eye only, and appears in the toolbar once the page has scrolled —
           // until then nothing is rendered, so the bar never holds an empty
-          // title span (#258, SYS-12).
+          // title span (#258).
           compact && (
             <span className="toolbar-title is-visible" aria-hidden="true">
               {title}

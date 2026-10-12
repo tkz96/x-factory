@@ -1,4 +1,4 @@
-// src/frontend/components/Modal.tsx — The reusable application modal (#159, SYS-13).
+// src/frontend/components/Modal.tsx — The reusable application modal (#159).
 //
 // A dialog composes <Modal> instead of re-implementing a window: the surface,
 // the backdrop, the header, the scrolling body and the pinned footer are the

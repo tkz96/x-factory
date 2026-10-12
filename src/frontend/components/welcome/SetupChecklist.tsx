@@ -22,8 +22,8 @@ import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
 
 /**
  * The step's leading mark: a filled tick when it is done, a ring while not. It
- * is decorative — the state word is its sibling, so a screen reader hears it
- * (S-09: the capsule badge that used to repeat it is gone).
+ * is decorative — the state word beside it is what a screen reader hears, so
+ * the mark never repeats that state as a badge of its own.
  */
 function StepMark({ done }: { done: boolean }) {
   return (

@@ -1,5 +1,5 @@
 // src/frontend/components/modals/NewRunModal.tsx — New Run window (XFM-46,
-// XFM-47, SYS-13).
+// XFM-47).
 //
 // New Run is the add-project assistant's window: the same Sheet, the same
 // DialogHeader/DialogBody/DialogFooter structure, the same --sheet-width
