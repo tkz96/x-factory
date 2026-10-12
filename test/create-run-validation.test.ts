@@ -41,6 +41,8 @@ function createRunRequest(body: Record<string, unknown>): Request {
   });
 }
 
+const VALID_RUN = { ticketId: "X-1", ticketTitle: "t", plan: "1. Do it" };
+
 describe("POST /api/runs validation", () => {
   it("answers 400 with the reason when the plan is missing", async () => {
     await withReadyModelRoles(async () => {
@@ -66,6 +68,70 @@ describe("POST /api/runs validation", () => {
       );
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ error: "Ticket ID is required." });
+    });
+  });
+
+  // Seen in the full-run e2e test: a project made in Add Project names a folder
+  // that nothing has cloned yet, and creating a run answered 500 "Internal error".
+  describe("when the repository folder is not ready", () => {
+    it("accepts the run when the folder is missing but the repository has a remote", async () => {
+      await withReadyModelRoles(async () => {
+        const projectId = "proj-create-run-remote-only";
+        ensureProject(projectId, {
+          repositoryPath: path.join(repoDir, "..", `${projectId}-not-cloned`),
+          remote: "https://github.com/example/not-cloned.git",
+        });
+        const repos = createTestRepositories();
+        const res = await dispatchHttp(
+          createRunRequest({ ...VALID_RUN, projectId }),
+          repos,
+        );
+        expect(res.status).toBe(201);
+        expect(repos.runs.list()).toHaveLength(1);
+      });
+    });
+
+    it("answers 400 when the folder is missing and there is no remote to clone", async () => {
+      await withReadyModelRoles(async () => {
+        const projectId = "proj-create-run-no-remote";
+        const missing = path.join(repoDir, "..", `${projectId}-missing`);
+        ensureProject(projectId, { repositoryPath: missing });
+        const repos = createTestRepositories();
+        const res = await dispatchHttp(
+          createRunRequest({ ...VALID_RUN, projectId }),
+          repos,
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({
+          error: `The repository folder ${missing} does not exist, and the project has no remote to clone it from.`,
+        });
+        expect(repos.runs.list()).toEqual([]);
+      });
+    });
+
+    it("answers 400 when the folder exists but is not a git repository", async () => {
+      await withReadyModelRoles(async () => {
+        const projectId = "proj-create-run-not-git";
+        const plainDir = await mkdtemp(path.join(tmpdir(), "xf-not-git-"));
+        try {
+          ensureProject(projectId, {
+            repositoryPath: plainDir,
+            remote: "https://github.com/example/not-git.git",
+          });
+          const repos = createTestRepositories();
+          const res = await dispatchHttp(
+            createRunRequest({ ...VALID_RUN, projectId }),
+            repos,
+          );
+          expect(res.status).toBe(400);
+          expect(await res.json()).toEqual({
+            error: `The repository folder ${plainDir} is not a git repository.`,
+          });
+          expect(repos.runs.list()).toEqual([]);
+        } finally {
+          await rm(plainDir, { recursive: true, force: true });
+        }
+      });
     });
   });
 });

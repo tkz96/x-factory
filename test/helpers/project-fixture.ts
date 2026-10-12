@@ -18,6 +18,8 @@ interface ProjectFixtureInput {
   name?: string | undefined;
   workspacePath?: string | undefined;
   repositoryPath?: string | undefined;
+  /** The repository's remote, which the prepare stage clones from when the folder is missing. */
+  remote?: string | undefined;
   defaultBranch?: string | undefined;
   testCommand?: string | undefined;
 }
@@ -71,6 +73,7 @@ export function ensureProject(
         id: `${id}-primary`,
         name,
         path: repositoryPath,
+        ...(overrides.remote ? { remote: overrides.remote } : {}),
         defaultBranch: overrides.defaultBranch ?? "main",
         role: "other",
         ...(commands ? { commands } : {}),
