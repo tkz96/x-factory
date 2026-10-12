@@ -8,6 +8,7 @@ import {
   listProviderModels,
   runtimeCatalogDetails,
 } from "../src/model-catalog.js";
+import freellmapiModels from "./fixtures/model-lists/freellmapi-models.json";
 
 const GOOD = "good-key";
 let server: Server<undefined>;
@@ -155,6 +156,11 @@ beforeAll(() => {
           ],
         });
       }
+      // FreeLLMAPI: a trimmed real listing that marks models it cannot
+      // serve with `available: false` and an `unavailable_reason`.
+      if (url.pathname === "/freellmapi/v1/models") {
+        return Response.json(freellmapiModels);
+      }
       // Anthropic.
       if (url.pathname === "/anthropic/v1/models") {
         const key = req.headers.get("x-api-key");
@@ -244,6 +250,20 @@ describe("listProviderModels", () => {
       "vendor/text-and-image",
       "vendor/legacy",
       "vendor/no-signal",
+    ]);
+  });
+
+  it("drops OpenAI-compatible models the endpoint marks unavailable", async () => {
+    const result = await listProviderModels({
+      apiType: "openai-compatible",
+      baseUrl: `${base}/freellmapi/v1`,
+      apiKey: GOOD,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.models.map((m) => m.id)).toEqual([
+      "claude-haiku-4-5",
+      "gemini-3.8-flash",
     ]);
   });
 

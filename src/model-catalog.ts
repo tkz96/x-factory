@@ -113,6 +113,15 @@ function outputsText(m: Record<string, unknown>): boolean {
   return true;
 }
 
+/**
+ * Whether an OpenAI-compatible endpoint can serve the model. FreeLLMAPI marks
+ * the models it has no upstream key for with `available: false` (and an
+ * `unavailable_reason`); a listing without the field keeps the model.
+ */
+function isAvailable(m: Record<string, unknown>): boolean {
+  return m.available !== false;
+}
+
 function parseModels(apiType: ModelApiType, body: unknown): DiscoveredModel[] {
   const record = (body ?? {}) as Record<string, unknown>;
   if (apiType === "gemini") {
@@ -135,23 +144,25 @@ function parseModels(apiType: ModelApiType, body: unknown): DiscoveredModel[] {
       }),
     );
   }
-  return data.filter(outputsText).map((m: Record<string, unknown>) => {
-    const pricing = (m.pricing ?? {}) as Record<string, unknown>;
-    const topProvider = (m.top_provider ?? {}) as Record<string, unknown>;
-    const perToken = (v: unknown) => {
-      const n = positiveNumber(v);
-      // OpenRouter publishes USD per token; X-Factory stores USD per million.
-      return n === undefined ? undefined : Math.round(n * 1e6 * 1e6) / 1e6;
-    };
-    return compact({
-      id: String(m.id ?? ""),
-      name: typeof m.name === "string" ? m.name : undefined,
-      contextWindow: positiveNumber(m.context_length),
-      maxOutputTokens: positiveNumber(topProvider.max_completion_tokens),
-      inputPricePerMTok: perToken(pricing.prompt),
-      outputPricePerMTok: perToken(pricing.completion),
+  return data
+    .filter((m: Record<string, unknown>) => isAvailable(m) && outputsText(m))
+    .map((m: Record<string, unknown>) => {
+      const pricing = (m.pricing ?? {}) as Record<string, unknown>;
+      const topProvider = (m.top_provider ?? {}) as Record<string, unknown>;
+      const perToken = (v: unknown) => {
+        const n = positiveNumber(v);
+        // OpenRouter publishes USD per token; X-Factory stores USD per million.
+        return n === undefined ? undefined : Math.round(n * 1e6 * 1e6) / 1e6;
+      };
+      return compact({
+        id: String(m.id ?? ""),
+        name: typeof m.name === "string" ? m.name : undefined,
+        contextWindow: positiveNumber(m.context_length),
+        maxOutputTokens: positiveNumber(topProvider.max_completion_tokens),
+        inputPricePerMTok: perToken(pricing.prompt),
+        outputPricePerMTok: perToken(pricing.completion),
+      });
     });
-  });
 }
 
 /** Seconds to wait from a Retry-After header or a Gemini RetryInfo detail. */
