@@ -388,16 +388,23 @@ export interface ModelUsage {
   costUsd?: number | undefined;
 }
 
-/** One stage attempt's model and usage, as recorded when it ran (#279). */
+/** One model step of a stage attempt, with its usage, as recorded when it ran (#279). */
 export interface StageModelUse extends ModelUse, ModelUsage {
   stage: string;
+  /**
+   * The work this model did: the stage itself, or "review" for the review the
+   * execute stage runs after coding.
+   */
+  step: string;
   attempt: number;
   startedAt: string;
 }
 
-/** A stage attempt started on a model (#279). */
+/** A model step of a stage attempt started (#279). */
 export interface StageStartedPayload {
   stage: string;
+  /** The step within the stage; absent on events recorded before steps existed. */
+  step?: string | undefined;
   attempt: number;
   model: ModelUse;
 }

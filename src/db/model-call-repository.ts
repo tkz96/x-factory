@@ -4,7 +4,7 @@
 // One row per model call the worker makes through the model gateway. The budget
 // counts calls, not stage attempts: a stage can make many calls, every retry
 // after a 429 is another request and the coding loop reports one call per
-// iteration. Cost is not here — the USD budget keeps summing `stage_attempts`.
+// iteration. Cost is not here — the USD budget sums `stage_attempt_models`.
 
 import type { Database } from "bun:sqlite";
 import { modelKey } from "../shared/model-key.js";

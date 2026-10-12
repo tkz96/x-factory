@@ -24,6 +24,7 @@ const BUILDER: StageModelUse = {
   apiType: "gemini",
   modelId: "gemini-flash-lite-latest",
   stage: "execute",
+  step: "execute",
   attempt: 1,
   startedAt: "2026-10-11T10:00:00.000Z",
   tokensIn: 12_400,
@@ -36,6 +37,7 @@ const REVIEWER: StageModelUse = {
   role: "reviewer",
   modelId: "gemini-pro",
   stage: "review",
+  step: "review",
   startedAt: "2026-10-11T10:05:00.000Z",
   tokensIn: undefined,
   tokensOut: undefined,
@@ -93,6 +95,31 @@ describe("RunModelsCard (#279)", () => {
     expect(container.querySelectorAll(".run-models-row")).toHaveLength(2);
   });
 
+  it("shows coding on the Builder and its review on the Reviewer when both ran in the execute stage", () => {
+    const review: StageModelUse = {
+      ...REVIEWER,
+      stage: "execute",
+      step: "review",
+      tokensIn: 900,
+    };
+    const { container } = render(
+      <RunModelsCard stageModels={[BUILDER, review]} />,
+    );
+    const rows = [...container.querySelectorAll(".run-models-row")].map(
+      (row) => row.textContent ?? "",
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("Coding");
+    expect(rows[0]).toContain("gemini-flash-lite-latest");
+    expect(rows[0]).toContain("12.4K in · 2.1K out · $0.0062");
+    expect(rows[1]).toContain("Reviewing");
+    expect(rows[1]).toContain("gemini-pro");
+    expect(rows[1]).toContain("900 in");
+    expect(container.querySelector(".run-models-summary")?.textContent).toBe(
+      "Builder: gemini-flash-lite-latest (Gemini) · Reviewer: gemini-pro (Gemini)",
+    );
+  });
+
   it("renders nothing before any stage has used a model", () => {
     const { container } = render(<RunModelsCard stageModels={[]} />);
     expect(container.textContent).toBe("");
@@ -111,5 +138,16 @@ describe("ChatThread stage_started (#279)", () => {
     expect(container.textContent).toContain(
       "Coding with gemini-flash-lite-latest via Gemini",
     );
+  });
+
+  it("names the review step, not the stage, when the execute stage starts its review", () => {
+    expect(
+      stageStartedText({
+        stage: "execute",
+        step: "review",
+        attempt: 1,
+        model: REVIEWER,
+      }),
+    ).toBe("Reviewing with gemini-pro via Gemini");
   });
 });

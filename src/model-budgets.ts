@@ -3,7 +3,7 @@
 // A model's daily budget has two halves, with different units. Requests are
 // model calls, counted one row per call in `model_calls`: a stage that prompts
 // the model many times, and every retry after a 429, each counts. USD is cost,
-// summed from the `stage_attempts` that reported it. A budget of N requests
+// summed from the `stage_attempt_models` steps that reported it. A budget of N requests
 // allows exactly N calls per UTC day: the call that would be the N+1th is
 // refused before it is sent.
 

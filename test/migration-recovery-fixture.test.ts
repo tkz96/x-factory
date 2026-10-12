@@ -56,11 +56,11 @@ describe("Migration & Recovery Test Fixture (XFM-68)", () => {
       );
     `).run();
 
-    // 3. Migrate incrementally to latest schema version 12
+    // 3. Migrate incrementally to latest schema version 13
     const step2 = runMigrations(db, allMigrations);
-    expect(step2.applied).toBe(9); // 4, 5, 6, 7, 8, 9, 10, 11, 12 applied
-    expect(step2.currentVersion).toBe(12);
-    expect(getSchemaVersion(db)).toBe(12);
+    expect(step2.applied).toBe(10); // 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 applied
+    expect(step2.currentVersion).toBe(13);
+    expect(getSchemaVersion(db)).toBe(13);
 
     // 4. Verify pre-existing data was preserved completely
     const preservedRun = db

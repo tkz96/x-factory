@@ -52,9 +52,13 @@ export interface StageContext {
   emit: EmitEvent;
   ledger: StageLedger;
   signal: AbortSignal;
-  /** Records the model this attempt runs on and emits `stage_started` (#279). */
-  recordModel(model: ModelUse): void;
-  /** Adds tokens and cost a provider reported for this attempt (#279). */
+  /**
+   * Starts a model step of this attempt on `model` and emits `stage_started` (#279).
+   * `step` names the work when it is not the stage itself: the execute stage
+   * records its review as step "review", so coding and review keep their own models.
+   */
+  recordModel(model: ModelUse, step?: string): void;
+  /** Adds tokens and cost a provider reported for the attempt's latest model step (#279). */
   reportUsage(usage: ModelUsage): void;
   /** Asserts that calling the model does not exceed its daily budget (#281). */
   assertBudget?(resolved: ResolvedModel): void;
