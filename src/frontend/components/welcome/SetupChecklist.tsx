@@ -18,7 +18,7 @@ import type {
 } from "../../lib/setup-checklist.js";
 import { WELCOME_COPY } from "../feedback/copy-map.js";
 import { Button } from "../ui/Button.js";
-import { SettingsGroup, SettingsRow } from "../ui/SettingsGroup.js";
+import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
 
 /**
  * The step's leading mark: a filled tick when it is done, a ring while not. It
@@ -117,9 +117,9 @@ export function SetupChecklist({
 
       {/* One inset group (S-15): a row per step — the ring leads, the title and
           body carry the words, and the one action trails. */}
-      <SettingsGroup>
+      <ListGroup>
         {checklist.steps.map((step) => (
-          <SettingsRow
+          <ListGroupRow
             key={step.id}
             titleHeadingLevel={2}
             title={WELCOME_COPY.stepTitle[step.id]}
@@ -159,7 +159,7 @@ export function SetupChecklist({
             }
           />
         ))}
-      </SettingsGroup>
+      </ListGroup>
     </div>
   );
 }

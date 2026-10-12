@@ -11,21 +11,22 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { createElement, useState } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { Badge } from "../src/frontend/components/ui/Badge.js";
 import { Button } from "../src/frontend/components/ui/Button.js";
 import { IconButton } from "../src/frontend/components/ui/IconButton.js";
 import {
   ListRow,
+  ListRowContent,
   PlaceholderRows,
 } from "../src/frontend/components/ui/ListRow.js";
 import { SegmentedControl } from "../src/frontend/components/ui/SegmentedControl.js";
 import { SelectField } from "../src/frontend/components/ui/SelectField.js";
 import {
-  SettingsGroup,
-  SettingsRow,
-  SettingsRowContent,
-  SettingsValue,
-} from "../src/frontend/components/ui/SettingsGroup.js";
+  ListGroup,
+  ListGroupRow,
+  ListGroupValue,
+} from "../src/frontend/components/ui/ListGroup.js";
 import { Spinner } from "../src/frontend/components/ui/Spinner.js";
 import { SwitchControl } from "../src/frontend/components/ui/SwitchControl.js";
 import {
@@ -446,70 +447,99 @@ describe("ListRow — the row block", () => {
   });
 });
 
-describe("SettingsGroup / SettingsRow — the inset grouped list", () => {
+describe("ListGroup / ListGroupRow — the one inset grouped list", () => {
   it("renders a header, a list of rows and a footer", () => {
     const { getByRole, getByText, container } = render(
-      <SettingsGroup title="Appearance" footer="Applies at once.">
-        <SettingsRow title="Theme" trailing="Default" />
-        <SettingsRow
+      <ListGroup title="Appearance" footer="Applies at once.">
+        <ListGroupRow title="Theme" trailing="Default" />
+        <ListGroupRow
           title="Accent colour"
           subtitle="Follows the system by default"
         />
-      </SettingsGroup>,
+      </ListGroup>,
     );
 
     expect(getByRole("heading", { level: 3, name: "Appearance" })).toBeTruthy();
     expect(getByText("Applies at once.")).toBeTruthy();
     expect(getByRole("list").children).toHaveLength(2);
     expect(classesOf(container.querySelector("ul"))).toContain(
-      "ui-settings-list",
+      "ui-list-group",
     );
     expect(classesOf(container.firstElementChild)).toContain(
-      "ui-settings-group",
+      "ui-list-group-block",
     );
   });
 
   it("keeps the title leading and the accessory trailing", () => {
     const { container, getByText } = render(
-      <SettingsGroup title="Notifications">
-        <SettingsRow
+      <ListGroup title="Notifications">
+        <ListGroupRow
           title="Desktop notifications"
           subtitle="Show a banner when a run needs you"
           trailing="On"
         />
-      </SettingsGroup>,
+      </ListGroup>,
     );
-    const row = container.querySelector(".ui-settings-row");
+    const row = container.querySelector(".ui-list-row--compact");
 
-    expect(row?.firstElementChild?.className).toBe("ui-settings-row-main");
+    expect(row?.firstElementChild?.className).toBe("ui-list-row-main");
     expect(classesOf(row?.lastElementChild ?? null)).toContain(
-      "ui-settings-row-trailing",
+      "ui-list-row-trailing",
     );
-    expect(getByText("On").closest(".ui-settings-row-trailing")).not.toBeNull();
+    expect(getByText("On").closest(".ui-list-row-trailing")).not.toBeNull();
   });
 
-  it("renders a navigating row with the same box on its own anchor", () => {
+  it("renders a navigating row as the box itself, with no class named by the caller", () => {
     const { getByRole, container } = render(
-      <SettingsGroup title="Help">
-        <li>
-          <a
-            className="ui-settings-row ui-settings-row--pressable"
-            href="/docs"
-          >
-            <SettingsRowContent title="Documentation" />
-          </a>
-        </li>
-      </SettingsGroup>,
+      <MemoryRouter>
+        <ListGroup title="Help">
+          <ListGroupRow href="/docs" title="Documentation" />
+        </ListGroup>
+      </MemoryRouter>,
+    );
+    const link = getByRole("link", { name: "Documentation" });
+
+    expect(classesOf(link)).toContain("ui-list-row");
+    expect(classesOf(link)).toContain("ui-list-row--compact");
+    expect(classesOf(link)).toContain("ui-list-row--pressable");
+    expect(container.querySelectorAll(".ui-list-row")).toHaveLength(1);
+  });
+
+  it("navigates from the row's own name when the row also carries an action", () => {
+    const { getByRole } = render(
+      <MemoryRouter>
+        <ListGroup title="Projects">
+          <ListGroupRow
+            titleHref="/projects/xf"
+            title="xf"
+            trailing={<button type="button">Reconnect</button>}
+          />
+        </ListGroup>
+      </MemoryRouter>,
     );
 
-    expect(getByRole("link", { name: "Documentation" })).toBeTruthy();
-    expect(container.querySelectorAll(".ui-settings-row")).toHaveLength(1);
+    expect(getByRole("link", { name: "xf" })).toBeTruthy();
+    expect(getByRole("button", { name: "Reconnect" })).toBeTruthy();
+  });
+
+  it("renders the content box on its own, for a row a screen must build", () => {
+    const { container, getByText } = render(
+      <ListRowContent title="Documentation" trailing="Opens elsewhere" />,
+    );
+
+    expect(classesOf(getByText("Documentation"))).toContain(
+      "ui-list-row-title",
+    );
+    expect(classesOf(container.firstElementChild)).toContain(
+      "ui-list-row-main",
+    );
+    expect(getByText("Opens elsewhere")).toBeTruthy();
   });
 
   it("shows a read-only value in mono", () => {
-    const { getByText } = render(<SettingsValue>~/.x-factory</SettingsValue>);
+    const { getByText } = render(<ListGroupValue>~/.x-factory</ListGroupValue>);
     expect(classesOf(getByText("~/.x-factory"))).toContain(
-      "ui-settings-row-value",
+      "ui-list-row-value",
     );
   });
 });

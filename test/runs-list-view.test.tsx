@@ -213,8 +213,10 @@ describe("Runs rows", () => {
       path.join(import.meta.dir, "../src/frontend/views/RunsView.tsx"),
       "utf8",
     );
-    // One group per list (E2): the rows share hairlines, so no row is a card.
-    expect(tsx).toContain('className="ui-list-group"');
+    // One group per list: the rows share hairlines, so no row is a card — and
+    // the screen composes the block instead of naming its class.
+    expect(tsx).toContain('<ListGroup as="div">');
+    expect(tsx).not.toContain("ui-list-group");
     expect(tsx).toContain("ListRow");
     expect(tsx).not.toContain('className="card run-card');
     // The meta line is plain text, not the mono .code-sub the audit found.

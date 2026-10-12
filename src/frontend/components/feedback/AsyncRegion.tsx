@@ -61,10 +61,10 @@ export interface AsyncRegionProps {
    */
   placeholderRows?: number | undefined;
   /**
-   * Lists only: the class the reserved rows carry, so a loading group wears the
-   * same shape as the loaded one (e.g. `ui-list-group`).
+   * Lists only: the reserved rows wear the inset group's box, so a loading list
+   * has the shape of the loaded one.
    */
-  placeholderClassName?: string | undefined;
+  placeholderGroup?: boolean | undefined;
 }
 
 export function AsyncRegion({
@@ -79,7 +79,7 @@ export function AsyncRegion({
   emptyAction,
   children,
   placeholderRows,
-  placeholderClassName,
+  placeholderGroup,
 }: AsyncRegionProps) {
   const normalized = unwrapNormalizedError(derived.error);
   const retryAfterMs = normalized?.retryAfterMs;
@@ -101,7 +101,7 @@ export function AsyncRegion({
           </span>
           <PlaceholderRows
             count={placeholderRows}
-            className={placeholderClassName}
+            group={placeholderGroup === true}
           />
         </div>
       );

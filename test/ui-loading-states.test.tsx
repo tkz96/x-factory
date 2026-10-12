@@ -85,8 +85,9 @@ describe("touch targets and the row height come from tokens", () => {
         "min-height: var(--tap-min)",
       );
     }
-    // A settings row is a finger's target too (SYSTEM.md "Surfaces").
-    expect(declarationsFor(CONTROLS, ".ui-settings-row")).toContain(
+    // A grouped row is a finger's target too: the compact row inside a
+    // ListGroup is at least --tap-min tall.
+    expect(declarationsFor(CONTROLS, ".ui-list-row--compact")).toContain(
       "min-height: var(--tap-min)",
     );
     expect(

@@ -632,6 +632,11 @@
   border-radius: var(--radius-card);
 }
 
+.ui-list-row--compact {
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+}
+
 .ui-list-row--pressable {
   cursor: pointer;
   transition:
@@ -662,6 +667,17 @@
   min-width: 0;
 }
 
+/* The row's own name carries the navigation, on a row that also holds an action
+   that cannot live inside an anchor. */
+.ui-list-row-main--link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ui-list-row-main--link:focus {
+  text-decoration: none;
+}
+
 .ui-list-row-title {
   font-family: var(--font-display);
   font-size: var(--text-body);
@@ -680,6 +696,13 @@
   gap: var(--space-2);
   margin-left: auto;
   flex-shrink: 0;
+}
+
+/* A read-only value that trails a row: a path, a branch, an id. */
+.ui-list-row-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
 }
 
 .ui-placeholder-line {
@@ -707,15 +730,37 @@
 }
 
 /* ── Grouped inset list ──────────────────────────────────────────────────
- * One group (SYSTEM.md "Grouped inset lists"): a --radius-card container whose
- * rows share hairlines instead of each row drawing its own box. The rows are
- * `ListRow`s; the group is the list, and a screen composes it.
+ * One group: a --radius-card container on --bg-card whose rows share inset
+ * hairlines instead of each row drawing its own box. The rows are the shared
+ * `ui-list-row`, so every grouped list in the app — Runs, Projects, Settings
+ * and the welcome checklist — has the same shape. `ListGroup` renders it; a
+ * screen composes it and never names a class.
  *
- * Works for a `<ul>` of `<li>` rows and for a plain container of rows, so a
- * list with motion wrappers keeps the same shape. This is the last block in
- * this file, so the group settles what a row looks like inside one.
+ * The header sits above the group and the footer below it, both footnote-sized
+ * and quiet, because they explain the rows rather than compete with them.
  */
 
+.ui-list-group-block + .ui-list-group-block {
+  margin-top: var(--space-6);
+}
+
+.ui-list-group-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ui-list-group-footer {
+  margin: var(--space-2) 0 0;
+  max-width: 60ch;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* Works for a `<ul>` of `<li>` rows and for a plain container of rows, so a
+   list with motion wrappers keeps the same shape. */
 .ui-list-group {
   list-style: none;
   margin: 0;
@@ -726,38 +771,33 @@
   background: var(--bg-card);
   border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
-/* The separator between two rows: a hairline inside the group's own edge. */
+.ui-list-group > * {
+  min-width: 0;
+}
+
+/* The separator between two rows: a hairline that starts where the row's own
+   content starts, not at the group's edge. The wrapper is positioned, so this
+   works whether the row is the group's own child or sits in a motion wrapper. */
 .ui-list-group > * + * {
+  position: relative;
+}
+
+.ui-list-group > * + *::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--space-4) 0;
+  top: 0;
   border-top: var(--border-width) solid var(--border-subtle);
 }
 
-/* Inside a group the row draws no box of its own: the hairline separates. */
+/* Inside a group the row draws no box of its own: the group is the box. */
 .ui-list-group .ui-list-row {
-  border-color: transparent;
-  border-radius: 0;
   background: transparent;
-}
-
-/* The group's own corners: the first and last row's fill follows them. */
-.ui-list-group > *:first-child .ui-list-row {
-  border-start-start-radius: var(--radius-card);
-  border-start-end-radius: var(--radius-card);
-}
-
-.ui-list-group > *:last-child .ui-list-row {
-  border-end-start-radius: var(--radius-card);
-  border-end-end-radius: var(--radius-card);
-}
-
-/* A row inside a group is a link (its own element, so it carries no
-   data-hovered): its hover fill is gated on a real pointer, like every other
-   hover motion. */
-@media (hover: hover) and (pointer: fine) {
-  .ui-list-group .ui-list-row--pressable:hover {
-    background: var(--bg-hover);
-  }
+  border: none;
+  border-radius: 0;
 }
 
 /* The row the URL names reads as chosen: one filled row, no border. */
@@ -770,6 +810,22 @@
 .ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-subtitle,
 .ui-list-group .ui-list-row[aria-current="page"] > .icon {
   color: var(--text-on-accent);
+}
+
+/* A row inside a group is usually a link (its own element, so it carries no
+   data-hovered): one hover rule for the whole block, gated on a real pointer
+   like every other hover motion. */
+@media (hover: hover) and (pointer: fine) {
+  .ui-list-group .ui-list-row--pressable:hover,
+  .ui-list-group .ui-list-row--pressable[data-hovered] {
+    background: var(--bg-hover);
+  }
+
+  /* The row's own name as a link is the only affordance it has, so it tints its
+     title instead of filling a box of its own. */
+  .ui-list-group .ui-list-row--pressable:hover .ui-list-row-title {
+    color: var(--text);
+  }
 }
 
 /* ── Navigation item: one row for every sidebar (S-13) ───────────────────
@@ -825,150 +881,15 @@
   }
 }
 
-/* ── Settings group: the inset grouped list (SYSTEM.md "Surfaces") ────────
- * The System Settings shape: one --radius-card group, rows at least a finger
- * tall, the title on the leading edge and its accessory trailing, and a
- * hairline between rows that starts where the title does. The header sits
- * above the group and the footer below it. SettingsGroup / SettingsRow render
- * it; a row that navigates wears the same box on its own <a>. */
-
-.ui-settings-group + .ui-settings-group {
-  margin-top: var(--space-6);
-}
-
-.ui-settings-group-title {
-  margin: 0 0 var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.ui-settings-group-footer {
-  margin: var(--space-2) 0 0;
-  max-width: 60ch;
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-.ui-settings-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-}
-
-.ui-settings-list > li {
-  position: relative;
-  min-width: 0;
-}
-
-/* The separator is inset by the row's own padding, so it begins under the
-   title rather than at the group's edge. */
-.ui-settings-list > li + li::before {
-  content: "";
-  position: absolute;
-  inset-inline: var(--space-4) 0;
-  top: 0;
-  border-top: var(--border-width) solid var(--border-subtle);
-}
-
-.ui-settings-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  min-height: var(--tap-min);
-  padding: var(--space-2) var(--space-4);
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  color: var(--text);
-  text-align: start;
-  text-decoration: none;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
-
-.ui-settings-row--pressable {
-  cursor: pointer;
-  transition: background-color var(--transition);
-}
-
-/* A settings row that navigates is a plain <a>, so its hover is gated on a real
-   pointer. */
-@media (hover: hover) and (pointer: fine) {
-  .ui-settings-row--pressable:hover,
-  .ui-settings-row--pressable[data-hovered] {
-    background: var(--bg-hover);
-  }
-}
-
-.ui-settings-row-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  flex: 1;
-  min-width: 0;
-}
-
-.ui-settings-row-title {
-  font-size: var(--text-body);
-  color: var(--text);
-}
-
-.ui-settings-row-subtitle {
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-.ui-settings-row-trailing {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
-  margin-inline-start: auto;
-}
-
-/* A read-only value: a path, a branch, an id. */
-.ui-settings-row-value {
-  font-family: var(--font-mono);
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-/* The row's own name as the link, on a row that also carries an action — the
-   action cannot live inside an anchor, so the name carries the navigation. */
-.ui-settings-row-main--link {
-  color: inherit;
-  text-decoration: none;
-}
-
-.ui-settings-row-main--link:hover,
-.ui-settings-row-main--link:focus {
-  text-decoration: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ui-settings-row-main--link:hover .ui-settings-row-title {
-    color: var(--accent);
-  }
-}
-
-/* Phone width: a control that cannot shrink (the segmented appearance picker)
-   takes its own line under the title instead of squeezing the label. */
+/* Phone width: a compact row's accessory cannot shrink (the segmented
+   appearance picker, a select), so it takes its own line under the title
+   instead of squeezing the label. */
 @media (max-width: 768px) {
-  .ui-settings-row {
+  .ui-list-row--compact {
     flex-wrap: wrap;
   }
 
-  .ui-settings-row-trailing {
+  .ui-list-row--compact .ui-list-row-trailing {
     width: 100%;
     margin-inline-start: 0;
   }

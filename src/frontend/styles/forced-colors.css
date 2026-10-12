@@ -169,18 +169,18 @@
     background: GrayText;
   }
 
-  :root .ui-settings-list > li + li::before {
+  :root .ui-list-group > * + *::before {
     border-top-color: CanvasText;
   }
 
-  :root .ui-settings-row--pressable:hover,
-  :root .ui-settings-row--pressable[data-hovered] {
+  :root .ui-list-row--pressable:hover,
+  :root .ui-list-row--pressable[data-hovered] {
     background: Highlight;
     color: HighlightText;
   }
 
   :root .card,
-  :root .ui-settings-list {
+  :root .ui-list-group {
     background: Canvas;
     color: CanvasText;
     border: var(--border-width) solid CanvasText;

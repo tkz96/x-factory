@@ -55,11 +55,11 @@ a:hover {
 }
 
 /* A link that is a row, a nav item or a control fills on hover instead — the
-   underline is for prose (S-13). Doubled selectors beat the rule above. */
+   underline is for prose. Doubled selectors beat the rule above. */
 :is(
   .ui-nav-item,
-  .ui-settings-row,
-  .ui-settings-row-main--link,
+  .ui-list-row,
+  .ui-list-row-main--link,
   .docs-back-link,
   .project-link,
   .projects-list-row

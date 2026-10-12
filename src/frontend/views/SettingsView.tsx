@@ -28,11 +28,10 @@ import { Button } from "../components/ui/Button.js";
 import { PlaceholderRows } from "../components/ui/ListRow.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import {
-  SettingsGroup,
-  SettingsRow,
-  SettingsRowContent,
-  SettingsValue,
-} from "../components/ui/SettingsGroup.js";
+  ListGroup,
+  ListGroupRow,
+  ListGroupValue,
+} from "../components/ui/ListGroup.js";
 import { SwitchControl } from "../components/ui/SwitchControl.js";
 import { useModal } from "../context/ModalContext.js";
 import { useConnectionLines } from "../hooks/useConnectionIdentity.js";
@@ -115,7 +114,7 @@ function DiagnosticsTabContent({
   diagnostics,
 }: DiagnosticsTabContentProps) {
   if (isLoading) {
-    return <PlaceholderRows count={3} />;
+    return <PlaceholderRows count={3} group />;
   }
 
   const workerHealthy = diagnostics?.worker.status === "healthy";
@@ -123,18 +122,18 @@ function DiagnosticsTabContent({
 
   return (
     <>
-      <SettingsGroup title="Services">
-        <SettingsRow
+      <ListGroup title="Services">
+        <ListGroupRow
           title="API"
           subtitle={`Uptime ${diagnostics?.system.uptime ?? 0}s`}
           trailing={<DiagnosticStatus status="healthy" />}
         />
-        <SettingsRow
+        <ListGroupRow
           title="Database"
           subtitle={`WAL mode · ${diagnostics?.database.runs.total ?? 0} runs`}
           trailing={<DiagnosticStatus status="healthy" />}
         />
-        <SettingsRow
+        <ListGroupRow
           title="Worker fleet"
           subtitle={`${diagnostics?.worker.activeCount ?? 0} active worker(s)`}
           trailing={
@@ -143,18 +142,18 @@ function DiagnosticsTabContent({
             />
           }
         />
-      </SettingsGroup>
+      </ListGroup>
 
-      <SettingsGroup title="Job queue">
-        <SettingsRow
+      <ListGroup title="Job queue">
+        <ListGroupRow
           title="Active jobs"
           trailing={diagnostics?.database.jobs.claimed ?? 0}
         />
-        <SettingsRow
+        <ListGroupRow
           title="Pending jobs"
           trailing={diagnostics?.database.jobs.pending ?? 0}
         />
-        <SettingsRow
+        <ListGroupRow
           title="Stale jobs"
           trailing={
             staleJobs > 0 ? (
@@ -164,11 +163,11 @@ function DiagnosticsTabContent({
             )
           }
         />
-        <SettingsRow
+        <ListGroupRow
           title="Completed jobs"
           trailing={diagnostics?.database.jobs.completed ?? 0}
         />
-      </SettingsGroup>
+      </ListGroup>
     </>
   );
 }
@@ -239,8 +238,8 @@ function GeneralTabContent({
       {/* Theme and Appearance are the same control (#266): one segmented block,
           so both render at one height, type size and icon gap. Each trails its
           row's label (S-01). */}
-      <SettingsGroup title="Appearance">
-        <SettingsRow
+      <ListGroup title="Appearance">
+        <ListGroupRow
           title="Appearance"
           trailing={
             <SegmentedControl
@@ -261,7 +260,7 @@ function GeneralTabContent({
             />
           }
         />
-        <SettingsRow
+        <ListGroupRow
           title="Theme"
           trailing={
             <SegmentedControl
@@ -279,25 +278,25 @@ function GeneralTabContent({
             />
           }
         />
-      </SettingsGroup>
+      </ListGroup>
 
       <DesktopNotificationsSetting />
 
-      <SettingsGroup
+      <ListGroup
         title="Storage"
         footer="Runs, logs, settings and worktrees live under this folder."
       >
-        <SettingsRow
+        <ListGroupRow
           title="Data folder"
-          trailing={<SettingsValue>{DATA_DIRECTORY_DISPLAY}</SettingsValue>}
+          trailing={<ListGroupValue>{DATA_DIRECTORY_DISPLAY}</ListGroupValue>}
         />
-      </SettingsGroup>
+      </ListGroup>
 
-      <SettingsGroup
+      <ListGroup
         title="Security"
         footer="Only enable this if you trust the repository and model, or if you do not have sbx installed. X_FACTORY_ALLOW_UNSANDBOXED=1 enables it for one process."
       >
-        <SettingsRow
+        <ListGroupRow
           title="Run agents without a sandbox"
           subtitle="Runs the coding loop directly on the host machine when sbx is unavailable."
           trailing={
@@ -310,7 +309,7 @@ function GeneralTabContent({
             />
           }
         />
-      </SettingsGroup>
+      </ListGroup>
 
       <Modal
         id="modal-confirm-unsandboxed"
@@ -405,7 +404,7 @@ function ConnectionsTabContent({
       </div>
 
       {isLoading ? (
-        <PlaceholderRows count={3} />
+        <PlaceholderRows count={3} group />
       ) : projects.length === 0 ? (
         <p className="text-muted">{CONNECTIONS_COPY.registryEmpty}</p>
       ) : (
@@ -414,45 +413,44 @@ function ConnectionsTabContent({
            headers and no horizontally scrolling table. The row's own name is
            the link, so the repair action a broken project needs can sit beside
            it without nesting a button inside an anchor. */
-        <SettingsGroup title="Projects">
+        <ListGroup title="Projects">
           {rows.map(({ project: p, integrity }, index) => {
             const slots = slotsByRow[index] ?? [];
             return (
-              <li key={p.id} className="ui-settings-row">
-                <Link
-                  className="ui-settings-row-main ui-settings-row-main--link"
-                  to={`/projects/${encodeURIComponent(p.id)}`}
-                >
-                  <span className="ui-settings-row-title">{p.name}</span>
-                  <span className="ui-settings-row-subtitle">
-                    <ConnectionComboLine
-                      slots={slots}
-                      tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
-                      descriptors={descriptors}
-                      className="connection-combo-line--compact"
-                    />
-                  </span>
-                </Link>
-                <span className="ui-settings-row-trailing">
-                  {integrity.hasIntegrityFailure && (
-                    <RetryAction
-                      label={CONNECTIONS_COPY.reconnect}
-                      onRetry={onOnboardProject}
-                    />
-                  )}
-                  <Badge tone={p.archived ? "neutral" : "success"}>
-                    {p.archived
-                      ? CONNECTIONS_COPY.registryStatusArchived
-                      : CONNECTIONS_COPY.registryStatusActive}
-                  </Badge>
-                  <svg className="icon icon-sm" aria-hidden="true">
-                    <use href="/assets/icons/sprite.svg#icon-chevron-right" />
-                  </svg>
-                </span>
-              </li>
+              <ListGroupRow
+                key={p.id}
+                titleHref={`/projects/${encodeURIComponent(p.id)}`}
+                title={p.name}
+                subtitle={
+                  <ConnectionComboLine
+                    slots={slots}
+                    tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
+                    descriptors={descriptors}
+                    className="connection-combo-line--compact"
+                  />
+                }
+                trailing={
+                  <>
+                    {integrity.hasIntegrityFailure && (
+                      <RetryAction
+                        label={CONNECTIONS_COPY.reconnect}
+                        onRetry={onOnboardProject}
+                      />
+                    )}
+                    <Badge tone={p.archived ? "neutral" : "success"}>
+                      {p.archived
+                        ? CONNECTIONS_COPY.registryStatusArchived
+                        : CONNECTIONS_COPY.registryStatusActive}
+                    </Badge>
+                    <svg className="icon icon-sm" aria-hidden="true">
+                      <use href="/assets/icons/sprite.svg#icon-chevron-right" />
+                    </svg>
+                  </>
+                }
+              />
             );
           })}
-        </SettingsGroup>
+        </ListGroup>
       )}
     </div>
   );
@@ -482,42 +480,28 @@ function HelpTabContent() {
       </p>
       {/* Two rows, each an anchor with the same box (S-01), trailing the
           "opens elsewhere" mark. */}
-      <SettingsGroup title="Guides">
-        <li>
-          <a
-            className="ui-settings-row ui-settings-row--pressable"
-            href="/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <SettingsRowContent
-              title="Documentation"
-              trailing={
-                <svg className="icon icon-sm" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
-                </svg>
-              }
-            />
-          </a>
-        </li>
-        <li>
-          <a
-            className="ui-settings-row ui-settings-row--pressable"
-            href="/reference"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <SettingsRowContent
-              title="API Reference"
-              trailing={
-                <svg className="icon icon-sm" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
-                </svg>
-              }
-            />
-          </a>
-        </li>
-      </SettingsGroup>
+      <ListGroup title="Guides">
+        <ListGroupRow
+          href="/docs"
+          isExternal
+          title="Documentation"
+          trailing={
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
+            </svg>
+          }
+        />
+        <ListGroupRow
+          href="/reference"
+          isExternal
+          title="API Reference"
+          trailing={
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
+            </svg>
+          }
+        />
+      </ListGroup>
     </div>
   );
 }
@@ -527,12 +511,12 @@ function GitTabContent() {
     <div className="settings-pane">
       <h2 className="settings-pane-title">Git</h2>
       <p className="settings-pane-subtitle">Where run worktrees are stored.</p>
-      <SettingsGroup title="Worktrees">
-        <SettingsRow
+      <ListGroup title="Worktrees">
+        <ListGroupRow
           title="Worktree path"
-          trailing={<SettingsValue>{WORKTREE_PATH_DISPLAY}</SettingsValue>}
+          trailing={<ListGroupValue>{WORKTREE_PATH_DISPLAY}</ListGroupValue>}
         />
-      </SettingsGroup>
+      </ListGroup>
     </div>
   );
 }

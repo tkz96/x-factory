@@ -23,6 +23,7 @@ import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { ListRow } from "../ui/ListRow.js";
+import { ListGroup } from "../ui/ListGroup.js";
 import { SegmentedControl } from "../ui/SegmentedControl.js";
 import { deriveConnectionIntegrity } from "./connection-integrity.js";
 import { projectRepository } from "./project-facts.js";
@@ -97,7 +98,7 @@ export function ProjectList({ selectedId }: ProjectListProps) {
         derived={derived}
         onRetry={() => void projectsQuery.refetch()}
         placeholderRows={4}
-        placeholderClassName="ui-list-group"
+        placeholderGroup
         emptyTitle={
           projects.length === 0
             ? PROJECTS_COPY.emptyTitle
@@ -120,9 +121,9 @@ export function ProjectList({ selectedId }: ProjectListProps) {
           ) : undefined
         }
       >
-        {/* One inset group (E2): the rows share hairlines, and each row is the
+        {/* One inset group: the rows share hairlines, and each row is the
             shared list row — 44pt tall, title left, accessory trailing. */}
-        <ul className="ui-list-group" data-list>
+        <ListGroup>
           {visible.map((project) => (
             <li key={project.id}>
               <ListRow
@@ -137,7 +138,7 @@ export function ProjectList({ selectedId }: ProjectListProps) {
               />
             </li>
           ))}
-        </ul>
+        </ListGroup>
       </AsyncRegion>
     </div>
   );

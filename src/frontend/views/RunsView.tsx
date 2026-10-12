@@ -5,6 +5,7 @@ import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { Badge } from "../components/ui/Badge.js";
 import { ListRow } from "../components/ui/ListRow.js";
+import { ListGroup } from "../components/ui/ListGroup.js";
 import { SegmentedControl } from "../components/ui/SegmentedControl.js";
 import { useCurrentProject } from "../context/ProjectContext.js";
 import { useNow } from "../hooks/useNow.js";
@@ -181,7 +182,7 @@ export function RunsView() {
         derived={derived}
         onRetry={() => refetch()}
         placeholderRows={5}
-        placeholderClassName="ui-list-group"
+        placeholderGroup
         emptyTitle={EMPTY_TITLE[filter]}
         emptyCopy={EMPTY_COPY[filter]}
         emptyIcon="icon-play"
@@ -199,9 +200,9 @@ export function RunsView() {
           ) : undefined
         }
       >
-        {/* One inset group (SYSTEM.md): the rows share hairlines, and each row
-            is the shared list row — no card of its own, no hover lift (E2). */}
-        <div className="ui-list-group" data-list>
+        {/* One inset group: the rows share hairlines, and each row is the
+            shared list row — no card of its own, no hover lift. */}
+        <ListGroup as="div">
           <AnimatePresence initial={false}>
             {shown.map((r) => (
               <MotionListItem key={r.id}>
@@ -209,7 +210,7 @@ export function RunsView() {
               </MotionListItem>
             ))}
           </AnimatePresence>
-        </div>
+        </ListGroup>
       </AsyncRegion>
     </section>
   );

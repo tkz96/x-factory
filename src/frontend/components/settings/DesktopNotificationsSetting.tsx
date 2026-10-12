@@ -7,7 +7,7 @@
 
 import { useDesktopNotifications } from "../../hooks/useDesktopNotifications.js";
 import { desktopSupportReason } from "../../lib/desktop-notifications.js";
-import { SettingsGroup, SettingsRow } from "../ui/SettingsGroup.js";
+import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
 import { SwitchControl } from "../ui/SwitchControl.js";
 
 /** What the switch turns on, when nothing is blocking it. */
@@ -21,11 +21,11 @@ export function DesktopNotificationsSetting() {
   const isOn = enabled && support === "granted";
 
   return (
-    <SettingsGroup
+    <ListGroup
       title="Notifications"
       {...(reason !== null ? { footer: reason } : {})}
     >
-      <SettingsRow
+      <ListGroupRow
         title="Desktop notifications"
         {...(reason === null ? { subtitle: DESCRIPTION } : {})}
         trailing={
@@ -41,6 +41,6 @@ export function DesktopNotificationsSetting() {
           />
         }
       />
-    </SettingsGroup>
+    </ListGroup>
   );
 }

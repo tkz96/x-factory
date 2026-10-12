@@ -13,7 +13,7 @@ import { useSaveSettings, useSettings } from "../../hooks/useQueries.js";
 import { MODEL_ROLES_COPY as COPY } from "../feedback/copy-map.js";
 import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { SelectField } from "../ui/SelectField.js";
-import { SettingsGroup, SettingsRow } from "../ui/SettingsGroup.js";
+import { ListGroup, ListGroupRow } from "../ui/ListGroup.js";
 
 interface Choice {
   key: string;
@@ -62,7 +62,7 @@ export function RolesPanel() {
 
   return (
     <>
-      <SettingsGroup
+      <ListGroup
         title={COPY.title}
         footer={choices.length === 0 ? COPY.noModels : COPY.subtitle}
       >
@@ -72,7 +72,7 @@ export function RolesPanel() {
             sameAssignment(c.assignment, current),
           );
           return (
-            <SettingsRow
+            <ListGroupRow
               key={role}
               title={COPY[role]}
               subtitle={
@@ -107,7 +107,7 @@ export function RolesPanel() {
             />
           );
         })}
-      </SettingsGroup>
+      </ListGroup>
 
       {sameAssignment(roles.builder, roles.reviewer) && (
         <FeedbackBanner tone="info" message={COPY.sameModel} />
