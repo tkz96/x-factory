@@ -21,6 +21,7 @@ import {
   ConflictError,
   DomainError,
   NotFoundError,
+  ValidationError,
 } from "./errors.js";
 import * as git from "./git.js";
 import { assertBudgetNotExceeded, modelRoleForStage } from "./model-budgets.js";
@@ -221,9 +222,12 @@ export async function createRun(
   ticketDescription?: string,
   customBranch?: string,
 ): Promise<Run> {
-  if (!project) throw new Error("Project is required.");
-  if (!ticketId?.trim()) throw new Error("Ticket ID is required.");
-  if (!plan?.trim()) throw new Error("Implementation plan is required.");
+  // Missing input is the caller's mistake: a 400 with the reason, never a 500.
+  if (!project) throw new ValidationError("Project is required.");
+  if (!ticketId?.trim()) throw new ValidationError("Ticket ID is required.");
+  if (!plan?.trim()) {
+    throw new ValidationError("Implementation plan is required.");
+  }
 
   await git.validateRepo(project.repositoryPath);
 
