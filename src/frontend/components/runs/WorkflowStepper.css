@@ -247,12 +247,22 @@
   .step.active .step-evidence {
     display: none;
   }
+
+  /* The strip is pinned to one exact height below this width (see the run
+     page's footer), so a label never wraps onto a second line: it is one line,
+     clipped with an ellipsis, and its line box is the same at every width. */
+  .step-label {
+    line-height: var(--space-4);
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* Phone width (#262): six steps fit one row; each is its dot and its label. */
 @media (max-width: 600px) {
   .step-label {
     font-size: var(--text-caption-2);
-    white-space: nowrap;
   }
 }

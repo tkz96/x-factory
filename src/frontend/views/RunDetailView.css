@@ -55,15 +55,19 @@
 }
 
 @media (max-width: 960px) {
-  .run-detail-container {
+  /* The base rule clips this flex column; the phone layout stacks and lets the
+     document scroll. The selector is the base rule's own, so the override
+     actually wins. */
+  .area-view.run-detail-container.active {
     height: auto;
     overflow: visible;
   }
 
-  /* The strip is sticky with a bottom offset of one tab bar (F1), and at the
-     end of the scroll it lifts by that offset. The layout keeps that much
-     empty room below the chat, so the lift lands on space the composer is
-     never behind. */
+  /* The strip is out of the flow and pinned to the bottom of the viewport,
+     directly above the fixed tab bar, so it stays on screen all the way down
+     the run. The layout reserves the strip's exact height below its content
+     (plus the tab bar and the safe area), so the composer and the last timeline
+     row still scroll fully above it instead of ending up behind it. */
   .run-detail-layout {
     grid-template-columns: 1fr;
     height: auto;
@@ -71,6 +75,7 @@
     padding: var(--space-3);
     padding-bottom: calc(
       var(--space-3) +
+      var(--stepper-strip-height) +
       var(--tab-bar-height) +
       env(safe-area-inset-bottom, var(--space-0))
     );
@@ -87,13 +92,19 @@
   }
 
   .workflow-stepper-footer {
-    position: sticky;
-    /* Above the fixed tab bar, so the strip is never hidden under it (F1). */
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: calc(
       var(--tab-bar-height) +
       env(safe-area-inset-bottom, var(--space-0))
     );
-    padding: var(--space-2) var(--space-3);
+    /* One exact height, so the layout above can reserve exactly that much. */
+    height: var(--stepper-strip-height);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-3);
   }
 }
 
@@ -122,12 +133,6 @@
 .run-detail-toolbar {
   display: flex;
   justify-content: flex-end;
-}
-
-@media (max-width: 600px) {
-  .workflow-stepper-footer {
-    padding: 0.5rem var(--space-3);
-  }
 }
 
 /* ── Empty and loading states of the run page (moved from public/styles.css) ──
