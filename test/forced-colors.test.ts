@@ -248,7 +248,7 @@ describe("forced colours: emulated in a browser (#249)", () => {
     await page.goto(`${instance.url}/settings?tab=general`, {
       waitUntil: "load",
     });
-    const current = page.locator('.settings-category[aria-current="page"]');
+    const current = page.locator('.ui-nav-item[aria-current="page"]');
     await current.waitFor();
     const colours = await current.evaluate((el) => {
       const cs = getComputedStyle(el);

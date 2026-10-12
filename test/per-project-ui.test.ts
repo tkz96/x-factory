@@ -13,7 +13,7 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
@@ -49,15 +49,20 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     await unregisterHappyDom();
   });
 
-  it("Settings › Connections shows the read-only registry under the copy map's title", () => {
-    const { getByRole, getByText } = renderSettings();
+  it("Settings › Connections shows the read-only registry as an inset list of rows", () => {
+    const { getByRole, getByText, queryByRole } = renderSettings();
     fireEvent.click(getByRole("link", { name: "Connections" }));
 
-    // Rendered output: the registry's title and subtitle are the copy map's
-    // strings, and it is a table. No global tracker inputs exist in the source.
-    expect(getByText(CONNECTIONS_COPY.registryTitle)).toBeTruthy();
+    // Rendered output: the pane's title is the category's own name (S-11), its
+    // subtitle is the copy map's, and the projects are rows in one inset group
+    // (S-04) — the column-header table is gone. No global tracker inputs exist
+    // in the source.
+    expect(
+      getByRole("heading", { level: 2, name: "Connections" }),
+    ).toBeTruthy();
     expect(getByText(CONNECTIONS_COPY.registrySubtitle)).toBeTruthy();
-    expect(getByRole("table")).toBeTruthy();
+    expect(getByRole("list")).toBeTruthy();
+    expect(queryByRole("table")).toBeNull();
   });
 
   it("Settings › Connections links each project row to its own page", () => {
@@ -70,11 +75,8 @@ describe("Per-Project Tracker UI & Templates (React 19 Frontend)", () => {
     const { getByRole } = renderSettings(client);
     fireEvent.click(getByRole("link", { name: "Connections" }));
 
-    const row = within(getByRole("table")).getAllByRole("row")[1];
-    expect(row?.textContent).toContain("Alpha");
-    const link = within(row as HTMLElement).getByRole("link", {
-      name: CONNECTIONS_COPY.registryAction,
-    });
+    // The row's own name is the link, so the whole project row is one tab stop.
+    const link = getByRole("link", { name: /Alpha/ });
     expect(link.getAttribute("href")).toBe("/projects/alpha-id");
   });
 

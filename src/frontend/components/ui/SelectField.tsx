@@ -24,12 +24,16 @@ export interface SelectFieldProps
   extends Omit<AriaSelectProps<object>, "className" | "children"> {
   label: string;
   options: readonly SelectOption[];
+  /** The row already shows the words: keep the label as the accessible name
+   *  only, the way SwitchControl's `hideLabel` does. */
+  hideLabel?: boolean | undefined;
   className?: string | undefined;
 }
 
 export function SelectField({
   label,
   options,
+  hideLabel = false,
   className,
   ...props
 }: SelectFieldProps) {
@@ -37,7 +41,11 @@ export function SelectField({
   if (className !== undefined) classes.push(className);
   return (
     <AriaSelect {...withoutUndefined(props)} className={classes.join(" ")}>
-      <Label className="ui-field-label">{label}</Label>
+      <Label
+        className={hideLabel ? "ui-field-label sr-only" : "ui-field-label"}
+      >
+        {label}
+      </Label>
       <AriaButton className="ui-select-trigger">
         <SelectValue className="ui-select-value" />
         <span className="ui-select-indicator" aria-hidden="true" />

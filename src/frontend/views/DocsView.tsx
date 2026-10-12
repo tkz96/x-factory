@@ -8,6 +8,7 @@ import { useSearchParams } from "react-router-dom";
 import { MarkdownViewer } from "../components/MarkdownViewer.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { scrollBehavior } from "../hooks/scroll-behavior.js";
 import { api } from "../lib/api-client.js";
 
 interface AzureDocScope {
@@ -183,7 +184,7 @@ export function DocsView() {
     const timer = setTimeout(() => {
       const el = document.getElementById(hash);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
         setActiveHeadingId(hash);
       }
     }, 80);
@@ -225,7 +226,7 @@ export function DocsView() {
   const handleScrollToHeading = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
       setActiveHeadingId(id);
     }
   };
@@ -453,9 +454,10 @@ export function DocsView() {
                       e.preventDefault();
                       handleScrollToHeading(h.id);
                     }}
-                    className={`docs-toc-link level-${h.level} ${
-                      activeHeadingId === h.id ? "active" : ""
-                    }`}
+                    className={`ui-nav-item docs-toc-link level-${h.level}`}
+                    aria-current={
+                      activeHeadingId === h.id ? "location" : undefined
+                    }
                     title={h.text}
                   >
                     <span className="docs-toc-text">{h.text}</span>

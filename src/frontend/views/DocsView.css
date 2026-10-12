@@ -16,20 +16,13 @@
   min-width: 0;
 }
 
+/* The reading pane is the screen's own column, not a card inside it (S-17): no
+   background, border or radius of its own. */
 .docs-reading-pane {
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-card);
-  padding: var(--space-8);
+  padding: 0;
   min-height: var(--docs-min-height);
   min-width: 0;
   box-sizing: border-box;
-}
-
-@media (max-width: 768px) {
-  .docs-reading-pane {
-    padding: var(--space-4);
-  }
 }
 
 /* ── "In This Page" Table of Contents Right Rail ──────────────────────── */
@@ -70,36 +63,10 @@
   gap: 0.2rem;
 }
 
-.docs-toc-link {
-  display: block;
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-  text-decoration: none;
-  padding: 0.35rem 0.5rem;
-  border-radius: var(--radius-sm);
-  transition:
-    color var(--transition-fast),
-    background var(--transition-fast);
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* The rows themselves are the shared navigation item (S-13); what stays is the
+   heading indent and the one-line truncation. */
 .docs-toc-link.level-3 {
-  padding-left: 1.1rem;
-  font-size: var(--text-caption-1);
-}
-
-.docs-toc-link:hover {
-  color: var(--text);
-  background: var(--bg-hover);
-}
-
-.docs-toc-link.active {
-  color: var(--accent);
-  font-weight: 600;
-  background: var(--accent-dim);
+  padding-inline-start: var(--space-5);
 }
 
 .docs-toc-text {

@@ -9,6 +9,7 @@ import {
 import { AppShell } from "./components/AppShell.js";
 import { HomeRoute } from "./components/welcome/HomeRoute.js";
 import { DocsView } from "./views/DocsView.js";
+import { NotFoundView } from "./views/NotFoundView.js";
 import { ProjectDetailView } from "./views/ProjectDetailView.js";
 import { ProjectsView } from "./views/ProjectsView.js";
 import { QueueView } from "./views/QueueView.js";
@@ -71,8 +72,10 @@ export const routeDefinitions: RouteObject[] = [
         element: <DocsView />,
       },
       {
+        // An address no screen claims says so, in place (S-12), rather than
+        // silently redirecting to Tickets.
         path: "*",
-        element: <Navigate to="/tickets" replace />,
+        element: <NotFoundView />,
       },
     ],
   },

@@ -28,7 +28,7 @@ import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
-import { WELCOME_COPY } from "./feedback/copy-map.js";
+import { NOT_FOUND_COPY, WELCOME_COPY } from "./feedback/copy-map.js";
 import { ModalContainer } from "./ModalContainer.js";
 import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
@@ -44,7 +44,6 @@ import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
 import { Button } from "./ui/Button.js";
-import { IconButton } from "./ui/IconButton.js";
 import { SegmentedControl } from "./ui/SegmentedControl.js";
 
 /** Scrolling past this many pixels moves the page title into the toolbar. */
@@ -89,6 +88,12 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
     };
   }
   switch (pathname) {
+    case "/tickets":
+    case "/queue":
+      return {
+        title: "Tickets",
+        subtitle: "Pick a ticket to start a run",
+      };
     case "/runs":
       return {
         title: "Runs",
@@ -104,39 +109,21 @@ function getActiveTitle(pathname: string): { title: string; subtitle: string } {
         title: "Settings",
         subtitle: "Models, connections, appearance and diagnostics",
       };
-    default:
+    // The Docs screen's own header is its breadcrumb; this is the subtitle
+    // under it (S-16), not the Tickets copy the default used to give.
+    case "/docs":
       return {
-        title: "Tickets",
-        subtitle: "Pick a ticket to start a run",
+        title: "Documentation",
+        subtitle: "Tutorials, how-to guides and reference",
+      };
+    default:
+      // An address no screen claims renders the not-found screen (S-12); the
+      // header says so too.
+      return {
+        title: NOT_FOUND_COPY.title,
+        subtitle: NOT_FOUND_COPY.subtitle,
       };
   }
-}
-
-interface ThemeToggleButtonProps {
-  id: string;
-  className: string;
-  onToggle: () => void;
-}
-
-export function ThemeToggleButton({
-  id,
-  className,
-  onToggle,
-}: ThemeToggleButtonProps) {
-  // One accessible name, and it says what pressing the control does: the mode it
-  // switches to, which is also the mode that is not showing now. The icon draws
-  // the mode in force. There is no second name (a `title`) to disagree with it.
-  const { resolvedAppearance } = useTheme();
-  const next = resolvedAppearance === "dark" ? "Light" : "Dark";
-  return (
-    <IconButton
-      id={id}
-      className={className}
-      label={`Switch to ${next} Appearance`}
-      icon={resolvedAppearance === "dark" ? "icon-moon" : "icon-sun"}
-      onPress={onToggle}
-    />
-  );
 }
 
 const SECTIONS_LABEL = "Sections";
@@ -144,15 +131,10 @@ const SECTIONS_LABEL = "Sections";
 interface DocsSidebarProps {
   docsNavOpen: boolean;
   onCloseDocsNav: () => void;
-  onToggleTheme: () => void;
 }
 
 /** The Docs document list. It is the Docs screen's own navigation, not the app's. */
-function DocsSidebar({
-  docsNavOpen,
-  onCloseDocsNav,
-  onToggleTheme,
-}: DocsSidebarProps) {
+function DocsSidebar({ docsNavOpen, onCloseDocsNav }: DocsSidebarProps) {
   return (
     <aside
       id="app-sidebar"
@@ -166,10 +148,7 @@ function DocsSidebar({
       >
         Close document list
       </Button>
-      <DocsSidebarNav
-        onToggleTheme={onToggleTheme}
-        ThemeToggleButton={ThemeToggleButton}
-      />
+      <DocsSidebarNav />
     </aside>
   );
 }
@@ -640,7 +619,6 @@ function AppShellContent() {
         <DocsSidebar
           docsNavOpen={docsNavOpen}
           onCloseDocsNav={() => setDocsNavOpen(false)}
-          onToggleTheme={handleToggleTheme}
         />
       )}
 

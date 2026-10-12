@@ -1,7 +1,8 @@
 /* src/frontend/components/welcome/SetupChecklist.css — The first-run checklist
-   (#269, spec #241). Tokens only: the step surface, the ring mark and the type
-   scale all come from tokens.css, so every theme, appearance and contrast level
-   is covered by the token sets themselves. */
+   (#269, spec #241). The steps are one inset group of the shared block (S-15);
+   what lives here is the progress line, the mark and the two body lines. Tokens
+   only, so every theme, appearance and contrast level is covered by the token
+   sets themselves. */
 
 .welcome-checklist {
   display: flex;
@@ -25,34 +26,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.setup-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.setup-step {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-card);
-}
-
-.setup-step-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-/* A ring while the step is open, the success tone once it is done. The fill is
-   a state change the user can follow; the reduced-motion tokens collapse it to
-   the one short crossfade (#252). */
+/* A ring while the step is open, the success tone once it is done. */
 .setup-step-mark {
   display: inline-flex;
   flex: none;
@@ -73,18 +47,36 @@
   border-color: var(--green);
 }
 
-.setup-step-title {
-  flex: 1;
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-headline);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text);
+/* The tick arrives the way the state changed (O2): it grows the last tenth into
+   place, at the fast duration. A reduced-motion reader keeps the fade and loses
+   the scale. */
+.setup-step-mark .icon {
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+@starting-style {
+  .setup-step-mark[data-done="true"] .icon {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-step-mark .icon {
+    transition-property: opacity;
+  }
+
+  @starting-style {
+    .setup-step-mark[data-done="true"] .icon {
+      transform: scale(1);
+    }
+  }
 }
 
 .setup-step-body {
-  margin: 0;
+  display: block;
   max-width: 56ch;
   font-size: var(--text-body);
   color: var(--text-muted);
@@ -92,16 +84,10 @@
 
 /* What the step still needs. Full-contrast text: it is the part to act on. */
 .setup-step-gap {
-  margin: 0;
+  display: block;
+  margin-top: var(--space-1);
   max-width: 56ch;
   font-size: var(--text-subhead);
-  font-weight: 550;
+  font-weight: 600;
   color: var(--text);
-}
-
-.setup-step-action {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
 }

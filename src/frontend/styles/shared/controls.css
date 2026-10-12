@@ -21,6 +21,7 @@
   .ui-select-item,
   .ui-segment,
   .ui-switch,
+  .ui-nav-item,
   .ui-list-row--pressable
 ):focus-visible,
 :is(
@@ -32,6 +33,7 @@
   .ui-select-item,
   .ui-segment,
   .ui-switch,
+  .ui-nav-item,
   .ui-list-row--pressable
 )[data-focus-visible] {
   outline: var(--border-width-indicator) solid var(--border-focus);
@@ -462,26 +464,29 @@
 
 /* ── Switch ─────────────────────────────────────────────────────────────── */
 
-.ui-switch-group {
-  display: block;
-}
-
+/* The words first, the track trailing (S-02): one row, so a switch inside a
+   Settings row reads as the row's own accessory. */
 .ui-switch {
-  display: inline-flex;
+  display: flex;
   margin: 0;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
+  width: 100%;
   min-height: var(--tap-min);
   cursor: pointer;
 }
 
-/* A switch and a segment are <label>s. These doubled selectors beat the legacy
-   `.setting-item label` rule in public/styles.css (#266). */
-.ui-switch-group .ui-switch {
-  display: inline-flex;
-  margin: 0;
+.ui-switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
 }
 
+/* A segment is a <label>. This doubled selector beats the legacy element rule
+   in forms.css and the retired `.setting-item label` rule (#266). */
 .ui-segmented .ui-segment {
   display: inline-flex;
   margin: 0;
@@ -536,7 +541,6 @@
   display: block;
   font-size: var(--text-footnote);
   color: var(--text-muted);
-  margin-top: var(--space-1);
 }
 
 /* ── Badge ───────────────────────────────────────────────────────────────
@@ -764,4 +768,196 @@
 .ui-list-group .ui-list-row[aria-current="page"] .ui-list-row-subtitle,
 .ui-list-group .ui-list-row[aria-current="page"] > .icon {
   color: var(--text-on-accent);
+}
+
+/* ── Navigation item: one row for every sidebar (S-13) ───────────────────
+ * The Settings categories, the Docs document list and the Docs page's table of
+ * contents are the same row: 36px tall (SYSTEM.md), --radius-sm and
+ * --text-subhead, with one selection token — `aria-current`. A nav row is not
+ * prose, so it fills on hover instead of underlining, and a finger grows it back
+ * to --tap-min. */
+
+.ui-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--button-height);
+  padding: 0 var(--space-3);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-subhead);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: start;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ui-nav-item:hover,
+.ui-nav-item[data-hovered] {
+  background: var(--bg-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.ui-nav-item[aria-current] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (pointer: coarse) {
+  .ui-nav-item {
+    min-height: var(--tap-min);
+  }
+}
+
+/* ── Settings group: the inset grouped list (SYSTEM.md "Surfaces") ────────
+ * The System Settings shape: one --radius-card group, rows at least a finger
+ * tall, the title on the leading edge and its accessory trailing, and a
+ * hairline between rows that starts where the title does. The header sits
+ * above the group and the footer below it. SettingsGroup / SettingsRow render
+ * it; a row that navigates wears the same box on its own <a>. */
+
+.ui-settings-group + .ui-settings-group {
+  margin-top: var(--space-6);
+}
+
+.ui-settings-group-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ui-settings-group-footer {
+  margin: var(--space-2) 0 0;
+  max-width: 60ch;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.ui-settings-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.ui-settings-list > li {
+  position: relative;
+  min-width: 0;
+}
+
+/* The separator is inset by the row's own padding, so it begins under the
+   title rather than at the group's edge. */
+.ui-settings-list > li + li::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--space-4) 0;
+  top: 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.ui-settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--text);
+  text-align: start;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.ui-settings-row--pressable {
+  cursor: pointer;
+  transition: background-color var(--transition);
+}
+
+.ui-settings-row--pressable:hover,
+.ui-settings-row--pressable[data-hovered] {
+  background: var(--bg-hover);
+}
+
+.ui-settings-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-settings-row-title {
+  font-size: var(--text-body);
+  color: var(--text);
+}
+
+.ui-settings-row-subtitle {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.ui-settings-row-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+/* A read-only value: a path, a branch, an id. */
+.ui-settings-row-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* The row's own name as the link, on a row that also carries an action — the
+   action cannot live inside an anchor, so the name carries the navigation. */
+.ui-settings-row-main--link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ui-settings-row-main--link:hover,
+.ui-settings-row-main--link:focus {
+  text-decoration: none;
+}
+
+.ui-settings-row-main--link:hover .ui-settings-row-title {
+  color: var(--accent);
+}
+
+/* Phone width: a control that cannot shrink (the segmented appearance picker)
+   takes its own line under the title instead of squeezing the label. */
+@media (max-width: 768px) {
+  .ui-settings-row {
+    flex-wrap: wrap;
+  }
+
+  .ui-settings-row-trailing {
+    width: 100%;
+    margin-inline-start: 0;
+  }
 }

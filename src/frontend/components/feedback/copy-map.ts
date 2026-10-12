@@ -57,6 +57,21 @@ export const STATE_COPY = {
 } as const;
 
 /**
+ * The not-found screen (S-12): an address no screen claims. It says so in place
+ * instead of silently redirecting, and offers the one way back into the app.
+ */
+export const NOT_FOUND_COPY = {
+  /** The large title in the header row, over the screen. */
+  title: "Not found",
+  /** The header row's one-line summary (the screen says more below it). */
+  subtitle: "That address doesn't lead to a screen.",
+  /** The screen's own headline. */
+  headline: "This page doesn't exist",
+  hint: "Check the address, or go back to Tickets and start again from there.",
+  action: "Go to Tickets",
+} as const;
+
+/**
  * Repositories step copy (#144). Feedback strings CANNOT be inlined in the
  * step: the partial banner names the capability in contract terms, the empty
  * state gives guidance, and the stale state explains that a connection change
@@ -157,18 +172,11 @@ export const CONNECTIONS_COPY = {
   /** The repair path offered by every integrity failure. */
   reconnect: "Reconnect",
   /** The settings connections registry (spec #133 story 50 surface). */
-  registryTitle: "Tracker Connections",
   registrySubtitle:
     "Read-only registry of projects and their configured connections.",
-  registryColumnProject: "Project",
-  registryColumnConnections: "Connections",
-  registryColumnStatus: "Status",
-  registryColumnAction: "Action",
   registryStatusActive: "Active",
   registryStatusArchived: "Archived",
-  registryLoading: "Loading connections…",
   registryEmpty: "No projects configured.",
-  registryAction: "View Project →",
   onboardProject: "Add Project",
   /** The tracker card on the project detail surface. */
   trackerCardTitle: "Issue Tracker Connection",
@@ -769,9 +777,8 @@ export const WELCOME_COPY = {
   setUpLater: "I'll set up later",
   /** One line above the steps, counted from the ticks that are really there. */
   progress: (done: number, total: number) => `${done} of ${total} steps done`,
-  /** A step's state word, on its badge. */
+  /** The step's state word, announced with the drawn tick (S-09). */
   done: "Done",
-  todo: "To do",
   stepTitle: {
     project: "Add Project",
     model: "Connect a Model",

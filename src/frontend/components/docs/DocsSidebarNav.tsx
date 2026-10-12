@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
+import { scrollBehavior } from "../../hooks/scroll-behavior.js";
 import { api } from "../../lib/api-client.js";
 import { Button } from "../ui/Button.js";
 
@@ -17,14 +18,9 @@ const SECURITY_ITEMS = [
   { id: "jira", label: "Jira Software" },
 ] as const;
 
-interface DocsSidebarNavProps {
-  onToggleTheme: () => void;
-  ThemeToggleButton: React.ComponentType<{
-    id: string;
-    className: string;
-    onToggle: () => void;
-  }>;
-}
+// The document list carries no theme toggle of its own (S-17): appearance
+// belongs to Settings › General and the palette, and the header no longer holds
+// one either.
 
 interface SnippetSegment {
   key: string;
@@ -63,10 +59,7 @@ function renderSnippetWithHighlight(
   });
 }
 
-export function DocsSidebarNav({
-  onToggleTheme,
-  ThemeToggleButton,
-}: DocsSidebarNavProps) {
+export function DocsSidebarNav() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +140,7 @@ export function DocsSidebarNav({
     window.location.hash = "";
     const readingPane = document.getElementById("app-main");
     if (readingPane) {
-      readingPane.scrollTo({ top: 0, behavior: "smooth" });
+      readingPane.scrollTo({ top: 0, behavior: scrollBehavior() });
     }
   };
 
@@ -156,7 +149,7 @@ export function DocsSidebarNav({
     window.location.hash = "";
     const readingPane = document.getElementById("app-main");
     if (readingPane) {
-      readingPane.scrollTo({ top: 0, behavior: "smooth" });
+      readingPane.scrollTo({ top: 0, behavior: scrollBehavior() });
     }
   };
 
@@ -170,13 +163,13 @@ export function DocsSidebarNav({
       window.location.hash = headingId;
       const el = document.getElementById(headingId);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
       }
     } else {
       window.location.hash = "";
       const readingPane = document.getElementById("app-main");
       if (readingPane) {
-        readingPane.scrollTo({ top: 0, behavior: "smooth" });
+        readingPane.scrollTo({ top: 0, behavior: scrollBehavior() });
       }
     }
   };
@@ -391,7 +384,8 @@ export function DocsSidebarNav({
                       key={doc.slug}
                       type="button"
                       onClick={() => handleSelectDoc(cat.id, doc.slug)}
-                      className={`docs-nav-btn ${isSelected ? "active" : ""}`}
+                      className="ui-nav-item"
+                      aria-current={isSelected ? "page" : undefined}
                       title={doc.title}
                     >
                       <span className="docs-nav-label">{doc.title}</span>
@@ -415,7 +409,8 @@ export function DocsSidebarNav({
                     key={sec.id}
                     type="button"
                     onClick={() => handleSelectSecurity(sec.id)}
-                    className={`docs-nav-btn ${isSelected ? "active" : ""}`}
+                    className="ui-nav-item"
+                    aria-current={isSelected ? "page" : undefined}
                     title={sec.label}
                   >
                     <span className="docs-nav-label">{sec.label}</span>
@@ -434,11 +429,6 @@ export function DocsSidebarNav({
           </svg>
           <span>Back to Tickets</span>
         </NavLink>
-        <ThemeToggleButton
-          id="docs-theme-toggle"
-          className="theme-toggle"
-          onToggle={onToggleTheme}
-        />
       </div>
     </>
   );

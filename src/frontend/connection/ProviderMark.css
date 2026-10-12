@@ -4,12 +4,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: var(--space-6);
+  height: var(--space-6);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text);
-  font-size: 0.75rem;
+  font-size: var(--text-caption-1);
   font-weight: 600;
   text-transform: uppercase;
 }
