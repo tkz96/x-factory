@@ -20,6 +20,7 @@ import {
   useModelConnectionMutations,
   useModelConnections,
 } from "../../hooks/useModelConnections.js";
+import { formatUsd } from "../../lib/format-money.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { MODEL_CONNECTIONS_COPY as COPY } from "../feedback/copy-map.js";
 import { deriveAsyncState } from "../feedback/derive-async-state.js";
@@ -234,8 +235,8 @@ function formatTodayUsage(
   const reqUsed = usage?.requests ?? 0;
   const costPart =
     budget.perDay.usd !== undefined
-      ? `$${usdUsed.toFixed(2)} / $${budget.perDay.usd.toFixed(2)}`
-      : `$${usdUsed.toFixed(2)}`;
+      ? `${formatUsd(usdUsed)} / ${formatUsd(budget.perDay.usd)}`
+      : formatUsd(usdUsed);
   const reqPart =
     budget.perDay.requests !== undefined
       ? `${reqUsed} / ${budget.perDay.requests} reqs`

@@ -202,10 +202,14 @@ describe("ModelConnectionsPanel (#277)", () => {
     }));
     renderPanel();
     await flush();
-    expect(document.getElementById("btn-add-model-c1-old-model")).not.toBeNull();
+    expect(
+      document.getElementById("btn-add-model-c1-old-model"),
+    ).not.toBeNull();
 
     await click(el("btn-check-model-connection-c1"));
-    expect(document.getElementById("btn-add-model-c1-new-model")).not.toBeNull();
+    expect(
+      document.getElementById("btn-add-model-c1-new-model"),
+    ).not.toBeNull();
     expect(document.getElementById("btn-add-model-c1-old-model")).toBeNull();
   });
 
@@ -266,6 +270,32 @@ describe("ModelConnectionsPanel (#277)", () => {
       limits: { rpm: 5 },
       budget: { perDay: { usd: 5 } },
     });
+  });
+
+  it("writes today's spend with two decimals, and more only below a cent", async () => {
+    connections = [
+      connection({
+        models: [
+          {
+            modelId: "m1",
+            limits: {},
+            budget: { perDay: { usd: 5 } },
+            todayUsage: { usd: 0.0047, requests: 3 },
+          },
+          {
+            modelId: "m2",
+            limits: {},
+            budget: { perDay: {} },
+            todayUsage: { usd: 0.047, requests: 1 },
+          },
+        ],
+      }),
+    ];
+    renderPanel();
+    await flush();
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("$0.0047 / $5.00");
+    expect(text).toContain("$0.05 • 1 reqs");
   });
 
   it("asks for confirmation before deleting a connection", async () => {
