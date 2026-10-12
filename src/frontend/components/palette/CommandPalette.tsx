@@ -32,6 +32,8 @@ export interface CommandPaletteProps {
   stopRunAvailable: boolean;
   onStopRun: () => void;
   onOpenShortcuts: () => void;
+  /** Switches Light ⇄ Dark: the theme toggle's new home (SYS-10). */
+  onToggleAppearance: () => void;
 }
 
 export function CommandPalette(props: CommandPaletteProps) {
@@ -53,6 +55,7 @@ function PaletteBody({
   stopRunAvailable,
   onStopRun,
   onOpenShortcuts,
+  onToggleAppearance,
 }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { openNewRunModal, openOnboardingModal } = useModal();
@@ -96,6 +99,8 @@ function PaletteBody({
       onStopRun();
     } else if (item.action === "shortcuts") {
       onOpenShortcuts();
+    } else if (item.action === "toggle-appearance") {
+      onToggleAppearance();
     }
   };
 

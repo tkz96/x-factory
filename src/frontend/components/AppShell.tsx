@@ -3,6 +3,7 @@ import "./AppShellDocsPhone.css";
 
 import { type UIEvent, useEffect, useState } from "react";
 import {
+  Link,
   NavLink,
   Outlet,
   useLocation,
@@ -200,62 +201,69 @@ function MenuShortcut({ id }: { id: ShortcutId }) {
   return keys ? <kbd className="xf-menu-keys">{keys}</kbd> : null;
 }
 
-interface ContextActionProps {
-  section: SectionId | "";
-  isRunDetail: boolean;
+interface RunActionsMenuProps {
   activeRunId: string | undefined;
   stopPending: boolean;
   onStopRun: () => void;
+}
+
+/**
+ * The run page's own menu. Stop Run lives in the "…" menu, not as a toolbar
+ * button (#262); every other screen's action belongs to the page heading
+ * (SYSTEM.md "Header": the toolbar carries no Start Run or Add Project).
+ */
+function RunActionsMenu({
+  activeRunId,
+  stopPending,
+  onStopRun,
+}: RunActionsMenuProps) {
+  if (!activeRunId) return null;
+  return (
+    <MenuTrigger>
+      <Button
+        id="btn-run-menu"
+        variant="quiet"
+        aria-label="Run actions"
+        isDisabled={stopPending}
+      >
+        <span aria-hidden="true">…</span>
+      </Button>
+      <Popover placement="bottom end">
+        <Menu>
+          <MenuItem id="menu-stop-run" isDanger onAction={onStopRun}>
+            <span>Stop Run</span>
+            <MenuShortcut id="stopRun" />
+          </MenuItem>
+        </Menu>
+      </Popover>
+    </MenuTrigger>
+  );
+}
+
+interface PageActionProps {
+  section: SectionId | "";
   onStartRun: () => void;
   onAddProject: () => void;
 }
 
-/** The action that belongs to the screen in front of the user (#258). */
-function ContextAction({
-  section,
-  isRunDetail,
-  activeRunId,
-  stopPending,
-  onStopRun,
-  onStartRun,
-  onAddProject,
-}: ContextActionProps) {
-  if (isRunDetail) {
-    if (!activeRunId) return null;
-    // Stop Run lives in the "…" menu, not on the toolbar (#262). It asks first, in an alert.
-    return (
-      <MenuTrigger>
-        <Button
-          id="btn-run-menu"
-          variant="secondary"
-          size="sm"
-          aria-label="Run actions"
-          isDisabled={stopPending}
-        >
-          <span aria-hidden="true">…</span>
-        </Button>
-        <Popover placement="bottom end">
-          <Menu>
-            <MenuItem id="menu-stop-run" isDanger onAction={onStopRun}>
-              <span>Stop Run</span>
-              <MenuShortcut id="stopRun" />
-            </MenuItem>
-          </Menu>
-        </Popover>
-      </MenuTrigger>
-    );
-  }
+/**
+ * The screen's one action, in the large-title row (SYSTEM.md "Header"): Tickets
+ * offers a secondary Start Run, Projects the primary Add Project. The label
+ * collapses to the icon at phone width, so the accessible name is explicit and
+ * never depends on the text that is hidden.
+ */
+function PageAction({ section, onStartRun, onAddProject }: PageActionProps) {
   if (section === "tickets") {
     return (
       <Button
         id="btn-start-run"
-        variant="primary"
-        size="sm"
+        variant="secondary"
         icon="icon-plus"
+        aria-label="Start Run"
         title={withShortcut("Start Run", "newRun")}
         onPress={onStartRun}
       >
-        Start Run
+        <span className="page-action-label">Start Run</span>
       </Button>
     );
   }
@@ -264,11 +272,11 @@ function ContextAction({
       <Button
         id="btn-add-project"
         variant="primary"
-        size="sm"
         icon="icon-plus"
+        aria-label="Add Project"
         onPress={onAddProject}
       >
-        Add Project
+        <span className="page-action-label">Add Project</span>
       </Button>
     );
   }
@@ -293,13 +301,11 @@ interface AppShellHeaderProps {
   onSelectSection: (id: string) => void;
   /** Runs in a Needs-you status: the Runs segment's count (#259). */
   needsYouCount: number;
-  onToggleTheme: () => void;
-  readyLabel: string;
+  /** True when the workbench is degraded: the toolbar then says so, once. */
+  isDegraded: boolean;
   activeRunId: string | undefined;
   onStopRun: () => void;
   stopPending: boolean;
-  onStartRun: () => void;
-  onAddProject: () => void;
   onOpenPalette: () => void;
 }
 
@@ -315,17 +321,17 @@ function AppShellHeader({
   section,
   onSelectSection,
   needsYouCount,
-  onToggleTheme,
-  readyLabel,
+  isDegraded,
   activeRunId,
   onStopRun,
   stopPending,
-  onStartRun,
-  onAddProject,
   onOpenPalette,
 }: AppShellHeaderProps) {
   return (
-    <header id="content-toolbar" className="toolbar">
+    <header
+      id="content-toolbar"
+      className={`toolbar${isDocs ? " toolbar--docs" : ""}`}
+    >
       <div className="toolbar-left">
         {isDocs && docBreadcrumb ? (
           <nav
@@ -349,24 +355,26 @@ function AppShellHeader({
           </nav>
         ) : isRunDetail ? (
           // A run page is a locked layout with no large title, so its title
-          // lives here as the one h1.
-          <>
+          // lives here as the one h1: one line with an ellipsis, the project and
+          // branch beneath it as a caption, only the title on a phone (#258, F3).
+          <div className="toolbar-run-heading">
             <h1 id="toolbar-title" className="toolbar-title is-visible">
               {title}
             </h1>
             <span id="toolbar-subtitle" className="toolbar-subtitle">
               {subtitle}
             </span>
-          </>
+          </div>
         ) : (
           // The screen's large title is the one h1 here. This copy is for the
-          // eye only, and appears in the toolbar once the page has scrolled.
-          <span
-            className={`toolbar-title${compact ? " is-visible" : ""}`}
-            aria-hidden="true"
-          >
-            {compact ? title : ""}
-          </span>
+          // eye only, and appears in the toolbar once the page has scrolled —
+          // until then nothing is rendered, so the bar never holds an empty
+          // title span (#258, SYS-12).
+          compact && (
+            <span className="toolbar-title is-visible" aria-hidden="true">
+              {title}
+            </span>
+          )
         )}
 
         {!isDocs &&
@@ -406,57 +414,56 @@ function AppShellHeader({
             Browse documents
           </Button>
         )}
-        {!isDocs && (
-          <ContextAction
-            section={section}
-            isRunDetail={isRunDetail}
+        {!isDocs && isRunDetail && (
+          <RunActionsMenu
             activeRunId={activeRunId}
             stopPending={stopPending}
             onStopRun={onStopRun}
-            onStartRun={onStartRun}
-            onAddProject={onAddProject}
           />
         )}
+        {!isDocs && (
+          <Button
+            id="btn-search"
+            variant="quiet"
+            className="toolbar-search"
+            icon="icon-search"
+            aria-label="Search"
+            title={withShortcut("Search", "palette")}
+            aria-keyshortcuts="Control+K Meta+K"
+            onPress={onOpenPalette}
+          >
+            <span className="toolbar-search-label">Search</span>
+            <kbd className="toolbar-search-keys" aria-hidden="true">
+              {shortcutLabel("palette")}
+            </kbd>
+          </Button>
+        )}
         {!isDocs && <NotificationBell />}
-        <Button
-          id="btn-search"
-          variant="secondary"
-          size="sm"
-          icon="icon-search"
-          aria-label="Search"
-          title={withShortcut("Search", "palette")}
-          aria-keyshortcuts="Control+K Meta+K"
-          onPress={onOpenPalette}
-        >
-          <span className="search-label">Search</span>
-        </Button>
-        <span
-          className="system-status desktop-only"
-          title={`X-Factory is ${readyLabel.toLowerCase()}`}
-        >
-          <span
-            className={`status-dot ${readyLabel === "Ready" ? "online" : "offline"}`}
-            aria-hidden="true"
-          />
-          <span className="status-label">{readyLabel}</span>
-        </span>
-        <ThemeToggleButton
-          id="theme-toggle"
-          className="theme-toggle"
-          onToggle={onToggleTheme}
-        />
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `toolbar-gear ${isActive ? "active" : ""}`
-          }
-          aria-label="Settings"
-          title="Settings"
-        >
-          <svg className="icon icon-md" aria-hidden="true">
-            <use href="/assets/icons/sprite.svg#icon-settings" />
-          </svg>
-        </NavLink>
+        {/* Nothing at all when the workbench is ready; one orange item that
+            links to the screen that can act on it when it is not (SYS-10). */}
+        {!isDocs && isDegraded && (
+          <Link
+            to="/settings?tab=diagnostics"
+            className="toolbar-readiness desktop-only"
+          >
+            <svg className="icon icon-sm" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-alert-circle" />
+            </svg>
+            <span>Degraded</span>
+          </Link>
+        )}
+        {!isDocs && (
+          <NavLink
+            to="/settings"
+            className="ui-icon-button ui-icon-button--plain toolbar-settings"
+            aria-label="Settings"
+            title="Settings"
+          >
+            <svg className="icon icon-md" aria-hidden="true">
+              <use href="/assets/icons/sprite.svg#icon-settings" />
+            </svg>
+          </NavLink>
+        )}
       </div>
     </header>
   );
@@ -550,7 +557,9 @@ function AppShellContent() {
   });
 
   const { data: readiness } = useReadiness();
-  const readyLabel = readiness?.ready !== false ? "Ready" : "Degraded";
+  // The toolbar says nothing while the workbench is ready; a degraded one gets
+  // one orange link to Settings › Diagnostics (SYS-10).
+  const isDegraded = readiness?.ready === false;
 
   const isDocs = location.pathname.startsWith("/docs");
   const isRunDetail = Boolean(location.pathname.match(/^\/runs\/[^/]+/));
@@ -564,8 +573,10 @@ function AppShellContent() {
     location.pathname,
   );
 
+  // A run is named by its ticket id, without punctuation around it (#SYS: the
+  // id reads GH-3 everywhere).
   const title = runData
-    ? `#${runData.ticket?.id || runData.id} — ${runData.ticket?.title || "Task"}`
+    ? `${runData.ticket?.id || runData.id} — ${runData.ticket?.title || "Task"}`
     : genericTitle;
   const subtitle = runData
     ? `${runData.project?.name} · ${runData.branch}`
@@ -643,13 +654,10 @@ function AppShellContent() {
             section={section}
             onSelectSection={(id) => navigate(`/${id}`)}
             needsYouCount={needsYouCount}
-            onToggleTheme={handleToggleTheme}
-            readyLabel={readyLabel}
+            isDegraded={isDegraded}
             activeRunId={activeRunId}
             onStopRun={handleStopRun}
             stopPending={stopRunMutation.isPending}
-            onStartRun={() => openNewRunModal()}
-            onAddProject={() => openOnboardingModal()}
             onOpenPalette={() => setPaletteOpen(true)}
           />
         )}
@@ -660,10 +668,21 @@ function AppShellContent() {
         >
           {!isDocs && !isRunDetail && (
             <div className="page-heading">
-              <h1 id="page-title" className="large-title">
-                {genericTitle}
-              </h1>
-              <p className="page-subtitle">{genericSubtitle}</p>
+              <div className="page-heading-text">
+                <h1 id="page-title" className="large-title">
+                  {genericTitle}
+                </h1>
+                <p className="page-subtitle">{genericSubtitle}</p>
+              </div>
+              {/* The screen's own action: the toolbar does not carry one
+                  (SYS-11). The slot is empty on a screen without one. */}
+              <div className="page-heading-actions">
+                <PageAction
+                  section={section}
+                  onStartRun={() => openNewRunModal()}
+                  onAddProject={() => openOnboardingModal()}
+                />
+              </div>
             </div>
           )}
 
@@ -681,6 +700,7 @@ function AppShellContent() {
         stopRunAvailable={activeRunId !== undefined}
         onStopRun={handleStopRun}
         onOpenShortcuts={() => setShortcutsOpen(true)}
+        onToggleAppearance={handleToggleTheme}
       />
       <ShortcutSheet
         isOpen={shortcutsOpen}

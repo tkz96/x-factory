@@ -44,7 +44,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     label: "Command palette",
     group: "Navigation",
     steps: ["mod+k"],
-    alternative: "Search button in the toolbar",
+    alternative: "Search field in the toolbar",
   },
   {
     id: "goQueue",
@@ -72,14 +72,14 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     label: "Focus search",
     group: "Navigation",
     steps: ["/"],
-    alternative: "Search button in the toolbar",
+    alternative: "Search field in the toolbar",
   },
   {
     id: "newRun",
     label: "Start Run",
     group: "Actions",
     steps: ["n"],
-    alternative: "Start Run button on Tickets",
+    alternative: "Start Run on the Tickets page",
   },
   {
     id: "primaryAction",

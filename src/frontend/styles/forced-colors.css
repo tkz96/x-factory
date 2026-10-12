@@ -218,7 +218,6 @@
   :root .docs-back-link,
   :root .docs-toc-link,
   :root .toolbar-select,
-  :root .toolbar-gear,
   :root .mobile-tab-bar,
   :root .command-palette-option {
     background: ButtonFace;

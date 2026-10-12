@@ -43,20 +43,22 @@
     overflow: visible;
   }
 
-  /* The breadcrumb takes the full row and the Browse button gets its own row
-     beneath it, so the two never paint over each other (spec #241, #270). */
-  .toolbar {
+  /* The Docs breadcrumb takes the full row and the Browse button gets its own
+     row beneath it, so the two never paint over each other (spec #241, #270).
+     These rules are scoped to the Docs toolbar (SYS-8): every other screen
+     keeps the single-row bar AppShell.css gives it. */
+  .toolbar--docs {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 0.75rem 1rem;
-    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    gap: var(--space-2);
   }
 
-  .toolbar-left {
+  .toolbar--docs .toolbar-left {
     grid-column: 1 / -1;
     grid-row: 1;
   }
 
-  .toolbar-actions {
+  .toolbar--docs .toolbar-actions {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: start;

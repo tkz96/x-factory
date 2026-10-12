@@ -10,7 +10,7 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "../src/frontend/components/AppShell.js";
@@ -228,17 +228,22 @@ describe("AppShell wording", () => {
     globalThis.fetch = realFetch;
   });
 
-  it("labels the workbench status Ready or Degraded, never the factory", () => {
+  /** Renders the shell against a readiness answer of the caller's choosing. */
+  function renderWithReadiness(ready: boolean) {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      const body = url.includes("/api/docs") ? { categories: [] } : [];
+      const body = url.includes("/api/readiness")
+        ? { ready }
+        : url.includes("/api/docs")
+          ? { categories: [] }
+          : [];
       return new Response(JSON.stringify(body), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
     }) as typeof fetch;
 
-    render(
+    return render(
       React.createElement(
         QueryClientProvider,
         {
@@ -253,8 +258,30 @@ describe("AppShell wording", () => {
         ),
       ),
     );
+  }
 
-    const label = document.querySelector(".status-label")?.textContent ?? "";
-    expect(["Ready", "Degraded"]).toContain(label);
+  it("says nothing in the toolbar while the workbench is ready", async () => {
+    const view = renderWithReadiness(true);
+
+    await waitFor(() =>
+      expect(view.container.querySelector(".toolbar-search")).not.toBeNull(),
+    );
+    // No status readout at all when there is nothing to report (SYS-10), and
+    // certainly not a word about the factory.
+    expect(view.container.querySelector(".status-label")).toBeNull();
+    expect(view.container.textContent ?? "").not.toMatch(INTERNAL_VOCABULARY);
+  });
+
+  it("offers one orange link to Settings › Diagnostics when the workbench is degraded", async () => {
+    const view = renderWithReadiness(false);
+
+    const link = await waitFor(() => {
+      const found = view.container.querySelector(".toolbar-readiness");
+      if (!found) throw new Error("no readiness link");
+      return found as HTMLAnchorElement;
+    });
+    expect(link.getAttribute("href")).toBe("/settings?tab=diagnostics");
+    expect(link.textContent?.trim()).toBe("Degraded");
+    expect(link.textContent ?? "").not.toMatch(INTERNAL_VOCABULARY);
   });
 });

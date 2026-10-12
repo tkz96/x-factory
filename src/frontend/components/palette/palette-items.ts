@@ -26,7 +26,12 @@ export interface PaletteItem {
   /** A route inside the app, or an external URL opened in a new tab. */
   target?: { kind: "route"; path: string } | { kind: "external"; url: string };
   /** An action with no route, such as opening a dialog. */
-  action?: "start-run" | "add-project" | "stop-run" | "shortcuts";
+  action?:
+    | "start-run"
+    | "add-project"
+    | "stop-run"
+    | "shortcuts"
+    | "toggle-appearance";
 }
 
 export const SECTION_ITEMS: PaletteItem[] = [
@@ -111,6 +116,15 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
       label: "Open Settings",
       keywords: "preferences credentials models",
       target: { kind: "route", path: "/settings" },
+    },
+    {
+      // Appearance left the toolbar with the theme toggle (SYS-10): this is how
+      // it is switched without going to Settings › General.
+      id: "action-toggle-appearance",
+      group: "Actions",
+      label: "Toggle Appearance",
+      keywords: "theme dark light mode appearance contrast",
+      action: "toggle-appearance",
     },
   ];
   if (sources.stopRunAvailable) {

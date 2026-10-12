@@ -126,9 +126,11 @@ describe("App shell toolbar (#258)", () => {
     expect(view.queryByRole("link", { name: "New Run" })).toBeNull();
   });
 
-  it("shows the registry shortcut in the Start Run tooltip", () => {
+  it("shows the registry shortcut in the Start Run tooltip, in the page heading", () => {
     const view = renderShell("/tickets");
-    const button = within(view.getByRole("banner")).getByRole("button", {
+    const slot = view.container.querySelector(".page-heading-actions");
+    expect(slot).not.toBeNull();
+    const button = within(slot as HTMLElement).getByRole("button", {
       name: "Start Run",
     });
     expect(button.getAttribute("title")).toBe(
@@ -136,21 +138,42 @@ describe("App shell toolbar (#258)", () => {
     );
   });
 
-  it("offers Start Run in the toolbar on Tickets and Add Project on Projects", () => {
+  it("offers Start Run in the page heading on Tickets and Add Project on Projects, and neither in the toolbar", () => {
     const tickets = renderShell("/tickets");
+    const ticketsSlot = tickets.container.querySelector(".page-heading-actions");
+    expect(ticketsSlot).not.toBeNull();
     expect(
-      within(tickets.getByRole("banner")).getByRole("button", {
+      within(ticketsSlot as HTMLElement).getByRole("button", {
         name: "Start Run",
       }),
     ).toBeTruthy();
+    // The toolbar carries search, the bell and Settings — never a page action.
+    expect(
+      within(tickets.getByRole("banner")).queryByRole("button", {
+        name: "Start Run",
+      }),
+    ).toBeNull();
+    expect(
+      within(tickets.getByRole("banner")).queryByRole("button", {
+        name: "Add Project",
+      }),
+    ).toBeNull();
     cleanup();
 
     const projects = renderShell("/projects");
+    const projectsSlot =
+      projects.container.querySelector(".page-heading-actions");
+    expect(projectsSlot).not.toBeNull();
     expect(
-      within(projects.getByRole("banner")).getByRole("button", {
+      within(projectsSlot as HTMLElement).getByRole("button", {
         name: "Add Project",
       }),
     ).toBeTruthy();
+    expect(
+      within(projects.getByRole("banner")).queryByRole("button", {
+        name: "Add Project",
+      }),
+    ).toBeNull();
     expect(
       within(projects.getByRole("banner")).queryByRole("button", {
         name: "Start Run",
@@ -186,30 +209,27 @@ describe("App shell toolbar (#258)", () => {
     expect(gear.getAttribute("href")).toBe("/settings");
   });
 
-  it("names the theme toggle once, after what pressing it does, and follows the mode", async () => {
+  it("keeps the theme toggle out of the toolbar: appearance lives in Settings and the palette", async () => {
     const view = renderShell("/tickets");
-    // One accessible name — the action and the mode it switches to — and no
-    // second one (a title) that could disagree with it.
-    const toDark = within(view.getByRole("banner")).getByRole("button", {
-      name: "Switch to Dark Appearance",
-    });
-    expect(toDark.getAttribute("title")).toBeNull();
+    const banner = view.getByRole("banner");
+    // The toolbar has no appearance control of its own any more (SYS-10), and no
+    // status readout: nothing when the workbench is ready.
+    expect(
+      within(banner).queryByRole("button", { name: /Switch to .* Appearance/ }),
+    ).toBeNull();
+    expect(view.container.querySelector(".status-label")).toBeNull();
 
-    fireEvent.click(toDark);
-    await waitFor(() =>
-      expect(
-        view.getByRole("button", { name: "Switch to Light Appearance" }),
-      ).toBeTruthy(),
-    );
-
-    // Back to where the test found it, so the module store is left as it was.
+    // The palette is where it went, and choosing it flips the appearance.
+    const before = document.documentElement.getAttribute("data-appearance");
+    fireEvent.click(within(banner).getByRole("button", { name: "Search" }));
+    const palette = view.getByRole("dialog", { name: "Command palette" });
     fireEvent.click(
-      view.getByRole("button", { name: "Switch to Light Appearance" }),
+      within(palette).getByRole("option", { name: /Toggle Appearance/ }),
     );
     await waitFor(() =>
       expect(
-        view.getByRole("button", { name: "Switch to Dark Appearance" }),
-      ).toBeTruthy(),
+        document.documentElement.getAttribute("data-appearance"),
+      ).not.toBe(before),
     );
   });
 
@@ -240,12 +260,13 @@ describe("Docs keeps its own document list (#258)", () => {
 });
 
 describe("Large titles shrink into the toolbar (#258)", () => {
-  it("shows the title in the toolbar only after the screen has scrolled", () => {
+  it("renders no title in the toolbar until the screen has scrolled (SYS-12)", () => {
     const view = renderShell("/tickets");
     const banner = view.getByRole("banner");
-    const toolbarTitle = () =>
-      banner.querySelector(".toolbar-title")?.textContent ?? "";
-    expect(toolbarTitle()).toBe("");
+    const toolbarTitle = () => banner.querySelector(".toolbar-title");
+    // The span is not rendered at all until it has something to say: the bar
+    // never holds an empty title.
+    expect(toolbarTitle()).toBeNull();
 
     const main = document.getElementById("app-main") as HTMLElement;
     Object.defineProperty(main, "scrollTop", {
@@ -255,13 +276,13 @@ describe("Large titles shrink into the toolbar (#258)", () => {
     act(() => {
       main.dispatchEvent(new Event("scroll"));
     });
-    expect(toolbarTitle()).toBe("Tickets");
+    expect(toolbarTitle()?.textContent).toBe("Tickets");
 
     Object.defineProperty(main, "scrollTop", { value: 0, configurable: true });
     act(() => {
       main.dispatchEvent(new Event("scroll"));
     });
-    expect(toolbarTitle()).toBe("");
+    expect(toolbarTitle()).toBeNull();
   });
 });
 

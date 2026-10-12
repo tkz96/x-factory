@@ -75,9 +75,11 @@ const RUNS = [
 function Shell({
   stopRunAvailable = false,
   onStopRun = () => {},
+  onToggleAppearance = () => {},
 }: {
   stopRunAvailable?: boolean;
   onStopRun?: () => void;
+  onToggleAppearance?: () => void;
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -105,6 +107,7 @@ function Shell({
         stopRunAvailable={stopRunAvailable}
         onStopRun={onStopRun}
         onOpenShortcuts={() => setSheetOpen(true)}
+        onToggleAppearance={onToggleAppearance}
       />
       <ShortcutSheet isOpen={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
