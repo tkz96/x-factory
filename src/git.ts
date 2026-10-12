@@ -1,7 +1,16 @@
 // src/git.ts — Git CLI and GitHub CLI operations with worktrees, baseline tracking, and pollution guardrails.
 
-import { access, readdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import {
+  access,
+  mkdir,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
+import { ValidationError } from "./errors.js";
 import {
   ensureDir,
   getProjectWorktreesDir,
@@ -326,6 +335,101 @@ export async function validateRepo(repoPath: string): Promise<void> {
   });
   if (gitDirResult.exitCode !== 0) {
     throw new Error(`Not a git repository: ${repoPath}`);
+  }
+}
+
+/**
+ * Checks, without changing anything, that a run can use this repository: the folder is a
+ * git repository, or it is missing and the repository has a remote the prepare stage will
+ * clone. Anything else is the project's mistake, so it is a ValidationError (400), never a 500.
+ */
+export async function checkRepositoryForRun(repository: {
+  path: string;
+  remote?: string | undefined;
+}): Promise<void> {
+  const repoPath = repository.path;
+  if (!(await pathExists(repoPath))) {
+    if (repository.remote?.trim()) return;
+    throw new ValidationError(
+      `The repository folder ${repoPath} does not exist, and the project has no remote to clone it from.`,
+    );
+  }
+  const gitDirResult = await execCommand("git", ["rev-parse", "--git-dir"], {
+    cwd: repoPath,
+    envPolicy: "inherit",
+  });
+  if (gitDirResult.exitCode !== 0) {
+    throw new ValidationError(
+      `The repository folder ${repoPath} is not a git repository.`,
+    );
+  }
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A clone that failed. `permanent` is true when trying again would fail the same way. */
+export class CloneError extends Error {
+  readonly permanent: boolean;
+  constructor(message: string, permanent: boolean) {
+    super(message);
+    this.name = "CloneError";
+    this.permanent = permanent;
+  }
+}
+
+/** Git's words for a remote that is missing or that the credentials cannot read. */
+const PERMANENT_CLONE_FAILURE =
+  /not found|does not exist|does not appear to be a git repository|authentication failed|could not read username|terminal prompts disabled|permission denied|access denied|\b403\b/i;
+
+const CLONE_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * Clones `remote` into `targetPath` with this machine's git credentials (as a push does).
+ * It clones into a hidden sibling folder and renames it into place, so a clone that fails or
+ * is interrupted never leaves a half-made repository at `targetPath`. When another run
+ * cloned the same repository meanwhile, that repository is kept.
+ */
+export async function cloneRepository(
+  remote: string,
+  targetPath: string,
+  signal?: AbortSignal | undefined,
+): Promise<void> {
+  const parent = path.dirname(targetPath);
+  await mkdir(parent, { recursive: true });
+  const staging = path.join(
+    parent,
+    `.${path.basename(targetPath)}.xf-clone-${randomUUID().slice(0, 8)}`,
+  );
+  try {
+    const result = await execCommand("git", ["clone", remote, staging], {
+      cwd: parent,
+      envPolicy: "inherit",
+      // Never wait on a password prompt: a worker has no terminal.
+      env: { GIT_TERMINAL_PROMPT: "0" },
+      timeoutMs: CLONE_TIMEOUT_MS,
+      signal,
+    });
+    if (result.exitCode !== 0) {
+      const permanent = PERMANENT_CLONE_FAILURE.test(result.stderr);
+      throw new CloneError(
+        `git clone of ${remote} failed (exit ${result.exitCode}): ${result.stderr.trim()}`,
+        permanent,
+      );
+    }
+    try {
+      await rename(staging, targetPath);
+    } catch (err: unknown) {
+      if (!(await pathExists(targetPath))) throw err;
+    }
+  } finally {
+    await rm(staging, { recursive: true, force: true });
   }
 }
 

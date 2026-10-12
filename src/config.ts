@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectsFileSchema, validateProjectInput } from "./config-schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
-import { validateRepo } from "./git.js";
+import { checkRepositoryForRun } from "./git.js";
 import { getProjectsConfigPath } from "./paths.js";
 import {
   type CreationClaimOptions,
@@ -77,7 +77,8 @@ export async function loadProjects(
 }
 
 /**
- * Find a single project by id and optionally validate that its repository is accessible.
+ * Find a single project by id. With `validateOnDisk`, also check that a run can use its
+ * primary repository (a ValidationError says why not).
  */
 export async function getProject(
   projectId: string,
@@ -88,7 +89,7 @@ export async function getProject(
   const project = projects.find((p) => p.id === projectId) || null;
   if (project && validateOnDisk) {
     const primary = getPrimaryRepository(project);
-    await validateRepo(primary.path);
+    await checkRepositoryForRun(primary);
   }
   return project;
 }
