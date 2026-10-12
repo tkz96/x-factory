@@ -27,7 +27,7 @@
 }
 
 /* The primitive is structure only: each dialog brings its own surface
-   (modal-dialog, xf-alert-dialog-modal, xf-sheet-modal), so one surface
+   (xf-dialog-window, xf-alert-dialog-modal, xf-sheet-modal), so one surface
    never stacks on another. The content is not animated on top of the
    overlay's own fade — one crossfade per arrival (M18). */
 .xf-dialog-content {

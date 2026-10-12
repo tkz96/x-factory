@@ -61,9 +61,10 @@ export function WizardSheet({
   // Which way the last step change went (O3): forward slides in from the right,
   // Back from the left. Kept as a pair so the direction is right on the frame
   // the new pane mounts, never a frame late.
-  const [nav, setNav] = useState<{ step: number; direction: "forward" | "back" }>(
-    { step: state.step, direction: "forward" },
-  );
+  const [nav, setNav] = useState<{
+    step: number;
+    direction: "forward" | "back";
+  }>({ step: state.step, direction: "forward" });
   if (nav.step !== state.step) {
     setNav({
       step: state.step,

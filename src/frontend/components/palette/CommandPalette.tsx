@@ -179,9 +179,8 @@ function PaletteBody({
       ) : (
         <div id={listId} role="listbox" className="command-palette-list">
           {groups.map((group) => (
-            <div
+            <fieldset
               key={group.name}
-              role="group"
               aria-labelledby={group.headerId}
               className="command-palette-group"
             >
@@ -216,7 +215,7 @@ function PaletteBody({
                   ) : null}
                 </div>
               ))}
-            </div>
+            </fieldset>
           ))}
         </div>
       )}

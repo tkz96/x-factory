@@ -79,7 +79,9 @@ describe("Modal (#159)", () => {
     const action = getEl("test-primary-action");
     expect(action.closest(".xf-dialog-footer")).not.toBeNull();
     expect(action.closest(".xf-dialog-body")).toBeNull();
-    expect(getEl("test-body-content").closest(".xf-dialog-body")).not.toBeNull();
+    expect(
+      getEl("test-body-content").closest(".xf-dialog-body"),
+    ).not.toBeNull();
   });
 
   it("closes on Escape, the close button and a backdrop click, but not a click inside", () => {

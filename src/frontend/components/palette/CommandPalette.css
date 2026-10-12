@@ -52,16 +52,31 @@
   color: var(--text-muted);
 }
 
+/* The field draws no box of its own, so the focus ring is drawn once around the
+   search line, inset from the surface's edge. */
+.command-palette-search:focus-within {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) * -1);
+}
+
 .command-palette-input:focus-visible {
   outline: none;
-  box-shadow: var(--shadow-focus);
-  border-radius: var(--radius-sm);
 }
 
 .command-palette-list {
   padding: var(--space-2);
   overflow-y: auto;
   min-height: 0;
+}
+
+/* A group of rows, labelled by its header. A fieldset is the one element whose
+   own role is `group`, so the grouping is real rather than painted on. */
+.command-palette-group {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
 }
 
 /* Group headers, not a group word repeated in every row (SYS-15): the section
@@ -82,19 +97,6 @@
   border-radius: var(--radius-md);
   color: var(--text);
   cursor: pointer;
-}
-
-/* The active row is the accent row the menus use, so "where Return will go" is
-   the same signal everywhere (SYS-15). */
-.command-palette-option.is-active {
-  background: var(--accent);
-  color: var(--text-on-accent);
-}
-
-.command-palette-option.is-active .command-palette-detail,
-.command-palette-option.is-active .command-palette-keys {
-  color: var(--text-on-accent);
-  border-color: var(--text-on-accent);
 }
 
 .command-palette-label {
@@ -124,6 +126,24 @@
   white-space: nowrap;
 }
 
+/* The active row is the accent row the menus use, so "where Return will go" is
+   the same signal everywhere (SYS-15). Its own detail and keycap follow it, so
+   both stay readable on the fill. */
+.command-palette-option.is-active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.command-palette-option.is-active .command-palette-detail {
+  color: var(--text-on-accent);
+}
+
+.command-palette-option.is-active .command-palette-keys {
+  color: var(--text-on-accent);
+  background: transparent;
+  border-color: var(--text-on-accent);
+}
+
 .command-palette-empty {
   margin: 0;
   padding: var(--space-4);
@@ -132,10 +152,15 @@
 }
 
 /* On a phone the detail column squeezes the label until it is unreadable, so
-   the label and the keycap keep the row to themselves. */
+   the label and the keycap keep the row to themselves, and the query drops a
+   rung so more of what was typed stays on screen. */
 @media (max-width: 480px) {
   .command-palette-detail {
     display: none;
+  }
+
+  .command-palette-input {
+    font-size: var(--text-body);
   }
 }
 
