@@ -15,7 +15,7 @@ import {
 } from "../components/runs/RunInspector.js";
 import { RunModelsCard } from "../components/runs/RunModelsCard.js";
 import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
-import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { useMediaQuery } from "../components/ui/useMediaQuery.js";
 import {
   useAbandonRun,
   useCreateRun,

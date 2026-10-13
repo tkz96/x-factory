@@ -38,6 +38,9 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  /* The 290px floor (#290): every page fits 290px with no horizontal scroll;
+     below that the page scrolls rather than crushing its content. */
+  min-width: var(--app-min-width);
   line-height: 1.55;
   transition:
     background-color var(--transition),

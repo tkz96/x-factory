@@ -93,6 +93,7 @@
   border: var(--border-width-thick) solid var(--border-subtle);
   border-top-color: var(--accent);
   border-radius: var(--radius-full);
+  corner-shape: round;
   animation: docsSpin var(--duration-loader-slow) var(--ease-linear) infinite;
 }
 
@@ -130,6 +131,7 @@
   color: var(--text-dim);
   cursor: pointer;
   border-radius: var(--radius-full);
+  corner-shape: round;
   padding: 0;
   transition: color var(--transition-fast);
 }

@@ -71,6 +71,7 @@
   flex: none;
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-full);
+  corner-shape: round;
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-caption-1);
   color: var(--text-muted);

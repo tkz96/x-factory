@@ -203,6 +203,19 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --radius-xs: 4px; --radius-sm: 8px; --radius-md: 12px;
   --radius-card: 16px; --radius-lg: 20px; --radius-full: 9999px;
 
+  /* Continuous corners. Apple's corners are superellipses (continuous
+     curvature), not circular arcs. Where the browser supports `corner-shape`,
+     every box gets `corner-shape: var(--corner-shape)` (superellipse(1.6))
+     through a zero-specificity `:where(*)` rule, and the two large rungs grow
+     (--radius-card 20px, --radius-lg 24px), because a superellipse reads tighter
+     than an arc of the same radius. Elsewhere the ladder above applies as
+     written. Circles and capsules opt out: every rule that uses --radius-full
+     also sets `corner-shape: round` (the smoke gate enforces it). A nested
+     shape writes its radius as the pair's math —
+     `calc(var(--radius-md) - var(--space-1))` — so it stays concentric if the
+     ladder moves. */
+  --corner-shape: superellipse(1.6);
+
   /* Motion — the implemented ladder: 160 / 220 / 300 ms on the spring curve,
      which decelerates and settles without overshooting. A window arrives over
      --duration-modal; a side or bottom sheet travels on the drawer curve */

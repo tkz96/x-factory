@@ -224,6 +224,13 @@
   --radius-lg: 20px;
   --radius-full: 9999px;
 
+  /* Continuous corners (DESIGN.md §6): Apple's corner is a superellipse, not a
+     circular arc. --corner-shape is applied to every box in the @supports block
+     below; circles and capsules opt out with `corner-shape: round`. A browser
+     without corner-shape support keeps plain circular corners and this ladder
+     as written. */
+  --corner-shape: superellipse(1.6);
+
   /* Apple HIG Type Scale */
   --text-micro: 9px;
   --text-badge: 10px;
@@ -262,6 +269,9 @@
   --sidebar-width-sm: 220px;
   --sidebar-width-xs: 180px;
   --sidebar-width-collapsed: 64px;
+  /* The floor every page fits at (#290): below it the page scrolls rather
+     than crushing its content. */
+  --app-min-width: 290px;
 
   --content-max-xs: 260px;
   --content-max-sm: 320px;
@@ -374,6 +384,27 @@
   --modal-backdrop: rgba(0, 0, 0, 0.65);
 
   --code-chip-bg: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Continuous corners (DESIGN.md §6) ────────────────────────────────────
+   Apple's corners are superellipses, not circular arcs. Where the browser
+   understands corner-shape, every box gets the continuous curve and the ladder
+   is re-tuned: a superellipse corner reads tighter than a circular one at the
+   same radius, so the two large rungs grow to keep their iOS look. The pair
+   math stays in the tokens (calc(outer - inset)), so every concentric pair
+   follows the ladder automatically. `:where(*)` holds the rule at zero
+   specificity, so a rule that must stay circular — circles and capsules
+   (--radius-full) — wins with plain `corner-shape: round`. A browser without
+   corner-shape support ignores this block and keeps the ladder above. */
+@supports (corner-shape: superellipse(2)) {
+  :where(*) {
+    corner-shape: var(--corner-shape);
+  }
+
+  :root {
+    --radius-card: 20px;
+    --radius-lg: 24px;
+  }
 }
 
 /* ── Default Theme: Light Appearance (Standard Contrast) ─────────────── */

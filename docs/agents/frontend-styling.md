@@ -84,17 +84,18 @@ Screens are built from one vocabulary of controls, in `src/frontend/components/u
 | Icon button | `IconButton.tsx` | icon-only, `label` is required — an icon-only control always has an accessible name |
 | Text field, text area | `TextField.tsx` | label, description, an inline `feedback` slot (a `FieldFeedback` node) |
 | Select | `SelectField.tsx` | options are data; the list opens in a popover as a listbox |
-| Segmented control | `SegmentedControl.tsx` | one control, mutually exclusive options; arrow keys move between segments |
+| Segmented control | `SegmentedControl.tsx` | one control, mutually exclusive options; arrow keys move between segments; opt-in `collapseBelow` renders the same options through the Select block below that viewport width (the pop-up button for too many segments); one thumb per control slides to a pointer choice on the default spring from `MotionProvider` and moves at once for a keyboard, route or resize change |
 | Switch | `SwitchControl.tsx` | track and thumb are tokens; the platform keeps the switch semantics |
 | Badge | `Badge.tsx` | a short state word, never an emoji |
-| Grouped list, list row | `ListGroup.tsx`, `ListRow.tsx` | the inset grouped list every list is built from; `PlaceholderRows` is its static loading shape |
+| Grouped list, list row | `ListGroup.tsx`, `ListRow.tsx` | the inset grouped list every list is built from; the group is a size container, and below a 30rem list the row wraps — title on its own line, trailing accessory under it; `PlaceholderRows` is its static loading shape |
+| Table | `Table.tsx` | the one table style: a native table drawn as an inset group, sortable headers (`aria-sort`), numbers right-aligned in tabular figures, a full-width detail row; its frame is a size container, and below 30rem the rows re-flow into labelled stacks |
 | Spinner | `Spinner.tsx` | the one inline wait indicator |
 
 Rules:
 
 - **React Aria owns behaviour, tokens own every visual value.** The blocks wrap React Aria's unstyled primitives and React Aria's own stylesheet is never imported. State comes from its data attributes (`data-hovered`, `data-pressed`, `data-selected`, `data-disabled`, `data-focus-visible`) — style those, not `:hover`.
 - **Style them in `src/frontend/styles/shared/controls.css`**, the shared layer (section 3). Never inline a style, and never over-define a block from a screen: a screen composes blocks, it does not repaint them.
-- **A list is a block, not a class string.** Screens compose `ListGroup`/`ListGroupRow` (and `ListRow` for a list of records) and pass no box classes of their own; the grouped-list rules — one card-shaped group, inset hairlines, one hover rule — live in `controls.css` and are described in `DESIGN.md` §7.
+- **A list is a block, not a class string.** Screens compose `ListGroup`/`ListGroupRow` (and `ListRow` for a list of records, `Table` for columns of data) and pass no box classes of their own; the grouped-list rules — one card-shaped group, inset hairlines, one hover rule — live in `controls.css` and are described in `DESIGN.md` §7.
 - **Every block a finger can hit is at least `--tap-min` (44pt) tall.** `test/ui-loading-states.test.tsx` fails if one drops below it.
 - **One focus ring, one definition.** `controls.css` draws it from `--border-width-indicator` and `--border-focus` for every interactive block; the twelve-set contrast gate proves that pair at 3:1 or better.
 - **Lists load as static placeholder rows; everything else waits behind the one spinner.** Placeholder rows reserve `--list-row-height`, so the loaded list cannot jump, and they never animate. A shimmer is banned, in markup and in CSS (`test/frontend-smoke.test.ts`).

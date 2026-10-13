@@ -156,6 +156,7 @@
   min-height: var(--tap-min);
   border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-full);
+  corner-shape: round;
   background: var(--bg-circle-btn);
   color: var(--text-muted);
   cursor: pointer;
@@ -367,7 +368,8 @@
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-callout);
   color: var(--text);
-  border-radius: var(--radius-sm);
+  /* Concentric with the popover: 12px radius, 4px padding → 8px (DESIGN.md §6). */
+  border-radius: calc(var(--radius-md) - var(--space-1));
   cursor: pointer;
 }
 
@@ -393,10 +395,12 @@
 /* One tap target tall, with the ring drawn inside it: a border would add two
    pixels to the track and leave the segments a pixel short of 44. */
 .ui-segmented {
+  position: relative;
   display: inline-flex;
   gap: 0;
   padding: 0;
   min-height: var(--tap-min);
+  max-width: 100%;
   background: var(--bg-tertiary);
   border: none;
   box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
@@ -408,8 +412,9 @@
 }
 
 /* The selected segment is a thumb inset 4px inside the 12px track, drawn as a
-   ::before so its 8px corner (outer radius minus the inset) and its shadow sit
-   on the visible shape rather than 4px outside it. The segment itself is a full
+   ::before so its corner (outer radius minus the inset, written as the pair's
+   math so it tracks the ladder) and its shadow sit on the visible shape rather
+   than 4px outside it. The segment itself is a full
    44px tap target with no box of its own. */
 .ui-segment {
   position: relative;
@@ -419,6 +424,9 @@
   justify-content: center;
   gap: var(--space-2);
   min-height: var(--tap-min);
+  /* The track never overflows its container: a segment may shrink and its
+     label truncate (#290). */
+  min-width: 0;
   padding: 0 var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-callout);
@@ -431,6 +439,22 @@
   transition:
     background-color var(--transition),
     color var(--transition);
+}
+
+/* A segment may shrink below its label at phone width: the label truncates
+   with an ellipsis instead of running past the viewport (#290), and a
+   narrower side padding keeps a word or two readable at 290px. */
+.ui-segment > span:not(.ui-segment-count) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .ui-segment {
+    padding-inline: var(--space-2);
+  }
 }
 
 .ui-segment[data-hovered] {
@@ -449,12 +473,17 @@
   z-index: 1;
 }
 
-.ui-segment[data-selected]::before {
-  content: "";
+/* The thumb is one element per control, placed under the selected segment
+   through --thumb-x / --thumb-w (measured by SegmentedControl), so a pointer
+   change slides it across the track instead of swapping it. */
+.ui-segmented .ui-segment-thumb {
   position: absolute;
-  inset: var(--space-1);
+  top: var(--space-1);
+  bottom: var(--space-1);
+  left: calc(var(--thumb-x) + var(--space-1));
+  width: calc(var(--thumb-w) - 2 * var(--space-1));
   background: var(--bg-card);
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-md) - var(--space-1));
   box-shadow: var(--shadow-sm);
   pointer-events: none;
 }
@@ -475,6 +504,7 @@
   color: var(--text-muted);
   background: var(--bg-tertiary);
   border-radius: var(--radius-full);
+  corner-shape: round;
 }
 
 .ui-segment[data-selected] .ui-segment-count {
@@ -526,6 +556,7 @@
   background: var(--bg-secondary);
   border: var(--border-width) solid var(--border-control);
   border-radius: var(--radius-full);
+  corner-shape: round;
   flex-shrink: 0;
   transition:
     background-color var(--transition),
@@ -537,6 +568,7 @@
   height: var(--switch-thumb-size);
   background: var(--bg-card);
   border-radius: var(--radius-full);
+  corner-shape: round;
   box-shadow: var(--shadow-sm);
   transition: transform var(--transition);
 }
@@ -583,6 +615,7 @@
   white-space: nowrap;
   border: none;
   border-radius: var(--radius-full);
+  corner-shape: round;
 }
 
 .ui-badge--neutral {
@@ -712,11 +745,16 @@
   flex-shrink: 0;
 }
 
-/* A read-only value that trails a row: a path, a branch, an id. */
+/* A read-only value that trails a row: a path, a branch, an id. It truncates
+   with an ellipsis rather than running off the row when it cannot shrink. */
 .ui-list-row-value {
   font-family: var(--font-mono);
   font-size: var(--text-footnote);
   color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-placeholder-line {
@@ -786,6 +824,53 @@
   border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-card);
   overflow: hidden;
+  /* A size container: the rows respond to how wide the LIST is, not to the
+     viewport (a list inside a narrow pane wraps even on a wide screen). */
+  container-type: inline-size;
+  container-name: list-group;
+}
+
+/* Phone width (a list under 30rem): the row may wrap. The title takes its own
+   full line and the trailing accessory (a badge and time, a switch, a select)
+   drops under it, so a long title is never squeezed to one word per line. The
+   compact row's accessory takes the whole line, as the old ≤768px viewport
+   rule had it — now keyed to the list's own width. */
+@container list-group (max-width: 30rem) {
+  .ui-list-row {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  .ui-list-row-main {
+    flex-basis: 100%;
+  }
+
+  .ui-list-row-trailing {
+    margin-inline-start: 0;
+    max-width: 100%;
+    /* A badge and a time that cannot share one line take one each, instead
+       of the time running to the row's edge. */
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+
+  .ui-list-row--compact .ui-list-row-trailing {
+    width: 100%;
+  }
+
+  /* A long title: two lines, then an ellipsis. */
+  .ui-list-row-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  /* A long unbreakable token (a model id, a branch) breaks inside itself
+     instead of pushing every other word onto its own line. */
+  .ui-list-row-subtitle {
+    overflow-wrap: anywhere;
+  }
 }
 
 .ui-list-group > * {
@@ -896,14 +981,173 @@
 
 /* Phone width: a compact row's accessory cannot shrink (the segmented
    appearance picker, a select), so it takes its own line under the title
-   instead of squeezing the label. */
-@media (max-width: 768px) {
-  .ui-list-row--compact {
-    flex-wrap: wrap;
+   instead of squeezing the label. This now lives on the list's own container
+   query above (`@container list-group (max-width: 30rem)`), so it responds to
+   the list's width rather than the viewport. */
+
+/* ── Table ─────────────────────────────────────────────────────────────────
+   One table style (Table.tsx): an inset group like the grouped lists —
+   --radius-card, hairline row separators, no box per row. Mono only for ids;
+   numbers right-aligned in tabular figures. The frame is a size container:
+   below 30rem the table re-flows into stacked rows, so a phone never scrolls
+   it sideways. */
+
+.ui-table-frame {
+  container-type: inline-size;
+  container-name: ui-table;
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-subhead);
+  color: var(--text);
+}
+
+.ui-table-head {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: start;
+  white-space: nowrap;
+  background: var(--bg-secondary);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.ui-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.ui-table-sort-icon {
+  opacity: 0;
+  transform: rotate(-90deg);
+  transition:
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.ui-table-sort-icon.is-active {
+  opacity: 1;
+}
+
+.ui-table-sort-icon.is-descending {
+  transform: rotate(90deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-table-sort:hover .ui-table-sort-icon {
+    opacity: 0.5;
   }
 
-  .ui-list-row--compact .ui-list-row-trailing {
-    width: 100%;
-    margin-inline-start: 0;
+  .ui-table-sort:hover .ui-table-sort-icon.is-active {
+    opacity: 1;
+  }
+}
+
+.ui-table-cell {
+  padding: var(--space-3) var(--space-4);
+  text-align: start;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.ui-table-cell--title {
+  font-weight: 600;
+}
+
+.ui-table-cell--end,
+.ui-table-head.ui-table-cell--end {
+  text-align: end;
+}
+
+.ui-table-cell--numeric {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* Hairlines between rows, not around them. */
+.ui-table-row + .ui-table-row > *,
+.ui-table-detail + .ui-table-row > * {
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.ui-table-row--highlighted {
+  background: var(--bg-secondary);
+}
+
+.ui-table-detail-cell {
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  background: var(--bg-secondary);
+}
+
+/* A narrow table re-flows: each row a block, the title first and full width,
+   and every other cell labelled by its column. */
+@container ui-table (max-width: 30rem) {
+  .ui-table,
+  .ui-table tbody,
+  .ui-table-row,
+  .ui-table-detail,
+  .ui-table-detail-cell {
+    display: block;
+  }
+
+  /* Each cell carries its column's label (data-label), so the header row is
+     not drawn; sorting stays on the wide layout. */
+  .ui-table thead {
+    display: none;
+  }
+
+  .ui-table-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .ui-table-row + .ui-table-row,
+  .ui-table-detail + .ui-table-row {
+    border-top: var(--border-width) solid var(--border-subtle);
+  }
+
+  .ui-table-row + .ui-table-row > *,
+  .ui-table-detail + .ui-table-row > * {
+    border-top: none;
+  }
+
+  .ui-table-cell {
+    display: block;
+    padding: 0;
+    text-align: start;
+  }
+
+  .ui-table-cell--title {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .ui-table-cell[data-label]::before {
+    content: attr(data-label) " ";
+    color: var(--text-muted);
+    font-size: var(--text-footnote);
+  }
+
+  .ui-table-cell--end:last-child {
+    margin-inline-start: auto;
   }
 }

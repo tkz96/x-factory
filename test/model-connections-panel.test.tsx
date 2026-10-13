@@ -25,7 +25,13 @@ import {
   within,
 } from "@testing-library/react";
 import { MODEL_CONNECTIONS_COPY } from "../src/frontend/components/feedback/copy-map.js";
-import { ModelConnectionsPanel } from "../src/frontend/components/settings/ModelConnectionsPanel.js";
+import {
+  buildModelRows,
+  formatPricePair,
+  formatTokens,
+  ModelConnectionsPanel,
+  sortModelRows,
+} from "../src/frontend/components/settings/ModelConnectionsPanel.js";
 import { api } from "../src/frontend/lib/api-client.js";
 import type {
   ModelConnectionView,
@@ -192,7 +198,7 @@ describe("ModelConnectionsPanel (#277)", () => {
     ).not.toBeNull();
   });
 
-  it("names the model in each Add and Added button", async () => {
+  it("names the model in each row's button: Add for a found model, Edit Limits for a chosen one", async () => {
     connections = [
       connection({
         verifiedAt: "2026-10-11T01:00:00.000Z",
@@ -208,14 +214,19 @@ describe("ModelConnectionsPanel (#277)", () => {
     renderPanel();
     await flush();
 
-    const list = document.querySelector(".model-found-list") as HTMLElement;
+    // The models table replaced the found list (UI round 2): a chosen model's
+    // row opens its limits instead of showing a disabled "Added" button. Every
+    // row button still names its model, and none is a bare "Add".
+    const table = document.querySelector(".ui-table") as HTMLElement;
     expect(
-      within(list).getByRole("button", { name: "Add Mistral Large 3" }),
+      within(table).getByRole("button", { name: "Add Mistral Large 3" }),
     ).toBeDefined();
     expect(
-      within(list).getByRole("button", { name: "Added plain-model" }),
+      within(table).getByRole("button", {
+        name: "Edit limits for plain-model",
+      }),
     ).toBeDefined();
-    expect(within(list).queryByRole("button", { name: "Add" })).toBeNull();
+    expect(within(table).queryByRole("button", { name: "Add" })).toBeNull();
   });
 
   it("a fresh check's models replace the persisted list", async () => {
@@ -277,6 +288,8 @@ describe("ModelConnectionsPanel (#277)", () => {
     api.updateConnectionModel = update as typeof api.updateConnectionModel;
     renderPanel();
     await flush();
+    // The limits open under the chosen model's row in the models table.
+    await click(el("btn-edit-limits-c1-m1"));
 
     expect(el<HTMLInputElement>("model-c1-m1-contextWindow").value).toBe(
       "1000",
@@ -405,6 +418,74 @@ describe("ModelConnectionsPanel (#277)", () => {
       name: "Renamed",
       baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     });
+  });
+});
+
+describe("the models table (UI round 2)", () => {
+  beforeEach(() => {
+    api.listModelConnections = mock(async () => connections);
+  });
+  afterEach(() => cleanup());
+
+  it("formats context windows and prices as a person reads them", () => {
+    expect(formatTokens(262144)).toBe("262K");
+    expect(formatTokens(1048576)).toBe("1M");
+    expect(formatTokens(8192)).toBe("8,192");
+    expect(formatTokens(undefined)).toBe("—");
+    expect(formatPricePair(0.2, 0.8)).toBe("$0.20 / $0.80");
+    expect(formatPricePair(0, 0)).toBe("Free");
+    expect(formatPricePair(undefined, undefined)).toBe("—");
+    expect(formatPricePair(0.5, undefined)).toBe("$0.50 / —");
+  });
+
+  it("lists chosen models first, then the rest by name; a sort keeps chosen first", () => {
+    const rows = buildModelRows(
+      [
+        { id: "zeta", name: "Zeta", contextWindow: 8000 },
+        { id: "alpha", name: "Alpha", contextWindow: 262144 },
+        { id: "mid", name: "Mid" },
+      ],
+      [{ modelId: "zeta", limits: {}, budget: { perDay: {} } }],
+    );
+    const byName = sortModelRows(rows, {
+      column: "name",
+      direction: "ascending",
+    });
+    expect(byName.map((r) => r.id)).toEqual(["zeta", "alpha", "mid"]);
+    const byContext = sortModelRows(rows, {
+      column: "context",
+      direction: "descending",
+    });
+    // Chosen first, then the largest window; an unknown window sorts last.
+    expect(byContext.map((r) => r.id)).toEqual(["zeta", "alpha", "mid"]);
+  });
+
+  it("filters the rows by name or id as you type", async () => {
+    connections = [
+      connection({
+        verifiedAt: "2026-10-11T01:00:00.000Z",
+        availableModels: [
+          { id: "mistral-large-3", name: "Mistral Large 3" },
+          { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash" },
+        ],
+      }),
+    ];
+    renderPanel();
+    await flush();
+    expect(
+      document.getElementById("btn-add-model-c1-gemini-3.5-flash"),
+    ).not.toBeNull();
+    const search = document.querySelector(
+      ".model-table-search input",
+    ) as HTMLInputElement;
+    typeInto(search, "mistral");
+    await flush();
+    expect(
+      document.getElementById("btn-add-model-c1-mistral-large-3"),
+    ).not.toBeNull();
+    expect(
+      document.getElementById("btn-add-model-c1-gemini-3.5-flash"),
+    ).toBeNull();
   });
 });
 

@@ -273,7 +273,26 @@ export async function startIsolatedInstance(
             id: DEMO_PROJECT_ID,
             name: "Demo App",
             workspacePath: workspace,
-            issueTracker: { provider: "github" },
+            // A long recorded identity ("GitHub (tkz96/…)"), so the phone-width
+            // layouts that truncate combo lines are exercised (#290).
+            issueTracker: {
+              provider: "github",
+              connectionId: "github",
+              github: {
+                repoOwner: "tkz96",
+                repository: "demo-app-with-a-long-repository-name",
+              },
+            },
+            connections: [
+              {
+                providerId: "github",
+                roles: ["tracker", "gitHost"],
+                config: {
+                  repoOwner: "tkz96",
+                  repository: "demo-app-with-a-long-repository-name",
+                },
+              },
+            ],
             repositories: [
               {
                 id: "demo-app-primary",

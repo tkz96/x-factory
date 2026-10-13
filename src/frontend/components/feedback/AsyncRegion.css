@@ -6,6 +6,30 @@
 
 /* Loading: indeterminate spinner in a reserved region — no layout shift.
    Loading is neutral per spec #133 (state colors: loading/stale→neutral). */
+/* A spinner only appears once a wait has lasted --duration-slow, then fades
+   in, so a fast answer never flashes one. Placeholder rows are exempt: they
+   hold the list's shape from the first frame. */
+.async-region--loading:not(.async-region--rows) {
+  animation: xfRegionArrive var(--duration-fast) var(--ease-out)
+    var(--duration-slow) both;
+}
+
+/* Content that arrives after a wait fades in; content from the cache does not
+   (AsyncRegion sets the class only after a loading state). Opacity only, so
+   nothing moves. */
+.async-region--arrived {
+  animation: xfRegionArrive var(--duration-fast) var(--ease-out) both;
+}
+
+@keyframes xfRegionArrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .async-region--loading {
   display: flex;
   flex-direction: column;

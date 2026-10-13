@@ -657,6 +657,27 @@ describe("Frontend Smoke — CSS variable resolution", () => {
     }
     expect(violations).toEqual([]);
   });
+
+  it("a rule with --radius-full must set corner-shape: round", () => {
+    // Continuous corners (superellipse) squash a circle or a capsule into a
+    // rounded square, so every --radius-full shape opts back out to a round
+    // corner — circles stay circles and capsules keep the SwiftUI Capsule look.
+    const violations: string[] = [];
+    for (const { file, text, css } of sources) {
+      if (!css) continue;
+      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const match of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selector = (match[1] ?? "").trim().replace(/\s+/g, " ");
+        const body = match[2] ?? "";
+        if (selector === "" || selector.startsWith("@")) continue;
+        if (!/var\(\s*--radius-full\s*\)/.test(body)) continue;
+        if (!/corner-shape\s*:\s*round\b/.test(body)) {
+          violations.push(`${file}: ${selector}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
 });
 
 // ─── Motion system (spec #241, ticket #252) ────────────────────────────────

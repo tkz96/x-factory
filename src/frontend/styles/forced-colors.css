@@ -96,7 +96,7 @@
   }
 
   /* The thumb keeps its inset shape in system colours too. */
-  :root .ui-segment[data-selected]::before {
+  :root .ui-segmented .ui-segment-thumb {
     background: Highlight;
   }
 
@@ -239,8 +239,10 @@
   :root .flow-node-badge,
   :root .flow-diagram-badge,
   :root .notification-badge,
-  :root .repos-table-container,
-  :root .repos-table,
+  :root .ui-table-frame,
+  :root .ui-table-head,
+  :root .ui-table-row--highlighted,
+  :root .ui-table-detail-cell,
   :root .docs-meta-table {
     background: Canvas;
     color: CanvasText;
