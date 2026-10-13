@@ -8,6 +8,7 @@ import { z } from "zod";
 import { createRepositories } from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
+import { NotFoundError } from "../src/errors.js";
 import { handleGetRun } from "../src/http/runs-controller.js";
 import { RateLimitedError } from "../src/model-gateway.js";
 import type {
@@ -42,6 +43,9 @@ describe("PullRequestChecker (#271)", () => {
     stubError?: Error;
     initialTime?: number;
     providerId?: string;
+    resolveProject?: ((runId: string) => Promise<Project>) | undefined;
+    onLog?: ((message: string) => void) | undefined;
+    onError?: ((message: string, error?: unknown) => void) | undefined;
   }) {
     const db = createDatabase({ path: ":memory:" });
     runMigrations(db);
@@ -127,12 +131,14 @@ describe("PullRequestChecker (#271)", () => {
       repos,
       registry,
       clock,
-      resolveProject: async () => testProject,
+      resolveProject: options?.resolveProject ?? (async () => testProject),
       pollIntervalMs: 5 * 60 * 1000,
       thirtyDaysMs: 30 * 24 * 60 * 60 * 1000,
       baseBackoffMs: 2000,
       maxBackoffMs: 60_000,
       random: () => 0.5, // deterministic jitter (multiplier = 1.0)
+      onLog: options?.onLog,
+      onError: options?.onError,
     });
 
     const createRun = (params?: {
@@ -537,5 +543,80 @@ describe("PullRequestChecker (#271)", () => {
 
     const refreshed = runs.getRun(harness.repos, run.id);
     expect(refreshed?.pullRequestOutcome?.status).toBe("merged");
+  });
+
+  it("10. a pr_created run whose project resolver reports the project missing is checked once, produces one log line, and is not due on later polls", async () => {
+    const logs: string[] = [];
+    const errors: Array<{ message: string; error?: unknown }> = [];
+    const harness = createTestHarness({
+      resolveProject: async () => {
+        throw new Error('Project "test-proj" not found.');
+      },
+      onLog: (msg) => logs.push(msg),
+      onError: (msg, err) => errors.push({ message: msg, error: err }),
+    });
+
+    const run = harness.createRun();
+
+    // First poll checks the run once
+    const firstResults = await harness.checker.pollDueRuns();
+    expect(firstResults).toHaveLength(1);
+    expect(firstResults[0]?.checked).toBe(false);
+    if (!firstResults[0] || firstResults[0].checked) {
+      throw new Error("Expected checked to be false");
+    }
+    expect(firstResults[0].reason).toBe("project_not_found");
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("project not found");
+    expect(errors).toHaveLength(0);
+
+    // Run status in SQLite must NOT change (state machine untouched)
+    const refreshed = runs.getRun(harness.repos, run.id);
+    expect(refreshed?.status).toBe("pr_created");
+
+    // Advance clock past any backoff window (e.g. 10 minutes)
+    harness.clock.advance(10 * 60 * 1000);
+
+    // Later polls must no longer consider the run due
+    const secondResults = await harness.checker.pollDueRuns();
+    expect(secondResults).toHaveLength(0);
+    expect(logs).toHaveLength(1);
+    expect(errors).toHaveLength(0);
+
+    // Calling checkRun directly again returns project_not_found without logging again
+    const directResult = await harness.checker.checkRun(run.id);
+    expect(directResult.checked).toBe(false);
+    if (directResult.checked) throw new Error("Expected false");
+    expect(directResult.reason).toBe("project_not_found");
+    expect(logs).toHaveLength(1);
+    expect(errors).toHaveLength(0);
+  });
+
+  it("11. a run whose project resolver throws NotFoundError or whose run row is gone is handled cleanly without retries", async () => {
+    const logs: string[] = [];
+    const errors: Array<{ message: string; error?: unknown }> = [];
+    const harness = createTestHarness({
+      resolveProject: async () => {
+        throw new NotFoundError('Project "missing" not found.');
+      },
+      onLog: (msg) => logs.push(msg),
+      onError: (msg, err) => errors.push({ message: msg, error: err }),
+    });
+
+    const run = harness.createRun();
+    const res = await harness.checker.checkRun(run.id);
+    expect(res.checked).toBe(false);
+    if (res.checked) throw new Error("Expected false");
+    expect(res.reason).toBe("project_not_found");
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("project not found");
+    expect(errors).toHaveLength(0);
+
+    // Run whose row is gone
+    const missingRes = await harness.checker.checkRun("non-existent-run-id");
+    expect(missingRes.checked).toBe(false);
+    if (missingRes.checked) throw new Error("Expected false");
+    expect(missingRes.reason).toBe("not_found");
+    expect(errors).toHaveLength(0);
   });
 });

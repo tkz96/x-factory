@@ -8,6 +8,7 @@
 import type { Repositories } from "./composition-root.js";
 import { getProject } from "./config.js";
 import type { EventRecord } from "./db/event-repository.js";
+import { NotFoundError } from "./errors.js";
 import { parseRetryDelayMs } from "./model-gateway.js";
 import { loadProjectEnv } from "./project-env.js";
 import { resolveProjectConnection } from "./providers/project-connections.js";
@@ -47,7 +48,8 @@ export type PullRequestCheckResult =
         | "not_pr_created"
         | "already_completed"
         | "expired_30_days"
-        | "unsupported_provider";
+        | "unsupported_provider"
+        | "project_not_found";
     }
   | {
       checked: false;
@@ -88,6 +90,8 @@ export class PullRequestChecker {
   private readonly nextDueAt = new Map<string, number>();
   /** Number of consecutive errors encountered per runId. */
   private readonly consecutiveErrors = new Map<string, number>();
+  /** Runs that cannot be checked because their project (or run row) is missing. */
+  private readonly unresolvableRuns = new Set<string>();
 
   constructor(options: PullRequestCheckerOptions) {
     this.repos = options.repos;
@@ -112,6 +116,32 @@ export class PullRequestChecker {
         }
         return project;
       });
+  }
+
+  private isMissingProjectOrRunError(err: unknown): boolean {
+    if (!err) return false;
+    if (err instanceof NotFoundError) {
+      return true;
+    }
+    const name = (err as { name?: string }).name;
+    if (name === "NotFoundError" || name === "RunNotFoundError") {
+      return true;
+    }
+    const message =
+      err instanceof Error ? err.message : typeof err === "string" ? err : "";
+    const lower = message.toLowerCase();
+    if (
+      lower.includes("project") &&
+      (lower.includes("not found") ||
+        lower.includes("not in the projects configuration") ||
+        lower.includes("could not be loaded"))
+    ) {
+      return true;
+    }
+    if (lower.includes("run") && lower.includes("not found")) {
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -141,12 +171,13 @@ export class PullRequestChecker {
   }
 
   /**
-   * Checks whether a run is stopped due to terminal outcome or exceeding 30 days.
+   * Checks whether a run is stopped due to terminal outcome, missing project, or exceeding 30 days.
    */
   isTerminalOrExpired(
-    run: { createdAt: string; status: string },
+    run: { id?: string; createdAt: string; status: string },
     now = this.clock.now(),
   ): boolean {
+    if (run.id && this.unresolvableRuns.has(run.id)) return true;
     if (run.status !== "pr_created") return true;
     const createdTime = new Date(run.createdAt).getTime();
     return now - createdTime > this.thirtyDaysMs;
@@ -161,6 +192,7 @@ export class PullRequestChecker {
   ): Promise<PullRequestCheckResult> {
     const run = this.repos.runs.get(runId);
     if (!run) {
+      this.unresolvableRuns.add(runId);
       return { checked: false, reason: "not_found" };
     }
     if (run.status !== "pr_created") {
@@ -170,6 +202,10 @@ export class PullRequestChecker {
     const existingOutcome = this.repos.events.getPullRequestOutcome(runId);
     if (existingOutcome) {
       return { checked: false, reason: "already_completed" };
+    }
+
+    if (this.unresolvableRuns.has(runId)) {
+      return { checked: false, reason: "project_not_found" };
     }
 
     const now = this.clock.now();
@@ -190,7 +226,23 @@ export class PullRequestChecker {
     }
 
     try {
-      const project = await this.resolveProjectFn(runId);
+      let project: Project;
+      try {
+        project = await this.resolveProjectFn(runId);
+        if (!project) {
+          this.unresolvableRuns.add(runId);
+          this.onLog?.(`Run ${runId} PR check skipped: project not found.`);
+          return { checked: false, reason: "project_not_found" };
+        }
+      } catch (err: unknown) {
+        if (this.isMissingProjectOrRunError(err)) {
+          this.unresolvableRuns.add(runId);
+          this.onLog?.(`Run ${runId} PR check skipped: project not found.`);
+          return { checked: false, reason: "project_not_found" };
+        }
+        throw err;
+      }
+
       const env = await loadProjectEnv(project.id);
       const connection = resolveProjectConnection(
         project,

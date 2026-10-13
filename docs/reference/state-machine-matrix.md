@@ -103,6 +103,7 @@ If the database record holds a different revision than the update payload, SQLit
 ### 4. User-Governed Pull Request Creation
 A run cannot transition automatically from `ready_for_pr` to `pr_created`.
 Transition to `pr_created` requires an explicit HTTP command: `POST /api/runs/:id/pr`.
+Once in `pr_created`, the worker periodically polls the git host for pull request outcomes (`pr_merged`, `pr_closed`) without altering the run's status. If a run's project is missing from configuration (or its run row is gone), the worker ceases polling for that run permanently after a single logged notice ("project not found"); it does not retry or transition the terminal run.
 
 ### 5. Immediate Cancellation
 A user can halt a run through `POST /api/runs/:id/stop` from the states in `STOPPABLE_RUN_STATUSES`: `queued`, `preparing`, `understanding`, `awaiting_understanding_approval`, `planning`, `awaiting_plan_approval`, `executing` and `awaiting_review`.

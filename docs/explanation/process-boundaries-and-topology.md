@@ -91,5 +91,5 @@ When a user opens a run in `pr_created` state (`GET /api/runs/:id`), the API pro
 The worker process claims `check_pr` commands and runs a background polling loop:
 1. It queries `pr_created` runs that have no outcome recorded (`pr_merged` or `pr_closed`) and whose run is less than 30 days old (`src/pull-request-checker.ts` measures the age from the run's creation).
 2. It polls provider status (`getPullRequestState`) every 5 minutes per run.
-3. If the host rate-limits or returns an error, the worker backs off exponentially with jitter (honoring `Retry-After` headers).
+3. If the host rate-limits or returns an error, the worker backs off exponentially with jitter (honoring `Retry-After` headers). If a run's project is missing from configuration (or its run row is gone), this is not a transient error: the checker stops polling that run permanently without retrying, logs a single line with the reason `project not found`, and leaves the run's status in `pr_created`.
 4. When a PR is detected as merged or closed, the worker appends a durable `pr_merged` or `pr_closed` event to SQLite atomically and ceases polling for that run. The run's state-machine status remains `pr_created`.
