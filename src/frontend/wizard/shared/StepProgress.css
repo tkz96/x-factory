@@ -23,6 +23,7 @@
 .wizard-progress-track {
   height: var(--space-1);
   border-radius: var(--radius-full);
+  corner-shape: round;
   background: var(--bg-tertiary);
   overflow: hidden;
 }
@@ -30,6 +31,7 @@
 .wizard-progress-fill {
   height: 100%;
   border-radius: var(--radius-full);
+  corner-shape: round;
   background: var(--accent);
   /* The fill scales rather than resizes, so progress stays on the compositor
      (DESIGN.md, Foundations → Motion). */

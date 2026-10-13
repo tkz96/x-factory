@@ -600,6 +600,7 @@
     color: var(--text-on-accent);
     background: var(--accent);
     border-radius: var(--radius-full);
+    corner-shape: round;
     text-align: center;
   }
 

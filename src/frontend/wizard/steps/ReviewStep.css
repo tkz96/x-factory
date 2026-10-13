@@ -90,5 +90,6 @@
   color: var(--green);
   border: var(--border-width) solid var(--green);
   border-radius: var(--radius-full);
+  corner-shape: round;
   padding: 0 var(--space-2);
 }

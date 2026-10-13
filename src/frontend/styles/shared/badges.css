@@ -30,5 +30,6 @@
   background: var(--bg-tertiary);
   border: none;
   border-radius: var(--radius-full);
+  corner-shape: round;
   white-space: nowrap;
 }

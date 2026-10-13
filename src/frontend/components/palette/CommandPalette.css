@@ -100,7 +100,9 @@
   gap: var(--space-3);
   min-height: var(--tap-min);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
+  /* Concentric with the palette surface: 20px radius, 8px list padding → 12px
+     (DESIGN.md §6); the calc follows the ladder if the large rung moves. */
+  border-radius: calc(var(--radius-lg) - var(--space-2));
   color: var(--text);
   cursor: pointer;
 }
