@@ -13,6 +13,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
+  /* At phone width the action wraps below the heading instead of crushing it
+     into a narrow column (#290). */
+  flex-wrap: wrap;
 }
 
 .model-connection-list {
