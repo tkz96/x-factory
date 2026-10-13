@@ -22,7 +22,7 @@ X-Factory does not ship, install or configure `sbx`. Use the sandbox tool your t
    ```
 
 3. If it prints a path, the coding stage will run inside the sandbox.
-4. Open X-Factory and look at the readiness banner. Its **Sandbox** check says `pass` when `sbx` is found.
+4. In the app, open a project's detail page and look at the readiness banner. When `sbx` is found, the banner says **Ready** and counts `Sandbox` in its `Checked:` line. When `sbx` is missing and running without a sandbox isn't allowed, the banner says **Needs attention** and lists a **Sandbox** line with the reason.
 
 If `command -v sbx` prints nothing and running without a sandbox isn't allowed, the coding stage fails closed with:
 
