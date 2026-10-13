@@ -266,3 +266,13 @@
     font-size: var(--text-caption-2);
   }
 }
+
+/* Below 480px the six labels collide, so only the current step keeps its
+   words: the dots all stay on the track, and every other step's label is
+   still in its accessible name (the step's title attribute carries
+   "N. Label: evidence") (#290). */
+@media (max-width: 480px) {
+  .step:not(.active):not(.failed) .step-info {
+    display: none;
+  }
+}
