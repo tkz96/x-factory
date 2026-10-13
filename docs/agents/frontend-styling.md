@@ -18,7 +18,7 @@ Global styles are imported once in `src/frontend/main.tsx` via `src/frontend/sty
 
 1. **Tokens (`src/frontend/styles/tokens.css`)**:
    - Spacing: 8pt grid (`--space-1` to `--space-8`).
-   - Radii: the six-rung ladder (`--radius-xs` 4 → `--radius-sm` 8 → `--radius-md` 12 → `--radius-card` 16 → `--radius-lg` 20 → `--radius-full`), with an inner shape's radius = the outer radius − the inset between them.
+   - Radii: the six-rung ladder (`--radius-xs` 4 → `--radius-sm` 8 → `--radius-md` 12 → `--radius-card` 16 → `--radius-lg` 20 → `--radius-full`). Where the browser supports it, `--corner-shape: superellipse(1.6)` applies to every box and the ladder's top rungs step up inside `@supports`: `--radius-card` 20 and `--radius-lg` 24. Circles and capsules opt out with `corner-shape: round` (the smoke gate enforces it beside every `--radius-full` rule), and an inner shape's radius = the outer radius − the inset between them.
    - Typography: HIG scale (`--text-large-title` to `--text-caption-2`).
    - Colors: Functional tokens (`--text`, `--text-muted`, `--accent`, `--green`, `--red`, `--yellow`, `--orange`, `--border`, etc.) with light & dark theme definitions. Warnings always use `--orange` / `--orange-dim` — never `--yellow` (see `docs/reference/state-coverage.md`).
 2. **Base (`src/frontend/styles/base.css`)**:
@@ -96,7 +96,7 @@ Rules:
 - **React Aria owns behaviour, tokens own every visual value.** The blocks wrap React Aria's unstyled primitives and React Aria's own stylesheet is never imported. State comes from its data attributes (`data-hovered`, `data-pressed`, `data-selected`, `data-disabled`, `data-focus-visible`) — style those, not `:hover`.
 - **Style them in `src/frontend/styles/shared/controls.css`**, the shared layer (section 3). Never inline a style, and never over-define a block from a screen: a screen composes blocks, it does not repaint them.
 - **A list is a block, not a class string.** Screens compose `ListGroup`/`ListGroupRow` (and `ListRow` for a list of records, `Table` for columns of data) and pass no box classes of their own; the grouped-list rules — one card-shaped group, inset hairlines, one hover rule — live in `controls.css` and are described in `DESIGN.md` §7.
-- **Every block a finger can hit is at least `--tap-min` (44pt) tall.** `test/ui-loading-states.test.tsx` fails if one drops below it.
+- **Every block a finger can hit is at least `--tap-min` (44px) tall.** `test/ui-loading-states.test.tsx` fails if one drops below it.
 - **One focus ring, one definition.** `controls.css` draws it from `--border-width-indicator` and `--border-focus` for every interactive block; the twelve-set contrast gate proves that pair at 3:1 or better.
 - **Lists load as static placeholder rows; everything else waits behind the one spinner.** Placeholder rows reserve `--list-row-height`, so the loaded list cannot jump, and they never animate. A shimmer is banned, in markup and in CSS (`test/frontend-smoke.test.ts`).
 - **Errors are announced as alerts.** `AsyncRegion`'s error state, an error-tone `FeedbackBanner` and an invalid `FieldFeedback` use `role="alert"`; informational and partial states stay polite.
