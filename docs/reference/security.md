@@ -55,7 +55,7 @@ Users can also store model API keys in X-Factory itself, as **model connections*
   | `gemini` | `GEMINI_API_KEY` |
   | `anthropic` | `ANTHROPIC_API_KEY` |
   | `openai-compatible` | `OPENAI_API_KEY` |
-- **First-launch import**: when the API process starts with `LLM_API_KEY` set, it imports that key as a connection, once. The provider comes from `LLM_PROVIDER` (`gemini`, `google`, `anthropic` or `openai`) or else from the key's prefix: `AIzaSy` or `AQ.` means Gemini, `sk-ant-` means Anthropic, `sk-` means OpenAI. A key that matches none of these is skipped rather than guessed.
+- **First-launch import**: when the API process starts with `LLM_API_KEY` set, it imports that key as a connection named `<Provider> (imported)`, once. The provider comes from `LLM_PROVIDER` (`gemini`, `google`, `anthropic` or `openai`) or else from the key's prefix: `AIzaSy` or `AQ.` means Gemini, `sk-ant-` means Anthropic, `sk-` means OpenAI. A key that matches none of these is skipped rather than guessed. A `LLM_PROVIDER` hint wins over the prefix, so a mismatched pair (for example `LLM_PROVIDER=gemini` with an OpenAI-compatible router key) imports the wrong connection. For a fresh setup, leave `LLM_API_KEY` and `LLM_PROVIDER` unset and add connections in Settings › Models.
 - **The runtime's own config is never touched**: X-Factory does not read or write the agent runtime's `~/.pi` directory.
 
 ## Local-Only API Boundary

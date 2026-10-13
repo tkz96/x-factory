@@ -22,7 +22,7 @@ Returns JSON in one SQLite read transaction:
 
 ## GET /api/events
 
-An SSE stream (`text/event-stream`) of the `status` and `pr_step` events of every run.
+An SSE stream (`text/event-stream`) of four event types across every run: `status`, `pr_step`, `pr_merged` and `pr_closed` (`APP_EVENT_TYPES` in `src/db/event-repository.ts`).
 
 **Frames.** Each event is `id: <global run_events.id>` followed by `data: <AppEventEnvelope as JSON>`. The envelope is `id`, `runId`, `sequence` (the per-run number), `type`, `payload`, `time`, `ticket` and `project`.
 

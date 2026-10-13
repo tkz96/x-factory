@@ -31,8 +31,8 @@ Every production deployment must satisfy the requirements across twelve architec
 ### 5. Observability, Correlation, and Diagnostics
 - The system propagates the `X-Request-ID` header from clients to server handlers and log entries.
 - Structured JSON log entries include `request_id`, `run_id`, `job_id`, `stage`, and `worker_id`.
-- The `GET /api/diagnostics` endpoint provides metrics for database file sizes, queue depths, and worker health.
-- The `GET /api/ready` endpoint validates database accessibility and disk health.
+- The `GET /api/diagnostics` endpoint provides metrics for database counts (runs, jobs, stale claimed jobs), the worker fleet, and process health (uptime, Node version, memory).
+- The `GET /api/ready` endpoint validates database accessibility (ping, schema version, journal mode) and reports readiness of the background worker and the sandbox.
 
 ### 6. Graceful Degradation and Shutdown
 - The API server handles `SIGINT` and `SIGTERM` signals with a coordinated shutdown procedure.
