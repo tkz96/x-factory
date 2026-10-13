@@ -198,12 +198,6 @@
   color: var(--text-muted);
 }
 
-/* The full-window welcome (#269): the screen owns the window — no toolbar and
-   no tab bar — so nothing reserves room for either. */
-.app-shell--welcome .viewport-container {
-  padding-top: var(--space-8);
-}
-
 @media (max-width: 768px) {
   .app-shell--welcome .main-content {
     /* The tab bar's clearance is for a screen that has one. */
@@ -423,6 +417,12 @@
   max-width: var(--content-max-5xl);
   width: 100%;
   margin: 0 auto;
+}
+
+/* The full-window welcome (#269): the screen owns the window — no toolbar and
+   no tab bar — so nothing reserves room for either. */
+.app-shell--welcome .viewport-container {
+  padding-top: var(--space-8);
 }
 
 @media (min-width: 961px) {
