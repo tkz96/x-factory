@@ -29,6 +29,7 @@ This document serves as the persistent domain glossary and architectural context
 | **Events Snapshot** | The consistent read (`GET /api/events/snapshot`) a client takes before it subscribes to the app-wide stream: current runs, Needs-you trigger events, recent finished events, and the cursor to resume from. |
 | **Reticle** | In-app verification layer executing real interactions against the running web application to produce evidence-backed verdicts. |
 | **Model Connection** | A saved provider endpoint, its API key, and the models it offers. It is managed in **Settings › Models**, and it counts as usable only after **Check Connection** passes. Definitions are in `model-connections.json`; keys are owner-only (0600) in `model-secrets.json`. |
+| **First-launch Key Import** | On the first start of an empty data dir, an `LLM_API_KEY` (+ `LLM_PROVIDER`) in the environment is imported once as a model connection named "\<Provider\> (imported)" (`src/model-connections.ts`). A key whose provider does not match `LLM_PROVIDER` imports the wrong connection. On a fresh setup leave both unset and add connections in **Settings › Models**. |
 | **Builder / Reviewer Role** | The two model roles. The **Builder** runs `understand`, `plan` and `execute`. The **Reviewer** reviews the diff inside `execute`. Each role resolves its own connection and model, and there is no fallback to another model (`src/model-roles.ts`). |
 | **Provider** | A registered integration module (`src/providers/registry.ts`) that serves one or more roles. The roles are `tracker` (tickets) and `gitHost` (repositories and pull requests) — `ProjectConnectionRole` in `src/shared/types.ts`. GitHub and Azure DevOps serve both roles; Jira serves `tracker` only, so it has no pull request delivery. |
 | **Checkpoint** | A run status where the worker waits for a human decision: `awaiting_understanding_approval`, `awaiting_plan_approval`, `awaiting_review`, and `ready_for_pr`. |
@@ -52,15 +53,21 @@ On-screen words for internal terms. Code identifiers keep their internal names. 
 | Raw `RunStatus` values | Plain labels from the table below, never the status string |
 | Awaiting-human statuses plus `recovery_required` | Needs you |
 | Active statuses / terminal statuses | Running / Done |
-| Runs list filters | Needs you / Running / Done / All, each with its count. The Runs badge and the tab title show the Needs-you count, not notifications |
-| Start a run, add a project | Start Run, Add Project |
+| Runs list filters | Needs you / Running / Done / All, each with its count, as a segmented control that collapses to a select below 400px. The Runs badge and the tab title show the Needs-you count, not notifications |
+| Start a run, add a project | Start Run, Add Project — beside the Tickets / Projects page headings (icon-only on phones), never in the toolbar |
+| Toolbar section switcher | Sections — Tickets / Runs / Projects, desktop only; phones use the bottom tab bar |
 | Start a new run for a terminal ticket (pull request opened, failed or stopped) | Start New Run, on the run page (a ticket command, not a run action; the Tickets list's own card says Start Run, or Open Run while a run is active) |
 | Notification list in the toolbar | Notifications (the bell); the unread count is on the bell, and the list has "Mark All as Read" |
 | Runs in progress, shown quietly in the toolbar | The activity link: the ticket id and its plain status for one run, or "N runs in progress" for several. Never stored, never announced as a popup |
+| Theme toggle | In Settings › General and the command palette; not in the toolbar |
+| Workbench readiness | Nothing when ready; when degraded, one orange "Degraded" link in the toolbar, to Settings › Diagnostics |
+| Verifying a connection | Project cards (Add Project › Connect) say Verify Connection; Settings › Models says Check Connection |
+| A connection's model table (Settings › Models) | One table per connection, titled "Models on \<name\>"; columns Model, Context, Max output, Price in / out, Role, Today; the row action is Add, then Edit Limits; the filter is All / Chosen; the search field is Search models |
+| Which model runs each job (Settings › Models) | The Roles section: Builder and Reviewer, each Not set until you pick a model |
 | A run that needs you, kind by kind | Understanding ready, Plan ready, Changes ready, Ready for a pull request, Needs recovery |
 | A run that finished, kind by kind | Pull request opened, Run failed (with its reason), Run stopped |
 | The first-run welcome and its checklist (#269) | Welcome — steps: Add Project, Connect a Model, Start Run |
-| A checklist step's own state | Done / To do |
+| A checklist step's own state | Done (announced, screen readers only) when ticked; an unticked step shows the plain gap it waits on, never a state word |
 
 | Status | Label | Step | Filter |
 | --- | --- | --- | --- |
