@@ -63,7 +63,7 @@ On first launch, X-Factory has no projects.
 2. Paste the **Repository** URL of the repository you want to work on. The assistant resolves it through the provider that owns that URL format, so you never pick a provider by hand.
 3. In **Connect**, fill in the provider configuration: one card for the issue tracker, one for the Git host. Pass **Verify Connection** on each card.
 4. In **Repositories**, select the repositories the project uses, and mark the one that holds the application.
-5. In **Inspection**, review the resolved Git identity and the tooling report.
+5. In **Inspection**, review the resolved git identity for each selected repository.
 6. In **Review**, read the summary and choose **Create Project**.
 
 Your project appears in the Projects list, and its detail pane shows the repository, tracker and branch it is wired to. The run's first **Prepare** stage clones the repository when no local checkout exists yet.
