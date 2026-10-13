@@ -29,7 +29,7 @@ The provider API surface implements the HTTP boundary between the provider syste
    - `envKey` and raw credential values are **never** included in client-facing field descriptors or any manifest HTTP response.
 2. **Copy Map & Message Boundary**:
    - Provider-generated raw messages, error strings, and exception text never cross the HTTP boundary.
-   - Validation failures return machine-readable error codes. The closed `formErrors` set is `REQUIRED`, `INVALID`, `UNKNOWN_PROVIDER`, `INCOMPATIBLE_CONFIGURATION`, `INCAPABLE_PROVIDER` (the provider lacks the capability the route needs), `SECRET_NOT_ACCEPTED` (a declared secret field carried a value on a read), `MISSING_TRACKER_CONNECTION` and `MISSING_GIT_HOST_CONNECTION`. A stored connection whose shapes conflict answers `409` with `code: "CONNECTION_CONFLICT"`.
+   - Validation failures return machine-readable error codes. The closed `fieldErrors` set (per-field config problems, `src/providers/config-validation.ts`) is `REQUIRED` and `INVALID`. The closed `formErrors` set is `UNKNOWN_PROVIDER`, `INCOMPATIBLE_CONFIGURATION`, `INCAPABLE_PROVIDER` (the provider lacks the capability the route needs), `SECRET_NOT_ACCEPTED` (a declared secret field carried a value on a read), `MISSING_TRACKER_CONNECTION` and `MISSING_GIT_HOST_CONNECTION`. A stored connection whose shapes conflict answers `409` with `code: "CONNECTION_CONFLICT"`.
    - Upstream provider errors return normalized `ProviderError` envelopes (`AUTH_INVALID`, `AUTH_LOCKED`, `NOT_FOUND`, `RATE_LIMITED`, `PERMISSION`, `UNKNOWN`).
 3. **Fail-Loud Serialization Gate**:
    - Provider configuration schemas (`configSchema`) must strictly adhere to the supported Zod subset. Any schema outside the subset fails loudly with `SchemaSerializationError` at test/build time.
@@ -315,7 +315,11 @@ asserts the secret-free body for each of GitHub, Azure and Jira.
 
 ## 4. End-to-End Curl Demo with Stub Provider
 
-Run the demo script or execute curl requests against a running server:
+The stub provider is a test fixture (`test/fixtures/stub-provider.ts`); it is not in the production registry (`src/providers/registry.ts` registers only GitHub, Azure and Jira).
+
+Run `bun scripts/demo-providers.ts` to see the flow: it starts its own server on a random port with the stub provider registered, prints six request/response pairs (manifest, filtered manifest, verify, verify 409, parse-url matched, parse-url unmatched), then stops the server and exits.
+
+The requests below are the same shapes. Send them to the port the demo script prints, or use them against the dev server at `http://127.0.0.1:3777` with a real provider id — `github`, `azure` or `jira`. The dev server has no `stub` provider and answers `409 { "formErrors": ["UNKNOWN_PROVIDER"] }` for one.
 
 ```bash
 # 1. Manifest discovery (with optional role filtering)
