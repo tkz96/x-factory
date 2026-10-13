@@ -101,7 +101,7 @@ flowchart LR
 4. **Execute**: Drives the autonomous Ralph loop in the worktree and streams iteration events. When verification passes, the Reviewer model runs inside this stage: it reads the diff against the acceptance criteria and records a read-only verdict. The run then pauses at `awaiting_review`.
 5. **Review**: The human checkpoint at `awaiting_review`. The run page shows the diff, the artifacts, and the execution evidence. **Approve Changes** moves the run to `ready_for_pr`. **Request Changes** sends the run back to `planning` with your feedback, so the plan is revised before the code runs again.
 6. **Deliver**: The run waits in `ready_for_pr` for your **Create Pull Request**. The worker then publishes the branch, creates the pull request on GitHub or Azure DevOps, and the run becomes `pr_created`.
-7. **Merge detection**: While a run is `pr_created`, the worker checks its pull request every 5 minutes. When a pull request is merged or closed, the worker records a `pr_merged` or `pr_closed` event and stops checking that run. Checking also stops 30 days after the run was created.
+7. **Merge detection**: While a run is `pr_created`, the worker checks its pull request every 5 minutes. When a pull request is merged or closed, the worker records a `pr_merged` or `pr_closed` event and stops checking that run. Checking also stops 30 days after the run was created. A run whose project is missing is checked once: the worker logs `Run <id> PR check skipped: project not found.` and never polls that run again.
 
 Jira is a ticket tracker only, with no pull request delivery, so a Jira ticket's run ends at `ready_for_pr`.
 
@@ -130,12 +130,14 @@ Open **http://localhost:5173** in your browser.
 
 X-Factory needs no API key in the environment. You add model connections in the app.
 
+For a fresh setup, leave `LLM_API_KEY` and `LLM_PROVIDER` unset in `.env`. On the first start of an empty data dir, a set `LLM_API_KEY` is imported once as a model connection named `<Provider> (imported)`. If the key and `LLM_PROVIDER` do not match (for example an OpenAI-compatible router key with `LLM_PROVIDER=gemini`), the imported connection is wrong. Add connections in **Settings › Models** instead. See [How to Reset X-Factory to a Clean State](./docs/how-to/start-fresh.md).
+
 ### First launch
 
 The **Welcome** checklist shows what a first run needs. A step gets its tick only when the app can see that it is done:
 
 1. **Add Project** — add your first repository.
-2. **Connect a Model** — add a connection in **Settings › Models** (Gemini, Anthropic, or an OpenAI-compatible endpoint), pass **Check Connection**, then pick a model for each of the two roles:
+2. **Connect a Model** — add a connection in **Settings › Models** (Gemini, Anthropic, or an OpenAI-compatible endpoint), pass **Check Connection**, then pick a model for each of the two roles. Each connection is a table: chosen models first, with search, an All / Chosen filter and sortable columns.
    - **Builder** — writes the understanding, the plan, and the code.
    - **Reviewer** — reviews the diff against the acceptance criteria.
 3. **Start Run** — open **Tickets**, pick a ticket, and use **Start Run** beside the Tickets heading.
@@ -172,7 +174,7 @@ X-Factory runs with no configuration at all. Every environment variable is optio
 | `NODE_ENV` | unset | Set to `production` by `bun run start:production`. Do not set it by hand. |
 | `X_FACTORY_ALLOW_UNSANDBOXED` | unset | `1` lets the coding stage run without `sbx`. Prefer the Settings switch. See [How to Check the Sandbox](./docs/how-to/install-and-check-sbx.md). |
 | `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset | Overrides the stored key of the matching connection in **Settings › Models**. |
-| `LLM_API_KEY`, `LLM_PROVIDER` | unset | Legacy import, first launch only: `LLM_API_KEY` becomes a model connection once, and `LLM_PROVIDER` names its provider when the key's prefix does not. |
+| `LLM_API_KEY`, `LLM_PROVIDER` | unset | First-launch import only: on the first start of an empty data dir, `LLM_API_KEY` becomes a model connection named `<Provider> (imported)`, once. `LLM_PROVIDER` names its provider (`anthropic`, `gemini`, or `openai`) when the key's prefix does not. Both are ignored after the import has run. Leave both unset for a fresh setup and add the connection in **Settings › Models** — a key that does not match `LLM_PROVIDER` imports the wrong connection. |
 
 ---
 
@@ -219,7 +221,7 @@ x-factory/
 │   ├── agents/               # Guides for coding agents (see AGENTS.md)
 │   └── research/             # Archived research, kept for history
 ├── config/                   # Authored project configuration (projects.json)
-└── test/                     # 276 test files; bunfig.toml sets an 80% line-coverage floor
+└── test/                     # 279 test files; bunfig.toml sets an 80% line-coverage floor
 ```
 
 ---
@@ -271,9 +273,11 @@ The X-Factory workbench frontend is a local-first Single Page Application design
 - **Design Foundations**: Layout, typography, spacing, colors, radius, and motion follow [`DESIGN.md`](./DESIGN.md) through semantic CSS variables.
 - **Appearance**: three themes (**Default**, **Graphite**, **Sandstone**). Each has a light and a dark appearance, and each appearance has a standard and an increased-contrast set. Forced-colours mode is handled separately.
 - **Blocks, not bespoke controls**: every control comes from the one vocabulary in `src/frontend/components/ui/` — button, icon button, text field, select, segmented control, switch, badge, list row, list group, and spinner. The blocks are built on React Aria and styled with tokens, and a screen composes them without naming their classes.
-- **Radius ladder**: one ladder of six rungs (`--radius-xs` 4, `--radius-sm` 8, `--radius-md` 12, `--radius-card` 16, `--radius-lg` 20, `--radius-full`). A control's radius comes from its size, and an inner shape's radius is the outer radius minus the inset between them.
+- **Radius ladder**: one ladder of six rungs (`--radius-xs` 4, `--radius-sm` 8, `--radius-md` 12, `--radius-card` 16, `--radius-lg` 20, `--radius-full`). A control's radius comes from its size, and an inner shape's radius is the outer radius minus the inset between them. Where the browser supports it, `corner-shape: superellipse(1.6)` gives continuous corners; circles and capsules opt out with `corner-shape: round`.
+- **Small screens**: every page fits 290px with no horizontal scroll (`--app-min-width`). Grouped list rows and the Table block re-flow under a 30rem container query, the Runs filter collapses to a select below 400px, and the run page's stepper strip pins above the phone tab bar and shows only the current step's label below 480px. `test/responsive-browser.test.ts` guards 290, 320, 360 and 390px.
+- **Tables**: one `Table` block (`src/frontend/components/ui/Table.tsx`) carries Settings › Models — one table per connection with Model, Context, Max output, Price in / out, Role and Today columns plus an Add or Edit Limits action, chosen models first, search, an All / Chosen filter and sortable columns, with limits opening under the row — and the Repositories table on the project page.
 - **Grouped lists**: Settings panes, the Welcome checklist, the Runs list, the Projects list, and the Connections registry share one `ListGroup` shape.
-- **Page actions**: a screen's one action (**Start Run**, **Add Project**) sits in the page heading, not in the toolbar. The toolbar carries the project picker, the section switch, search, the notification bell, and the gear.
+- **Page actions**: a screen's one action (**Start Run**, **Add Project**) sits in the page heading, not in the toolbar, and its label collapses to the icon on phones. The toolbar carries the project picker, the section switch, search, the notification bell, and the gear. It shows a readiness link only when the workbench is degraded: one orange **Degraded** link to Settings › Diagnostics. The theme toggle lives in Settings › General and in the command palette.
 
 ### Modular CSS Architecture
 
@@ -328,7 +332,7 @@ Full project documentation is structured using the [Diátaxis Framework](https:/
 | Quadrant | Purpose | Key Documents |
 |---|---|---|
 | **[Tutorials](./docs/tutorials/first-agent-run.md)** | Learning-oriented guide for newcomers | [Run Your First Agent Workflow](./docs/tutorials/first-agent-run.md) |
-| **[How-To Guides](./docs/how-to/verify-worker-and-pi-session.md)** | Step-by-step problem-solving recipes | [Verify Worker Leases & Sessions](./docs/how-to/verify-worker-and-pi-session.md)<br/>[Database Backup & Disaster Recovery](./docs/how-to/backup-and-restore-database.md)<br/>[Check the Sandbox (sbx)](./docs/how-to/install-and-check-sbx.md) |
+| **[How-To Guides](./docs/how-to/verify-worker-and-pi-session.md)** | Step-by-step problem-solving recipes | [Verify Worker Leases & Sessions](./docs/how-to/verify-worker-and-pi-session.md)<br/>[Database Backup & Disaster Recovery](./docs/how-to/backup-and-restore-database.md)<br/>[Check the Sandbox (sbx)](./docs/how-to/install-and-check-sbx.md)<br/>[Reset to a Clean State](./docs/how-to/start-fresh.md) |
 | **[Reference](./docs/reference/database-schema.md)** | Factual technical specifications | [Database Schema & Entities](./docs/reference/database-schema.md)<br/>[State Machine Transition Matrix](./docs/reference/state-machine-matrix.md)<br/>[Production Readiness Checklist](./docs/reference/production-readiness-checklist.md) |
 | **[Explanation](./docs/explanation/process-boundaries-and-topology.md)** | Architectural understanding & "why" | [Process Boundaries & System Topology](./docs/explanation/process-boundaries-and-topology.md)<br/>[UI State & Event Streaming](./docs/explanation/ui-state-and-event-streaming.md) |
 

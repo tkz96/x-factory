@@ -24,6 +24,7 @@ How-to guides help competent operators solve specific real-world tasks and opera
 - **[How to Verify Worker Leases and Agent Sessions](./how-to/verify-worker-and-pi-session.md)**: Step-by-step verification procedure for worker claiming, database inspection, and Server-Sent Events.
 - **[How to Back Up and Restore the Database](./how-to/backup-and-restore-database.md)**: Procedures for non-blocking SQLite snapshots, artifact archives, cron automation, and disaster recovery.
 - **[How to Check the Sandbox (sbx), or Run Without One](./how-to/install-and-check-sbx.md)**: How to check whether the coding stage can run inside `sbx`, and how to explicitly allow running without one.
+- **[How to Reset X-Factory to a Clean State](./how-to/start-fresh.md)**: Stop the server, back up and move aside the data dir and `config/projects.json`, prune run worktrees, avoid the first-launch key import, and start again.
 
 ---
 
