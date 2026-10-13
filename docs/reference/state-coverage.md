@@ -22,7 +22,7 @@ State derivation is pure: `deriveAsyncState(query, { isEmpty, isPartial, isStale
 
 | State | Definition | Presentation |
 |---|---|---|
-| `loading` | No result yet — an initial fetch in flight (or paused/offline). A background refetch with data on screen is NOT loading. | Lists reserve **static placeholder rows** at the height the loaded rows will have (`--list-row-height`, from the row block in `src/frontend/components/ui/`); everything else shows the **one standard spinner** (`Spinner`) for small inline waits. The wait is announced once through `role="status"`. No shimmer, ever — placeholders are static and never animated (#251). |
+| `loading` | No result yet — an initial fetch in flight (or paused/offline). A background refetch with data on screen is NOT loading. | Lists reserve **static placeholder rows** at the height the loaded rows will have (`--list-row-height`, from the row block in `src/frontend/components/ui/`); everything else shows the **one standard spinner** (`Spinner`) for small inline waits. The spinner appears only once a wait has lasted `--duration-slow` (300ms) and then fades in, so a fast answer never flashes one. Placeholder rows are exempt: they hold the list's shape from the first frame. The wait is announced once through `role="status"`. No shimmer, ever — placeholders are static and never animated (#251). When content arrives after a wait, `AsyncRegion` fades it in once (opacity only, nothing moves); content rendered from the cache shows at once, and the fade never replays on a re-render or a background refresh (`AsyncRegion.tsx`, `AsyncRegion.css`). |
 | `empty` | The region has results but none are usable (caller predicate `isEmpty`). | Guidance text from the copy map, overridable per region via props. |
 | `partial` | Some results loaded and others failed (caller predicate `isPartial`). | Content stays on screen plus a warning banner listing exactly which parts failed (`failedParts`), so the user knows what still works. |
 | `error` | The query failed AND the region has nothing to show. | Normalized message from the copy map + `RetryAction`. Never a raw provider body. |
@@ -32,7 +32,7 @@ Three recorded refinements:
 
 1. **Error with data on screen is a suppressed diagnostic, not a primary state.** A failed refresh never hides working results; the error renders inline as a banner with a retry, carried in `suppressed`. The canonical case: stale + failed refresh → stale badge + error context + retry.
 2. **Loading means "no result yet."** An enabled-but-not-started query shows the reserved loading region; consumers that gate a region (for example, a wizard step waiting on upstream inputs) simply do not render the region until it is live.
-3. **Lists load as placeholder rows, everything else as the spinner (#251).** A list passes `placeholderRows` to `AsyncRegion`; its placeholder rows are the same row block as the real rows, so they reserve the same height and the list does not jump when data arrives. A small inline wait uses `Spinner`, the one wait indicator in the vocabulary. Neither is ever animated or shimmering, and neither is constructed by hand outside the blocks.
+3. **Lists load as placeholder rows, everything else as the spinner (#251).** A list passes `placeholderRows` to `AsyncRegion`; its placeholder rows are the same row block as the real rows, so they reserve the same height and the list does not jump when data arrives. A small inline wait uses `Spinner`, the one wait indicator in the vocabulary. Placeholder rows are never animated and never shimmer; the spinner only fades in after a wait of `--duration-slow`. Neither is constructed by hand outside the blocks.
 
 Required test coverage for every read region: loading, empty, partial, error, stale.
 
@@ -300,7 +300,19 @@ Required test coverage for every mutation region: pending, success, error.
 
 Inputs render through `FieldFeedback`. The coverage contract requires testing `default`, `invalid`, and `warning` for every validated input; `valid` and `indeterminate` are additional presentation states. Frontend input validation is light client checking from descriptors (required/type) for instant feedback; authoritative validation stays server-side.
 
-## Enforcement — honest scope
+## Narrow-width coverage
+
+Every screen must hold its feedback contract down to 290px (`--app-min-width` in `src/frontend/styles/tokens.css`). Below that floor the page scrolls rather than crushes its content. `test/responsive-browser.test.ts` drives Chromium through every route at 290, 320, 360 and 390px and fails when a label collides or content becomes unreachable.
+
+What changes at narrow width:
+
+- Grouped list rows and the Table block re-flow under a 30rem container query into stacked rows; the table never scrolls sideways (`src/frontend/components/ui/Table.tsx`).
+- The Runs filter collapses from the segmented control to a Select below 400px (`collapseBelow="(max-width: 400px)"` in `views/RunsView.tsx`). A collapsed control is the same choice through the Select block, so every filter state stays reachable.
+- The run page's stepper strip is pinned above the phone tab bar at one exact height, and below 480px it shows only the current step's label, so the six labels never collide (`src/frontend/components/runs/WorkflowStepper.css`).
+- Page-heading actions (Start Run, Add Project) become icon-only buttons with accessible names on phones.
+
+Loading states follow the same rule at every width: placeholder rows hold the list's height, the spinner keeps its delay, and content that arrives fades in once — nothing depends on a wide viewport.
+
 
 - `test/frontend-smoke.test.ts` gains a known-anti-pattern scan: ad-hoc spinner markup, ad-hoc generic error copy, toast systems constructed outside `feedback/` and outside the notification center (#264, the named exception), and any shimmer animation (#251 — static placeholder rows are the approved loading shape, a shimmer is not, in markup or in CSS). The scan DETECTS known anti-patterns; it does not PROVE coverage. Behavioral tests are the real enforcement.
 - Three end-to-end provider journeys (`test/provider-journeys.test.tsx`) run the REAL wizard against a REAL server with a registry injected through the provider contract's own seam: GitHub-only, Azure dual-role, and Jira tracker-only (degraded evidence plus a git host from another provider). They are written provider-agnostically — the provider under test is DATA (`test/fixtures/journey-providers.ts`), and the api-client transport is the only boundary that stands in — and they assert the created project's persisted connections, its role-tagged repository, its `gitIdentity`, and that no secret appears in any response.
