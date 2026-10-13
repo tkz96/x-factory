@@ -12,7 +12,9 @@ import {
   Radio as AriaRadio,
   RadioGroup as AriaRadioGroup,
 } from "react-aria-components";
+import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 import { withoutUndefined } from "./aria-props.js";
+import { SelectField } from "./SelectField.js";
 
 export interface SegmentedControlOption {
   id: string;
@@ -34,6 +36,12 @@ export interface SegmentedControlProps {
   onChange: (id: string) => void;
   options: readonly SegmentedControlOption[];
   isDisabled?: boolean | undefined;
+  /**
+   * Below this viewport width the segments no longer fit one row, so the same
+   * options render through the Select block — the platform's pop-up button for
+   * too many segments. A media query string, e.g. "(max-width: 400px)".
+   */
+  collapseBelow?: string | undefined;
   className?: string | undefined;
 }
 
@@ -43,8 +51,32 @@ export function SegmentedControl({
   onChange,
   options,
   isDisabled,
+  collapseBelow,
   className,
 }: SegmentedControlProps) {
+  const collapsed = useMediaQuery(collapseBelow ?? "");
+
+  if (collapsed) {
+    // One select instead of the segments: the counts ride in the option
+    // labels, so nothing the segments said is lost.
+    return (
+      <SelectField
+        label={label}
+        hideLabel
+        selectedKey={value}
+        onSelectionChange={(id) => onChange(String(id))}
+        options={options.map((option) => ({
+          id: option.id,
+          label:
+            option.count !== undefined
+              ? `${option.label} (${option.count})`
+              : option.label,
+        }))}
+        {...withoutUndefined({ isDisabled, className })}
+      />
+    );
+  }
+
   const classes = ["ui-segmented"];
   if (className !== undefined) classes.push(className);
   return (

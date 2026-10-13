@@ -171,6 +171,10 @@ export function RunsView() {
           label="Show"
           value={filter}
           onChange={choose}
+          // Four segments plus their counts stop fitting one row around phone
+          // width: the filter becomes a pop-up select there, counts in the
+          // option labels (#290).
+          collapseBelow="(max-width: 400px)"
           options={RUNS_FILTERS.map((f) => ({
             id: f.id,
             label: f.label,

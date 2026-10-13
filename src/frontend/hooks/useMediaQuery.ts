@@ -1,11 +1,14 @@
 // src/frontend/hooks/useMediaQuery.ts — Whether a CSS media query currently matches (#262).
-// Used where a layout changes shape at phone width (the inspector becomes a sheet). Falls back to
-// false where matchMedia is missing, so the desktop layout is the default.
+// Used where a layout changes shape at phone width (the inspector becomes a sheet; a segmented
+// control collapses to a select). An empty query never matches, so a caller that has no threshold
+// to watch gets `false`. Falls back to false where matchMedia is missing, so the desktop layout is
+// the default.
 
 import { useEffect, useState } from "react";
 
 function matchesNow(query: string): boolean {
   return (
+    query !== "" &&
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
     window.matchMedia(query).matches
@@ -17,6 +20,7 @@ export function useMediaQuery(query: string): boolean {
 
   useEffect(() => {
     if (
+      query === "" ||
       typeof window === "undefined" ||
       typeof window.matchMedia !== "function"
     ) {
