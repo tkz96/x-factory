@@ -84,10 +84,10 @@ Screens are built from one vocabulary of controls, in `src/frontend/components/u
 | Icon button | `IconButton.tsx` | icon-only, `label` is required — an icon-only control always has an accessible name |
 | Text field, text area | `TextField.tsx` | label, description, an inline `feedback` slot (a `FieldFeedback` node) |
 | Select | `SelectField.tsx` | options are data; the list opens in a popover as a listbox |
-| Segmented control | `SegmentedControl.tsx` | one control, mutually exclusive options; arrow keys move between segments |
+| Segmented control | `SegmentedControl.tsx` | one control, mutually exclusive options; arrow keys move between segments; opt-in `collapseBelow` renders the same options through the Select block below that viewport width (the pop-up button for too many segments) |
 | Switch | `SwitchControl.tsx` | track and thumb are tokens; the platform keeps the switch semantics |
 | Badge | `Badge.tsx` | a short state word, never an emoji |
-| Grouped list, list row | `ListGroup.tsx`, `ListRow.tsx` | the inset grouped list every list is built from; `PlaceholderRows` is its static loading shape |
+| Grouped list, list row | `ListGroup.tsx`, `ListRow.tsx` | the inset grouped list every list is built from; the group is a size container, and below a 30rem list the row wraps — title on its own line, trailing accessory under it; `PlaceholderRows` is its static loading shape |
 | Spinner | `Spinner.tsx` | the one inline wait indicator |
 
 Rules:
