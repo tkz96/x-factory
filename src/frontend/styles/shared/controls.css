@@ -984,3 +984,170 @@
    instead of squeezing the label. This now lives on the list's own container
    query above (`@container list-group (max-width: 30rem)`), so it responds to
    the list's width rather than the viewport. */
+
+/* ── Table ─────────────────────────────────────────────────────────────────
+   One table style (Table.tsx): an inset group like the grouped lists —
+   --radius-card, hairline row separators, no box per row. Mono only for ids;
+   numbers right-aligned in tabular figures. The frame is a size container:
+   below 30rem the table re-flows into stacked rows, so a phone never scrolls
+   it sideways. */
+
+.ui-table-frame {
+  container-type: inline-size;
+  container-name: ui-table;
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-subhead);
+  color: var(--text);
+}
+
+.ui-table-head {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: start;
+  white-space: nowrap;
+  background: var(--bg-secondary);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.ui-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.ui-table-sort-icon {
+  opacity: 0;
+  transform: rotate(-90deg);
+  transition:
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.ui-table-sort-icon.is-active {
+  opacity: 1;
+}
+
+.ui-table-sort-icon.is-descending {
+  transform: rotate(90deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-table-sort:hover .ui-table-sort-icon {
+    opacity: 0.5;
+  }
+
+  .ui-table-sort:hover .ui-table-sort-icon.is-active {
+    opacity: 1;
+  }
+}
+
+.ui-table-cell {
+  padding: var(--space-3) var(--space-4);
+  text-align: start;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.ui-table-cell--title {
+  font-weight: 600;
+}
+
+.ui-table-cell--end,
+.ui-table-head.ui-table-cell--end {
+  text-align: end;
+}
+
+.ui-table-cell--numeric {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* Hairlines between rows, not around them. */
+.ui-table-row + .ui-table-row > *,
+.ui-table-detail + .ui-table-row > * {
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.ui-table-row--highlighted {
+  background: var(--bg-secondary);
+}
+
+.ui-table-detail-cell {
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  background: var(--bg-secondary);
+}
+
+/* A narrow table re-flows: each row a block, the title first and full width,
+   and every other cell labelled by its column. */
+@container ui-table (max-width: 30rem) {
+  .ui-table,
+  .ui-table tbody,
+  .ui-table-row,
+  .ui-table-detail,
+  .ui-table-detail-cell {
+    display: block;
+  }
+
+  /* Each cell carries its column's label (data-label), so the header row is
+     not drawn; sorting stays on the wide layout. */
+  .ui-table thead {
+    display: none;
+  }
+
+  .ui-table-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .ui-table-row + .ui-table-row,
+  .ui-table-detail + .ui-table-row {
+    border-top: var(--border-width) solid var(--border-subtle);
+  }
+
+  .ui-table-row + .ui-table-row > *,
+  .ui-table-detail + .ui-table-row > * {
+    border-top: none;
+  }
+
+  .ui-table-cell {
+    display: block;
+    padding: 0;
+    text-align: start;
+  }
+
+  .ui-table-cell--title {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .ui-table-cell[data-label]::before {
+    content: attr(data-label) " ";
+    color: var(--text-muted);
+    font-size: var(--text-footnote);
+  }
+
+  .ui-table-cell--end:last-child {
+    margin-inline-start: auto;
+  }
+}

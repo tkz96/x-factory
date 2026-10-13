@@ -6,8 +6,9 @@
 
 import "./ModelConnectionsPanel.css";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  type DiscoveredModel,
   MODEL_API_TYPES,
   type ModelApiType,
   type ModelBudget,
@@ -20,6 +21,7 @@ import {
   useModelConnectionMutations,
   useModelConnections,
 } from "../../hooks/useModelConnections.js";
+import { useSettings } from "../../hooks/useQueries.js";
 import { formatUsd } from "../../lib/format-money.js";
 import { AsyncRegion } from "../feedback/AsyncRegion.js";
 import { MODEL_CONNECTIONS_COPY as COPY } from "../feedback/copy-map.js";
@@ -28,6 +30,16 @@ import { FeedbackBanner } from "../feedback/FeedbackBanner.js";
 import { AlertDialog } from "../overlays/index.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { SegmentedControl } from "../ui/SegmentedControl.js";
+import {
+  Table,
+  TableCell,
+  type TableColumn,
+  TableDetailRow,
+  TableRow,
+  type TableSort,
+} from "../ui/Table.js";
+import { TextField } from "../ui/TextField.js";
 
 type Mutations = ReturnType<typeof useModelConnectionMutations>;
 
@@ -172,13 +184,6 @@ type FormKey =
   | (typeof LIMIT_FIELDS)[number]
   | "budgetUsd"
   | "budgetRequests";
-const ALL_FIELDS: readonly FormKey[] = [
-  ...DETAIL_FIELDS,
-  ...LIMIT_FIELDS,
-  "budgetUsd",
-  "budgetRequests",
-];
-
 function initialValues(model: ModelRecord): Record<FormKey, string> {
   const text = (n: number | undefined) => (n === undefined ? "" : String(n));
   return {
@@ -245,6 +250,16 @@ function formatTodayUsage(
   return `${costPart} • ${reqPart}`;
 }
 
+const FIELD_GROUPS: ReadonlyArray<{
+  title: string;
+  keys: readonly FormKey[];
+}> = [
+  { title: COPY.groupDetails, keys: DETAIL_FIELDS },
+  { title: COPY.groupRateLimits, keys: LIMIT_FIELDS },
+  { title: COPY.groupBudget, keys: ["budgetUsd", "budgetRequests"] },
+];
+
+/** One chosen model's details, limits and budget, opened from its table row. */
 function ModelDetailsForm({
   connectionId,
   model,
@@ -267,30 +282,25 @@ function ModelDetailsForm({
 
   return (
     <form className="model-details" onSubmit={save} noValidate>
-      <div className="model-details-header">
-        <h5 className="model-details-title">{model.name ?? model.modelId}</h5>
-        <span className="model-details-usage">
-          {COPY.todayUsageLabel(
-            formatTodayUsage(model.todayUsage, model.budget),
-          )}
-        </span>
-      </div>
-      <div className="model-details-grid">
-        {ALL_FIELDS.map((key) => (
-          <label key={key} className="model-field" htmlFor={`${prefix}-${key}`}>
-            <span className="model-field-label">{COPY[key]}</span>
-            <input
-              id={`${prefix}-${key}`}
-              className="form-input"
-              inputMode="decimal"
-              value={values[key]}
-              onChange={(e) =>
-                setValues((prev) => ({ ...prev, [key]: e.target.value }))
-              }
-            />
-          </label>
-        ))}
-      </div>
+      {FIELD_GROUPS.map((group) => (
+        <fieldset key={group.title} className="model-details-group">
+          <legend className="model-details-legend">{group.title}</legend>
+          <div className="model-details-grid">
+            {group.keys.map((key) => (
+              <TextField
+                key={key}
+                label={COPY[key]}
+                inputId={`${prefix}-${key}`}
+                inputMode="decimal"
+                value={values[key]}
+                onChange={(value) =>
+                  setValues((prev) => ({ ...prev, [key]: value }))
+                }
+              />
+            ))}
+          </div>
+        </fieldset>
+      ))}
       <div className="model-actions">
         <Button
           variant="secondary"
@@ -318,6 +328,282 @@ function ModelDetailsForm({
   );
 }
 
+// ─── The models table ──────────────────────────────────────────────────────
+
+/** "262K", "1M", "8,192" — a token count as a person reads it. */
+export function formatTokens(n: number | undefined): string {
+  if (n === undefined) return COPY.unknown;
+  if (n >= 1_000_000) {
+    return `${Number((n / 1_000_000).toFixed(1))}M`;
+  }
+  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
+  return n.toLocaleString("en-US");
+}
+
+/** "$0.20 / $0.80", "Free", or "—" when the catalog says nothing. */
+export function formatPricePair(
+  input: number | undefined,
+  output: number | undefined,
+): string {
+  if (input === undefined && output === undefined) return COPY.unknown;
+  if ((input ?? 0) === 0 && (output ?? 0) === 0) return COPY.free;
+  const one = (n: number | undefined) =>
+    n === undefined ? COPY.unknown : n === 0 ? COPY.free : formatUsd(n);
+  return `${one(input)} / ${one(output)}`;
+}
+
+interface ModelRow {
+  id: string;
+  name: string;
+  contextWindow: number | undefined;
+  maxOutputTokens: number | undefined;
+  inputPricePerMTok: number | undefined;
+  outputPricePerMTok: number | undefined;
+  record: ModelRecord | undefined;
+}
+
+/** Chosen models (with their edited details) plus every other model found. */
+export function buildModelRows(
+  found: readonly DiscoveredModel[],
+  chosen: readonly ModelRecord[],
+): ModelRow[] {
+  const discovered = new Map(found.map((m) => [m.id, m]));
+  const rows: ModelRow[] = chosen.map((record) => {
+    const seen = discovered.get(record.modelId);
+    return {
+      id: record.modelId,
+      name: record.name ?? seen?.name ?? record.modelId,
+      contextWindow: record.contextWindow ?? seen?.contextWindow,
+      maxOutputTokens: record.maxOutputTokens ?? seen?.maxOutputTokens,
+      inputPricePerMTok: record.inputPricePerMTok ?? seen?.inputPricePerMTok,
+      outputPricePerMTok: record.outputPricePerMTok ?? seen?.outputPricePerMTok,
+      record,
+    };
+  });
+  const chosenIds = new Set(chosen.map((m) => m.modelId));
+  for (const model of found) {
+    if (chosenIds.has(model.id)) continue;
+    rows.push({
+      id: model.id,
+      name: model.name ?? model.id,
+      contextWindow: model.contextWindow,
+      maxOutputTokens: model.maxOutputTokens,
+      inputPricePerMTok: model.inputPricePerMTok,
+      outputPricePerMTok: model.outputPricePerMTok,
+      record: undefined,
+    });
+  }
+  return rows;
+}
+
+/** Chosen first, then by the sorted column (unknown values last). */
+export function sortModelRows(rows: ModelRow[], sort: TableSort): ModelRow[] {
+  const dir = sort.direction === "ascending" ? 1 : -1;
+  const value = (row: ModelRow): number | string | undefined =>
+    sort.column === "context"
+      ? row.contextWindow
+      : sort.column === "price"
+        ? row.inputPricePerMTok
+        : row.name.toLowerCase();
+  return [...rows].sort((a, b) => {
+    const chosenFirst =
+      Number(b.record !== undefined) - Number(a.record !== undefined);
+    if (chosenFirst !== 0) return chosenFirst;
+    const va = value(a);
+    const vb = value(b);
+    if (va === undefined && vb === undefined) return 0;
+    if (va === undefined) return 1;
+    if (vb === undefined) return -1;
+    return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
+  });
+}
+
+const MODEL_COLUMNS: readonly TableColumn[] = [
+  { id: "name", label: COPY.columnModel, sortable: true },
+  { id: "context", label: COPY.columnContext, align: "end", sortable: true },
+  { id: "maxOutput", label: COPY.columnMaxOutput, align: "end" },
+  { id: "price", label: COPY.columnPrice, align: "end", sortable: true },
+  { id: "role", label: COPY.columnRole },
+  { id: "today", label: COPY.columnToday, align: "end" },
+  { id: "action", label: COPY.columnAction, hideLabel: true },
+];
+
+function ModelsTable({
+  connection,
+  found,
+  mutations,
+}: {
+  connection: ModelConnectionView;
+  found: readonly DiscoveredModel[];
+  mutations: Mutations;
+}) {
+  const id = connection.id;
+  const { data: settings } = useSettings();
+  const roles = settings?.roles ?? {};
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "chosen">("all");
+  const [sort, setSort] = useState<TableSort>({
+    column: "name",
+    direction: "ascending",
+  });
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const all = buildModelRows(found, connection.models);
+    const shown = all.filter(
+      (row) =>
+        (filter === "all" || row.record !== undefined) &&
+        (needle === "" ||
+          row.name.toLowerCase().includes(needle) ||
+          row.id.toLowerCase().includes(needle)),
+    );
+    return sortModelRows(shown, sort);
+  }, [found, connection.models, query, filter, sort]);
+
+  const roleNames = (modelId: string): string[] =>
+    (["builder", "reviewer"] as const)
+      .filter(
+        (role) =>
+          roles[role]?.connectionId === id && roles[role]?.modelId === modelId,
+      )
+      .map((role) => (role === "builder" ? "Builder" : "Reviewer"));
+
+  const toggle = (modelId: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(modelId)) next.delete(modelId);
+      else next.add(modelId);
+      return next;
+    });
+
+  const total =
+    found.length +
+    connection.models.filter((m) => !found.some((f) => f.id === m.modelId))
+      .length;
+
+  return (
+    <div className="model-table">
+      <div className="model-table-tools">
+        <p className="model-found-count">{COPY.modelsFound(total)}</p>
+        <TextField
+          label={COPY.searchModels}
+          className="model-table-search"
+          inputType="search"
+          placeholder={COPY.searchPlaceholder}
+          value={query}
+          onChange={setQuery}
+        />
+        <SegmentedControl
+          label={COPY.filterLabel}
+          value={filter}
+          onChange={(value) => setFilter(value === "chosen" ? "chosen" : "all")}
+          options={[
+            { id: "all", label: COPY.filterAll },
+            {
+              id: "chosen",
+              label: COPY.filterChosen,
+              count: connection.models.length,
+            },
+          ]}
+        />
+      </div>
+      {rows.length === 0 ? (
+        <p className="model-table-empty">{COPY.noMatches}</p>
+      ) : (
+        <Table
+          label={COPY.modelsTable(connection.name)}
+          columns={MODEL_COLUMNS}
+          sort={sort}
+          onSortChange={setSort}
+        >
+          {rows.flatMap((row) => {
+            const chosen = row.record !== undefined;
+            const isOpen = open.has(row.id);
+            const detailId = `model-limits-${id}-${row.id}`;
+            const cells = (
+              <TableRow key={row.id} isHighlighted={chosen}>
+                <TableCell isRowHeader>
+                  <span className="model-table-name">{row.name}</span>
+                  {row.name !== row.id && (
+                    <code className="model-table-id">{row.id}</code>
+                  )}
+                </TableCell>
+                <TableCell numeric label={COPY.columnContext}>
+                  {formatTokens(row.contextWindow)}
+                </TableCell>
+                <TableCell numeric label={COPY.columnMaxOutput}>
+                  {formatTokens(row.maxOutputTokens)}
+                </TableCell>
+                <TableCell numeric label={COPY.columnPrice}>
+                  {formatPricePair(
+                    row.inputPricePerMTok,
+                    row.outputPricePerMTok,
+                  )}
+                </TableCell>
+                <TableCell>
+                  {roleNames(row.id).map((role) => (
+                    <Badge key={role} tone="accent">
+                      {role}
+                    </Badge>
+                  ))}
+                </TableCell>
+                <TableCell numeric label={COPY.columnToday}>
+                  {row.record !== undefined
+                    ? formatTodayUsage(row.record.todayUsage, row.record.budget)
+                    : COPY.unknown}
+                </TableCell>
+                <TableCell align="end">
+                  {chosen ? (
+                    <Button
+                      id={`btn-edit-limits-${id}-${row.id}`}
+                      variant="secondary"
+                      size="sm"
+                      aria-expanded={isOpen}
+                      aria-controls={detailId}
+                      aria-label={COPY.editLimitsLabel(row.name)}
+                      onPress={() => toggle(row.id)}
+                    >
+                      {COPY.editLimits}
+                    </Button>
+                  ) : (
+                    <Button
+                      id={`btn-add-model-${id}-${row.id}`}
+                      variant="secondary"
+                      size="sm"
+                      aria-label={COPY.addModelLabel(row.name)}
+                      onPress={() =>
+                        mutations.addModel.mutate({ id, modelId: row.id })
+                      }
+                    >
+                      {COPY.addModel}
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+            if (!chosen || !isOpen || row.record === undefined) return [cells];
+            return [
+              cells,
+              <TableDetailRow
+                key={`${row.id}-limits`}
+                id={detailId}
+                span={MODEL_COLUMNS.length}
+              >
+                <ModelDetailsForm
+                  connectionId={id}
+                  model={row.record}
+                  mutations={mutations}
+                />
+              </TableDetailRow>,
+            ];
+          })}
+        </Table>
+      )}
+    </div>
+  );
+}
+
 // ─── One connection ────────────────────────────────────────────────────────
 
 function ConnectionCard({
@@ -332,7 +618,6 @@ function ConnectionCard({
   const [checkResult, setCheckResult] = useState<ModelListResult | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
   const id = connection.id;
-  const chosen = new Set(connection.models.map((m) => m.modelId));
   // A fresh check wins; otherwise show what the last check found and the
   // server kept, so a reload does not hide the models still to be added.
   const found = checkResult?.ok
@@ -425,52 +710,12 @@ function ConnectionCard({
       )}
       {checkError && <FeedbackBanner tone="error" message={checkError} />}
 
-      {found.length > 0 && (
-        <div className="model-found">
-          <p className="model-found-count">{COPY.modelsFound(found.length)}</p>
-          <ul className="model-found-list">
-            {found.map((model) => (
-              <li key={model.id} className="model-found-row">
-                <span>
-                  {model.name ?? model.id}
-                  {model.name && (
-                    <code className="model-found-id">{model.id}</code>
-                  )}
-                </span>
-                <Button
-                  id={`btn-add-model-${id}-${model.id}`}
-                  variant="secondary"
-                  size="sm"
-                  isDisabled={chosen.has(model.id)}
-                  aria-label={
-                    chosen.has(model.id)
-                      ? COPY.addedModelLabel(model.name ?? model.id)
-                      : COPY.addModelLabel(model.name ?? model.id)
-                  }
-                  onPress={() =>
-                    mutations.addModel.mutate({ id, modelId: model.id })
-                  }
-                >
-                  {chosen.has(model.id) ? COPY.added : COPY.addModel}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {connection.models.length > 0 && (
-        <div className="model-chosen">
-          <h4 className="model-chosen-title">{COPY.chosenModels}</h4>
-          {connection.models.map((model) => (
-            <ModelDetailsForm
-              key={model.modelId}
-              connectionId={id}
-              model={model}
-              mutations={mutations}
-            />
-          ))}
-        </div>
+      {(found.length > 0 || connection.models.length > 0) && (
+        <ModelsTable
+          connection={connection}
+          found={found}
+          mutations={mutations}
+        />
       )}
     </li>
   );

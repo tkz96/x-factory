@@ -29,6 +29,7 @@ import { RepositorySettings } from "../components/projects/RepositorySettings.js
 import { TrackerSection } from "../components/projects/TrackerSection.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { Table, TableCell, TableRow } from "../components/ui/Table.js";
 import { useConnectionLine } from "../hooks/useConnectionIdentity.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useProjects } from "../hooks/useQueries.js";
@@ -141,38 +142,53 @@ export function ProjectDetailView() {
             <Badge id="project-detail-repo-count">{repos.length}</Badge>
           </div>
 
-          {/* A table is not a card: one --radius-card border and hairlines
-              between its rows, never a box inside the pane. */}
-          <div
-            id="project-detail-repos-table"
-            className="repos-table-container"
-          >
+          {/* One table style app-wide (the Table block): an inset group with
+              hairlines between rows, which re-flows into stacked rows on a
+              phone instead of scrolling sideways. */}
+          <div id="project-detail-repos-table">
             {repos.length === 0 ? (
               <p className="text-muted p-4">
                 {PROJECT_DETAIL_COPY.repositoriesEmpty}
               </p>
             ) : (
-              <table className="repos-table">
-                <thead>
-                  <tr>
-                    <th>{PROJECT_DETAIL_COPY.repositoryNameColumn}</th>
-                    <th>{PROJECT_DETAIL_COPY.repositoryPathColumn}</th>
-                    <th>{PROJECT_DETAIL_COPY.repositoryBranchColumn}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {repos.map((r) => (
-                    <tr key={r.name}>
-                      <td className="cell-name">{r.name}</td>
-                      <td className="cell-truncate">{r.path}</td>
-                      <td className="cell-branch">
-                        {r.defaultBranch ||
-                          PROJECT_DETAIL_COPY.defaultBranchFallback}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <Table
+                label={PROJECT_DETAIL_COPY.repositories}
+                columns={[
+                  {
+                    id: "name",
+                    label: PROJECT_DETAIL_COPY.repositoryNameColumn,
+                  },
+                  {
+                    id: "path",
+                    label: PROJECT_DETAIL_COPY.repositoryPathColumn,
+                  },
+                  {
+                    id: "branch",
+                    label: PROJECT_DETAIL_COPY.repositoryBranchColumn,
+                  },
+                ]}
+              >
+                {repos.map((r) => (
+                  <TableRow key={r.name}>
+                    <TableCell isRowHeader>{r.name}</TableCell>
+                    <TableCell
+                      label={PROJECT_DETAIL_COPY.repositoryPathColumn}
+                      className="repo-path-cell"
+                    >
+                      <span className="repo-path" title={r.path}>
+                        {r.path}
+                      </span>
+                    </TableCell>
+                    <TableCell
+                      label={PROJECT_DETAIL_COPY.repositoryBranchColumn}
+                      className="repo-branch-cell"
+                    >
+                      {r.defaultBranch ||
+                        PROJECT_DETAIL_COPY.defaultBranchFallback}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </Table>
             )}
           </div>
         </div>

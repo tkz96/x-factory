@@ -129,75 +129,35 @@
   display: block;
 }
 
-/* ── Repos Table ─────────────────────────────────────────────────────── */
+/* ── Repositories (Table block) ───────────────────────────────────────── */
 
-.repos-table-container {
-  overflow-x: auto;
-  border-radius: var(--radius-card);
-  border: var(--border-width) solid var(--border-subtle);
-  background: var(--bg-card);
-}
-
-.repos-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-footnote);
-}
-
-.repos-table th {
-  text-align: left;
-  padding: var(--space-3) var(--space-4);
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: var(--text-caption-1);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  white-space: nowrap;
-}
-
-.repos-table td {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  vertical-align: middle;
-}
-
-.repos-table tr:last-child td {
-  border-bottom: none;
-}
-
-.repos-table tr:hover td {
-  background: var(--bg-hover);
-}
-
-.repos-table .cell-name {
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-}
-
-.repos-table .cell-readiness {
-  white-space: nowrap;
-}
-
-.repos-table .cell-branch {
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-}
-
-.repos-table .cell-truncate {
+/* A checkout path is long: one line with an ellipsis (the full path is in the
+   title), and it may wrap on a phone, where the table re-flows. */
+.repo-path {
+  display: block;
   max-width: var(--content-max-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: inline-block;
-  vertical-align: middle;
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  color: var(--text-secondary);
 }
 
-.repos-table .cell-truncate-remote {
-  max-width: var(--content-max-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* On a phone the path takes its own line and truncates inside it. */
+@container ui-table (max-width: 30rem) {
+  .repo-path-cell {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .repo-path {
+    max-width: 100%;
+  }
+}
+
+.repo-branch-cell {
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
   white-space: nowrap;
-  display: inline-block;
-  vertical-align: middle;
 }

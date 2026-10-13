@@ -92,76 +92,72 @@
   justify-content: flex-start;
 }
 
-.model-found-count {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-/* The models a check found: no frame of its own, hairlines between the rows. */
-.model-found-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: calc(var(--space-8) * 6);
-  overflow-y: auto;
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-.model-found-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-}
-
-.model-found-row:last-child {
-  border-bottom: none;
-}
-
-.model-found-id {
-  margin-left: var(--space-2);
-  font-size: var(--text-footnote);
-  color: var(--text-muted);
-}
-
-.model-chosen {
+/* The models table: one table per connection (Table block), with its search
+   field and the All / Chosen filter above it. */
+.model-table {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.model-chosen-title,
-.model-details-title {
-  margin: 0;
-  font-size: var(--text-callout);
+.model-table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
 }
 
-/* The limits and budget details are a section of the connection, under a
-   hairline — not a second box inside a card. */
+.model-found-count {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+.model-table-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.model-table-name {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.model-table-id {
+  display: block;
+  font-size: var(--text-footnote);
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.model-table-empty {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* A chosen model's limits open under its row: three labelled groups. */
 .model-details {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  padding: var(--space-2) 0 0;
+}
+
+.model-details-group {
+  margin: 0;
   padding: 0;
-  padding-top: var(--space-3);
   border: none;
-  border-top: var(--border-width) solid var(--border-subtle);
-  border-radius: 0;
+  min-width: 0;
 }
 
-.model-details-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.model-details-usage {
+.model-details-legend {
+  margin: 0 0 var(--space-2);
+  padding: 0;
   font-size: var(--text-footnote);
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--text-secondary);
 }
