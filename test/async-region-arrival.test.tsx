@@ -8,7 +8,6 @@ registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
-import React from "react";
 import { AsyncRegion } from "../src/frontend/components/feedback/AsyncRegion.js";
 import type { DerivedAsyncState } from "../src/frontend/components/feedback/types.js";
 

@@ -8,14 +8,8 @@
 // a native radio input, so the tokens style the label and the platform keeps
 // the radio semantics.
 
-import { m } from "motion/react";
-import {
-  type CSSProperties,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type MotionStyle, m } from "motion/react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Radio as AriaRadio,
   RadioGroup as AriaRadioGroup,
@@ -76,6 +70,8 @@ export function SegmentedControl({
   // A press is caught on the way down (capture): React Aria's press handling
   // stops the event before it would bubble to the group.
   useEffect(() => {
+    // A collapsed control is a select: there is no group to listen on.
+    if (collapsed) return;
     const group = groupRef.current;
     if (group === null) return;
     const onPointerDown = () => {
@@ -85,6 +81,7 @@ export function SegmentedControl({
     return () => group.removeEventListener("pointerdown", onPointerDown, true);
   }, [collapsed]);
   useLayoutEffect(() => {
+    if (collapsed) return;
     const group = groupRef.current;
     if (group === null) return;
     const measure = () => {
@@ -128,7 +125,7 @@ export function SegmentedControl({
       : ({
           "--thumb-x": `${thumb.x}px`,
           "--thumb-w": `${thumb.w}px`,
-        } as CSSProperties);
+        } as MotionStyle);
 
   if (collapsed) {
     // One select instead of the segments: the counts ride in the option
