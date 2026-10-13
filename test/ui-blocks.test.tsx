@@ -302,11 +302,12 @@ describe("SegmentedControl — one control, mutually exclusive options", () => {
       dispatchEvent: () => false,
     })) as unknown as typeof window.matchMedia;
     try {
+      const changed: string[] = [];
       const { getByRole, queryByRole } = render(
         createElement(SegmentedControl, {
           label: "Show",
           value: "running",
-          onChange: () => {},
+          onChange: (id: string) => changed.push(id),
           options: [
             { id: "running", label: "Running", count: 3 },
             { id: "done", label: "Done", count: 12 },
@@ -323,6 +324,11 @@ describe("SegmentedControl — one control, mutually exclusive options", () => {
       }) as HTMLButtonElement;
       expect(classesOf(trigger)).toContain("ui-select-trigger");
       expect(trigger.textContent).toContain("Running (3)");
+
+      // Choosing from the listbox reaches the same onChange with the id.
+      fireEvent.click(trigger);
+      fireEvent.click(getByRole("option", { name: "Done (12)" }));
+      expect(changed).toEqual(["done"]);
     } finally {
       window.matchMedia = original;
     }
