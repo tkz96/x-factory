@@ -1,9 +1,13 @@
 /* ── Project Detail View (#267: the detail pane of the Projects split) ── */
 
+/* A header beside its action (or its count): at phone width the action wraps
+   below the title instead of squeezing it (#290). */
 .section-header-flex {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .projects-detail {
@@ -24,7 +28,12 @@
    card, so a glance answers "what is this project wired to?". */
 .projects-detail-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-sm), 1fr));
+  /* `min(…, 100%)` so a 290px pane takes one full-width column instead of
+     forcing a 220px track past the edge (#290). */
+  grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(var(--grid-card-sm), 100%), 1fr)
+    );
   gap: var(--space-5);
   margin: var(--space-5) 0 0;
   padding: var(--space-5) var(--space-6);
@@ -80,10 +89,15 @@
 /* ── Project Detail View ─────────────────────────────────────────────── */
 
 /* The tracker card's meta, inside the card: a grid with hairlines and no box of
-   its own — the card owns the border, not its contents. */
+   its own — the card owns the border, not its contents. Below 30rem the items
+   stack label over value, and the value truncates with an ellipsis instead of
+   running off the right edge (#290). */
 .project-detail-meta-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--grid-card-sm), 1fr));
+  grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(var(--grid-card-sm), 100%), 1fr)
+    );
   gap: var(--space-3) var(--space-6);
   margin: var(--space-4) 0 0;
   padding-top: var(--space-3);

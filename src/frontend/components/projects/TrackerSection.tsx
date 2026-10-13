@@ -153,7 +153,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
         {connectionDisplayValues(tracker, descriptors).map((entry) => (
           <div className="project-meta-item" key={entry.name}>
             <strong>{entry.label}</strong>
-            <span>{entry.value}</span>
+            <span className="meta-val">{entry.value}</span>
           </div>
         ))}
         <div className="project-meta-item">

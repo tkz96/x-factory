@@ -50,6 +50,9 @@
 .connection-combo-value {
   color: var(--text);
   font-weight: 600;
+  /* The value may shrink inside its slot and truncate, so a long identity
+     ("GitHub (tkz96/some-long-repo)") never runs off a 290px screen (#290). */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
