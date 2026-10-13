@@ -120,6 +120,7 @@ How that translates into this codebase (ticket #252):
 - **Windows settle; side and bottom sheets travel.** Every centred window — a sheet, a dialog, an alert — is one surface (`--sheet-width`, `--radius-lg`) and arrives from `scale(0.96)` with a fade over `--duration-modal` (280 ms) on `--ease-spring`. Nothing animates `backdrop-filter`: a blurred backdrop that sharpens is the one effect this system bans. A side or bottom sheet travels along the edge it is docked to on `--ease-drawer` (`cubic-bezier(0.32, 0.72, 0, 1)`), which leaves the edge at once because a sheet is leaving the screen. The step inside the assistant's sheet arrives from the side the reader moved towards — enter only, never animating height.
 - **The `motion` library is mounted once and loaded on demand.** `MotionProvider` (`src/frontend/motion/MotionProvider.tsx`) wraps the app in `LazyMotion` with `MotionConfig reducedMotion="user"`, and reaches the feature pack through the dynamic import in `motion-features.ts`. Components use the `m` components, never `motion`, so the pack stays out of the entry chunk; only `motion-feature-pack.ts` may name one. Springs have no fixed duration, so they are parameterised in `src/frontend/motion/motion-springs.ts`.
 - **The vocabulary lives in `src/frontend/motion/`.** `MotionEntry` (a chat row arriving) and `MotionList` / `MotionListItem` (reordering) are what screens build their motion from, rather than each screen hand-rolling keyframes. Sheets rise with the CSS motion tokens, not a component, and no surface follows a drag: the motion library has no drag feature in use.
+- **Blocks carry their own named motion.** Only a pointer press slides the segmented control's thumb on the spring from `MotionProvider`; a keyboard choice, a route change or a resize moves it at once (`SegmentedControl.tsx`). `AsyncRegion` fades content in only after a real wait and delays its spinner by `--duration-slow`, the notification bell's count rolls to the new number, and a phone's tab bar dips under the finger (`AsyncRegion.css`, `NotificationBell.tsx`, `AppShell.css`).
 
 ### Icons & Anti-Drift Architecture
 HIG: `/design/human-interface-guidelines/icons` + SF Symbols site
@@ -273,7 +274,7 @@ For flows, check the Patterns section first: onboarding, search, feedback, data 
 
 A screen composes blocks; it never hand-rolls a control. The vocabulary lives in `src/frontend/components/ui/` and is built on React Aria's unstyled primitives — React Aria owns behaviour (keyboard, press, focus visibility, disabled and touch semantics) and the tokens own every visual value. The one stylesheet is `src/frontend/styles/shared/controls.css`; see [docs/agents/frontend-styling.md](./docs/agents/frontend-styling.md) for the rules and the gate that enforces them.
 
-- button, icon button, text field, text area, select, segmented control, switch, badge, list row.
+- button, icon button, text field, text area, select, segmented control, switch, badge, grouped list, list row, table, spinner.
 - **Tap targets.** Every block a finger can hit is at least 44pt tall, taken from `--tap-min`.
 - **Focus.** One ring definition, drawn from `--border-width-indicator` and `--border-focus`, proved at 3:1 or better by the twelve-set contrast gate.
 - **Feedback.** The feedback family in `src/frontend/components/feedback/` renders through these blocks. Errors are announced as alerts; informational and partial states stay polite.
@@ -293,6 +294,10 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
   reserves `--list-row-height` so its static placeholders match; a compact row
   (Settings, Welcome) is `--tap-min`. The compact row is
   `.ui-list-row--compact`.
+- **Column data uses the Table block.** Where a screen needs columns —
+  Settings › Models (one table per connection, sortable) and a project's
+  Repositories — it builds on `Table` (`components/ui/Table.tsx`), drawn as the
+  same inset group as a list.
 - **Control sizes.** A regular control is `--tap-min` (44pt) tall. `size="sm"`
   is 32pt — a row accessory (Add, Copy, Mark all as read) — and grows back to
   `--tap-min` under a coarse pointer or at phone width. An icon-only control is
@@ -312,6 +317,13 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
   accessible name.
 - **Empty states name what is missing.** A fitting glyph, a headline, one
   guidance line (max 48ch) and the action that ends the state — no dashed box.
+
+### Phone widths
+
+- **Every route fits a 290px viewport.** `--app-min-width` (290px, `tokens.css`) is the floor; below it the page scrolls instead of overflowing. `test/responsive-browser.test.ts` drives every route at 290, 320, 360 and 390px and fails on horizontal overflow, a squeezed row title or colliding text.
+- **Grouped rows and the table re-flow by container, not window.** Below a 30rem container the row wraps — title on its own line, accessory under it — and the table becomes labelled stacks (`shared/controls.css`).
+- **The Runs filter collapses to a select below 400px.** The same SegmentedControl re-renders through the Select block (`collapseBelow="(max-width: 400px)"`).
+- **The run page pins its stepper strip above the phone tab bar** at one exact height, and below 480px only the current step keeps its label (`WorkflowStepper.css`, `RunDetailView.css`).
 
 ## 8. Non-negotiables
 
