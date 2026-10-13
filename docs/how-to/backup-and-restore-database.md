@@ -20,7 +20,8 @@ Use the built-in backup script to generate consistent snapshots with `VACUUM INT
 bun scripts/backup.ts
 ```
 
-To specify a custom backup directory, set the `BACKUP_DIR` variable:
+The script writes to the data dir's `backups/` folder (`~/.x-factory/backups/` by default).
+To write somewhere else, set the `BACKUP_DIR` variable:
 
 ```bash
 BACKUP_DIR=/mnt/secure-backups bun scripts/backup.ts
@@ -39,7 +40,7 @@ BACKUP_DIR=/mnt/secure-backups bun scripts/backup.ts
 [Backup] Artifacts archive complete: <backup dir>/x-factory-artifacts-<timestamp>.tar.gz
 ```
 
-The timestamp is the UTC time of the run, with `:` and `.` replaced by `-`.
+The timestamp is the UTC time of the run, with `:` and `.` replaced by `-` and `T` replaced by `_`.
 
 ## How to Schedule Automated Backups
 
