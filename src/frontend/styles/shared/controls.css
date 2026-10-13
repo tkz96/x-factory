@@ -438,12 +438,19 @@
 }
 
 /* A segment may shrink below its label at phone width: the label truncates
-   with an ellipsis instead of running past the viewport (#290). */
+   with an ellipsis instead of running past the viewport (#290), and a
+   narrower side padding keeps a word or two readable at 290px. */
 .ui-segment > span:not(.ui-segment-count) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .ui-segment {
+    padding-inline: var(--space-2);
+  }
 }
 
 .ui-segment[data-hovered] {
@@ -828,6 +835,10 @@
   .ui-list-row-trailing {
     margin-inline-start: 0;
     max-width: 100%;
+    /* A badge and a time that cannot share one line take one each, instead
+       of the time running to the row's edge. */
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
   }
 
   .ui-list-row--compact .ui-list-row-trailing {
