@@ -8,6 +8,14 @@
 // a native radio input, so the tokens style the label and the platform keeps
 // the radio semantics.
 
+import { m } from "motion/react";
+import {
+  type CSSProperties,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Radio as AriaRadio,
   RadioGroup as AriaRadioGroup,
@@ -55,6 +63,72 @@ export function SegmentedControl({
   className,
 }: SegmentedControlProps) {
   const collapsed = useMediaQuery(collapseBelow ?? "");
+  // One thumb for the whole control, positioned under the selected segment and
+  // moved by a layout animation, so a change slides it from the old segment to
+  // the new one. Only a pointer press slides it: a keyboard shortcut, an arrow
+  // key, a route change or a resize moves it at once, because those happen far
+  // too often to wait on motion. The transition is chosen when the change is
+  // measured, on the one element that animates.
+  const groupRef = useRef<HTMLDivElement>(null);
+  const pointerChange = useRef(false);
+  const animateThumb = useRef(false);
+  const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
+  // A press is caught on the way down (capture): React Aria's press handling
+  // stops the event before it would bubble to the group.
+  useEffect(() => {
+    const group = groupRef.current;
+    if (group === null) return;
+    const onPointerDown = () => {
+      pointerChange.current = true;
+    };
+    group.addEventListener("pointerdown", onPointerDown, true);
+    return () => group.removeEventListener("pointerdown", onPointerDown, true);
+  }, [collapsed]);
+  useLayoutEffect(() => {
+    const group = groupRef.current;
+    if (group === null) return;
+    const measure = () => {
+      const segment = group.querySelector<HTMLElement>(
+        `[data-segment-value="${CSS.escape(value)}"]`,
+      );
+      const next =
+        segment === null
+          ? null
+          : { x: segment.offsetLeft, w: segment.offsetWidth };
+      // An unchanged place re-renders nothing, so it never cuts a slide short.
+      setThumb((prev) =>
+        prev !== null && next !== null && prev.x === next.x && prev.w === next.w
+          ? prev
+          : next,
+      );
+    };
+    animateThumb.current = pointerChange.current;
+    pointerChange.current = false;
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    // A resize (fonts settling, a wider window) moves the thumb at once. The
+    // observer's first report is the size it started with, so it is skipped.
+    let first = true;
+    const observer = new ResizeObserver(() => {
+      if (first) {
+        first = false;
+        return;
+      }
+      animateThumb.current = false;
+      measure();
+    });
+    observer.observe(group);
+    return () => observer.disconnect();
+  }, [value, collapsed]);
+  // The thumb's place is passed as custom properties; the stylesheet owns the
+  // geometry (the inset, the radius).
+  const thumbPlace =
+    thumb === null
+      ? undefined
+      : ({
+          "--thumb-x": `${thumb.x}px`,
+          "--thumb-w": `${thumb.w}px`,
+        } as CSSProperties);
 
   if (collapsed) {
     // One select instead of the segments: the counts ride in the option
@@ -81,12 +155,22 @@ export function SegmentedControl({
   if (className !== undefined) classes.push(className);
   return (
     <AriaRadioGroup
+      ref={groupRef}
       aria-label={label}
       className={classes.join(" ")}
       orientation="horizontal"
       value={value}
       {...withoutUndefined({ isDisabled, onChange })}
     >
+      {thumbPlace !== undefined && (
+        <m.span
+          className="ui-segment-thumb"
+          aria-hidden="true"
+          layout
+          style={thumbPlace}
+          {...(animateThumb.current ? {} : { transition: { type: false } })}
+        />
+      )}
       {options.map((option) => (
         <AriaRadio
           key={option.id}

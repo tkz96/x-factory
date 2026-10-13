@@ -395,6 +395,7 @@
 /* One tap target tall, with the ring drawn inside it: a border would add two
    pixels to the track and leave the segments a pixel short of 44. */
 .ui-segmented {
+  position: relative;
   display: inline-flex;
   gap: 0;
   padding: 0;
@@ -472,10 +473,15 @@
   z-index: 1;
 }
 
-.ui-segment[data-selected]::before {
-  content: "";
+/* The thumb is one element per control, placed under the selected segment
+   through --thumb-x / --thumb-w (measured by SegmentedControl), so a pointer
+   change slides it across the track instead of swapping it. */
+.ui-segmented .ui-segment-thumb {
   position: absolute;
-  inset: var(--space-1);
+  top: var(--space-1);
+  bottom: var(--space-1);
+  left: calc(var(--thumb-x) + var(--space-1));
+  width: calc(var(--thumb-w) - 2 * var(--space-1));
   background: var(--bg-card);
   border-radius: calc(var(--radius-md) - var(--space-1));
   box-shadow: var(--shadow-sm);

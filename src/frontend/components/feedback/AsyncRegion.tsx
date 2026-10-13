@@ -9,7 +9,7 @@
 // State colors follow spec #133: error→red, warning/partial→orange,
 // valid→green, loading/stale→neutral.
 
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { Badge } from "../ui/Badge.js";
 import { PlaceholderRows } from "../ui/ListRow.js";
 import { Spinner } from "../ui/Spinner.js";
@@ -88,6 +88,12 @@ export function AsyncRegion({
   const hasSuppressedError = derived.suppressed.includes("error");
   const showPartial =
     derived.state === "partial" || derived.suppressed.includes("partial");
+  // A region that waited for its data fades the content in once it arrives; a
+  // region that rendered from the cache shows it at once. The flag stays set
+  // for the region's life, so the fade plays on arrival only, never on a
+  // re-render or a background refresh.
+  const sawLoading = useRef(false);
+  if (derived.state === "loading") sawLoading.current = true;
 
   if (derived.state === "loading") {
     // Lists reserve their rows (static placeholders, no shimmer); everything
@@ -95,7 +101,10 @@ export function AsyncRegion({
     // status role, so nothing here is silent.
     if (placeholderRows !== undefined) {
       return (
-        <div className="async-region async-region--loading async-region--rows">
+        <div
+          key="loading"
+          className="async-region async-region--loading async-region--rows"
+        >
           <span className="sr-only" role="status">
             {STATE_COPY.loading}
           </span>
@@ -107,7 +116,7 @@ export function AsyncRegion({
       );
     }
     return (
-      <div className="async-region async-region--loading">
+      <div key="loading" className="async-region async-region--loading">
         <Spinner label={STATE_COPY.loading} />
         <p className="async-region-hint">{STATE_COPY.loading}</p>
       </div>
@@ -150,7 +159,15 @@ export function AsyncRegion({
       emptyTitle ?? (emptyCopy === undefined ? STATE_COPY.empty : undefined);
     const hint = emptyCopy;
     return (
-      <div className="async-region async-region--empty" role="status">
+      <div
+        key="content"
+        className={
+          sawLoading.current
+            ? "async-region async-region--empty async-region--arrived"
+            : "async-region async-region--empty"
+        }
+        role="status"
+      >
         <svg className="icon icon-xl" aria-hidden="true">
           <use href={`/assets/icons/sprite.svg#${emptyIcon}`} />
         </svg>
@@ -167,7 +184,14 @@ export function AsyncRegion({
   // Suppressed diagnostics render unconditionally: precedence never discards
   // them, even when the consumer wires no retry handler.
   return (
-    <div className="async-region">
+    <div
+      key="content"
+      className={
+        sawLoading.current
+          ? "async-region async-region--arrived"
+          : "async-region"
+      }
+    >
       {derived.state === "stale" && (
         <div className="async-region-stale">
           <Badge className="async-region-stale-badge" tone="neutral">

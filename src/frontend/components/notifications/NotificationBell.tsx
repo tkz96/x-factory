@@ -36,6 +36,9 @@ export function NotificationBell() {
   // first paint, or arriving with the first load) is simply shown, and a count
   // that ticks up never re-animates.
   const [arriving, setArriving] = useState(false);
+  // A count that changes while the badge is showing rolls the new number in;
+  // the first paint and the 0 → n arrival (handled above) never do.
+  const [countChanged, setCountChanged] = useState(false);
   const previousCount = useRef(unreadCount);
   const hasShownACount = useRef(false);
   useEffect(() => {
@@ -46,6 +49,9 @@ export function NotificationBell() {
       return;
     }
     if (hasShownACount.current && was === 0) setArriving(true);
+    if (hasShownACount.current && was > 0 && was !== unreadCount) {
+      setCountChanged(true);
+    }
     hasShownACount.current = true;
   }, [unreadCount]);
 
@@ -72,7 +78,16 @@ export function NotificationBell() {
       >
         {unreadCount > 0 && (
           <Badge tone="accent" className="notification-badge">
-            {unreadCount}
+            <span
+              key={unreadCount}
+              className={
+                countChanged
+                  ? "notification-count notification-count--changed"
+                  : "notification-count"
+              }
+            >
+              {unreadCount}
+            </span>
           </Badge>
         )}
       </IconButton>

@@ -96,7 +96,7 @@
   }
 
   /* The thumb keeps its inset shape in system colours too. */
-  :root .ui-segment[data-selected]::before {
+  :root .ui-segmented .ui-segment-thumb {
     background: Highlight;
   }
 

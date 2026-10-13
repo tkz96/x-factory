@@ -43,6 +43,39 @@
   }
 }
 
+/* A count that changes while shown rolls the new number up into place; the
+   badge itself stays put. */
+.notification-count {
+  display: inline-block;
+}
+
+.notification-count--changed {
+  animation: notificationCountIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes notificationCountIn {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion: the rise drops, the crossfade stays. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes notificationCountIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
 /* The popover pads nothing of its own: its head and its rows each carry their
    own inset, so the two paddings stop stacking. */
 .xf-popover.notification-popover {

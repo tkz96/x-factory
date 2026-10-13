@@ -576,6 +576,14 @@
 
   .tab-item svg {
     opacity: 0.8;
+    transition: transform var(--duration-instant) var(--ease-out);
+  }
+
+  /* Press feedback on touch: the icon dips while the finger is down. */
+  @media (hover: none) {
+    .tab-item:active svg {
+      transform: scale(0.92);
+    }
   }
 
   .tab-item:hover,

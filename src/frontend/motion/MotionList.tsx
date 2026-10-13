@@ -26,7 +26,7 @@ export interface MotionListItemProps {
 
 export function MotionList({ children, className }: MotionListProps) {
   return (
-    <m.div className={className} layout="position">
+    <m.div className={className} layout="position" transition={SPRING_SMOOTH}>
       {children}
     </m.div>
   );
