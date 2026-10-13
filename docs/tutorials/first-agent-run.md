@@ -28,6 +28,8 @@ bun install
 
 X-Factory needs no environment configuration, and it needs no API key in the environment: you add model connections in the app. To change a path or a port, copy [`.env.example`](../.env.example) to `.env`; every variable there is optional.
 
+Leave `LLM_API_KEY` and `LLM_PROVIDER` unset. On the first start of an empty data dir, X-Factory imports an `LLM_API_KEY` from `.env` once, as a model connection named "\<Provider\> (imported)". The import matches the key to `LLM_PROVIDER`. A mismatch — for example an OpenAI-compatible router key with `LLM_PROVIDER=gemini` — imports the wrong connection. Add your connections in **Settings › Models** instead (Step 4).
+
 ---
 
 ## Step 2: Launch X-Factory
@@ -59,7 +61,7 @@ On first launch, X-Factory has no projects.
 
 1. On the **Welcome** checklist, choose **Add Project**. (You can also open **Projects** and use **Add Project** beside the heading.)
 2. Paste the **Repository** URL of the repository you want to work on. The assistant resolves it through the provider that owns that URL format, so you never pick a provider by hand.
-3. In **Connect**, fill in the provider configuration: one card for the issue tracker, one for the Git host. Pass **Check Connection** on each card.
+3. In **Connect**, fill in the provider configuration: one card for the issue tracker, one for the Git host. Pass **Verify Connection** on each card.
 4. In **Repositories**, select the repositories the project uses, and mark the one that holds the application.
 5. In **Inspection**, review the resolved Git identity and the tooling report.
 6. In **Review**, read the summary and choose **Create Project**.
@@ -76,9 +78,12 @@ The worker runs two model roles, and each one needs a model before a run can sta
 - **Reviewer** reviews the diff against the acceptance criteria, inside the code stage.
 
 1. Open **Settings**, then the **Models** tab. (The Welcome step also links here.)
-2. Add a connection: choose Gemini, Anthropic, or an OpenAI-compatible endpoint, then paste the API key and the base URL if the endpoint is not the official one.
+2. Choose **Add Connection**. Pick Gemini, Anthropic, or an OpenAI-compatible endpoint, then paste the API key and the base URL if the endpoint is not the official one.
 3. Choose **Check Connection** and wait for it to pass.
-4. Pick the model for **Builder** and the model for **Reviewer**.
+4. In the connection's models table, choose **Add** on each model you want to use.
+5. In **Roles**, pick the model for **Builder** and the model for **Reviewer**.
+
+If a connection named "\<Provider\> (imported)" already exists from the one-time key import (Step 1), check that it matches your key. Delete it when it does not.
 
 A run refuses to start while a role has no model (`409`), and no role ever falls back to another model.
 
@@ -86,7 +91,7 @@ A run refuses to start while a role has no model (`409`), and no role ever falls
 
 ## Step 5: Create and Observe a Run
 
-1. Open **Tickets** in the section switcher and choose **Start Run** beside the Tickets heading.
+1. In the toolbar's **Sections** switcher, open **Tickets**. Choose **Start Run** beside the Tickets heading.
 2. Fill in the form: **Ticket ID**, **Ticket Title**, **Branch (optional)**, **Acceptance criteria**, and **Implementation plan**. The run is scoped to the project you are looking at, so there is no project or repository picker.
 3. Choose **Start Run**.
 
