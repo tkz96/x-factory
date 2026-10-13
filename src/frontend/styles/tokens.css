@@ -262,6 +262,9 @@
   --sidebar-width-sm: 220px;
   --sidebar-width-xs: 180px;
   --sidebar-width-collapsed: 64px;
+  /* The floor every page fits at (#290): below it the page scrolls rather
+     than crushing its content. */
+  --app-min-width: 290px;
 
   --content-max-xs: 260px;
   --content-max-sm: 320px;

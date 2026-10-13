@@ -288,6 +288,46 @@ describe("SegmentedControl — one control, mutually exclusive options", () => {
     ).toBe(false);
   });
 
+  it("below its collapse threshold the same options render as a select (#290)", () => {
+    // The threshold the Runs filter uses: pretend the viewport is narrower.
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const { getByRole, queryByRole } = render(
+        createElement(SegmentedControl, {
+          label: "Show",
+          value: "running",
+          onChange: () => {},
+          options: [
+            { id: "running", label: "Running", count: 3 },
+            { id: "done", label: "Done", count: 12 },
+          ],
+          collapseBelow: "(max-width: 400px)",
+        }),
+      );
+
+      // No radiogroup: the control is the select block, with the counts in
+      // the option labels so nothing the segments said is lost.
+      expect(queryByRole("radiogroup")).toBeNull();
+      const trigger = getByRole("button", {
+        name: /Show/,
+      }) as HTMLButtonElement;
+      expect(classesOf(trigger)).toContain("ui-select-trigger");
+      expect(trigger.textContent).toContain("Running (3)");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it("changes the choice with the pointer and with the arrow keys", () => {
     const { getByRole } = render(createElement(Harness));
     const dark = getByRole("radio", { name: "Dark" }) as HTMLInputElement;

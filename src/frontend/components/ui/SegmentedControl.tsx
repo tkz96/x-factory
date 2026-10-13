@@ -12,7 +12,7 @@ import {
   Radio as AriaRadio,
   RadioGroup as AriaRadioGroup,
 } from "react-aria-components";
-import { useMediaQuery } from "../../hooks/useMediaQuery.js";
+import { useMediaQuery } from "./useMediaQuery.js";
 import { withoutUndefined } from "./aria-props.js";
 import { SelectField } from "./SelectField.js";
 
