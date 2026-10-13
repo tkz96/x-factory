@@ -397,6 +397,7 @@
   gap: 0;
   padding: 0;
   min-height: var(--tap-min);
+  max-width: 100%;
   background: var(--bg-tertiary);
   border: none;
   box-shadow: inset 0 0 0 var(--border-width) var(--border-control);
@@ -419,6 +420,9 @@
   justify-content: center;
   gap: var(--space-2);
   min-height: var(--tap-min);
+  /* The track never overflows its container: a segment may shrink and its
+     label truncate (#290). */
+  min-width: 0;
   padding: 0 var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-callout);
@@ -431,6 +435,15 @@
   transition:
     background-color var(--transition),
     color var(--transition);
+}
+
+/* A segment may shrink below its label at phone width: the label truncates
+   with an ellipsis instead of running past the viewport (#290). */
+.ui-segment > span:not(.ui-segment-count) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-segment[data-hovered] {
@@ -712,11 +725,16 @@
   flex-shrink: 0;
 }
 
-/* A read-only value that trails a row: a path, a branch, an id. */
+/* A read-only value that trails a row: a path, a branch, an id. It truncates
+   with an ellipsis rather than running off the row when it cannot shrink. */
 .ui-list-row-value {
   font-family: var(--font-mono);
   font-size: var(--text-footnote);
   color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-placeholder-line {
@@ -786,6 +804,49 @@
   border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-card);
   overflow: hidden;
+  /* A size container: the rows respond to how wide the LIST is, not to the
+     viewport (a list inside a narrow pane wraps even on a wide screen). */
+  container-type: inline-size;
+  container-name: list-group;
+}
+
+/* Phone width (a list under 30rem): the row may wrap. The title takes its own
+   full line and the trailing accessory (a badge and time, a switch, a select)
+   drops under it, so a long title is never squeezed to one word per line. The
+   compact row's accessory takes the whole line, as the old ≤768px viewport
+   rule had it — now keyed to the list's own width. */
+@container list-group (max-width: 30rem) {
+  .ui-list-row {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  .ui-list-row-main {
+    flex-basis: 100%;
+  }
+
+  .ui-list-row-trailing {
+    margin-inline-start: 0;
+    max-width: 100%;
+  }
+
+  .ui-list-row--compact .ui-list-row-trailing {
+    width: 100%;
+  }
+
+  /* A long title: two lines, then an ellipsis. */
+  .ui-list-row-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  /* A long unbreakable token (a model id, a branch) breaks inside itself
+     instead of pushing every other word onto its own line. */
+  .ui-list-row-subtitle {
+    overflow-wrap: anywhere;
+  }
 }
 
 .ui-list-group > * {
@@ -896,14 +957,6 @@
 
 /* Phone width: a compact row's accessory cannot shrink (the segmented
    appearance picker, a select), so it takes its own line under the title
-   instead of squeezing the label. */
-@media (max-width: 768px) {
-  .ui-list-row--compact {
-    flex-wrap: wrap;
-  }
-
-  .ui-list-row--compact .ui-list-row-trailing {
-    width: 100%;
-    margin-inline-start: 0;
-  }
-}
+   instead of squeezing the label. This now lives on the list's own container
+   query above (`@container list-group (max-width: 30rem)`), so it responds to
+   the list's width rather than the viewport. */
