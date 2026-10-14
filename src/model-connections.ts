@@ -160,8 +160,14 @@ function toView(
 }
 
 function resolveBaseUrl(apiType: ModelApiType, baseUrl?: string): string {
-  const trimmed = baseUrl?.trim();
-  if (trimmed) return trimmed;
+  let trimmed = baseUrl?.trim();
+  if (trimmed) {
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(trimmed);
+      trimmed = isLocal ? `http://${trimmed}` : `https://${trimmed}`;
+    }
+    return trimmed;
+  }
   if (apiType === "openai-compatible") {
     throw new ValidationError(
       "An OpenAI-compatible connection needs a base URL.",

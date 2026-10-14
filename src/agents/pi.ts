@@ -47,9 +47,18 @@ function literalConfigValue(value: string): string {
 /** The role's connection as one Pi provider holding exactly the role's model. */
 function providerConfig(resolved: ResolvedModel, apiKey: string) {
   const { details } = resolved;
+  let baseUrl = resolved.baseUrl?.trim() || "";
+  if (
+    baseUrl &&
+    !baseUrl.startsWith("http://") &&
+    !baseUrl.startsWith("https://")
+  ) {
+    const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(baseUrl);
+    baseUrl = isLocal ? `http://${baseUrl}` : `https://${baseUrl}`;
+  }
   return {
     name: `X-Factory: ${resolved.connectionName}`,
-    baseUrl: resolved.baseUrl,
+    baseUrl,
     api: PI_API_FOR_TYPE[resolved.apiType],
     apiKey,
     models: [

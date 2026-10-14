@@ -88,6 +88,20 @@ describe("model connections store", () => {
     });
     expect(router.baseUrl).toBe("https://openrouter.ai/api/v1");
     expect(router.hasKey).toBe(false);
+
+    const localRouter = await createModelConnection({
+      name: "Local",
+      apiType: "openai-compatible",
+      baseUrl: "localhost:3001/v1",
+    });
+    expect(localRouter.baseUrl).toBe("http://localhost:3001/v1");
+
+    const remoteRouter = await createModelConnection({
+      name: "Remote",
+      apiType: "openai-compatible",
+      baseUrl: "api.example.com/v1",
+    });
+    expect(remoteRouter.baseUrl).toBe("https://api.example.com/v1");
   });
 
   it("keeps keys in an owner-only secrets file, never in the connections file", async () => {
