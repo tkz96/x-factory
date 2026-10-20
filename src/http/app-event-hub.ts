@@ -7,9 +7,10 @@
 import type { Repositories } from "../composition-root.js";
 import * as runs from "../runs.js";
 import type { AppEventEnvelope } from "../shared/types.js";
+import { SSE_KEEPALIVE_MS } from "./sse-timing.js";
 
 export const APP_EVENTS_POLL_MS = 300;
-export const APP_EVENTS_KEEPALIVE_MS = 15000;
+export const APP_EVENTS_KEEPALIVE_MS = SSE_KEEPALIVE_MS;
 export const APP_EVENTS_REPLAY_PAGE_SIZE = 500;
 
 export interface AppEventSubscriber {

@@ -32,6 +32,7 @@ import {
   TransitionRunBodySchema,
 } from "./schemas.js";
 import { defaultSSERegistry } from "./sse-registry.js";
+import { SSE_KEEPALIVE_MS } from "./sse-timing.js";
 
 export function parseAcceptanceCriteria(raw: unknown): string[] {
   const lines = Array.isArray(raw)
@@ -229,7 +230,7 @@ export function handleRunEvents(
         // Poll SQLite every 300ms (Phase 2, Section 35)
         pollTimer = setInterval(pollEvents, 300);
 
-        // Keepalive every 15s (Phase 2, Section 38)
+        // Keepalive every SSE_KEEPALIVE_MS (Phase 2, Section 38)
         keepaliveTimer = setInterval(() => {
           if (isClosed) return;
           try {
@@ -242,7 +243,7 @@ export function handleRunEvents(
               // ignore
             }
           }
-        }, 15000);
+        }, SSE_KEEPALIVE_MS);
       }
     },
     cancel() {
