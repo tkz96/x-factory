@@ -1,6 +1,7 @@
 // test/use-stage-open-state.test.tsx — useStageOpenState: the focus stage opens when the run reaches
-// it or ends in it (a reload, whose events arrive after the first render, is one such arrival), and a
-// stage the reader closed stays closed until the focus moves on.
+// it or ends in it, a live run's open stages accumulate as it reaches them, a finished run's replayed
+// events leave only the stage the run ended in open, and a stage the reader toggled themselves stays
+// as they left it.
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -63,17 +64,39 @@ function planCurrentGroups(): StageGroup[] {
   ];
 }
 
-/** The run ended in the given stage: it holds the end state, the stages before it are done, the rest
- * never ran. */
+/**
+ * The run ended in the given stage: it holds the end state, the stages before it are done, the rest
+ * never ran. Items appear in the stages up to `withItems`; the default is the ended stage, and null
+ * is a run whose events have not arrived yet (a failed or stopped run then stands in prepare).
+ */
 function endedGroups(
   stage: WorkflowStage,
   endState: "failed" | "stopped",
+  withItems: WorkflowStage | null = stage,
 ): StageGroup[] {
   const at = STAGE_ORDER.indexOf(stage);
+  const itemsUpTo = withItems === null ? -1 : STAGE_ORDER.indexOf(withItems);
   return STAGE_ORDER.map((s, index) =>
-    s === stage
-      ? group(s, endState, [message("m3", "The run ended here")])
-      : group(s, index < at ? "done" : "upcoming"),
+    group(
+      s,
+      s === stage ? endState : index < at ? "done" : "upcoming",
+      index <= itemsUpTo ? [message(`m${index + 1}`, `Ran ${s}`)] : [],
+    ),
+  );
+}
+
+/**
+ * A delivered run (pull request opened): every stage done, items in the stages up to `upto`, none
+ * while `upto` is null (the run's events have not arrived yet).
+ */
+function deliveredGroups(upto: WorkflowStage | null): StageGroup[] {
+  const at = upto === null ? -1 : STAGE_ORDER.indexOf(upto);
+  return STAGE_ORDER.map((s, index) =>
+    group(
+      s,
+      "done",
+      index <= at ? [message(`m${index + 1}`, `Done in ${s}`)] : [],
+    ),
   );
 }
 
@@ -93,8 +116,11 @@ function state(): ReturnType<typeof useStageOpenState> {
 
 describe("useStageOpenState", () => {
   it("opens the failed stage when its events arrive after the first render (a reload)", () => {
-    const view = render(<Probe groups={[]} />);
-    expect([...state().openStages]).toEqual([]);
+    // Before the events arrive a failed run stands in Prepare, so that is what opens.
+    const view = render(
+      <Probe groups={endedGroups("prepare", "failed", null)} />,
+    );
+    expect([...state().openStages]).toEqual(["prepare"]);
 
     act(() => {
       view.rerender(<Probe groups={endedGroups("execute", "failed")} />);
@@ -103,7 +129,10 @@ describe("useStageOpenState", () => {
   });
 
   it("opens the stopped stage when its events arrive after the first render (a reload)", () => {
-    const view = render(<Probe groups={[]} />);
+    const view = render(
+      <Probe groups={endedGroups("prepare", "stopped", null)} />,
+    );
+    expect([...state().openStages]).toEqual(["prepare"]);
 
     act(() => {
       view.rerender(<Probe groups={endedGroups("execute", "stopped")} />);
@@ -111,8 +140,73 @@ describe("useStageOpenState", () => {
     expect([...state().openStages]).toEqual(["execute"]);
   });
 
+  it("leaves only the stage a failed run ended in open as its events replay", () => {
+    const view = render(
+      <Probe groups={endedGroups("prepare", "failed", null)} />,
+    );
+    expect([...state().openStages]).toEqual(["prepare"]);
+
+    // The events replay one message at a time, so the run passes through every stage.
+    for (const stage of ["understand", "plan", "execute"] as const) {
+      act(() => {
+        view.rerender(<Probe groups={endedGroups(stage, "failed")} />);
+      });
+      expect([...state().openStages]).toEqual([stage]);
+    }
+  });
+
+  it("leaves only the stage a stopped run ended in open as its events replay", () => {
+    const view = render(
+      <Probe groups={endedGroups("prepare", "stopped", null)} />,
+    );
+    expect([...state().openStages]).toEqual(["prepare"]);
+
+    for (const stage of ["understand", "plan", "execute"] as const) {
+      act(() => {
+        view.rerender(<Probe groups={endedGroups(stage, "stopped")} />);
+      });
+      expect([...state().openStages]).toEqual([stage]);
+    }
+  });
+
+  it("leaves only the last stage with items open as a delivered run's events replay", () => {
+    // No events have arrived: every stage is done, none has items yet.
+    const view = render(<Probe groups={deliveredGroups(null)} />);
+    expect([...state().openStages]).toEqual([]);
+
+    for (const stage of STAGE_ORDER) {
+      act(() => {
+        view.rerender(<Probe groups={deliveredGroups(stage)} />);
+      });
+      expect([...state().openStages]).toEqual([stage]);
+    }
+  });
+
+  it("keeps a stage the reader opened by hand open as the focus moves on", () => {
+    const view = render(<Probe groups={deliveredGroups("prepare")} />);
+    expect([...state().openStages]).toEqual(["prepare"]);
+
+    act(() => {
+      view.rerender(<Probe groups={deliveredGroups("understand")} />);
+    });
+    expect([...state().openStages]).toEqual(["understand"]);
+
+    // The reader opens Prepare again by hand while Understand is the focus.
+    act(() => {
+      state().toggleStage("prepare");
+    });
+    expect([...state().openStages].sort()).toEqual(["prepare", "understand"]);
+
+    act(() => {
+      view.rerender(<Probe groups={deliveredGroups("plan")} />);
+    });
+    expect([...state().openStages].sort()).toEqual(["plan", "prepare"]);
+  });
+
   it("keeps a stage the reader closed closed while the focus stays on it", () => {
-    const view = render(<Probe groups={[]} />);
+    const view = render(
+      <Probe groups={endedGroups("prepare", "failed", null)} />,
+    );
     act(() => {
       view.rerender(<Probe groups={endedGroups("execute", "failed")} />);
     });
@@ -128,6 +222,27 @@ describe("useStageOpenState", () => {
       view.rerender(<Probe groups={endedGroups("execute", "failed")} />);
     });
     expect([...state().openStages]).toEqual([]);
+
+    // The focus moves on: the stage the reader closed stays closed.
+    act(() => {
+      view.rerender(<Probe groups={endedGroups("review", "failed")} />);
+    });
+    expect([...state().openStages]).toEqual(["review"]);
+  });
+
+  it("does not close stages the reader opened with Expand all", () => {
+    const view = render(
+      <Probe groups={endedGroups("prepare", "failed", null)} />,
+    );
+    act(() => {
+      state().toggleAllStages();
+    });
+    expect(state().openStages.size).toBe(STAGE_ORDER.length);
+
+    act(() => {
+      view.rerender(<Probe groups={endedGroups("understand", "failed")} />);
+    });
+    expect([...state().openStages].sort()).toEqual([...STAGE_ORDER].sort());
   });
 
   it("still opens the current stage as the run reaches it", () => {
