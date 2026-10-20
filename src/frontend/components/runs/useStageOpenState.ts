@@ -1,12 +1,12 @@
 // src/frontend/components/runs/useStageOpenState.ts — Which of the run chat's six stages are open: the
-// default (the focus stage), the current stage opening as the run reaches it, and the reader's own
-// toggles kept. Expand all / Collapse all toggle every stage at once.
+// default (the focus stage), the focus stage opening when the run reaches it or ends in it, and the
+// reader's own toggles kept. Expand all / Collapse all toggle every stage at once.
 
 import { useEffect, useRef, useState } from "react";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { StageGroup } from "../../lib/run-stages.js";
 import { STAGE_ORDER } from "../../lib/workflow-stages.js";
-import { defaultOpenStages } from "./RunStageTimeline.js";
+import { defaultOpenStages, focusStage } from "./RunStageTimeline.js";
 
 interface StageOpenState {
   openStages: ReadonlySet<WorkflowStage>;
@@ -19,17 +19,17 @@ export function useStageOpenState(
   groups: readonly StageGroup[],
 ): StageOpenState {
   const [openStages, setOpenStages] = useState(() => defaultOpenStages(groups));
-  const currentStage =
-    groups.find((group) => group.state === "current")?.stage ?? null;
-  const shownStageRef = useRef(currentStage);
+  const focus = focusStage(groups);
+  const shownStageRef = useRef(focus);
 
-  // The current stage opens when the run reaches it; a stage the reader closed stays as they left it
-  // until the run moves on.
+  // The focus stage opens when the run reaches it or ends in it — a reload, whose events arrive
+  // after the first render, is one such arrival. A stage the reader closed stays as they left it
+  // until the focus moves on.
   useEffect(() => {
-    if (currentStage === null || currentStage === shownStageRef.current) return;
-    shownStageRef.current = currentStage;
-    setOpenStages((prev) => new Set(prev).add(currentStage));
-  }, [currentStage]);
+    if (focus === null || focus === shownStageRef.current) return;
+    shownStageRef.current = focus;
+    setOpenStages((prev) => new Set(prev).add(focus));
+  }, [focus]);
 
   const allOpen = groups.every((group) => openStages.has(group.stage));
 

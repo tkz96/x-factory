@@ -39,7 +39,9 @@ export interface RunStageTimelineProps {
  * The stage a reader is looking at: the current stage, else the failed or stopped one, else the
  * last stage that has any items. Null when no stage qualifies.
  */
-function focusStage(groups: readonly StageGroup[]): WorkflowStage | null {
+export function focusStage(
+  groups: readonly StageGroup[],
+): WorkflowStage | null {
   const focus =
     groups.find((group) => group.state === "current") ??
     groups.find((group) => group.state === "failed") ??
