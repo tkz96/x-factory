@@ -1,0 +1,340 @@
+/* src/frontend/components/runs/RunStageTimeline.css — The stage timeline in the run chat panel (spec
+   "Left panel: stage timeline"). Every value is a token, except the node and check sizes, which are
+   component sizes. The rail is one column; the connector is each stage's own ::before. */
+
+.run-stage-list {
+  --run-stage-rail: var(--space-6);
+  --run-stage-node: calc(var(--space-5) + var(--space-0-5));
+  --run-stage-node-top: calc((var(--tap-min) - var(--run-stage-node)) / 2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.run-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--run-stage-rail) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+/* The dotted connector runs from just below this stage's node to just above the next stage's node,
+   so it stretches and shrinks with the stage. The last stage has none. */
+.run-stage::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--run-stage-rail) / 2 - var(--border-width-thick) / 2);
+  top: calc(var(--run-stage-node-top) + var(--run-stage-node) + var(--space-1));
+  bottom: calc(var(--space-1) - var(--run-stage-node-top));
+  border-left: var(--border-width-thick) dotted var(--border-control);
+  pointer-events: none;
+}
+
+.run-stage:last-child::before {
+  display: none;
+}
+
+/* ── Node ───────────────────────────────────────────────────────────── */
+
+.run-stage-node {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: center;
+  align-self: start;
+  margin-top: var(--run-stage-node-top);
+  width: var(--run-stage-node);
+  height: var(--run-stage-node);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  border: var(--border-width-thick) dotted var(--border-control);
+  background: var(--bg-card);
+  color: var(--text-on-accent);
+}
+
+.run-stage-check {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: none;
+}
+
+/* Upcoming: a dotted grey ring. */
+.run-stage[data-state="upcoming"] .run-stage-node {
+  border-color: var(--border-control);
+}
+
+/* Done: a solid green node with a white check; the connector after it is green-tinted. */
+.run-stage[data-state="done"] .run-stage-node {
+  border: 0;
+  background: var(--green);
+}
+
+.run-stage[data-state="done"]::before {
+  border-left-color: var(--green);
+}
+
+/* Failed: red. */
+.run-stage[data-state="failed"] .run-stage-node {
+  border: 0;
+  background: var(--red);
+}
+
+/* Stopped: a grey ring with a solid centre. */
+.run-stage[data-state="stopped"] .run-stage-node {
+  border-color: var(--text-muted);
+}
+
+/* Current: an orange ring with an inner dot and a soft pulsing halo. */
+.run-stage[data-state="current"] .run-stage-node {
+  border: var(--border-width-thick) solid var(--orange);
+  background: var(--bg-card);
+}
+
+.run-stage[data-state="current"] .run-stage-node::after {
+  content: "";
+  position: relative;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  background: var(--orange);
+}
+
+.run-stage[data-state="current"] .run-stage-node::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--border-width-thick) * -1);
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  background: var(--orange-dim);
+  animation: runStagePulse var(--duration-pulse) var(--ease-pulse) infinite;
+}
+
+@keyframes runStagePulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* ── Header: the stage's button ─────────────────────────────────────── */
+
+.run-stage-header {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-2);
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.run-stage-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.run-stage-header:active {
+  background: var(--bg-secondary);
+}
+
+.run-stage-header:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: calc(var(--border-width-indicator) * -1);
+}
+
+.run-stage-label {
+  min-width: 0;
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.run-stage-took {
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-stage-status {
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--red);
+  white-space: nowrap;
+}
+
+.run-stage[data-state="stopped"] .run-stage-status {
+  color: var(--text-muted);
+}
+
+.run-stage-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  background: var(--orange-dim);
+  color: var(--orange);
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.run-stage-waiting-dot {
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  background: var(--orange);
+  animation: runStageBlink var(--duration-pulse) var(--ease-in-out) infinite;
+}
+
+@keyframes runStageBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.run-stage-chevron {
+  flex: none;
+  margin-inline-start: auto;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--text-muted);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.run-stage-header[aria-expanded="true"] .run-stage-chevron {
+  transform: rotate(90deg);
+}
+
+/* ── Body: the open and close motion ───────────────────────────────── */
+
+.run-stage-body {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(calc(var(--space-1) * -1));
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out),
+    visibility var(--duration-normal) var(--ease-out);
+}
+
+.run-stage-body[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out),
+    visibility var(--duration-normal) var(--ease-out);
+}
+
+.run-stage-panel {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+  padding-inline: var(--border-width-indicator);
+}
+
+/* Keeps a focus ring inside the panel's clip. */
+.run-stage-body[data-open="true"] .run-stage-panel {
+  padding-bottom: var(--space-1);
+}
+
+.run-stage-empty {
+  margin: 0;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* ── Reduced motion: the same states, without movement ─────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes runStagePulse {
+    0%,
+    100% {
+      opacity: 0.8;
+    }
+  }
+
+  @keyframes runStageBlink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .run-stage[data-state="current"] .run-stage-node::before {
+    animation-iteration-count: 1;
+  }
+
+  .run-stage-waiting-dot {
+    animation-iteration-count: 1;
+  }
+
+  .run-stage-body,
+  .run-stage-body[data-open="true"] {
+    transform: none;
+    transition:
+      grid-template-rows var(--duration-fast) var(--ease-out),
+      opacity var(--duration-fast) var(--ease-out),
+      visibility var(--duration-fast) var(--ease-out);
+  }
+
+  .run-stage-chevron,
+  .run-stage-header {
+    transition: none;
+  }
+}
+
+/* Forced colours: the node and connector keep their shape without colour. */
+@media (forced-colors: active) {
+  .run-stage-node {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .run-stage[data-state="done"] .run-stage-node {
+    background: CanvasText;
+    color: Canvas;
+  }
+}

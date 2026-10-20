@@ -7,8 +7,9 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 registerHappyDom();
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import { cleanup, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { checkpointBarEntries } from "../src/frontend/components/runs/RunCheckpointBar.js";
 import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
@@ -80,12 +81,12 @@ describe("run chat approval prompts follow the shared policy", () => {
 
 describe("formatTimestamp", () => {
   it("formats a fixed instant in the given zone", () => {
-    expect(formatTimestamp(INSTANT, "UTC")).toBe("2026-09-20 12:34:56");
+    expect(formatTimestamp(INSTANT, "UTC")).toBe("12:34:56 20-09-2026");
     expect(formatTimestamp(INSTANT, "Asia/Karachi")).toBe(
-      "2026-09-20 17:34:56",
+      "17:34:56 20-09-2026",
     );
     expect(formatTimestamp(INSTANT, "America/New_York")).toBe(
-      "2026-09-20 08:34:56",
+      "08:34:56 20-09-2026",
     );
   });
 
@@ -93,7 +94,7 @@ describe("formatTimestamp", () => {
     const d = new Date(INSTANT);
     const pad = (n: number) => String(n).padStart(2, "0");
     expect(formatTimestamp(INSTANT)).toBe(
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`,
+      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`,
     );
   });
 
@@ -109,9 +110,25 @@ describe("run chat words come from the one status map (#253)", () => {
       const { container } = render(
         <RunChat run={makeRun(status)} events={[]} />,
       );
-      const header = container.querySelector(".run-now");
-      expect(within(header as HTMLElement).getByText(ui.header)).toBeTruthy();
-      expect(container.textContent).toContain(ui.now);
+      // The header strip names the status in its plain label; a run that waits on the reader says "Needs you".
+      const strip = container.querySelector(".run-chat-header") as HTMLElement;
+      expect(
+        within(strip).getByText(
+          ui.filter === "Needs you" ? "Needs you" : ui.label,
+        ),
+      ).toBeTruthy();
+      // The decision card (title and sentence from the map) shows while the run waits on the reader or
+      // offers an action; an active run with nothing to decide shows the strip alone.
+      const card = container.querySelector(
+        ".run-decision",
+      ) as HTMLElement | null;
+      const decisionExpected =
+        ui.filter === "Needs you" || checkpointBarEntries(status).length > 0;
+      expect(card !== null).toBe(decisionExpected);
+      if (card) {
+        expect(within(card).getByText(ui.header)).toBeTruthy();
+        expect(card.textContent).toContain(ui.now);
+      }
       const input = within(container).getByRole("textbox") as HTMLInputElement;
       // At a gate the map's own words guide the reader; on a run that cannot
       // take a message the box says what it is for, never the status line the
@@ -222,6 +239,13 @@ describe("one event shows one time across the run page", () => {
       `time[datetime="${INSTANT}"]`,
     );
     expect(chatTime?.textContent).toBe(expected);
-    expect(within(log.container).getByText(expected)).toBeTruthy();
+    // The raw log lives in its sheet, opened from the pane's footer.
+    fireEvent.click(
+      within(log.container).getByRole("button", { name: /Raw log/ }),
+    );
+    const sheet = within(document.body).getByRole("dialog", {
+      name: "Raw log",
+    });
+    expect(within(sheet).getByText(expected)).toBeTruthy();
   });
 });

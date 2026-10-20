@@ -1,0 +1,301 @@
+// test/run-stage-timeline.test.tsx — The run chat's stage timeline: six stages in order, collapsed stages
+// showing only their header, the controlled open state, the decision inside the current stage, the
+// "Waiting for you" pill, and the default open stage (spec "Left panel: stage timeline").
+
+/// <reference lib="dom" />
+import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
+
+registerHappyDom();
+
+import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import {
+  defaultDecisionStage,
+  defaultOpenStages,
+  RunStageTimeline,
+  type RunStageTimelineProps,
+} from "../src/frontend/components/runs/RunStageTimeline.js";
+import type { ChatItem } from "../src/frontend/lib/run-chat-items.js";
+import type { StageGroup, StageState } from "../src/frontend/lib/run-stages.js";
+import {
+  STAGE_LABELS,
+  STAGE_ORDER,
+} from "../src/frontend/lib/workflow-stages.js";
+import type { WorkflowStage } from "../src/shared/types.js";
+
+afterEach(() => {
+  cleanup();
+});
+afterAll(async () => {
+  await unregisterHappyDom();
+});
+
+const NOW = Date.parse("2026-10-20T10:05:00.000Z");
+
+function message(
+  id: string,
+  text: string,
+  role: "user" | "agent" = "user",
+): ChatItem {
+  return { id, at: "2026-10-20T10:00:00.000Z", kind: "message", role, text };
+}
+
+function group(
+  stage: WorkflowStage,
+  state: StageState,
+  items: ChatItem[] = [],
+  tookMs: number | null = null,
+): StageGroup {
+  return {
+    stage,
+    label: STAGE_LABELS[stage],
+    state,
+    items,
+    startedAt: items[0] ? items[0].at : null,
+    endedAt: tookMs === null ? null : "2026-10-20T10:01:00.000Z",
+    tookMs,
+  };
+}
+
+/** Prepare and Understand are done, Plan is current, the rest are upcoming. */
+function sampleGroups(): StageGroup[] {
+  return [
+    group("prepare", "done", [message("m1", "Read the ticket")], 12_000),
+    group(
+      "understand",
+      "done",
+      [message("m2", "Understood the change")],
+      64_000,
+    ),
+    group("plan", "current", [message("m3", "Drafting the plan", "agent")]),
+    group("execute", "upcoming"),
+    group("review", "upcoming"),
+    group("deliver", "upcoming"),
+  ];
+}
+
+function renderTimeline(overrides: Partial<RunStageTimelineProps> = {}) {
+  const props: RunStageTimelineProps = {
+    groups: sampleGroups(),
+    open: new Set<WorkflowStage>(["plan"]),
+    onToggle: () => {},
+    now: NOW,
+    onOpenFile: () => {},
+    waiting: false,
+    ...overrides,
+  };
+  const result = render(<RunStageTimeline {...props} />);
+  return { ...result, props };
+}
+
+function stageItem(container: HTMLElement, stage: WorkflowStage): HTMLElement {
+  const label = STAGE_LABELS[stage];
+  const found = Array.from(
+    container.querySelectorAll<HTMLElement>("li.run-stage"),
+  ).find((li) => li.querySelector(".run-stage-label")?.textContent === label);
+  if (!found) throw new Error(`no stage ${stage}`);
+  return found;
+}
+
+function headerOf(
+  container: HTMLElement,
+  stage: WorkflowStage,
+): HTMLButtonElement {
+  return within(stageItem(container, stage)).getByRole(
+    "button",
+  ) as HTMLButtonElement;
+}
+
+describe("RunStageTimeline", () => {
+  it("renders the six stages in order with their labels", () => {
+    const { container } = renderTimeline();
+    const labels = Array.from(
+      container.querySelectorAll(".run-stage-label"),
+    ).map((el) => el.textContent);
+    expect(labels).toEqual([
+      "Prepare",
+      "Understand",
+      "Plan",
+      "Code",
+      "Review",
+      "Deliver",
+    ]);
+    expect(container.querySelectorAll("li.run-stage")).toHaveLength(
+      STAGE_ORDER.length,
+    );
+  });
+
+  it("shows only the label and Took for a collapsed done stage; its body is closed and inert", () => {
+    const { container } = renderTimeline();
+    const prepare = stageItem(container, "prepare");
+    const header = headerOf(container, "prepare");
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(header.textContent).toBe("PrepareTook 12s");
+
+    const body = prepare.querySelector<HTMLElement>(".run-stage-body");
+    expect(body?.getAttribute("data-open")).toBe("false");
+    expect(body?.hasAttribute("inert")).toBe(true);
+    // A <section> with a name is the region landmark.
+    expect(body?.tagName).toBe("SECTION");
+    expect(body?.getAttribute("aria-labelledby")).toBe(header.id);
+    expect(body?.id).toBe(header.getAttribute("aria-controls") ?? "");
+  });
+
+  it("calls onToggle with the stage when its header is clicked", () => {
+    const onToggle = mock((_stage: WorkflowStage) => {});
+    const { container } = renderTimeline({ onToggle });
+    fireEvent.click(headerOf(container, "understand"));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(onToggle).toHaveBeenCalledWith("understand");
+  });
+
+  it("reflects the open set in aria-expanded and the body's data-open", () => {
+    const { container } = renderTimeline({
+      open: new Set<WorkflowStage>(["plan", "prepare"]),
+    });
+    expect(headerOf(container, "plan").getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    expect(headerOf(container, "prepare").getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    expect(
+      headerOf(container, "understand").getAttribute("aria-expanded"),
+    ).toBe("false");
+    const planBody = stageItem(container, "plan").querySelector(
+      ".run-stage-body",
+    );
+    expect(planBody?.getAttribute("data-open")).toBe("true");
+    expect(planBody?.hasAttribute("inert")).toBe(false);
+  });
+
+  it("shows the stage's items inside its body, and Nothing yet. for an empty stage", () => {
+    const { container } = renderTimeline();
+    const plan = stageItem(container, "plan");
+    expect(within(plan).getByText("Drafting the plan")).toBeTruthy();
+    expect(plan.querySelector(".run-stage-empty")).toBeNull();
+    const execute = stageItem(container, "execute");
+    expect(within(execute).getByText("Nothing yet.")).toBeTruthy();
+    expect(headerOf(container, "execute").textContent).toBe("Code");
+  });
+
+  it("renders the decision only inside the current stage", () => {
+    const { container } = renderTimeline({
+      decision: <p>Decision card</p>,
+    });
+    const matches = container.querySelectorAll("li.run-stage");
+    const holders = Array.from(matches).filter((li) =>
+      li.textContent?.includes("Decision card"),
+    );
+    expect(holders).toHaveLength(1);
+    expect(holders[0]?.getAttribute("data-state")).toBe("current");
+  });
+
+  it("renders the decision in the stage it is given, wherever that stage is", () => {
+    const { container } = renderTimeline({
+      decision: <p>Decision card</p>,
+      decisionStage: "review",
+      open: new Set<WorkflowStage>(["review"]),
+    });
+    const holders = Array.from(
+      container.querySelectorAll("li.run-stage"),
+    ).filter((li) => li.textContent?.includes("Decision card"));
+    expect(holders).toHaveLength(1);
+    expect(holders[0]?.querySelector(".run-stage-label")?.textContent).toBe(
+      "Review",
+    );
+  });
+
+  it("renders the decision in the failed stage of a run that has no current stage", () => {
+    const groups: StageGroup[] = [
+      group("prepare", "done", [message("m1", "Read the ticket")], 12_000),
+      group("understand", "done", [message("m2", "Understood")], 64_000),
+      group("plan", "failed", [message("m3", "Drafting the plan", "agent")]),
+      group("execute", "upcoming"),
+      group("review", "upcoming"),
+      group("deliver", "upcoming"),
+    ];
+    const { container } = renderTimeline({
+      groups,
+      decision: <p>Decision card</p>,
+      open: defaultOpenStages(groups),
+    });
+    const holder = Array.from(container.querySelectorAll("li.run-stage")).find(
+      (li) => li.textContent?.includes("Decision card"),
+    );
+    expect(holder?.getAttribute("data-state")).toBe("failed");
+  });
+
+  it("shows the Waiting for you pill on the current stage only when the run waits", () => {
+    const idle = renderTimeline({ waiting: false });
+    expect(idle.queryByText("Waiting for you")).toBeNull();
+    idle.unmount();
+
+    const { container, getByText } = renderTimeline({ waiting: true });
+    const pill = getByText("Waiting for you");
+    expect(stageItem(container, "plan").contains(pill)).toBe(true);
+    expect(headerOf(container, "plan").contains(pill)).toBe(true);
+  });
+
+  it("shows Failed for a failed stage and no Took while it is current", () => {
+    const groups = sampleGroups();
+    groups[2] = group("plan", "failed", [message("m3", "Plan failed")], 5_000);
+    const { container } = renderTimeline({ groups });
+    expect(headerOf(container, "plan").textContent).toBe("PlanTook 5sFailed");
+    expect(headerOf(container, "execute").textContent).toBe("Code");
+  });
+});
+
+describe("defaultDecisionStage", () => {
+  it("is the current stage while the run works or waits", () => {
+    expect(defaultDecisionStage(sampleGroups())).toBe("plan");
+  });
+
+  it("is the failed stage a failed run stopped at", () => {
+    const groups = sampleGroups().map((g) =>
+      g.stage === "plan" ? { ...g, state: "failed" as StageState } : g,
+    );
+    expect(defaultDecisionStage(groups)).toBe("plan");
+  });
+
+  it("is the last stage with items once every stage is done (pull request opened)", () => {
+    const groups = STAGE_ORDER.map((stage) =>
+      group(stage, "done", stage === "deliver" ? [message("d", "Opened")] : []),
+    );
+    expect(defaultDecisionStage(groups)).toBe("deliver");
+  });
+
+  it("falls back to the last stage when no stage has items", () => {
+    const groups = STAGE_ORDER.map((stage) => group(stage, "upcoming"));
+    expect(defaultDecisionStage(groups)).toBe("deliver");
+  });
+});
+
+describe("defaultOpenStages", () => {
+  it("opens the current stage", () => {
+    expect([...defaultOpenStages(sampleGroups())]).toEqual(["plan"]);
+  });
+
+  it("opens the failed stage over the last stage with items", () => {
+    const groups = sampleGroups();
+    groups[2] = group("plan", "failed", [message("m3", "Plan failed")]);
+    expect([...defaultOpenStages(groups)]).toEqual(["plan"]);
+  });
+
+  it("opens the last stage that has items when no stage is current", () => {
+    const groups = sampleGroups().map((g) =>
+      g.stage === "plan"
+        ? group("plan", "done", [message("m3", "Planned")], 3_000)
+        : g,
+    );
+    groups[3] = group("execute", "done", [], null);
+    groups[4] = group("review", "done", [message("m4", "Reviewed")], 2_000);
+    groups[5] = group("deliver", "done", []);
+    expect([...defaultOpenStages(groups)]).toEqual(["review"]);
+  });
+
+  it("opens nothing when no stage has items", () => {
+    const groups = STAGE_ORDER.map((stage) => group(stage, "upcoming"));
+    expect(defaultOpenStages(groups).size).toBe(0);
+  });
+});

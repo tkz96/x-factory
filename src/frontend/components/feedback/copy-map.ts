@@ -341,14 +341,6 @@ export const PROJECTS_COPY = {
   noRepository: "Not recorded",
 } as const;
 
-/** Copy for a run's verification evidence. */
-export const RUN_EVIDENCE_COPY = {
-  /** The badge when the checks passed but no tests ran. Badges are sentence
-   *  case (the badge block never text-transforms). */
-  noTestsBadge: "No tests ran",
-  noTestCommand: "No tests ran. This project has no test command.",
-} as const;
-
 /** Copy for editing a repository's checkout and commands (#283). */
 export const REPOSITORY_SETTINGS_COPY = {
   title: "Repository settings",

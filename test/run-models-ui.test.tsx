@@ -9,7 +9,6 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
-import { RunModelsCard } from "../src/frontend/components/runs/RunModelsCard.js";
 import {
   formatUsage,
   latestModelFor,
@@ -78,61 +77,6 @@ describe("run model helpers (#279)", () => {
     expect(
       stageStartedText({ stage: "review", attempt: 1, model: REVIEWER }),
     ).toBe("Reviewing with gemini-pro via Gemini");
-  });
-});
-
-describe("RunModelsCard (#279)", () => {
-  it("lists every attempt with its model and usage, and repeats nothing", () => {
-    const { container } = render(
-      <RunModelsCard stageModels={[BUILDER, REVIEWER]} />,
-    );
-    // A disclosure (F2): the card is foldable, and open on a first look.
-    const details = container.querySelector("details.run-models");
-    expect(details?.hasAttribute("open")).toBe(true);
-    expect(container.querySelector("summary")?.textContent).toBe("Models");
-    expect(container.querySelectorAll(".run-models-row")).toHaveLength(2);
-    const text = container.textContent ?? "";
-    expect(text).toContain("gemini-flash-lite-latest");
-    expect(text).toContain("gemini-pro");
-    expect(text).toContain("12.4K in · 2.1K out · $0.0062");
-    // The role each row belongs to is named by the work it did: the Builder's
-    // row is the coding one, the Reviewer's the review one.
-    const rows = [...container.querySelectorAll(".run-models-row")].map(
-      (row) => row.textContent ?? "",
-    );
-    expect(rows[0]).toContain("Coding");
-    expect(rows[0]).toContain("gemini-flash-lite-latest");
-    expect(rows[1]).toContain("Reviewing");
-    expect(rows[1]).toContain("gemini-pro");
-    // F7: the rows say it once, so nothing repeats them above.
-    expect(container.querySelector(".run-models-summary")).toBeNull();
-  });
-
-  it("shows coding on the Builder and its review on the Reviewer when both ran in the execute stage", () => {
-    const review: StageModelUse = {
-      ...REVIEWER,
-      stage: "execute",
-      step: "review",
-      tokensIn: 900,
-    };
-    const { container } = render(
-      <RunModelsCard stageModels={[BUILDER, review]} />,
-    );
-    const rows = [...container.querySelectorAll(".run-models-row")].map(
-      (row) => row.textContent ?? "",
-    );
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toContain("Coding");
-    expect(rows[0]).toContain("gemini-flash-lite-latest");
-    expect(rows[0]).toContain("12.4K in · 2.1K out · $0.0062");
-    expect(rows[1]).toContain("Reviewing");
-    expect(rows[1]).toContain("gemini-pro");
-    expect(rows[1]).toContain("900 in");
-  });
-
-  it("renders nothing before any stage has used a model", () => {
-    const { container } = render(<RunModelsCard stageModels={[]} />);
-    expect(container.textContent).toBe("");
   });
 });
 

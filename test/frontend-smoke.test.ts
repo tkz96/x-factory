@@ -14,10 +14,14 @@ import { ReadinessBanner } from "../src/frontend/components/projects/ReadinessBa
 import { ChatThread } from "../src/frontend/components/runs/ChatThread.js";
 import { DiffModal } from "../src/frontend/components/runs/DiffModal.js";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
-import { RunEvidence } from "../src/frontend/components/runs/RunEvidence.js";
-import { WorkflowStepper } from "../src/frontend/components/runs/WorkflowStepper.js";
+import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
+import {
+  defaultOpenStages,
+  RunStageTimeline,
+} from "../src/frontend/components/runs/RunStageTimeline.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
+import { groupItemsByStage } from "../src/frontend/lib/run-stages.js";
 import { routeDefinitions, router } from "../src/frontend/routes.js";
 import { DocsView } from "../src/frontend/views/DocsView.js";
 import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
@@ -191,18 +195,24 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(diffModalHtml).toContain("diff-row-del");
     });
 
-    it("WorkflowStepper renders workflow stages and active progression", () => {
+    it("RunStageTimeline renders the six stages, the current one open", () => {
+      const groups = groupItemsByStage([], { status: "executing" }, []);
       const html = renderToString(
-        React.createElement(WorkflowStepper, {
-          status: "executing",
+        React.createElement(RunStageTimeline, {
+          groups,
+          open: defaultOpenStages(groups),
+          onToggle: () => undefined,
+          now: Date.parse("2026-10-20T12:00:00.000Z"),
+          onOpenFile: () => undefined,
+          waiting: false,
         }),
       );
 
-      expect(html).toContain("workflow-stepper");
+      expect(html).toContain("run-stage-list");
       expect(html).toContain("Prepare");
       expect(html).toContain("Understand");
       expect(html).toContain("Plan");
-      // The step is named for what it does: Code, not Execute (#262).
+      // The stage is named for what it does: Code, not Execute (#262).
       expect(html).toContain("Code");
       expect(html).toContain("Review");
       expect(html).toContain("Deliver");
@@ -218,7 +228,7 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
       expect(html).toBeDefined();
     });
 
-    it("RunEvidence renders the verification and review evidence the inspector shows", () => {
+    it("RunInspector renders the verification and review evidence in its Evidence section", () => {
       const mockRun = {
         id: "run-smoke-1",
         project: { id: "p1", name: "Smoke Proj" },
@@ -240,12 +250,17 @@ describe("Frontend Smoke — React Application Structure & Views", () => {
         worktreePath: "/tmp",
       };
       const html = renderWithProviders(
-        React.createElement(RunEvidence, { run: mockRun }),
+        React.createElement(RunInspector, {
+          run: mockRun,
+          events: [],
+          connected: false,
+        }),
       );
-      // The sections name what they check; the reviewer is named, not "Session B" (#278).
-      expect(html).toContain("Verification");
+      // The Evidence section names what it checks; the reviewer is named, not "Session B" (#278).
+      expect(html).toContain("Evidence");
+      expect(html).toContain("Tests");
       expect(html).toContain("Review");
-      expect(html).toContain("Awaiting verification");
+      expect(html).toContain("Awaiting");
     });
 
     it("the checkpoint bar offers the policy's actions by name, and Create Pull Request only at delivery", () => {

@@ -1,5 +1,5 @@
-// test/run-inspector.test.tsx — The run inspector: evidence, files and the raw log, beside the chat
-// on a wide window and in a sheet at phone width (#262).
+// test/run-inspector.test.tsx — The "Run details" pane: its run, models, files and evidence sections,
+// the raw log opened from its footer, and the same pane in a sheet at phone width (#262, spec #241).
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -12,7 +12,7 @@ import {
   RunInspector,
   RunInspectorSheet,
 } from "../src/frontend/components/runs/RunInspector.js";
-import type { Run, RunStatus } from "../src/shared/types.js";
+import type { Run, RunStatus, StageModelUse } from "../src/shared/types.js";
 
 afterEach(() => {
   cleanup();
@@ -63,23 +63,85 @@ function makeRun(status: RunStatus, overrides: Partial<Run> = {}): Run {
   } as Run;
 }
 
-describe("the inspector shows the run's evidence, files and raw log", () => {
-  it("names its three sections, labelled for assistive technology", () => {
+const BUILDER_USE = {
+  stage: "execute",
+  step: "execute",
+  role: "builder",
+  attempt: 1,
+  connectionId: "c-1",
+  connectionName: "Gemini",
+  apiType: "gemini",
+  modelId: "gemini-x",
+  startedAt: "2026-09-20T12:00:00.000Z",
+} as Run["stageModels"] extends (infer U)[] | undefined ? U : never;
+
+describe("the Run details pane names its sections", () => {
+  it("is labelled Run details and holds the four sections", () => {
     const { container } = render(
       <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
     );
-    const aside = within(container).getByRole("complementary", {
-      name: "Inspector",
+    const pane = within(container).getByRole("complementary", {
+      name: "Run details",
     });
     expect(
-      within(aside).getByRole("heading", { name: "Evidence" }),
+      within(pane).getByRole("heading", { level: 2, name: "Run details" }),
     ).toBeTruthy();
-    expect(within(aside).getByRole("heading", { name: /Files/ })).toBeTruthy();
-    expect(
-      within(aside).getByRole("heading", { name: /Raw log/ }),
-    ).toBeTruthy();
+    for (const name of ["Run", "Models", "Files", "Evidence"]) {
+      expect(
+        within(pane).getByRole("heading", { level: 3, name: new RegExp(name) }),
+      ).toBeTruthy();
+    }
   });
 
+  it("shows the run's branch in mono on the right and the pull request as None yet", () => {
+    const { container } = render(
+      <RunInspector run={makeRun("executing")} events={[]} connected={false} />,
+    );
+    const branch = within(container).getByText("factory/t-1");
+    expect(branch.tagName).toBe("DD");
+    expect(branch.classList.contains("run-inspector-value")).toBe(true);
+    expect(within(container).getAllByText("None yet").length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("links the pull request when the run has one", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", {
+          pullRequest: {
+            url: "https://example.test/acme/repo/pull/42",
+            branch: "factory/t-1",
+            baseBranch: "main",
+            title: "T-1",
+          },
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    const link = within(container).getByRole("link", { name: "#42" });
+    expect(link.getAttribute("href")).toBe(
+      "https://example.test/acme/repo/pull/42",
+    );
+  });
+
+  it("shows the model each role last ran on, and None yet for a role that has not run", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", { stageModels: [BUILDER_USE] })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    expect(within(container).getByText("gemini-x")).toBeTruthy();
+    expect(container.textContent).toContain("Builder");
+    expect(container.textContent).toContain("Reviewer");
+    expect(container.textContent).toContain("None yet");
+  });
+});
+
+describe("the Files section lists each changed file as a button", () => {
   it("lists each changed file with its added and removed lines", () => {
     const { container } = render(
       <RunInspector
@@ -92,6 +154,8 @@ describe("the inspector shows the run's evidence, files and raw log", () => {
     expect(container.textContent).toContain("src/a.ts");
     expect(container.textContent).toContain("+2 −1");
     expect(container.textContent).toContain("src/b.ts");
+    const row = within(container).getByRole("button", { name: /src\/a\.ts/ });
+    expect(row.tagName).toBe("BUTTON");
   });
 
   it("says no changes exist yet when the run has no diff", () => {
@@ -100,10 +164,108 @@ describe("the inspector shows the run's evidence, files and raw log", () => {
     );
     expect(container.textContent).toContain("No changes yet.");
   });
+
+  it("opens the diff for a file when its row is pressed", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", { diff: DIFF })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    fireEvent.click(
+      within(container).getByRole("button", { name: /src\/b\.ts/ }),
+    );
+    const dialog = within(document.body).getByRole("dialog", {
+      name: "Diff for src/b.ts",
+    });
+    expect(dialog.textContent).toContain("+y");
+  });
 });
 
-describe("at phone width the inspector is a sheet", () => {
-  it("opens from a button and shows the same sections, then closes", () => {
+describe("the Evidence section shows each check's verdict", () => {
+  it("marks passing checks Pass and failing ones Fail, in green and red", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", {
+          verification: {
+            passed: true,
+            tests: { skipped: false },
+          } as Run["verification"],
+          review: {
+            passed: false,
+            summary: "",
+            criteriaChecked: [
+              { criterion: "Must verify", satisfied: true },
+              { criterion: "Must review", satisfied: false },
+            ],
+          } as unknown as Run["review"],
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    expect(within(container).getByText("Must verify")).toBeTruthy();
+    const fail = within(container).getAllByText("Fail")[0];
+    expect(fail?.classList.contains("run-inspector-value--fail")).toBe(true);
+    const pass = within(container).getAllByText("Pass")[0];
+    expect(pass?.classList.contains("run-inspector-value--pass")).toBe(true);
+  });
+});
+
+describe("the raw log opens from the footer", () => {
+  it("names the event count on the Raw log button and opens the log in a sheet", () => {
+    const events = [
+      {
+        id: 1,
+        type: "status",
+        timestamp: "2026-09-20T12:00:00.000Z",
+        payload: { status: "planning" },
+      },
+      {
+        id: 2,
+        type: "status",
+        timestamp: "2026-09-20T12:00:01.000Z",
+        payload: { status: "planning" },
+      },
+    ] as never;
+    const { container } = render(
+      <RunInspector
+        run={makeRun("planning")}
+        events={events}
+        connected={false}
+      />,
+    );
+    const button = within(container).getByRole("button", { name: /Raw log/ });
+    expect(button.textContent).toContain("2 events");
+    expect(container.querySelector(".run-inspector-live-dot")).toBeNull();
+    fireEvent.click(button);
+    expect(
+      within(document.body).getByRole("dialog", { name: "Raw log" }),
+    ).toBeTruthy();
+  });
+
+  it("says one event in the singular", () => {
+    const events = [
+      {
+        id: 1,
+        type: "status",
+        timestamp: "2026-09-20T12:00:00.000Z",
+        payload: { status: "planning" },
+      },
+    ] as never;
+    const { container } = render(
+      <RunInspector run={makeRun("planning")} events={events} connected />,
+    );
+    const button = within(container).getByRole("button", { name: /Raw log/ });
+    expect(button.textContent).toContain("1 event");
+    expect(button.textContent).not.toContain("1 events");
+    expect(container.querySelector(".run-inspector-live-dot")).not.toBeNull();
+  });
+});
+
+describe("at phone width the same pane is a sheet", () => {
+  it("opens from a Details button and shows the same sections, then closes", () => {
     const { container } = render(
       <RunInspectorSheet
         run={makeRun("awaiting_review", { diff: DIFF })}
@@ -112,15 +274,93 @@ describe("at phone width the inspector is a sheet", () => {
       />,
     );
     expect(container.querySelector('[role="dialog"]')).toBeNull();
-    fireEvent.click(
-      within(container).getByRole("button", { name: "Inspector" }),
-    );
+    expect(
+      within(container).queryByRole("button", { name: "Inspector" }),
+    ).toBeNull();
+    fireEvent.click(within(container).getByRole("button", { name: "Details" }));
     const sheet = within(document.body).getByRole("dialog", {
-      name: "Inspector",
+      name: "Run details",
     });
     expect(
-      within(sheet).getByRole("heading", { name: "Evidence" }),
+      within(sheet).getByRole("heading", { level: 3, name: "Evidence" }),
     ).toBeTruthy();
     expect(sheet.textContent).toContain("src/a.ts");
+    expect(within(sheet).getByRole("button", { name: /Raw log/ })).toBeTruthy();
+  });
+});
+
+describe("the Models section names each role's latest model with its usage (#279)", () => {
+  const builder = {
+    role: "builder",
+    connectionId: "c1",
+    connectionName: "Gemini",
+    apiType: "gemini",
+    modelId: "gemini-flash-lite-latest",
+    stage: "execute",
+    step: "execute",
+    attempt: 1,
+    startedAt: "2026-10-11T10:00:00.000Z",
+    tokensIn: 12_400,
+    tokensOut: 2_100,
+    costUsd: 0.0062,
+  } as unknown as StageModelUse;
+  const reviewer = {
+    ...builder,
+    role: "reviewer",
+    modelId: "gemini-pro",
+    stage: "review",
+    step: "review",
+    tokensIn: undefined,
+    tokensOut: undefined,
+    costUsd: undefined,
+  } as unknown as StageModelUse;
+
+  it("shows the model with its tokens and cost, and only the model when nothing was reported", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("executing", { stageModels: [builder, reviewer] })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    const pane = within(container).getByRole("complementary", {
+      name: "Run details",
+    });
+    expect(
+      within(pane).getByText(
+        "gemini-flash-lite-latest · 12.4K in · 2.1K out · $0.0062",
+      ),
+    ).toBeTruthy();
+    expect(within(pane).getByText("gemini-pro")).toBeTruthy();
+  });
+});
+
+describe("the value kinds keep long rows from pushing a verdict out of the pane", () => {
+  it("gives status words, model names and the branch their own truncation rule", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", {
+          stageModels: [BUILDER_USE],
+          verification: {
+            passed: true,
+            tests: { skipped: false },
+          } as unknown as Run["verification"],
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    const verdict = within(container).getByText("Pass");
+    expect(verdict.classList.contains("run-inspector-value--status")).toBe(
+      true,
+    );
+    const model = within(container).getByText("gemini-x");
+    expect(model.classList.contains("run-inspector-value--wrap")).toBe(true);
+    const branch = within(container).getByText("factory/t-1");
+    expect(branch.classList.contains("run-inspector-value--status")).toBe(
+      false,
+    );
+    expect(branch.classList.contains("run-inspector-value--wrap")).toBe(false);
+    expect(branch.getAttribute("title")).toBe("factory/t-1");
   });
 });

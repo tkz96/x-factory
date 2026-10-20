@@ -76,8 +76,11 @@ describe("RunChat wording", () => {
         <RunChat run={makeRun(status)} events={events} />,
       );
       const text = container.textContent ?? "";
-      // The header is the map's plain words for this status.
-      expect(text).toContain(runStatusUi(status).header);
+      // The header strip's pill is the map's plain label; a run that waits on the reader says "Needs you".
+      const ui = runStatusUi(status);
+      expect(text).toContain(
+        ui.filter === "Needs you" ? "Needs you" : ui.label,
+      );
       expect(text).not.toMatch(INTERNAL_VOCABULARY);
       if (status.includes("_")) expect(text).not.toContain(status);
     });
@@ -209,7 +212,7 @@ describe("screens that show no internal vocabulary at all", () => {
   for (const file of [
     "src/frontend/views/RunDetailView.tsx",
     "src/frontend/views/RunsView.tsx",
-    "src/frontend/components/runs/RunEvidence.tsx",
+    "src/frontend/components/runs/RunStageTimeline.tsx",
     // The first-run welcome (#269) speaks the same plain words.
     "src/frontend/views/WelcomeView.tsx",
     "src/frontend/components/welcome/SetupChecklist.tsx",

@@ -427,7 +427,7 @@ describe("One shared run-status policy import everywhere (#170)", () => {
   it("every client consumer imports the shared policy module", () => {
     const consumers: Record<string, string[]> = {
       "src/frontend/lib/run-state.ts": ["TERMINAL_RUN_STATUSES"],
-      "src/frontend/components/runs/WorkflowStepper.tsx": ["STATUS_TO_STAGE"],
+      "src/frontend/lib/run-stages.ts": ["STATUS_TO_STAGE"],
       "src/frontend/lib/run-status-ui.ts": ["allowedActionsFor"],
       "src/frontend/components/AppShell.tsx": ["STOPPABLE_RUN_STATUSES"],
       "src/frontend/components/runs/RunChat.tsx": ["canRunAction"],

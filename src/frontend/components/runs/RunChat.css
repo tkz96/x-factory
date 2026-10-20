@@ -1,17 +1,163 @@
 /* src/frontend/components/runs/RunChat.css — The run chat timeline (#261). Every value is a token. */
 
-/* The chat is one panel, like the inspector beside it: a --radius-card
-   border, no shadow. */
+/* The chat is the wide panel beside the details pane. Its frame, header strip and scroll area come
+   from RunPanel.css; here it only takes the width it is given and never less than its content. */
 .run-chat {
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  height: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
-  flex: 1;
+}
+
+/* ── Header strip: status, elapsed time, stages done, Expand all ───── */
+
+/* Every item may shrink; the status word ellipsises rather than pushing the controls out. */
+.run-panel-header.run-chat-header {
+  gap: var(--space-3);
+}
+
+.run-chat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.run-chat-status-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Phone width: the header holds the status, the elapsed time, the icon for Expand all and the
+   Details icon, all inside one row. The gaps and the side inset come down to fit a 290px window. */
+@media (max-width: 768px) {
+  .run-panel-header.run-chat-header {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
+  }
+}
+
+/* The narrow Expand all: an icon that turns to point down while every stage is open. */
+.run-chat-expand-icon {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.run-chat-expand-icon svg {
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.run-chat-expand-open svg {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-chat-expand-icon svg {
+    transition: none;
+  }
+}
+
+/* The "Needs you" dot blinks softly; reduced motion keeps it still. */
+.run-chat-status-dot {
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  background: var(--orange);
+  animation: runChatStatusBlink var(--duration-pulse) var(--ease-in-out)
+    infinite;
+}
+
+@keyframes runChatStatusBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Reduced motion (#252): the dot stays solid. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes runChatStatusBlink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .run-chat-status-dot {
+    animation-iteration-count: 1;
+  }
+}
+
+.run-chat-elapsed {
+  flex: none;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-chat-progress-count {
+  margin-inline-start: auto;
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The tips tooltip is a sentence or two: it wraps rather than running across the panel. */
+.run-chat-tips-tooltip {
+  max-width: 18rem;
+  white-space: normal;
+  text-align: start;
+}
+
+/* ── Decision card: what the run asks of the reader, inside the current stage ── */
+
+.run-decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--orange);
+  background: var(--orange-dim);
+  animation: runDecisionRise var(--duration-normal) var(--ease-out) both;
+}
+
+/* The header inside the card is the card's own content: no rule and no inset of its own. */
+.run-decision .run-now {
+  padding: 0;
+  border-bottom: 0;
+}
+
+@keyframes runDecisionRise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion (#252): the card fades in and does not rise. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes runDecisionRise {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 /* ── Timeline ───────────────────────────────────────────────────────── */
@@ -57,11 +203,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--space-2);
   font-size: var(--text-footnote);
   color: var(--text-muted);
-  text-align: center;
+  text-align: start;
 }
 
 .run-chat-system a {
@@ -99,6 +245,8 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
+  font-size: var(--text-footnote);
+  text-align: start;
 }
 
 .run-chat-card h3 {
@@ -109,7 +257,7 @@
 }
 
 .run-chat-card .run-chat-time {
-  align-self: flex-end;
+  align-self: flex-start;
 }
 
 .run-chat-pre {
@@ -118,30 +266,6 @@
   overflow-wrap: anywhere;
   font-size: var(--text-footnote);
   color: var(--text);
-}
-
-/* A Builder reply in Markdown, at the bubble's text size rather than a
-   document's: headings stay small and the first and last blocks sit flush. */
-.run-chat-markdown .md-viewer {
-  font-size: var(--text-footnote);
-  line-height: 1.5;
-}
-
-.run-chat-markdown .md-viewer h1,
-.run-chat-markdown .md-viewer h2,
-.run-chat-markdown .md-viewer h3 {
-  font-size: var(--text-footnote);
-  margin: var(--space-2) 0 var(--space-1);
-  padding: 0;
-  border: 0;
-}
-
-.run-chat-markdown .md-viewer > :first-child {
-  margin-top: 0;
-}
-
-.run-chat-markdown .md-viewer > :last-child {
-  margin-bottom: 0;
 }
 
 .run-chat-files {
@@ -192,23 +316,34 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: flex-start;
   gap: var(--space-2);
   font-size: var(--text-footnote);
   color: var(--text-muted);
+  text-align: start;
 }
 
+/* Chat bubbles, comfortable size: one step above the timeline's footnote text. The tail corner sits
+   on the speaker's side: the reader's bubble is right-aligned with its tail bottom-right, the Builder's
+   and Reviewer's left-aligned with a hairline border and a tail bottom-left. */
 .run-chat-bubble {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   max-width: 85%;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
+  padding: var(--space-2-5) var(--space-3);
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-md)
+    var(--radius-xs);
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-subtle);
+  font-size: var(--text-subhead);
 }
 
 .run-chat-bubble-user {
   align-self: flex-end;
+  border: 0;
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-xs)
+    var(--radius-md);
   background: var(--accent-subtle);
 }
 
@@ -218,7 +353,22 @@
   align-self: flex-start;
 }
 
+.run-chat-bubble .run-chat-pre {
+  font-size: var(--text-subhead);
+}
+
+/* The speaker's name, above the text of a Builder or Reviewer line. */
+.run-chat-speaker {
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .run-chat-bubble .run-chat-time {
+  align-self: flex-start;
+}
+
+.run-chat-bubble-user .run-chat-time {
   align-self: flex-end;
 }
 
@@ -233,6 +383,8 @@
   min-height: var(--tap-min);
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  text-align: start;
   font-size: var(--text-footnote);
   color: var(--text-secondary);
   cursor: pointer;
@@ -246,9 +398,7 @@
   padding-bottom: var(--space-2);
 }
 
-/* ── Gate actions, above the message box ───────────────────────────── */
-
-/* The checkpoint bar sits directly above the message box (#263). */
+/* ── Jump to latest ────────────────────────────────────────────────── */
 
 .run-chat-jump {
   position: absolute;

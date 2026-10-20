@@ -308,7 +308,7 @@ What changes at narrow width:
 
 - Grouped list rows and the Table block re-flow under a 30rem container query into stacked rows; the table never scrolls sideways (`src/frontend/components/ui/Table.tsx`).
 - The Runs filter collapses from the segmented control to a Select below 400px (`collapseBelow="(max-width: 400px)"` in `views/RunsView.tsx`). A collapsed control is the same choice through the Select block, so every filter state stays reachable.
-- The run page's stepper strip is pinned above the phone tab bar at one exact height, and below 480px it shows only the current step's label, so the six labels never collide (`src/frontend/components/runs/WorkflowStepper.css`).
+- The run page is one column at phone width: the run chat fills the height between the toolbar and the tab bar, its stage timeline stacks in that column, and the "Run details" pane opens as a sheet from the Details button (`src/frontend/views/RunDetailView.css`, `src/frontend/components/AppShell.css`).
 - Page-heading actions (Start Run, Add Project) become icon-only buttons with accessible names on phones.
 
 Loading states follow the same rule at every width: placeholder rows hold the list's height, the spinner keeps its delay, and content that arrives fades in once — nothing depends on a wide viewport.

@@ -6,7 +6,6 @@
     "src/frontend/wizard/storage.ts:high impact",
     "src/runs.ts:complexity",
     "src/db/connection.ts:high impact",
-    "src/executors/execute.ts:complexity",
-    "src/frontend/components/runs/RunChat.tsx:complexity"
+    "src/executors/execute.ts:complexity"
   ]
 }

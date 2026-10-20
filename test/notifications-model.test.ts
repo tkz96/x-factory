@@ -338,7 +338,7 @@ describe("relative time (#264)", () => {
     expect(formatRelativeTime("2026-10-11T09:00:00.000Z", now)).toBe("3 h ago");
     expect(formatRelativeTime("not a date", now)).toBe("not a date");
     expect(formatRelativeTime("2026-10-01T09:00:00.000Z", now)).toContain(
-      "2026-10-01",
+      "01-10-2026",
     );
   });
 });

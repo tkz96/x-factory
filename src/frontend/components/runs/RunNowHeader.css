@@ -107,11 +107,3 @@
   color: var(--text-muted);
   font-size: var(--text-footnote);
 }
-
-/* The plan's Markdown headings sit at the panel's text size, not the page's display sizes (#262). */
-.run-now-plan .md-viewer h1,
-.run-now-plan .md-viewer h2,
-.run-now-plan .md-viewer h3 {
-  font-size: var(--text-footnote);
-  margin: var(--space-2) 0 var(--space-1);
-}

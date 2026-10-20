@@ -1,11 +1,12 @@
-// src/frontend/views/RunDetailView.tsx — The run page (#262, spec #241): the now header, one chat of
-// real events, the checkpoint bar above the message box, and the inspector. Every action goes
-// through the server's guards; the bar only offers what the status map allows.
+// src/frontend/views/RunDetailView.tsx — The run page (#262, spec #241): the run chat on the left (its
+// stages, decision card and message box) and the "Run details" pane on the right. At phone width the
+// details pane opens as a sheet from a toolbar button. Every action goes through the server's guards;
+// the decision card only offers what the status map allows.
 
 import "./RunDetailView.css";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { RunChat } from "../components/runs/RunChat.js";
 import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
@@ -13,8 +14,8 @@ import {
   RunInspector,
   RunInspectorSheet,
 } from "../components/runs/RunInspector.js";
-import { RunModelsCard } from "../components/runs/RunModelsCard.js";
-import { WorkflowStepper } from "../components/runs/WorkflowStepper.js";
+import { RunSplitHandle } from "../components/runs/RunSplitHandle.js";
+import { useRunSplit } from "../components/runs/useRunSplit.js";
 import { useMediaQuery } from "../components/ui/useMediaQuery.js";
 import {
   useAbandonRun,
@@ -47,6 +48,8 @@ export function RunDetailView() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const isPhone = useMediaQuery("(max-width: 768px)");
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const { split, setSplit, resetSplit } = useRunSplit();
 
   if (isLoading) {
     return (
@@ -190,15 +193,20 @@ export function RunDetailView() {
 
   return (
     <section id="area-runs" className="area-view active run-detail-container">
-      <div className="run-detail-layout">
+      <div
+        ref={layoutRef}
+        className={
+          isPhone
+            ? "run-detail-layout run-detail-layout--phone"
+            : "run-detail-layout run-detail-layout--split"
+        }
+        style={
+          isPhone
+            ? undefined
+            : ({ "--run-split": `${split}%` } as CSSProperties)
+        }
+      >
         <div className="run-detail-main">
-          <RunModelsCard stageModels={run.stageModels ?? []} />
-          {isPhone && (
-            <div className="run-detail-toolbar">
-              <RunInspectorSheet {...inspectorProps} />
-            </div>
-          )}
-
           {actionError && (
             <div id="run-error" className="error-message">
               {actionError}
@@ -211,19 +219,22 @@ export function RunDetailView() {
             onAction={onAction}
             pending={pending}
             conflict={conflict}
+            detailsTrigger={
+              isPhone ? <RunInspectorSheet {...inspectorProps} /> : undefined
+            }
           />
         </div>
 
+        {!isPhone && (
+          <RunSplitHandle
+            containerRef={layoutRef}
+            split={split}
+            onSplit={setSplit}
+            onReset={resetSplit}
+          />
+        )}
         {!isPhone && <RunInspector {...inspectorProps} />}
       </div>
-
-      <footer className="workflow-stepper-footer">
-        <WorkflowStepper
-          status={run.status}
-          startedAt={run.startedAt}
-          events={events}
-        />
-      </footer>
     </section>
   );
 }

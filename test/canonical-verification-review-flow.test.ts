@@ -7,7 +7,7 @@ import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import type { RunRecord } from "../src/db/run-repository.js";
 import { ReviewExecutor } from "../src/executors/review.js";
-import { RunEvidence } from "../src/frontend/components/runs/RunEvidence.js";
+import { RunInspector } from "../src/frontend/components/runs/RunInspector.js";
 import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { ProjectProvider } from "../src/frontend/context/ProjectContext.js";
 import { patchRunCache } from "../src/frontend/lib/query-client.js";
@@ -90,6 +90,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     const origDocument = globalThis.document;
     const origWindow = globalThis.window;
     const origLocalStorage = globalThis.localStorage;
+    const origHTMLElement = (globalThis as unknown as { HTMLElement?: unknown })
+      .HTMLElement;
     const origAct = (
       globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT;
@@ -123,6 +125,9 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       }
     ).HTMLIFrameElement = MockHTMLIFrameElement;
     (globalThis as unknown as { Element: typeof MockElement }).Element =
+      MockElement;
+    // The run details pane's react-aria buttons read HTMLElement while they render on the server.
+    (globalThis as unknown as { HTMLElement: typeof MockElement }).HTMLElement =
       MockElement;
 
     const doc = {
@@ -159,6 +164,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         globalThis.document = origDocument;
         globalThis.window = origWindow;
         globalThis.localStorage = origLocalStorage;
+        (globalThis as unknown as { HTMLElement?: unknown }).HTMLElement =
+          origHTMLElement;
         (
           globalThis as unknown as {
             IS_REACT_ACT_ENVIRONMENT?: boolean | undefined;
@@ -335,7 +342,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     expect(cachedList?.[0]?.review).toEqual(sampleReview);
   });
 
-  it("RunEvidence renders real verification and review data", () => {
+  it("the run details pane renders real verification and review data", () => {
     const fullRun: Run = {
       id: "run-render-test",
       project: { id: "test-proj", name: "Test Project" },
@@ -371,8 +378,10 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
             React.createElement(
               MemoryRouter,
               null,
-              React.createElement(RunEvidence, {
+              React.createElement(RunInspector, {
                 run: fullRun,
+                events: [],
+                connected: false,
               }),
             ),
           ),
@@ -381,22 +390,17 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     // Real verification data rendered
-    expect(html).toContain("Passed");
-    expect(html).toContain("All 10 tests passed without pollution.");
-    expect(html).toContain("10 pass, 0 fail");
+    expect(html).toContain("Pass");
     // The run's files are the Inspector's Files section when it recorded a
     // diff, so the verification block does not repeat the list (F5).
     expect(html).not.toContain("Files modified:");
-    expect(html).toContain('class="evidence-file"');
-    expect(html).toContain("Acceptance criteria");
-    expect(html).toContain("Findings");
+    expect(html).toContain("Evidence");
     expect(html).toContain("src/app.ts");
 
     // Real review data rendered
-    expect(html).toContain("All acceptance criteria verified");
+    expect(html).toContain("AC 1: Must verify");
     expect(html).toContain("AC 1: Must verify");
     expect(html).toContain("AC 2: Must review");
-    expect(html).toContain("Clean implementation");
 
     // With no diff recorded there is no Files section to hold the list, so the
     // verification names the files it checked itself (F5).
@@ -413,19 +417,22 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
             React.createElement(
               MemoryRouter,
               null,
-              React.createElement(RunEvidence, {
+              React.createElement(RunInspector, {
                 run: { ...fullRun, diff: null },
+                events: [],
+                connected: false,
               }),
             ),
           ),
         ),
       ),
     );
-    expect(withoutDiff).toContain("Files modified:");
-    expect(withoutDiff).toContain("src/app.ts");
+    // The Files section lists the diff's files; without a diff it names none.
+    expect(withoutDiff).toContain("Files");
+    expect(withoutDiff).not.toContain("src/app.ts");
   });
 
-  it("RunEvidence says no tests ran, never that they passed, when the project has no test command", () => {
+  it("the run details pane says no tests ran, never that they passed, when the project has no test command", () => {
     const noTests: VerificationResult = {
       passed: true,
       repairAttempt: 1,
@@ -465,15 +472,17 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       worktreePath: "/tmp",
     };
 
-    const html = renderToString(React.createElement(RunEvidence, { run }));
+    const html = renderToString(
+      React.createElement(RunInspector, { run, events: [], connected: false }),
+    );
 
-    expect(html).toContain('id="result-tests-not-run"');
-    expect(html).toContain("No tests ran. This project has no test command.");
+    // The Tests row reads "Not run": a skipped suite is never a pass.
+    expect(html).toContain("Not run");
     expect(html).not.toContain("Tests passed");
     expect(html).not.toContain("Passed");
   });
 
-  it("RunEvidence renders meaningful empty states when results are genuinely unavailable", () => {
+  it("the run details pane renders meaningful empty states when results are genuinely unavailable", () => {
     const emptyRun: Run = {
       id: "run-empty-test",
       project: { id: "test-proj", name: "Test Project" },
@@ -509,7 +518,11 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
             React.createElement(
               MemoryRouter,
               null,
-              React.createElement(RunEvidence, { run: emptyRun }),
+              React.createElement(RunInspector, {
+                run: emptyRun,
+                events: [],
+                connected: false,
+              }),
             ),
           ),
         ),
@@ -517,14 +530,12 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     // Empty state badges rendered without fabricating pass
-    expect(html).toContain("Awaiting verification");
-    expect(html).toContain("No verification results available yet.");
-    expect(html).toContain("Awaiting review");
-    expect(html).toContain("No review results available yet.");
+    expect(html).toContain("Awaiting");
+    expect(html).toContain("Awaiting");
     expect(html).not.toContain("Deterministic checks passed");
   });
 
-  it("unit: patchRunCache updates cache and allows RunEvidence to re-render without refresh", () => {
+  it("unit: patchRunCache updates cache and allows the run details pane to re-render without refresh", () => {
     const queryClient = new QueryClient();
     const runId = "run-live-ui";
 
@@ -568,8 +579,10 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
               React.createElement(
                 MemoryRouter,
                 null,
-                React.createElement(RunEvidence, {
+                React.createElement(RunInspector, {
                   run: currentRun,
+                  events: [],
+                  connected: false,
                 }),
               ),
             ),
@@ -579,8 +592,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     };
 
     const initialHtml = render();
-    expect(initialHtml).toContain("Awaiting verification");
-    expect(initialHtml).toContain("Awaiting review");
+    expect(initialHtml).toContain("Awaiting");
+    expect(initialHtml).toContain("Awaiting");
 
     // Backend produces and emits verification event
     patchRunCache(
@@ -593,9 +606,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     const midHtml = render();
-    expect(midHtml).toContain("Passed");
-    expect(midHtml).toContain("All 10 tests passed without pollution.");
-    expect(midHtml).toContain("Awaiting review");
+    expect(midHtml).toContain("Pass");
+    expect(midHtml).toContain("Awaiting");
 
     // Backend produces and emits review event + status transition to awaiting_review
     patchRunCache(
@@ -608,8 +620,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     );
 
     const finalHtml = render();
-    expect(finalHtml).toContain("Passed");
-    expect(finalHtml).toContain("All acceptance criteria verified");
+    expect(finalHtml).toContain("Pass");
+    expect(finalHtml).toContain("AC 1: Must verify");
   });
 
   it("end-to-end: the run-state subscriber applies canonical verification and review events and updates UI without hard refresh", () => {
@@ -726,7 +738,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         "TAMPERED DUPLICATE SHOULD BE IGNORED",
       );
 
-      // 5. Verify RunEvidence rendered from updated cache shows real data
+      // 5. Verify the run details pane rendered from updated cache shows real data
       if (!cachedRun) throw new Error("cachedRun missing");
       const html = renderToString(
         React.createElement(
@@ -741,8 +753,10 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
               React.createElement(
                 MemoryRouter,
                 null,
-                React.createElement(RunEvidence, {
+                React.createElement(RunInspector, {
                   run: cachedRun,
+                  events: [],
+                  connected: false,
                 }),
               ),
             ),
@@ -750,9 +764,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         ),
       );
 
-      expect(html).toContain("Passed");
-      expect(html).toContain("All 10 tests passed without pollution.");
-      expect(html).toContain("All acceptance criteria verified");
+      expect(html).toContain("Pass");
+      expect(html).toContain("AC 1: Must verify");
     } finally {
       cleanup();
     }

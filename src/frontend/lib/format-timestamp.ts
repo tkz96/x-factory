@@ -12,7 +12,8 @@ const PART_TYPES = [
 ] as const;
 
 /**
- * Formats an ISO instant as `YYYY-MM-DD HH:mm:ss` in the viewer's local time zone.
+ * Formats an ISO instant as `HH:mm:ss DD-MM-YYYY` (24-hour clock, zero-padded) in the
+ * viewer's local time zone.
  * `timeZone` exists so tests can pin a zone; callers on the page omit it.
  * An unparseable input is returned unchanged.
  */
@@ -31,7 +32,7 @@ export function formatTimestamp(iso: string, timeZone?: string): string {
   }).formatToParts(date);
   const get = (type: (typeof PART_TYPES)[number]) =>
     parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+  return `${get("hour")}:${get("minute")}:${get("second")} ${get("day")}-${get("month")}-${get("year")}`;
 }
 
 const MINUTE_MS = 60_000;

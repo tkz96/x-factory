@@ -93,7 +93,10 @@ describe("the run chat shows real events and nothing invented", () => {
         ]}
       />,
     );
-    const system = within(log(container)).getByText("Review the plan");
+    // The decision card repeats the plan's title, so the chat line is found in its own row.
+    const system = within(log(container)).getByText("Review the plan", {
+      selector: "[data-kind] > span",
+    });
     expect(system.closest("[data-kind]")?.getAttribute("data-kind")).toBe(
       "status",
     );
@@ -135,13 +138,14 @@ describe("the run chat shows real events and nothing invented", () => {
         events={[ev(1, "status", { status: "failed", failure })]}
       />,
     );
-    // The header above the log says it, so the log does not say it again.
+    // The decision card states the failure and its recovery once; the log's status line does not
+    // say it again.
     const page = within(container);
     expect(page.getAllByText("The model call failed.")).toHaveLength(1);
     expect(page.getAllByText(failure.recovery)).toHaveLength(1);
     expect(
-      within(log(container)).queryByText("The model call failed."),
-    ).toBeNull();
+      log(container).querySelector('[data-kind="status"]')?.textContent,
+    ).not.toContain("The model call failed.");
     // The log still records the moment the run failed.
     expect(
       log(container).querySelector('[data-kind="status"]')?.textContent,
@@ -455,7 +459,8 @@ describe("every kind of run event reads as its own line", () => {
     );
     const chat = within(log(container));
     expect(chat.getByText("The tests cover the change.")).toBeTruthy();
-    expect(chat.getByText("Builder")).toBeTruthy();
+    // The Builder's output and the Builder's chat reply each name the speaker above their text.
+    expect(chat.getAllByText("Builder").length).toBe(2);
     expect(chat.getByText("Reviewer")).toBeTruthy();
     expect(chat.getByText("Writing the parser")).toBeTruthy();
     expect(chat.getByText("Why this plan?")).toBeTruthy();
@@ -721,12 +726,142 @@ describe("the composer: multi-line, keyboard-first, honest about failures (#263)
     });
   });
 
-  it("keeps the checkpoint bar directly above the message box", () => {
+  it("keeps the checkpoint bar inside the decision card, in the current stage, above the message box", () => {
     const { container } = render(
       <RunChat run={makeRun("awaiting_plan_approval")} events={[]} />,
     );
     const bar = within(container).getByRole("region", { name: "Checkpoint" });
-    expect(bar.nextElementSibling?.tagName).toBe("FORM");
-    expect(bar.nextElementSibling?.contains(composer(container))).toBe(true);
+    expect(bar.closest(".run-decision")).not.toBeNull();
+    expect(bar.closest('li[data-state="current"]')).not.toBeNull();
+    // The message box comes after the timeline that holds the card.
+    expect(
+      bar.compareDocumentPosition(composer(container)) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
+describe("run chat text reads as Markdown and sits at the start of a stage", () => {
+  it("shows the plan card as a Markdown preview, with the source one click away", () => {
+    const plan = "# Execution Plan\n\n## Context\n\n- Touch `settings.tsx`";
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_plan_approval")}
+        events={[ev(1, "plan_ready", { plan })]}
+      />,
+    );
+    const card =
+      log(container).querySelector<HTMLElement>('[data-kind="plan"]');
+    if (!card) throw new Error("the plan card is missing");
+    expect(card.querySelector(".md-block-label")?.textContent).toBe("Plan");
+    expect(
+      within(card).getByRole("heading", { level: 1, name: "Execution Plan" }),
+    ).toBeTruthy();
+    expect(card.querySelector("code")?.textContent).toBe("settings.tsx");
+    expect(card.textContent).not.toContain("# Execution");
+    fireEvent.click(within(card).getByRole("radio", { name: "Raw" }));
+    expect(card.querySelector("pre.md-block-raw")?.textContent).toBe(plan);
+  });
+
+  it("labels evidence with its stage and reads its text as Markdown", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("awaiting_understanding_approval")}
+        events={[
+          ev(1, "stage_evidence", {
+            stage: "understand",
+            evidence: "**Scope:** the settings page",
+          }),
+        ]}
+      />,
+    );
+    const row = log(container).querySelector<HTMLElement>(
+      '[data-kind="evidence"]',
+    );
+    if (!row) throw new Error("the evidence row is missing");
+    expect(row.querySelector(".md-block-label")?.textContent).toBe(
+      "Understand",
+    );
+    expect(row.querySelector("strong")?.textContent).toBe("Scope:");
+    expect(row.textContent).not.toContain("**");
+  });
+
+  it("labels a lowercase stage name with its display label, not the raw word", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("executing")}
+        events={[
+          ev(1, "stage_evidence", {
+            stage: "prepare",
+            evidence: "Worktree ready at external path",
+          }),
+          ev(2, "stage_evidence", { stage: "custom_step", evidence: "done" }),
+        ]}
+      />,
+    );
+    const rows = log(container).querySelectorAll<HTMLElement>(
+      '[data-kind="evidence"]',
+    );
+    expect(rows[0]?.querySelector(".md-block-label")?.textContent).toBe(
+      "Prepare",
+    );
+    expect(rows[0]?.textContent).toContain("Worktree ready at external path");
+    expect(rows[1]?.querySelector(".md-block-label")?.textContent).toBe(
+      "Custom_step",
+    );
+  });
+
+  it("reads Builder output as Markdown and keeps the speaker's name above it", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("executing")}
+        events={[
+          ev(1, "pi_output_chunk", {
+            role: "pi",
+            text: "## Writing\n\n- parser",
+          }),
+        ]}
+      />,
+    );
+    const bubble = log(container).querySelector<HTMLElement>(
+      '[data-kind="output"]',
+    );
+    if (!bubble) throw new Error("the output bubble is missing");
+    expect(bubble.querySelector(".run-chat-speaker")?.textContent).toBe(
+      "Builder",
+    );
+    expect(
+      within(bubble).getByRole("heading", { level: 2, name: "Writing" }),
+    ).toBeTruthy();
+    expect(within(bubble).getByRole("listitem").textContent).toBe("parser");
+  });
+
+  it("keeps the user's own message as typed, with no Markdown rendering", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("executing")}
+        events={[ev(1, "chat_user", { text: "## not a heading" })]}
+      />,
+    );
+    const own = log(container).querySelector<HTMLElement>(
+      '[data-kind="message"]',
+    );
+    expect(own?.querySelector("h2")).toBeNull();
+    expect(own?.textContent).toContain("## not a heading");
+    expect(own?.querySelector(".md-block")).toBeNull();
+  });
+
+  it("left-aligns stage lines, cards and bubbles, and keeps the warning and error tones", async () => {
+    const css = await Bun.file(
+      new URL("../src/frontend/components/runs/RunChat.css", import.meta.url),
+    ).text();
+    const system = /\.run-chat-system \{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(system).toContain("justify-content: flex-start");
+    expect(system).toContain("text-align: start");
+    expect(system).not.toMatch(/justify-content: center|text-align: center/);
+    const card = /\.run-chat-card \{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(card).toContain("text-align: start");
+    expect(css).toContain(".run-chat-system-warning");
+    expect(css).toContain(".run-chat-system-error");
   });
 });

@@ -1,0 +1,38 @@
+/* src/frontend/components/runs/RunPanel.css — The shared frame of the run page's side-by-side panels
+   (spec #241): the card, its header strip and its scrolling body. The chat panel and the "Run details"
+   pane both draw these, so their header strips share one height and one hairline. */
+
+.run-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.run-panel-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--space-14);
+  padding-inline: var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.run-panel-title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-headline);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.run-panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

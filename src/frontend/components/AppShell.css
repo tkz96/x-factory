@@ -425,22 +425,23 @@
   padding-top: var(--space-8);
 }
 
-@media (min-width: 961px) {
-  .main-content.main-content-locked {
-    overflow: hidden;
-    height: 100vh;
-  }
+/* A locked route (the run page) fills the window: the content area is exactly the window's height, and
+   the route's own panels scroll inside it. Applies at every width; at phone width the tab bar's room is
+   still reserved at the bottom of .main-content (see the phone rules below). */
+.main-content.main-content-locked {
+  overflow: hidden;
+  height: 100dvh;
+}
 
-  .viewport-container.viewport-container-locked {
-    padding: 0;
-    max-width: none;
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+.viewport-container.viewport-container-locked {
+  padding: 0;
+  max-width: none;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ── Area Views ──────────────────────────────────────────────────────── */

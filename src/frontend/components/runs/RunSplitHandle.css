@@ -1,0 +1,36 @@
+/* src/frontend/components/runs/RunSplitHandle.css — The divider between the run page's two panels
+   (desktop). The hit area is a full --space-4 column; the visible grip is a slim line centred in it
+   that lights up on hover, keyboard focus and drag. */
+
+.run-split-handle {
+  position: relative;
+  align-self: stretch;
+  width: var(--space-4);
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: var(--radius-xs);
+}
+
+.run-split-handle-grip {
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  left: 50%;
+  width: var(--border-width-indicator);
+  translate: -50% 0;
+  border-radius: var(--radius-full);
+  corner-shape: round;
+  background: var(--border-subtle);
+  transition: background-color var(--transition-fast);
+}
+
+.run-split-handle:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: calc(var(--border-width-indicator) * -1);
+}
+
+.run-split-handle--dragging .run-split-handle-grip,
+.run-split-handle:hover .run-split-handle-grip,
+.run-split-handle:focus-visible .run-split-handle-grip {
+  background: var(--accent);
+}

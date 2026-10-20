@@ -28,7 +28,7 @@ function routesFor(instance: {
     {
       name: "run detail",
       path: `/runs/${instance.runId}`,
-      wait: ".workflow-stepper",
+      wait: ".run-chat",
     },
     { name: "projects", path: "/projects", wait: "#area-projects" },
     {

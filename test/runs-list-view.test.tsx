@@ -181,7 +181,7 @@ describe("Runs rows", () => {
     expect(row.textContent).toContain("5 min ago");
     const time = row.querySelector("time");
     expect(time?.getAttribute("title")).toMatch(
-      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+      /^\d{2}:\d{2}:\d{2} \d{2}-\d{2}-\d{4}$/,
     );
   });
 

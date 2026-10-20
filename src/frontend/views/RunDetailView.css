@@ -1,111 +1,66 @@
-/* ── Run Detail Layout (Apple HIG 2/3 main + 1/3 sidebar) ─────────────── */
+/* ── Run Detail Layout ───────────────────────────────────────────────
+   The run page fills the content area the shell gives it (AppShell.css locks the
+   layout for this route), so the page never scrolls: the chat and the details pane
+   each fill the height and scroll inside themselves. */
 
 /* .area-view.active sets display: block; this keeps the run page a column (#262). */
 .area-view.run-detail-container.active {
   display: flex;
   flex-direction: column;
-  height: 100%;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
+/* Desktop: the chat and the details pane side by side, each the height of the page. */
 .run-detail-layout {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  /* One row that fills the space left above the stepper, never taller (#262). */
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
   gap: var(--space-4);
   flex: 1;
   min-height: 0;
   padding: var(--space-4) var(--space-5);
   overflow: hidden;
-  align-items: stretch;
 }
 
+/* Desktop: a three-column grid. The chat takes --run-split (set by the view, 20% to 80%), the divider
+   is its own column, and the details pane takes what is left. min-width 0 keeps each panel's content
+   scrolling inside it rather than pushing a neighbour. */
+.run-detail-layout--split {
+  display: grid;
+  grid-template-columns: minmax(0, var(--run-split, 50%)) auto minmax(0, 1fr);
+  gap: 0;
+}
+
+/* While a divider drag runs, text on the page must not select. */
+.run-detail-layout--split[data-resizing] {
+  user-select: none;
+}
+
+/* The chat is the wide panel: on desktop it is a grid track, on phone it fills the column. */
 .run-detail-main {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  gap: var(--space-3);
+  flex: 999 1 0;
   min-width: 0;
+  min-height: 0;
+  gap: var(--space-3);
 }
 
-.run-stage-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
+/* The toolbar row, the action error and the chat: the chat takes what is left. */
+.run-detail-main > .error-message {
+  flex: none;
+}
+
+/* Phone: one column. The toolbar opens the details sheet, and the chat fills the rest. */
+.run-detail-layout--phone {
   flex-direction: column;
   gap: var(--space-3);
-  padding-right: var(--space-1);
+  padding: var(--space-3);
 }
 
-.workflow-stepper-footer {
-  flex-shrink: 0;
-  width: 100%;
-  border-top: var(--border-width) solid var(--border);
-  background: var(--bg-glass);
-  backdrop-filter: blur(var(--blur-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass));
-  padding: 0.6rem var(--space-6);
-  z-index: 10;
-}
-
-@media (max-width: 960px) {
-  /* The base rule clips this flex column; the phone layout stacks and lets the
-     document scroll. The selector is the base rule's own, so the override
-     actually wins. */
-  .area-view.run-detail-container.active {
-    height: auto;
-    overflow: visible;
-  }
-
-  /* The strip is out of the flow and pinned to the bottom of the viewport,
-     directly above the fixed tab bar, so it stays on screen all the way down
-     the run. The layout reserves the strip's exact height below its content
-     (plus the tab bar and the safe area), so the composer and the last timeline
-     row still scroll fully above it instead of ending up behind it. */
-  .run-detail-layout {
-    grid-template-columns: 1fr;
-    height: auto;
-    overflow: visible;
-    padding: var(--space-3);
-    padding-bottom: calc(
-      var(--space-3) +
-      var(--stepper-strip-height) +
-      var(--tab-bar-height) +
-      env(safe-area-inset-bottom, var(--space-0))
-    );
-    gap: var(--space-3);
-  }
-
-  .run-detail-main {
-    height: auto;
-    overflow: visible;
-  }
-
-  .run-stage-scroll {
-    overflow-y: visible;
-  }
-
-  .workflow-stepper-footer {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: calc(
-      var(--tab-bar-height) +
-      env(safe-area-inset-bottom, var(--space-0))
-    );
-    /* One exact height, so the layout above can reserve exactly that much. */
-    height: var(--stepper-strip-height);
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    padding: 0 var(--space-3);
-  }
+.run-detail-layout--phone > .run-detail-main {
+  flex: 1 1 auto;
 }
 
 /* ── Run Detail View ─────────────────────────────────────────────────── */
@@ -127,12 +82,6 @@
 
 .section-header h3 {
   margin-bottom: 0;
-}
-
-/* The phone-width toolbar above the chat: the inspector opens from here (#262). */
-.run-detail-toolbar {
-  display: flex;
-  justify-content: flex-end;
 }
 
 /* ── Empty and loading states of the run page (moved from public/styles.css) ──

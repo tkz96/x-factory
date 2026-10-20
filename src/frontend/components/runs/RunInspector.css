@@ -1,57 +1,297 @@
-/* src/frontend/components/runs/RunInspector.css — The run inspector: evidence, files and the raw log (#262). */
+/* src/frontend/components/runs/RunInspector.css — The "Run details" pane (#262, spec #241): the run's
+   branch, ticket and pull request, its models, changed files and evidence, with the raw log in the
+   footer. The frame, header and scroll area come from RunPanel.css. */
 
+/* The pane's width comes from the run page's split (RunDetailView.css), so it takes no basis or cap. */
 .run-inspector {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* At phone width the same pane sits in a bottom sheet. */
+.run-inspector-in-sheet {
+  flex: none;
+  max-width: none;
+  width: 100%;
+  height: min(var(--modal-height), 80vh);
+}
+
+.run-inspector-body {
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  overflow-y: auto;
-  min-height: 0;
-  height: 100%;
+  gap: var(--space-7);
+  padding: var(--space-4);
+}
+
+.run-inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The small muted caption that heads each section. */
+.run-inspector-caption {
+  margin: 0;
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.run-inspector-caption-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.run-inspector-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.run-inspector-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+/* One row: the label on the left in the sans font, the value on the right in the mono font. */
+.run-inspector-row,
+.run-inspector-file {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-footnote);
+}
+
+/* A label never truncates: it keeps its full width and the value beside it gives way instead. */
+.run-inspector-label {
+  flex: 0 0 auto;
+  max-width: 60%;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+  color: var(--text);
+}
+
+/* The value takes the room the label leaves. A long value (a branch name) truncates with an ellipsis;
+   the full value is in its title. */
+.run-inspector-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  margin-inline-start: auto;
+  overflow: hidden;
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+/* A status word (a verdict, a count) keeps its full width and never shrinks. */
+.run-inspector-value--status {
+  flex: 0 0 auto;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* A model name wraps onto more lines rather than cutting off. */
+.run-inspector-value--wrap {
+  flex: 0 1 auto;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.run-inspector-value--muted {
+  color: var(--text-muted);
+}
+
+.run-inspector-value--pass {
+  color: var(--green);
+}
+
+.run-inspector-value--fail {
+  color: var(--red);
+}
+
+.run-inspector-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.run-inspector-link:hover {
+  text-decoration: underline;
+}
+
+.run-inspector-files {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  margin: 0;
+  padding: 0;
+}
+
+/* A file row is a real button drawn at the same height as the other rows: no padding, no margin, the full
+   column width, so its counts end flush right like every other value. The hit area and the hover fill
+   are a pseudo-element that reaches past the row without changing its layout. */
+.run-inspector-file {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-inspector-file::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-1) * -1) calc(var(--space-2) * -1);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.run-inspector-file:hover::before {
+  background: var(--bg-hover);
+}
+
+.run-inspector-file:focus-visible {
+  outline: var(--border-width-indicator) solid var(--border-focus);
+  outline-offset: calc(var(--border-width-indicator) * -1);
+}
+
+.run-inspector-file-path {
+  flex: 1 1 auto;
+  max-width: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.run-inspector-file-counts {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-inspector-add {
+  color: var(--green);
+}
+
+.run-inspector-remove {
+  color: var(--red);
+}
+
+.run-inspector-empty {
+  margin: 0;
+  font-size: var(--text-footnote);
+  color: var(--text-muted);
+}
+
+/* The footer: a full-width "Raw log" button pinned under the scroll area. */
+.run-inspector-footer {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.ui-button.run-inspector-raw-log {
+  width: 100%;
+  justify-content: space-between;
+  padding-inline: var(--space-3);
+}
+
+.run-inspector-raw-log-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .run-inspector-count {
-  margin-left: var(--space-1-5);
-  font-size: var(--text-caption-2);
-  font-weight: 500;
+  font-size: var(--text-caption-1);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
-  background: var(--bg-surface-2);
-  padding: var(--space-px) var(--space-1-5);
-  border-radius: var(--radius-full);
-  corner-shape: round;
 }
 
-/* The live-stream dot: one definition, scoped to the inspector. It is a
-   circle, and it is green because the stream is connected. */
-.run-inspector-stream-dot {
-  margin-left: var(--space-1-5);
-  display: inline-block;
+/* The live-stream dot: a green circle that blinks softly while the stream is connected. */
+.run-inspector-live-dot {
+  flex: none;
   width: var(--status-dot-sm);
   height: var(--status-dot-sm);
   border-radius: var(--radius-full);
   corner-shape: round;
   background: var(--green);
+  animation: runInspectorLive var(--duration-pulse) var(--ease-pulse) infinite;
 }
 
-.run-inspector-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+.run-inspector-chevron {
+  flex: none;
 }
 
-/* Only a reader who has not asked for reduced motion gets the smooth scroll. */
 @media (prefers-reduced-motion: no-preference) {
-  .run-inspector-scroll {
-    scroll-behavior: smooth;
+  .run-inspector-chevron {
+    transition: transform var(--transition-fast);
+  }
+
+  .ui-button.run-inspector-raw-log[data-hovered] .run-inspector-chevron {
+    transform: translateX(var(--space-half));
   }
 }
 
-/* Override ChatThread styles when inside the inspector */
-.run-inspector .chat-thread-container {
+/* The blink fades the dot in and out; the reduced path keeps the fade shorter and stops it. */
+@keyframes runInspectorLive {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes runInspectorLive {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  .run-inspector-live-dot {
+    animation-iteration-count: 1;
+  }
+}
+
+/* The raw log, inside its sheet: the chat thread's bubbles at a readable size. */
+.run-inspector-log .chat-thread-container {
   max-height: none;
   margin-bottom: 0;
   padding: 0;
@@ -60,65 +300,11 @@
   background: transparent;
 }
 
-.run-inspector .chat-bubble {
-  font-size: var(--text-caption-2);
+.run-inspector-log .chat-bubble {
+  font-size: var(--text-caption-1);
   padding: var(--space-1) var(--space-2);
 }
 
-.run-inspector .chat-bubble-header {
+.run-inspector-log .chat-bubble-header {
   margin-bottom: var(--space-half);
-}
-
-.run-inspector-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-width) solid var(--border-subtle);
-}
-
-.run-inspector-section h3 {
-  margin: 0;
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.run-inspector-files {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-footnote);
-}
-
-.run-inspector-file {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.run-inspector-file-path {
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono);
-}
-
-.run-inspector-file-counts {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-}
-
-.run-inspector-empty {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-footnote);
-}
-
-/* The raw log scrolls inside the inspector, so the inspector never pushes the stepper off screen. */
-.run-inspector-scroll {
-  max-height: 18rem;
-  overflow-y: auto;
 }

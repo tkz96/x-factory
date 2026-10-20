@@ -1,0 +1,181 @@
+/* src/frontend/components/MarkdownBlock.css — Markdown or plain text in a reader's own size. Every value is a
+   token. The preview takes its size from its container, so a bubble, a card or a page sets the body text;
+   the headings step down from there. */
+
+.md-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  min-width: 0;
+  text-align: start;
+}
+
+.md-block-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.md-block-label {
+  min-width: 0;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.md-block-toggle {
+  flex: none;
+  font-size: var(--text-caption-1);
+}
+
+/* Plain text keeps its line breaks and its words; it takes the size of its container. */
+.md-block-plain {
+  margin: 0;
+  font-size: inherit;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Raw source: mono, wrapped at spaces. A long unbroken run scrolls sideways inside the block. */
+.md-block-raw {
+  margin: 0;
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-1);
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+/* ── Preview typography ──────────────────────────────────────────────── */
+
+.md-block-preview .md-viewer {
+  font-size: inherit;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.md-block-preview .md-viewer > :first-child {
+  margin-top: 0;
+}
+
+.md-block-preview .md-viewer > :last-child {
+  margin-bottom: 0;
+}
+
+.md-block-preview .md-viewer h1,
+.md-block-preview .md-viewer h2,
+.md-block-preview .md-viewer h3,
+.md-block-preview .md-viewer h4 {
+  font-family: inherit;
+  letter-spacing: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text);
+}
+
+.md-block-preview .md-viewer h1 {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  margin: var(--space-3) 0 var(--space-1-5);
+}
+
+.md-block-preview .md-viewer h2 {
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.md-block-preview .md-viewer h3,
+.md-block-preview .md-viewer h4 {
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  margin: var(--space-2-5) 0 var(--space-1);
+}
+
+.md-block-compact .md-block-preview .md-viewer h1 {
+  font-size: var(--text-subhead);
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.md-block-compact .md-block-preview .md-viewer h2,
+.md-block-compact .md-block-preview .md-viewer h3,
+.md-block-compact .md-block-preview .md-viewer h4 {
+  font-size: var(--text-footnote);
+  margin: var(--space-2) 0 var(--space-0-5);
+}
+
+.md-block-preview .md-viewer p {
+  margin: var(--space-1-5) 0;
+  color: var(--text);
+}
+
+.md-block-preview .md-viewer ul,
+.md-block-preview .md-viewer ol,
+.md-block-preview .md-viewer .md-list {
+  margin: var(--space-1-5) 0;
+  padding-inline-start: var(--space-5);
+}
+
+.md-block-preview .md-viewer li {
+  margin-bottom: var(--space-0-5);
+}
+
+.md-block-preview .md-viewer strong,
+.md-block-preview .md-viewer .md-bold {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Inline code and code blocks: mono on --bg-secondary, no border of their own. */
+.md-block-preview .md-inline-code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--bg-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+}
+
+.md-block-preview .md-code-container {
+  margin: var(--space-2) 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.md-block-preview .md-code-header {
+  background: transparent;
+  border-bottom: 0;
+}
+
+.md-block-preview .md-code-pre {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-caption-1);
+}
+
+.md-block-preview .md-link,
+.md-block-preview .md-doc-link {
+  color: var(--accent);
+}
+
+.md-block-preview .md-table-container {
+  margin: var(--space-2) 0;
+}
+
+.md-block-preview .md-viewer blockquote {
+  margin: var(--space-2) 0;
+  padding: var(--space-1) var(--space-3);
+}

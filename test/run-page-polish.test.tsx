@@ -100,8 +100,8 @@ describe("the run now header displays pull request outcomes", () => {
   });
 });
 
-describe("the log count is a labelled badge beside the heading", () => {
-  it("names the count in words and keeps it out of the heading's text", () => {
+describe("the raw log count sits on the footer button", () => {
+  it("names the count in words on the Raw log button", () => {
     const events = [
       {
         id: 1,
@@ -123,9 +123,10 @@ describe("the log count is a labelled badge beside the heading", () => {
         connected={false}
       />,
     );
-    const count = within(container).getByRole("note", { name: "2 events" });
-    expect(count.textContent).toBe("2");
-    expect(count.closest("h3")?.textContent).toContain("Raw log");
+    const button = within(container).getByRole("button", { name: /Raw log/ });
+    expect(button.querySelector(".run-inspector-count")?.textContent).toBe(
+      "2 events",
+    );
   });
 
   it("says one event in the singular", () => {
@@ -144,16 +145,19 @@ describe("the log count is a labelled badge beside the heading", () => {
         connected={false}
       />,
     );
-    expect(
-      within(container).getByRole("note", { name: "1 event" }),
-    ).toBeTruthy();
+    const button = within(container).getByRole("button", { name: /Raw log/ });
+    expect(button.textContent).toContain("1 event");
+    expect(button.textContent).not.toContain("1 events");
   });
 });
 
 describe("the send control", () => {
   it("is named Send and draws its icon from the sprite", () => {
     const source = readFileSync(
-      path.join(process.cwd(), "src/frontend/components/runs/RunChat.tsx"),
+      path.join(
+        process.cwd(),
+        "src/frontend/components/runs/RunChatComposer.tsx",
+      ),
       "utf-8",
     );
     expect(source).toContain('aria-label="Send"');
@@ -173,22 +177,5 @@ describe("the send control", () => {
     const forced = css.slice(css.indexOf("@media (forced-colors: active)"));
     expect(forced).toContain(".run-chat-send:disabled");
     expect(forced).toContain("GrayText");
-  });
-});
-
-describe("the phone step labels are readable", () => {
-  it("uses the caption size, not the 9 px micro token", () => {
-    const css = readFileSync(
-      path.join(
-        process.cwd(),
-        "src/frontend/components/runs/WorkflowStepper.css",
-      ),
-      "utf-8",
-    );
-    const phone = css.slice(css.indexOf("@media (max-width: 600px)"));
-    expect(phone).toMatch(
-      /\.step-label \{\s*font-size: var\(--text-caption-2\)/,
-    );
-    expect(phone).not.toContain("--text-micro");
   });
 });

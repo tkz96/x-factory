@@ -8,7 +8,7 @@ import "./RunNowHeader.css";
 import type { Run } from "../../../shared/types.js";
 import { formatRelativeTime } from "../../lib/format-timestamp.js";
 import type { RunNow } from "../../lib/run-now.js";
-import { MarkdownViewer } from "../MarkdownViewer.js";
+import { MarkdownBlock } from "../MarkdownBlock.js";
 
 export interface RunNowHeaderProps {
   run: Run;
@@ -30,7 +30,7 @@ export function RunNowHeader({ run, now }: RunNowHeaderProps) {
 
       {now.plan && (
         <div className="run-now-plan">
-          <MarkdownViewer content={now.plan} />
+          <MarkdownBlock content={now.plan} compact />
         </div>
       )}
 

@@ -10,7 +10,7 @@ import {
 } from "../../lib/format-timestamp.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
 import { MotionEntry } from "../../motion/MotionEntry.js";
-import { MarkdownViewer } from "../MarkdownViewer.js";
+import { MarkdownBlock } from "../MarkdownBlock.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 
@@ -116,18 +116,15 @@ export function RunChatItemView({
       );
     case "evidence":
       return (
-        <div className="run-chat-system" data-kind="evidence">
-          <span>
-            <strong>{item.stage}</strong>: {item.text}
-          </span>
+        <div className="run-chat-card" data-kind="evidence">
+          <MarkdownBlock content={item.text} label={item.stage} compact />
           <RunTime at={item.at} now={now} />
         </div>
       );
     case "plan":
       return (
         <article className="run-chat-card" data-kind="plan" aria-label="Plan">
-          <h3>Plan</h3>
-          <p className="run-chat-pre">{item.plan}</p>
+          <MarkdownBlock content={item.plan} label="Plan" compact />
           <RunTime at={item.at} now={now} />
         </article>
       );
@@ -161,24 +158,33 @@ export function RunChatItemView({
         </article>
       );
     case "review":
-      return (
+      return item.tool ? (
         <div className="run-chat-system" data-kind="review">
-          <span>{item.tool ? `Ran ${item.tool}` : item.text}</span>
+          <span>{`Ran ${item.tool}`}</span>
+          <RunTime at={item.at} now={now} />
+        </div>
+      ) : (
+        <div className="run-chat-card" data-kind="review">
+          <MarkdownBlock content={item.text ?? ""} compact />
           <RunTime at={item.at} now={now} />
         </div>
       );
-    case "result":
-      return (
+    case "result": {
+      const outcome = `${item.title} ${item.passed ? "passed" : "did not pass"}`;
+      return item.summary ? (
+        <div className="run-chat-card" data-kind="result">
+          <MarkdownBlock content={item.summary} label={outcome} compact />
+          <RunTime at={item.at} now={now} />
+        </div>
+      ) : (
         <div className="run-chat-system" data-kind="result">
           <span>
-            <strong>
-              {item.title} {item.passed ? "passed" : "did not pass"}
-            </strong>
-            {item.summary ? `: ${item.summary}` : ""}
+            <strong>{outcome}</strong>
           </span>
           <RunTime at={item.at} now={now} />
         </div>
       );
+    }
     case "progress":
       return (
         <div className="run-chat-progress" data-kind="progress">
@@ -193,10 +199,10 @@ export function RunChatItemView({
           className={`run-chat-bubble run-chat-bubble-${item.speaker}`}
           data-kind="output"
         >
-          <Badge className="run-chat-badge">
+          <span className="run-chat-speaker">
             {item.speaker === "reviewer" ? "Reviewer" : "Builder"}
-          </Badge>
-          <p className="run-chat-pre">{item.text}</p>
+          </span>
+          <MarkdownBlock content={item.text} compact />
           <RunTime at={item.at} now={now} />
         </div>
       );
@@ -209,9 +215,10 @@ export function RunChatItemView({
           {/* The Builder answers in Markdown; the shared renderer never makes
               HTML from it. The reader's own words stay exactly as typed. */}
           {item.role === "agent" ? (
-            <div className="run-chat-markdown">
-              <MarkdownViewer content={item.text} />
-            </div>
+            <>
+              <span className="run-chat-speaker">Builder</span>
+              <MarkdownBlock content={item.text} compact />
+            </>
           ) : (
             <p className="run-chat-pre">{item.text}</p>
           )}

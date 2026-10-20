@@ -6,9 +6,10 @@
 
 import type { DiffSummary } from "../../shared/diff-summary.js";
 import type { FailureReason } from "../../shared/failure-reason.js";
-import type { RunEvent, RunStatus } from "../../shared/types.js";
-import { stageLabel, stageStartedText } from "./run-models.js";
+import type { RunEvent, RunStatus, WorkflowStage } from "../../shared/types.js";
+import { stageStartedText } from "./run-models.js";
 import { runStatusText } from "./run-status-ui.js";
+import { isWorkflowStage, stageDisplayLabel } from "./workflow-stages.js";
 
 interface ItemBase {
   /** Stable across renders: `event-<id>`, so an item is announced once. */
@@ -46,7 +47,11 @@ export type ChatItem =
     })
   | (ItemBase & { kind: "message"; role: "user" | "agent"; text: string })
   | (ItemBase & { kind: "evidence"; stage: string; text: string })
-  | (ItemBase & { kind: "stage"; text: string })
+  | (ItemBase & {
+      kind: "stage";
+      text: string;
+      stage?: WorkflowStage | undefined;
+    })
   | (ItemBase & {
       kind: "notice";
       text: string;
@@ -142,14 +147,21 @@ function mapEvent(event: RunEvent): ChatItem[] {
         {
           ...common,
           kind: "evidence",
-          stage: stageLabel(event.payload.stage),
+          stage: stageDisplayLabel(event.payload.stage),
           text: event.payload.evidence,
         },
       ];
-    case "stage_started":
+    case "stage_started": {
+      const stage = event.payload.stage;
       return [
-        { ...common, kind: "stage", text: stageStartedText(event.payload) },
+        {
+          ...common,
+          kind: "stage",
+          text: stageStartedText(event.payload),
+          ...(isWorkflowStage(stage) ? { stage } : {}),
+        },
       ];
+    }
     case "pr_step": {
       const { url, text, step } = event.payload;
       const label = text ?? (url ? "Pull request link" : step);

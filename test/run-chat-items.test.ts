@@ -168,7 +168,7 @@ describe("mapEventsToChatItems", () => {
       "notice",
       "error",
     ]);
-    expect(items[0]).toMatchObject({ stage: "Coding", text: "tests passed" });
+    expect(items[0]).toMatchObject({ stage: "Code", text: "tests passed" });
     expect(items[1]).toMatchObject({
       text: "Coding with m via C",
     });
