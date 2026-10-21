@@ -6,7 +6,7 @@
 import "./RunDetailView.css";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { type CSSProperties, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { RunChat } from "../components/runs/RunChat.js";
 import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
@@ -50,6 +50,16 @@ export function RunDetailView() {
   const isPhone = useMediaQuery("(max-width: 768px)");
   const layoutRef = useRef<HTMLDivElement>(null);
   const { split, setSplit, resetSplit } = useRunSplit();
+
+  // A new run starts with a clean slate: the last run's action error or conflict does not follow
+  // the reader into it.
+  const lastRunIdRef = useRef(runId);
+  useEffect(() => {
+    if (lastRunIdRef.current === runId) return;
+    lastRunIdRef.current = runId;
+    setActionError(null);
+    setConflict(false);
+  }, [runId]);
 
   if (isLoading) {
     return (
@@ -213,7 +223,10 @@ export function RunDetailView() {
             </div>
           )}
 
+          {/* Keyed by the run: the chat's own state (the reader's lines, the composer draft, the
+              open stages) belongs to one run and never leaks into the next. */}
           <RunChat
+            key={run.id}
             run={run}
             events={events}
             onAction={onAction}
@@ -233,7 +246,9 @@ export function RunDetailView() {
             onReset={resetSplit}
           />
         )}
-        {!isPhone && <RunInspector {...inspectorProps} />}
+        {/* Keyed by the run: the pane's own state (the raw-log sheet, the open diff) belongs to
+            one run and never leaks into the next. */}
+        {!isPhone && <RunInspector key={run.id} {...inspectorProps} />}
       </div>
     </section>
   );

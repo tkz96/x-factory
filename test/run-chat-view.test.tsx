@@ -14,16 +14,25 @@ import {
   expect,
   it,
 } from "bun:test";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
   cleanup,
   fireEvent,
   render,
+  waitFor,
   within,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  RouterProvider,
+} from "react-router-dom";
 import { RunChat } from "../src/frontend/components/runs/RunChat.js";
+import { ModalProvider } from "../src/frontend/context/ModalContext.js";
 import { formatTimestamp } from "../src/frontend/lib/format-timestamp.js";
+import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import { RunDetailView } from "../src/frontend/views/RunDetailView.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 afterEach(() => {
@@ -71,6 +80,11 @@ function ev(id: number, type: string, payload: unknown, timestamp = AT) {
 function log(container: HTMLElement) {
   return within(container).getByRole("log");
 }
+
+const json = (body: unknown) =>
+  new Response(JSON.stringify(body), {
+    headers: { "content-type": "application/json" },
+  });
 
 describe("the run chat shows real events and nothing invented", () => {
   it("shows no greeting or agent prose before any event arrives", () => {
@@ -863,5 +877,90 @@ describe("run chat text reads as Markdown and sits at the start of a stage", () 
     expect(card).toContain("text-align: start");
     expect(css).toContain(".run-chat-system-warning");
     expect(css).toContain(".run-chat-system-error");
+  });
+});
+
+describe("the chat state of one run does not follow the reader into the next", () => {
+  const realFetch = globalThis.fetch;
+  const RealEventSource = (globalThis as { EventSource?: unknown }).EventSource;
+
+  class FakeEventSource {
+    constructor(public url: string) {}
+    addEventListener() {}
+    removeEventListener() {}
+    close() {}
+  }
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    (globalThis as unknown as { EventSource: unknown }).EventSource =
+      RealEventSource;
+  });
+
+  /** Renders the run page for run-1 on the app's data router (see src/frontend/routes.tsx), with
+   * run-1 and run-2 both seeded in the query cache. */
+  function renderRunPage(
+    onNavigate: (router: ReturnType<typeof createMemoryRouter>) => void,
+  ) {
+    globalThis.fetch = (async () =>
+      json(
+        makeRun("awaiting_plan_approval", { id: "run-2" }),
+      )) as unknown as typeof fetch;
+    (globalThis as unknown as { EventSource: unknown }).EventSource =
+      FakeEventSource;
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    for (const id of ["run-1", "run-2"]) {
+      client.setQueryData(
+        queryKeys.run(id),
+        makeRun("awaiting_plan_approval", { id }),
+      );
+      client.setQueryData(queryKeys.runEvents(id), []);
+    }
+    const router = createMemoryRouter(
+      [{ path: "/runs/:runId", element: <RunDetailView /> }],
+      { initialEntries: ["/runs/run-1"] },
+    );
+    const view = render(
+      <QueryClientProvider client={client}>
+        <ModalProvider>
+          <RouterProvider router={router} />
+        </ModalProvider>
+      </QueryClientProvider>,
+    );
+    onNavigate(router);
+    return view;
+  }
+
+  it("leaves the composer's draft behind when the reader moves to another run", async () => {
+    let toRun2: () => Promise<void> = () => Promise.resolve();
+    const { container } = renderRunPage((router) => {
+      toRun2 = () => router.navigate("/runs/run-2");
+    });
+
+    const composer = (): HTMLTextAreaElement => {
+      const area = container.querySelector("form.run-chat-input textarea");
+      if (!area) throw new Error("the composer is missing");
+      return area as HTMLTextAreaElement;
+    };
+    await waitFor(() => expect(composer().disabled).toBe(false));
+    // Typing the way the browser does (focus, change, keyup, as add-project-assistant's typeInput):
+    // a bare fireEvent.change never reaches the composer's onChange under happy-dom.
+    act(() => {
+      composer().focus();
+      fireEvent.change(composer(), {
+        target: { value: "a note made on run 1" },
+      });
+      fireEvent.keyUp(composer());
+    });
+    expect(composer().value).toBe("a note made on run 1");
+
+    await act(async () => {
+      await toRun2();
+    });
+
+    await waitFor(() => expect(composer().value).toBe(""));
   });
 });
