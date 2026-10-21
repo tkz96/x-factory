@@ -4,6 +4,7 @@ import type { Repositories } from "../composition-root.js";
 import { getProject } from "../config.js";
 import { assertRolesReady, ModelUnavailableError } from "../model-roles.js";
 import * as runs from "../runs.js";
+import { isReservedRunBranch } from "../shared/branch-name.js";
 import { normalizeCriterion } from "../shared/normalization.js";
 import { TERMINAL_RUN_STATUSES } from "../shared/run-status-policy.js";
 import type {
@@ -60,6 +61,23 @@ export async function handleCreateRun(
         );
       }
 
+      // A run always branches off the project's default branch, so its own
+      // branch can never be one the repository already starts from. (The
+      // schema already refused names git would refuse, plus main and master.)
+      const branch = body.branch?.trim() || undefined;
+      if (branch) {
+        const defaultBranches = [
+          project.defaultBranch,
+          ...project.repositories.map((r) => r.defaultBranch),
+        ].filter((b): b is string => Boolean(b));
+        if (isReservedRunBranch(branch, defaultBranches)) {
+          return errorResponse(
+            `Branch "${branch}" is the project's default branch; a run must use a different branch.`,
+            400,
+          );
+        }
+      }
+
       // A run needs working Builder and Reviewer models before it starts;
       // the reason names each role to fix in Settings › Models (#278).
       try {
@@ -78,7 +96,6 @@ export async function handleCreateRun(
         body.acceptanceCriteria,
       );
       const description = body.description;
-      const branch = body.branch;
 
       const run = await runs.createRun(
         repos,

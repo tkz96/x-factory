@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { CreateRunBodySchema } from "../src/http/schemas.js";
 import { execStrict } from "../src/proc.js";
 import { createTestRepositories } from "./helpers/composition.js";
 import { dispatchHttp } from "./helpers/http-dispatch.js";
@@ -68,6 +69,142 @@ describe("POST /api/runs validation", () => {
       );
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ error: "Ticket ID is required." });
+    });
+  });
+
+  // A live run was accepted with branch "main"; a run branch must be a name
+  // git would accept (`git check-ref-format --branch`) and must never be the
+  // branch the repository starts from.
+  describe("the branch name", () => {
+    const body = { projectId: PROJECT_ID, ...VALID_RUN };
+
+    describe("the schema refuses every name git check-ref-format --branch refuses", () => {
+      const refused: Array<[string, string]> = [
+        ["two consecutive dots", "feature/a..b"],
+        ["a tilde", "feature/a~b"],
+        ["a caret", "feature/a^b"],
+        ["a colon", "feature/a:b"],
+        ["a question mark", "feature/a?b"],
+        ["an asterisk", "feature/a*b"],
+        ["an open bracket", "feature/a[b"],
+        ["a backslash", "feature/a\\b"],
+        ["a space", "feature/a b"],
+        ["a tab", "feature/a\tb"],
+        ["a newline", "feature/a\nb"],
+        ["a leading dash", "-feature"],
+        ["a trailing slash", "feature/"],
+        ["a leading slash", "/feature"],
+        ["a doubled slash", "feature//x"],
+        ["a trailing dot", "feature."],
+        ["a .lock component", "feature/story.lock"],
+        ["a .lock root component", ".lock"],
+        ["a component starting with a dot", ".hidden"],
+        ["the bare at sign", "@"],
+        ["an at-brace sequence", "feature@{1}"],
+      ];
+
+      for (const [label, name] of refused) {
+        it(`refuses a branch with ${label}`, () => {
+          const result = CreateRunBodySchema.safeParse({
+            ...body,
+            branch: name,
+          });
+          expect(result.success).toBe(false);
+        });
+      }
+
+      it("accepts the names git would accept", () => {
+        for (const name of [
+          "factory/T-123",
+          "fix_e2e.honest-review",
+          "user/JIRA-42-review",
+          "release/2026.10",
+        ]) {
+          expect(
+            CreateRunBodySchema.safeParse({ ...body, branch: name }).success,
+          ).toBe(true);
+        }
+      });
+
+      it("treats an empty branch as no branch at all", () => {
+        expect(
+          CreateRunBodySchema.safeParse({ ...body, branch: "" }).success,
+        ).toBe(true);
+      });
+    });
+
+    it("refuses main and master at the schema", () => {
+      for (const name of ["main", "master"]) {
+        const result = CreateRunBodySchema.safeParse({ ...body, branch: name });
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it("answers 400 with the reason over HTTP for main", async () => {
+      await withReadyModelRoles(async () => {
+        const repos = createTestRepositories();
+        const res = await dispatchHttp(
+          createRunRequest({ ...VALID_RUN, branch: "main" }),
+          repos,
+        );
+        expect(res.status).toBe(400);
+        const payload = (await res.json()) as { error: string };
+        expect(payload.error).toContain("main");
+        expect(payload.error).toContain("valid git branch name");
+        expect(repos.runs.list()).toEqual([]);
+      });
+    });
+
+    it("answers 400 with the reason over HTTP for an invalid ref", async () => {
+      await withReadyModelRoles(async () => {
+        const repos = createTestRepositories();
+        const res = await dispatchHttp(
+          createRunRequest({ ...VALID_RUN, branch: "feature/a..b" }),
+          repos,
+        );
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { error: string }).error).toContain(
+          "valid git branch name",
+        );
+        expect(repos.runs.list()).toEqual([]);
+      });
+    });
+
+    it("answers 400 when the branch is the project's own default branch", async () => {
+      await withReadyModelRoles(async () => {
+        const projectId = "proj-create-run-default-branch";
+        ensureProject(projectId, {
+          repositoryPath: repoDir,
+          defaultBranch: "develop",
+        });
+        const repos = createTestRepositories();
+        const res = await dispatchHttp(
+          createRunRequest({ ...VALID_RUN, projectId, branch: "develop" }),
+          repos,
+        );
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { error: string }).error).toContain(
+          "default branch",
+        );
+        expect(repos.runs.list()).toEqual([]);
+      });
+    });
+
+    it("creates the run on a valid custom branch", async () => {
+      await withReadyModelRoles(async () => {
+        const repos = createTestRepositories();
+        const res = await dispatchHttp(
+          createRunRequest({
+            ...VALID_RUN,
+            ticketId: "X-branch-ok",
+            branch: "factory/X-branch-ok",
+          }),
+          repos,
+        );
+        expect(res.status).toBe(201);
+        const run = (await res.json()) as { branch: string };
+        expect(run.branch).toBe("factory/X-branch-ok");
+      });
     });
   });
 

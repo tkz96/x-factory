@@ -9,6 +9,10 @@ import {
   type ProjectMigrationInput,
   ProjectMigrationInputSchema,
 } from "../providers/project-config.js";
+import {
+  isReservedRunBranch,
+  isValidBranchName,
+} from "../shared/branch-name.js";
 import { hasControlCharacters } from "../shared/validation.js";
 
 /** Request body schema for POST /api/settings (#163 B4). */
@@ -63,7 +67,22 @@ export const CreateRunBodySchema = z
     plan: z.string().optional(),
     acceptanceCriteria: z.union([z.string(), z.array(z.string())]).optional(),
     description: z.string().optional(),
-    branch: z.string().optional(),
+    // A run's branch must be a name git accepts (`git check-ref-format --branch`,
+    // implemented in TypeScript so the API never shells out) and must never be
+    // main or master. The project's own default branch is refused in the
+    // controller, which is the first place that knows the project.
+    branch: z
+      .string()
+      .optional()
+      .refine(
+        (val) => val === undefined || val === "" || isValidBranchName(val),
+        'Not a valid git branch name: no "..", spaces, control characters or ~ ^ : ? * [ \\ characters, no leading "-", no leading, trailing or doubled "/", no trailing ".", no component starting with "." or ending with ".lock", not "@", and no "@{".',
+      )
+      .refine(
+        (val) =>
+          val === undefined || val === "" || !isReservedRunBranch(val, []),
+        'Not a valid git branch name for a run: "main" and "master" are reserved, and a run always branches off the project\'s default branch.',
+      ),
   })
   .passthrough();
 
