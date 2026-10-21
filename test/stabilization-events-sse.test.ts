@@ -100,6 +100,11 @@ describe("Stabilization Pass — Durable Events & Cross-Process SSE", () => {
     const reader = res.body?.getReader();
     expect(reader).toBeDefined();
 
+    // The stream opens with a comment, written before any event.
+    const opening = await (reader?.read() ??
+      Promise.resolve({ value: undefined }));
+    expect(new TextDecoder().decode(opening.value)).toBe(": connected\n\n");
+
     const { value } = await (reader?.read() ??
       Promise.resolve({ value: undefined }));
     const text = new TextDecoder().decode(value);

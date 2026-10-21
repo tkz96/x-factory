@@ -599,7 +599,10 @@ describe("App-wide event stream and consistent snapshot (#257)", () => {
     // Closing all connections in the SSE registry cancels the active stream
     defaultSSERegistry.closeAll();
 
+    // The opening comment is written before the close, so it is read first.
     const reader = res.body?.getReader();
+    const opening = await reader?.read();
+    expect(new TextDecoder().decode(opening?.value)).toBe(": connected\n\n");
     const result = await reader?.read();
     expect(result?.done).toBe(true);
   });

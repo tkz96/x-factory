@@ -118,6 +118,8 @@ export function handleAppEvents(
       controllerRef = controller;
       const encoder = new TextEncoder();
       const send = (text: string) => controller.enqueue(encoder.encode(text));
+      // An opening comment, written before any event: a buffering proxy forwards the headers at once.
+      send(": connected\n\n");
 
       unregisterRegistry = defaultSSERegistry.register(() => shutdown(true));
 

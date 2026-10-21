@@ -144,6 +144,8 @@ export function handleRunEvents(
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      // An opening comment, written before any event: a buffering proxy forwards the headers at once.
+      controller.enqueue(encoder.encode(": connected\n\n"));
 
       const cleanup = () => {
         if (isClosed) return;

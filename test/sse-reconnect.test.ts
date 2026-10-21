@@ -49,7 +49,10 @@ describe("SSE Gapless Reconnect Replay (XFM-61)", () => {
     while (events.length < count) {
       const { value, done } = await reader.read();
       if (done || !value) break;
-      events.push(new TextDecoder().decode(value));
+      const text = new TextDecoder().decode(value);
+      // The stream's opening comment, written before any event, is not an event.
+      if (text === ": connected\n\n") continue;
+      events.push(text);
     }
     return events;
   }
