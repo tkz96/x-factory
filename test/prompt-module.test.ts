@@ -328,6 +328,71 @@ describe("Prompt module (src/prompts.ts)", () => {
       expect(prompt).toContain("Answer with the plan only");
     });
 
+    it("asks the Understand answer for the change verdict and the criterion conflicts", () => {
+      const prompt = buildUnderstandingPrompt({ ticket, project });
+
+      expect(prompt).toContain("CHANGE_REQUIRED:");
+      expect(prompt).toContain("CONFLICTS:");
+      expect(prompt).toContain("Never reword, drop or pick a side");
+    });
+
+    it("tells the plan never to change, drop or reinterpret an acceptance criterion", () => {
+      const prompt = buildPlanPrompt({ ticket, project, understanding });
+
+      expect(prompt).toContain(
+        "Never change, drop or reinterpret an acceptance criterion.",
+      );
+      expect(prompt).toContain("Copy each criterion exactly as it is written");
+      expect(prompt).toContain('"Needs your decision"');
+    });
+
+    it("carries the understanding's open criterion conflicts into the plan prompt", () => {
+      const prompt = buildPlanPrompt({
+        ticket,
+        project,
+        understanding: {
+          ...understanding,
+          conflicts: [
+            '"negate(3) returns 3" contradicts "negate(-3) returns 3"',
+          ],
+        },
+      });
+
+      expect(prompt).toContain("## Open criterion conflicts");
+      expect(prompt).toContain(
+        '- "negate(3) returns 3" contradicts "negate(-3) returns 3"',
+      );
+      expect(prompt).toContain(
+        "Keep every criterion they name exactly as written.",
+      );
+    });
+
+    it("tells the plan not to invent work when the understanding found no change is required", () => {
+      const prompt = buildPlanPrompt({
+        ticket,
+        project,
+        understanding: {
+          ...understanding,
+          changeRequired: false,
+          changeReason: "sum already exists in src/math.ts.",
+        },
+      });
+
+      expect(prompt).toContain("## No change required");
+      expect(prompt).toContain("sum already exists in src/math.ts.");
+      expect(prompt).toContain("do not invent work");
+    });
+
+    it("says nothing about a missing change when the understanding requires one", () => {
+      const prompt = buildPlanPrompt({
+        ticket,
+        project,
+        understanding: { ...understanding, changeRequired: true },
+      });
+
+      expect(prompt).not.toContain("## No change required");
+    });
+
     it("leaves the optional blocks out when the run has none of them", () => {
       const bareProject: Project = { ...project, testCommand: "" };
       const understandingPrompt = buildUnderstandingPrompt({

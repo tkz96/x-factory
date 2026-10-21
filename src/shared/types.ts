@@ -255,6 +255,19 @@ export interface ImplementationContext {
   existingBehavior: string;
   constraints: string[];
   risks: string[];
+  /**
+   * Acceptance criteria that contradict each other or the code as it is. The operator
+   * decides these at the understanding checkpoint; no stage changes a criterion. Absent
+   * in runs understood before this field existed.
+   */
+  conflicts?: string[];
+  /**
+   * False when the repository already does what the ticket asks, so no change is
+   * required. Absent (treated as true) in runs understood before this field existed.
+   */
+  changeRequired?: boolean;
+  /** Why no change is required, in plain words (empty when a change is required). */
+  changeReason?: string;
 }
 
 /**
