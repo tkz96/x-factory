@@ -10,6 +10,7 @@ import type {
 import { api } from "./api-client.js";
 import { patchRunCache } from "./query-client.js";
 import { queryKeys } from "./query-policies.js";
+import { defaultRetryDelayMs } from "./reconnect-backoff.js";
 import { reduceRun } from "./run-state.js";
 
 /** Fetches a fresh, consistent snapshot of app-wide events and current runs. */
@@ -96,14 +97,6 @@ export interface AppEventSubscription {
   onConnectionChange?: ((connected: boolean) => void) | undefined;
   /** Delay before reconnect attempt n (0-based). Defaults to exponential backoff. */
   retryDelayMs?: ((attempt: number) => number) | undefined;
-}
-
-const RETRY_BASE_MS = 1000;
-const RETRY_MAX_MS = 30_000;
-
-/** Exponential backoff: 1s, 2s, 4s … capped at 30s. */
-export function defaultRetryDelayMs(attempt: number): number {
-  return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** attempt);
 }
 
 /**

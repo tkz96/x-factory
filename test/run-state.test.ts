@@ -133,7 +133,7 @@ function replayTransport(records: EventRecord[]) {
   const opened: string[] = [];
   let closed = 0;
   let handlers: RunEventTransportHandlers | null = null;
-  const transport: RunEventTransport = (runId, h) => {
+  const transport: RunEventTransport = (runId, _cursor, h) => {
     opened.push(runId);
     handlers = h;
     h.onOpen();
@@ -151,7 +151,7 @@ function replayTransport(records: EventRecord[]) {
       return closed;
     },
     fail() {
-      handlers?.onError();
+      handlers?.onError(true);
     },
   };
 }
@@ -556,5 +556,174 @@ describe("client run-state module (#191)", () => {
     expect(queryClient.getQueryState(queryKeys.runs())?.isInvalidated).toBe(
       true,
     );
+  });
+});
+
+// ─── Live stream reopened after the browser gives up (permanent failure) ─────
+
+/** A transport whose connections the test drives by hand. */
+function controlledTransport() {
+  const connections: {
+    runId: string;
+    cursor: number;
+    handlers: RunEventTransportHandlers;
+    closed: boolean;
+  }[] = [];
+  const transport: RunEventTransport = (runId, cursor, handlers) => {
+    const connection = { runId, cursor, handlers, closed: false };
+    connections.push(connection);
+    return () => {
+      connection.closed = true;
+    };
+  };
+  return { transport, connections };
+}
+
+/** Timers the test advances by hand; records each requested delay. */
+function manualTimers() {
+  let now = 0;
+  let nextId = 1;
+  const pending = new Map<number, { at: number; fn: () => void }>();
+  const delays: number[] = [];
+  const timers = {
+    setTimeout(fn: () => void, ms: number) {
+      const id = nextId++;
+      delays.push(ms);
+      pending.set(id, { at: now + ms, fn });
+      return id as unknown as ReturnType<typeof setTimeout>;
+    },
+    clearTimeout(id: ReturnType<typeof setTimeout>) {
+      pending.delete(id as unknown as number);
+    },
+  };
+  return {
+    timers,
+    delays,
+    pendingCount: () => pending.size,
+    advance(ms: number) {
+      now += ms;
+      for (const [id, timer] of [...pending]) {
+        if (timer.at <= now) {
+          pending.delete(id);
+          timer.fn();
+        }
+      }
+    },
+  };
+}
+
+function wire(id: number, text: string): string {
+  return JSON.stringify({
+    id,
+    type: "chat_agent",
+    payload: { text },
+    timestamp: "2026-10-01T10:00:00.000Z",
+  });
+}
+
+describe("live run stream reopens after a permanent failure (#191)", () => {
+  function liveSetup() {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.run(RUN_ID), runSnapshot("executing"));
+    const stream = controlledTransport();
+    const clock = manualTimers();
+    const connected: boolean[] = [];
+    const stop = subscribeRunEvents({
+      queryClient,
+      runId: RUN_ID,
+      replayOnly: false,
+      transport: stream.transport,
+      timers: clock.timers,
+      onConnectionChange: (value) => connected.push(value),
+    });
+    return { queryClient, stream, clock, connected, stop };
+  }
+
+  it("(a) after a permanent failure, reopens from the last applied id and keeps the log in order", () => {
+    const { queryClient, stream, clock, connected } = liveSetup();
+    const first = stream.connections[0];
+    first?.handlers.onOpen();
+    first?.handlers.onMessage(wire(1, "one"));
+    first?.handlers.onMessage(wire(2, "two"));
+
+    first?.handlers.onError(true);
+    expect(connected).toEqual([true, false]);
+    expect(stream.connections).toHaveLength(1);
+
+    clock.advance(1000);
+    expect(stream.connections).toHaveLength(2);
+    const second = stream.connections[1];
+    expect(second?.cursor).toBe(2);
+
+    second?.handlers.onOpen();
+    second?.handlers.onMessage(wire(2, "two"));
+    second?.handlers.onMessage(wire(3, "three"));
+
+    expect(eventsOf(queryClient).map((e) => e.id)).toEqual([1, 2, 3]);
+    expect(connected).toEqual([true, false, true]);
+  });
+
+  it("(b) a transient error, where the browser retries itself, opens no second connection", () => {
+    const { stream, clock, connected } = liveSetup();
+    const first = stream.connections[0];
+    first?.handlers.onOpen();
+    first?.handlers.onError(false);
+
+    expect(connected).toEqual([true, false]);
+    clock.advance(60_000);
+    expect(stream.connections).toHaveLength(1);
+    expect(clock.delays).toHaveLength(0);
+  });
+
+  it("(c) stop() during the backoff opens nothing more", () => {
+    const { stream, clock, stop } = liveSetup();
+    stream.connections[0]?.handlers.onError(true);
+    stop();
+    clock.advance(60_000);
+
+    expect(stream.connections).toHaveLength(1);
+    expect(clock.pendingCount()).toBe(0);
+  });
+
+  it("stop() closes the open connection", () => {
+    const { stream, stop } = liveSetup();
+    stop();
+    expect(stream.connections[0]?.closed).toBe(true);
+  });
+
+  it("(d) a replay-only stream that fails permanently still just stops", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.run(RUN_ID), runSnapshot("pr_created"));
+    const stream = controlledTransport();
+    const clock = manualTimers();
+    subscribeRunEvents({
+      queryClient,
+      runId: RUN_ID,
+      replayOnly: true,
+      transport: stream.transport,
+      timers: clock.timers,
+    });
+    stream.connections[0]?.handlers.onError(true);
+    clock.advance(60_000);
+
+    expect(stream.connections).toHaveLength(1);
+    expect(stream.connections[0]?.closed).toBe(true);
+    expect(clock.delays).toHaveLength(0);
+  });
+
+  it("(e) repeated permanent failures back off from 1 s, double, cap at 30 s, and reset on a successful open", () => {
+    const { stream, clock } = liveSetup();
+    for (let i = 0; i < 7; i += 1) {
+      stream.connections[stream.connections.length - 1]?.handlers.onError(true);
+      clock.advance(clock.delays[clock.delays.length - 1] ?? 0);
+    }
+    expect(clock.delays).toEqual([
+      1000, 2000, 4000, 8000, 16_000, 30_000, 30_000,
+    ]);
+
+    // A connection that opens resets the backoff.
+    stream.connections[stream.connections.length - 1]?.handlers.onOpen();
+    stream.connections[stream.connections.length - 1]?.handlers.onError(true);
+    expect(clock.delays[clock.delays.length - 1]).toBe(1000);
   });
 });

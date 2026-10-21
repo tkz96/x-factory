@@ -12,6 +12,7 @@ import { cleanup, render } from "@testing-library/react";
 import React from "react";
 import { useRunDetail } from "../src/frontend/hooks/useRunDetail.js";
 import { queryKeys } from "../src/frontend/lib/query-policies.js";
+import { eventSourceTransport } from "../src/frontend/lib/run-state.js";
 import type { Run, RunEvent, RunStatus } from "../src/shared/types.js";
 
 const RealEventSource = (globalThis as { EventSource?: unknown }).EventSource;
@@ -19,6 +20,7 @@ const RealEventSource = (globalThis as { EventSource?: unknown }).EventSource;
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
   closed = false;
+  readyState = 0;
   onopen: (() => void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
   onerror: (() => void) | null = null;
@@ -149,5 +151,39 @@ describe("useRunDetail (#191)", () => {
     expect(FakeEventSource.instances).toHaveLength(1);
     view.unmount();
     cleanup();
+  });
+});
+
+describe("eventSourceTransport (#191)", () => {
+  it("opens from the cursor in the query and reports a permanent failure only when the browser has closed the stream", () => {
+    FakeEventSource.instances = [];
+    const calls: boolean[] = [];
+    const handlers = {
+      onOpen: () => {},
+      onMessage: () => {},
+      onError: (permanent: boolean) => calls.push(permanent),
+    };
+
+    const fresh = eventSourceTransport("run-transport", 0, handlers);
+    expect(FakeEventSource.instances[0]?.url).toBe(
+      "/api/runs/run-transport/events",
+    );
+    const resumed = eventSourceTransport("run-transport", 2, handlers);
+    expect(FakeEventSource.instances[1]?.url).toBe(
+      "/api/runs/run-transport/events?last_event_id=2",
+    );
+
+    // The browser is still retrying: not permanent.
+    const retrying = FakeEventSource.instances[1];
+    if (retrying) retrying.readyState = 0;
+    retrying?.onerror?.();
+    // The browser has given up (EventSource.CLOSED): permanent.
+    if (retrying) retrying.readyState = 2;
+    retrying?.onerror?.();
+
+    expect(calls).toEqual([false, true]);
+    fresh();
+    resumed();
+    expect(FakeEventSource.instances[1]?.closed).toBe(true);
   });
 });

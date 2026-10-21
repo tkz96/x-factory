@@ -23,6 +23,7 @@ import {
   patchRunCache,
 } from "./query-client.js";
 import { ACTIVE_RUN_POLL_INTERVAL_MS, queryKeys } from "./query-policies.js";
+import { defaultRetryDelayMs } from "./reconnect-backoff.js";
 
 /** Trailing delay that merges the invalidations of one burst of events into one. */
 const INVALIDATION_DELAY_MS = 100;
@@ -207,27 +208,54 @@ export function refreshRunAfterMutation(
 export interface RunEventTransportHandlers {
   onOpen(): void;
   onMessage(data: string): void;
-  onError(): void;
+  /**
+   * `permanent` is true when the browser has given up on the connection (a non-200
+   * response, or a reconnect that failed), so nothing will retry it. False means the
+   * browser is retrying by itself.
+   */
+  onError(permanent: boolean): void;
 }
 
-/** Opens a live stream of one run's events and returns the function that closes it. */
+/** Opens a live stream of one run's events after `cursor` (0 for all) and returns the function that closes it. */
 export type RunEventTransport = (
   runId: string,
+  cursor: number,
   handlers: RunEventTransportHandlers,
 ) => () => void;
 
+/** EventSource.CLOSED: the browser has stopped trying to reconnect. */
+const EVENT_SOURCE_CLOSED = 2;
+
 /** Production transport: the browser's EventSource on the run's SSE endpoint. */
-export const eventSourceTransport: RunEventTransport = (runId, handlers) => {
+export const eventSourceTransport: RunEventTransport = (
+  runId,
+  cursor,
+  handlers,
+) => {
+  // A new EventSource cannot set Last-Event-ID, so a reopened stream names its cursor in the query.
+  const query = cursor > 0 ? `?last_event_id=${cursor}` : "";
   const source = new EventSource(
-    `/api/runs/${encodeURIComponent(runId)}/events`,
+    `/api/runs/${encodeURIComponent(runId)}/events${query}`,
   );
   source.onopen = () => handlers.onOpen();
   source.onmessage = (event) => handlers.onMessage(event.data);
-  source.onerror = () => handlers.onError();
+  source.onerror = () =>
+    handlers.onError(source.readyState === EVENT_SOURCE_CLOSED);
   return () => source.close();
 };
 
 // ─── Subscriber ──────────────────────────────────────────────────────────────
+
+/** The timer functions the subscriber uses for reconnect delays; a test substitutes its own. */
+export interface RetryTimers {
+  setTimeout(fn: () => void, ms: number): ReturnType<typeof setTimeout>;
+  clearTimeout(id: ReturnType<typeof setTimeout>): void;
+}
+
+const systemTimers: RetryTimers = {
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (id) => clearTimeout(id),
+};
 
 export interface RunEventSubscription {
   queryClient: QueryClient;
@@ -240,6 +268,15 @@ export interface RunEventSubscription {
   replayOnly: boolean;
   transport?: RunEventTransport | undefined;
   onConnectionChange?: ((connected: boolean) => void) | undefined;
+  /** Delay before the reopen after a permanent failure, by attempt (0-based). */
+  retryDelayMs?: ((attempt: number) => number) | undefined;
+  timers?: RetryTimers | undefined;
+}
+
+/** The id of the newest event applied to the run's log, or 0 when there is none. */
+function lastAppliedId(queryClient: QueryClient, runId: string): number {
+  const log = queryClient.getQueryData<RunEvent[]>(queryKeys.runEvents(runId));
+  return log?.at(-1)?.id ?? 0;
 }
 
 const pendingInvalidations = new WeakMap<
@@ -311,46 +348,99 @@ function applyWireMessage(
   }
 }
 
-/** Connects a run's events to the query cache. Returns the function that stops it. */
+/**
+ * Connects a run's events to the query cache. Returns the function that stops it.
+ *
+ * Recovery contract: when the browser gives up on a live stream (a permanent failure),
+ * the stream is reopened after a backoff from the last event applied to the cache, so
+ * the events missed meanwhile arrive in order. A transient error is left to the browser,
+ * which retries by itself. A replay-only stream just stops on error.
+ */
 export function subscribeRunEvents({
   queryClient,
   runId,
   replayOnly,
   transport = eventSourceTransport,
   onConnectionChange,
+  retryDelayMs = defaultRetryDelayMs,
+  timers = systemTimers,
 }: RunEventSubscription): () => void {
   let stopped = false;
-  let close: (() => void) | null = null;
+  let attempt = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  // Drops the open connection, if there is one.
+  let dropOpen: (() => void) | null = null;
 
-  const stop = () => {
+  const scheduleReconnect = () => {
+    const delay = retryDelayMs(attempt);
+    attempt += 1;
+    retryTimer = timers.setTimeout(() => {
+      retryTimer = null;
+      connect(lastAppliedId(queryClient, runId));
+    }, delay);
+  };
+
+  const connect = (cursor: number): void => {
+    if (stopped) return;
+    let active = true;
+    let release: (() => void) | null = null;
+    const drop = () => {
+      if (!active) return;
+      active = false;
+      if (dropOpen === drop) dropOpen = null;
+      release?.();
+      release = null;
+    };
+    dropOpen = drop;
+
+    const handlers: RunEventTransportHandlers = {
+      onOpen: () => {
+        if (!active || stopped) return;
+        attempt = 0;
+        onConnectionChange?.(true);
+      },
+      onMessage: (data) => {
+        if (!active || stopped) return;
+        applyWireMessage(queryClient, runId, data);
+      },
+      onError: (permanent) => {
+        if (!active || stopped) return;
+        onConnectionChange?.(false);
+        if (replayOnly) {
+          stop();
+          return;
+        }
+        if (!permanent) return; // the browser is retrying by itself
+        drop();
+        scheduleReconnect();
+      },
+    };
+
+    release = transport(runId, cursor, handlers);
+    // A handler may have dropped the connection before the transport returned.
+    if (!active) {
+      release();
+      release = null;
+    }
+  };
+
+  const stop = (): void => {
     if (stopped) return;
     stopped = true;
+    if (retryTimer !== null) {
+      timers.clearTimeout(retryTimer);
+      retryTimer = null;
+    }
     // Flush a pending invalidation rather than drop it: the replacement stream
     // may not re-apply the same events, so nothing else would refresh the run.
     if (takePendingInvalidation(queryClient, runId)) {
       void invalidateRun(runId, queryClient);
     }
-    close?.();
-    close = null;
+    dropOpen?.();
+    dropOpen = null;
     onConnectionChange?.(false);
   };
 
-  const opened = transport(runId, {
-    onOpen: () => {
-      if (!stopped) onConnectionChange?.(true);
-    },
-    onMessage: (data) => {
-      if (!stopped) applyWireMessage(queryClient, runId, data);
-    },
-    onError: () => {
-      if (stopped) return;
-      onConnectionChange?.(false);
-      if (replayOnly) stop();
-    },
-  });
-  // A replay-only stream can fail while the transport is still opening.
-  if (stopped) opened();
-  else close = opened;
-
+  connect(0);
   return stop;
 }

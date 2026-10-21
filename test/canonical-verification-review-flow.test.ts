@@ -663,7 +663,7 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
         queryClient,
         runId,
         replayOnly: false,
-        transport: (id, h) => {
+        transport: (id, _cursor, h) => {
           opened.push(id);
           handlers = h;
           h.onOpen();
