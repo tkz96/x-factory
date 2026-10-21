@@ -19,6 +19,7 @@ import { handleApi } from "../src/http/routes.js";
 import { serveStatic } from "../src/http/static.js";
 import { getPublicDir } from "../src/server.js";
 import type { Run } from "../src/shared/types.js";
+import { readSseChunks } from "./helpers/sse-reader.js";
 
 let repos: Repositories;
 
@@ -150,14 +151,8 @@ describe("Browser Reload Restoration for /runs/:runId (XFM-59)", () => {
     expect(reader).toBeDefined();
     if (!reader) throw new Error("reader missing");
 
-    // Read all 4 historical events
-    const events: string[] = [];
-    for (let i = 0; i < 4; i++) {
-      const chunk = await reader.read();
-      if (chunk.value) {
-        events.push(new TextDecoder().decode(chunk.value));
-      }
-    }
+    // Read all 4 historical events (past the stream's opening comment)
+    const events = await readSseChunks(reader, 4);
 
     expect(events.length).toBe(4);
     expect(events[0] ?? "").toContain("preparing");

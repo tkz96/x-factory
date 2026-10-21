@@ -15,6 +15,7 @@ import { queryKeys } from "../src/frontend/lib/query-policies.js";
 import { handleApi } from "../src/http/routes.js";
 import { defaultSSERegistry } from "../src/http/sse-registry.js";
 import type { Run, RunStatus } from "../src/shared/types.js";
+import { readSseChunks } from "./helpers/sse-reader.js";
 
 let repos: Repositories;
 
@@ -138,17 +139,14 @@ describe("Hostile Lifecycle UI & Stream Scenarios (XFM-66)", () => {
       text: "Run 2 unique payload",
     });
 
-    // Read from client 1
-    const read1Promise = reader1?.read();
-    const val1 = await read1Promise;
-    const text1 = new TextDecoder().decode(val1?.value);
+    // Read from client 1 (past the stream's opening comment)
+    if (!reader1 || !reader2) throw new Error("reader missing");
+    const [text1 = ""] = await readSseChunks(reader1, 1);
     expect(text1).toContain("Run 1 unique payload");
     expect(text1).not.toContain("Run 2 unique payload");
 
     // Read from client 2
-    const read2Promise = reader2?.read();
-    const val2 = await read2Promise;
-    const text2 = new TextDecoder().decode(val2?.value);
+    const [text2 = ""] = await readSseChunks(reader2, 1);
     expect(text2).toContain("Run 2 unique payload");
     expect(text2).not.toContain("Run 1 unique payload");
 
