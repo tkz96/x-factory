@@ -18,6 +18,23 @@ const FILE_TOKEN = /(?:[\w.@-]+\/)+[\w.@-]+|[\w@-]+\.[a-z]{2,6}\b/i;
 const TEST_TOKEN = /\btests?\b/i;
 
 /**
+ * Keeps the first `# Execution Plan` heading and drops any repeat. The plan prompt
+ * asks for that heading, and the model may write it again after the draft's own.
+ */
+function keepFirstExecutionPlanHeading(plan: string): string {
+  let seen = false;
+  return plan
+    .split("\n")
+    .filter((line) => {
+      if (!/^# Execution Plan\b/.test(line)) return true;
+      if (seen) return false;
+      seen = true;
+      return true;
+    })
+    .join("\n");
+}
+
+/**
  * The Builder's plan, cleaned of the fences and preamble a model may add (#282).
  * Throws `ModelOutputError` when the answer names no file or no test: that is an
  * honest stage failure, not a plan a run should execute.
@@ -26,7 +43,9 @@ export function parsePlanOutput(output: string): string {
   const fenced = output.match(/```(?:markdown|md)?\s*\n([\s\S]*?)```/i);
   const raw = (fenced?.[1] ?? output).trim();
   const heading = raw.search(/^#{1,3}\s+\S/m);
-  const plan = (heading > 0 ? raw.slice(heading) : raw).trim();
+  const plan = keepFirstExecutionPlanHeading(
+    (heading > 0 ? raw.slice(heading) : raw).trim(),
+  ).trim();
   if (!plan) {
     throw new ModelOutputError("The Builder's plan was empty.");
   }
