@@ -6,6 +6,7 @@ import "./RunPanel.css";
 import "./RunInspector.css";
 
 import { type ReactNode, useState } from "react";
+import { reviewCriterionStatus } from "../../../shared/review-criterion-status.js";
 import type {
   ModelRoleName,
   ReviewResult,
@@ -78,17 +79,20 @@ function evidenceChecks(
   if (review !== null)
     reviewVerdict = review.passed ? VERDICT_PASS : VERDICT_FAIL;
 
-  const criteria = (review?.criteriaChecked ?? []).map((check, index) => ({
-    key: `criterion-${index}`,
-    label: check.criterion,
-    // A criterion the Reviewer never judged reads as such — never as a pass.
-    verdict:
-      check.status === "pass"
-        ? VERDICT_PASS
-        : check.status === "fail"
-          ? VERDICT_FAIL
-          : VERDICT_NOT_ASSESSED,
-  }));
+  const criteria = (review?.criteriaChecked ?? []).map((check, index) => {
+    const status = reviewCriterionStatus(check);
+    return {
+      key: `criterion-${index}`,
+      label: check.criterion,
+      // A criterion the Reviewer never judged reads as such — never as a pass.
+      verdict:
+        status === "pass"
+          ? VERDICT_PASS
+          : status === "fail"
+            ? VERDICT_FAIL
+            : VERDICT_NOT_ASSESSED,
+    };
+  });
 
   return [
     { key: "tests", label: "Tests", verdict: tests },

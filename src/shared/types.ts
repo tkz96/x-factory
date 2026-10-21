@@ -314,7 +314,10 @@ export type ReviewCriterionStatus = "pass" | "fail" | "not_assessed";
 
 export interface ReviewCriterionResult {
   criterion: string;
-  status: ReviewCriterionStatus;
+  /** Absent on a review stored before `status` existed; read it with reviewCriterionStatus. */
+  status?: ReviewCriterionStatus | undefined;
+  /** The legacy verdict, stored before `status` existed (before a92610f). */
+  satisfied?: boolean | undefined;
   notes?: string | undefined;
 }
 
