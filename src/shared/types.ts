@@ -30,7 +30,8 @@ export type RunStatus =
   | "pr_created"
   | "failed"
   | "stopped"
-  | "recovery_required";
+  | "recovery_required"
+  | "review_retry_required";
 
 /**
  * Role metadata for a repository inside a project.
@@ -797,6 +798,9 @@ export interface AbandonRunRequest {
 
 /** Response body of `POST /api/runs/:id/abandon`. */
 export type AbandonRunResponse = RunOkResponse;
+
+/** Response body of `POST /api/runs/:id/retry-review`: the run, back in executing. */
+export type RetryReviewResponse = RunOkResponse;
 
 /** Request body of `POST /api/runs/:id/chat`. */
 export interface ChatWithRunRequest {

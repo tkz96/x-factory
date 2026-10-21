@@ -73,6 +73,7 @@ import {
   handleGetRun,
   handleGetRuns,
   handleResumeRun,
+  handleRetryReview,
   handleRunEvents,
   handleStopRun,
   handleTransitions,
@@ -590,6 +591,15 @@ export const ROUTE_TABLE: readonly RouteEntry[] = [
     responseDescription: "The abandoned run",
     handler: ({ req, params, ctx }) =>
       handleAbandonRun(ctx.repos, req, params.id),
+  }),
+  route({
+    method: "POST",
+    path: "/api/runs/{id}/retry-review",
+    tags: ["Runs"],
+    summary: "Retry Review",
+    operationId: "retryReview",
+    responseDescription: "The run, back in executing for the review",
+    handler: ({ params, ctx }) => handleRetryReview(ctx.repos, params.id),
   }),
   // App-wide event stream and consistent snapshot (#257, spec #241).
   route({

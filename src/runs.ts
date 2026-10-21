@@ -52,6 +52,7 @@ import {
   assertRunAction,
   REQUEUE_ROUTE,
   RESTART_ROUTE,
+  RETRY_REVIEW_ROUTE,
   resumeRouteFor,
   resumeStageName,
 } from "./workflow.js";
@@ -582,6 +583,37 @@ export async function resumeRun(
   return tx();
 }
 
+/**
+ * Retry review: a run waiting in review_retry_required goes back to executing, and one review job
+ * is enqueued. Coding is not run again; the verified code and diff stay on the run.
+ */
+export function retryReview(repos: Repositories, id: string): RunRecord {
+  const { db } = repos;
+  const tx = db.transaction((): RunRecord => {
+    const run = repos.runs.get(id);
+    if (!run) throw new NotFoundError(`Run ${id} not found.`);
+    assertRunAction(run.status, "retry_review");
+
+    const transitionResult = repos.runs.transitionRun(
+      id,
+      run.status,
+      RETRY_REVIEW_ROUTE.to,
+      {
+        event: {
+          type: "status",
+          payload: {
+            status: RETRY_REVIEW_ROUTE.to,
+            text: RETRY_REVIEW_ROUTE.text,
+          },
+        },
+      },
+    );
+    repos.jobs.createJob({ runId: id, stage: RETRY_REVIEW_ROUTE.nextStage });
+    return transitionResult.run;
+  });
+  return tx();
+}
+
 export async function abandonRun(
   repos: Repositories,
   id: string,
@@ -600,13 +632,14 @@ export async function abandonRun(
     : "Run abandoned by operator.";
 
   const tx = db.transaction((): RunRecord => {
-    verifyRecoveryRequired(runRepo, id, "abandon");
+    const current = verifyRecoveryRequired(runRepo, id, "abandon");
 
     const activeJob = jobRepo.findActiveJobForRun(id);
 
+    // The run ends from the status it is in; its branch and worktree stay on disk.
     const transitionResult = runRepo.transitionRun(
       id,
-      "recovery_required",
+      current.status,
       "failed",
       {
         event: {

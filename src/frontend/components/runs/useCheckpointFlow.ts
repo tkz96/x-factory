@@ -23,6 +23,8 @@ function resolvedTextFor(
       return "Opening a pull request";
     case "resume":
       return "Resuming the run";
+    case "retry-review":
+      return "Retrying the review";
     case "abandon":
       return "Abandoned";
     case "start-new-run":

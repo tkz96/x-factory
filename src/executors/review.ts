@@ -128,8 +128,12 @@ export class ReviewExecutor implements StageExecutor {
               });
               continue;
             }
-            // The attempts are spent. The job is not retried, so coding is not rerun.
-            return { ...modelStageFailure(err, resolved), retryable: false };
+            // The attempts are spent. The run waits for the operator to retry the review alone;
+            // the job is not retried, so coding is not rerun.
+            return {
+              outcome: "review_retry",
+              reason: modelErrorSentence(err, resolved),
+            };
           }
           throw err;
         }

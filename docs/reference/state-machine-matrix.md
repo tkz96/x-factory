@@ -30,6 +30,7 @@ planning                       plan               plan job
 awaiting_plan_approval         —                  human checkpoint
 executing                      execute            execute job
 executing                      review             automated review activity
+review_retry_required          review             human checkpoint (retry review)
 awaiting_review                —                  human checkpoint
 ready_for_pr                   deliver            delivery command/job
 pr_created                     —                  terminal
@@ -54,6 +55,7 @@ The finite state machine governs each run through discrete, sequential execution
 | `awaiting_review` | Checkpoint | Execution pauses for human code review of the execution results. |
 | `ready_for_pr` | Checkpoint | The reviewer has approved the code changes; pending PR creation. |
 | `pr_created` | Terminal | The pull request exists on the remote repository. |
+| `review_retry_required` | Checkpoint | The review used up its three model attempts after transient model failures. The verified code and diff are kept; the run holds no live work and waits for `Retry Review` (the review alone runs again), `stop` or `abandon`. |
 | `recovery_required` | Exception | The run encountered a recoverable fault. It holds no live work and waits for `resume` or `abandon`. |
 | `failed` | Terminal | The run halted because of unrecoverable errors or retry exhaustion. |
 | `stopped` | Terminal | The user requested cancellation of the active run. |
@@ -71,7 +73,8 @@ Transitions not listed in this matrix are invalid and fail validation.
 | `awaiting_understanding_approval` | `planning`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
 | `planning` | `awaiting_plan_approval`, `failed`, `stopped`, `recovery_required` | Automatic completion, error, or user stop. |
 | `awaiting_plan_approval` | `executing`, `understanding` (requeue/restart), `failed`, `stopped` | Human approval, human restart, error, or user stop. |
-| `executing` | `awaiting_review`, `failed`, `stopped`, `recovery_required` | Ralph loop completion, error, or user stop. |
+| `executing` | `awaiting_review`, `failed`, `stopped`, `recovery_required`, `review_retry_required` | Ralph loop completion, error, or user stop. The review's model attempts running out (§13) moves the run to `review_retry_required`. |
+| `review_retry_required` | `executing` (Retry review: the review job alone), `failed` (abandon), `stopped` (user stop) | Human action only. Retry review enqueues one review job; coding is not run again. |
 | `awaiting_review` | `ready_for_pr`, `planning` (requeue), `understanding`, `failed`, `stopped`, `recovery_required` | Human approval, human requeue with feedback (goes to `planning`), error, or user stop. The edge to `understanding` is permitted by the matrix and no route uses it today. |
 | `ready_for_pr` | `pr_created`, `failed`, `stopped` | User requests pull request creation, error, or user stop. |
 | `recovery_required` | `preparing`, `understanding`, `planning`, `executing`, `ready_for_pr`, `failed`, `stopped` | Automated recovery cycle attempts to resume execution. Resuming a run whose interrupted stage was `deliver` returns it to `ready_for_pr` and enqueues the deliver command. |
@@ -106,7 +109,7 @@ Transition to `pr_created` requires an explicit HTTP command: `POST /api/runs/:i
 Once in `pr_created`, the worker periodically polls the git host for pull request outcomes (`pr_merged`, `pr_closed`) without altering the run's status. If a run's project is missing from configuration (or its run row is gone), the worker adds that run to its unresolvable set, logs one line — `Run <id> PR check skipped: project not found.` — and never polls it again; it does not retry and does not change the run's status (`src/pull-request-checker.ts`).
 
 ### 5. Immediate Cancellation
-A user can halt a run through `POST /api/runs/:id/stop` from the states in `STOPPABLE_RUN_STATUSES`: `queued`, `preparing`, `understanding`, `awaiting_understanding_approval`, `planning`, `awaiting_plan_approval`, `executing` and `awaiting_review`.
+A user can halt a run through `POST /api/runs/:id/stop` from the states in `STOPPABLE_RUN_STATUSES`: `queued`, `preparing`, `understanding`, `awaiting_understanding_approval`, `planning`, `awaiting_plan_approval`, `executing`, `awaiting_review` and `review_retry_required`.
 This command transitions the run immediately to `stopped` and marks active jobs as terminated. A stage that is running notices the stop (its executor's abort signal fires within about half a second, whether the stop arrived as a command or only as the run's status) and commits nothing.
 
 `ready_for_pr` and `recovery_required` are not stoppable, by design, although the matrix permits `ready_for_pr` → `stopped` and `recovery_required` → `stopped`. The only action on a `ready_for_pr` run is delivery, and a pull request that may already exist on the remote cannot be half-undone by a stop. A `recovery_required` run holds no live work, so its way out is `resume` or `abandon`, and `abandon` ends it as `failed`. This is the code's behaviour, kept as is, and `test/run-status-policy.test.ts` guards it.
@@ -144,3 +147,8 @@ The run's timeline gets one short `error` event per failed call, a sentence such
 
 ### 12. Cloning the Project's Repository
 A project made in Add Project names its repository folder (`<workspace>/<name>`) and its remote, but nothing clones it when the project is saved. `POST /api/runs` accepts a run when the primary repository's folder is missing and the repository has a remote; it answers `400` with the reason when the folder is missing and there is no remote, or when the folder exists but is not a git repository (`checkRepositoryForRun` in `src/git.ts`), never `500`. The API process does not clone. The worker's prepare stage clones the remote into the folder before it creates the run's branch, with this machine's git credentials as a push uses them and with git's password prompt turned off (`src/executors/prepare.ts`). It clones into a hidden sibling folder and renames it into place, so a failed or interrupted clone leaves no half-made repository. A clone that git says was not found or was refused (missing repository, failed authentication, no access) returns `retryable: false`, so the run fails at once with the reason "The repository could not be cloned: it was not found, or this machine's git credentials cannot read it."; any other clone failure (a network error) is retried like any job failure. `test/prepare-clone.test.ts` clones a local bare repository through the worker, and `test/create-run-validation.test.ts` drives the `400` answers.
+
+### 13. Review Retries
+The review runs inside the `execute` job, after the code has passed verification. A transient model failure during the review is retried by repeating the review alone, up to three attempts; coding is never rerun for it. Each failed attempt emits the model's error sentence on the timeline, and a retried one says the review alone is retried. A failure the same call would repeat (see §11), a budget stop and an abort are not retried.
+
+When the third attempt fails the job is not retried. The run moves from `executing` to `review_retry_required` in one transaction, its stage attempt closes as failed with the last model error, and the verified code and diff stay on the run. The decision card shows that error and offers `Retry Review` (`POST /api/runs/:id/retry-review`). Retry review moves the run to `executing` and enqueues a single `review` job, so the worker runs the review again and nothing else; a passed review reaches `awaiting_review`, a rejected one `failed`. `abandon` and `stop` end the run from this status. `test/execute-review-models.test.ts` counts the coding runs and the review calls, and `test/review-retry-required.test.ts` covers the transitions and the route.

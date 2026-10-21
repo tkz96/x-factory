@@ -20,7 +20,7 @@ import {
   type ResolvedModel,
 } from "../src/model-roles.js";
 import { execStrict } from "../src/proc.js";
-import { getRun } from "../src/runs.js";
+import { getRun, retryReview } from "../src/runs.js";
 import type { ModelRoleName } from "../src/shared/types.js";
 import { Worker } from "../src/worker.js";
 import {
@@ -233,8 +233,11 @@ describe("execute stage models", () => {
   });
 });
 
-/** Runs the execute stage once with a scripted reviewer session factory. */
-async function runExecuteStage(sessionFactory: ReadOnlySessionFactory) {
+/**
+ * Sets up one execute job for the run, with a worker that can run the execute stage and
+ * the review stage (the retry job). Nothing is claimed yet.
+ */
+function setupExecuteRun(sessionFactory: ReadOnlySessionFactory) {
   const db = createDatabase({ path: ":memory:" });
   runMigrations(db);
   const repos = createRepositories(db);
@@ -258,15 +261,26 @@ async function runExecuteStage(sessionFactory: ReadOnlySessionFactory) {
     loadSettings: async () => ({}),
     reviewExecutor: new ReviewExecutor({ resolveRole, sessionFactory }),
   });
+  const reviewExecutor = new ReviewExecutor({ resolveRole, sessionFactory });
   const worker = new Worker({
     workerId: "worker-review-retry",
     db,
-    getStageExecutor: () => executor,
+    getStageExecutor: (stage) =>
+      stage === "review" ? reviewExecutor : executor,
   });
+  return { repos, run, worker };
+}
+
+/** Claims the next job, checks its stage, and runs it through the worker. */
+async function runNextJob(
+  repos: ReturnType<typeof setupExecuteRun>["repos"],
+  worker: Worker,
+  stage: string,
+): Promise<void> {
   const job = repos.jobs.claimNextJob("worker-review-retry", 30_000);
-  if (!job) throw new Error("Expected a pending execute job");
+  if (!job) throw new Error(`Expected a pending ${stage} job`);
+  expect(job.stage).toBe(stage);
   await worker.processJob(job);
-  return { repos, run };
 }
 
 const codingRuns = () =>
@@ -277,7 +291,7 @@ const codingRuns = () =>
 describe("review retries", () => {
   it("retries only the review after a transient model error, and does not rerun coding", async () => {
     let reviewCalls = 0;
-    const { repos, run } = await runExecuteStage(async () => {
+    const { repos, run, worker } = setupExecuteRun(async () => {
       reviewCalls++;
       if (reviewCalls === 1) {
         throw new ModelUnavailableError(
@@ -290,6 +304,7 @@ describe("review retries", () => {
         usage: () => ({ tokensIn: 1000, tokensOut: 200 }),
       };
     });
+    await runNextJob(repos, worker, "execute");
 
     expect(reviewCalls).toBe(2);
     expect(codingRuns()).toBe(1);
@@ -316,31 +331,77 @@ describe("review retries", () => {
 
   it("does not retry a review that fails for a reason the same call would repeat", async () => {
     let reviewCalls = 0;
-    const { repos, run } = await runExecuteStage(async () => {
+    const { repos, run, worker } = setupExecuteRun(async () => {
       reviewCalls++;
       throw new ModelUnavailableError(
         "The provider's quota for reviewer/model is used up.",
         "quota exhausted",
       );
     });
+    await runNextJob(repos, worker, "execute");
 
     expect(reviewCalls).toBe(1);
     expect(codingRuns()).toBe(1);
     expect(repos.runs.get(run.id)?.status).toBe("failed");
   });
 
-  it("stops after three review attempts and does not rerun coding", async () => {
+  it("after three transient review failures the run waits in review_retry_required, and coding is not rerun", async () => {
     let reviewCalls = 0;
-    const { repos, run } = await runExecuteStage(async () => {
+    const { repos, run, worker } = setupExecuteRun(async () => {
       reviewCalls++;
       throw new ModelUnavailableError(
         "The reviewer model is overloaded.",
         "model unavailable",
       );
     });
+    await runNextJob(repos, worker, "execute");
 
     expect(reviewCalls).toBe(3);
     expect(codingRuns()).toBe(1);
-    expect(repos.runs.get(run.id)?.status).toBe("failed");
+    expect(repos.runs.get(run.id)?.status).toBe("review_retry_required");
+    // The job is not requeued: nothing else is waiting for a worker.
+    expect(repos.jobs.findActiveJobsForRun(run.id)).toEqual([]);
+    // The last model error is kept on the run for the decision card.
+    const hold = repos.events
+      .getEventsForRun(run.id)
+      .filter(
+        (e) =>
+          e.type === "status" &&
+          (e.payload as { status?: string }).status === "review_retry_required",
+      );
+    expect(hold).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          reason: "The reviewer model is overloaded.",
+        }),
+      }),
+    ]);
+  });
+
+  it("the retry runs only the review once more: coding stays at one run and the run reaches awaiting_review", async () => {
+    let reviewCalls = 0;
+    const { repos, run, worker } = setupExecuteRun(async () => {
+      reviewCalls++;
+      if (reviewCalls <= 3) {
+        throw new ModelUnavailableError(
+          "The reviewer model is overloaded.",
+          "model unavailable",
+        );
+      }
+      return {
+        ...scriptedReviewSession(PASSING_REVIEW_OUTPUT),
+        usage: () => ({ tokensIn: 1000, tokensOut: 200 }),
+      };
+    });
+    await runNextJob(repos, worker, "execute");
+    expect(repos.runs.get(run.id)?.status).toBe("review_retry_required");
+
+    retryReview(repos, run.id);
+    expect(repos.runs.get(run.id)?.status).toBe("executing");
+    await runNextJob(repos, worker, "review");
+
+    expect(reviewCalls).toBe(4);
+    expect(codingRuns()).toBe(1);
+    expect(repos.runs.get(run.id)?.status).toBe("awaiting_review");
   });
 });

@@ -16,6 +16,7 @@ export type CheckpointAction =
   | "requeue"
   | "deliver"
   | "resume"
+  | "retry-review"
   | "abandon"
   | "start-new-run"
   | "confirm-rework";
@@ -26,6 +27,7 @@ const BAR_ACTION_FOR: Record<string, CheckpointAction> = {
   requeue: "requeue",
   deliver: "deliver",
   resume: "resume",
+  retry_review: "retry-review",
   abandon: "abandon",
 };
 
@@ -36,6 +38,7 @@ const PENDING_LABEL: Record<CheckpointAction, string> = {
   requeue: "Requesting Changes…",
   deliver: "Creating Pull Request…",
   resume: "Resuming…",
+  "retry-review": "Retrying Review…",
   abandon: "Abandoning…",
   "start-new-run": "Starting…",
   "confirm-rework": "Requesting Changes…",
@@ -50,6 +53,7 @@ const VARIANT: Record<
   requeue: "secondary",
   deliver: "primary",
   resume: "primary",
+  "retry-review": "primary",
   abandon: "danger",
   "start-new-run": "secondary",
   "confirm-rework": "primary",

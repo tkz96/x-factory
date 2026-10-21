@@ -34,7 +34,15 @@ export const TRANSITIONS: Record<RunStatus, RunStatus[]> = {
     "recovery_required",
   ],
   awaiting_plan_approval: ["executing", "understanding", "failed", "stopped"],
-  executing: ["awaiting_review", "failed", "stopped", "recovery_required"],
+  executing: [
+    "awaiting_review",
+    "failed",
+    "stopped",
+    "recovery_required",
+    "review_retry_required",
+  ],
+  // The review used up its model attempts: the code is kept, and only the review is retried.
+  review_retry_required: ["executing", "failed", "stopped"],
   awaiting_review: [
     "ready_for_pr",
     "planning",
@@ -81,6 +89,7 @@ export const STOPPABLE_RUN_STATUSES = new Set<RunStatus>([
   "awaiting_plan_approval",
   "executing",
   "awaiting_review",
+  "review_retry_required",
 ]);
 
 /** Statuses from which the run can never transition again. */
@@ -103,6 +112,7 @@ export const AWAITING_HUMAN_RUN_STATUSES = new Set<RunStatus>([
   "awaiting_plan_approval",
   "awaiting_review",
   "ready_for_pr",
+  "review_retry_required",
 ]);
 
 /** Statuses that need human intervention: awaiting-human plus recovery_required (#241, #257). */
@@ -115,6 +125,7 @@ export const NEEDS_YOU_RUN_STATUSES = new Set<RunStatus>([
 export const NON_LIVE_RUN_STATUSES = new Set<RunStatus>([
   ...TERMINAL_RUN_STATUSES,
   "recovery_required",
+  "review_retry_required",
 ]);
 
 /**
@@ -130,6 +141,7 @@ export type RunAction =
   | "requeue"
   | "restart"
   | "resume"
+  | "retry_review"
   | "stop";
 
 /**
@@ -149,6 +161,7 @@ export const ACTIONS_BY_STATUS: Record<RunStatus, readonly RunAction[]> = {
   ready_for_pr: ["deliver"],
   pr_created: [],
   recovery_required: ["resume", "abandon"],
+  review_retry_required: ["retry_review", "stop", "abandon"],
   failed: [],
   stopped: [],
 };
@@ -177,6 +190,7 @@ export const STATUS_TO_STAGE: Record<RunStatus, WorkflowStage | null> = {
   ready_for_pr: "deliver",
   pr_created: "deliver",
   recovery_required: null,
+  review_retry_required: "review",
   failed: null,
   stopped: null,
 };
@@ -193,6 +207,7 @@ const RUN_STATUS_LABELS: Record<RunStatus, string> = {
   ready_for_pr: "ready for pr",
   pr_created: "pr created",
   recovery_required: "recovery required",
+  review_retry_required: "review retry required",
   failed: "failed",
   stopped: "stopped",
 };

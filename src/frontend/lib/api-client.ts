@@ -26,6 +26,7 @@ import type {
   PrRunResponse,
   ReadinessResponse,
   ResumeRunResponse,
+  RetryReviewResponse,
   Run,
   RunTransitionAction,
   SettingsUpdateRequest,
@@ -374,6 +375,14 @@ export const api = {
       method: "POST",
     });
     return handleResponse<ResumeRunResponse>(res);
+  },
+
+  async retryReview(runId: string): Promise<RetryReviewResponse> {
+    const res = await fetch(
+      `/api/runs/${encodeURIComponent(runId)}/retry-review`,
+      { method: "POST" },
+    );
+    return handleResponse<RetryReviewResponse>(res);
   },
 
   async abandonRun(

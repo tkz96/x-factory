@@ -146,6 +146,16 @@ export const RESTART_ROUTE = {
   text: "Restarting plan context...",
 } as const satisfies Route & { text: string };
 
+/**
+ * Retry review sends a run from review_retry_required back to executing, to run the review job
+ * alone. Coding is not rerun: the verified code is kept on the run.
+ */
+export const RETRY_REVIEW_ROUTE = {
+  to: "executing",
+  nextStage: "review",
+  text: "Retrying the review. The code is not changed.",
+} as const satisfies Route & { text: string };
+
 /** Requeue sends a run back to planning with feedback from any status that allows it. */
 export const REQUEUE_ROUTE = {
   to: "planning",

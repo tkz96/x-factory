@@ -68,6 +68,17 @@ function failureFor(
       recovery: "Start a new run for this ticket to try again.",
     };
   }
+  if (run.status === "review_retry_required") {
+    // The last model error is the status event's reason; the code is kept.
+    const payload = latest<{ reason?: string }>(events, "status");
+    return {
+      message:
+        payload?.reason ??
+        "The reviewer model failed three times in a row, so the review did not finish.",
+      recovery:
+        "Retry Review runs only the review again; the code is not changed. Abandon Run ends the run and keeps its branch.",
+    };
+  }
   if (run.status === "recovery_required") {
     const payload = latest<{
       reason?: string;

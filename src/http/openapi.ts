@@ -787,12 +787,46 @@ function documentedSpec() {
           },
         },
       },
+      "/api/runs/{id}/retry-review": {
+        post: {
+          tags: ["Runs"],
+          summary: "Retry Review",
+          description:
+            "Retries only the review of a run in review_retry_required status, after its model attempts ran out. The run goes back to executing and one review job is enqueued; coding is not run again. Any other status answers 409.",
+          operationId: "retryReview",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              description: "Run identifier",
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "The run, back in executing for the review",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      ok: { type: "boolean", example: true },
+                      run: { $ref: "#/components/schemas/Run" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/runs/{id}/abandon": {
         post: {
           tags: ["Runs"],
           summary: "Abandon Run",
           description:
-            "Permanently abandons a run in recovery_required status, transitioning it to terminal failed status. An optional reason is recorded on the run's terminal status event (#182).",
+            "Permanently abandons a run that is waiting on the operator (recovery_required, review_retry_required or ready_for_pr), transitioning it to terminal failed status. Its branch and worktree stay on disk. An optional reason is recorded on the run's terminal status event (#182).",
           operationId: "abandonRun",
           parameters: [
             {

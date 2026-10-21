@@ -42,6 +42,7 @@ const ALL_RUN_STATUSES: readonly RunStatus[] = [
   "ready_for_pr",
   "pr_created",
   "recovery_required",
+  "review_retry_required",
   "failed",
   "stopped",
 ];
@@ -64,6 +65,7 @@ const EXPECTED_GUARD_ACCEPTANCE: Record<RunStatus, readonly RunAction[]> = {
   ready_for_pr: ["deliver"],
   pr_created: [],
   recovery_required: ["resume", "abandon"],
+  review_retry_required: ["retry_review", "stop", "abandon"],
   failed: [],
   stopped: ["stop"],
 };
@@ -85,6 +87,7 @@ const EXPECTED_ACTIONS_BY_STATUS: Record<RunStatus, readonly RunAction[]> = {
   ready_for_pr: ["deliver"],
   pr_created: [],
   recovery_required: ["resume", "abandon"],
+  review_retry_required: ["retry_review", "stop", "abandon"],
   failed: [],
   stopped: [],
 };
@@ -106,6 +109,7 @@ const GUARDED_ACTION_ENDPOINTS: Record<RunAction, (runId: string) => Request> =
     stop: (runId) => postRequest(`/api/runs/${runId}/stop`),
     deliver: (runId) => postRequest(`/api/runs/${runId}/pr`),
     resume: (runId) => postRequest(`/api/runs/${runId}/resume`),
+    retry_review: (runId) => postRequest(`/api/runs/${runId}/retry-review`),
     abandon: (runId) => postRequest(`/api/runs/${runId}/abandon`),
     chat: (runId) =>
       postRequest(`/api/runs/${runId}/chat`, { message: "ping" }),
@@ -289,6 +293,7 @@ describe("Shared run-status policy matches server guards (#170)", () => {
         "awaiting_review",
         "ready_for_pr",
         "recovery_required",
+        "review_retry_required",
       ]),
     );
     expect(sorted([...STOPPABLE_RUN_STATUSES])).toEqual(
@@ -301,6 +306,7 @@ describe("Shared run-status policy matches server guards (#170)", () => {
         "awaiting_plan_approval",
         "executing",
         "awaiting_review",
+        "review_retry_required",
       ]),
     );
     expect(sorted([...EXECUTABLE_RUN_STATUSES])).toEqual(
@@ -321,6 +327,7 @@ describe("Shared run-status policy matches server guards (#170)", () => {
       ready_for_pr: "deliver",
       pr_created: "deliver",
       recovery_required: null,
+      review_retry_required: "review",
       failed: null,
       stopped: null,
     });
@@ -339,6 +346,7 @@ describe("Shared run-status policy matches server guards (#170)", () => {
       ready_for_pr: "ready for pr",
       pr_created: "pr created",
       recovery_required: "recovery required",
+      review_retry_required: "review retry required",
       failed: "failed",
       stopped: "stopped",
     };

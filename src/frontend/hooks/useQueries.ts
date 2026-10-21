@@ -119,6 +119,14 @@ export function useResumeRun() {
   });
 }
 
+export function useRetryReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => api.retryReview(runId),
+    onSuccess: (data) => cacheRunAfterMutation(queryClient, data.run),
+  });
+}
+
 export function useAbandonRun() {
   const queryClient = useQueryClient();
   return useMutation({
