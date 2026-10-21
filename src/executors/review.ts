@@ -4,6 +4,7 @@ import type { ReadOnlySessionFactory } from "../agents/pi.js";
 import { modelErrorSentence, modelStageFailure } from "../model-failures.js";
 import {
   isBudgetReached,
+  isRetryableModelFailure,
   ModelUnavailableError,
   modelUse,
   type ResolvedModel,
@@ -27,6 +28,12 @@ export interface ReviewDependencies {
 export const defaultReviewDeps: ReviewDependencies = {
   resolveRole,
 };
+
+/**
+ * How many times the review is tried when the provider fails transiently. Only the review
+ * repeats: the code was already verified, so a retry of the whole job would rerun coding.
+ */
+const REVIEW_ATTEMPTS = 3;
 
 export class ReviewExecutor implements StageExecutor {
   readonly stage = "review";
@@ -63,41 +70,70 @@ export class ReviewExecutor implements StageExecutor {
       context.recordModel(modelUse(resolved), "review");
       // reviewRun owns review.json; this executor only records the result.
       let answer = "";
-      rResult = await reviewRun({
-        worktreePath,
-        artifactsDir: run.artifactsDir,
-        ticket: run.ticket,
-        plan: run.plan,
-        diff: run.diff || "",
-        verification: run.verification,
-        understanding: run.implementationContext,
-        modelConfig: { resolved },
-        assertBudget: context.assertBudget,
-        recordCall: () => context.recordModelCall?.(resolved),
-        // Session activity is forwarded as run events so the review is not a black box (#256).
-        onEvent: (event) => {
-          // A session error is the provider's raw text, once per retry; a model
-          // failure is told once below, as a sentence.
-          if (event.type === "error") return;
-          // Tool calls are forwarded as they happen; the streamed answer is
-          // collected and recorded once, not one event per fragment.
-          if (event.tool) {
-            context.emit("review_activity", {
-              tool: event.tool,
-              ...(event.text ? { text: event.text } : {}),
+      for (let attempt = 1; ; attempt++) {
+        answer = "";
+        try {
+          rResult = await reviewRun({
+            worktreePath,
+            artifactsDir: run.artifactsDir,
+            ticket: run.ticket,
+            plan: run.plan,
+            diff: run.diff || "",
+            verification: run.verification,
+            understanding: run.implementationContext,
+            modelConfig: { resolved },
+            assertBudget: context.assertBudget,
+            recordCall: () => context.recordModelCall?.(resolved),
+            // Session activity is forwarded as run events so the review is not a black box (#256).
+            onEvent: (event) => {
+              // A session error is the provider's raw text, once per retry; a model
+              // failure is told once below, as a sentence.
+              if (event.type === "error") return;
+              // Tool calls are forwarded as they happen; the streamed answer is
+              // collected and recorded once, not one event per fragment.
+              if (event.tool) {
+                context.emit("review_activity", {
+                  tool: event.tool,
+                  ...(event.text ? { text: event.text } : {}),
+                });
+              } else if (event.text) {
+                answer += event.text;
+              }
+            },
+            onWait: (ms) =>
+              context.emit("info", {
+                text: `The provider is rate limiting ${resolved.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
+              }),
+            onUsage: (usage) =>
+              context.reportUsage(usageWithCost(resolved, usage)),
+            signal: context.signal,
+            sessionFactory: this.deps.sessionFactory,
+          });
+          break;
+        } catch (err: unknown) {
+          // A transient provider failure repeats only the review, and never after an abort
+          // or once the attempts are spent. A failure the same call would repeat fails at once.
+          if (
+            err instanceof ModelUnavailableError &&
+            !isBudgetReached(err) &&
+            isRetryableModelFailure(err) &&
+            !context.signal?.aborted
+          ) {
+            context.emit("error", {
+              message: modelErrorSentence(err, resolved),
             });
-          } else if (event.text) {
-            answer += event.text;
+            if (attempt < REVIEW_ATTEMPTS) {
+              context.emit("info", {
+                text: `The review alone is retried (attempt ${attempt + 1} of ${REVIEW_ATTEMPTS}); the code is not changed.`,
+              });
+              continue;
+            }
+            // The attempts are spent. The job is not retried, so coding is not rerun.
+            return { ...modelStageFailure(err, resolved), retryable: false };
           }
-        },
-        onWait: (ms) =>
-          context.emit("info", {
-            text: `The provider is rate limiting ${resolved.modelId}; waiting ${Math.ceil(ms / 1000)} s before trying again.`,
-          }),
-        onUsage: (usage) => context.reportUsage(usageWithCost(resolved, usage)),
-        signal: context.signal,
-        sessionFactory: this.deps.sessionFactory,
-      });
+          throw err;
+        }
+      }
       if (answer.trim())
         context.emit("review_activity", { text: answer.trim() });
     } catch (err: unknown) {

@@ -5,15 +5,20 @@
 // temp git repo, real review executor with a scripted session).
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { ReadOnlySessionFactory } from "../src/agents/pi.js";
 import { createRepositories } from "../src/composition-root.js";
 import { createDatabase } from "../src/db/connection.js";
 import { runMigrations } from "../src/db/migrator.js";
 import { ExecuteExecutor } from "../src/executors/execute.js";
 import { ReviewExecutor } from "../src/executors/review.js";
-import type { ResolvedModel } from "../src/model-roles.js";
+import {
+  ModelUnavailableError,
+  type ResolvedModel,
+} from "../src/model-roles.js";
 import { execStrict } from "../src/proc.js";
 import { getRun } from "../src/runs.js";
 import type { ModelRoleName } from "../src/shared/types.js";
@@ -43,6 +48,8 @@ const REVIEWER: ResolvedModel = {
 };
 
 let tempDir: string;
+/** Each coding run appends one line here, so a test can count them. */
+const codingLogPath = () => path.join(tempDir, "coding-runs.log");
 let repo: string;
 let artifactsDir: string;
 let originalPath: string;
@@ -103,6 +110,7 @@ beforeEach(async () => {
   await writeFile(
     sbxPath,
     `#!/usr/bin/env bash
+echo coded >> "${codingLogPath()}"
 awk '/- \\[ \\]/ && !done { sub(/- \\[ \\]/, "- [x]"); done=1 } 1' .agent/tasks.md > .agent/tasks.md.tmp && mv .agent/tasks.md.tmp .agent/tasks.md
 printf 'export const app = 2;\\n' > src/app.ts
 `,
@@ -222,5 +230,117 @@ describe("execute stage models", () => {
         model: expect.objectContaining({ modelId: "reviewer/model" }),
       }),
     ]);
+  });
+});
+
+/** Runs the execute stage once with a scripted reviewer session factory. */
+async function runExecuteStage(sessionFactory: ReadOnlySessionFactory) {
+  const db = createDatabase({ path: ":memory:" });
+  runMigrations(db);
+  const repos = createRepositories(db);
+  const run = repos.runs.create({
+    id: "run-review-retry",
+    projectId: PROJECT_ID,
+    projectName: "Execute Review Models",
+    ticket: { id: "E-2", title: "Change app", acceptanceCriteria: [] },
+    plan: "1. Change app",
+    branch: "main",
+    status: "executing",
+    artifactsDir,
+    worktreePath: repo,
+  });
+  repos.jobs.createJob({ runId: run.id, stage: "execute", status: "pending" });
+
+  const resolveRole = async (role: ModelRoleName) =>
+    role === "builder" ? BUILDER : REVIEWER;
+  const executor = new ExecuteExecutor({
+    resolveRole,
+    loadSettings: async () => ({}),
+    reviewExecutor: new ReviewExecutor({ resolveRole, sessionFactory }),
+  });
+  const worker = new Worker({
+    workerId: "worker-review-retry",
+    db,
+    getStageExecutor: () => executor,
+  });
+  const job = repos.jobs.claimNextJob("worker-review-retry", 30_000);
+  if (!job) throw new Error("Expected a pending execute job");
+  await worker.processJob(job);
+  return { repos, run };
+}
+
+const codingRuns = () =>
+  existsSync(codingLogPath())
+    ? readFileSync(codingLogPath(), "utf-8").trim().split("\n").length
+    : 0;
+
+describe("review retries", () => {
+  it("retries only the review after a transient model error, and does not rerun coding", async () => {
+    let reviewCalls = 0;
+    const { repos, run } = await runExecuteStage(async () => {
+      reviewCalls++;
+      if (reviewCalls === 1) {
+        throw new ModelUnavailableError(
+          "The reviewer model is overloaded.",
+          "model unavailable",
+        );
+      }
+      return {
+        ...scriptedReviewSession(PASSING_REVIEW_OUTPUT),
+        usage: () => ({ tokensIn: 1000, tokensOut: 200 }),
+      };
+    });
+
+    expect(reviewCalls).toBe(2);
+    expect(codingRuns()).toBe(1);
+    expect(repos.runs.get(run.id)?.status).toBe("awaiting_review");
+
+    const events = repos.events.getEventsForRun(run.id);
+    expect(events.filter((e) => e.type === "error")).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          message: "The reviewer model is overloaded.",
+        }),
+      }),
+    ]);
+    expect(
+      events.some(
+        (e) =>
+          e.type === "info" &&
+          String((e.payload as { text?: unknown }).text).includes(
+            "review alone is retried",
+          ),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not retry a review that fails for a reason the same call would repeat", async () => {
+    let reviewCalls = 0;
+    const { repos, run } = await runExecuteStage(async () => {
+      reviewCalls++;
+      throw new ModelUnavailableError(
+        "The provider's quota for reviewer/model is used up.",
+        "quota exhausted",
+      );
+    });
+
+    expect(reviewCalls).toBe(1);
+    expect(codingRuns()).toBe(1);
+    expect(repos.runs.get(run.id)?.status).toBe("failed");
+  });
+
+  it("stops after three review attempts and does not rerun coding", async () => {
+    let reviewCalls = 0;
+    const { repos, run } = await runExecuteStage(async () => {
+      reviewCalls++;
+      throw new ModelUnavailableError(
+        "The reviewer model is overloaded.",
+        "model unavailable",
+      );
+    });
+
+    expect(reviewCalls).toBe(3);
+    expect(codingRuns()).toBe(1);
+    expect(repos.runs.get(run.id)?.status).toBe("failed");
   });
 });
