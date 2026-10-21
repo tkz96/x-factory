@@ -10,7 +10,7 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useModal } from "../../context/ModalContext.js";
+import { type NewRunPrefill, useModal } from "../../context/ModalContext.js";
 import { useCurrentProject } from "../../context/ProjectContext.js";
 import { useCreateRun } from "../../hooks/useQueries.js";
 import { ActiveRunConflictError } from "../../lib/api-client.js";
@@ -69,6 +69,221 @@ function FieldHelp({
 const ACTIVE_RUN_NOTICE =
   "A run for this ticket is already active, so your new input was not used. Showing that run.";
 
+/** What the form edits. Every field is text; the criteria are one per line. */
+interface NewRunDraft {
+  ticketId: string;
+  ticketTitle: string;
+  branch: string;
+  criteria: string;
+  plan: string;
+}
+
+type DraftField = keyof NewRunDraft;
+
+const EMPTY_DRAFT: NewRunDraft = {
+  ticketId: "",
+  ticketTitle: "",
+  branch: "",
+  criteria: "",
+  plan: "",
+};
+
+/** A ticket's prefill fills the form; no prefill leaves every field empty. */
+function draftFromPrefill(prefill: NewRunPrefill | null): NewRunDraft {
+  if (!prefill) return EMPTY_DRAFT;
+  return {
+    ticketId: prefill.ticketId || "",
+    ticketTitle: prefill.ticketTitle || "",
+    branch: prefill.branch || "",
+    criteria: (prefill.criteria || []).join("\n"),
+    plan: prefill.plan ?? "",
+  };
+}
+
+/** One criterion per line; blank lines are dropped. */
+function parseCriteria(text: string): string[] {
+  return text
+    .split("\n")
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0);
+}
+
+/** The message for a draft missing a required field, or null when it is complete. */
+function missingFieldMessage(draft: NewRunDraft): string | null {
+  return !draft.ticketId.trim() || !draft.ticketTitle.trim()
+    ? "Ticket ID and Ticket Title are required."
+    : null;
+}
+
+/** The request for a run. The plan is optional: the Builder writes one when it is empty. */
+function buildCreateRunInput(projectId: string, draft: NewRunDraft) {
+  const acceptanceCriteria = parseCriteria(draft.criteria);
+  return {
+    projectId,
+    ticketId: draft.ticketId.trim(),
+    ticketTitle: draft.ticketTitle.trim(),
+    branch: draft.branch.trim() || undefined,
+    acceptanceCriteria:
+      acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
+    plan: draft.plan.trim(),
+  };
+}
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * The draft the form edits. It is refilled from the prefill each time the
+ * window opens, and the error from the last attempt is cleared then too.
+ */
+function useNewRunDraft(isOpen: boolean, prefill: NewRunPrefill | null) {
+  const [draft, setDraft] = useState<NewRunDraft>(EMPTY_DRAFT);
+  const [error, setError] = useState<string | null>(null);
+  const [needsRoles, setNeedsRoles] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setNeedsRoles(false);
+      setDraft(draftFromPrefill(prefill));
+    }
+  }, [isOpen, prefill]);
+
+  const setField = (field: DraftField) => (value: string) =>
+    setDraft((current) => ({ ...current, [field]: value }));
+
+  return { draft, setField, error, setError, needsRoles, setNeedsRoles };
+}
+
+function NewRunError({
+  message,
+  needsRoles,
+  onOpenSettings,
+}: {
+  message: string;
+  needsRoles: boolean;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <div id="setup-error" className="error-message">
+      {message}
+      {needsRoles && (
+        <p className="m-0 mt-2">
+          <Link
+            id="link-settings-models"
+            className="ui-button ui-button--secondary ui-button--sm"
+            to="/settings?tab=models"
+            onClick={onOpenSettings}
+          >
+            Open Settings › Models
+          </Link>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The fields and the refusal they lead to. The form submits on Enter. */
+function NewRunForm({
+  draft,
+  setField,
+  error,
+  needsRoles,
+  onSubmit,
+  onOpenSettings,
+}: {
+  draft: NewRunDraft;
+  setField: (field: DraftField) => (value: string) => void;
+  error: string | null;
+  needsRoles: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <form id="view-setup" className="new-run-form" onSubmit={onSubmit}>
+      <TextField
+        label="Ticket ID"
+        inputId="input-ticket-id"
+        placeholder="e.g. PROJ-101"
+        value={draft.ticketId}
+        onChange={setField("ticketId")}
+        isRequired
+        labelAccessory={
+          <FieldHelp field="Ticket ID" title="Ticket Identifier">
+            Unique identifier of the ticket in your issue tracker (e.g.{" "}
+            <code>VEND-101</code>, <code>#42</code>, or <code>AB#1234</code>
+            ).
+          </FieldHelp>
+        }
+      />
+
+      <TextField
+        label="Ticket Title"
+        inputId="input-ticket-title"
+        placeholder="e.g. Implement password reset rate limiting"
+        value={draft.ticketTitle}
+        onChange={setField("ticketTitle")}
+        isRequired
+        labelAccessory={
+          <FieldHelp field="Ticket Title" title="Ticket Title">
+            Summary description of the task or feature to implement.
+          </FieldHelp>
+        }
+      />
+
+      <TextField
+        label="Branch (optional)"
+        inputId="input-branch"
+        placeholder="auto-generated from the ticket ID"
+        description="Created across every repository worktree. Leave it blank and X-Factory names it from the ticket ID and slug."
+        value={draft.branch}
+        onChange={setField("branch")}
+      />
+
+      <TextAreaField
+        label="Acceptance criteria"
+        inputId="input-criteria"
+        rows={4}
+        placeholder={
+          "- Return 429 after 5 failed attempts\n- Reset counter after 15 minutes\n- Add unit tests for window expiration"
+        }
+        value={draft.criteria}
+        onChange={setField("criteria")}
+        labelAccessory={
+          <FieldHelp field="Acceptance Criteria" title="Acceptance Criteria">
+            List each testable condition or requirement on its own line. The
+            coding agent checks these criteria as it works.
+          </FieldHelp>
+        }
+      />
+
+      <TextAreaField
+        label="Implementation plan"
+        inputId="input-plan"
+        rows={7}
+        placeholder="Paste the step-by-step implementation plan here…"
+        value={draft.plan}
+        onChange={setField("plan")}
+        labelAccessory={
+          <FieldHelp field="Implementation Plan" title="Implementation Plan">
+            Step-by-step instructions or architectural guidance for the coding
+            agent.
+          </FieldHelp>
+        }
+      />
+
+      {error && (
+        <NewRunError
+          message={error}
+          needsRoles={needsRoles}
+          onOpenSettings={onOpenSettings}
+        />
+      )}
+    </form>
+  );
+}
+
 export function NewRunModal() {
   const { isNewRunOpen, closeNewRunModal, newRunPrefill } = useModal();
   const { selectedProjectId } = useCurrentProject();
@@ -77,63 +292,26 @@ export function NewRunModal() {
   const targetProjectId = newRunPrefill?.projectId || selectedProjectId;
   const navigate = useNavigate();
   const createRunMutation = useCreateRun();
-
-  const [ticketId, setTicketId] = useState("");
-  const [ticketTitle, setTicketTitle] = useState("");
-  const [branch, setBranch] = useState("");
-  const [criteria, setCriteria] = useState("");
-  const [plan, setPlan] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [needsRoles, setNeedsRoles] = useState(false);
-
-  // Sync prefill values whenever modal opens or prefill changes
-  useEffect(() => {
-    if (isNewRunOpen) {
-      setError(null);
-      setNeedsRoles(false);
-      if (newRunPrefill) {
-        setTicketId(newRunPrefill.ticketId || "");
-        setTicketTitle(newRunPrefill.ticketTitle || "");
-        setBranch(newRunPrefill.branch || "");
-        setCriteria((newRunPrefill.criteria || []).join("\n"));
-        setPlan(newRunPrefill.plan ?? "");
-      } else {
-        setTicketId("");
-        setTicketTitle("");
-        setBranch("");
-        setCriteria("");
-        setPlan("");
-      }
-    }
-  }, [isNewRunOpen, newRunPrefill]);
+  const { draft, setField, error, setError, needsRoles, setNeedsRoles } =
+    useNewRunDraft(isNewRunOpen, newRunPrefill);
 
   const submit = async () => {
     if (!targetProjectId) {
       setError("Please select a target project before starting a run.");
       return;
     }
-    if (!ticketId.trim() || !ticketTitle.trim()) {
-      setError("Ticket ID and Ticket Title are required.");
+    const missing = missingFieldMessage(draft);
+    if (missing) {
+      setError(missing);
       return;
     }
 
     setError(null);
 
-    const acceptanceCriteria = criteria
-      .split("\n")
-      .map((c) => c.trim())
-      .filter((c) => c.length > 0);
-
     try {
-      const run = await createRunMutation.mutateAsync({
-        projectId: targetProjectId,
-        ticketId: ticketId.trim(),
-        ticketTitle: ticketTitle.trim(),
-        branch: branch.trim() || undefined,
-        acceptanceCriteria:
-          acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
-        plan: plan.trim(),
-      });
+      const run = await createRunMutation.mutateAsync(
+        buildCreateRunInput(targetProjectId, draft),
+      );
 
       closeNewRunModal();
       navigate(`/runs/${run.id}`);
@@ -149,12 +327,11 @@ export function NewRunModal() {
         return;
       }
       setNeedsRoles(needsModelSetup(err));
-      setError(err instanceof Error ? err.message : String(err));
+      setError(messageOf(err));
     }
   };
 
-  // The form still submits on Enter; the footer's Start Run sits outside it, so
-  // it calls the same routine directly.
+  // The footer's Start Run sits outside the form, so it calls submit directly.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void submit();
@@ -162,7 +339,9 @@ export function NewRunModal() {
 
   // The plan is optional: the Builder writes one when the form leaves it empty.
   const isSubmitDisabled =
-    !ticketId.trim() || !ticketTitle.trim() || createRunMutation.isPending;
+    !draft.ticketId.trim() ||
+    !draft.ticketTitle.trim() ||
+    createRunMutation.isPending;
 
   return (
     <Sheet
@@ -179,102 +358,14 @@ export function NewRunModal() {
       </DialogHeader>
 
       <DialogBody>
-        <form id="view-setup" className="new-run-form" onSubmit={handleSubmit}>
-          <TextField
-            label="Ticket ID"
-            inputId="input-ticket-id"
-            placeholder="e.g. PROJ-101"
-            value={ticketId}
-            onChange={setTicketId}
-            isRequired
-            labelAccessory={
-              <FieldHelp field="Ticket ID" title="Ticket Identifier">
-                Unique identifier of the ticket in your issue tracker (e.g.{" "}
-                <code>VEND-101</code>, <code>#42</code>, or <code>AB#1234</code>
-                ).
-              </FieldHelp>
-            }
-          />
-
-          <TextField
-            label="Ticket Title"
-            inputId="input-ticket-title"
-            placeholder="e.g. Implement password reset rate limiting"
-            value={ticketTitle}
-            onChange={setTicketTitle}
-            isRequired
-            labelAccessory={
-              <FieldHelp field="Ticket Title" title="Ticket Title">
-                Summary description of the task or feature to implement.
-              </FieldHelp>
-            }
-          />
-
-          <TextField
-            label="Branch (optional)"
-            inputId="input-branch"
-            placeholder="auto-generated from the ticket ID"
-            description="Created across every repository worktree. Leave it blank and X-Factory names it from the ticket ID and slug."
-            value={branch}
-            onChange={setBranch}
-          />
-
-          <TextAreaField
-            label="Acceptance criteria"
-            inputId="input-criteria"
-            rows={4}
-            placeholder={
-              "- Return 429 after 5 failed attempts\n- Reset counter after 15 minutes\n- Add unit tests for window expiration"
-            }
-            value={criteria}
-            onChange={setCriteria}
-            labelAccessory={
-              <FieldHelp
-                field="Acceptance Criteria"
-                title="Acceptance Criteria"
-              >
-                List each testable condition or requirement on its own line. The
-                coding agent checks these criteria as it works.
-              </FieldHelp>
-            }
-          />
-
-          <TextAreaField
-            label="Implementation plan"
-            inputId="input-plan"
-            rows={7}
-            placeholder="Paste the step-by-step implementation plan here…"
-            value={plan}
-            onChange={setPlan}
-            labelAccessory={
-              <FieldHelp
-                field="Implementation Plan"
-                title="Implementation Plan"
-              >
-                Step-by-step instructions or architectural guidance for the
-                coding agent.
-              </FieldHelp>
-            }
-          />
-
-          {error && (
-            <div id="setup-error" className="error-message">
-              {error}
-              {needsRoles && (
-                <p className="m-0 mt-2">
-                  <Link
-                    id="link-settings-models"
-                    className="ui-button ui-button--secondary ui-button--sm"
-                    to="/settings?tab=models"
-                    onClick={closeNewRunModal}
-                  >
-                    Open Settings › Models
-                  </Link>
-                </p>
-              )}
-            </div>
-          )}
-        </form>
+        <NewRunForm
+          draft={draft}
+          setField={setField}
+          error={error}
+          needsRoles={needsRoles}
+          onSubmit={handleSubmit}
+          onOpenSettings={closeNewRunModal}
+        />
       </DialogBody>
 
       <DialogFooter>
