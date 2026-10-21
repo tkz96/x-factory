@@ -52,7 +52,7 @@ const VARIANT: Record<
   resume: "primary",
   abandon: "danger",
   "start-new-run": "secondary",
-  "confirm-rework": "primary",
+  "confirm-rework": "secondary",
 };
 
 export interface CheckpointBarEntry {
