@@ -18,6 +18,7 @@ import { jsonResponse } from "./http/responses.js";
 import { getOpenApiSpec } from "./http/route-table.js";
 import { handleApi } from "./http/routes.js";
 import { defaultSSERegistry } from "./http/sse-registry.js";
+import { SERVER_IDLE_TIMEOUT_S } from "./http/sse-timing.js";
 import { serveStatic } from "./http/static.js";
 import { importLegacyModelKey } from "./model-connections.js";
 import type { ProviderRegistry } from "./providers/registry.js";
@@ -101,6 +102,8 @@ export function startServer(
   const bunServer: Server<unknown> = Bun.serve({
     port,
     hostname: listenHost,
+    // Must exceed the SSE keep-alive interval; see src/http/sse-timing.ts.
+    idleTimeout: SERVER_IDLE_TIMEOUT_S,
     async fetch(req) {
       const url = new URL(req.url);
 
