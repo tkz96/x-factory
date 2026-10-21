@@ -1,9 +1,9 @@
 // test/new-run-modal-fields.test.tsx — The New Run form says what it needs.
 //
-// The server refuses a run without an implementation plan, so the form marks
-// the plan required and keeps Start Run disabled until it is filled, as it does
-// for the ticket ID and title. Each field's help is a focusable, named button;
-// role="tooltip" belongs to the popup it opens, never to the button.
+// The implementation plan is optional: the Builder writes one when the operator
+// gives none, so the form never requires it and never pre-fills a canned plan.
+// Each field's help is a focusable, named button; role="tooltip" belongs to the
+// popup it opens, never to the button.
 
 /// <reference lib="dom" />
 import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
@@ -41,6 +41,20 @@ function Harness() {
       <button type="button" id="trigger" onClick={() => openNewRunModal()}>
         Open
       </button>
+      <button
+        type="button"
+        id="trigger-ticket"
+        onClick={() =>
+          openNewRunModal({
+            projectId: "proj-1",
+            ticketId: "T-9",
+            ticketTitle: "Ticket nine",
+            criteria: ["It works"],
+          })
+        }
+      >
+        Open from a ticket
+      </button>
       <NewRunModal />
     </main>
   );
@@ -69,7 +83,7 @@ function typeInto(id: string, value: string) {
   });
 }
 
-async function openModal() {
+async function openModal(from = "trigger") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -85,7 +99,7 @@ async function openModal() {
     </QueryClientProvider>,
   );
   await flush();
-  const trigger = el("trigger");
+  const trigger = el(from);
   act(() => trigger.focus());
   fireEvent.click(trigger);
   await flush();
@@ -123,30 +137,30 @@ describe("New Run form fields", () => {
     await unregisterHappyDom();
   });
 
-  it("marks the implementation plan required, like the ticket ID and title", async () => {
+  it("marks only the ticket ID and title required; the plan is optional", async () => {
     await openModal();
     expect(el<HTMLInputElement>("input-ticket-id").required).toBe(true);
     expect(el<HTMLInputElement>("input-ticket-title").required).toBe(true);
-    expect(el<HTMLTextAreaElement>("input-plan").required).toBe(true);
+    expect(el<HTMLTextAreaElement>("input-plan").required).toBe(false);
   });
 
-  it("keeps Start Run disabled until the plan is filled", async () => {
+  it("enables Start Run once the ticket ID and title are filled, with no plan", async () => {
     await openModal();
     typeInto("input-ticket-id", "T-1");
     typeInto("input-ticket-title", "Ticket one");
     await flush();
-    expect(startRun().disabled).toBe(true);
-
-    typeInto("input-plan", "   ");
-    await flush();
-    expect(startRun().disabled).toBe(true);
-
-    typeInto("input-plan", "1. Do it.");
-    await flush();
     expect(startRun().disabled).toBe(false);
   });
 
-  it("does not send a run without a plan, and says why", async () => {
+  it("does not pre-fill a canned plan when a ticket opens the form", async () => {
+    await openModal("trigger-ticket");
+    expect(el<HTMLInputElement>("input-ticket-title").value).toBe(
+      "Ticket nine",
+    );
+    expect(el<HTMLTextAreaElement>("input-plan").value).toBe("");
+  });
+
+  it("sends a run without a plan", async () => {
     await openModal();
     typeInto("input-ticket-id", "T-1");
     typeInto("input-ticket-title", "Ticket one");
@@ -154,8 +168,8 @@ describe("New Run form fields", () => {
       fireEvent.submit(el<HTMLFormElement>("view-setup"));
     });
     await flush();
-    expect(posts).toBe(0);
-    expect(el("setup-error").textContent).toContain("Implementation Plan");
+    expect(posts).toBe(1);
+    expect(document.getElementById("setup-error")).toBeNull();
   });
 
   it("gives each field a named help button, and only the popup is a tooltip", async () => {

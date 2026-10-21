@@ -39,10 +39,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-/** The page a navigation lands on, labelled with its path. */
+/** The page a navigation lands on, labelled with its path and the notice it carries. */
 function RunsRoute() {
-  const { pathname } = useLocation();
-  return createElement("div", { id: "run-page" }, pathname);
+  const { pathname, state } = useLocation();
+  const notice = (state as { notice?: string } | null)?.notice;
+  return createElement(
+    "div",
+    null,
+    createElement("div", { id: "run-page" }, pathname),
+    notice ? createElement("p", { id: "run-notice" }, notice) : null,
+  );
 }
 
 function Harness() {
@@ -186,6 +192,28 @@ describe("New Run conflict (#255)", () => {
     expect(document.getElementById("run-page")?.textContent).toBe(
       `/runs/${EXISTING_RUN_ID}`,
     );
+  });
+
+  it("tells the reader the ticket's run is already active and their new input was not used", async () => {
+    stubCreateRun(() =>
+      jsonResponse(
+        {
+          error: `Ticket "T-1" already has an active run (${EXISTING_RUN_ID}).`,
+          code: ACTIVE_RUN_CONFLICT_CODE,
+          runId: EXISTING_RUN_ID,
+        },
+        409,
+      ),
+    );
+
+    renderHarness();
+    await flush();
+    await openAndFill();
+    await submit();
+
+    const notice = document.getElementById("run-notice")?.textContent ?? "";
+    expect(notice).toContain("already active");
+    expect(notice).toContain("not used");
   });
 
   it("still opens the run it created when the creation succeeds", async () => {

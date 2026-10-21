@@ -65,6 +65,10 @@ function FieldHelp({
   );
 }
 
+/** Shown on the run a second New Run for the same ticket opens instead. */
+const ACTIVE_RUN_NOTICE =
+  "A run for this ticket is already active, so your new input was not used. Showing that run.";
+
 export function NewRunModal() {
   const { isNewRunOpen, closeNewRunModal, newRunPrefill } = useModal();
   const { selectedProjectId } = useCurrentProject();
@@ -92,12 +96,7 @@ export function NewRunModal() {
         setTicketTitle(newRunPrefill.ticketTitle || "");
         setBranch(newRunPrefill.branch || "");
         setCriteria((newRunPrefill.criteria || []).join("\n"));
-        setPlan(
-          newRunPrefill.plan ||
-            (newRunPrefill.ticketTitle
-              ? `1. Understand requirements\n2. Implement changes for ${newRunPrefill.ticketTitle}\n3. Verify test suite passes\n4. Review and deliver`
-              : ""),
-        );
+        setPlan(newRunPrefill.plan ?? "");
       } else {
         setTicketId("");
         setTicketTitle("");
@@ -113,8 +112,8 @@ export function NewRunModal() {
       setError("Please select a target project before starting a run.");
       return;
     }
-    if (!ticketId.trim() || !ticketTitle.trim() || !plan.trim()) {
-      setError("Ticket ID, Ticket Title and Implementation Plan are required.");
+    if (!ticketId.trim() || !ticketTitle.trim()) {
+      setError("Ticket ID and Ticket Title are required.");
       return;
     }
 
@@ -140,10 +139,13 @@ export function NewRunModal() {
       navigate(`/runs/${run.id}`);
     } catch (err: unknown) {
       // The ticket already has an active run (#255): open it instead of showing
-      // the refusal as an error. The server named the run to open.
+      // the refusal as an error. The server named the run to open, and the
+      // reader is told the new input was not used.
       if (err instanceof ActiveRunConflictError) {
         closeNewRunModal();
-        navigate(`/runs/${err.runId}`);
+        navigate(`/runs/${err.runId}`, {
+          state: { notice: ACTIVE_RUN_NOTICE },
+        });
         return;
       }
       setNeedsRoles(needsModelSetup(err));
@@ -158,13 +160,9 @@ export function NewRunModal() {
     void submit();
   };
 
-  // The server refuses a run without a plan, so the form asks for one up
-  // front, exactly as it does for the ticket ID and title.
+  // The plan is optional: the Builder writes one when the form leaves it empty.
   const isSubmitDisabled =
-    !ticketId.trim() ||
-    !ticketTitle.trim() ||
-    !plan.trim() ||
-    createRunMutation.isPending;
+    !ticketId.trim() || !ticketTitle.trim() || createRunMutation.isPending;
 
   return (
     <Sheet
@@ -248,7 +246,6 @@ export function NewRunModal() {
             placeholder="Paste the step-by-step implementation plan here…"
             value={plan}
             onChange={setPlan}
-            isRequired
             labelAccessory={
               <FieldHelp
                 field="Implementation Plan"

@@ -45,7 +45,6 @@ export function TicketCard({
       ticketId: ticket.id,
       ticketTitle: ticket.title,
       criteria: ticket.acceptanceCriteria,
-      plan: `1. Understand ticket requirements\n2. Implement changes for ${ticket.title}\n3. Verify test suite passes without regressions\n4. Review and deliver`,
     });
   };
 

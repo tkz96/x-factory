@@ -343,6 +343,29 @@ describe("Prompt module (src/prompts.ts)", () => {
       expect(planPrompt).not.toContain("## Codebase Understanding");
       expect(planPrompt).not.toContain("### Verification Commands:");
     });
+
+    // The plan is optional: an empty or blank plan renders no Plan section, and
+    // the rest of each prompt is unchanged.
+    it("renders no plan section for an empty or blank plan", () => {
+      for (const plan of ["", "   "]) {
+        const understandingPrompt = buildUnderstandingPrompt({
+          ticket,
+          project,
+          plan,
+        });
+        expect(understandingPrompt).not.toContain("## Plan");
+        expect(understandingPrompt).toContain("## Your Task");
+
+        const planPrompt = buildPlanPrompt({
+          ticket,
+          project,
+          draft: plan,
+          understanding,
+        });
+        expect(planPrompt).not.toContain("## Plan so far");
+        expect(planPrompt).toContain("## Your Task");
+      }
+    });
   });
 
   describe("the coding loop prompt without a test command", () => {

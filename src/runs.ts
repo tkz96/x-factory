@@ -227,9 +227,6 @@ export async function createRun(
   // Missing input is the caller's mistake: a 400 with the reason, never a 500.
   if (!project) throw new ValidationError("Project is required.");
   if (!ticketId?.trim()) throw new ValidationError("Ticket ID is required.");
-  if (!plan?.trim()) {
-    throw new ValidationError("Implementation plan is required.");
-  }
 
   // A missing folder is fine when there is a remote: the worker clones it in prepare.
   await git.checkRepositoryForRun({
