@@ -3,7 +3,7 @@
 // runs have all finished starts a new one; otherwise the first run starts.
 
 import { ACTIVE_RUN_STATUSES } from "../../shared/run-status-policy.js";
-import type { Run } from "../../shared/types.js";
+import type { Run, Ticket } from "../../shared/types.js";
 
 export type TicketRunLink =
   | { kind: "active"; runId: string }
@@ -28,4 +28,41 @@ export function ticketRunLinkOf(
   const [first] = active;
   if (first) return { kind: "active", runId: first.id };
   return { kind: "finished" };
+}
+
+/**
+ * The ticket id a run stores for a tracker id. The server replaces every
+ * character outside letters, digits, `.`, `_` and `-` with `-` (createRun),
+ * so a tracker id such as `AB#1234` is stored as `AB-1234`.
+ */
+function storedTicketId(ticketId: string): string {
+  return ticketId.trim().replace(/[^a-zA-Z0-9._-]/g, "-");
+}
+
+/**
+ * The tickets a project's runs were started for that its tracker does not
+ * list: the tickets written by hand. Read from the runs only, so nothing is
+ * stored. A ticket with several runs appears once, with the title and criteria
+ * of its most recently updated run.
+ */
+export function handWrittenTicketsOf(
+  runs: readonly Run[],
+  projectId: string,
+  trackerTickets: readonly Ticket[],
+): Ticket[] {
+  const tracked = new Set(trackerTickets.map((t) => storedTicketId(t.id)));
+  const latest = new Map<string, Run>();
+  for (const run of runs) {
+    if (run.project?.id !== projectId || !run.ticket?.id) continue;
+    if (tracked.has(run.ticket.id)) continue;
+    const seen = latest.get(run.ticket.id);
+    if (!seen || Date.parse(run.updatedAt) > Date.parse(seen.updatedAt)) {
+      latest.set(run.ticket.id, run);
+    }
+  }
+  return [...latest.values()].map((run) => ({
+    id: run.ticket.id,
+    title: run.ticket.title,
+    acceptanceCriteria: run.ticket.acceptanceCriteria ?? [],
+  }));
 }
