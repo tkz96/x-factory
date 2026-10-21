@@ -23,6 +23,7 @@ import {
   useCreateRun,
   usePrRun,
   useResumeRun,
+  useRetryReview,
   useTransitionRun,
 } from "../hooks/useQueries.js";
 import { useRunDetail } from "../hooks/useRunDetail.js";
@@ -50,6 +51,7 @@ export function RunDetailView() {
 
   const transitionMutation = useTransitionRun();
   const resumeMutation = useResumeRun();
+  const retryReviewMutation = useRetryReview();
   const abandonMutation = useAbandonRun();
   const deliverMutation = usePrRun();
   const createRunMutation = useCreateRun();
@@ -174,6 +176,9 @@ export function RunDetailView() {
       case "resume":
         void runAction(() => resumeMutation.mutateAsync(run.id));
         return;
+      case "retry-review":
+        void runAction(() => retryReviewMutation.mutateAsync(run.id));
+        return;
       case "abandon":
         void runAction(() =>
           abandonMutation.mutateAsync({
@@ -199,13 +204,15 @@ export function RunDetailView() {
         : "requeue"
     : resumeMutation.isPending
       ? "resume"
-      : abandonMutation.isPending
-        ? "abandon"
-        : deliverMutation.isPending
-          ? "deliver"
-          : createRunMutation.isPending
-            ? "start-new-run"
-            : null;
+      : retryReviewMutation.isPending
+        ? "retry-review"
+        : abandonMutation.isPending
+          ? "abandon"
+          : deliverMutation.isPending
+            ? "deliver"
+            : createRunMutation.isPending
+              ? "start-new-run"
+              : null;
 
   const inspectorProps = { run, events, connected };
 

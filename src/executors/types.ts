@@ -131,6 +131,17 @@ export type StageOutcome =
       reason: string;
       output?: unknown;
       record?: StageRecord | undefined;
+    }
+  | {
+      /**
+       * The review used up its model attempts. The code is verified and kept; the run waits in
+       * review_retry_required until the operator retries the review alone. The job is not retried.
+       */
+      outcome: "review_retry";
+      /** The last model failure, as one sentence for the decision card. */
+      reason: string;
+      output?: unknown;
+      record?: StageRecord | undefined;
     };
 
 export interface StageExecutor {

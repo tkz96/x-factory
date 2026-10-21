@@ -56,6 +56,7 @@ const ACTION_LABELS: Record<RunAction, string | null> = {
   requeue: "Request Changes",
   restart: "Request Changes",
   resume: "Resume Run",
+  retry_review: "Retry Review",
   stop: "Stop Run",
 };
 
@@ -165,6 +166,15 @@ const ROWS: Record<RunStatus, StatusRow> = {
     header: "Needs recovery",
     placeholder: "Resume the run to carry on.",
     notification: { group: "Needs you", text: "Needs recovery" },
+  },
+  review_retry_required: {
+    label: "Review needs a retry",
+    step: "Review",
+    filter: "Needs you",
+    now: "The review could not reach the model after three tries. The code is kept; retry the review to continue.",
+    header: "The review could not finish",
+    placeholder: "Retry the review to continue, or abandon the run.",
+    notification: { group: "Needs you", text: "Review needs a retry" },
   },
   failed: {
     label: "Failed",

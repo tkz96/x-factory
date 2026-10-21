@@ -105,7 +105,8 @@ function isStageOutcome(value: unknown): value is StageOutcome {
     outcome === "passed" ||
     outcome === "rejected" ||
     outcome === "error" ||
-    outcome === "paused"
+    outcome === "paused" ||
+    outcome === "review_retry"
   );
 }
 
@@ -389,6 +390,8 @@ export class StageRunner {
         }
       } else if (outcome.outcome === "rejected") {
         this.commitRejected(work, attempt, outcome, duration);
+      } else if (outcome.outcome === "review_retry") {
+        this.holdForReviewRetry(work, attempt, outcome, duration, run.status);
       } else {
         this.fail(
           work,
@@ -607,6 +610,71 @@ export class StageRunner {
       duration_ms: duration,
       result: "failure",
       message: `Stage '${work.stage}' paused: budget reached. Run moved to recovery_required`,
+      error: reason,
+    });
+  }
+
+  /**
+   * The review used up its model attempts. The stage's record (the verified code and diff) is
+   * kept, the attempt is closed as failed with the last model error, the job is not retried, and
+   * the run waits in review_retry_required for the operator to retry the review alone.
+   */
+  private holdForReviewRetry(
+    work: StageWork,
+    attempt: StageAttemptRecord,
+    outcome: Extract<StageOutcome, { outcome: "review_retry" }>,
+    duration: number,
+    expectedRunStatus: RunStatus,
+  ): void {
+    const { repos } = this.host;
+    const reason = outcome.reason;
+    this.host.error(`Stage '${work.stage}' held for a review retry: ${reason}`);
+
+    try {
+      repos.db.transaction(() => {
+        work.reject(reason);
+        const latest = repos.runs.get(work.runId);
+        if (!latest || latest.status !== expectedRunStatus) return;
+        this.applyRecord(work.runId, outcome.record);
+        repos.stageAttempts.recordFailure(attempt.id, reason);
+        if (canTransition(latest.status, "review_retry_required")) {
+          repos.runs.transitionRun(
+            work.runId,
+            latest.status,
+            "review_retry_required",
+            {
+              event: {
+                type: "status",
+                payload: {
+                  status: "review_retry_required",
+                  reason,
+                  text: "The review could not finish after three tries. The code is kept; retry the review to continue.",
+                },
+              },
+            },
+          );
+        } else {
+          const text = `Review hold not applied: run is in status "${latest.status}", which cannot transition to review_retry_required.`;
+          repos.events.appendEvent(work.runId, "info", { text });
+          this.host.error(`Run ${work.runId}: ${text}`);
+        }
+      })();
+    } catch (err: unknown) {
+      this.host.error(
+        `Failed to hold run ${work.runId} for a review retry`,
+        err,
+      );
+      return;
+    }
+
+    this.host.emitLog({
+      ...logSubject(work),
+      run_id: work.runId,
+      stage: work.stage,
+      attempt: work.attempt,
+      duration_ms: duration,
+      result: "failure",
+      message: `Stage '${work.stage}' held: review retry required. Run waits for the operator`,
       error: reason,
     });
   }

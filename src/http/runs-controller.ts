@@ -13,6 +13,7 @@ import type {
   CreateRunResponse,
   PrRunResponse,
   ResumeRunResponse,
+  RetryReviewResponse,
   RunStatus,
   StopRunResponse,
   TransitionRunResponse,
@@ -353,6 +354,15 @@ export async function handleResumeRun(
 ): Promise<Response> {
   const run = await runs.resumeRun(repos, runId);
   return jsonResponse<ResumeRunResponse>({ ok: true, run });
+}
+
+/** `POST /api/runs/:id/retry-review`: the review alone runs again; the worker does the work. */
+export function handleRetryReview(
+  repos: Repositories,
+  runId: string,
+): Response {
+  const run = runs.retryReview(repos, runId);
+  return jsonResponse<RetryReviewResponse>({ ok: true, run });
 }
 
 export async function handleAbandonRun(

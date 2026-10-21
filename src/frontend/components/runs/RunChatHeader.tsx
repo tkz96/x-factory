@@ -6,6 +6,10 @@ import { TERMINAL_RUN_STATUSES } from "../../../shared/run-status-policy.js";
 import type { Run, RunEvent } from "../../../shared/types.js";
 import { useNow } from "../../hooks/useNow.js";
 import {
+  isWaitingForWorker,
+  WAITING_FOR_WORKER_TITLE,
+} from "../../lib/run-now.js";
+import {
   formatTook,
   type StageGroup,
   stagesDoneCount,
@@ -75,7 +79,11 @@ export function RunChatHeader({
       <Badge tone={runStatusTone(run.status)} className="run-chat-status">
         {waiting && <span className="run-chat-status-dot" aria-hidden="true" />}
         <span className="run-chat-status-label">
-          {waiting ? "Needs you" : ui.label}
+          {waiting
+            ? "Needs you"
+            : isWaitingForWorker(run)
+              ? WAITING_FOR_WORKER_TITLE
+              : ui.label}
         </span>
       </Badge>
       <RunElapsed

@@ -12,6 +12,19 @@ export interface RunNowFailure {
   recovery: string;
 }
 
+/** The title and sentence while the run's job is waiting for a worker (Finding 9). */
+export const WAITING_FOR_WORKER_TITLE = "Waiting for the worker";
+const WAITING_FOR_WORKER_SENTENCE =
+  "The step is ready, but no worker has picked it up yet. It starts as soon as a worker is free.";
+
+/**
+ * True when a stage label would claim work is under way that no worker is doing. A queued run
+ * is left alone: its own status already says it waits for a slot.
+ */
+export function isWaitingForWorker(run: Run): boolean {
+  return run.waitingForWorker === true && run.status !== "queued";
+}
+
 export interface RunNow {
   /** The status map's plain title, e.g. "Review the plan". */
   title: string;
@@ -53,6 +66,17 @@ function failureFor(
     return {
       message: "This run failed and can't continue.",
       recovery: "Start a new run for this ticket to try again.",
+    };
+  }
+  if (run.status === "review_retry_required") {
+    // The last model error is the status event's reason; the code is kept.
+    const payload = latest<{ reason?: string }>(events, "status");
+    return {
+      message:
+        payload?.reason ??
+        "The reviewer model failed three times in a row, so the review did not finish.",
+      recovery:
+        "Retry Review runs only the review again; the code is not changed. Abandon Run ends the run and keeps its branch.",
     };
   }
   if (run.status === "recovery_required") {
@@ -120,6 +144,10 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
 
   let title = ui.header;
   let sentence = ui.now;
+  if (isWaitingForWorker(run)) {
+    title = WAITING_FOR_WORKER_TITLE;
+    sentence = WAITING_FOR_WORKER_SENTENCE;
+  }
   if (outcome?.status === "merged") {
     title = "Merged";
     sentence = "The pull request was merged.";

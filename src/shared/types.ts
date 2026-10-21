@@ -30,7 +30,8 @@ export type RunStatus =
   | "pr_created"
   | "failed"
   | "stopped"
-  | "recovery_required";
+  | "recovery_required"
+  | "review_retry_required";
 
 /**
  * Role metadata for a repository inside a project.
@@ -622,6 +623,12 @@ export interface Run {
   worktreePath: string;
   /** Which model each stage attempt used, oldest first (#279). */
   stageModels?: StageModelUse[] | undefined;
+  /**
+   * True while the run's job is waiting for a worker: no worker holds it (it is pending, or
+   * its lease has run out). Set on the run read only; a stage label must not claim work is
+   * under way while this is true.
+   */
+  waitingForWorker?: boolean | undefined;
 }
 
 /**
@@ -807,6 +814,9 @@ export interface AbandonRunRequest {
 
 /** Response body of `POST /api/runs/:id/abandon`. */
 export type AbandonRunResponse = RunOkResponse;
+
+/** Response body of `POST /api/runs/:id/retry-review`: the run, back in executing. */
+export type RetryReviewResponse = RunOkResponse;
 
 /** Request body of `POST /api/runs/:id/chat`. */
 export interface ChatWithRunRequest {
