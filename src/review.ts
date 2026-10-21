@@ -314,10 +314,11 @@ export function parseReviewVerdict(output: string): "pass" | "fail" | null {
 
 export function extractReviewItems(output: string): {
   findings: Finding[];
-  criteriaChecked: ReviewCriterionResult[];
+  criteriaChecked: Array<{ criterion: string; status: "pass" | "fail" }>;
 } {
   const findings: Finding[] = [];
-  const criteriaChecked: ReviewCriterionResult[] = [];
+  const criteriaChecked: Array<{ criterion: string; status: "pass" | "fail" }> =
+    [];
 
   for (const line of output.split("\n")) {
     const trimmed = line.trim();
@@ -378,28 +379,91 @@ function criterionKey(text: string): string {
     .trim();
 }
 
+/**
+ * A leading criterion number on a Reviewer line: `1.`, `1)`, `#1`,
+ * `Criterion 1:` or `AC1:`. The number must stand alone, so `1.5` is not `1.`.
+ */
+const LEADING_NUMBER =
+  /^(?:#(\d+)\b|(?:criterion|ac)\s*#?(\d+)\s*[:.)]|(\d+)[.)](?=\s|$))\s*/i;
+
+/** The separators that may open a Reviewer's evidence after the criterion text. */
+const EVIDENCE_SEPARATOR = /\s+[—–-]\s+|:\s+|\s*\(/g;
+
+/**
+ * The evidence a Reviewer wrote after the criterion: the text after the first
+ * separator that follows the criterion text (or the first separator, when the
+ * criterion is paraphrased). `undefined` when there is none.
+ */
+function splitEvidence(body: string, key: string): string | undefined {
+  const separators = [...body.matchAll(EVIDENCE_SEPARATOR)];
+  const chosen =
+    separators.find((m) =>
+      criterionKey(body.slice(0, m.index)).includes(key),
+    ) ?? separators[0];
+  if (chosen?.index === undefined) return undefined;
+  let notes = body.slice(chosen.index + chosen[0].length).trim();
+  if (chosen[0].trim() === "(") notes = notes.replace(/\)$/, "").trim();
+  return notes || undefined;
+}
+
+/**
+ * The ticket criterion a Reviewer line is about, or `null` when it is about
+ * none. A leading number decides on its own: it must be 1..criteria count, and
+ * a number out of range matches nothing. Otherwise the line matches the
+ * criterion whose normalised text it contains (the longest, when several).
+ */
+function matchReviewerLine(
+  line: string,
+  keys: readonly string[],
+): { index: number; notes: string | undefined } | null {
+  const numbered = line.match(LEADING_NUMBER);
+  if (numbered) {
+    const n = Number(numbered[1] ?? numbered[2] ?? numbered[3]);
+    if (!Number.isInteger(n) || n < 1 || n > keys.length) return null;
+    const index = n - 1;
+    const body = line.slice(numbered[0].length);
+    return { index, notes: splitEvidence(body, keys[index] ?? "") };
+  }
+  const text = criterionKey(line);
+  let index = -1;
+  keys.forEach((key, i) => {
+    if (!key || !text.includes(key)) return;
+    if (index < 0 || key.length > (keys[index]?.length ?? 0)) index = i;
+  });
+  if (index < 0) return null;
+  return { index, notes: splitEvidence(line, keys[index] ?? "") };
+}
+
 export function parseReviewOutput(
   ticket: Ticket,
   output: string,
 ): ReviewResult {
   const { findings, criteriaChecked: assessed } = extractReviewItems(output);
 
-  // One entry per ticket criterion: the Reviewer's lines are matched to the
-  // ticket's criteria by normalised text, a FAIL wins over a PASS for the same
-  // criterion, and lines that match no ticket criterion are never counted.
-  // A criterion with no matching line stays not_assessed — never satisfied.
+  // One entry per ticket criterion. Each Reviewer line is matched to the
+  // criterion it numbers or names (see matchReviewerLine); a FAIL wins over a
+  // PASS for the same criterion, and lines that match no criterion are never
+  // counted. A criterion with no matching line stays not_assessed, never satisfied.
+  const keys = ticket.acceptanceCriteria.map(criterionKey);
+  const judged: Array<
+    Array<{ status: "pass" | "fail"; notes?: string | undefined }>
+  > = ticket.acceptanceCriteria.map(() => []);
+  for (const line of assessed) {
+    const match = matchReviewerLine(line.criterion, keys);
+    if (match)
+      judged[match.index]?.push({ status: line.status, notes: match.notes });
+  }
+
   const criteriaChecked: ReviewCriterionResult[] =
-    ticket.acceptanceCriteria.map((criterion) => {
-      const key = criterionKey(criterion);
-      const statuses = assessed
-        .filter((line) => criterionKey(line.criterion) === key)
-        .map((line) => line.status);
-      const status = statuses.includes("fail")
-        ? "fail"
-        : statuses.includes("pass")
-          ? "pass"
-          : "not_assessed";
-      return { criterion, status };
+    ticket.acceptanceCriteria.map((criterion, i) => {
+      const lines = judged[i] ?? [];
+      const decisive =
+        lines.find((l) => l.status === "fail") ??
+        lines.find((l) => l.status === "pass");
+      if (!decisive) return { criterion, status: "not_assessed" };
+      return decisive.notes
+        ? { criterion, status: decisive.status, notes: decisive.notes }
+        : { criterion, status: decisive.status };
     });
 
   const { passed, summary } = evaluateReviewVerdict(

@@ -267,10 +267,10 @@ ${diff.slice(0, 30_000)}
 3. Check for unintended modifications, style discrepancies, or bugs.
 4. Report your assessment.
 
-Format your response clearly:
+Format your response clearly. Write exactly one line for each numbered criterion.
 
 CRITERIA_CHECK:
-- [PASS|FAIL] <criterion description>
+- [PASS|FAIL] <n>. <criterion text> — <evidence>
 
 FINDINGS:
 - [INFO|WARNING|ERROR] <finding description> (file:path, line:N if applicable)
