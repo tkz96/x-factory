@@ -104,6 +104,29 @@ describe("the header strip", () => {
     expect(strip.querySelector(".run-chat-status-dot")).toBeNull();
   });
 
+  it("says Waiting for the worker, not the stage, while no worker has claimed the job", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("executing", { waitingForWorker: true })}
+        events={[]}
+      />,
+    );
+    const strip = container.querySelector(".run-chat-header") as HTMLElement;
+    expect(within(strip).getByText("Waiting for the worker")).toBeTruthy();
+    expect(within(strip).queryByText("Writing code")).toBeNull();
+  });
+
+  it("keeps the stage label once a worker holds the job", () => {
+    const { container } = render(
+      <RunChat
+        run={makeRun("executing", { waitingForWorker: false })}
+        events={[]}
+      />,
+    );
+    const strip = container.querySelector(".run-chat-header") as HTMLElement;
+    expect(within(strip).getByText("Writing code")).toBeTruthy();
+  });
+
   it("shows the elapsed time since the run started, with tabular figures", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={[]} />,

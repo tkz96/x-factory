@@ -1755,6 +1755,11 @@ function documentedSpec() {
                     closedAt: { type: "string", format: "date-time" },
                   },
                 },
+                waitingForWorker: {
+                  type: "boolean",
+                  description:
+                    "True while the run's current job waits for a worker: it is pending, or its lease has run out. Set on the run detail read.",
+                },
               },
             },
           ],

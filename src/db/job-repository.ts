@@ -528,6 +528,23 @@ export class JobRepository {
   }
 
   /**
+   * True when the run has a job no worker holds: a pending job, or a claimed one whose lease
+   * has run out. The next claim takes such a job, so until then the run waits for a worker.
+   */
+  hasUnclaimedJob(runId: string, nowMs = Date.now()): boolean {
+    const now = new Date(nowMs).toISOString();
+    const row = this.db
+      .prepare(
+        `SELECT 1 FROM jobs
+         WHERE run_id = ?
+           AND (status = 'pending' OR (status = 'claimed' AND lease_until < ?))
+         LIMIT 1;`,
+      )
+      .get(runId, now);
+    return row !== null && row !== undefined;
+  }
+
+  /**
    * Terminally cancels all active jobs for a run (e.g. when run is stopped or abandoned) (XFM-37).
    */
   cancelJobsForRun(runId: string, reason = "Run stopped."): void {

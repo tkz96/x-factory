@@ -132,6 +132,7 @@ export function getRun(repos: Repositories, id: string): Run | null {
         ...run,
         stageModels: repos.stageAttempts.listModelsForRun(id),
         pullRequestOutcome: repos.events.getPullRequestOutcome(id) ?? undefined,
+        waitingForWorker: repos.jobs.hasUnclaimedJob(id),
       }
     : null;
 }

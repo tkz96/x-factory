@@ -279,4 +279,22 @@ describe("JobRepository", () => {
       expect(claim2).toBeNull();
     });
   });
+
+  it("tells whether a run has a job no worker holds: pending, or claimed past its lease", () => {
+    const { jobRepo, run } = setup();
+    // Jobs become available at the real clock's time, so the base is the real clock too.
+    const t0 = Date.now();
+
+    expect(jobRepo.hasUnclaimedJob(run.id, t0)).toBe(false);
+
+    jobRepo.createJob({ runId: run.id, stage: "execute", maxAttempts: 3 });
+    expect(jobRepo.hasUnclaimedJob(run.id, t0)).toBe(true);
+
+    // A worker holds a live lease: the job is not waiting for a worker.
+    expect(jobRepo.claimNextJob("worker-A", 30_000, t0)).not.toBeNull();
+    expect(jobRepo.hasUnclaimedJob(run.id, t0 + 1_000)).toBe(false);
+
+    // The lease has run out: the next claim can take the job, so it is waiting again.
+    expect(jobRepo.hasUnclaimedJob(run.id, t0 + 31_000)).toBe(true);
+  });
 });

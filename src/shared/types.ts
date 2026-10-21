@@ -606,6 +606,12 @@ export interface Run {
   worktreePath: string;
   /** Which model each stage attempt used, oldest first (#279). */
   stageModels?: StageModelUse[] | undefined;
+  /**
+   * True while the run's job is waiting for a worker: no worker holds it (it is pending, or
+   * its lease has run out). Set on the run read only; a stage label must not claim work is
+   * under way while this is true.
+   */
+  waitingForWorker?: boolean | undefined;
 }
 
 /**

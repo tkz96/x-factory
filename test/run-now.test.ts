@@ -168,4 +168,21 @@ describe("the now header says what the run is doing", () => {
   it("gives no failure detail to a run that has not failed", () => {
     expect(runNow(makeRun("executing"), []).failure).toBeNull();
   });
+
+  it("says the run waits for a worker, not that it is writing code, while its job is unclaimed", () => {
+    const now = runNow(makeRun("executing", { waitingForWorker: true }), []);
+    expect(now.title).toBe("Waiting for the worker");
+    expect(now.sentence).toMatch(/worker/);
+    expect(now.title).not.toBe("Writing code");
+  });
+
+  it("keeps the stage title once a worker holds the job", () => {
+    const now = runNow(makeRun("preparing", { waitingForWorker: false }), []);
+    expect(now.title).toBe("Preparing the workspace");
+  });
+
+  it("keeps Waiting to start for a queued run, which already waits for a slot", () => {
+    const now = runNow(makeRun("queued", { waitingForWorker: true }), []);
+    expect(now.title).toBe("Waiting to start");
+  });
 });
