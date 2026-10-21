@@ -1,0 +1,97 @@
+/* src/frontend/components/runs/RunReviewSummary.css — The Reviewer's review on the decision card at the
+   review checkpoint: summary, findings and the Reviewer's judgement of each criterion. Tokens only. */
+
+.run-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.run-review-summary {
+  margin: 0;
+  font-size: var(--text-footnote);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.run-review-summary--fail {
+  color: var(--red);
+}
+
+.run-review-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.run-review-caption {
+  margin: 0;
+  font-size: var(--text-caption-1);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.run-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-review-finding {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-footnote);
+}
+
+.run-review-criterion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-footnote);
+}
+
+.run-review-criterion-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.run-review-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.run-review-verdict {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+}
+
+.run-review-verdict--pass {
+  color: var(--green);
+}
+
+.run-review-verdict--fail {
+  color: var(--red);
+}
+
+.run-review-verdict--muted {
+  color: var(--text-muted);
+}
+
+.run-review-notes {
+  margin: 0;
+  font-size: var(--text-caption-1);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
