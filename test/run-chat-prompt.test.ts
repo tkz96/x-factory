@@ -140,4 +140,22 @@ describe("run chat speaks as the Builder to the operator", () => {
     const lastUser = sent.filter((m) => m.role === "user").at(-1);
     expect(lastUser?.content).toBe("Which two files will you change?");
   });
+
+  it("never promises a change to the code or the plan, and sends the operator to Request Changes", async () => {
+    await builderOnLocalEndpoint();
+    seedRun("run-chat-promise");
+
+    const result = await chatWithRun(
+      repos,
+      "run-chat-promise",
+      "Please change the plan to drop the second test.",
+    );
+    expect(result.ok).toBe(true);
+
+    const prompt = String(sent.find((m) => m.role === "system")?.content ?? "");
+    // The chat answers; it does not promise work that no stage will do.
+    expect(prompt).not.toMatch(/I will change/);
+    expect(prompt).toMatch(/never promise to change (the code|anything)/i);
+    expect(prompt).toContain("Request Changes");
+  });
 });
