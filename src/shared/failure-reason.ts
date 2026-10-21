@@ -22,7 +22,11 @@ export type FailureCategory =
 
 export interface FailureReason {
   category: FailureCategory;
-  /** One sentence for an operator; never the raw error text. */
+  /**
+   * One sentence for an operator. Never the raw error text — but for a git
+   * failure it ends with the underlying error on one line, stripped of
+   * credentials and tokens (see `gitErrorDetail`).
+   */
   message: string;
   /** What the operator can do about it. */
   recovery: string;
@@ -100,6 +104,46 @@ export const OPERATOR_ABANDON_REASON: FailureReason = {
   ...CATEGORY_COPY.operator,
 };
 
+/** Credentials inside a URL: `scheme://user:password@host` becomes `scheme://host`. */
+const URL_CREDENTIALS = /(?<=\/\/)[^/@\s]+:[^/@\s]+@/g;
+
+/** Things that look like secrets, wherever they appear in a message. */
+const TOKEN_PATTERNS: readonly RegExp[] = [
+  /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}\b/g,
+  /\bgithub_pat_[A-Za-z0-9_]{16,}\b/g,
+  /\bsk-[A-Za-z0-9_-]{16,}\b/g,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+  /([?&](?:token|access_token|private_token|api_key|apikey)=)[^\s&]+/gi,
+];
+
+/** The "<command> failed (exit N):" header `execStrict` puts on a message's first line. */
+const EXIT_HEADER = /^\S.*\(exit \d+\):$/;
+
+/**
+ * The git or pull-request error behind a failure, on one line and safe to show
+ * an operator: the line that names the failure (not the command header), with
+ * URL credentials, tokens and quotes stripped, capped so it stays one line.
+ */
+function gitErrorDetail(error: string): string | undefined {
+  const lines = error
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const detail = lines.find(
+    (line) => !EXIT_HEADER.test(line) && /fatal:|\berror\b|failed/i.test(line),
+  );
+  if (!detail) return undefined;
+  let clean = detail.replace(URL_CREDENTIALS, "");
+  for (const pattern of TOKEN_PATTERNS) {
+    clean = clean.replace(pattern, "[redacted]");
+  }
+  clean = clean.replace(/["']/g, "").trim();
+  if (!clean) return undefined;
+  return clean.length > 200 ? `${clean.slice(0, 199)}…` : clean;
+}
+
 /**
  * Reads the category out of a failure's error text and describes it. Anything unrecognised is
  * honestly reported as `unknown` rather than guessed at.
@@ -119,6 +163,18 @@ export function failureReasonFor(input: {
         : "A stage of the run failed.",
       recovery: "Open the run log, fix the cause, then restart the run.",
     };
+  }
+  // "A git or pull-request operation failed." told an operator nothing about
+  // what git actually said; the underlying error rides along, sanitised.
+  if (match.category === "git") {
+    const detail = gitErrorDetail(input.error);
+    if (detail) {
+      return {
+        category: "git",
+        message: `A git or pull-request operation failed: ${detail}`,
+        recovery: CATEGORY_COPY.git.recovery,
+      };
+    }
   }
   return { category: match.category, ...CATEGORY_COPY[match.category] };
 }

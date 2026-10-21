@@ -12,8 +12,10 @@ import {
   innermostProviderMessage,
   isModelNotFoundMessage,
   modelErrorSentence,
+  modelNotFoundSentence,
   modelStageFailure,
   providerLabel,
+  providerSentence,
 } from "../src/model-failures.js";
 import { RateLimitedError } from "../src/model-gateway.js";
 import {
@@ -41,6 +43,38 @@ describe("reading a provider's error text", () => {
     );
     expect(firstSentence(innermostProviderMessage(QUOTA))).toBe(
       "You exceeded your current quota, please check your plan and billing details.",
+    );
+  });
+
+  // The run that showed "Model not available: ck another model…": the loop built
+  // the message from a 500-character TAIL of the process output, and the window
+  // started mid-sentence inside the provider's message.
+  it("keeps the provider's whole sentence when the error sits in the middle of a long output", () => {
+    const json =
+      '{"error":{"code":404,"message":"Model xyz is not available. Please pick another model."}}';
+    const output =
+      `noise line\n`.repeat(120) +
+      json +
+      `\ntrailing cleanup ${"x ".repeat(80)}`;
+
+    // The tail window alone cuts the sentence in half — that was the bug.
+    expect(providerSentence(output.trim().slice(-500))).not.toBe(
+      "Model xyz is not available.",
+    );
+    expect(modelNotFoundSentence(output)).toBe("Model xyz is not available.");
+  });
+
+  it("reads the sentence out of a nested JSON error body anywhere in the output", () => {
+    const nested =
+      '{"error":{"message":"{\\"error\\":{\\"code\\":404,\\"message\\":\\"Model xyz is not available. Please pick another model.\\"}}"}}';
+    expect(modelNotFoundSentence(`before\n${nested}\nafter`)).toBe(
+      "Model xyz is not available.",
+    );
+  });
+
+  it("falls back to the tail of the output when no line names a missing model", () => {
+    expect(modelNotFoundSentence(`nothing to see\n${"y".repeat(600)}`)).toBe(
+      `${"y".repeat(199)}…`,
     );
   });
 

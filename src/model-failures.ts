@@ -80,6 +80,23 @@ export function providerSentence(raw: string): string {
   return firstSentence(innermostProviderMessage(raw));
 }
 
+/**
+ * The provider's sentence for a model it does not offer, read out of a WHOLE
+ * process output. The error can sit anywhere in the output, so the sentence is
+ * taken from the last line that names a missing model — never from a tail
+ * window that can start mid-sentence ("…ck another model…"). Falls back to the
+ * tail of the output when no line names the failure.
+ */
+export function modelNotFoundSentence(output: string): string {
+  const lines = output.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = (lines[i] ?? "").trim();
+    if (!line || !isModelNotFoundMessage(line)) continue;
+    return firstSentence(innermostProviderMessage(line));
+  }
+  return firstSentence(output.trim().slice(-500));
+}
+
 /** The provider as a person would name it. */
 export function providerLabel(resolved: ResolvedModel): string {
   if (resolved.apiType === "gemini") return "Gemini";

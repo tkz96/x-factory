@@ -2,7 +2,10 @@
 
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { isModelNotFoundMessage, providerSentence } from "./model-failures.js";
+import {
+  isModelNotFoundMessage,
+  modelNotFoundSentence,
+} from "./model-failures.js";
 import {
   type GatewayKey,
   isRateLimitMessage,
@@ -338,8 +341,10 @@ async function runLoopWithGateway(
         isModelNotFoundMessage(output)
       ) {
         const raw = output.trim().slice(-500);
+        // The message is read from the whole output, not from `raw`: the tail
+        // window can start mid-sentence and cut the start of the sentence off.
         throw new ModelUnavailableError(
-          `Model not available: ${providerSentence(raw)}`,
+          `Model not available: ${modelNotFoundSentence(output)}`,
           "model not found",
           { raw },
         );

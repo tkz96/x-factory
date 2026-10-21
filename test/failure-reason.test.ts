@@ -128,4 +128,41 @@ describe("failureReasonFor (#256)", () => {
     expect(`${reason.message} ${reason.recovery}`).not.toMatch(/\bkey\b/i);
     expect(reason.recovery).toContain("Settings › Models");
   });
+
+  // "A git or pull-request operation failed." with no detail told an operator
+  // nothing; the underlying git error now rides along, on one line.
+  it("adds the underlying git error, in one line, to the reason", () => {
+    const reason = failureReasonFor({
+      error:
+        "git push -u origin factory/T-1 failed (exit 128):\nfatal: could not read from remote repository\nEverything up-to-date",
+      stage: "deliver",
+    });
+    expect(reason.category).toBe("git");
+    expect(reason.message).toContain(
+      "fatal: could not read from remote repository",
+    );
+    expect(reason.message).not.toContain("\n");
+  });
+
+  it("strips credentials and tokens from the git detail", () => {
+    const reason = failureReasonFor({
+      error:
+        "git push https://user:secret@github.com/acme/web.git failed (exit 128):\nfatal: Authentication failed for 'https://user:secret@github.com/acme/web.git' (token: ghp_abcdefghijklmnop123456789012)",
+      stage: "deliver",
+    });
+    expect(reason.category).toBe("git");
+    expect(reason.message).toContain("fatal: Authentication failed");
+    expect(reason.message).toContain("https://github.com/acme/web.git");
+    expect(reason.message).not.toContain("secret");
+    expect(reason.message).not.toContain("ghp_");
+  });
+
+  it("keeps the plain message when the git failure says nothing more", () => {
+    const reason = failureReasonFor({
+      error: "Deliver passed without recording a pull request",
+      stage: "deliver",
+    });
+    expect(reason.category).toBe("git");
+    expect(reason.message).toBe("A git or pull-request operation failed.");
+  });
 });
