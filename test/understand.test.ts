@@ -231,6 +231,46 @@ describe("Understand Stage (src/understand.ts)", () => {
 
       assert.equal(sections?.summary, "First line.\nSecond line.");
     });
+
+    it("reads the criterion conflicts as their own list, dropping a 'none' answer", () => {
+      const withConflict = parseUnderstandingOutput(
+        'SUMMARY:\nFixes negate.\n\nCONFLICTS:\n- Criterion "negate(3) returns 3" contradicts "negate(-3) returns 3".\n\nRISKS:\n- None known.\n',
+      );
+      assert.deepEqual(withConflict?.conflicts, [
+        'Criterion "negate(3) returns 3" contradicts "negate(-3) returns 3".',
+      ]);
+
+      const withNone = parseUnderstandingOutput(
+        "SUMMARY:\nFixes negate.\n\nCONFLICTS:\n- None\n",
+      );
+      assert.deepEqual(withNone?.conflicts, []);
+    });
+
+    it("reads whether a change is required, with the reason, and defaults to required", () => {
+      const notRequired = parseUnderstandingOutput(
+        "SUMMARY:\nAdd a sum helper.\n\nCHANGE_REQUIRED: no\nsum already exists in src/math.ts and test/math.test.ts covers it.\n",
+      );
+      assert.equal(notRequired?.changeRequired, false);
+      assert.equal(
+        notRequired?.changeReason,
+        "sum already exists in src/math.ts and test/math.test.ts covers it.",
+      );
+
+      const required = parseUnderstandingOutput(
+        "SUMMARY:\nAdd a sum helper.\n\nCHANGE_REQUIRED: yes\nNothing does this yet.\n",
+      );
+      assert.equal(required?.changeRequired, true);
+
+      const unclear = parseUnderstandingOutput(
+        "SUMMARY:\nAdd a sum helper.\n\nCHANGE_REQUIRED: nothing to say\n",
+      );
+      assert.equal(unclear?.changeRequired, true);
+
+      const absent = parseUnderstandingOutput("SUMMARY:\nAdd a sum helper.\n");
+      assert.equal(absent?.changeRequired, true);
+      assert.equal(absent?.changeReason, "");
+      assert.deepEqual(absent?.conflicts, []);
+    });
   });
 
   describe("cleanFilePath", () => {

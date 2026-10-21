@@ -123,6 +123,12 @@ export interface UnderstandingSections {
   architecturalNotes: string;
   constraints: string[];
   risks: string[];
+  /** Acceptance criteria that contradict each other or the code (none when empty). */
+  conflicts: string[];
+  /** False when the repository already does what the ticket asks. */
+  changeRequired: boolean;
+  /** Why no change is required; empty otherwise. */
+  changeReason: string;
 }
 
 /** A header line of the answer: `RELEVANT_FILES:`, `**Summary:**`, `## Risks:` … */
@@ -186,6 +192,12 @@ export function parseUnderstandingOutput(
   }
   if (sections.size === 0) return null;
   const block = (name: string) => (sections.get(name) ?? []).join("\n").trim();
+  // The first word is the answer; the rest of the section is the reason. Only `no`
+  // lifts the requirement, so an unclear answer keeps the run's change required.
+  const change = block("CHANGE_REQUIRED").match(
+    /^(yes|no)\b[\s.,:;—–-]*([\s\S]*)$/i,
+  );
+  const answer = change?.[1]?.toLowerCase();
   return {
     relevantFiles: sectionItems(sections.get("RELEVANT_FILES"))
       .map(cleanFilePath)
@@ -195,6 +207,11 @@ export function parseUnderstandingOutput(
     architecturalNotes: block("ARCHITECTURAL_NOTES"),
     constraints: sectionItems(sections.get("CONSTRAINTS")),
     risks: sectionItems(sections.get("RISKS")),
+    conflicts: sectionItems(sections.get("CONFLICTS")).filter(
+      (item) => !/^none\.?$/i.test(item),
+    ),
+    changeRequired: answer !== "no",
+    changeReason: answer === "no" ? (change?.[2] ?? "").trim() : "",
   };
 }
 
@@ -311,6 +328,9 @@ export async function understandRun(
         ...sections.constraints,
       ],
       risks: sections.risks,
+      conflicts: sections.conflicts,
+      changeRequired: sections.changeRequired,
+      changeReason: sections.changeReason,
     },
   };
 }

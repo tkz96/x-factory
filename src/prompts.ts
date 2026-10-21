@@ -361,6 +361,9 @@ RELEVANT_FILES:
 SUMMARY:
 <one paragraph: what the ticket asks for, and how it fits this repository>
 
+CHANGE_REQUIRED:
+<yes or no on the first line, then one or two sentences on the next lines: why a change is, or is not, required>
+
 EXISTING_BEHAVIOR:
 <what those files do today, and what the change must not break>
 
@@ -370,12 +373,17 @@ ARCHITECTURAL_NOTES:
 CONSTRAINTS:
 - <a constraint the implementation must respect>
 
+CONFLICTS:
+- <an acceptance criterion that contradicts another criterion, or the code as it is, and what they disagree about>
+
 RISKS:
 - <a risk or edge case the implementation must handle>
 
 Rules:
 - Name only files that exist in this repository today; never a path you have not read with your tools.
 - The RELEVANT_FILES lines are the files the summary is about.
+- Answer CHANGE_REQUIRED no only when the repository already does what the ticket asks; name the file and test that prove it.
+- CONFLICTS lists only real contradictions between the criteria above, or between a criterion and the code. Leave it empty when the criteria agree. Never reword, drop or pick a side for a criterion: the operator decides.
 - One item per \`- \` line, no code fences, and no text outside the sections.`;
 }
 
@@ -401,6 +409,13 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
       "1. The implementation must fulfill the ticket title and description without regressions.",
   });
   const understandingBlock = renderUnderstanding(understanding);
+  const conflictBlock = understanding?.conflicts?.length
+    ? `## Open criterion conflicts\nThe operator has not decided these. Keep every criterion they name exactly as written.\n${understanding.conflicts.map((c) => `- ${c}`).join("\n")}\n\n`
+    : "";
+  const noChangeBlock =
+    understanding?.changeRequired === false
+      ? `## No change required\nThe understanding found that no change is required: ${understanding.changeReason?.trim() || "the repository already does what the ticket asks"}\nIf the run continues anyway, do not invent work. Plan no code change, and name the existing file and test that already prove the criteria.\n\n`
+      : "";
   const draftBlock = draft?.trim() ? `## Plan so far\n${draft.trim()}\n\n` : "";
 
   return `You are writing the implementation plan for a ticket, before any code is written.
@@ -412,7 +427,7 @@ ${ticket.description ? `Description: ${ticket.description}\n` : ""}
 ### Acceptance Criteria:
 ${criteria}
 ${renderVerificationBlock(project)}
-${understandingBlock}${draftBlock}## Your Task
+${understandingBlock}${noChangeBlock}${conflictBlock}${draftBlock}## Your Task
 Inspect the repository with your tools, then write the plan as Markdown.
 Start with \`# Execution Plan for ${renderTicketHeading(ticket, { separator: ": " })}\`.
 Every task must name the repository-relative file it changes and the test file it adds or updates, each in \`backticks\`.
@@ -423,7 +438,9 @@ Answer with the plan only: no preamble, no commentary, no code fences.
 Rules:
 - Name real files and real tests; never a path you have not read with your tools.
 - Keep the intent of the plan so far, and make every step concrete.
-- Name the test file each change is proven by; a step without a test file is incomplete.`;
+- Name the test file each change is proven by; a step without a test file is incomplete.
+- Never change, drop or reinterpret an acceptance criterion. Copy each criterion exactly as it is written, even when it conflicts with another criterion or with the code.
+- If criteria conflict, say so in a "Needs your decision" section of the plan, name the criteria, and leave them unchanged. Do not pick a reading yourself.`;
 }
 
 export interface ChatPromptInput {
