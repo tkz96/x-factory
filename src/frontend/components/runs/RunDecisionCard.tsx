@@ -11,6 +11,7 @@ import {
   RunCheckpointBar,
 } from "./RunCheckpointBar.js";
 import { RunNowHeader } from "./RunNowHeader.js";
+import { RunReviewSummary } from "./RunReviewSummary.js";
 
 interface RunDecisionCardProps {
   run: Run;
@@ -45,6 +46,9 @@ export function RunDecisionCard({
   return (
     <div className="run-decision">
       <RunNowHeader run={run} now={facts} />
+      {run.status === "awaiting_review" && run.review && (
+        <RunReviewSummary review={run.review} />
+      )}
       <RunCheckpointBar
         status={run.status}
         pending={pending}

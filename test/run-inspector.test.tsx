@@ -213,6 +213,32 @@ describe("the Evidence section shows each check's verdict", () => {
     expect(pass?.classList.contains("run-inspector-value--pass")).toBe(true);
   });
 
+  // A review stored before status existed carries satisfied: boolean; it reads as its verdict.
+  it("reads a review stored before status existed by its satisfied flag", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", {
+          review: {
+            passed: false,
+            summary: "Review failed: 1 unmet criteria.",
+            criteriaChecked: [
+              { criterion: "Must verify", satisfied: true },
+              { criterion: "Must review", satisfied: false },
+            ],
+          } as unknown as Run["review"],
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    expect(within(container).getByText("Must verify")).toBeTruthy();
+    expect(within(container).queryByText("Not assessed")).toBeNull();
+    const fail = within(container).getAllByText("Fail")[0];
+    expect(fail?.classList.contains("run-inspector-value--fail")).toBe(true);
+    const pass = within(container).getAllByText("Pass")[0];
+    expect(pass?.classList.contains("run-inspector-value--pass")).toBe(true);
+  });
+
   // A criterion the Reviewer never assessed must read as such — never as a pass.
   it("shows a criterion the reviewer did not assess as Not assessed, muted", () => {
     const { container } = render(

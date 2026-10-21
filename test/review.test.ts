@@ -423,6 +423,177 @@ FAILED
     });
   });
 
+  describe("parseReviewOutput matches criteria by number or contained text", () => {
+    const four: Ticket = {
+      id: "Q-4",
+      title: "Calc",
+      acceptanceCriteria: [
+        "Add subtract to calc",
+        "Export subtract from index",
+        "Cover subtract with a test",
+        "Keep add unchanged",
+      ],
+    };
+    const three: Ticket = {
+      id: "Q-3",
+      title: "Three",
+      acceptanceCriteria: ["First thing", "Second thing", "Third thing"],
+    };
+
+    it("matches numbered lines with evidence after the criterion, and keeps the evidence as notes", () => {
+      const output = `
+- [PASS] 1. Sanitize passwords from audit payload — added in audit.ts:12
+- [PASS] 2. Do not modify user IDs (checked in user.ts)
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.deepEqual(result.criteriaChecked, [
+        {
+          criterion: "Sanitize passwords from audit payload",
+          status: "pass",
+          notes: "added in audit.ts:12",
+        },
+        {
+          criterion: "Do not modify user IDs",
+          status: "pass",
+          notes: "checked in user.ts",
+        },
+      ]);
+      assert.equal(result.passed, true);
+    });
+
+    it("matches Criterion N: and AC N: prefixes", () => {
+      const output = `
+- [PASS] AC1: First thing
+- [PASS] Criterion 2: Second thing — ok
+- [PASS] AC3: Third thing
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(three, output);
+
+      assert.deepEqual(
+        result.criteriaChecked.map((c) => c.status),
+        ["pass", "pass", "pass"],
+      );
+      assert.equal(result.criteriaChecked[1]?.notes, "ok");
+      assert.equal(result.passed, true);
+    });
+
+    it("matches #N: and N) numbering, keeping the evidence as notes", () => {
+      const output = `
+- [PASS] #1: Sanitize passwords from audit payload — added in audit.ts:12
+- [PASS] 2) Do not modify user IDs: unchanged
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.deepEqual(result.criteriaChecked, [
+        {
+          criterion: "Sanitize passwords from audit payload",
+          status: "pass",
+          notes: "added in audit.ts:12",
+        },
+        {
+          criterion: "Do not modify user IDs",
+          status: "pass",
+          notes: "unchanged",
+        },
+      ]);
+      assert.equal(result.passed, true);
+    });
+
+    it("matches criterion text with trailing notes and no number", () => {
+      const output = `
+- [PASS] Sanitize passwords from audit payload (grep finds nothing)
+- [PASS] Do not modify user IDs — unchanged in user.ts
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.criteriaChecked[0]?.status, "pass");
+      assert.equal(result.criteriaChecked[0]?.notes, "grep finds nothing");
+      assert.equal(result.criteriaChecked[1]?.status, "pass");
+      assert.equal(result.criteriaChecked[1]?.notes, "unchanged in user.ts");
+      assert.equal(result.passed, true);
+    });
+
+    it("ignores a numbered line whose number is out of range", () => {
+      const output = `
+- [PASS] 7. Sanitize passwords from audit payload
+- [PASS] 2. Do not modify user IDs
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.criteriaChecked[0]?.status, "not_assessed");
+      assert.equal(result.criteriaChecked[1]?.status, "pass");
+      assert.equal(result.passed, false);
+      assert.ok(result.summary.includes("1 not assessed"));
+    });
+
+    it("fails a criterion that has both a PASS and a FAIL line, and keeps the FAIL's evidence", () => {
+      const output = `
+- [PASS] 1. Sanitize passwords from audit payload — looks fine
+- [FAIL] Sanitize passwords from audit payload — password still logged
+- [PASS] 2. Do not modify user IDs
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.criteriaChecked[0]?.status, "fail");
+      assert.equal(result.criteriaChecked[0]?.notes, "password still logged");
+      assert.equal(result.passed, false);
+    });
+
+    it("leaves a paraphrased criterion with no number or text as not assessed, and fails the review", () => {
+      const output = `
+- [PASS] Scrub secrets out of the audit log
+- [PASS] Do not modify user IDs
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.criteriaChecked[0]?.status, "not_assessed");
+      assert.equal(result.criteriaChecked[0]?.notes, undefined);
+      assert.equal(result.criteriaChecked[1]?.status, "pass");
+      assert.equal(result.passed, false);
+    });
+
+    it("reads a full realistic review of four criteria as a pass", () => {
+      const output = `
+CRITERIA_CHECK:
+- [PASS] 1. Add subtract to calc — added in src/calc.ts:12
+- [PASS] 2. Export subtract from index — exported in src/index.ts:3
+- [PASS] 3. Cover subtract with a test — test/calc.test.ts:8 passes
+- [PASS] 4. Keep add unchanged — add() body is identical
+
+FINDINGS:
+- [INFO] The new function name follows the file's style (src/calc.ts, line 12)
+
+VERDICT:
+PASSED - all four criteria are met with no blocking errors.
+      `.trim();
+
+      const result = parseReviewOutput(four, output);
+
+      assert.equal(result.criteriaChecked.length, 4);
+      assert.equal(
+        result.criteriaChecked.every((c) => c.status === "pass"),
+        true,
+      );
+      assert.equal(result.passed, true);
+      assert.ok(result.summary.includes("4"));
+    });
+  });
+
   describe("buildReviewPrompt", () => {
     it("builds a structured review prompt including ticket, plan, and verification", () => {
       const prompt = buildReviewPrompt(
@@ -442,6 +613,22 @@ FAILED
       assert.ok(prompt.includes("CRITERIA_CHECK:"));
       assert.ok(prompt.includes("FINDINGS:"));
       assert.ok(prompt.includes("VERDICT:"));
+    });
+
+    it("asks for one numbered CRITERIA_CHECK line per criterion, with evidence after an em dash", () => {
+      const prompt = buildReviewPrompt(
+        ticket,
+        "1. Update regex",
+        "diff --git a/src/audit.ts",
+        sampleVerification,
+      );
+
+      assert.ok(
+        prompt.includes("- [PASS|FAIL] <n>. <criterion text> — <evidence>"),
+      );
+      assert.ok(
+        prompt.includes("Write exactly one line for each numbered criterion."),
+      );
     });
 
     it("provides fallback text when ticket has no acceptance criteria", () => {
