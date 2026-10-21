@@ -9,6 +9,7 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { RunCheckpointBar } from "../src/frontend/components/runs/RunCheckpointBar.js";
+import { RunDecisionCard } from "../src/frontend/components/runs/RunDecisionCard.js";
 import { RunNowHeader } from "../src/frontend/components/runs/RunNowHeader.js";
 import { runNow } from "../src/frontend/lib/run-now.js";
 import { runStatusUi } from "../src/frontend/lib/run-status-ui.js";
@@ -142,6 +143,53 @@ describe("the checkpoint bar offers exactly the actions the status allows", () =
       "Resume Run",
       "Abandon Run",
     ]);
+  });
+});
+
+describe("a decision card has one primary action", () => {
+  for (const status of ALL_STATUSES) {
+    for (const reworkReady of [false, true]) {
+      it(`${status}${reworkReady ? " with the rework written" : ""}: at most one primary button`, () => {
+        const run = makeRun(status);
+        const { container } = render(
+          <RunDecisionCard
+            run={run}
+            facts={runNow(run, [])}
+            pending={null}
+            conflict={false}
+            reworkReady={reworkReady}
+            onAction={() => {}}
+          />,
+        );
+        const primaries = Array.from(
+          container.querySelectorAll(".ui-button--primary"),
+        ).map((b) => b.textContent);
+        expect(primaries.length).toBeLessThanOrEqual(1);
+      });
+    }
+  }
+
+  it("awaiting review: Approve Changes is the primary action and Confirm Rework is secondary", () => {
+    const run = makeRun("awaiting_review");
+    const { container } = render(
+      <RunDecisionCard
+        run={run}
+        facts={runNow(run, [])}
+        pending={null}
+        conflict={false}
+        reworkReady
+        onAction={() => {}}
+      />,
+    );
+    const approve = within(container).getByRole("button", {
+      name: "Approve Changes",
+    });
+    const confirm = within(container).getByRole("button", {
+      name: "Confirm Rework",
+    });
+    expect(approve.className).toContain("ui-button--primary");
+    expect(confirm.className).toContain("ui-button--secondary");
+    expect(confirm.className).not.toContain("ui-button--primary");
   });
 });
 

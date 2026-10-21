@@ -537,3 +537,98 @@ describe("the Tickets toolbar", () => {
     }
   });
 });
+
+describe("hand-written tickets in the Tickets list", () => {
+  it("lists a ticket that has a run but is not in the tracker, marked as written by hand", () => {
+    const client = makeClient();
+    seedProjects(client);
+    client.setQueryData(queryKeys.tickets(ACME.id), [
+      ticket("ACME-1", "Checkout copy"),
+    ]);
+    client.setQueryData(queryKeys.tickets(DEMO.id), []);
+    client.setQueryData(queryKeys.runs(), [
+      run("run-hand", ACME, ticket("HAND-1", "Hand written task"), "executing"),
+    ]);
+    renderWithScope(React.createElement(QueueView), client);
+
+    const acme = screen().getByRole("region", { name: "Acme Web" });
+    expect(within(acme).getByText("Hand written task")).toBeDefined();
+    const card = within(acme).getByRole("button", {
+      name: "Select ticket HAND-1: Hand written task",
+    });
+    expect(card.textContent).toContain("Written by hand");
+    // The tracker's own ticket is not marked.
+    const tracked = within(acme).getByRole("button", {
+      name: "Select ticket ACME-1: Checkout copy",
+    });
+    expect(tracked.textContent).not.toContain("Written by hand");
+  });
+
+  it("does not repeat a tracker ticket that also has a run", () => {
+    const client = makeClient();
+    seedProjects(client);
+    client.setQueryData(queryKeys.tickets(ACME.id), [
+      ticket("ACME-1", "Checkout copy"),
+    ]);
+    client.setQueryData(queryKeys.tickets(DEMO.id), []);
+    client.setQueryData(queryKeys.runs(), [
+      run("run-tracked", ACME, ticket("ACME-1", "Checkout copy"), "executing"),
+    ]);
+    renderWithScope(React.createElement(QueueView), client);
+
+    const acme = screen().getByRole("region", { name: "Acme Web" });
+    expect(
+      within(acme).getAllByRole("button", { name: /Select ticket ACME-1/ }),
+    ).toHaveLength(1);
+    expect(acme.textContent).not.toContain("Written by hand");
+  });
+
+  it("shows a hand-written ticket once, under the project its runs belong to", () => {
+    const client = makeClient();
+    seedProjects(client);
+    client.setQueryData(queryKeys.tickets(ACME.id), []);
+    client.setQueryData(queryKeys.tickets(DEMO.id), []);
+    client.setQueryData(queryKeys.runs(), [
+      run("run-1", ACME, ticket("HAND-1", "Hand written task"), "failed"),
+      run("run-2", ACME, ticket("HAND-1", "Hand written task"), "executing"),
+      run("run-3", DEMO, ticket("DEMO-9", "Demo only"), "executing"),
+    ]);
+    renderWithScope(React.createElement(QueueView), client);
+
+    const acme = screen().getByRole("region", { name: "Acme Web" });
+    expect(
+      within(acme).getAllByRole("button", { name: /Select ticket HAND-1/ }),
+    ).toHaveLength(1);
+    expect(within(acme).queryByText("Demo only")).toBeNull();
+    const demo = screen().getByRole("region", { name: "Demo App" });
+    expect(within(demo).getByText("Demo only")).toBeDefined();
+    expect(within(demo).queryByText("Hand written task")).toBeNull();
+  });
+
+  it("does not mark a tracker ticket whose id the server stored with a different character", () => {
+    const client = makeClient();
+    seedProjects(client);
+    client.setQueryData(queryKeys.tickets(ACME.id), [
+      ticket("AB#1234", "Tracker ticket with a hash id"),
+    ]);
+    client.setQueryData(queryKeys.tickets(DEMO.id), []);
+    // createRun stores the id with the `#` replaced by `-`.
+    client.setQueryData(queryKeys.runs(), [
+      run(
+        "run-ab",
+        ACME,
+        ticket("AB-1234", "Tracker ticket with a hash id"),
+        "executing",
+      ),
+    ]);
+    renderWithScope(React.createElement(QueueView), client);
+
+    const acme = screen().getByRole("region", { name: "Acme Web" });
+    expect(
+      within(acme).getAllByRole("button", {
+        name: /Tracker ticket with a hash/,
+      }),
+    ).toHaveLength(1);
+    expect(acme.textContent).not.toContain("Written by hand");
+  });
+});

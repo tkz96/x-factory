@@ -90,6 +90,7 @@ function renderRunPage(
     url: string,
     body: unknown,
   ) => Promise<Response> | Response,
+  state?: { notice: string },
 ) {
   const requests: Array<{ method: string; url: string; body: unknown }> = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -110,7 +111,11 @@ function renderRunPage(
   const view = render(
     <QueryClientProvider client={client}>
       <ModalProvider>
-        <MemoryRouter initialEntries={["/runs/run-1"]}>
+        <MemoryRouter
+          initialEntries={[
+            state ? { pathname: "/runs/run-1", state } : "/runs/run-1",
+          ]}
+        >
           <LocationProbe />
           <Routes>
             <Route path="/runs/:runId" element={<RunDetailView />} />
@@ -239,5 +244,28 @@ describe("Start New Run on a finished run", () => {
       plan: "1. Do the thing.",
       description: "What run-1 is about.",
     });
+  });
+});
+
+describe("a notice that arrives with the run", () => {
+  it("shows the notice inline, announced politely", async () => {
+    const { view } = renderRunPage(
+      "awaiting_review",
+      async () => json(makeRun("run-1", "awaiting_review")),
+      {
+        notice:
+          "A run for this ticket is already active, so your new input was not used.",
+      },
+    );
+    const notice = await view.findByText(/already active/);
+    expect(notice.closest('[role="status"]')).not.toBeNull();
+  });
+
+  it("shows no notice when the run was opened without one", async () => {
+    const { view } = renderRunPage("awaiting_review", async () =>
+      json(makeRun("run-1", "awaiting_review")),
+    );
+    await view.findByRole("button", { name: "Approve Changes" });
+    expect(view.container.textContent).not.toContain("already active");
   });
 });

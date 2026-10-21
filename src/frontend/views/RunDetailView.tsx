@@ -7,7 +7,8 @@ import "./RunDetailView.css";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { FeedbackBanner } from "../components/feedback/FeedbackBanner.js";
 import { RunChat } from "../components/runs/RunChat.js";
 import type { CheckpointAction } from "../components/runs/RunCheckpointBar.js";
 import {
@@ -28,6 +29,12 @@ import { useRunDetail } from "../hooks/useRunDetail.js";
 import { ActiveRunConflictError, ApiError } from "../lib/api-client.js";
 import { refreshRunAfterMutation } from "../lib/run-state.js";
 
+/** What a screen that opens this run may pass along in its navigation state. */
+interface RunPageState {
+  /** A plain note for the reader, shown inline above the run. */
+  notice?: string;
+}
+
 /** The refusal of a checkpoint action whose run moved on first (a stale or illegal transition). */
 function movedOn(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409;
@@ -37,6 +44,8 @@ export function RunDetailView() {
   const { runId } = useParams<{ runId: string }>();
   const { run, isLoading, error, events, connected } = useRunDetail(runId);
   const navigate = useNavigate();
+  const location = useLocation();
+  const notice = (location.state as RunPageState | null)?.notice;
   const queryClient = useQueryClient();
 
   const transitionMutation = useTransitionRun();
@@ -121,8 +130,7 @@ export function RunDetailView() {
         ticketId: run.ticket.id,
         ticketTitle: run.ticket.title,
         acceptanceCriteria: run.ticket.acceptanceCriteria,
-        // The server refuses a run without a plan: the new run starts from
-        // the same plan and ticket description this one had.
+        // The new run starts from the same plan and ticket description this one had.
         plan: run.plan,
         ...(run.ticket.description
           ? { description: run.ticket.description }
@@ -217,6 +225,7 @@ export function RunDetailView() {
         }
       >
         <div className="run-detail-main">
+          {notice && <FeedbackBanner tone="info" message={notice} />}
           {actionError && (
             <div id="run-error" className="error-message">
               {actionError}

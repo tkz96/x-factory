@@ -23,6 +23,8 @@ interface TicketCardProps {
    * requires, never a hard-coded one.
    */
   workflowLabel: string;
+  /** Written by hand: a run exists for it, but the tracker does not list it. */
+  handWritten?: boolean;
 }
 
 export function TicketCard({
@@ -30,6 +32,7 @@ export function TicketCard({
   projectId,
   runLink,
   workflowLabel,
+  handWritten = false,
 }: TicketCardProps) {
   const { openNewRunModal } = useModal();
   const navigate = useNavigate();
@@ -45,15 +48,15 @@ export function TicketCard({
       ticketId: ticket.id,
       ticketTitle: ticket.title,
       criteria: ticket.acceptanceCriteria,
-      plan: `1. Understand ticket requirements\n2. Implement changes for ${ticket.title}\n3. Verify test suite passes without regressions\n4. Review and deliver`,
     });
   };
 
   const criteriaPreview = (ticket.acceptanceCriteria || []).slice(0, 3);
   // The ticket's own labels, or the label the tracker requires when the
   // provider maps none. A tag, never a control: the Badge block's quiet role.
-  const labels =
-    ticket.labels && ticket.labels.length > 0
+  const labels = handWritten
+    ? ["Written by hand"]
+    : ticket.labels && ticket.labels.length > 0
       ? ticket.labels
       : workflowLabel
         ? [workflowLabel]

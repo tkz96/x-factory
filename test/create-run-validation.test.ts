@@ -45,19 +45,30 @@ function createRunRequest(body: Record<string, unknown>): Request {
 const VALID_RUN = { ticketId: "X-1", ticketTitle: "t", plan: "1. Do it" };
 
 describe("POST /api/runs validation", () => {
-  it("answers 400 with the reason when the plan is missing", async () => {
+  // The plan is optional: the Builder writes one when none is given, so a run
+  // without a plan is a valid run, not a refused one.
+  it("creates the run when the plan is missing", async () => {
     await withReadyModelRoles(async () => {
       const repos = createTestRepositories();
       const res = await dispatchHttp(
         createRunRequest({ ticketId: "X-9", ticketTitle: "t" }),
         repos,
       );
-      expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({
-        error: "Implementation plan is required.",
-      });
-      expect(repos.runs.list()).toEqual([]);
+      expect(res.status).toBe(201);
+      const run = (await res.json()) as { plan: string };
+      expect(run.plan).toBe("");
+      expect(repos.runs.list()).toHaveLength(1);
     });
+  });
+
+  it("accepts a body with no plan at the schema", () => {
+    expect(
+      CreateRunBodySchema.safeParse({
+        projectId: PROJECT_ID,
+        ticketId: "X-9",
+        ticketTitle: "t",
+      }).success,
+    ).toBe(true);
   });
 
   it("answers 400 with the reason when the ticket ID is blank", async () => {

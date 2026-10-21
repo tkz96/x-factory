@@ -34,7 +34,7 @@ import { useCurrentProject } from "../context/ProjectContext.js";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors.js";
 import { useRuns, useTickets } from "../hooks/useQueries.js";
 import { queryKeys } from "../lib/query-policies.js";
-import { ticketRunLinkOf } from "../lib/ticket-runs.js";
+import { handWrittenTicketsOf, ticketRunLinkOf } from "../lib/ticket-runs.js";
 import "./QueueView.css";
 
 const EMPTY_TICKETS: Ticket[] = [];
@@ -89,7 +89,24 @@ function ProjectTickets({
   const { openNewRunModal } = useModal();
   const navigate = useNavigate();
   const ticketsQuery = useTickets(project.id);
-  const tickets = ticketsQuery.data ?? EMPTY_TICKETS;
+  const trackerTickets = ticketsQuery.data ?? EMPTY_TICKETS;
+  // Tickets the operator wrote by hand, read from this project's runs. They can
+  // only be told apart once the tracker has answered, so none are derived before.
+  const handWritten = useMemo(
+    () =>
+      ticketsQuery.data
+        ? handWrittenTicketsOf(runs, project.id, trackerTickets)
+        : EMPTY_TICKETS,
+    [ticketsQuery.data, runs, project.id, trackerTickets],
+  );
+  const handWrittenIds = useMemo(
+    () => new Set(handWritten.map((t) => t.id)),
+    [handWritten],
+  );
+  const tickets = useMemo(
+    () => [...trackerTickets, ...handWritten],
+    [trackerTickets, handWritten],
+  );
   const filtered = useMemo(
     () => filterTickets(tickets, searchQuery),
     [tickets, searchQuery],
@@ -170,6 +187,7 @@ function ProjectTickets({
               projectId={project.id}
               workflowLabel={workflowLabel}
               runLink={ticketRunLinkOf(runs, project.id, ticket.id)}
+              handWritten={handWrittenIds.has(ticket.id)}
             />
           ))}
         </div>
