@@ -158,7 +158,7 @@ export const ACTIONS_BY_STATUS: Record<RunStatus, readonly RunAction[]> = {
   awaiting_plan_approval: ["approve", "restart", "chat", "stop"],
   executing: ["stop"],
   awaiting_review: ["approve", "requeue", "chat", "stop"],
-  ready_for_pr: ["deliver"],
+  ready_for_pr: ["deliver", "abandon"],
   pr_created: [],
   recovery_required: ["resume", "abandon"],
   review_retry_required: ["retry_review", "stop", "abandon"],
