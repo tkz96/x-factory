@@ -262,9 +262,8 @@ describe("a notice that arrives with the run", () => {
   });
 
   it("shows no notice when the run was opened without one", async () => {
-    const { view } = renderRunPage(
-      "awaiting_review",
-      async () => json(makeRun("run-1", "awaiting_review")),
+    const { view } = renderRunPage("awaiting_review", async () =>
+      json(makeRun("run-1", "awaiting_review")),
     );
     await view.findByRole("button", { name: "Approve Changes" });
     expect(view.container.textContent).not.toContain("already active");

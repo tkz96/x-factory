@@ -625,7 +625,9 @@ describe("hand-written tickets in the Tickets list", () => {
 
     const acme = screen().getByRole("region", { name: "Acme Web" });
     expect(
-      within(acme).getAllByRole("button", { name: /Tracker ticket with a hash/ }),
+      within(acme).getAllByRole("button", {
+        name: /Tracker ticket with a hash/,
+      }),
     ).toHaveLength(1);
     expect(acme.textContent).not.toContain("Written by hand");
   });
