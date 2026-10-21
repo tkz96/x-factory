@@ -50,12 +50,12 @@ describe("Review Parser & Engine (src/review.ts)", () => {
     it("parses valid criteria lines with PASS and FAIL", () => {
       const passCrit = parseCriteriaLine("- [PASS] Passwords removed");
       assert.ok(passCrit);
-      assert.equal(passCrit.satisfied, true);
+      assert.equal(passCrit.status, "pass");
       assert.equal(passCrit.criterion, "Passwords removed");
 
       const failCrit = parseCriteriaLine("- [FAIL] Passwords still present");
       assert.ok(failCrit);
-      assert.equal(failCrit.satisfied, false);
+      assert.equal(failCrit.status, "fail");
       assert.equal(failCrit.criterion, "Passwords still present");
     });
 
@@ -64,7 +64,7 @@ describe("Review Parser & Engine (src/review.ts)", () => {
         "- [PASS] [auth] support OAuth2 tokens [v2.0]",
       );
       assert.ok(critWithBrackets);
-      assert.equal(critWithBrackets.satisfied, true);
+      assert.equal(critWithBrackets.status, "pass");
       assert.equal(
         critWithBrackets.criterion,
         "[auth] support OAuth2 tokens [v2.0]",
@@ -111,17 +111,32 @@ describe("Review Parser & Engine (src/review.ts)", () => {
     it("evaluates verdict directly from findings and criteria", () => {
       const passed = evaluateReviewVerdict(
         [],
-        [{ criterion: "Crit", satisfied: true }],
+        [{ criterion: "Crit", status: "pass" }],
         "VERDICT: PASSED",
       );
       assert.equal(passed.passed, true);
 
       const failed = evaluateReviewVerdict(
         [{ severity: "error", message: "Boom" }],
-        [{ criterion: "Crit", satisfied: true }],
+        [{ criterion: "Crit", status: "pass" }],
         "VERDICT: FAILED",
       );
       assert.equal(failed.passed, false);
+    });
+
+    // Changed with the fail-closed review (#10 fix): a criterion the Reviewer never
+    // assessed used to be silently treated as satisfied when the verdict was missing.
+    it("fails a missing verdict when a criterion was not assessed, and says so", () => {
+      const result = evaluateReviewVerdict(
+        [],
+        [
+          { criterion: "Crit", status: "pass" },
+          { criterion: "Missed", status: "not_assessed" },
+        ],
+        "Looks fine to me.",
+      );
+      assert.equal(result.passed, false);
+      assert.ok(result.summary.includes("1 not assessed"));
     });
   });
 
@@ -143,8 +158,8 @@ PASSED - All criteria met and code is clean.
 
       assert.equal(result.passed, true);
       assert.equal(result.criteriaChecked.length, 2);
-      assert.equal(result.criteriaChecked[0]?.satisfied, true);
-      assert.equal(result.criteriaChecked[1]?.satisfied, true);
+      assert.equal(result.criteriaChecked[0]?.status, "pass");
+      assert.equal(result.criteriaChecked[1]?.status, "pass");
       assert.equal(result.findings.length, 1);
       assert.equal(result.findings[0]?.severity, "info");
       assert.ok(result.summary.includes("Review passed"));
@@ -168,7 +183,7 @@ FAILED - User IDs are erroneously removed.
 
       assert.equal(result.passed, false);
       assert.equal(
-        result.criteriaChecked.some((c) => !c.satisfied),
+        result.criteriaChecked.some((c) => c.status === "fail"),
         true,
       );
       assert.equal(
@@ -230,10 +245,13 @@ VERDICT: FAILED - Missing secondary requirements.
       assert.equal(result.passed, false);
     });
 
-    it("handles completely empty agent output gracefully", () => {
+    // Changed with the fail-closed review (#10 fix): empty output used to record every
+    // criterion as satisfied and pass the review. A criterion the Reviewer did not
+    // assess is now recorded as not assessed, and any not-assessed criterion fails.
+    it("fails closed on empty agent output: every criterion is not assessed", () => {
       const result = parseReviewOutput(ticket, "");
 
-      assert.equal(result.passed, true);
+      assert.equal(result.passed, false);
       assert.equal(result.findings.length, 0);
       assert.equal(
         result.criteriaChecked.length,
@@ -243,6 +261,52 @@ VERDICT: FAILED - Missing secondary requirements.
         result.criteriaChecked[0]?.criterion,
         ticket.acceptanceCriteria[0],
       );
+      assert.equal(
+        result.criteriaChecked.every((c) => c.status === "not_assessed"),
+        true,
+      );
+      assert.ok(result.summary.includes("Review failed"));
+      assert.ok(result.summary.includes("2 not assessed"));
+    });
+
+    it("fails a PASSED verdict when no criteria lines were given, recording them as not assessed", () => {
+      const output = `
+FINDINGS:
+- [INFO] The code looks reasonable.
+
+VERDICT:
+PASSED - Ship it.
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.passed, false);
+      assert.equal(result.criteriaChecked.length, 2);
+      assert.equal(
+        result.criteriaChecked.every((c) => c.status === "not_assessed"),
+        true,
+      );
+      assert.ok(result.summary.includes("2 not assessed"));
+    });
+
+    it("fails on a case-variant or markdown-wrapped FAIL verdict", () => {
+      const criteriaLines = `
+CRITERIA_CHECK:
+- [PASS] Sanitize passwords from audit payload
+- [PASS] Do not modify user IDs
+      `.trim();
+
+      const caseVariant = parseReviewOutput(
+        ticket,
+        `${criteriaLines}\n\nVERDICT: Failed - I am not convinced.`,
+      );
+      assert.equal(caseVariant.passed, false);
+
+      const markdown = parseReviewOutput(
+        ticket,
+        `${criteriaLines}\n\n**verdict:** fail`,
+      );
+      assert.equal(markdown.passed, false);
     });
 
     it("handles output where criteria contain brackets", () => {
@@ -266,9 +330,9 @@ FAILED
 
       const result = parseReviewOutput(bracketTicket, output);
       assert.equal(result.passed, false);
-      assert.equal(result.criteriaChecked[0]?.satisfied, true);
+      assert.equal(result.criteriaChecked[0]?.status, "pass");
       assert.equal(result.criteriaChecked[0]?.criterion, "[feat] Add OAuth");
-      assert.equal(result.criteriaChecked[1]?.satisfied, false);
+      assert.equal(result.criteriaChecked[1]?.status, "fail");
       assert.equal(result.criteriaChecked[1]?.criterion, "[api] Return JSON");
     });
   });
@@ -330,14 +394,14 @@ FAILED
       assert.equal(fallback.findings.length, 1);
       assert.equal(fallback.findings[0]?.severity, "error");
       assert.equal(fallback.criteriaChecked.length, 2);
-      assert.equal(fallback.criteriaChecked[0]?.satisfied, false);
+      assert.equal(fallback.criteriaChecked[0]?.status, "not_assessed");
     });
 
-    it("creates a passed fallback review without findings", () => {
+    it("creates a passed fallback review without findings, still recording the criteria as not assessed", () => {
       const fallback = createFallbackReview(ticket, "Default approval", true);
       assert.equal(fallback.passed, true);
       assert.equal(fallback.findings.length, 0);
-      assert.equal(fallback.criteriaChecked[0]?.satisfied, true);
+      assert.equal(fallback.criteriaChecked[0]?.status, "not_assessed");
     });
   });
 

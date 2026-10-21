@@ -196,8 +196,9 @@ describe("the Evidence section shows each check's verdict", () => {
             passed: false,
             summary: "",
             criteriaChecked: [
-              { criterion: "Must verify", satisfied: true },
-              { criterion: "Must review", satisfied: false },
+              { criterion: "Must verify", status: "pass" },
+              { criterion: "Must review", status: "fail" },
+              { criterion: "Must deploy", status: "not_assessed" },
             ],
           } as unknown as Run["review"],
         })}
@@ -210,6 +211,34 @@ describe("the Evidence section shows each check's verdict", () => {
     expect(fail?.classList.contains("run-inspector-value--fail")).toBe(true);
     const pass = within(container).getAllByText("Pass")[0];
     expect(pass?.classList.contains("run-inspector-value--pass")).toBe(true);
+  });
+
+  // A criterion the Reviewer never assessed must read as such — never as a pass.
+  it("shows a criterion the reviewer did not assess as Not assessed, muted", () => {
+    const { container } = render(
+      <RunInspector
+        run={makeRun("awaiting_review", {
+          review: {
+            passed: false,
+            summary:
+              "Review failed: 0 blocking errors, 0 unmet criteria, 1 not assessed.",
+            criteriaChecked: [
+              { criterion: "Must verify", status: "pass" },
+              { criterion: "Must deploy", status: "not_assessed" },
+            ],
+          } as unknown as Run["review"],
+        })}
+        events={[]}
+        connected={false}
+      />,
+    );
+    const notAssessed = within(container).getByText("Not assessed");
+    expect(notAssessed?.classList.contains("run-inspector-value--muted")).toBe(
+      true,
+    );
+    expect(notAssessed?.classList.contains("run-inspector-value--pass")).toBe(
+      false,
+    );
   });
 });
 

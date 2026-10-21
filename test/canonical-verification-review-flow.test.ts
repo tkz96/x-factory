@@ -43,8 +43,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
     passed: true,
     findings: [{ severity: "info", message: "Clean implementation" }],
     criteriaChecked: [
-      { criterion: "AC 1: Must verify", satisfied: true },
-      { criterion: "AC 2: Must review", satisfied: true },
+      { criterion: "AC 1: Must verify", status: "pass" },
+      { criterion: "AC 2: Must review", status: "pass" },
     ],
     summary: "Review passed: all 2 criteria satisfied with 0 blocking errors.",
   };
@@ -199,8 +199,8 @@ describe("Issue #103: Canonical Verification and Review Flow", () => {
       { severity: "info", message: "Clean implementation", file: "src/app.ts" },
     ],
     criteriaChecked: [
-      { criterion: "AC 1: Must verify", satisfied: true },
-      { criterion: "AC 2: Must review", satisfied: true },
+      { criterion: "AC 1: Must verify", status: "pass" },
+      { criterion: "AC 2: Must review", status: "pass" },
     ],
     summary: "All acceptance criteria verified and code quality approved.",
   };

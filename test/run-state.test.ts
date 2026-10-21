@@ -56,7 +56,7 @@ const sampleReview: ReviewResult = {
   findings: [
     { severity: "info", message: "Clean implementation", file: "src/app.ts" },
   ],
-  criteriaChecked: [{ criterion: "AC 1: Must verify", satisfied: true }],
+  criteriaChecked: [{ criterion: "AC 1: Must verify", status: "pass" }],
   summary: "All acceptance criteria verified and code quality approved.",
 };
 

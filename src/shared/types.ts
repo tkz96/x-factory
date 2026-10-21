@@ -306,16 +306,25 @@ export interface Finding {
 }
 
 /**
+ * One acceptance criterion as the Reviewer assessed it. `not_assessed` means the
+ * Reviewer never judged the criterion; it is never recorded as a pass, and any
+ * not-assessed criterion fails the review.
+ */
+export type ReviewCriterionStatus = "pass" | "fail" | "not_assessed";
+
+export interface ReviewCriterionResult {
+  criterion: string;
+  status: ReviewCriterionStatus;
+  notes?: string | undefined;
+}
+
+/**
  * Review result produced by evaluating against acceptance criteria.
  */
 export interface ReviewResult {
   passed: boolean;
   findings: Finding[];
-  criteriaChecked: Array<{
-    criterion: string;
-    satisfied: boolean;
-    notes?: string | undefined;
-  }>;
+  criteriaChecked: ReviewCriterionResult[];
   summary: string;
 }
 

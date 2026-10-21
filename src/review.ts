@@ -23,6 +23,7 @@ import { buildReviewPrompt } from "./prompts.js";
 import type {
   Finding,
   ImplementationContext,
+  ReviewCriterionResult,
   ReviewResult,
   Ticket,
   VerificationResult,
@@ -272,7 +273,7 @@ async function promptForVerdict(
 function hasReviewVerdict(output: string): boolean {
   return (
     extractReviewItems(output).criteriaChecked.length > 0 ||
-    /VERDICT:\s*(PASSED|FAILED)/i.test(output)
+    parseReviewVerdict(output) !== null
   );
 }
 
@@ -287,29 +288,36 @@ export function parseFindingLine(trimmed: string): Finding | null {
 
 export function parseCriteriaLine(
   trimmed: string,
-): { criterion: string; satisfied: boolean } | null {
+): { criterion: string; status: "pass" | "fail" } | null {
   const match = trimmed.match(/^-\s*\[(PASS|FAIL)\]\s*(.+)/i);
   if (!match?.[1] || !match[2]) return null;
   return {
-    satisfied: match[1].toUpperCase() === "PASS",
+    status: match[1].toUpperCase() === "PASS" ? "pass" : "fail",
     criterion: match[2].trim(),
   };
 }
 
+/**
+ * The Reviewer's verdict, read tolerantly: any case, and tolerant of the
+ * whitespace and markdown a model may wrap it in ("VERDICT: FAILED",
+ * "VERDICT:\nFAILED", "**VERDICT:** FAILED", "Verdict - fail"). The last
+ * verdict stated in the output wins. No verdict is `null`, never a pass.
+ */
+export function parseReviewVerdict(output: string): "pass" | "fail" | null {
+  const matches = [
+    ...output.matchAll(/verdict[^a-z0-9]{0,10}(pass(?:ed)?|fail(?:ed)?)\b/gi),
+  ];
+  const last = matches.at(-1)?.[1];
+  if (!last) return null;
+  return last.toLowerCase().startsWith("pass") ? "pass" : "fail";
+}
+
 export function extractReviewItems(output: string): {
   findings: Finding[];
-  criteriaChecked: Array<{
-    criterion: string;
-    satisfied: boolean;
-    notes?: string | undefined;
-  }>;
+  criteriaChecked: ReviewCriterionResult[];
 } {
   const findings: Finding[] = [];
-  const criteriaChecked: Array<{
-    criterion: string;
-    satisfied: boolean;
-    notes?: string | undefined;
-  }> = [];
+  const criteriaChecked: ReviewCriterionResult[] = [];
 
   for (const line of output.split("\n")) {
     const trimmed = line.trim();
@@ -329,24 +337,29 @@ export function extractReviewItems(output: string): {
 
 export function evaluateReviewVerdict(
   findings: Finding[],
-  criteriaChecked: Array<{
-    criterion: string;
-    satisfied: boolean;
-    notes?: string | undefined;
-  }>,
+  criteriaChecked: ReviewCriterionResult[],
   output: string,
 ): { passed: boolean; summary: string } {
-  const hasBlockingError = findings.some((f) => f.severity === "error");
-  const hasFailedCriteria = criteriaChecked.some((c) => !c.satisfied);
-  const explicitFailedVerdict =
-    output.includes("VERDICT:\nFAILED") || output.includes("VERDICT: FAILED");
+  const blockingErrors = findings.filter((f) => f.severity === "error").length;
+  const unmet = criteriaChecked.filter((c) => c.status === "fail").length;
+  const notAssessed = criteriaChecked.filter(
+    (c) => c.status === "not_assessed",
+  ).length;
+  const verdict = parseReviewVerdict(output);
+  // No verdict only stands when there was something to assess and it all passed;
+  // a review that assessed nothing and stated nothing is doubt enough to fail.
+  const verdictDoubtful = verdict === null && criteriaChecked.length === 0;
 
   const passed =
-    !hasBlockingError && !hasFailedCriteria && !explicitFailedVerdict;
+    blockingErrors === 0 &&
+    unmet === 0 &&
+    notAssessed === 0 &&
+    verdict !== "fail" &&
+    !verdictDoubtful;
 
   const summary = passed
     ? `Review passed: all ${criteriaChecked.length} criteria satisfied with 0 blocking errors.`
-    : `Review failed: ${findings.filter((f) => f.severity === "error").length} blocking errors, ${criteriaChecked.filter((c) => !c.satisfied).length} unmet criteria.`;
+    : `Review failed: ${blockingErrors} blocking errors, ${unmet} unmet criteria, ${notAssessed} not assessed.`;
 
   return { passed, summary };
 }
@@ -357,9 +370,11 @@ export function parseReviewOutput(
 ): ReviewResult {
   const { findings, criteriaChecked } = extractReviewItems(output);
 
+  // A criterion the Reviewer did not assess is recorded as such — never as
+  // satisfied — and any not-assessed criterion fails the review below.
   if (criteriaChecked.length === 0) {
     for (const c of ticket.acceptanceCriteria) {
-      criteriaChecked.push({ criterion: c, satisfied: true });
+      criteriaChecked.push({ criterion: c, status: "not_assessed" });
     }
   }
 
@@ -385,9 +400,10 @@ export function createFallbackReview(
   return {
     passed,
     findings: passed ? [] : [{ severity: "error", message }],
+    // A fallback review never ran the Reviewer, so nothing was assessed.
     criteriaChecked: ticket.acceptanceCriteria.map((c) => ({
       criterion: c,
-      satisfied: passed,
+      status: "not_assessed" as const,
     })),
     summary: message,
   };

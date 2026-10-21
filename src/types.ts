@@ -21,6 +21,8 @@ export type {
   RepositoryCommands,
   RepositoryReadiness,
   RepositoryRole,
+  ReviewCriterionResult,
+  ReviewCriterionStatus,
   ReviewResult,
   Run,
   RunEvent,

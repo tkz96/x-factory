@@ -46,6 +46,7 @@ interface Verdict {
 const VERDICT_PASS: Verdict = { text: "Pass", tone: "pass" };
 const VERDICT_FAIL: Verdict = { text: "Fail", tone: "fail" };
 const VERDICT_AWAITING: Verdict = { text: "Awaiting", tone: "muted" };
+const VERDICT_NOT_ASSESSED: Verdict = { text: "Not assessed", tone: "muted" };
 
 const MODEL_ROLES: readonly { role: ModelRoleName; label: string }[] = [
   { role: "builder", label: "Builder" },
@@ -80,7 +81,13 @@ function evidenceChecks(
   const criteria = (review?.criteriaChecked ?? []).map((check, index) => ({
     key: `criterion-${index}`,
     label: check.criterion,
-    verdict: check.satisfied ? VERDICT_PASS : VERDICT_FAIL,
+    // A criterion the Reviewer never judged reads as such — never as a pass.
+    verdict:
+      check.status === "pass"
+        ? VERDICT_PASS
+        : check.status === "fail"
+          ? VERDICT_FAIL
+          : VERDICT_NOT_ASSESSED,
   }));
 
   return [
