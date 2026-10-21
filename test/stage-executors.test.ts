@@ -174,9 +174,16 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
     };
 
     it("routes to deliver stage when review is approved", async () => {
+      // The scripted reviewer assesses exactly the run's one criterion; under
+      // the fail-closed rules any other criteria would be "not assessed".
       const { context, runRepo, repos } = setupTestContext("review", {
         status: "executing",
         artifactsDir: artifactDirs.make(),
+        ticket: {
+          id: "T-100",
+          title: "Executor Test",
+          acceptanceCriteria: ["Acceptance"],
+        },
       });
       runRepo.update(context.run.id, { verification: mockVerification });
       const updatedRunForTest = runRepo.get(context.run.id);
@@ -220,6 +227,11 @@ describe("Stage Executors (XFM-28, XFM-31, XFM-34)", () => {
       const { context, runRepo, repos } = setupTestContext("review", {
         status: "executing",
         artifactsDir: artifactDirs.make(),
+        ticket: {
+          id: "T-100",
+          title: "Executor Test",
+          acceptanceCriteria: ["Acceptance"],
+        },
       });
       runRepo.update(context.run.id, { verification: mockVerification });
       const persisted = runRepo.get(context.run.id);

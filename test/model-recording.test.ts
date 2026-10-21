@@ -60,7 +60,9 @@ function seedRun(id: string, status: Parameters<typeof forceRunStatus>[2]) {
     id,
     projectId: "proj-model-recording",
     projectName: "Model Recording",
-    ticket: { id: "T-1", title: "T", acceptanceCriteria: ["Works"] },
+    // The scripted reviewer (PASSING_REVIEW_OUTPUT) assesses "Acceptance";
+    // under the fail-closed rules any other criterion is "not assessed".
+    ticket: { id: "T-1", title: "T", acceptanceCriteria: ["Acceptance"] },
     plan: "1. Do it",
     branch: "main",
     status: "queued",

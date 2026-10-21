@@ -309,6 +309,92 @@ CRITERIA_CHECK:
       assert.equal(markdown.passed, false);
     });
 
+    // Seen in a real run: the Reviewer repeated the whole criteria list (once in a
+    // checklist, once in a summary) and the review claimed "all 8 criteria
+    // satisfied" for a 4-criterion ticket. Only ticket criteria are counted, once.
+    it("keeps one entry per ticket criterion even when the Reviewer repeats the list", () => {
+      const quadTicket: Ticket = {
+        id: "Q-1",
+        title: "Quad",
+        acceptanceCriteria: [
+          "First criterion",
+          "Second criterion",
+          "Third criterion",
+          "Fourth criterion",
+        ],
+      };
+      const output = `
+CRITERIA_CHECK:
+- [PASS] First criterion
+- [PASS] Second criterion
+- [PASS] Third criterion
+- [PASS] Fourth criterion
+
+SUMMARY:
+- [PASS] First criterion
+- [PASS] Second criterion
+- [PASS] Third criterion
+- [PASS] Fourth criterion
+- [PASS] A bonus check nobody asked for
+
+VERDICT:
+PASSED
+      `.trim();
+
+      const result = parseReviewOutput(quadTicket, output);
+
+      assert.equal(result.criteriaChecked.length, 4);
+      assert.equal(result.passed, true);
+      assert.ok(result.summary.includes("all 4 criteria satisfied"));
+    });
+
+    it("lets a FAIL win over a PASS for the same criterion, however it is repeated", () => {
+      const output = `
+- [PASS] Do not modify user IDs
+- [FAIL] Do not modify user IDs
+VERDICT: FAILED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.criteriaChecked.length, 2);
+      assert.equal(result.criteriaChecked[1]?.status, "fail");
+      assert.equal(result.passed, false);
+    });
+
+    it("does not count a Reviewer line that matches no ticket criterion", () => {
+      const output = `
+- [PASS] Sanitize passwords from audit payload
+- [PASS] A bonus check nobody asked for
+- [FAIL] Another criterion entirely
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(result.criteriaChecked.length, 2);
+      assert.equal(result.criteriaChecked[0]?.status, "pass");
+      assert.equal(result.criteriaChecked[1]?.status, "not_assessed");
+      assert.equal(result.passed, false);
+      assert.ok(result.summary.includes("1 not assessed"));
+    });
+
+    it("matches a Reviewer line to the ticket criterion by normalised text", () => {
+      const output = `
+- [PASS] 1. Sanitize passwords from audit payload.
+- [PASS] do not modify user IDs
+VERDICT: PASSED
+      `.trim();
+
+      const result = parseReviewOutput(ticket, output);
+
+      assert.equal(
+        result.criteriaChecked.every((c) => c.status === "pass"),
+        true,
+      );
+      assert.equal(result.passed, true);
+    });
+
     it("handles output where criteria contain brackets", () => {
       const bracketTicket: Ticket = {
         id: "AUTH-10",

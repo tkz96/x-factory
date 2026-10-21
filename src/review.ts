@@ -364,19 +364,43 @@ export function evaluateReviewVerdict(
   return { passed, summary };
 }
 
+/**
+ * How a Reviewer line is matched to a ticket criterion: lowercased, with list
+ * markers and numbering stripped and every non-alphanumeric run collapsed to
+ * one space, so "1. Sanitize passwords from audit payload." matches
+ * "Sanitize passwords from audit payload".
+ */
+function criterionKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/^(?:[-*+]|\d+[.)])\s+/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function parseReviewOutput(
   ticket: Ticket,
   output: string,
 ): ReviewResult {
-  const { findings, criteriaChecked } = extractReviewItems(output);
+  const { findings, criteriaChecked: assessed } = extractReviewItems(output);
 
-  // A criterion the Reviewer did not assess is recorded as such — never as
-  // satisfied — and any not-assessed criterion fails the review below.
-  if (criteriaChecked.length === 0) {
-    for (const c of ticket.acceptanceCriteria) {
-      criteriaChecked.push({ criterion: c, status: "not_assessed" });
-    }
-  }
+  // One entry per ticket criterion: the Reviewer's lines are matched to the
+  // ticket's criteria by normalised text, a FAIL wins over a PASS for the same
+  // criterion, and lines that match no ticket criterion are never counted.
+  // A criterion with no matching line stays not_assessed — never satisfied.
+  const criteriaChecked: ReviewCriterionResult[] =
+    ticket.acceptanceCriteria.map((criterion) => {
+      const key = criterionKey(criterion);
+      const statuses = assessed
+        .filter((line) => criterionKey(line.criterion) === key)
+        .map((line) => line.status);
+      const status = statuses.includes("fail")
+        ? "fail"
+        : statuses.includes("pass")
+          ? "pass"
+          : "not_assessed";
+      return { criterion, status };
+    });
 
   const { passed, summary } = evaluateReviewVerdict(
     findings,

@@ -49,7 +49,13 @@ describe("Shared run-event union (#171)", () => {
       id: runId,
       projectId: "proj-1",
       projectName: "Project 1",
-      ticket: { id: "T-1", title: "Ticket 1", acceptanceCriteria: ["AC 1"] },
+      // The scripted reviewer (PASSING_REVIEW_OUTPUT) assesses "Acceptance";
+      // under the fail-closed rules any other criterion is "not assessed".
+      ticket: {
+        id: "T-1",
+        title: "Ticket 1",
+        acceptanceCriteria: ["Acceptance"],
+      },
       plan: "Plan",
       branch: "factory/t-1",
       status: "awaiting_plan_approval",
@@ -253,7 +259,11 @@ describe("Shared run-event union (#171)", () => {
       id: runId,
       projectId: "proj-1",
       projectName: "Project 1",
-      ticket: { id: "T-2", title: "Ticket 2", acceptanceCriteria: ["AC 2"] },
+      ticket: {
+        id: "T-2",
+        title: "Ticket 2",
+        acceptanceCriteria: ["Acceptance"],
+      },
       plan: "",
       branch: "factory/t-2",
       status: "planning",
