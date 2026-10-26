@@ -627,7 +627,7 @@ describe("Tracker card — capability-driven diagnostics (#147)", () => {
       makeClient(),
     );
 
-    expect(container.querySelector(".project-tracker-card")).not.toBeNull();
+    expect(container.querySelector(".project-tracker")).not.toBeNull();
     expect(container.textContent).toContain("Plain Tracker");
     expect(
       Array.from(container.querySelectorAll("button")).some(

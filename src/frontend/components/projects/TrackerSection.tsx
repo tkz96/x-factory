@@ -28,6 +28,7 @@ import type { DerivedAsyncState } from "../feedback/types.js";
 import { useRetryCountdown } from "../feedback/use-retry-countdown.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
 import { formatConnectionWarnings } from "./connection-copy.js";
 import {
   applyConnectionIntegrity,
@@ -78,13 +79,13 @@ export function TrackerSection({ project }: TrackerSectionProps) {
 
   if (integrity.hasIntegrityFailure) {
     return (
-      <div id="project-tracker-section" className="project-tracker-card card">
+      <Card id="project-tracker-section" className="project-tracker">
         <div className="tracker-section-header">
           <div>
-            <h3 className="tracker-title">
+            <h3 className="tracker-title text-headline">
               {CONNECTIONS_COPY.integrityFailure.title}
             </h3>
-            <p className="text-muted tracker-subtitle">
+            <p className="text-muted tracker-subtitle text-callout">
               {CONNECTIONS_COPY.trackerCardSubtitle}
             </p>
           </div>
@@ -95,7 +96,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
           retryLabel={CONNECTIONS_COPY.reconnect}
           onRetry={() => navigate("/settings")}
         />
-      </div>
+      </Card>
     );
   }
 
@@ -123,11 +124,13 @@ export function TrackerSection({ project }: TrackerSectionProps) {
   };
 
   return (
-    <div id="project-tracker-section" className="project-tracker-card card">
+    <Card id="project-tracker-section" className="project-tracker">
       <div className="tracker-section-header">
         <div>
-          <h3 className="tracker-title">{CONNECTIONS_COPY.trackerCardTitle}</h3>
-          <p className="text-muted tracker-subtitle">
+          <h3 className="tracker-title text-headline">
+            {CONNECTIONS_COPY.trackerCardTitle}
+          </h3>
+          <p className="text-muted tracker-subtitle text-callout">
             {CONNECTIONS_COPY.trackerCardSubtitle}
           </p>
         </div>
@@ -152,13 +155,15 @@ export function TrackerSection({ project }: TrackerSectionProps) {
       <div className="project-detail-meta-grid">
         {connectionDisplayValues(tracker, descriptors).map((entry) => (
           <div className="project-meta-item" key={entry.name}>
-            <strong>{entry.label}</strong>
-            <span className="meta-val">{entry.value}</span>
+            <strong className="text-subhead">{entry.label}</strong>
+            <span className="meta-val text-body">{entry.value}</span>
           </div>
         ))}
         <div className="project-meta-item">
-          <strong>{CONNECTIONS_COPY.ingestionLabel}</strong>
-          <code>{CONNECTIONS_COPY.workflowLabel}</code>
+          <strong className="text-subhead">
+            {CONNECTIONS_COPY.ingestionLabel}
+          </strong>
+          <code className="text-body">{CONNECTIONS_COPY.workflowLabel}</code>
         </div>
       </div>
 
@@ -199,7 +204,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
                   </div>
                 )}
               {testResult.overPrivileged && (
-                <div className="tracker-overprivileged-notice">
+                <div className="tracker-overprivileged-notice text-callout">
                   {CONNECTIONS_COPY.overPrivileged}
                 </div>
               )}
@@ -207,6 +212,6 @@ export function TrackerSection({ project }: TrackerSectionProps) {
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

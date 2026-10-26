@@ -7,19 +7,19 @@
   gap: var(--space-4);
 }
 
+/* The Card block owns the surface; the form is the column inside it. */
+.repo-settings .repo-settings-item {
+  padding: var(--space-4);
+}
+
 .repo-settings-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
-  border: var(--hairline) solid var(--separator);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
 }
 
 .repo-settings-name {
   margin: 0;
-  font-size: var(--text-headline);
 }
 
 .repo-settings-field {
@@ -31,14 +31,11 @@
 }
 
 .repo-settings-label {
-  font-size: var(--text-footnote);
-  font-weight: 600;
   color: var(--text-muted);
 }
 
 .repo-settings-input {
-  font: inherit;
-  font-size: var(--text-callout);
+  font-family: inherit;
   color: var(--text);
   background: var(--bg-input);
   border: var(--hairline) solid var(--separator);
@@ -57,7 +54,6 @@
 }
 
 .repo-settings-help {
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 
@@ -69,6 +65,5 @@
 }
 
 .repo-settings-saved {
-  font-size: var(--text-footnote);
   color: var(--green);
 }

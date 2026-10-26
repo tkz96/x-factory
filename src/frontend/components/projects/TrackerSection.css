@@ -9,8 +9,6 @@
 
 .tracker-title {
   margin: 0;
-  font-size: var(--text-callout);
-  font-weight: 600;
   color: var(--text);
 }
 
@@ -42,7 +40,6 @@
 .tracker-overprivileged-notice {
   margin-top: var(--space-2);
   color: var(--orange);
-  font-weight: 600;
 }
 
 .tracker-test-result .feedback-countdown {
