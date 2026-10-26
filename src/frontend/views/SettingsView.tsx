@@ -26,6 +26,8 @@ import { ModelConnectionsPanel } from "../components/settings/ModelConnectionsPa
 import { RolesPanel } from "../components/settings/RolesPanel.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { EmptyState } from "../components/ui/EmptyState.js";
+import { Icon } from "../components/ui/Icon.js";
 import {
   ListGroup,
   ListGroupRow,
@@ -233,8 +235,8 @@ function GeneralTabContent({
 
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">General</h2>
-      <p className="settings-pane-subtitle">
+      <h2 className="settings-pane-title text-title-2">General</h2>
+      <p className="settings-pane-subtitle text-subhead">
         Appearance, notifications and the data folder.
       </p>
 
@@ -391,8 +393,8 @@ function ConnectionsTabContent({
     <div className="settings-pane">
       <div className="settings-pane-head">
         <div>
-          <h2 className="settings-pane-title">Connections</h2>
-          <p className="settings-pane-subtitle">
+          <h2 className="settings-pane-title text-title-2">Connections</h2>
+          <p className="settings-pane-subtitle text-subhead">
             {CONNECTIONS_COPY.registrySubtitle}
           </p>
         </div>
@@ -409,7 +411,7 @@ function ConnectionsTabContent({
       {isLoading ? (
         <PlaceholderRows count={3} group />
       ) : projects.length === 0 ? (
-        <p className="text-muted">{CONNECTIONS_COPY.registryEmpty}</p>
+        <EmptyState title={CONNECTIONS_COPY.registryEmpty} headingLevel={3} />
       ) : (
         /* One inset group, one row per project: the project's name and
            its combo line lead, the status and the way in trail — no column
@@ -445,9 +447,7 @@ function ConnectionsTabContent({
                         ? CONNECTIONS_COPY.registryStatusArchived
                         : CONNECTIONS_COPY.registryStatusActive}
                     </Badge>
-                    <svg className="icon icon-sm" aria-hidden="true">
-                      <use href="/assets/icons/sprite.svg#icon-chevron-right" />
-                    </svg>
+                    <Icon name="icon-chevron-right" size="sm" />
                   </>
                 }
               />
@@ -463,8 +463,8 @@ function ConnectionsTabContent({
 function ModelsTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">Models</h2>
-      <p className="settings-pane-subtitle">
+      <h2 className="settings-pane-title text-title-2">Models</h2>
+      <p className="settings-pane-subtitle text-subhead">
         The connections that serve models, and the model each role uses.
       </p>
       <ModelConnectionsPanel />
@@ -477,8 +477,8 @@ function ModelsTabContent() {
 function HelpTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">Help</h2>
-      <p className="settings-pane-subtitle">
+      <h2 className="settings-pane-title text-title-2">Help</h2>
+      <p className="settings-pane-subtitle text-subhead">
         Guides for X-Factory and its API.
       </p>
       {/* Two rows, each an anchor with the same box, trailing the
@@ -488,21 +488,13 @@ function HelpTabContent() {
           href="/docs"
           isExternal
           title="Documentation"
-          trailing={
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
-            </svg>
-          }
+          trailing={<Icon name="icon-arrow-up-right" size="sm" />}
         />
         <ListGroupRow
           href="/reference"
           isExternal
           title="API Reference"
-          trailing={
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-arrow-up-right" />
-            </svg>
-          }
+          trailing={<Icon name="icon-arrow-up-right" size="sm" />}
         />
       </ListGroup>
     </div>
@@ -512,8 +504,10 @@ function HelpTabContent() {
 function GitTabContent() {
   return (
     <div className="settings-pane">
-      <h2 className="settings-pane-title">Git</h2>
-      <p className="settings-pane-subtitle">Where run worktrees are stored.</p>
+      <h2 className="settings-pane-title text-title-2">Git</h2>
+      <p className="settings-pane-subtitle text-subhead">
+        Where run worktrees are stored.
+      </p>
       <ListGroup title="Worktrees">
         <ListGroupRow
           title="Worktree path"
@@ -572,9 +566,7 @@ export function SettingsView() {
                     className="ui-nav-item"
                     aria-current={isCurrent ? "page" : undefined}
                   >
-                    <svg className="icon icon-md" aria-hidden="true">
-                      <use href={`/assets/icons/sprite.svg#${category.icon}`} />
-                    </svg>
+                    <Icon name={category.icon} size="md" />
                     <span>{category.label}</span>
                   </Link>
                 </li>
@@ -585,9 +577,7 @@ export function SettingsView() {
 
         <div className="settings-detail">
           <Link to="/settings" className="settings-back">
-            <svg className="icon icon-sm" aria-hidden="true">
-              <use href="/assets/icons/sprite.svg#icon-arrow-left" />
-            </svg>
+            <Icon name="icon-arrow-left" size="sm" />
             <span>Settings</span>
           </Link>
 
@@ -605,8 +595,10 @@ export function SettingsView() {
 
           {activeTab === "accessibility" && (
             <div className="settings-pane">
-              <h2 className="settings-pane-title">Accessibility</h2>
-              <p className="settings-pane-subtitle">
+              <h2 className="settings-pane-title text-title-2">
+                Accessibility
+              </h2>
+              <p className="settings-pane-subtitle text-subhead">
                 Text and transparency. Both apply to every screen.
               </p>
               <AccessibilitySettings />
@@ -627,8 +619,8 @@ export function SettingsView() {
 
           {activeTab === "diagnostics" && (
             <div className="settings-pane">
-              <h2 className="settings-pane-title">Diagnostics</h2>
-              <p className="settings-pane-subtitle">
+              <h2 className="settings-pane-title text-title-2">Diagnostics</h2>
+              <p className="settings-pane-subtitle text-subhead">
                 Real-time health status, database integrity, background worker
                 fleet, and job telemetry.
               </p>

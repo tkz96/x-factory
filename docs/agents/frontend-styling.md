@@ -149,7 +149,7 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 - M1 Shell and shared layer (AppShell, notifications, palette, overlays, feedback, Markdown, Modal, forms, controls, utilities, NotFound, Welcome, SetupChecklist)
 - M2 Tickets (QueueView, queue, NewRunModal). Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
 - M3 Projects (ProjectsView, ProjectDetailView, projects). Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
-- M4 Settings and connections
+- M4 Settings and connections. Cleared: every G3 to G9 finding in its files; the gates still land in M7 with the rest of the matrix.
 - M5 Wizard
 - M6 Runs (RunsView, RunDetailView, runs). Its files have no G3 to G9 findings. G3 to G9 stay inactive until M7 clears the other areas.
 - M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams, specimen). Its files print clean for G3 to G9. The gates still wait for the activation step.

@@ -1,4 +1,6 @@
-/* src/frontend/connection/ProviderMark.css — Provider brand icon/mark styling */
+/* src/frontend/connection/ProviderMark.css — Provider brand icon/mark styling.
+   The mark's letter takes the .text-caption-1 style from the markup; this rule
+   owns only the box (spec #292 "Text styles"). */
 
 .provider-mark {
   display: inline-flex;
@@ -9,7 +11,5 @@
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text);
-  font-size: var(--text-caption-1);
-  font-weight: 600;
   text-transform: uppercase;
 }

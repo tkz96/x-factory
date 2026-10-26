@@ -81,7 +81,6 @@
     gap: var(--space-1);
     min-height: var(--tap-min);
     color: var(--accent);
-    font-size: var(--text-callout);
     text-decoration: none;
   }
 }
@@ -98,19 +97,18 @@
   flex-wrap: wrap;
 }
 
+/* The title's type comes from the .text-title-2 style; this rule keeps only
+   the pane's own margin, face and colour (DESIGN.md §5 "Text styles"). */
 .settings-pane-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-title-2);
-  font-weight: 700;
-  letter-spacing: -0.024em;
   color: var(--text);
 }
 
+/* The subtitle's type comes from the .text-subhead style. */
 .settings-pane-subtitle {
   margin: var(--space-1) 0 var(--space-6);
   max-width: 60ch;
-  font-size: var(--text-footnote);
   color: var(--text-muted);
 }
 

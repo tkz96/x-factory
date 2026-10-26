@@ -78,7 +78,8 @@ export function ConnectionComboLine({
   return (
     <div
       id={id}
-      className={`connection-combo-line connection-combo-line--${tone} ${className ?? ""}`.trim()}
+      /* The line is metadata; its type comes from the .text-footnote style. */
+      className={`connection-combo-line connection-combo-line--${tone} text-footnote ${className ?? ""}`.trim()}
     >
       {rendered.map((slot, index) => (
         <Fragment key={slot.role}>
@@ -93,17 +94,19 @@ export function ConnectionComboLine({
             data-role={slot.role}
             data-state={slot.state}
           >
-            <span className="connection-combo-role">
+            {/* The role leads at medium weight; the value at semibold. */}
+            <span className="connection-combo-role font-medium">
               {CONNECTIONS_COPY.roleLabel[slot.role]}
             </span>
             <span
-              className="connection-combo-value"
+              className="connection-combo-value font-semibold"
               id={`combo-${slot.role}-name`}
             >
               {slotValue(slot, descriptors)}
             </span>
+            {/* The state label is the badge-sized .text-caption-1 style. */}
             <span
-              className={`connection-combo-state connection-combo-state--${slot.state}`}
+              className={`connection-combo-state connection-combo-state--${slot.state} text-caption-1`}
               id={`combo-${slot.role}-state`}
               data-connection-state={slot.state}
             >

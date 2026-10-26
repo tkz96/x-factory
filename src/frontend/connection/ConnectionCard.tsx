@@ -2,6 +2,7 @@
 
 import type React from "react";
 import type { ProjectConnectionRole } from "../../shared/types.js";
+import { Card } from "../components/ui/Card.js";
 import { ConnectionCardHeader } from "./ConnectionCardHeader.js";
 import { ConnectionFieldsList } from "./ConnectionFieldsList.js";
 import { ConnectionProviderSelect } from "./ConnectionProviderSelect.js";
@@ -47,44 +48,47 @@ export function ConnectionCard({
   const isPending = verificationStatus === "pending";
 
   return (
-    <div
-      className="connection-card"
-      id={`connection-card-${connectionRole}`}
-      data-role={connectionRole}
-    >
-      <ConnectionCardHeader
-        title={title}
-        providerId={providerId}
-        selectedProvider={selectedProvider}
-        verificationStatus={verificationStatus}
-      />
-
-      <div className="connection-card-body">
-        <ConnectionProviderSelect
-          connectionRole={connectionRole}
+    /* The element consumers know keeps its id and data-role; inside it the
+       connection family of the Card block (#296) draws the frame — the
+       hairline, radius and surface. The .connection-slot class keeps the
+       card's own bottom offset — a Card owns no margins (DESIGN.md §7
+       "Cards"). */
+    <div id={`connection-card-${connectionRole}`} data-role={connectionRole}>
+      <Card variant="connection" className="connection-slot">
+        <ConnectionCardHeader
+          title={title}
           providerId={providerId}
-          manifest={manifest}
-          disabled={disabled}
-          onSelectProvider={onSelectProvider}
-        />
-
-        <ConnectionFieldsList
-          connectionRole={connectionRole}
           selectedProvider={selectedProvider}
-          config={config}
-          disabled={disabled}
-          isPending={isPending}
           verificationStatus={verificationStatus}
-          verificationResult={verificationResult}
-          verificationError={verificationError}
-          fieldErrors={fieldErrors}
-          formErrors={formErrors}
-          onConfigChange={onConfigChange}
-          onVerify={onVerify}
         />
 
-        {children}
-      </div>
+        <div className="connection-body">
+          <ConnectionProviderSelect
+            connectionRole={connectionRole}
+            providerId={providerId}
+            manifest={manifest}
+            disabled={disabled}
+            onSelectProvider={onSelectProvider}
+          />
+
+          <ConnectionFieldsList
+            connectionRole={connectionRole}
+            selectedProvider={selectedProvider}
+            config={config}
+            disabled={disabled}
+            isPending={isPending}
+            verificationStatus={verificationStatus}
+            verificationResult={verificationResult}
+            verificationError={verificationError}
+            fieldErrors={fieldErrors}
+            formErrors={formErrors}
+            onConfigChange={onConfigChange}
+            onVerify={onVerify}
+          />
+
+          {children}
+        </div>
+      </Card>
     </div>
   );
 }
