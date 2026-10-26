@@ -156,8 +156,8 @@ function RunDetailLayout({
         <div className="run-detail-main">
           {notice && <FeedbackBanner tone="info" message={notice} />}
           {actionError && (
-            <div id="run-error" className="error-message">
-              {actionError}
+            <div id="run-error">
+              <FeedbackBanner tone="error" message={actionError} />
             </div>
           )}
 

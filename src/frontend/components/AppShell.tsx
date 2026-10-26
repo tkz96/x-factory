@@ -32,7 +32,11 @@ import { countRunsByFilter } from "../lib/runs-list.js";
 import { type ShortcutId, shortcutLabel } from "../shortcuts/registry.js";
 import { useGlobalShortcuts } from "../shortcuts/useGlobalShortcuts.js";
 import { DocsSidebarNav } from "./docs/DocsSidebarNav.js";
-import { NOT_FOUND_COPY, WELCOME_COPY } from "./feedback/copy-map.js";
+import {
+  NOT_FOUND_COPY,
+  STATUS_COPY,
+  WELCOME_COPY,
+} from "./feedback/copy-map.js";
 import { ModalContainer } from "./ModalContainer.js";
 import { DesktopBanners } from "./notifications/DesktopBanners.js";
 import { NotificationActivity } from "./notifications/NotificationActivity.js";
@@ -47,6 +51,7 @@ import {
 import { CommandPalette } from "./palette/CommandPalette.js";
 import { ShortcutSheet } from "./palette/ShortcutSheet.js";
 import { ProjectScopePicker } from "./projects/ProjectScopePicker.js";
+import { Badge } from "./ui/Badge.js";
 import { Button } from "./ui/Button.js";
 import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/PageHeader.js";
@@ -497,8 +502,10 @@ function AppShellHeader({
             to="/settings?tab=diagnostics"
             className="toolbar-readiness desktop-only text-footnote font-semibold"
           >
-            <Icon name="icon-alert-circle" size="sm" />
-            <span>Degraded</span>
+            <Badge tone="warning">
+              <Icon name="icon-alert-circle" size="sm" />
+              {STATUS_COPY.degraded}
+            </Badge>
           </Link>
         )}
         {!isDocs && (

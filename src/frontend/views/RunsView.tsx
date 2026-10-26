@@ -2,6 +2,7 @@ import { AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Icon } from "../components/ui/Icon.js";
@@ -102,8 +103,8 @@ function runRowStatus(r: Run): { text: string; tone: RunStatusTone } {
   const outcome = r.pullRequestOutcome;
   if (outcome) {
     return outcome.status === "merged"
-      ? { text: "Merged", tone: "success" }
-      : { text: "Closed without merging", tone: "neutral" };
+      ? { text: STATUS_COPY.prMerged, tone: "success" }
+      : { text: STATUS_COPY.prClosedUnmerged, tone: "neutral" };
   }
   return { text: runStatusText(r.status), tone: runStatusTone(r.status) };
 }

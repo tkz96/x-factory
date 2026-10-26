@@ -8,12 +8,15 @@ import { NavLink, useSearchParams } from "react-router-dom";
 import type { DocCategory, DocSearchResult } from "../../../shared/types.js";
 import { scrollBehavior } from "../../hooks/scroll-behavior.js";
 import { api } from "../../lib/api-client.js";
+import { AsyncRegion } from "../feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../feedback/derive-async-state.js";
 import { Tooltip, TooltipTrigger } from "../overlays/Tooltip.js";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
+import { Spinner } from "../ui/Spinner.js";
 
 /** The sprite glyph of each Diátaxis category in the document list. */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -220,11 +223,9 @@ export function DocsSidebarNav() {
             />
             <div className="docs-search-controls">
               {(isFiltering || isSearching) && (
-                <div
+                <Spinner
+                  label="Searching documentation…"
                   className="docs-search-spinner"
-                  role="status"
-                  title="Searching documentation…"
-                  aria-label="Searching documentation"
                 />
               )}
               {rawQuery && (
@@ -359,9 +360,14 @@ export function DocsSidebarNav() {
             )}
           </div>
         ) : isCatalogLoading ? (
-          <p className="docs-nav-status text-subhead">
-            Loading documentation index…
-          </p>
+          <AsyncRegion
+            derived={deriveAsyncState({
+              data: undefined,
+              isPending: true,
+              isError: false,
+              error: null,
+            })}
+          />
         ) : (
           <>
             {categories.map((cat) => {

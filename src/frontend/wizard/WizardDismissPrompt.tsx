@@ -5,11 +5,12 @@
 // sheet". When there is work to lose, none of them throws it away silently:
 // this prompt offers Save Draft, Discard and Cancel, and Cancel is the safe
 // default — the sheet and every value in it stay exactly as they were.
+// It is a confirmation, so it is the AlertDialog block (DESIGN.md §7).
 
 import "./WizardDismissPrompt.css";
 
 import { WIZARD_COPY } from "../components/feedback/copy-map.js";
-import { Dialog } from "../components/overlays/Dialog.js";
+import { AlertDialog } from "../components/overlays/AlertDialog.js";
 import { Button } from "../components/ui/Button.js";
 
 export interface WizardDismissPromptProps {
@@ -27,45 +28,39 @@ export function WizardDismissPrompt({
   onCancel,
 }: WizardDismissPromptProps) {
   return (
-    <Dialog
+    <AlertDialog
       isOpen={isOpen}
       onClose={onCancel}
       id="wizard-dismiss-prompt"
-      role="alertdialog"
       title={WIZARD_COPY.dismissTitle}
-      className="xf-dialog-window wizard-dismiss-dialog"
-    >
-      <h2
-        id="wizard-dismiss-prompt-title"
-        className="wizard-dismiss-title text-headline"
-      >
-        {WIZARD_COPY.dismissTitle}
-      </h2>
-      <p className="wizard-dismiss-body text-body">{WIZARD_COPY.dismissBody}</p>
-      <div className="wizard-dismiss-actions">
-        <Button
-          id="btn-wizard-discard"
-          variant="danger"
-          onPress={onDiscard}
-          className="wizard-dismiss-discard"
-        >
-          {WIZARD_COPY.discard}
-        </Button>
-        <Button
-          id="btn-wizard-keep-editing"
-          variant="secondary"
-          onPress={onCancel}
-        >
-          {WIZARD_COPY.keepEditing}
-        </Button>
-        <Button
-          id="btn-wizard-save-draft"
-          variant="primary"
-          onPress={onSaveDraft}
-        >
-          {WIZARD_COPY.saveDraft}
-        </Button>
-      </div>
-    </Dialog>
+      description={WIZARD_COPY.dismissBody}
+      className="wizard-dismiss-dialog"
+      actions={
+        <div className="wizard-dismiss-actions">
+          <Button
+            id="btn-wizard-discard"
+            variant="danger"
+            onPress={onDiscard}
+            className="wizard-dismiss-discard"
+          >
+            {WIZARD_COPY.discard}
+          </Button>
+          <Button
+            id="btn-wizard-keep-editing"
+            variant="secondary"
+            onPress={onCancel}
+          >
+            {WIZARD_COPY.keepEditing}
+          </Button>
+          <Button
+            id="btn-wizard-save-draft"
+            variant="primary"
+            onPress={onSaveDraft}
+          >
+            {WIZARD_COPY.saveDraft}
+          </Button>
+        </div>
+      }
+    />
   );
 }

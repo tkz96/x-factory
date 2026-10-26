@@ -5,6 +5,7 @@
 
 import { type DiffSummary, summarizeDiff } from "../../shared/diff-summary.js";
 import type { PullRequestOutcome, Run, RunEvent } from "../../shared/types.js";
+import { STATUS_COPY } from "../components/feedback/copy-map.js";
 import { runStatusUi } from "./run-status-ui.js";
 
 export interface RunNowFailure {
@@ -149,10 +150,10 @@ export function runNow(run: Run, events: readonly RunEvent[]): RunNow {
     sentence = WAITING_FOR_WORKER_SENTENCE;
   }
   if (outcome?.status === "merged") {
-    title = "Merged";
+    title = STATUS_COPY.prMerged;
     sentence = "The pull request was merged.";
   } else if (outcome?.status === "closed") {
-    title = "Closed without merging";
+    title = STATUS_COPY.prClosedUnmerged;
     sentence = "The pull request was closed without merging.";
   }
 

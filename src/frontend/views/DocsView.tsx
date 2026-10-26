@@ -5,9 +5,10 @@ import "./DocsView.css";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { AsyncRegion } from "../components/feedback/AsyncRegion.js";
+import { deriveAsyncState } from "../components/feedback/derive-async-state.js";
 import { MarkdownViewer } from "../components/MarkdownViewer.js";
 import { Badge } from "../components/ui/Badge.js";
-import { Button } from "../components/ui/Button.js";
 import { Icon } from "../components/ui/Icon.js";
 import { scrollBehavior } from "../hooks/scroll-behavior.js";
 import { api } from "../lib/api-client.js";
@@ -245,38 +246,28 @@ export function DocsView() {
           {/* Case 1: Markdown Documentation Article */}
           {!isSecurity && (
             <article className="docs-reading-pane">
-              {isDocLoading && (
-                <div className="docs-loading-text text-callout">
-                  Loading document…
-                </div>
-              )}
+              <AsyncRegion
+                derived={deriveAsyncState({
+                  data: docData,
+                  isPending: isDocLoading,
+                  isError: docError !== null,
+                  error: docError,
+                })}
+                onRetry={() => void refetchDoc()}
+              >
+                {docData && (
+                  <div className="docs-article-body">
+                    <div className="mb-4">
+                      <Badge>{docData.category}</Badge>
+                    </div>
 
-              {docError && (
-                <div className="docs-error-box">
-                  <p className="docs-error-msg text-callout">
-                    Failed to load document:{" "}
-                    {docError instanceof Error
-                      ? docError.message
-                      : String(docError)}
-                  </p>
-                  <Button variant="secondary" onPress={() => void refetchDoc()}>
-                    Retry
-                  </Button>
-                </div>
-              )}
-
-              {docData && (
-                <div className="docs-article-body">
-                  <div className="mb-4">
-                    <Badge>{docData.category}</Badge>
+                    <MarkdownViewer
+                      content={docData.markdown}
+                      onNavigateDoc={handleNavigateDoc}
+                    />
                   </div>
-
-                  <MarkdownViewer
-                    content={docData.markdown}
-                    onNavigateDoc={handleNavigateDoc}
-                  />
-                </div>
-              )}
+                )}
+              </AsyncRegion>
 
               <aside
                 className="docs-callout-guardrail"

@@ -20,28 +20,7 @@
   margin-top: var(--space-5);
 }
 
-.tracker-test-result {
-  margin-top: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  border: var(--hairline) solid var(--separator);
-}
-
-.tracker-test-result.success {
-  background: var(--green-dim);
-  border-color: var(--green);
-}
-
-.tracker-test-result.danger {
-  background: var(--red-dim);
-  border-color: var(--red);
-}
-
 .tracker-overprivileged-notice {
   margin-top: var(--space-2);
   color: var(--orange);
-}
-
-.tracker-test-result .feedback-countdown {
-  margin-top: var(--space-2);
 }

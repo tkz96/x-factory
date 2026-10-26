@@ -11,9 +11,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Project } from "../../shared/types.js";
 import { ConnectionComboLine } from "../components/connections/ConnectionComboLine.js";
 import { comboTone } from "../components/connections/connection-state.js";
-import { CONNECTIONS_COPY } from "../components/feedback/copy-map.js";
+import {
+  CONNECTIONS_COPY,
+  STATUS_COPY,
+} from "../components/feedback/copy-map.js";
 import { RetryAction } from "../components/feedback/RetryAction.js";
-import { Modal, ModalFooter } from "../components/Modal.js";
+import { AlertDialog } from "../components/overlays/AlertDialog.js";
 import {
   comboSlots,
   deriveConnectionIntegrity,
@@ -100,7 +103,7 @@ interface DiagnosticStatusProps {
 function DiagnosticStatus({ status }: DiagnosticStatusProps) {
   return (
     <Badge tone={status === "healthy" ? "success" : "error"}>
-      {status === "healthy" ? "Healthy" : "Unavailable"}
+      {status === "healthy" ? STATUS_COPY.healthy : STATUS_COPY.unavailable}
     </Badge>
   );
 }
@@ -316,43 +319,26 @@ function GeneralTabContent({
         />
       </ListGroup>
 
-      <Modal
+      <AlertDialog
         id="modal-confirm-unsandboxed"
-        title="Run agents without a sandbox?"
         isOpen={showConfirmModal}
         onClose={handleCancel}
-        closeButtonId="btn-close-unsandboxed-modal"
+        title="Run agents without a sandbox?"
+        description="Coding agents will execute directly on this machine without container isolation. The agent will have access to your local filesystem, network, and environment."
+        confirmText={
+          isSavingUnsandboxed ? "Enabling…" : "Enable Unsandboxed Execution"
+        }
+        cancelText="Cancel"
+        variant="danger"
+        isConfirmDisabled={isSavingUnsandboxed === true}
+        onConfirm={handleConfirm}
       >
-        <div className="unsandboxed-modal-content">
-          <p className="unsandboxed-modal-warning">
-            Coding agents will execute directly on this machine without
-            container isolation. The agent will have access to your local
-            filesystem, network, and environment.
-          </p>
-          <p className="text-muted text-footnote mt-2">
-            Only enable this if you trust the repository and model, or if you do
-            not have <code>sbx</code> installed. You can also enable this
-            per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
-          </p>
-        </div>
-        <ModalFooter>
-          <Button
-            id="btn-cancel-unsandboxed"
-            variant="secondary"
-            onPress={handleCancel}
-          >
-            Cancel
-          </Button>
-          <Button
-            id="btn-confirm-unsandboxed"
-            variant="danger"
-            isDisabled={isSavingUnsandboxed}
-            onPress={handleConfirm}
-          >
-            {isSavingUnsandboxed ? "Enabling…" : "Enable Unsandboxed Execution"}
-          </Button>
-        </ModalFooter>
-      </Modal>
+        <p className="text-muted text-footnote mt-2">
+          Only enable this if you trust the repository and model, or if you do
+          not have <code>sbx</code> installed. You can also enable this
+          per-process with <code>X_FACTORY_ALLOW_UNSANDBOXED=1</code>.
+        </p>
+      </AlertDialog>
     </div>
   );
 }

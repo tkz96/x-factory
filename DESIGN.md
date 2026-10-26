@@ -431,6 +431,15 @@ Every async region renders through `AsyncRegion` (`components/feedback/`). A scr
   `RunInspector`) is not a page header.** It uses text styles and tokens and
   never touches the slot.
 
+### Interaction patterns
+
+Four patterns (spec #292, step 5). Each has one block, and `test/interaction-patterns.test.tsx` pins it.
+
+- **Decision card.** A card that asks the reader to decide has exactly one primary action, placed first, and its secondary actions after it. A status that offers only secondary actions promotes the first one (`RunCheckpointBar`). Mod+Enter presses that primary action.
+- **Confirmation.** Every confirmation uses `AlertDialog`, and nothing else renders `role="alertdialog"`. Its confirm button names the action ("Delete Run", "Abandon Run"); there is no default label and no "OK", "Yes" or "Confirm". `window.confirm` and `alert` are not used. An async confirm keeps the dialog open until it settles.
+- **Loading, empty and error.** A region is an `AsyncRegion` built from `deriveAsyncState`. A wait is the `Spinner` block. An action error is a `FeedbackBanner` (tone `error`). Error text comes from `components/feedback/copy-map.ts` through `resolveErrorCopy`; a raw payload is never shown. No hand-built spinner, loading line or `error-message` markup.
+- **Status.** Every status renders through the `Badge` block, with one tone per meaning. Run statuses use `lib/run-status-ui.ts`. Other status words (connection, diagnostics, readiness, stage, pull request) come from `STATUS_COPY` in `copy-map.ts`, and nowhere else.
+
 ## 8. Non-negotiables
 
 - MUST check the relevant HIG page and Figma kit before designing any new screen or component.

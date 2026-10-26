@@ -48,7 +48,7 @@
 }
 
 /* The toolbar row, the action error and the chat: the chat takes what is left. */
-.run-detail-main > .error-message {
+.run-detail-main > #run-error {
   flex: none;
 }
 
