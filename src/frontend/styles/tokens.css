@@ -275,9 +275,10 @@
 
   /* A small control is 32px on a pointer device and still 44px under a coarse
      pointer: size="sm" shrinks a row accessory, never a finger's target. */
+  --control-height: 44px;
   --control-height-sm: 32px;
-  --button-height: 36px;
-  --button-height-lg: 44px;
+  --control-height-lg: 50px;
+  --sidebar-row-height: 44px;
   --checkbox-size: 18px;
   /* Control blocks (#251): the row height a list row and its static
    * placeholder both reserve, and the switch's geometry. */
@@ -302,7 +303,9 @@
   --blur-md: blur(8px);
   --blur-lg: blur(20px);
   --blur-xl: blur(24px);
-  --blur-glass: 20px;
+  /* The glass material filter (spec #292). A whole filter value, like --blur-md,
+     because Chromium drops a backdrop-filter that wraps var() inside blur(). */
+  --blur-glass: blur(20px) saturate(1.8);
 
   /* Motion Ladder & Springs — Apple HIG. Motion explains a state change; it
      never decorates one. Every duration and easing a stylesheet needs comes
@@ -442,18 +445,38 @@
    Transparency on, or Automatic with the OS setting on) or "full". Content
    stays opaque. Without the attribute the material is glass. */
 
-.sidebar,
+.sidebar {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
 .toolbar {
   background: var(--bg-glass);
-  backdrop-filter: blur(var(--blur-glass)) saturate(1.8);
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(1.8);
+  backdrop-filter: var(--blur-glass);
+}
+
+.mobile-tab-bar {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
+}
+
+.flow-canvas-wrapper .react-flow__minimap,
+.flow-modal-canvas .react-flow__minimap {
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-glass);
 }
 
 [data-transparency="reduced"] .sidebar,
-[data-transparency="reduced"] .toolbar {
+[data-transparency="reduced"] .toolbar,
+[data-transparency="reduced"] .mobile-tab-bar {
   background: var(--bg-sidebar);
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+}
+
+[data-transparency="reduced"] .flow-canvas-wrapper .react-flow__minimap,
+[data-transparency="reduced"] .flow-modal-canvas .react-flow__minimap {
+  background: var(--bg-sidebar);
+  backdrop-filter: none;
 }
 
 :root,
@@ -1038,7 +1061,9 @@
 
 /* ── Increase Contrast restores strong lines everywhere (spec #292) ───────── */
 
-[data-contrast="more"] {
+/* :root raises this rule to the specificity of the prefers-color-scheme
+   fallback above, so the strong line wins in every appearance (spec #292). */
+:root[data-contrast="more"] {
   --hairline: var(--border-width);
   --separator: var(--border);
 }

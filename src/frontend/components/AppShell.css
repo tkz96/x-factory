@@ -59,7 +59,7 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  min-height: var(--tap-min);
+  min-height: var(--sidebar-row-height);
   padding: 0.65rem 0.85rem;
   color: var(--text-muted);
   text-decoration: none;
@@ -545,9 +545,7 @@
       env(safe-area-inset-bottom, var(--space-0))
     );
     padding-bottom: env(safe-area-inset-bottom, var(--space-0));
-    background: var(--bg-glass);
-    backdrop-filter: blur(var(--blur-glass));
-    -webkit-backdrop-filter: blur(var(--blur-glass));
+    /* The glass material lives in tokens.css (spec #292). */
     border-top: var(--hairline) solid var(--separator);
     z-index: 1000;
     justify-content: space-around;

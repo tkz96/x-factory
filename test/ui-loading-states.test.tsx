@@ -47,6 +47,17 @@ function declarationsFor(css: string, selector: string): string {
   throw new Error(`No rule found for ${selector}`);
 }
 
+/** Every rule that names the selector, not just the first: a touch override sits in a later @media block. */
+function allDeclarationsFor(css: string, selector: string): string[] {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: string[] = [];
+  for (const rule of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = (rule[1] ?? "").split(",").map((part) => part.trim());
+    if (selectors.includes(selector)) out.push(rule[2] ?? "");
+  }
+  return out;
+}
+
 /** A custom property's first value in tokens.css — the light default set. */
 function rootToken(name: string): string {
   const stripped = TOKENS.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -59,14 +70,30 @@ describe("touch targets and the row height come from tokens", () => {
   it("a finger-sized control is at least 44 points tall", () => {
     expect(rootToken("--tap-min")).toBe("44px");
 
+    // Regular controls take their height from the metric token (28px on macOS,
+    // 44px on iOS). A touch input or a narrow viewport raises every one of them
+    // to --tap-min in the coarse-pointer block (spec #292, Type scale and density).
     for (const selector of [
       ".ui-button",
       ".ui-icon-button",
+      ".ui-select-trigger",
+      ".ui-segment",
+    ]) {
+      expect(allDeclarationsFor(CONTROLS, selector).join("\n")).toContain(
+        "var(--control-height)",
+      );
+      expect(
+        allDeclarationsFor(CONTROLS, selector).some(
+          (body) =>
+            body.includes("min-height: var(--tap-min)") ||
+            body.includes("height: var(--tap-min)"),
+        ),
+      ).toBe(true);
+    }
+    for (const selector of [
       ".ui-field-input",
       ".ui-textarea",
-      ".ui-select-trigger",
       ".ui-select-item",
-      ".ui-segment",
       ".ui-switch",
     ]) {
       expect(declarationsFor(CONTROLS, selector)).toContain(
@@ -82,8 +109,13 @@ describe("touch targets and the row height come from tokens", () => {
     // project-detail or a model connection clears the minimum too.
     for (const selector of [".form-input", ".form-select"]) {
       expect(declarationsFor(FORMS, selector)).toContain(
-        "min-height: var(--tap-min)",
+        "min-height: var(--control-height)",
       );
+      expect(
+        allDeclarationsFor(FORMS, selector).some((body) =>
+          body.includes("min-height: var(--tap-min)"),
+        ),
+      ).toBe(true);
     }
     // A grouped row is a finger's target too: the compact row inside a
     // ListGroup is at least --tap-min tall.

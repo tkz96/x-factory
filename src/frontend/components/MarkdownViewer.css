@@ -112,7 +112,7 @@
 
 /* The chip stays a chip, but a finger gets the full target: at phone width the
    copy row grows and the button fills it (DESIGN.md §8, 44×44pt). */
-@media (pointer: coarse), (max-width: 768px) {
+@media (any-pointer: coarse), (max-width: 768px) {
   .md-copy-btn {
     min-height: var(--tap-min);
     padding-inline: var(--space-3);

@@ -99,6 +99,8 @@ Both scales are written in `rem`, so the browser's font-size setting scales ever
 | Caption 1 | 10px Regular | 12px Regular |
 | Caption 2 | 10px Medium | 11px Regular |
 
+On macOS, Footnote and Caption (10px) are only for metadata: timestamps, counts, badges, keyboard hints. Descriptions and secondary text use Subheadline (11) or Callout (12). No running text is smaller than 11px.
+
 Use these styles exclusively. No arbitrary font sizes, and no token below 10px (gate G2). Badges and tags use Caption 1 or Footnote. Text styles set font-size, font-weight, line-height and letter-spacing together (`.text-body`, `.text-headline`, `.text-caption-1` and so on).
 
 **Control metrics** (computed px). The macOS metrics apply with the macOS scale: regular control 28px tall, small 22px, large 32px, toolbar 52px, sidebar row 28px. The iOS scale keeps the iOS header of 56px.
@@ -220,11 +222,17 @@ Drop-in baseline for a web implementation — adjust values only against the HIG
   --space-1: 4px; --space-2: 8px; --space-3: 12px;
   --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
 
-  /* Type scale — the iOS scale; the macOS scale is in Section 5 (Typography) */
+  /* Type scale. The iOS values are the default: a touch input or a viewport of
+     768px or less. On a fine primary pointer wider than 768px, the macOS values
+     below replace them (spec #292, "Type scale and density"). Written in rem in
+     tokens.css, so the browser's text-size setting scales them. */
   --text-large-title: 34px; --text-title-1: 28px; --text-title-2: 22px;
   --text-title-3: 20px; --text-headline: 17px; --text-body: 17px;
   --text-callout: 16px; --text-subhead: 15px; --text-footnote: 13px;
   --text-caption-1: 12px; --text-caption-2: 11px;
+
+  /* macOS values (fine primary pointer, wider than 768px), in Section 5:
+     26 22 17 15 13 13 12 11 10 10 10 */
 
   /* Radius — one ladder, six rungs. A control's radius comes from its size, not
      from the screen it sits on; an inner shape's radius is the outer radius
@@ -328,12 +336,15 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
   Settings › Models (one table per connection, sortable) and a project's
   Repositories — it builds on `Table` (`components/ui/Table.tsx`), drawn as the
   same inset group as a list.
-- **Control sizes.** With the macOS scale a regular control is 28px tall, and
-  `size="sm"` is 22px: a row accessory (Add, Copy, Mark all as read). `size="lg"`
-  is 32px. Under the iOS scale, or with a touch input present, a regular control
-  is `--tap-min` (44px) tall and `size="sm"` is 32px. An icon-only control is a
-  circle that never stretches, as tall as the control; `plain` draws no circle of
-  its own.
+- **Control sizes.** Each control takes its height from a metric token, so the
+  heights follow the scale. On the macOS scale (fine primary pointer, wider than
+  768px) a regular control is `--control-height` (28px), `size="sm"` is
+  `--control-height-sm` (22px): a row accessory (Add, Copy, Mark all as read) and
+  `size="lg"` is `--control-height-lg` (32px). On the iOS scale the metrics are
+  44px, 32px and 50px. Wherever a touch input is present (`any-pointer: coarse`)
+  or the viewport is 768px or less, every control is at least `--tap-min` (44px).
+  An icon-only control is a circle as tall as the control, and it never stretches;
+  `plain` draws no circle of its own.
 - **Badges.** A status or tag badge is a capsule (`--radius-full`), sans,
   caption 1, weight 600, sentence case (the copy is written that way — never
   `text-transform`), a tint fill and no border, about a line of caption tall. A

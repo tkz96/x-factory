@@ -138,6 +138,53 @@ describe("Reduce Transparency and Readable font in Chromium (spec #292)", () => 
   );
 
   test(
+    "the phone tab bar at 390px follows the setting: opaque when On, glass when Off",
+    async () => {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+      });
+      contexts.push(context);
+      const page = await context.newPage();
+
+      await openAccessibility(page);
+      await chooseTransparency(page, "On");
+      await page.waitForFunction(
+        () => document.documentElement.dataset.transparency === "reduced",
+      );
+      const tabBar = async () =>
+        page.evaluate(() => {
+          const el = document.querySelector(".mobile-tab-bar");
+          if (!(el instanceof HTMLElement)) throw new Error("no tab bar");
+          const style = getComputedStyle(el);
+          return {
+            display: style.display,
+            backdropFilter: style.backdropFilter,
+            background: style.backgroundColor,
+          };
+        });
+      let bar = await tabBar();
+      for (let i = 0; i < 60 && bar.background.startsWith("rgba("); i++) {
+        await page.waitForTimeout(50);
+        bar = await tabBar();
+      }
+      expect(bar.display).toBe("flex");
+      expect(bar.backdropFilter).toBe("none");
+      expect(bar.background.startsWith("rgba(")).toBe(false);
+
+      await chooseTransparency(page, "Off");
+      await page.waitForFunction(
+        () => document.documentElement.dataset.transparency === "full",
+      );
+      for (let i = 0; i < 60 && bar.backdropFilter === "none"; i++) {
+        await page.waitForTimeout(50);
+        bar = await tabBar();
+      }
+      expect(bar.backdropFilter).not.toBe("none");
+    },
+    TIMEOUT,
+  );
+
+  test(
     "the On setting and the Readable font persist across a reload, and the Atkinson faces load only when the font is on",
     async () => {
       const context = await browser.newContext();
