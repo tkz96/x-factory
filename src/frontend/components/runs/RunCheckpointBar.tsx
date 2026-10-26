@@ -134,7 +134,11 @@ export function RunCheckpointBar({
                 key={action}
                 variant={isPrimary(action) ? "primary" : VARIANT[action]}
                 size="sm"
-                data-primary-action={isPrimary(action) ? "" : undefined}
+                // Mod+Enter presses only a real decision. A promoted action on a
+                // finished run (Start New Run) looks primary but is never one key away.
+                data-primary-action={
+                  VARIANT[action] === "primary" ? "" : undefined
+                }
                 isDisabled={pending !== null}
                 onPress={() => onAction(action)}
               >

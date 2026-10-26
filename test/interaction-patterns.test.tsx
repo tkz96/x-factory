@@ -82,9 +82,13 @@ describe("decision card: one primary action, secondary actions after it", () => 
         );
         expect(primaries.length).toBe(1);
         expect(buttons[0]).toBe(primaries[0]);
-        expect(
-          buttons.filter((b) => b.hasAttribute("data-primary-action")).length,
-        ).toBe(1);
+        // Mod+Enter targets the primary only when it is a real decision; a
+        // promoted action on a finished run is never one key away.
+        const keyed = buttons.filter((b) =>
+          b.hasAttribute("data-primary-action"),
+        );
+        expect(keyed.length).toBeLessThanOrEqual(1);
+        if (keyed.length === 1) expect(keyed[0]).toBe(primaries[0]);
       });
     }
   }
@@ -210,4 +214,21 @@ describe("status: one status block, one wording map", () => {
     );
     expect(sites).toEqual([]);
   });
+});
+
+describe("decision card: Mod+Enter never starts a new run", () => {
+  for (const status of ["pr_created", "failed", "stopped"] as const) {
+    it(`${status}: the promoted action is not the keyboard primary`, () => {
+      const { container } = render(
+        <RunCheckpointBar
+          status={status}
+          pending={null}
+          conflict={false}
+          reworkReady={false}
+          onAction={() => {}}
+        />,
+      );
+      expect(container.querySelector("[data-primary-action]")).toBeNull();
+    });
+  }
 });
