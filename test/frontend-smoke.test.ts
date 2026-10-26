@@ -897,7 +897,8 @@ describe("Frontend Smoke — Copy gate G10 (spec #292)", () => {
         .toLowerCase();
       const minor = MINOR_WORDS.has(core);
       const shouldCapitalize = token === first || token === last || !minor;
-      const capitalized = token[i] === token[i].toUpperCase();
+      const letter = token[i] ?? "";
+      const capitalized = letter === letter.toUpperCase();
       if (shouldCapitalize !== capitalized) out.push(token);
     }
     return out;
