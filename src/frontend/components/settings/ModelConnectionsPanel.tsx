@@ -769,7 +769,9 @@ export function ModelConnectionsPanel() {
     >
       <div className="model-connections-head">
         <div>
-          <h3 id="model-connections-title" className="text-headline">{COPY.title}</h3>
+          <h3 id="model-connections-title" className="text-headline">
+            {COPY.title}
+          </h3>
           <p className="text-muted">{COPY.subtitle}</p>
         </div>
         {!adding && (
