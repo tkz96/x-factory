@@ -134,13 +134,13 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 |---|---|---|---|
 | G1 | No raw `box-shadow` or `border-radius` value outside `tokens.css` | active | step 1 |
 | G2 | No text token below 10px; `--text-micro`, `--text-badge`, `--text-tag` do not exist | active | step 1 |
-| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | inactive | M7 (M1 cleared its files) |
-| G4 | No `font-size` or `font-weight` in a component stylesheet; text styles only | inactive | M7 (M1 cleared its component files; the shared layer keeps text-style tokens, see below) |
-| G5 | No raw `<button>` outside `components/ui/` | inactive | M7 (M1 cleared its files) |
-| G6 | No `sprite.svg#` reference outside `components/ui/` | inactive | M7 (M1 cleared its files) |
-| G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | inactive | M7 |
-| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | inactive | M7 (M1 cleared its files) |
-| G9 | No card class outside the Card block, except diagram node cards | inactive | M7 (M1 cleared its files) |
+| G3 | No raw rem/em spacing (`margin`, `padding`, `gap`, `inset`, offsets) outside `tokens.css` | inactive | M7 files clean; gate lands with the activation step (part 2) |
+| G4 | No `font-size` or `font-weight` in a component stylesheet; text styles only | inactive | M7 files clean; gate lands with the activation step (part 2). The shared layer keeps text-style tokens, see below |
+| G5 | No raw `<button>` outside `components/ui/` | inactive | M7 files clean; gate lands with the activation step (part 2) |
+| G6 | No `sprite.svg#` reference outside `components/ui/` | inactive | M7 files clean; gate lands with the activation step (part 2) |
+| G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | inactive | M7 files clean; gate lands with the activation step (part 2) |
+| G8 | No empty-state markup outside `AsyncRegion` or EmptyState | inactive | M7 files clean; gate lands with the activation step (part 2) |
+| G9 | No card class outside the Card block, except diagram node cards | inactive | M7 files clean; gate lands with the activation step (part 2) |
 | G10 | Button and menu-item labels use Title Case | inactive | step 5 |
 | G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` style | inactive | M8 |
 
@@ -152,10 +152,10 @@ The design system is being migrated to the blocks. Until M8 lands, the code has 
 - M4 Settings and connections
 - M5 Wizard
 - M6 Runs (RunsView, RunDetailView, runs). Its files have no G3 to G9 findings. G3 to G9 stay inactive until M7 clears the other areas.
-- M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams). G3 to G9 land here.
+- M7 Docs and diagrams (DocsView, DocsSidebarNav, diagrams, specimen). Its files print clean for G3 to G9. The gates still wait for the activation step.
 - M8 Legacy CSS removal (`buttons.css`, `cards.css`, `badges.css`). G11 lands here.
 
-Migration progress: M5 (Wizard) is done. `src/frontend/wizard/` has no G3 to G9 finding. Its G3 to G9 gates still wait for M7 because other areas have findings.
+Migration progress: M7 (Docs and diagrams) is done. Its files (`views/DocsView`, `components/docs/`, `components/diagrams/`, and the specimen page with `components/specimen/`) print clean for G3 to G9, and the diagram node cards use tokens and text styles. M5 (Wizard) is done. `src/frontend/wizard/` has no G3 to G9 finding. Its G3 to G9 gates still wait for M7 because other areas have findings.
 
 Between step 3 and M7, drift in migrated areas is caught by the design-reviewer check, not by a gate. M7 closes that gap.
 

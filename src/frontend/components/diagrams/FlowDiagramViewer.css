@@ -29,33 +29,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.65rem 0.95rem;
+  padding: var(--space-2-5) var(--space-4);
   background: var(--bg-secondary);
   border-bottom: var(--border-width) solid var(--border-subtle);
-  gap: 0.75rem;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 
 .flow-diagram-info {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: var(--space-half);
 }
 
 .flow-diagram-title-row {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: var(--space-2);
 }
 
 .flow-diagram-title {
-  font-size: var(--text-subhead);
-  font-weight: 600;
   color: var(--text);
 }
 
 .flow-diagram-subtitle {
-  font-size: var(--text-caption-2);
   color: var(--text-muted);
 }
 
@@ -63,40 +60,7 @@
 .flow-diagram-actions {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-}
-
-.flow-btn-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.55rem;
-  font-size: var(--text-caption-1);
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--bg-card);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.flow-btn-tool:hover {
-  color: var(--text);
-  border-color: var(--border);
-  background: var(--bg-hover);
-}
-
-[data-theme="light"] .flow-btn-tool:hover {
-  background: var(--bg-hover);
-}
-
-.flow-btn-tool svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
+  gap: var(--space-1-5);
 }
 
 /* ── Canvas Area ───────────────────────────────────────────────────── */
@@ -235,7 +199,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1.25rem;
+  padding: var(--space-3) var(--space-5);
   background: var(--bg-secondary);
   border-bottom: var(--border-width) solid var(--border-subtle);
 }
@@ -247,51 +211,18 @@
   background: var(--bg-card);
 }
 
-.flow-modal-close-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.75rem;
-  font-size: var(--text-footnote);
-  font-weight: 500;
-  background: var(--bg-card);
-  color: var(--text-muted);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.flow-modal-close-btn:hover {
-  color: var(--text);
-  border-color: var(--border);
-  background: var(--bg-hover);
-}
-
-[data-theme="light"] .flow-modal-close-btn:hover {
-  background: var(--bg-hover);
-}
-
 /* ── Fallback Container (SSR or Missing Definition) ─────────────────── */
-.flow-fallback-card {
-  padding: var(--space-4);
-  background: var(--bg-secondary);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+/* The fallback is a flow Card; this sets only its place in the article. */
+.flow-fallback {
   margin: var(--space-3) 0;
 }
 
 .flow-fallback-title {
-  font-weight: 600;
   color: var(--text);
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-1);
 }
 
 .flow-fallback-desc {
-  font-size: var(--text-caption-1);
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }

@@ -22,7 +22,7 @@ export function SpecimenOverlays() {
   const [sheet, setSheet] = useState<"right" | "bottom" | null>(null);
   return (
     <section className="specimen-section" aria-labelledby="specimen-overlays">
-      <h2 id="specimen-overlays" className="specimen-heading">
+      <h2 id="specimen-overlays" className="specimen-heading text-title-2">
         Overlays
       </h2>
       <div className="specimen-row">

@@ -4,6 +4,7 @@ import "./CustomNodes.css";
 
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
+import { Icon } from "../ui/Icon.js";
 
 export interface CustomNodeData extends Record<string, unknown> {
   tag?: string;
@@ -64,7 +65,7 @@ export function StandardNode({ data }: NodeProps) {
       {(nodeData.tag || nodeData.badge) && (
         <div className="flow-node-header">
           {nodeData.tag && (
-            <span className="flow-node-tag">{nodeData.tag}</span>
+            <span className="flow-node-tag text-caption-1">{nodeData.tag}</span>
           )}
           {nodeData.badge && (
             <Badge tone={badgeTone} className="flow-node-badge">
@@ -76,30 +77,30 @@ export function StandardNode({ data }: NodeProps) {
 
       <div className="flow-node-title-row">
         {nodeData.icon && (
-          <svg
-            className={`icon flow-node-icon ${iconVariantClass}`}
-            aria-hidden="true"
-          >
-            <use href={`/assets/icons/sprite.svg#${nodeData.icon}`} />
-          </svg>
+          <Icon
+            name={nodeData.icon}
+            className={`flow-node-icon ${iconVariantClass}`}
+          />
         )}
-        <span className="flow-node-title">{nodeData.title}</span>
+        <span className="flow-node-title text-headline">{nodeData.title}</span>
       </div>
 
       {nodeData.subtitle && (
-        <span className="flow-node-subtitle">{nodeData.subtitle}</span>
+        <span className="flow-node-subtitle text-subhead">
+          {nodeData.subtitle}
+        </span>
       )}
 
       {nodeData.code && (
         <code>
-          <span className="flow-node-code">{nodeData.code}</span>
+          <span className="flow-node-code text-caption-1">{nodeData.code}</span>
         </code>
       )}
 
       {nodeData.items && nodeData.items.length > 0 && (
         <div className="flow-node-items">
           {nodeData.items.map((item) => (
-            <div key={item} className="flow-node-item">
+            <div key={item} className="flow-node-item text-subhead">
               <span className="flow-node-item-dot" />
               <span>{item}</span>
             </div>

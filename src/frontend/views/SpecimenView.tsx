@@ -17,6 +17,7 @@ import {
   SpecimenTypeScale,
 } from "../components/specimen/SpecimenSurfaces.js";
 import type { SpecimenSettings } from "../components/specimen/specimen-settings.js";
+import { PageHeader } from "../components/ui/PageHeader.js";
 import { applyThemeToDocument, useTheme } from "../hooks/useTheme.js";
 
 /** Automatic follows the OS query, as the app's own setting does. */
@@ -68,15 +69,13 @@ function SpecimenView() {
   }, [settings, snapshot]);
 
   return (
-    <main className="specimen" aria-labelledby="specimen-title">
-      <header className="specimen-header">
-        <h1 id="specimen-title" className="specimen-title">
-          Specimen
-        </h1>
-        <p className="specimen-note">
-          Development only. Every block in components/ui and the overlays.
-        </p>
-      </header>
+    <main className="specimen" aria-labelledby="page-title">
+      {/* The specimen is a dev route outside AppShell, so it carries the
+          shell's PageHeader block itself: its one h1 and its note. */}
+      <PageHeader
+        title="Specimen"
+        subtitle="Development only. Every block in components/ui and the overlays."
+      />
       <SpecimenControls settings={settings} onChange={setSettings} />
       <SpecimenBlocks />
       <SpecimenOverlays />

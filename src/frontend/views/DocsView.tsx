@@ -8,6 +8,7 @@ import { useSearchParams } from "react-router-dom";
 import { MarkdownViewer } from "../components/MarkdownViewer.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Button } from "../components/ui/Button.js";
+import { Icon } from "../components/ui/Icon.js";
 import { scrollBehavior } from "../hooks/scroll-behavior.js";
 import { api } from "../lib/api-client.js";
 
@@ -245,12 +246,14 @@ export function DocsView() {
           {!isSecurity && (
             <article className="docs-reading-pane">
               {isDocLoading && (
-                <div className="docs-loading-text">Loading document…</div>
+                <div className="docs-loading-text text-callout">
+                  Loading document…
+                </div>
               )}
 
               {docError && (
                 <div className="docs-error-box">
-                  <p className="docs-error-msg">
+                  <p className="docs-error-msg text-callout">
                     Failed to load document:{" "}
                     {docError instanceof Error
                       ? docError.message
@@ -279,15 +282,13 @@ export function DocsView() {
                 className="docs-callout-guardrail"
                 aria-label="Security Guardrail"
               >
-                <div className="docs-callout-guardrail-header">
-                  <svg className="icon icon-sm" aria-hidden="true">
-                    <use href="/assets/icons/sprite.svg#icon-lock" />
-                  </svg>
+                <div className="docs-callout-guardrail-header text-subhead">
+                  <Icon name="icon-lock" size="sm" />
                   <strong>
                     Security Guardrail &amp; Principle of Least Privilege
                   </strong>
                 </div>
-                <p className="text-muted docs-callout-guardrail-text">
+                <p className="text-muted text-callout docs-callout-guardrail-text">
                   X-Factory runs autonomous coding agents locally in isolated
                   git worktrees. Tokens and credentials configured in project
                   settings only require the minimal permissions needed to read
@@ -301,18 +302,21 @@ export function DocsView() {
           {isSecurity && (
             <article className="docs-reading-pane">
               {paneHeading && (
-                <h1 id={paneHeading.id} className="docs-pane-title">
+                <h1
+                  id={paneHeading.id}
+                  className="docs-pane-title text-title-1"
+                >
                   {paneHeading.text}
                 </h1>
               )}
               {securitySection === "least-privilege" && (
                 <div id="least-privilege">
-                  <p className="text-muted docs-pane-p">
+                  <p className="text-muted docs-pane-p text-callout">
                     X-Factory runs autonomous coding agents locally in isolated
                     git worktrees. To ensure safety, tokens only require the
                     minimal permissions needed to:
                   </p>
-                  <ol className="docs-list">
+                  <ol className="docs-list text-callout">
                     <li>
                       <strong>
                         Read issue details and acceptance criteria
@@ -330,7 +334,7 @@ export function DocsView() {
                   </ol>
                   <div
                     id="least-privilege-guardrail"
-                    className="docs-callout-warning"
+                    className="docs-callout-warning text-callout"
                   >
                     <strong>Security Guardrail:</strong> Over-privileged tokens
                     (e.g. Full Access PATs) trigger warnings in the onboarding
@@ -341,19 +345,21 @@ export function DocsView() {
 
               {securitySection === "azure" && (
                 <div id="azure-pat">
-                  <p className="text-muted docs-pane-p">
+                  <p className="text-muted docs-pane-p text-callout">
                     Configure a Personal Access Token (PAT) in Azure DevOps
                     under <em>User Settings → Personal Access Tokens</em>.
                   </p>
 
                   <div id="azure-required-scopes" className="mt-6">
-                    <h3 className="docs-subheading">Required Scopes</h3>
-                    <table className="docs-meta-table">
+                    <h3 className="docs-subheading text-headline">
+                      Required Scopes
+                    </h3>
+                    <table className="docs-meta-table text-callout">
                       <thead>
                         <tr>
-                          <th>Scope Category</th>
-                          <th>Permission</th>
-                          <th>Purpose</th>
+                          <th className="text-caption-1">Scope Category</th>
+                          <th className="text-caption-1">Permission</th>
+                          <th className="text-caption-1">Purpose</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -374,11 +380,11 @@ export function DocsView() {
 
               {securitySection === "github" && (
                 <div id="github">
-                  <p className="text-muted docs-pane-p">
+                  <p className="text-muted docs-pane-p text-callout">
                     Use a fine-grained or classic token with access to target
                     repositories.
                   </p>
-                  <ul className="docs-list">
+                  <ul className="docs-list text-callout">
                     <li>
                       <strong>Issues: Read &amp; write</strong> (or Read-only)
                       to query labeled tickets.
@@ -397,11 +403,11 @@ export function DocsView() {
 
               {securitySection === "gitlab" && (
                 <div id="gitlab">
-                  <p className="text-muted docs-pane-p">
+                  <p className="text-muted docs-pane-p text-callout">
                     Create a Project Access Token or Personal Access Token in
                     GitLab.
                   </p>
-                  <ul className="docs-list">
+                  <ul className="docs-list text-callout">
                     <li>
                       <code className="docs-code-blue">read_api</code> — query
                       GitLab issues with agentic-workflow label.
@@ -416,11 +422,11 @@ export function DocsView() {
 
               {securitySection === "jira" && (
                 <div id="jira">
-                  <p className="text-muted docs-pane-p">
+                  <p className="text-muted docs-pane-p text-callout">
                     Generate an API Token from your Atlassian account security
                     settings.
                   </p>
-                  <ul className="docs-list">
+                  <ul className="docs-list text-callout">
                     <li>
                       Provide your Atlassian email address and the API token.
                     </li>
@@ -439,10 +445,8 @@ export function DocsView() {
         {headings.length > 0 && (
           <aside className="docs-toc-rail" aria-label="On this page navigation">
             <div className="docs-toc-sticky-box">
-              <div className="docs-toc-header">
-                <svg className="icon icon-sm" aria-hidden="true">
-                  <use href="/assets/icons/sprite.svg#icon-layers" />
-                </svg>
+              <div className="docs-toc-header text-subhead">
+                <Icon name="icon-layers" size="sm" />
                 <span>In this page</span>
               </div>
               <nav className="docs-toc-nav">
