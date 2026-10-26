@@ -158,7 +158,7 @@ describe("Settings in the System Settings layout (#266)", () => {
   it("names the Connections action Add Project, not Onboard Project", () => {
     const { getByRole, queryByRole } = renderSettings("/settings?tab=trackers");
 
-    expect(getByRole("button", { name: "Add Project" })).toBeTruthy();
+    expect(getByRole("button", { name: "Add Project…" })).toBeTruthy();
     expect(queryByRole("button", { name: "Onboard Project" })).toBeNull();
   });
 

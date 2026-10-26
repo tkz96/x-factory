@@ -201,7 +201,7 @@ describe("The page header slot (#298)", () => {
       ".page-heading",
     ) as HTMLElement;
     expect(
-      within(keptHeading).getByRole("button", { name: "Start Run" }),
+      within(keptHeading).getByRole("button", { name: "Start Run…" }),
     ).toBeTruthy();
     cleanup();
 
@@ -213,7 +213,7 @@ describe("The page header slot (#298)", () => {
       ".page-heading",
     ) as HTMLElement;
     expect(
-      within(droppedHeading).queryByRole("button", { name: "Start Run" }),
+      within(droppedHeading).queryByRole("button", { name: "Start Run…" }),
     ).toBeNull();
   });
 

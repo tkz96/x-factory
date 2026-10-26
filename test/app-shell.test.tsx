@@ -131,10 +131,10 @@ describe("App shell toolbar (#258)", () => {
     const slot = view.container.querySelector(".page-heading-actions");
     expect(slot).not.toBeNull();
     const button = within(slot as HTMLElement).getByRole("button", {
-      name: "Start Run",
+      name: "Start Run…",
     });
     expect(button.getAttribute("title")).toBe(
-      `Start Run (${shortcutLabel("newRun")})`,
+      `Start Run… (${shortcutLabel("newRun")})`,
     );
   });
 
@@ -154,18 +154,18 @@ describe("App shell toolbar (#258)", () => {
     expect(ticketsSlot).not.toBeNull();
     expect(
       within(ticketsSlot as HTMLElement).getByRole("button", {
-        name: "Start Run",
+        name: "Start Run…",
       }),
     ).toBeTruthy();
     // The toolbar carries search, the bell and Settings — never a page action.
     expect(
       within(tickets.getByRole("banner")).queryByRole("button", {
-        name: "Start Run",
+        name: "Start Run…",
       }),
     ).toBeNull();
     expect(
       within(tickets.getByRole("banner")).queryByRole("button", {
-        name: "Add Project",
+        name: "Add Project…",
       }),
     ).toBeNull();
     cleanup();
@@ -177,17 +177,17 @@ describe("App shell toolbar (#258)", () => {
     expect(projectsSlot).not.toBeNull();
     expect(
       within(projectsSlot as HTMLElement).getByRole("button", {
-        name: "Add Project",
+        name: "Add Project…",
       }),
     ).toBeTruthy();
     expect(
       within(projects.getByRole("banner")).queryByRole("button", {
-        name: "Add Project",
+        name: "Add Project…",
       }),
     ).toBeNull();
     expect(
       within(projects.getByRole("banner")).queryByRole("button", {
-        name: "Start Run",
+        name: "Start Run…",
       }),
     ).toBeNull();
   });

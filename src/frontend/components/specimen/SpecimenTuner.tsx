@@ -44,7 +44,7 @@ const weight = (key: string, label: string) =>
 
 const GROUPS: TokenGroup[] = [
   {
-    title: "Corners",
+    title: "Corner Radii",
     tokens: [
       {
         name: "--corner-shape",

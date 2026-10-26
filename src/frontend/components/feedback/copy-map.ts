@@ -197,7 +197,7 @@ export const CONNECTIONS_COPY = {
   registryStatusActive: "Active",
   registryStatusArchived: "Archived",
   registryEmpty: "No projects configured.",
-  onboardProject: "Add Project",
+  onboardProject: "Add Project…",
   /** The tracker card on the project detail surface. */
   trackerCardTitle: "Issue Tracker Connection",
   trackerCardSubtitle: "Automated ticket ingestion and PR linking.",
@@ -301,9 +301,9 @@ export const QUEUE_COPY = {
   /** No project exists yet, so there is no queue to show. */
   noProjectsTitle: "No projects yet",
   noProjects: "Add a project to see its tickets.",
-  addProject: "Add Project",
+  addProject: "Add Project…",
   /** The manual path that stays open when the tracker cannot be reached. */
-  manualRun: "Start Run",
+  manualRun: "Start Run…",
 } as const;
 
 /** Copy for the single-project detail surface (#147). */
@@ -348,7 +348,7 @@ export const PROJECTS_COPY = {
   emptyActive: "Archived projects are under Archived.",
   emptyArchivedTitle: "No archived projects",
   emptyArchived: "Archive a project to find it here.",
-  addProject: "Add Project",
+  addProject: "Add Project…",
   /** The detail pane on the list-only route: nothing is selected yet. A region, so it
    *  is an EmptyState with a title and an icon (spec #292, item 6). */
   selectTitle: "No project selected",
@@ -837,9 +837,9 @@ export const WELCOME_COPY = {
   /** The one action that takes the user to where the step is finished. */
   stepAction: {
     /** Opens the add-project assistant (#268) through the modal context. */
-    project: "Add Project",
+    project: "Add Project…",
     /** The same action once a project exists: a quieter way to add another. */
-    projectAgain: "Add Another Project",
+    projectAgain: "Add Another Project…",
     /** The pane that owns Check Connection, the models and the roles (#274). */
     model: "Open Settings › Models",
     run: "Open Tickets",

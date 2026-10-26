@@ -453,7 +453,9 @@ describe("no projects", () => {
     expect(
       screen().getByText("Add a project to see its tickets."),
     ).toBeDefined();
-    expect(screen().getByRole("button", { name: "Add Project" })).toBeDefined();
+    expect(
+      screen().getByRole("button", { name: "Add Project…" }),
+    ).toBeDefined();
   });
 });
 

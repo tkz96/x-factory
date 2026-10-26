@@ -8,7 +8,17 @@ registerHappyDom();
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import {
+  PageHeaderProvider,
+  usePageHeaderContent,
+} from "../src/frontend/context/PageHeaderContext.js";
 import { specimenRoute } from "../src/frontend/dev-routes.js";
+
+/** Stands in for the shell: draws the heading the mounted screen claims. */
+function ClaimedHeading() {
+  const content = usePageHeaderContent();
+  return content ? <h1>{content.title}</h1> : null;
+}
 
 // The route loads its module on first render; the default 1s wait is too short
 // when the whole suite is running.
@@ -70,9 +80,15 @@ describe("the specimen page", () => {
     "renders every section once its route loads",
     async () => {
       // Queries are bound to the render result: `screen` binds to document at import,
-      // before the DOM is registered.
+      // before the DOM is registered. The specimen sits inside AppShell, so it
+      // claims the shell's heading rather than drawing its own.
       const view = render(
-        <MemoryRouter>{specimenRoute().element}</MemoryRouter>,
+        <MemoryRouter>
+          <PageHeaderProvider>
+            <ClaimedHeading />
+            {specimenRoute().element}
+          </PageHeaderProvider>
+        </MemoryRouter>,
       );
       await waitFor(
         () =>

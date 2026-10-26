@@ -253,11 +253,11 @@ function PageAction({ section, onStartRun, onAddProject }: PageActionProps) {
         id="btn-start-run"
         variant="secondary"
         icon="icon-plus"
-        aria-label="Start Run"
-        title={withShortcut("Start Run", "newRun")}
+        aria-label="Start Run…"
+        title={withShortcut("Start Run…", "newRun")}
         onPress={onStartRun}
       >
-        <span className="page-action-label">Start Run</span>
+        <span className="page-action-label">Start Run…</span>
       </Button>
     );
   }
@@ -267,10 +267,10 @@ function PageAction({ section, onStartRun, onAddProject }: PageActionProps) {
         id="btn-add-project"
         variant="primary"
         icon="icon-plus"
-        aria-label="Add Project"
+        aria-label="Add Project…"
         onPress={onAddProject}
       >
-        <span className="page-action-label">Add Project</span>
+        <span className="page-action-label">Add Project…</span>
       </Button>
     );
   }

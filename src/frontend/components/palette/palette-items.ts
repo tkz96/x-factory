@@ -98,7 +98,7 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
     {
       id: "action-start-run",
       group: "Actions",
-      label: "Start Run",
+      label: "Start Run…",
       shortcutId: "newRun",
       keywords: "new run ticket implement",
       action: "start-run",
@@ -106,7 +106,7 @@ export function buildPaletteItems(sources: PaletteSources): PaletteItem[] {
     {
       id: "action-add-project",
       group: "Actions",
-      label: "Add Project",
+      label: "Add Project…",
       keywords: "onboard project repository connect",
       action: "add-project",
     },
