@@ -4,6 +4,7 @@
 // semantics (spec #133 user story 53). Rate-limited retries stay disabled
 // behind countdown guidance that ticks down once per second.
 
+import type { ReactNode } from "react";
 import { Icon } from "../ui/Icon.js";
 import { formatRetryCountdown } from "./copy-map.js";
 import { RetryAction } from "./RetryAction.js";
@@ -21,7 +22,9 @@ const BANNER_ICONS: Readonly<Record<FeedbackBannerTone, string>> = {
 export interface FeedbackBannerProps {
   tone: FeedbackBannerTone;
   /** Canonical copy — the caller resolves it through the copy map. */
-  message: string;
+  message: ReactNode;
+  /** Extra detail under the message (a countdown, a notice). */
+  children?: ReactNode | undefined;
   /** Partial regions: the parts that failed, listed inline. */
   items?: readonly string[] | undefined;
   /** Rate-limit timed guidance: the retry stays disabled until it elapses. */
@@ -32,6 +35,7 @@ export interface FeedbackBannerProps {
 export function FeedbackBanner({
   tone,
   message,
+  children,
   items,
   retryAfterMs,
   onRetry,
@@ -44,7 +48,8 @@ export function FeedbackBanner({
     <div className={`feedback-banner feedback-banner--${tone}`} role={role}>
       <Icon name={BANNER_ICONS[tone]} size="md" />
       <div className="feedback-banner-content">
-        <p className="feedback-banner-message text-footnote">{message}</p>
+        <div className="feedback-banner-message text-footnote">{message}</div>
+        {children}
         {items !== undefined && items.length > 0 && (
           <ul className="feedback-banner-items text-footnote">
             {items.map((item) => (

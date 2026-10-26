@@ -175,3 +175,23 @@ describe("confirmation: the AlertDialog block names its action and waits for it"
     });
   });
 });
+
+describe("loading and error: AsyncRegion, Spinner or the feedback family, never hand-built markup", () => {
+  it("no hand-built error line: the error-message class is gone and errors use FeedbackBanner", () => {
+    expect(sitesOf(/className=["'`][^"'`]*\berror-message\b/)).toEqual([]);
+  });
+
+  it("no hand-built loading text: a wait is AsyncRegion or the Spinner block", () => {
+    expect(sitesOf(/^\s*Loading [^<{}]*…\s*$/)).toEqual([]);
+    expect(sitesOf(/>\s*Loading [^<{}]*…\s*</)).toEqual([]);
+  });
+
+  it("no hand-built spinner: a loader spins only in the Spinner block and the shared icon styles", () => {
+    const sites = sitesOf(/animation:[^;]*spin|rotate\(360deg\)/).filter(
+      (site) =>
+        !site.startsWith("src/frontend/components/ui/") &&
+        !site.startsWith("src/frontend/styles/"),
+    );
+    expect(sites).toEqual([]);
+  });
+});

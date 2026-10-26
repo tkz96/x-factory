@@ -183,19 +183,18 @@ export function TrackerSection({ project }: TrackerSectionProps) {
           </Button>
 
           {testResult && (
-            <div
-              className={`tracker-test-result ${
-                testResult.ok ? "success" : "danger"
-              }`}
-              role="status"
+            <FeedbackBanner
+              tone={testResult.ok ? "info" : "error"}
+              message={
+                <strong>
+                  {testResult.ok
+                    ? CONNECTIONS_COPY.verifyScopesOk
+                    : testResult.error
+                      ? resolveErrorCopy(testResult.error)
+                      : CONNECTIONS_COPY.verifyScopesFailed}
+                </strong>
+              }
             >
-              <strong>
-                {testResult.ok
-                  ? CONNECTIONS_COPY.verifyScopesOk
-                  : testResult.error
-                    ? resolveErrorCopy(testResult.error)
-                    : CONNECTIONS_COPY.verifyScopesFailed}
-              </strong>
               {!testResult.ok &&
                 remainingMs !== undefined &&
                 remainingMs > 0 && (
@@ -208,7 +207,7 @@ export function TrackerSection({ project }: TrackerSectionProps) {
                   {CONNECTIONS_COPY.overPrivileged}
                 </div>
               )}
-            </div>
+            </FeedbackBanner>
           )}
         </div>
       )}
