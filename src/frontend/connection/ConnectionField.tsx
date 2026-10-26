@@ -44,7 +44,7 @@ export function ConnectionField({
 
   return (
     <div className="wizard-form-group connection-field-group">
-      <label htmlFor={fieldId} className="wizard-form-label">
+      <label htmlFor={fieldId} className="wizard-form-label text-callout">
         {descriptor.label}
         {descriptor.required && <span className="required"> *</span>}
       </label>
@@ -64,7 +64,7 @@ export function ConnectionField({
         autoComplete={isSecret ? "new-password" : "off"}
       />
       {descriptor.help && (
-        <span id={hintId} className="wizard-form-hint">
+        <span id={hintId} className="wizard-form-hint text-subhead">
           {descriptor.help}
         </span>
       )}
