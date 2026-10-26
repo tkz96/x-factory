@@ -5,7 +5,7 @@ import { registerHappyDom, unregisterHappyDom } from "./setup-happy-dom.js";
 
 registerHappyDom();
 
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, describe, expect, it } from "bun:test";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { specimenRoute } from "../src/frontend/dev-routes.js";
@@ -15,6 +15,11 @@ import { specimenRoute } from "../src/frontend/dev-routes.js";
 const LOAD_TIMEOUT_MS = 10_000;
 // Bun's default test timeout is 5 s; the first render also compiles the page.
 const TEST_TIMEOUT_MS = 30_000;
+
+// Each test renders its own page: unmount the last one before the next starts.
+afterEach(() => {
+  cleanup();
+});
 
 afterAll(async () => {
   cleanup();
