@@ -78,6 +78,9 @@ const MACOS_SCALE = {
   "--text-footnote": 10,
   "--text-caption-1": 10,
   "--text-caption-2": 10,
+  // Control text: a regular control is 13px and a small one 11px (spec #292, item 4).
+  "--text-control": 13,
+  "--text-control-sm": 11,
 } as const;
 
 const IOS_SCALE = {
@@ -92,6 +95,8 @@ const IOS_SCALE = {
   "--text-footnote": 13,
   "--text-caption-1": 12,
   "--text-caption-2": 11,
+  "--text-control": 16,
+  "--text-control-sm": 13,
 } as const;
 
 /**
@@ -244,6 +249,7 @@ describe("type scale and control metrics by media condition (spec #292)", () => 
             `<!doctype html><html><head><style>${tokenCss}</style><style>${controlsCss}</style><style>${utilitiesCss}</style></head><body>` +
               `<button class="ui-button ui-button--primary" id="regular">Go</button>` +
               `<button class="ui-button ui-button--sm" id="small">Add</button>` +
+              `<p class="page-subtitle" id="subtitle">Runs that are working</p>` +
               textSamples +
               `</body></html>`,
           );
@@ -260,6 +266,30 @@ describe("type scale and control metrics by media condition (spec #292)", () => 
           const scale = condition.scale === "macos" ? MACOS_SCALE : IOS_SCALE;
           const sizes = await measureTokens(page, Object.keys(scale));
           expect(sizes).toEqual(scale);
+
+          // Running text and controls are measured where they render (spec #292,
+          // item 4): a regular control is 13px and a small one 11px on macOS, and
+          // a page subtitle is Callout, never a 10px caption.
+          const rendered = await page.evaluate(() => ({
+            regular: Number.parseFloat(
+              getComputedStyle(document.getElementById("regular") as Element)
+                .fontSize,
+            ),
+            small: Number.parseFloat(
+              getComputedStyle(document.getElementById("small") as Element)
+                .fontSize,
+            ),
+            subtitle: Number.parseFloat(
+              getComputedStyle(document.getElementById("subtitle") as Element)
+                .fontSize,
+            ),
+          }));
+          expect(rendered.regular).toBe(scale["--text-control"]);
+          expect(rendered.small).toBe(scale["--text-control-sm"]);
+          expect(rendered.subtitle).toBe(scale["--text-callout"]);
+          expect(rendered.subtitle).toBeGreaterThanOrEqual(11);
+          // Nothing renders under 10px: the smallest text token is the 10px metadata size.
+          expect(Math.min(...Object.values(scale))).toBeGreaterThanOrEqual(10);
 
           // Each text-style class computes its own size, weight and line-height.
           const textStyles =

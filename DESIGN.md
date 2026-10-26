@@ -101,7 +101,18 @@ Both scales are written in `rem`, so the browser's font-size setting scales ever
 
 On macOS, Footnote and Caption (10px) are only for metadata: timestamps, counts, badges, keyboard hints. Descriptions and secondary text use Subheadline (11) or Callout (12). No running text is smaller than 11px.
 
+**Headings** (spec #292, item 5). One level per role, and every heading names its style:
+
+- **Title 3** for a pane or section title inside a page (a Settings pane, a docs section, a specimen section). Sibling section headings share it.
+- **Headline** for a card or group title (a list group, a ticket card, a connection card, a panel heading).
+- The page title is the one Large Title, in the `PageHeader` block. No other level sits between them.
+- Every `h2`–`h4` names a text style or is part of a block. The smoke test checks this for `src/frontend`.
+
+**Controls and running text** (spec #292, item 4). A control takes the control size of its own size: a regular control is Body-sized on macOS (13px, `--text-control`) and a small control is Subheadline-sized (11px, `--text-control-sm`). A small control never takes Caption. A page subtitle is a sentence, so it is Callout (12px on macOS). Metadata (counts, timestamps, status chips, "2 of 6 stages done") may stay at 10px. Nothing renders below 10px.
+
 Use these styles exclusively. No arbitrary font sizes, and no token below 10px (gate G2). Badges and tags use Caption 1 or Footnote. Text styles set font-size, font-weight, line-height and letter-spacing together. The classes are `.text-large-title`, `.text-title-1`, `.text-title-2`, `.text-title-3`, `.text-headline`, `.text-body`, `.text-callout`, `.text-subhead`, `.text-footnote`, `.text-caption-1` and `.text-caption-2`. Each reads its size, weight, leading and tracking tokens (`--text-<style>`, `--text-<style>-weight`, `--text-<style>-leading`, `--text-<style>-tracking`), so it follows the active scale with no media query of its own. Components must use these classes instead of setting `font-size` or `font-weight` directly. Gate G4 (M7) enforces this; until then the design reviewer checks it. Headline is Semibold on iOS and Bold on macOS; Caption 2 is Regular on iOS and Medium on macOS.
+
+**Selection and bezels** (spec #292, items 2, 3 and 7). A selected list row is a neutral fill while the list is not focused, and the accent fill only while focus is inside the list, as a macOS sidebar shows it. A secondary button is an opaque bezel with a hairline (`--fill-bezel`, `--shadow-bezel`), so it reads on a tinted card. A disabled icon button keeps its circle and dims its glyph. A segmented control's track is one step darker than its white thumb. In forced colours a primary button takes the `Highlight` pair, so it stays distinct from the secondary one.
 
 **Control metrics** (computed px). The macOS metrics apply with the macOS scale: regular control 28px tall, small 22px, large 32px, toolbar 52px, sidebar row 28px. The iOS scale keeps the iOS header of 56px.
 
@@ -355,6 +366,7 @@ Every async region renders through `AsyncRegion` (`components/feedback/`). A scr
 
 - **Loading.** Lists reserve placeholder rows. Every other wait is the one standard spinner.
 - **Empty.** `AsyncRegion` renders the `EmptyState` block: a glyph, a title that names what is missing (Title 3), one line of guidance in the secondary label colour, and an optional action (a `Button`). It is centred, with no card or box around it. A screen with no data load, such as no search results, renders `EmptyState` directly.
+- **Inline or region (spec #292, item 6).** `EmptyState` is for a whole region: a list that has no rows, a pane with nothing selected. A one-line "nothing here" inside a list of rows stays inline and left-aligned, in the row's own text style (Run details → Files: "No changes yet."), with no glyph and no centring. The Projects detail placeholder ("No project selected") is a region, so it is an `EmptyState` with an icon and a title.
 - **Error.** Normalized copy from `components/feedback/copy-map.ts`, a retry action, and an alert role. A raw payload is never shown.
 - **Wording.** Titles and guidance are sentence case, name what is missing, and say the next step. No emoji.
 
