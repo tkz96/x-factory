@@ -1156,3 +1156,92 @@
     margin-inline-start: auto;
   }
 }
+
+/* ── Card ─────────────────────────────────────────────────────────────── *
+ * One block, seven variants (#296, spec #292 "Blocks"): the card families the
+ * migration replaces. A raised card (default, connection, ticket, review)
+ * sits on --bg-card behind the hairline in --separator on the radius ladder;
+ * an inset card (model, chat, flow) is the quiet fill on --bg-secondary, the
+ * frame dropped because it already sits inside another surface. Every value
+ * is a token — hairline, radius, surface and the hover pair — and content
+ * stays opaque: the glass material belongs to chrome only (DESIGN.md §5
+ * Materials). A card carries no type of its own; the words inside it use the
+ * text styles, and spacing between cards belongs to the screen, not the
+ * block. A card has no shadow at rest and never scales — it would drag every
+ * row inside it (DESIGN.md §7 "Building blocks"). */
+
+.ui-card {
+  background: var(--bg-card);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  padding: var(--space-6);
+}
+
+/* .connection-card — the registry card: one step tighter padding. */
+.ui-card--connection {
+  padding: var(--space-5);
+}
+
+/* .ticket-card — the pressable family: the column rhythm of a ticket, plus
+   the hover affordance. The lift is for a real pointer only: a touch device
+   has no hover, and a nudge under the finger only makes the target move. The
+   screen wires the behaviour (role, press); the block owns the look. */
+.ui-card--ticket {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background-color var(--transition);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-card--ticket:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+  }
+}
+
+/* .review-summary-card — framed on the --radius-md rung, rows stacked on
+   --space-4. */
+.ui-card--review {
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* .model-connection-card — the inset quiet fill, no frame of its own. */
+.ui-card--model {
+  background: var(--bg-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* .run-chat-card — the densest inset: footnote-sized content, --space-2
+   rhythm. */
+.ui-card--chat {
+  background: var(--bg-secondary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* .flow-fallback-card — the inset that keeps a quiet frame: the faintest
+   border token, because it stands in for a diagram that failed to draw. */
+.ui-card--flow {
+  background: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
