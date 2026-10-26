@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { AppShell } from "./components/AppShell.js";
 import { HomeRoute } from "./components/welcome/HomeRoute.js";
+import { specimenRoute } from "./dev-routes.js";
 import { DocsView } from "./views/DocsView.js";
 import { NotFoundView } from "./views/NotFoundView.js";
 import { ProjectDetailView } from "./views/ProjectDetailView.js";
@@ -71,6 +72,9 @@ export const routeDefinitions: RouteObject[] = [
         path: "docs",
         element: <DocsView />,
       },
+      // The dev-only specimen route (spec #292, #294): import.meta.env.DEV is false
+      // in a production build, so the route and its module drop out of the bundle.
+      ...(import.meta.env.DEV ? [specimenRoute()] : []),
       {
         // An address no screen claims says so, in place, rather than
         // silently redirecting to Tickets.
