@@ -444,7 +444,12 @@ describe("Run details rows: a fill only where a row does something (run page pla
             url: "https://github.com/o/r/issues/7",
             acceptanceCriteria: [],
           },
-          pullRequest: { url: "https://github.com/o/r/pull/9" },
+          pullRequest: {
+            url: "https://github.com/o/r/pull/9",
+            branch: "factory/t-1",
+            baseBranch: "main",
+            title: "Factorial",
+          },
         })}
         events={[]}
         connected={false}
