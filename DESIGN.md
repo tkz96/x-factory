@@ -368,6 +368,30 @@ A screen composes blocks; it never hand-rolls a control. The vocabulary lives in
 - **The Runs filter collapses to a select below 400px.** The same SegmentedControl re-renders through the Select block (`collapseBelow="(max-width: 400px)"`).
 - **The run page pins its stepper strip above the phone tab bar** at one exact height, and below 480px only the current step keeps its label (`WorkflowStepper.css`, `RunDetailView.css`).
 
+### PageHeader (the page heading)
+
+- **`AppShell` owns the page heading; the block is `PageHeader`**
+  (`components/ui/PageHeader.tsx`, styles in `shared/controls.css`). It draws
+  the screen's one `h1` (`#page-title`), the subtitle under it and the
+  trailing action slot, once per screen (spec #292, "Blocks").
+- **A view provides its title and actions through the slot.** The view calls
+  `usePageHeader({ title, subtitle, actions })`
+  (`src/frontend/context/PageHeaderContext.tsx`) while it is mounted; the
+  shell renders the claim in the page heading at desktop and phone width, and
+  in the toolbar title once the page scrolls (both scroll paths — `<main>` on
+  desktop, the window on a phone). Content the view omits keeps the shell's
+  own: the address's title and subtitle, and the section's page action (Start
+  Run, Add Project). `actions: null` says the screen has none, and an empty
+  `subtitle` says there is no line. Unmounting releases the claim, so the
+  next screen's heading stands again.
+- **Views never render their own page `<header>` or heading class** — the
+  slot is the only way onto the heading (gate G7, which lands in M7 with the
+  view migrations). The hook is a no-op when a view renders without a shell,
+  so a view stays renderable on its own in a test.
+- **A panel header inside a page (for example `RunChatHeader` or
+  `RunInspector`) is not a page header.** It uses text styles and tokens and
+  never touches the slot.
+
 ## 8. Non-negotiables
 
 - MUST check the relevant HIG page and Figma kit before designing any new screen or component.
