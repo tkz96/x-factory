@@ -234,12 +234,12 @@ describe("progress lines group and collapse", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={events} />,
     );
-    const group = container.querySelector("details");
-    expect(group).not.toBeNull();
-    expect(group?.querySelector("summary")?.textContent).toBe(
-      "4 progress updates",
+    const toggle = container.querySelector<HTMLElement>(
+      ".run-chat-group .run-disclosure",
     );
-    expect(group?.open).toBe(false);
+    expect(toggle).not.toBeNull();
+    expect(toggle?.textContent).toBe("4 agent updates");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("keeps a short run of progress lines visible", () => {
@@ -249,8 +249,28 @@ describe("progress lines group and collapse", () => {
     const { container } = render(
       <RunChat run={makeRun("executing")} events={events} />,
     );
-    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector(".run-chat-group")).toBeNull();
     expect(within(log(container)).getByText("step 2")).toBeTruthy();
+  });
+
+  it("folds the Reviewer's tool calls with the agent updates, and opens on press", () => {
+    const events = [
+      ev(1, "review_activity", { tool: "read", text: "Running tool read" }),
+      ev(2, "review_activity", { tool: "read", text: "Running tool read" }),
+      ev(3, "review_activity", { text: "CRITERIA_CHECK: all pass" }),
+    ];
+    const { container } = render(
+      <RunChat run={makeRun("executing")} events={events} />,
+    );
+    const toggle = container.querySelector<HTMLElement>(
+      ".run-chat-group .run-disclosure",
+    );
+    expect(toggle?.textContent).toBe("3 agent updates");
+    const body = container.querySelector<HTMLElement>(".run-chat-group-body");
+    expect(body?.hidden).toBe(true);
+    if (toggle) fireEvent.click(toggle);
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(body?.hidden).toBe(false);
   });
 });
 

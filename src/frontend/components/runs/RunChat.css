@@ -345,28 +345,19 @@
 }
 
 /* Long runs of progress lines fold into one group the reader can open. */
-.run-chat-group {
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  padding: var(--space-1) var(--space-3);
-}
-
-.run-chat-group summary {
-  min-height: var(--tap-min);
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  text-align: start;
+/* A folded run of agent updates: a disclosure row (RunDisclosure) in the secondary
+   label colour, and its rows indented under it on a hairline when it is open. */
+.ui-button.run-chat-group-header {
   color: var(--text-secondary);
-  cursor: pointer;
 }
 
-.run-chat-group summary:focus-visible {
-  outline: var(--border-width-indicator) solid var(--border-focus);
-}
-
-.run-chat-group > :not(summary) {
-  padding-bottom: var(--space-2);
+.run-chat-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-inline-start: var(--space-3);
+  padding: var(--space-1) 0 var(--space-2) var(--space-3);
+  border-inline-start: var(--hairline) solid var(--separator);
 }
 
 /* ── Jump to latest ────────────────────────────────────────────────── */

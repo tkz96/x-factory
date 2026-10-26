@@ -5,7 +5,7 @@
 import "./RunChat.css";
 import "./RunStageTimeline.css";
 
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useState } from "react";
 import type { DiffFileSummary } from "../../../shared/diff-summary.js";
 import type { WorkflowStage } from "../../../shared/types.js";
 import type { ChatItem } from "../../lib/run-chat-items.js";
@@ -17,10 +17,10 @@ import {
 } from "../../lib/run-stages.js";
 import { STATUS_COPY } from "../feedback/copy-map.js";
 import { Badge, type BadgeTone } from "../ui/Badge.js";
-import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
 import { RunChatRow } from "./RunChatItem.js";
+import { RunDisclosure } from "./RunDisclosure.js";
 
 export interface RunStageTimelineProps {
   groups: StageGroup[];
@@ -86,6 +86,43 @@ const STATE_STATUS: Partial<
   stopped: { text: STATUS_COPY.stageStopped, tone: "neutral" },
 };
 
+/** A folded run of agent updates: one disclosure row, closed until the reader opens it. */
+function ActivityGroup({
+  items,
+  now,
+  onOpenFile,
+}: {
+  items: ChatItem[];
+  now: number;
+  onOpenFile: (file: DiffFileSummary) => void;
+}) {
+  const [isOpen, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="run-chat-group">
+      <RunDisclosure
+        id={`${id}-head`}
+        controls={`${id}-body`}
+        isOpen={isOpen}
+        onToggle={() => setOpen((open) => !open)}
+        className="run-chat-group-header"
+      >
+        <span className="text-subhead">{`${items.length} agent updates`}</span>
+      </RunDisclosure>
+      <div id={`${id}-body`} className="run-chat-group-body" hidden={!isOpen}>
+        {items.map((item) => (
+          <RunChatRow
+            key={item.id}
+            item={item}
+            now={now}
+            onOpenFile={onOpenFile}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StageRows({
   items,
   now,
@@ -109,17 +146,12 @@ function StageRows({
             onRetry={retryFor?.(row.item)}
           />
         ) : (
-          <details key={row.id} className="run-chat-group">
-            <summary>{`${row.items.length} progress updates`}</summary>
-            {row.items.map((item) => (
-              <RunChatRow
-                key={item.id}
-                item={item}
-                now={now}
-                onOpenFile={onOpenFile}
-              />
-            ))}
-          </details>
+          <ActivityGroup
+            key={row.id}
+            items={row.items}
+            now={now}
+            onOpenFile={onOpenFile}
+          />
         ),
       )}
     </>
@@ -160,13 +192,12 @@ export function RunStageTimeline({
                 />
               )}
             </span>
-            <Button
-              variant="quiet"
+            <RunDisclosure
               id={headId}
+              controls={bodyId}
+              isOpen={isOpen}
+              onToggle={() => onToggle(group.stage)}
               className="run-stage-header"
-              aria-expanded={isOpen}
-              aria-controls={bodyId}
-              onPress={() => onToggle(group.stage)}
             >
               <span className="run-stage-label text-headline">
                 {group.label}
@@ -185,12 +216,7 @@ export function RunStageTimeline({
                   {STATUS_COPY.waitingForYou}
                 </Badge>
               )}
-              <Icon
-                name="icon-stage-chevron"
-                size="sm"
-                className="run-stage-chevron"
-              />
-            </Button>
+            </RunDisclosure>
             <section
               id={bodyId}
               aria-labelledby={headId}
