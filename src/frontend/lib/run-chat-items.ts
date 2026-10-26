@@ -152,7 +152,10 @@ function mapEvent(event: RunEvent): ChatItem[] {
         },
       ];
     case "stage_started": {
-      const stage = event.payload.stage;
+      // The review runs as a step of the execute stage on the worker, but the reader
+      // follows it under Review, so a review step moves the timeline there.
+      const stage =
+        event.payload.step === "review" ? "review" : event.payload.stage;
       return [
         {
           ...common,
@@ -192,7 +195,37 @@ function mapEvent(event: RunEvent): ChatItem[] {
   }
 }
 
+/**
+ * Drops what the reader already saw: a status that repeats the status before it, an agent
+ * output line that repeats the progress line before it (the loop logs each step both ways),
+ * and a stage summary that restates the result before it ("Review approved: Review passed…").
+ */
+function withoutRepeats(items: readonly ChatItem[]): ChatItem[] {
+  const kept: ChatItem[] = [];
+  let lastStatus: RunStatus | undefined;
+  let lastProgress: string | undefined;
+  let lastResult: string | undefined;
+  for (const item of items) {
+    if (item.kind === "status") {
+      if (item.status === lastStatus && !item.failure) continue;
+      lastStatus = item.status;
+    }
+    if (item.kind === "progress") lastProgress = item.text.trim();
+    if (item.kind === "output" && item.text.trim() === lastProgress) continue;
+    if (item.kind === "result") lastResult = item.summary.trim();
+    if (
+      item.kind === "evidence" &&
+      lastResult &&
+      item.text.includes(lastResult)
+    ) {
+      continue;
+    }
+    kept.push(item);
+  }
+  return kept;
+}
+
 /** Maps a run's events, in order, to the chat's items. Pure: the same events always give the same items. */
 export function mapEventsToChatItems(events: readonly RunEvent[]): ChatItem[] {
-  return events.flatMap(mapEvent);
+  return withoutRepeats(events.flatMap(mapEvent));
 }
