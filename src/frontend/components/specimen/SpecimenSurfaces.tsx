@@ -21,7 +21,7 @@ const TYPE_SCALE = [
 export function SpecimenTypeScale() {
   return (
     <section className="specimen-section" aria-labelledby="specimen-type">
-      <h2 id="specimen-type" className="specimen-heading text-title-2">
+      <h2 id="specimen-type" className="specimen-heading text-title-3">
         Type scale
       </h2>
       {TYPE_SCALE.map(([name, key]) => (
@@ -38,7 +38,7 @@ export function SpecimenTypeScale() {
 export function SpecimenCorners() {
   return (
     <section className="specimen-section" aria-labelledby="specimen-corners">
-      <h2 id="specimen-corners" className="specimen-heading text-title-2">
+      <h2 id="specimen-corners" className="specimen-heading text-title-3">
         Corners
       </h2>
       <div className="specimen-corners">

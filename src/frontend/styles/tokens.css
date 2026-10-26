@@ -188,6 +188,12 @@
   /* Filled bezel for a button with no border (spec #292, DESIGN.md §Lines). */
   --fill-control: rgba(120, 120, 128, 0.12);
   --fill-control-hover: rgba(120, 120, 128, 0.2);
+  /* A secondary button on a tinted surface (a decision card, a banner) takes an opaque
+     bezel with a hairline, as the macOS bordered button does, so it reads on any fill
+     (spec #292, item 2). Each appearance sets its own pair below. */
+  --fill-bezel: #ffffff;
+  --fill-bezel-hover: #f2f2f7;
+  --shadow-bezel: inset 0 0 0 var(--hairline) rgba(0, 0, 0, 0.12);
 
   /* Radii — one ladder, six rungs (DESIGN.md §6). A control's radius comes from its
      size rather than from the screen it sits on, and an inner shape's radius is
@@ -217,6 +223,9 @@
   /* The root font size is a percentage, so the browser setting scales every text style. */
   --text-root: 100%;
   --text-caption-2: 0.6875rem; /* 11px */
+  /* Control text (spec #292, item 4): a control's font follows its size, never a caption. */
+  --text-control: var(--text-callout); /* 16px, iOS regular button */
+  --text-control-sm: var(--text-footnote); /* 13px, iOS small control */
   --text-caption-1: 0.75rem; /* 12px */
   --text-footnote: 0.8125rem; /* 13px */
   --text-subhead: 0.9375rem; /* 15px */
@@ -454,6 +463,8 @@
     --text-body: 0.8125rem; /* 13px regular */
     --text-callout: 0.75rem; /* 12px regular */
     --text-subhead: 0.6875rem; /* 11px regular */
+    --text-control: 0.8125rem; /* 13px regular: a macOS regular control */
+    --text-control-sm: 0.6875rem; /* 11px regular: a macOS small control */
     --text-footnote: 0.625rem; /* 10px regular */
     --text-caption-1: 0.625rem; /* 10px regular */
     --text-caption-2: 0.625rem; /* 10px medium (weight set by the text style) */
@@ -1135,6 +1146,9 @@
   --separator: rgba(84, 84, 88, 0.65);
   --fill-control: rgba(118, 118, 128, 0.24);
   --fill-control-hover: rgba(118, 118, 128, 0.34);
+  --fill-bezel: #5a5a5e;
+  --fill-bezel-hover: #6c6c70;
+  --shadow-bezel: inset 0 0 0 var(--hairline) rgba(255, 255, 255, 0.14);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1142,6 +1156,9 @@
     --separator: rgba(84, 84, 88, 0.65);
     --fill-control: rgba(118, 118, 128, 0.24);
     --fill-control-hover: rgba(118, 118, 128, 0.34);
+    --fill-bezel: #5a5a5e;
+    --fill-bezel-hover: #6c6c70;
+    --shadow-bezel: inset 0 0 0 var(--hairline) rgba(255, 255, 255, 0.14);
   }
 }
 

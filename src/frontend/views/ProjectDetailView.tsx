@@ -125,18 +125,20 @@ export function ProjectDetailView() {
               </div>
             ))}
           </dl>
+          {/* The identifier is not one of the three plain-word facts: it sits under them
+              in the same card, as the one line of the card's own. */}
+          <p className="projects-detail-id text-subhead">
+            <span>{PROJECT_DETAIL_COPY.projectId}</span>
+            <code>{project.id}</code>
+          </p>
         </Card>
-
-        <p className="projects-detail-id text-footnote">
-          <span>{PROJECT_DETAIL_COPY.projectId}</span>
-          <code>{project.id}</code>
-        </p>
 
         <ConnectionComboLine
           id="project-connections-combo"
           slots={slots}
           tone={comboTone(slots, REQUIRED_POST_CREATION_ROLES)}
           descriptors={descriptors}
+          size="subhead"
         />
 
         <ReadinessBanner />

@@ -155,9 +155,8 @@
 .docs-search-doc-title {
   color: var(--text);
   width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .docs-search-sections {
@@ -284,13 +283,15 @@
   color: var(--accent);
 }
 
+/* A long entry wraps to as many lines as its title needs, as the macOS sidebar does,
+   so the full title stays readable without a hover (spec #292, item 10). The row grows
+   with it: min-height only, never a fixed height. */
 .docs-nav-label {
   display: block;
   width: 100%;
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 /* ── Sidebar footer and back link ───────────────────────────────────── */

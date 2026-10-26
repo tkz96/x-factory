@@ -35,7 +35,7 @@ export function SpecimenBlocks() {
   const [enabled, setEnabled] = useState(true);
   return (
     <section className="specimen-section" aria-labelledby="specimen-blocks">
-      <h2 id="specimen-blocks" className="specimen-heading text-title-2">
+      <h2 id="specimen-blocks" className="specimen-heading text-title-3">
         Blocks
       </h2>
 

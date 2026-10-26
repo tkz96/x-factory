@@ -8,12 +8,12 @@
 
 /* A line inside a card, not a box of its own: the card owns the border.
    A degraded or missing connection still reads as a state, in its own tint.
-   The line's type comes from the .text-footnote style in the markup. */
+   The line's type comes from the .text-footnote or .text-subhead style in the markup. */
 .connection-combo-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-4);
 }
 
 .connection-combo-line--warning {
@@ -78,20 +78,12 @@
   color: var(--red);
 }
 
-.connection-combo-separator {
-  color: var(--text-dim);
-}
-
-/* Phone width: the roles stack, so the "·" separator cannot end up alone
-   at the start of a wrapped line. */
+/* No separator between the slots: the gap does that job, so a wrapped line can never
+   end, or start, with a dangling "·" (spec #292, item 8). Phone width stacks the roles. */
 @media (max-width: 600px) {
   .connection-combo-line {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-1);
-  }
-
-  .connection-combo-separator {
-    display: none;
   }
 }

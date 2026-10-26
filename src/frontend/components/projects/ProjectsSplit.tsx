@@ -37,7 +37,13 @@ export function ProjectsSplit({ selectedId, children }: ProjectsSplitProps) {
           <Icon name="icon-arrow-left" size="sm" />
           <span>{PROJECTS_COPY.backToList}</span>
         </Link>
-        {children ?? <EmptyState message={PROJECTS_COPY.selectPrompt} />}
+        {children ?? (
+          <EmptyState
+            icon="icon-folder"
+            title={PROJECTS_COPY.selectTitle}
+            message={PROJECTS_COPY.selectPrompt}
+          />
+        )}
       </div>
     </section>
   );

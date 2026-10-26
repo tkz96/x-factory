@@ -18,7 +18,7 @@ export function SpecimenControls({
     onChange({ ...settings, ...patch });
   return (
     <section className="specimen-section" aria-labelledby="specimen-controls">
-      <h2 id="specimen-controls" className="specimen-heading text-title-2">
+      <h2 id="specimen-controls" className="specimen-heading text-title-3">
         Switches
       </h2>
       <div className="specimen-switches">

@@ -27,7 +27,6 @@ import {
   Sheet,
 } from "../overlays/index.js";
 import { Button } from "../ui/Button.js";
-import { EmptyState } from "../ui/EmptyState.js";
 import { Icon } from "../ui/Icon.js";
 import { IconButton } from "../ui/IconButton.js";
 import { ChatThread } from "./ChatThread.js";
@@ -264,9 +263,7 @@ function RunDetailsPane({ run, events, connected }: RunInspectorProps) {
               )}
             </div>
             {files.length === 0 ? (
-              <div className="run-inspector-none">
-                <EmptyState message="No changes yet." />
-              </div>
+              <p className="run-inspector-none text-callout">No changes yet.</p>
             ) : (
               <ul className="run-inspector-files">
                 {files.map((file) => (

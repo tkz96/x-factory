@@ -494,8 +494,8 @@
 }
 
 .ui-icon-button.run-chat-send:disabled {
-  background: var(--bg-surface-2);
-  color: var(--text-muted);
+  background: var(--bg-circle-btn);
+  color: var(--text-dim);
   cursor: default;
 }
 
