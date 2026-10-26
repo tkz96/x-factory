@@ -1162,6 +1162,209 @@ describe("Frontend Smoke — Migration gates G3 to G9 and G11 (spec #292)", () =
   });
 });
 
+// ─── Copy gate (spec #292, step 5) ─────────────────────────────────────────
+
+describe("Frontend Smoke — Copy gate G10 (spec #292)", () => {
+  /**
+   * G10: a button or menu-item label is Title Case. Every word is capitalized
+   * except an article, a coordinating conjunction or a short preposition, and
+   * the first and the last word are always capitalized, even when minor
+   * (DESIGN.md §7 Copy; spec #292, "Copy").
+   */
+  const MINOR_WORDS = new Set([
+    "a",
+    "an",
+    "the",
+    "and",
+    "but",
+    "or",
+    "nor",
+    "for",
+    "so",
+    "yet",
+    "in",
+    "on",
+    "at",
+    "to",
+    "by",
+    "with",
+    "from",
+    "into",
+    "onto",
+    "of",
+    "off",
+    "up",
+    "down",
+    "over",
+    "under",
+    "about",
+    "as",
+    "per",
+    "via",
+    "near",
+    "between",
+    "during",
+    "without",
+    "within",
+    "against",
+    "through",
+    "around",
+    "after",
+    "before",
+    "except",
+    "like",
+    "than",
+    "until",
+    "upon",
+  ]);
+
+  /** The letter-bearing words of a label; symbols and digits carry no case. */
+  function wordTokens(label: string): string[] {
+    return label.split(/\s+/).filter((token) => /[a-zA-Z]/.test(token));
+  }
+
+  /** The words that break Title Case, in order ("changes" from "Save changes"). */
+  function titleCaseViolations(label: string): string[] {
+    const words = wordTokens(label);
+    if (words.length === 0) return [];
+    const first = words[0];
+    const last = words[words.length - 1];
+    const out: string[] = [];
+    for (const token of words) {
+      const i = token.search(/[a-zA-Z]/);
+      const core = token
+        .slice(i)
+        .replace(/[^a-zA-Z].*$/, "")
+        .toLowerCase();
+      const minor = MINOR_WORDS.has(core);
+      const shouldCapitalize = token === first || token === last || !minor;
+      const letter = token[i] ?? "";
+      const capitalized = letter === letter.toUpperCase();
+      if (shouldCapitalize !== capitalized) out.push(token);
+    }
+    return out;
+  }
+
+  /** The index of the `>` that ends a JSX opening tag, skipping `>` inside `{...}`. */
+  function tagEnd(text: string, from: number): number {
+    let depth = 0;
+    let quote = "";
+    for (let i = from; i < text.length; i++) {
+      const c = text[i];
+      if (quote) {
+        if (c === "\\") i++;
+        else if (c === quote) quote = "";
+        continue;
+      }
+      if (c === '"' || c === "'") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0) return i;
+    }
+    return text.length;
+  }
+
+  /** The visible label of one element's children: tags and expressions dropped. */
+  function innerLabel(inner: string): string {
+    let out = inner.replace(/<[^>]*>/g, " ");
+    for (let i = 0; i < 6; i++) out = out.replace(/\{[^{}]*\}/g, " ");
+    return out.replace(/\s+/g, " ").trim();
+  }
+
+  /** Every literal button and menu-item label written in one TSX source. */
+  function actionLabels(text: string): string[] {
+    const labels: string[] = [];
+    for (const name of ["Button", "MenuItem"]) {
+      const open = new RegExp(`<${name}(?=[\\s/>])`, "g");
+      for (const match of text.matchAll(open)) {
+        const start = match.index ?? 0;
+        const end = tagEnd(text, start + 1 + name.length);
+        if (text[end - 1] === "/") continue; // self-closing, no label
+        const close = text.indexOf(`</${name}>`, end);
+        if (close === -1) continue;
+        const inner = text.slice(end + 1, close);
+        // A dynamic label (an expression, a count, sr-only text) is not a
+        // literal this static gate can judge; it is asserted where it renders.
+        if (inner.includes("{")) continue;
+        const label = innerLabel(inner);
+        if (label && /[A-Za-z]/.test(label)) labels.push(label);
+      }
+    }
+    for (const match of text.matchAll(/<IconButton\b/g)) {
+      const start = match.index ?? 0;
+      const tag = text.slice(start, tagEnd(text, start + 11) + 1);
+      const label = tag.match(/\blabel="([^"]+)"/)?.[1];
+      if (label) labels.push(label);
+    }
+    return labels;
+  }
+
+  function frontendTsx(): { file: string; text: string }[] {
+    const out: { file: string; text: string }[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".tsx")) {
+          out.push({
+            file: path.relative(ROOT_DIR, full),
+            text: fs.readFileSync(full, "utf-8"),
+          });
+        }
+      }
+    };
+    walk(path.join(ROOT_DIR, "src/frontend"));
+    return out;
+  }
+
+  it("G10: button and menu-item labels use Title Case", () => {
+    const violations = frontendTsx().flatMap(({ file, text }) =>
+      actionLabels(text)
+        .filter((label) => titleCaseViolations(label).length > 0)
+        .map((label) => `${file}: ${label}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("G10 flags sentence-case labels and passes Title Case, keeping the ellipsis (fixture)", () => {
+    expect(titleCaseViolations("Save changes")).toEqual(["changes"]);
+    expect(titleCaseViolations("Open dialog…")).toEqual(["dialog…"]);
+    expect(titleCaseViolations("Jump to latest")).toEqual(["latest"]);
+    expect(titleCaseViolations("Clear search query")).toEqual([
+      "search",
+      "query",
+    ]);
+    expect(titleCaseViolations("Save Changes")).toEqual([]);
+    expect(titleCaseViolations("Open Dialog…")).toEqual([]);
+    expect(titleCaseViolations("Jump to Latest")).toEqual([]);
+    expect(titleCaseViolations("Mark All as Read")).toEqual([]);
+    expect(titleCaseViolations("Clear Search Query")).toEqual([]);
+
+    // The extractor pulls a bad label out of a real JSX snippet — including one
+    // whose opening tag hides `>` inside an arrow function — so the gate
+    // provably fails on a sentence-case button and menu item.
+    const bad = actionLabels(
+      '<Button variant="primary" onPress={() => go()}>Save changes</Button>' +
+        '<MenuItem id="m" isDanger onAction={stop}>Stop run</MenuItem>' +
+        '<IconButton label="Clear search query" icon="icon-x" />',
+    );
+    expect(bad).toEqual(["Save changes", "Stop run", "Clear search query"]);
+    expect(bad.flatMap((label) => titleCaseViolations(label))).toEqual([
+      "changes",
+      "run",
+      "search",
+      "query",
+    ]);
+
+    const good = actionLabels(
+      '<Button variant="primary">Save Changes</Button>' +
+        '<MenuItem id="m">Open Run</MenuItem>' +
+        '<IconButton label="Send" icon="icon-send" />',
+    );
+    expect(good.flatMap((label) => titleCaseViolations(label))).toEqual([]);
+  });
+});
+
 // ─── Motion system (spec #241, ticket #252) ────────────────────────────────
 
 describe("Frontend Smoke — Motion (#252)", () => {

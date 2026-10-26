@@ -231,7 +231,7 @@ export function DocsSidebarNav() {
               {rawQuery && (
                 <TooltipTrigger delay={300}>
                   <IconButton
-                    label="Clear search query"
+                    label="Clear Search Query"
                     icon="icon-x"
                     variant="plain"
                     onPress={handleClearSearch}
@@ -277,7 +277,7 @@ export function DocsSidebarNav() {
                     size="sm"
                     onPress={handleClearSearch}
                   >
-                    Reset search
+                    Reset Search
                   </Button>
                 }
               />

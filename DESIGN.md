@@ -370,6 +370,14 @@ Every async region renders through `AsyncRegion` (`components/feedback/`). A scr
 - **Error.** Normalized copy from `components/feedback/copy-map.ts`, a retry action, and an alert role. A raw payload is never shown.
 - **Wording.** Titles and guidance are sentence case, name what is missing, and say the next step. No emoji.
 
+### Copy
+
+- **Buttons and menu items use Title Case** (gate G10). Capitalize every word except articles (`a`, `an`, `the`), coordinating conjunctions (`and`, `but`, `or`, `nor`, `for`, `so`, `yet`) and short prepositions (`in`, `on`, `at`, `to`, `with`, …), and never capitalize a minor word that is the first or last word. Examples: `Save Changes`, `Jump to Latest`, `Mark All as Read`. An icon-only control's accessible name is a button label and follows the same rule (`Clear Search Query`).
+- **An ellipsis (`…`, U+2026) marks an action the press does not finish**: it opens a dialog or sheet, or asks for more input before it can complete (`Open Dialog…`, `Delete Run…`, `Open Sheet…`). An action that completes at once — `Save`, `Cancel`, `Close`, `Try Again`, `Refresh` — never takes one.
+- **Labels, descriptions, help text and headings are sentence case**, and they name what is missing and the next step (see "Loading, empty and error"). A hover tooltip (`title`) is description, not a label, so it stays sentence case.
+- **A destructive button names the action** — `Delete Run`, never `OK` or `Confirm` — and is drawn with the `danger` variant.
+- Canonical strings live in `components/feedback/copy-map.ts`; a screen overrides copy only through props when a region needs bespoke guidance. `bun run test:frontend-smoke` enforces Title Case on button and menu-item labels (G10).
+
 ### Lists, headers and sizes
 
 - **Grouped inset lists.** Settings panes, the Welcome checklist, the Runs list,

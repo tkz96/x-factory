@@ -254,8 +254,8 @@ describe("progress lines group and collapse", () => {
   });
 });
 
-describe("scroll position and Jump to latest", () => {
-  it("follows new items while at the bottom and offers Jump to latest after scrolling up", () => {
+describe("scroll position and Jump to Latest", () => {
+  it("follows new items while at the bottom and offers Jump to Latest after scrolling up", () => {
     const events = [ev(1, "chat_agent", { text: "first" })];
     const { container, rerender } = render(
       <RunChat run={makeRun("executing")} events={events} />,
@@ -280,14 +280,14 @@ describe("scroll position and Jump to latest", () => {
     );
     expect(list.scrollTop).toBe(0);
     const jump = within(container).getByRole("button", {
-      name: "Jump to latest",
+      name: "Jump to Latest",
     });
     expect(jump).toBeTruthy();
 
     fireEvent.click(jump);
     expect(list.scrollTop).toBe(1000);
     expect(
-      within(container).queryByRole("button", { name: "Jump to latest" }),
+      within(container).queryByRole("button", { name: "Jump to Latest" }),
     ).toBeNull();
   });
 

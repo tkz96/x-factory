@@ -134,5 +134,5 @@ Every gate lives in `test/frontend-smoke.test.ts`, and each one has a fixture th
 | G7 | No page `<header>` or page-heading class in `views/*.tsx`; PageHeader only | active |
 | G8 | No empty-state markup outside `AsyncRegion` or EmptyState | active |
 | G9 | No card class outside the Card block, except diagram node cards (`flow-node-card`) | active |
-| G10 | Button and menu-item labels use Title Case | inactive (step 5) |
+| G10 | Button and menu-item labels use Title Case | active |
 | G11 | `buttons.css`, `cards.css` and `badges.css` do not exist; no bare `button` element style | active |

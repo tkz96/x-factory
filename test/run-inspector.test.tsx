@@ -291,7 +291,7 @@ describe("the raw log opens from the footer", () => {
         connected={false}
       />,
     );
-    const button = within(container).getByRole("button", { name: /Raw log/ });
+    const button = within(container).getByRole("button", { name: /Raw Log/ });
     expect(button.textContent).toContain("2 events");
     expect(container.querySelector(".run-inspector-live-dot")).toBeNull();
     fireEvent.click(button);
@@ -312,7 +312,7 @@ describe("the raw log opens from the footer", () => {
     const { container } = render(
       <RunInspector run={makeRun("planning")} events={events} connected />,
     );
-    const button = within(container).getByRole("button", { name: /Raw log/ });
+    const button = within(container).getByRole("button", { name: /Raw Log/ });
     expect(button.textContent).toContain("1 event");
     expect(button.textContent).not.toContain("1 events");
     expect(container.querySelector(".run-inspector-live-dot")).not.toBeNull();
@@ -340,7 +340,7 @@ describe("at phone width the same pane is a sheet", () => {
       within(sheet).getByRole("heading", { level: 3, name: "Evidence" }),
     ).toBeTruthy();
     expect(sheet.textContent).toContain("src/a.ts");
-    expect(within(sheet).getByRole("button", { name: /Raw log/ })).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: /Raw Log/ })).toBeTruthy();
   });
 });
 

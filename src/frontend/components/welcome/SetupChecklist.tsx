@@ -86,7 +86,7 @@ function StepAction({
 export interface SetupChecklistProps {
   /** From `deriveSetupChecklist` — real state, never a guess (#269). */
   checklist: SetupChecklistModel;
-  /** "I'll set up later": leaves the welcome while steps are still to do. */
+  /** "I'll Set Up Later": leaves the welcome while steps are still to do. */
   onSetUpLater: () => void;
 }
 
