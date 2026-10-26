@@ -85,9 +85,17 @@
      is an outlined pill like the secondary one beside it. */
   :root .ui-button--primary,
   :root .ui-button--primary[data-hovered] {
+    /* Opted out of forced adjustment, as the selected segment is: the browser's Canvas
+       backplate behind the label would otherwise hide HighlightText. */
+    forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
     border-color: Highlight;
+  }
+
+  :root .ui-button--primary * {
+    forced-color-adjust: none;
+    color: HighlightText;
   }
 
   :root .ui-button--primary[data-disabled] {
